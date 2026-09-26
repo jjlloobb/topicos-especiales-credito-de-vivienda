@@ -1,6 +1,6 @@
 # Módulo 8 — A Producción: Paisaje CNCF, Agentes y GitOps
 
-**Sesiones 13 y 14 · sábados 24 y 31 de octubre de 2026 · 9:00–12:00**
+**Sesiones 13 y 14 · sábados 31 de octubre y 7 de noviembre de 2026 · 9:00–12:00**
 
 El módulo donde todo cierra. El producto que fijaste en el módulo 2, especificaste en
 el 3 y aprendiste a construir en los módulos 4 a 7, aquí llega a producción — y se
@@ -68,7 +68,7 @@ Helm, Crossplane, Trivy, Cosign, Cilium, Prometheus, OpenTelemetry, Grafana, Kyv
 
 ## Proyecto final
 
-La sustentación de la **sesión 16 (sábado 14 de noviembre de 2026)** presenta el arco
+La sustentación de la **sesión 16 (sábado 21 de noviembre de 2026)** presenta el arco
 completo:
 
 1. El **PVB** del módulo 2 y qué cambió desde entonces (si nada cambió, no investigaste)

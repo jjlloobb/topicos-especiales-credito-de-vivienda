@@ -1,6 +1,6 @@
 # Módulo 7 — Certified Kubernetes Security Specialist (CKS)
 
-**Sesiones 11 y 12 · sábados 10 y 17 de octubre de 2026 · 9:00–12:00**
+**Sesiones 11 y 12 · sábados 17 y 24 de octubre de 2026 · 9:00–12:00**
 
 El módulo más exigente del curso. Requiere tener CKA vigente para presentar el examen,
 y con razón: no se puede asegurar lo que no se sabe administrar.

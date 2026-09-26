@@ -1,6 +1,6 @@
 # Módulo 6 — Certified Kubernetes Application Developer (CKAD)
 
-**Sesiones 8 y 9 · sábados 19 y 26 de septiembre de 2026 · 9:00–12:00**
+**Sesiones 8 y 9 · sábados 26 de septiembre y 3 de octubre de 2026 · 9:00–12:00**
 
 Cambio de silla. En el módulo 5 el clúster era tuyo; aquí el clúster es de otro y tú
 tienes que desplegar una aplicación en él, sin permisos de administrador y sin romper
@@ -65,8 +65,41 @@ entra en bucle de reinicios y nunca llega a arrancar. Para eso existe `startupPr
 
 ---
 
+## Trabajo de proyecto final — el loop de agentes
+
+Este módulo lleva el **cuarto paso del proyecto final**: la máquina que construye el código.
+En el módulo 5 llegaste a las unidades con sus tareas y te detuviste antes de codificar. Aquí
+montas un loop de tres agentes con **modelos escalonados** que despacha esas tareas, las revisa
+con evidencia y las deja en un pull request.
+
+**Guía paso a paso:** [`proyecto-final-loop-de-agentes.md`](./proyecto-final-loop-de-agentes.md)
+**Los tres contratos listos para copiar:** [`agentes/`](./agentes/)
+
+| Papel | Modelo | Qué hace | Qué **no** hace |
+|---|---|---|---|
+| Orquestador | el más capaz (`fable`) | Despacha, arbitra, entrega | No escribe código |
+| Revisor | el siguiente (`opus`) | Corre los comandos él mismo y juzga | **No edita** |
+| Codificador | el siguiente (`sonnet`) | Implementa una tarea en su worktree | No fusiona |
+| Humano | — | **Fusiona** | — |
+
+El escalonamiento va al revés de la intuición a propósito: un error del codificador lo atrapa el
+revisor, pero **un error del revisor se va a producción**. La capacidad va donde equivocarse es
+más caro.
+
+Las tareas de unidades independientes se despachan **en paralelo**, cada codificador en su propio
+worktree de git. Y el techo del loop es la **revisión humana**: nadie fusiona sin un humano. Es
+la misma regla que en el módulo 8 impide que un agente toque producción.
+
+> El loop **no es una fase de AI-DLC**. Es una técnica de ejecución dentro de la etapa de
+> generación de código. El módulo 5 explica por qué confundirlas cuesta caro.
+
+---
+
 ## Cómo conecta con el resto del curso
 
 - **Módulo 3:** la imagen que despliegas aquí es la que construiste allá.
+- **Módulo 5:** de ahí vienen las unidades y las tareas que el loop despacha, y de ahí sale la
+  regla de que el criterio de aceptación se comprueba con un comando.
 - **Módulo 8:** los charts de Helm y los overlays de Kustomize son lo que Argo CD o
-  Flux van a reconciliar desde Git.
+  Flux van a reconciliar desde Git. Y el techo de revisión humana del loop es el mismo que
+  gobierna al agente dentro del clúster.

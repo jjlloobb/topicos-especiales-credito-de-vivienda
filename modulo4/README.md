@@ -33,16 +33,36 @@ Certificación de referencia: **KCNA** (Kubernetes and Cloud Native Associate).
 
 ## Laboratorio
 
-**Admission Webhooks y EndpointSlices** — 60 minutos, 5 pasos (requiere Kubernetes 1.28+):
+[**Kubernetes: primeras cargas de trabajo y el loop de reconciliación**](./laboratorio-kubernetes.md),
+en clase, 70–80 minutos, 4 pasos. Se hace sobre un clúster `kind` de un solo nodo que
+tú creas y borras en la misma sesión:
 
-1. Desplegar un Deployment y un Service, y observar los EndpointSlices que se crean
-2. Observar el loop Watch-Diff-Update: borrar un pod y ver cómo se recrea
-3. Crear un `MutatingWebhookConfiguration`
-4. Verificar Node Memory Swap y cgroup v2
-5. Escalar réplicas y ver los EndpointSlices actualizarse en vivo
+| Paso | Contenido | Tiempo |
+|---|---|---|
+| 0 | Verificar herramientas y crear el clúster (`kind create cluster`, sin configuración) | ~7 min |
+| 1 | La arquitectura de verdad: static pods, kubelet bajo systemd, `containerd` vía `crictl` | ~13 min |
+| 2 | Desplegar cargas de trabajo: Pod, Deployment y Service sin memorizar YAML (`--dry-run=client -o yaml`), EndpointSlice y CoreDNS | ~30 min |
+| 3 | Auto-reparación y escalado: borrar un pod, matar un contenedor por CRI, escalar 3→5→2 y ver a `kube-proxy` seguir | ~20 min |
 
-**Herramientas:** `kubectl`, EndpointSlices, Admission Webhooks, Helm, Kustomize,
-CNI (Cilium, Calico, Flannel), `containerd` / CRI-O.
+Los cuatro pasos son el núcleo y cada uno depende del anterior: no se saltan. Dos ideas
+atraviesan el paso 2 y se aplican al resto del curso: **el YAML de Kubernetes no se
+memoriza, se genera** con `kubectl create/run/expose … --dry-run=client -o yaml`, y **la
+documentación oficial de `kubernetes.io/docs` se consulta siempre**, en el trabajo real y
+en los exámenes prácticos de la CNCF.
+
+**Anexo opcional (para casa, no se hace en clase):** al final del mismo archivo, unos 50
+minutos más con admission control (`LimitRanger` y tu propio `MutatingWebhookConfiguration`)
+y cgroup v2 con Node Memory Swap. Requiere recrear el clúster con un archivo de
+configuración de `kind` y tener `openssl` instalado.
+
+**Requisitos:** Linux con Docker Engine activo, `kind` v0.32.0+ y `kubectl` v1.36.x
+(soportado dentro de un *minor* del API server). El anexo opcional añade `openssl`, y swap
+activo en el host si quieres ver números reales.
+
+**Herramientas y conceptos:** `kubectl`, `kind`, `crictl`, Pods, Deployments, ReplicaSets,
+Services, EndpointSlices, CoreDNS, `containerd` / CRI, CNI (aquí `kindnet`; en producción
+Cilium, Calico, Flannel). En el anexo: Admission Webhooks, `LimitRange`, cgroup v2, Node
+Memory Swap. Helm y Kustomize se mencionan en la sesión, pero este laboratorio no los usa.
 
 ---
 
