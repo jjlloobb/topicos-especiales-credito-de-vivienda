@@ -720,16 +720,22 @@ Escenario: pico simulado
 **Como** CRO, **quiero** métricas, logs, trazas, health checks y alertas con un runbook por alerta, **para** atender incidentes con un proceso claro.
 - Persona: P3, P2 · Requisitos: NFR-RES-06, NFR-RES-07, NFR-RES-08, NFR-RES-15, NFR-SEC-14 · Restricciones: RESILIENCY-05..07, RESILIENCY-15, SECURITY-14, AUTONOMIA-05
 ```gherkin
-Escenario: dependencia caída
-  Dado que la BD no responde
-  Cuando se consulta la readiness de scoring-service
+Escenario: base de datos propia caída
+  Dado que case-db no responde
+  Cuando se consulta la readiness de case-service
   Entonces falla y el pod sale del balanceo
+
+Escenario: dependencia aguas abajo caída
+  Dado que explainability-service o governance-service no responden
+  Cuando se consulta la readiness de scoring-service
+  Entonces sigue lista
+  Y las solicitudes reciben un FailClosed tipificado, no errores de conexión
 
 Escenario: alerta con runbook
   Cuando se dispara cualquier alerta definida
   Entonces incluye la anotación runbook_url hacia un runbook existente en el repositorio
 ```
-**Verificación:** `promtool test rules` + script que comprueba que cada regla tiene un `runbook_url` resoluble + prueba de readiness con BD caída.
+**Verificación:** `promtool test rules` + script que comprueba que cada regla tiene un `runbook_url` resoluble + pruebas de readiness en kind: `case-db` caída → case-service no listo (lo mismo para governance y el registro con sus bases); explainability o governance caídos → scoring listo y `FailClosed` tipificado. Criterio de NFR-RES-07 precisado (P-U1-04 de U1).
 
 ### US-611 — Endurecimiento del gateway y de la SPA · `M`
 **Como** oficial de cumplimiento, **quiero** rate limiting, validación de tamaño, cabeceras de seguridad y errores genéricos, **para** reducir la superficie de abuso.

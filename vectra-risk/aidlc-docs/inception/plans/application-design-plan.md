@@ -31,7 +31,7 @@ C) Dentro de `scoring-service`, con endpoints de administración protegidos por 
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ## Question 2
 **Propiedad del Decision Registry.**
@@ -42,7 +42,7 @@ B) BD compartida: cada servicio escribe con su rol de BD en tablas del registro,
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ## Question 3
 **Ciclo de vida del caso y orquestación** (bandeja, estados, reintentos con backoff, escalamiento; US-107, US-112).
@@ -53,7 +53,7 @@ B) `scoring-service` orquesta todo: ingesta, estados del caso, reintentos, expli
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ## Question 4
 **Comunicación síncrona o asíncrona.** Los reintentos, el cálculo periódico de sesgo y los eventos de gobierno necesitan algún mecanismo diferido.
@@ -64,7 +64,7 @@ B) Agregar un broker de mensajes in-cluster (NATS JetStream o Redpanda) para ing
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ## Question 5
 **API Gateway y acceso de la SPA.**
@@ -77,7 +77,7 @@ C) Un gateway estándar sin BFF: la SPA llama directamente a las APIs de cada se
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ## Question 6
 **Dónde se calcula SHAP** (clave para el fail-closed).
@@ -88,7 +88,7 @@ B) `explainability-service` es autónomo: carga el artefacto del modelo por `mod
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ## Question 7
 **Mecanismo de congelamiento** (US-303, AUTONOMIA-04).
@@ -99,7 +99,7 @@ B) `bias-monitoring-service` modifica el `InferenceService`: lo escala a 0 o le 
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ## Question 8
 **Métricas de negocio** (North Star, métrica de ruido, tasa sostenida; US-503..505).
@@ -110,26 +110,26 @@ B) Cada servicio emite contadores y todas las métricas de negocio se derivan co
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ---
 
 ## Parte B — Checklist de ejecución
 
-- [ ] 1. Analizar el contexto (requirements, stories, personas, PRD §9) y fijar el inventario de componentes según Q1–Q8
-- [ ] 2. Generar `aidlc-docs/inception/application-design/components.md`
-  - [ ] 2.1 Propósito, responsabilidades e interfaces de cada componente
-  - [ ] 2.2 Clasificación de criticidad y efecto de su indisponibilidad (RESILIENCY-01)
-  - [ ] 2.3 Restricciones AUTONOMIA/SECURITY que aplican a cada componente
-- [ ] 3. Generar `component-methods.md`
-  - [ ] 3.1 Firmas de métodos/endpoints con tipos de entrada y salida (sin reglas de negocio detalladas)
-  - [ ] 3.2 Contrato de sincronía scoring ↔ explicación ↔ registro (`model_version_id`, `policy_version_id`)
-  - [ ] 3.3 Interfaz reemplazable de narrativa (FR-EXP-06)
-- [ ] 4. Generar `services.md`
-  - [ ] 4.1 Orquestación de los flujos: originación (7.1), promoción de modelo (7.2), desincronía (7.3), congelamiento (7.4), expediente (caso de uso 2)
-- [ ] 5. Generar `component-dependency.md`
-  - [ ] 5.1 Matriz de dependencias y patrones de comunicación
-  - [ ] 5.2 Diagrama de flujo de datos (Mermaid validado + alternativa en texto)
-  - [ ] 5.3 Fronteras de confianza y egress permitido (AUTONOMIA-05)
-- [ ] 6. Generar `application-design.md` consolidado
-- [ ] 7. Validar que el diseño es completo y consistente: cada historia tiene al menos un componente responsable; compliance de extensiones
+- [x] 1. Analizar el contexto (requirements, stories, personas, PRD §9) y fijar el inventario de componentes según Q1–Q8
+- [x] 2. Generar `aidlc-docs/inception/application-design/components.md`
+  - [x] 2.1 Propósito, responsabilidades e interfaces de cada componente
+  - [x] 2.2 Clasificación de criticidad y efecto de su indisponibilidad (RESILIENCY-01)
+  - [x] 2.3 Restricciones AUTONOMIA/SECURITY que aplican a cada componente
+- [x] 3. Generar `component-methods.md`
+  - [x] 3.1 Firmas de métodos/endpoints con tipos de entrada y salida (sin reglas de negocio detalladas)
+  - [x] 3.2 Contrato de sincronía scoring ↔ explicación ↔ registro (`model_version_id`, `policy_version_id`)
+  - [x] 3.3 Interfaz reemplazable de narrativa (FR-EXP-06)
+- [x] 4. Generar `services.md`
+  - [x] 4.1 Orquestación de los flujos: originación (7.1), promoción de modelo (7.2), desincronía (7.3), congelamiento (7.4), expediente (caso de uso 2)
+- [x] 5. Generar `component-dependency.md`
+  - [x] 5.1 Matriz de dependencias y patrones de comunicación
+  - [x] 5.2 Diagrama de flujo de datos (Mermaid validado + alternativa en texto)
+  - [x] 5.3 Fronteras de confianza y egress permitido (AUTONOMIA-05)
+- [x] 6. Generar `application-design.md` consolidado
+- [x] 7. Validar que el diseño es completo y consistente: cada historia tiene al menos un componente responsable; compliance de extensiones

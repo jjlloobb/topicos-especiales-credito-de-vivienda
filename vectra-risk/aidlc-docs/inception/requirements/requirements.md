@@ -276,7 +276,7 @@ Trazabilidad: sección del PRD de origen.
 | NFR-RES-04 | Gestión de cambios propuesta: PR + evidencia + aprobación humana + nota de rollback; historial = Git + Decision Registry para eventos de modelo/política | RESILIENCY-03, R3 |
 | NFR-RES-05 | CI GitHub Actions; CD Argo CD sync manual; rollback = revert + sync / `helm rollback` aprobado; servicios con rolling update | RESILIENCY-04, R4–R6 |
 | NFR-RES-06 | Métricas (latencia, errores, throughput, saturación), logs centralizados, **tracing distribuido in-cluster** (p. ej. OpenTelemetry → backend self-hosted) y dashboards Grafana | RESILIENCY-05, AUTONOMIA-05 |
-| NFR-RES-07 | Health checks liveness/readiness; readiness profunda (BD, KServe, explainability) en servicios críticos | RESILIENCY-06 |
+| NFR-RES-07 | Health checks liveness/readiness; readiness profunda (BD, KServe, explainability) en servicios críticos. **Precisado el 2026-10-03 (U1 NFR Design, P-U1-04):** la readiness incluye solo las dependencias propias de datos de cada servicio; governance/`serving-config`, KServe, explainability y el registro quedan fuera porque su caída la maneja el fail-closed | RESILIENCY-06 |
 | NFR-RES-08 | Alarmas de resiliencia: réplica de BD caída o rezagada, fallos de backup, operación en una sola zona, saturación de HPA | RESILIENCY-07 |
 | NFR-RES-09 | Un sitio, ≥ 2 zonas de fallo: réplicas de servicios repartidas con topology spread, PostgreSQL con réplica síncrona en otra zona | RESILIENCY-08, R7 |
 | NFR-RES-10 | HPA con mínimo/máximo por servicio y escalado KServe, validado con carga simulada; cuotas de recursos del namespace documentadas | RESILIENCY-09, R8 |

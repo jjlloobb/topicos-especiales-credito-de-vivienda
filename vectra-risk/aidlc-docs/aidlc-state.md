@@ -4,8 +4,8 @@
 - **Project Name**: Vectra Risk
 - **Project Type**: Greenfield
 - **Start Date**: 2026-09-26T13:02:25Z
-- **Current Phase**: INCEPTION
-- **Current Stage**: INCEPTION - Application Design — esperando respuestas del plan
+- **Current Phase**: CONSTRUCTION
+- **Current Stage**: CONSTRUCTION - U7 scoring-explainability - Functional Design (esperando respuestas)
 - **Requirements Depth**: Comprehensive (sistema regulado, alto riesgo, múltiples stakeholders)
 
 ## Workspace State
@@ -37,6 +37,11 @@
 | Resiliency Baseline | Yes (full, blocking) | Requirements Analysis |
 | Property-Based Testing | Yes (full enforcement, PBT-01..10) | Requirements Analysis |
 
+## Project-Wide Decisions
+| Decisión | Valor | Decidido en |
+|---|---|---|
+| Pruebas de resiliencia (RESILIENCY-14, NFR-RES-14) | C: diferir la ejecución a Operations; cada unidad con runtime documenta sus escenarios en NFR Design o Infrastructure Design (escenarios mínimos en `construction/contracts/nfr-design/nfr-design-patterns.md` P-U0-08) | U0 NFR Design, 2026-10-03T09:20:34Z |
+
 ## Execution Plan Summary
 - **Stages to Execute**: Application Design, Units Generation; por unidad: Functional Design, NFR Requirements, NFR Design, Infrastructure Design, Code Generation Part 1 (Planning)
 - **Stages to Skip**: Reverse Engineering (greenfield); Code Generation Part 2 y Build and Test (fuera de alcance por instrucción del usuario)
@@ -48,8 +53,8 @@
 - [x] Requirements Analysis — aprobado 2026-09-26T13:36:39Z
 - [x] User Stories — aprobado 2026-09-26T13:46:11Z
 - [x] Workflow Planning — aprobado 2026-09-26T14:05:03Z
-- [ ] Application Design — EXECUTE (OBLIGATORIA) — EN CURSO: plan y preguntas emitidos
-- [ ] Units Generation — EXECUTE (OBLIGATORIA)
+- [x] Application Design — aprobado 2026-09-26T16:16:15Z
+- [x] Units Generation — aprobado 2026-09-26T16:43:40Z (13 unidades)
 
 ### 🟢 CONSTRUCTION PHASE (por unidad)
 - [ ] Functional Design — EXECUTE
@@ -63,6 +68,23 @@
 - [ ] Operations — PLACEHOLDER
 
 ## Current Status
-- **Lifecycle Phase**: INCEPTION
-- **Current Stage**: Application Design (esperando respuestas)
-- **Next Stage**: Units Generation
+- **Lifecycle Phase**: CONSTRUCTION
+- **Current Stage**: U7 scoring-explainability — Functional Design
+- **Next Stage**: U7 scoring-explainability — NFR Requirements
+
+## Per-Unit Progress (CONSTRUCTION)
+| Unidad | FD | NFR Req | NFR Design | Infra Design | Plan de tareas |
+|---|---|---|---|---|---|
+| U0 contracts | aprobado 2026-10-03T08:58:44Z | aprobado 2026-10-03T09:16:13Z | aprobado 2026-10-03T09:26:29Z | SKIP | aprobado 2026-10-03T09:39:46Z |
+| U1 platform-foundation | SKIP | aprobado 2026-10-03T10:01:39Z | aprobado 2026-10-03T10:19:24Z | aprobado 2026-10-03T10:44:59Z | aprobado 2026-10-03T10:52:00Z |
+| U2 identity-edge | aprobado 2026-10-03T11:05:10Z | aprobado 2026-10-03T11:18:11Z | aprobado 2026-10-03T11:26:41Z | aprobado 2026-10-03T11:36:53Z | aprobado 2026-10-03T11:40:12Z |
+| U3 decision-registry | aprobado 2026-10-03T11:52:56Z | aprobado 2026-10-03T12:06:26Z | aprobado 2026-10-03T12:16:10Z | aprobado 2026-10-03T12:24:50Z | aprobado 2026-10-03T12:28:30Z |
+| U4 governance | aprobado 2026-10-03T12:39:24Z | aprobado 2026-10-03T12:50:53Z | aprobado 2026-10-03T12:58:28Z | aprobado 2026-10-03T13:08:38Z | aprobado 2026-10-03T13:12:18Z |
+| U5 reference-model | aprobado 2026-10-03T13:29:02Z | aprobado 2026-10-03T13:33:47Z | SKIP | SKIP | aprobado 2026-10-03T13:40:29Z |
+| U6 model-serving | SKIP | aprobado 2026-10-03T13:49:53Z | aprobado 2026-10-03T14:01:54Z | aprobado 2026-10-03T14:08:03Z | aprobado 2026-10-03T14:09:39Z |
+| U7 scoring-explainability | EN CURSO | pendiente | pendiente | pendiente | pendiente |
+| U8 case-management | pendiente | pendiente | pendiente | pendiente | pendiente |
+| U9 bias-monitoring | pendiente | pendiente | pendiente | pendiente | pendiente |
+| U10 console | pendiente | pendiente | pendiente | pendiente | pendiente |
+| U11 product-metrics | pendiente | pendiente | pendiente | pendiente | pendiente |
+| U12 system-verification | pendiente | pendiente | SKIP | pendiente | pendiente |
