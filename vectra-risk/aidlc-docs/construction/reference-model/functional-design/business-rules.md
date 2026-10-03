@@ -106,4 +106,4 @@ adversarial.
 | U4 (FD) | `ModelVersion` registra `manifest_uri` y `manifest_sha256`; BR-U4-06 verifica **cada** archivo listado en el manifiesto (formato permitido, sin bytes mágicos de pickle, SHA-256) y que todos lleven el mismo `model_version_id` | El paquete tiene más archivos que predictor y explicador (Q4, Q5) |
 | U0 (FD) | `derive(application, evaluated_at, feature_spec)`: además de las features estándar, aplica las búsquedas del `feature_spec` del paquete activo, solo sobre campos permitidos de `ApplicationIn` (nunca identificadores directos ni `free_text`) | Variante proxy (Q6) |
 | U6 (pendiente) | El predictor de U6 calcula `confidence` con `domain_envelope.json` (BR-U5-12) | Q5 |
-| U7/U8 (pendiente) | El `FeatureVector` se arma con el `feature_spec` de la versión activa | Q6 |
+| U7/U8 | El `FeatureVector` se arma con el `feature_spec` de la versión activa. **Resuelto** por U8 FD Q1 (BR-U8-05): case-service lee el `feature_spec` de governance (F104) en cada intento y scoring rechaza un vector de otra versión | Q6 |

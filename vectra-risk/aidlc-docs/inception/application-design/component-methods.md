@@ -70,6 +70,7 @@ Grafana (F06), con login OIDC y permisos por equipo.
 | `record_decision(case_id, d) -> DecisionRef` | `POST /api/console/cases/{id}/decision` | analista | — | el caso está `listo` (si no, 409); la decisión queda a nombre del llamante | case `record_decision` |
 | `create_applicant_summary(case_id) -> ApplicantSummary` | `POST /api/console/cases/{id}/applicant-summary` | analista, cro | — | caso `decidido` con explicación sincronizada | explainability `applicant_summary` |
 | `list_persistent_failures() -> list[CaseSummary]` | `GET /api/console/cases/failures` | cro | — | — | case `list_persistent_failures` |
+| `retry_case(case_id) -> CaseRef` | `POST /api/console/cases/{id}/retry` | cro | — | el caso está `no_disponible` y no anonimizado (si no, 409) | case `retry_case` (agregado por U8 FD Q2) |
 | `get_dossier(case_id) -> Dossier` | `GET /api/console/cases/{id}/dossier` | cro, cumplimiento | — | el caso existe | registry `get_case_dossier` + case `get_case` (identificadores directos); el BFF compone, el registro no toca identificadores (U3 FD Q7) |
 | `run_integrity_check() -> IntegrityReport` | `POST /api/console/integrity-checks` | cro | sí | — | registry `verify_chain` |
 
@@ -126,6 +127,7 @@ rol × endpoint de US-602 se genera desde esta tabla.
 | `record_explanation_view(case_id, user) -> None` | `POST /v1/cases/{id}/explanation-views` | → evento al registro | BFF |
 | `record_decision(case_id, d: DecisionIn, user) -> DecisionRef` | `POST /v1/cases/{id}/decision` | sigue / se aparta / resuelve_revision + factores + texto → registro (BR-U0-35) | BFF (analista) |
 | `list_persistent_failures(user) -> list[CaseSummary]` | `GET /v1/cases/failures` | → casos `no_disponible` | BFF (CRO) |
+| `retry_case(case_id, user) -> CaseRef` | `POST /v1/cases/{id}/retry` | caso `no_disponible` → `en_evaluacion` con intentos en cero (BR-U8-11; agregado por U8 FD Q2) | BFF (CRO) |
 | `evaluate(case_id) -> RecommendResult` | interno (worker) | invoca a scoring; reprograma el reintento | cola de trabajos |
 
 ## C05 `scoring-service`
@@ -140,7 +142,7 @@ rol × endpoint de US-602 se genera desde esta tabla.
 | Operación | Endpoint | Entrada → Salida | Llamado por |
 |---|---|---|---|
 | `explain(req: ExplainRequest) -> Explanation` | `POST /v1/explanations` | features + `model_version_id` → explicación; error tipificado si la versión no coincide o la factualidad falla | scoring-service |
-| `applicant_summary(case_id, user) -> ApplicantSummary` | `POST /v1/applicant-summaries` | → resumen apto para el solicitante (sin SHAP ni versión) | BFF (CRO, analista) |
+| `applicant_summary(case_id, recommendation_entry_id, user) -> ApplicantSummary` (el `recommendation_entry_id` lo pone el BFF desde el caso; U7 NFR Design Q3) | `POST /v1/applicant-summaries` | → resumen apto para el solicitante (sin SHAP ni versión) | BFF (CRO, analista) |
 
 Interfaces internas reemplazables (FR-EXP-06):
 ```python
@@ -173,6 +175,8 @@ En el MVP solo existe `TemplateNarrativeGenerator`. Un futuro `InClusterLLMNarra
 | `freeze_model(mv_id, ctx: FreezeContext)` | `POST /v1/models/{id}/freeze` | **solo** identidad `bias-monitoring` |
 | `resolve_frozen(mv_id, action: Literal["reactivar","descartar","investigar"], justification, user)` | `POST /v1/models/{id}/frozen-resolution` | BFF (**solo** cumplimiento, con MFA) |
 | `get_active_serving_config() -> ServingConfig` | `GET /v1/serving-config` | scoring-service (lectura: versión activa, estado, política vigente) |
+| `get_feature_spec(mv_id) -> FeatureSpec` | `GET /v1/models/{id}/feature-spec` | case-service (F104, scope `governance:read-feature-spec`; agregado por U8 FD Q1) |
+| `get_feature_dictionary(mv_id) -> FeatureDictionary` | `GET /v1/models/{id}/feature-dictionary` | explainability-service (F103, scope `governance:read-dictionary`; agregado por U7 FD Q4) |
 | `propose_policy(p: PolicyDraft, user) -> PolicyVersion` | `POST /v1/policies` | BFF (cro) |
 | `approve_policy(pv_id, user)` | `POST /v1/policies/{id}/approval` | BFF (cro, con MFA) |
 | `propose_data_source(s: DataSourceProposal, user)` | `POST /v1/data-sources` | BFF (ingeniero_riesgo) |

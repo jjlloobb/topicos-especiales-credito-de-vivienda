@@ -21,6 +21,8 @@ actualizados por este diseño. Aquí se definen las entidades de `governance-db`
 | `inference_service` | `str` | `isvc-<primeros 8 hex del model_version_id>` (U6, azul/verde) |
 | `manifest_uri`, `manifest_sha256` | `str` | `manifest.json` del paquete (U5): lista cada archivo (predictor, explicador, fondo, envolvente de dominio, diccionario, especificación de features) con su SHA-256 (agregado por U5 FD) |
 | `feature_dictionary_version` | `str` | Diccionario de features de esa versión (U0 §4) |
+| `feature_dictionary` | JSON | Copia del `feature_dictionary.json` del paquete, guardada al registrar tras verificar su SHA-256; la sirve `GET /v1/models/{id}/feature-dictionary` (agregado por U7 FD Q4) |
+| `feature_spec` | JSON | Copia del `feature_spec.json` del paquete, con sus tablas de búsqueda, guardada al registrar tras verificar su SHA-256; la sirve `GET /v1/models/{id}/feature-spec` (BR-U4-19; agregado por U8 FD Q1) |
 | `data_sources` | `list[ds_id]` | Fuentes aprobadas que usa (Q8) |
 | `registered_by` | `sub` | `ingeniero_riesgo` |
 | `approved_by?` | `sub` | `cro`, distinto de `registered_by` (Q3) |
@@ -88,7 +90,7 @@ vigencias no se solapan (BR-U0-33), hay a lo sumo uno.
 | `policy_version_id` | La política `activa` |
 | `feature_dictionary_version` | De la versión de modelo |
 | `inference_service` | `ModelVersion.inference_service` de la versión en `activo` o `congelado` (`isvc-<8 hex>`); es lo que scoring y explainability usan para saber a qué `InferenceService` llamar (azul/verde, P-U6-02; agregado aquí el 2026-10-03, faltaba en esta tabla aunque ya estaba en el contrato de U0) |
-| `normative_current` | `normative_at(policy, hoy)`; nulo → scoring trata `serving_state = no_disponible` (fail-closed) |
+| `normative_current` | `normative_at(policy, hoy)`; nulo → la política de scoring da `revision_requerida` con `parametro_normativo_no_vigente` (precisado el 2026-10-03 por U7 FD Q1: alinea con US-207) |
 | `bias_monitoring_age_s` | Edad del último cálculo de disparidad que informó U9 |
 | `effective_from` | Momento de la última transición confirmada |
 | `etag` | SHA-256 del contenido canónico (JCS) de todos los campos anteriores salvo `bias_monitoring_age_s` (incluido `inference_service`); cambia si y solo si cambia el contenido, así que un cambio de `InferenceService` en `mark_active` dispara la convergencia de P-U4-01 y el límite de ≤ 6 s de BR-U4-14 |

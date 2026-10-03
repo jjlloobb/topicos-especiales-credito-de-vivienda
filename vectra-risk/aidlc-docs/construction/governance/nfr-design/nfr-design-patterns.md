@@ -65,7 +65,7 @@ Dos réplicas nunca procesan la misma fila.
 - Un cambio de `normative_current` cambia el `etag`.
 - `NormativeParamsExpiring` usa la misma zona: SEV2 15 días antes, SEV1 el día del vencimiento.
 - **Verificación**: PBT-U4-03 con fechas alrededor de la medianoche de Bogotá (05:00 UTC); prueba con reloj simulado: a las 23:59:59 y a las 00:00:00 de Bogotá, `normative_current` cambia exactamente al pasar la medianoche, no a las 19:00 de Bogotá (00:00 UTC).
-- **Satisface**: BR-U4-11; AUTONOMIA-06 (nunca se evalúa con un tope vencido).
+- **Satisface**: BR-U4-11. Un tope vencido **nunca se usa**: al pasar la medianoche de Bogotá del fin de la vigencia, `normative_current` pasa a nulo, así que la tasa no se compara contra ningún tope. La solicitud **sí se evalúa**, pero la política de scoring fuerza `revision_requerida` con el motivo `parametro_normativo_no_vigente` (U7, BR-U7-04..06). No hay aprobación silenciosa ni fail-closed. Precisado el 2026-10-03: antes citaba AUTONOMIA-06 bajo el supuesto, revertido por U7 FD Q1, de que sin vigencia había fail-closed.
 
 ## 3. Seguridad
 
@@ -120,7 +120,6 @@ Revisada contra el cuerpo del documento antes de presentarla.
 | SECURITY-08 | Cumple | P-U4-06 |
 | SECURITY-11 | Cumple | P-U4-06 (cuarta barrera: defensa en profundidad) |
 | SECURITY-14 | Cumple | P-U4-08 |
-| SECURITY-15 | Cumple | P-U4-02 (sin ack, sin efecto), P-U4-05 (sin normativa vigente → fail-closed) |
+| SECURITY-15 | Cumple | P-U4-02 (sin ack, sin efecto), P-U4-05 (sin normativa vigente, `normative_current` nulo y revisión humana obligatoria en U7) |
 | AUTONOMIA-02 | Cumple | Cada patrón, de P-U4-01 a P-U4-08, tiene su «Verificación» |
 | AUTONOMIA-04 | Cumple | P-U4-06; P-U4-01 (el congelamiento se propaga en ≤ 6 s) |
-| AUTONOMIA-06 | Cumple | P-U4-05 |

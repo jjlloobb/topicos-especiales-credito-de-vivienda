@@ -70,6 +70,7 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 | `/auth/**` | IP de origen | Dirección que fija Envoy desde el balanceador de confianza (NFR-U2-23) |
 
 - Las cabeceras internas se **eliminan** de la request entrante antes del filtro JWT (un cliente no puede inyectarlas) y otra vez antes de enviar la request al backend.
+- «Cabeceras internas» = toda cabecera con el prefijo reservado `x-vectra-` (incluidas `x-vectra-sub`, `x-vectra-azp` y `x-vectra-deadline` de U7). Una cabecera legítima de un cliente externo no puede usar ese prefijo; por ejemplo, el simulador usa `X-Test-Scenario` (precisado el 2026-10-03 por U8 FD Q9).
 - **Verificación**: en kind, un cliente que manda `x-vectra-sub: otro` no cambia su contador; el backend de eco no recibe las cabeceras internas.
 - **Satisface**: NFR-U2-20; SECURITY-11.
 

@@ -39,7 +39,7 @@ B) **Mantener U4**: fail-closed sin recomendación, y se corrige US-207
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ## Question 2 — Qué significa el `score` (Domain Model)
 
@@ -49,7 +49,7 @@ B) Puntaje de aprobación (más alto = mejor)
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ## Question 3 — Orden de las reglas de la política y cómo se combinan los motivos (Business Rules, US-103, US-106, US-207)
 
@@ -66,7 +66,7 @@ B) Las reglas se evalúan en orden y se detienen en la primera que aplica (un so
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ## Question 4 — De dónde saca explicabilidad el diccionario de features (Integration, U0 Q5)
 **Hueco en el inventario.** U0 decidió que «U5 produce el diccionario, governance lo registra
@@ -80,7 +80,7 @@ B) explicabilidad lo lee directamente del model-store con una credencial de solo
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ## Question 5 — Plantilla de la narrativa (Business Logic, US-104)
 
@@ -90,7 +90,7 @@ B) Todos los factores con su valor SHAP numérico
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ## Question 6 — Cómo valida la factualidad (Business Logic, US-105)
 
@@ -105,7 +105,7 @@ B) Comparar la narrativa con una segunda ejecución del mismo generador
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ## Question 7 — Resumen para el solicitante (Business Logic, US-110)
 
@@ -121,16 +121,16 @@ B) Se genera automáticamente con cada decisión desfavorable y se guarda en el 
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ---
 
 ## Parte B — Checklist de ejecución
 
 - [x] 1. Analizar el contexto (unit-of-work, historias, requisitos FR-SCO/FR-EXP, decisiones de U0, U3, U4, U5 y U6)
-- [ ] 2. Recoger y validar las respuestas
-- [ ] 3. Generar `construction/scoring-explainability/functional-design/domain-entities.md`
-- [ ] 4. Generar `construction/scoring-explainability/functional-design/business-rules.md`
-- [ ] 5. Generar `construction/scoring-explainability/functional-design/business-logic-model.md` (flujos de scoring y explicabilidad; PBT)
-- [ ] 6. Aplicar y registrar los cambios a otras unidades que resulten (Q1, Q4)
-- [ ] 7. Verificar el cumplimiento de las extensiones (autorrevisión de la tabla contra el cuerpo)
+- [x] 2. Recoger y validar las respuestas
+- [x] 3. Generar `construction/scoring-explainability/functional-design/domain-entities.md`
+- [x] 4. Generar `construction/scoring-explainability/functional-design/business-rules.md`
+- [x] 5. Generar `construction/scoring-explainability/functional-design/business-logic-model.md` (flujos de scoring y explicabilidad; PBT)
+- [x] 6. Aplicar y registrar los cambios a otras unidades que resulten (Q1, Q4)
+- [x] 7. Verificar el cumplimiento de las extensiones (autorrevisión de la tabla contra el cuerpo)

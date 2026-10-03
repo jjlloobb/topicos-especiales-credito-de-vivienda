@@ -300,7 +300,7 @@ Trazabilidad: sección del PRD de origen.
 
 | ID | Requisito |
 |---|---|
-| NFR-PER-01 | Recomendación explicada disponible para el analista al abrir el caso (cálculo síncrono o precalculado en ingesta); latencia objetivo por request **[INTERNO]** a fijar en NFR Requirements; el scoring nunca es cuello de botella frente al target < 1 h |
+| NFR-PER-01 | Recomendación explicada disponible para el analista al abrir el caso (cálculo síncrono o precalculado en ingesta); latencia objetivo por request **[INTERNO]** a fijar en NFR Requirements (**fijada en U7**: `POST /v1/recommendations` p95 ≤ 400 ms y p99 ≤ 1 s a 10 solicitudes/s, NFR-U7-01); el scoring nunca es cuello de botella frente al target < 1 h |
 | NFR-USA-01 | Explicación en español sin jerga técnica; accesibilidad WCAG 2.1 AA como objetivo de la SPA |
 | NFR-MNT-01 | Contratos de API versionados (OpenAPI); servicios desacoplados por contrato; narrativa y método de explicación como interfaces reemplazables |
 | NFR-AUD-01 | Toda aprobación humana (modelo, política, fuente, reactivación) queda en el Decision Registry con `user_id`, rol y timestamp |

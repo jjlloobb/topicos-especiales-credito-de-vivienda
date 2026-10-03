@@ -10,7 +10,8 @@ Los IDs `BR-U0-xx` se referencian en los planes de tareas.
 directamente. Solo existen estas dos funciones puras:
 
 ```text
-check_preconditions(case_id, serving_state, prediction?, policy_result?,
+check_preconditions(case_id, serving_state, requested_model_version_id,
+                    serving_model_version_id?, prediction?, policy_result?,
                     explanation | ExplainerError ?, dictionary?, now)
     -> Ready | FailClosed
 
@@ -20,6 +21,7 @@ build_outcome(ready: Ready, registry_ack | RegistryError ?, now)
 
 - `check_preconditions` evalúa las causas 1–9 de BR-U0-02 y es la **única** que construye `Ready`.
 - `build_outcome` solo evalúa la causa 10 y es la **única** que construye `Recommendation`.
+- `requested_model_version_id` es el de `ScoringRequest` (la versión cuyo `feature_spec` armó el vector) y `serving_model_version_id` el de `serving-config` (ausente si no se pudo leer) (precisado el 2026-10-03 por U8 FD Q1).
 - Los tipos de entrada están en domain-entities §3.6. Ninguna rama fuera de estas dos funciones puede producir `Ready` ni `Recommendation`.
 
 **BR-U0-02 — Tabla de causas.** Una causa aplica cuando:
@@ -27,13 +29,13 @@ build_outcome(ready: Ready, registry_ack | RegistryError ?, now)
 | # | Causa | Fase | Aplica si |
 |---|---|---|---|
 | 1 | `model_frozen` | precondiciones | `serving_state == congelado` |
-| 2 | `serving_config_unavailable` | precondiciones | `serving_state == no_disponible`, o falta `prediction` o `policy_result` |
+| 2 | `serving_config_unavailable` | precondiciones | `serving_state == no_disponible`, o falta `prediction` o `policy_result` sin que haya discrepancia de versión pedida (causa 7) |
 | 3 | `model_output_invalid` | precondiciones | la salida de KServe no es finita o está fuera de [0, 1] (BR-U0-07) |
 | 4 | `timeout` | precondiciones | el explicador devolvió `ExplainerError.timeout` |
-| 5 | `explainer_unavailable` | precondiciones | el explicador devolvió `ExplainerError.unavailable`, **o** falta el resultado del explicador sin que aplique una causa anterior (S2) |
+| 5 | `explainer_unavailable` | precondiciones | el explicador devolvió `ExplainerError.unavailable`, **o** falta el resultado del explicador sin que aplique una causa anterior (S2) ni haya discrepancia de versión pedida (causa 7) |
 | 6 | `explainer_error` | precondiciones | el explicador devolvió `ExplainerError.error` |
-| 7 | `version_mismatch` | precondiciones | el explicador devolvió `ExplainerError.version_mismatch`, o `explanation.model_version_id ≠ prediction.model_version_id`, o `dictionary.model_version_id ≠ prediction.model_version_id` (BR-U0-81) |
-| 8 | `feature_dictionary_incomplete` | precondiciones | el explicador devolvió `ExplainerError.feature_dictionary_incomplete`, o falta `dictionary`, o `covers(dictionary, explanation.shap_vector)` es falso |
+| 7 | `version_mismatch` | precondiciones | el explicador devolvió `ExplainerError.version_mismatch`, o `explanation.model_version_id ≠ prediction.model_version_id`, o `dictionary.model_version_id ≠ prediction.model_version_id` (BR-U0-81), **o** `requested_model_version_id ≠ serving_model_version_id` con `serving_state == activo` (discrepancia de versión pedida: scoring no invoca a KServe ni al explicador, y esas ausencias son válidas, S2) (precisado el 2026-10-03 por U8 FD Q1) |
+| 8 | `feature_dictionary_incomplete` | precondiciones | el explicador devolvió `ExplainerError.feature_dictionary_incomplete`, o falta `dictionary` sin discrepancia de versión pedida, o `covers(dictionary, explanation.shap_vector)` es falso |
 | 9 | `factuality_failed` | precondiciones | el explicador devolvió `ExplainerError.factuality_failed` |
 | 10 | `registry_unavailable` | registro | se recibió `RegistryError`, **o** falta el resultado del registro (S2) |
 
@@ -77,8 +79,8 @@ silencioso.
 ```
 
 - Una dependencia que no se invocó se pasa **ausente**. Una ausencia solo es válida si ya aplicó una causa anterior (S2). Si no, se trata como la causa de su dependencia (5 o 10).
-- La entrada `recommendation` se escribe solo con lo que contiene `Ready`, así que lo que queda en el registro es exactamente lo que se entrega.
-- Si el registro no responde en el paso 4, el `FailClosed` igual se entrega; la entrada `fail_closed` se reintenta con el caso.
+- La entrada `recommendation` se escribe solo con lo que contiene `Ready`, así que todo lo que se **entrega** está en el registro, exactamente como se entregó. Al revés no siempre: si el registro confirma el commit después de que scoring dejó de esperar, queda una entrada que no se entregó. Esa entrada queda identificada: `human_decision.recommendation_entry_id` apunta a la entregada y el expediente marca las demás como `no_entregada` (BR-U3-14; P-U7-03) (precisado el 2026-10-03 por U7 NFR Design Q3).
+- Si el registro no responde en el paso 4, el `FailClosed` igual se entrega; la entrada `fail_closed` se reintenta con el caso. Eso significa que el **intento siguiente** del caso produce su propia entrada (BR-U7-16), no que se reintente la misma escritura. case-service no duplica las entradas por intento: escribe **una** sola entrada `fail_closed` (`retryable = false`) cuando el caso agota los reintentos (BR-U8-09) (precisado el 2026-10-03 por U8 FD Q4).
 
 ## 2. Cálculos financieros (Q8=A)
 
@@ -122,9 +124,10 @@ viven en U7 y U4, no aquí.
 | BR-U0-30 | Los errores de validación informan el nombre del campo y un `reason_code`, **nunca el valor recibido** | — |
 | BR-U0-31 | Cuerpo que no es JSON válido → `malformed_request`; `Content-Type` distinto de `application/json` → `unsupported_media_type` | `malformed_request` / `unsupported_media_type` |
 | BR-U0-32 | `DecisionIn.used_factors`: 1 a 20 `feature_id` sin repetir, **o** exactamente `["ninguno"]`; `"ninguno"` nunca se combina con otros valores | `validation_error` |
-| BR-U0-35 | `DecisionIn` (S4): `sigue` exige `final_outcome == recommendation.outcome`; `se_aparta` exige `final_outcome ≠ recommendation.outcome`; `resuelve_revision` solo es válido si `recommendation.outcome == revision_requerida`, y `sigue`/`se_aparta` solo si es `favorable` o `desfavorable`. U0 fija la regla; la comprobación contra el caso la implementa U8 | `conflict_state` |
+| BR-U0-35 | `DecisionIn` (S4): `sigue` exige `final_outcome == recommendation.outcome`; `se_aparta` exige `final_outcome ≠ recommendation.outcome`; `resuelve_revision` solo es válido si `recommendation.outcome == revision_requerida`, y `sigue`/`se_aparta` solo si es `favorable` o `desfavorable`. U0 fija la regla; la comprobación contra el caso la implementa U8, con la recomendación cuyo `registry_entry_id` guardó el caso, que es también el `recommendation_entry_id` de la entrada `human_decision` (precisado el 2026-10-03 por U7 NFR Design Q3) | `conflict_state` |
 | BR-U0-33 | `PolicyDraft`: `cutoff` y `low_confidence_threshold` en [0, 1]; en cada `normative`, `effective_to`, si existe, es posterior a `effective_from`, y las vigencias de la lista no se solapan (U4 FD Q4); `channel_rules` sin canales repetidos | `validation_error` |
 | BR-U0-34 | `FeatureValue`: el `value` concuerda con su `type`; las claves de `features` no incluyen campos de identificación de §1.1 ni `free_text` | `validation_error` |
+| BR-U0-36 | `DecisionIn.justification`: en `se_aparta` y `resuelve_revision` es obligatoria, de 20 a 2000 caracteres después de quitar los espacios del inicio y del final; en `sigue` puede estar vacía (precisado el 2026-10-03 por U8 FD Q5) | `validation_error` |
 
 ## 4. Derivación de `MonitoringLabels` (Q3=A)
 

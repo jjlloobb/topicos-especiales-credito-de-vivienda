@@ -73,7 +73,7 @@ Representación JSON (R5, BR-U0-15):
 ### 1.2 `CaseRef`, `CaseSummary` y `CaseDetail`
 - `CaseRef`: `case_id` (UUID), `state`.
 - `CaseSummary`: `case_id`, `state`, `channel`, `created_at`, `outcome?`. **Sin score** salvo en estado `listo` o `decidido`.
-- `CaseDetail`: resumen, más `recommendation?`, `credit_status?` y `decision?`.
+- `CaseDetail`: resumen, más `recommendation?`, `credit_status?` y `decision?`, `model_frozen_after_recommendation`, `anonymized`, `attempts` y `last_cause` (precisado el 2026-10-03 por U8 FD Q2 y Q7); detalle en U8 domain-entities §4.
 - Estados del caso: `en_evaluacion`, `listo`, `en_sincronizacion`, `no_disponible`, `modelo_congelado`, `decidido`. Las transiciones se detallan en el Functional Design de U8.
 
 ## 2. Features y etiquetas derivadas
@@ -186,7 +186,7 @@ Los parámetros de dependencias (`prediction`, `policy_result`, resultado del ex
 
 | Tipo | Campos |
 |---|---|
-| `ServingState` | `activo \| congelado \| no_disponible` (de `ServingConfig.state`; `no_disponible` si no se pudo leer **o** si `ServingConfig.normative_current` es nulo, U4 FD Q4) |
+| `ServingState` | `activo \| congelado \| no_disponible` (de `ServingConfig.state`; `no_disponible` solo si no se pudo leer. Un `normative_current` nulo **no** es `no_disponible`: la política produce `revision_requerida` con el motivo `parametro_normativo_no_vigente` (precisado el 2026-10-03 por U7 FD Q1: alinea con US-207)) |
 | `Prediction` | `model_version_id`, `score: Decimal4`, `confidence: Decimal4` (ya cuantizados, BR-U0-07) |
 | `PolicyResult` | `policy_version_id`, `outcome`, `reasons: list[ReasonCode]` |
 | `ExplainerError` | `timeout \| unavailable \| error \| version_mismatch \| factuality_failed \| feature_dictionary_incomplete` |
@@ -196,7 +196,7 @@ Los parámetros de dependencias (`prediction`, `policy_result`, resultado del ex
 
 `ReasonCode` es un catálogo cerrado y versionado con la política. Valores iniciales:
 `score_bajo_corte`, `score_sobre_corte`, `baja_confianza`, `vis`, `no_vis`,
-`tasa_sobre_usura`.
+`tasa_sobre_usura`, `parametro_normativo_no_vigente` (este último agregado por U7 FD Q1).
 
 ## 4. Diccionario de features (Q5=A)
 
@@ -234,7 +234,7 @@ reintento de la misma escritura; agregado por U3 FD Q5) y `payload` (según el t
 |---|---|
 | `recommendation` | `score`, `confidence`, `outcome`, `reasons`, `feature_vector` (sin identificadores), `feature_vector_hash`, `evaluated_at`, `monitoring_labels`, `explanation` (completa, tal como se mostrará). Se construye solo desde `Ready` (BR-U0-08) |
 | `fail_closed` | `cause`, `retryable`, `attempt` |
-| `human_decision` | `decision` (`sigue` \| `se_aparta` \| `resuelve_revision`), `final_outcome`, `used_factors: list[feature_id]` o `["ninguno"]`, `justification` (`str(max=2000)`), `explanation_viewed_before` (`bool`) |
+| `human_decision` | `decision` (`sigue` \| `se_aparta` \| `resuelve_revision`), `final_outcome`, `used_factors: list[feature_id]` o `["ninguno"]`, `justification` (`str(max=2000)`), `explanation_viewed_before` (`bool`), `recommendation_entry_id` (`registry_entry_id` de la recomendación entregada al caso; lo llena case-service desde el caso, no viene en `DecisionIn`) (precisado el 2026-10-03 por U7 NFR Design Q3) |
 | `explanation_view` | `viewed_at` |
 | `model_event` | `event` (`registrado`, `validacion_iniciada`, `informe_validacion`, `validacion_fallida`, `aprobado`, `rechazado`, `activado`, `inactivado`, `retirado`; los dos agregados por U4 FD Q1), `details` |
 | `policy_event` | `event` (`propuesta`, `activada`, `rechazada`, `historica`), `policy_version_id`. Aprobar y activar son el mismo acto (U4 FD Q4): `activada` lleva como actor al CRO aprobador; `historica` la escribe la misma acción para la política que deja de estar activa (corregido el 2026-10-03: antes tenía `aprobada` y `activada` por separado y no tenía `historica`) |
@@ -295,11 +295,13 @@ En `validation_error` se permite un campo adicional `invalid_params: [{name, rea
 |---|---|
 | `case:recommend` | case-service (llamar a scoring) |
 | `scoring:explain` | scoring-service (llamar a explainability) |
-| `governance:read-serving` | scoring-service |
+| `governance:read-serving` | scoring-service, case-service (este último agregado por U8 FD Q1) |
 | `governance:freeze` | bias-monitoring-service |
 | `governance:validation-report` | model-validation-job |
 | `governance:promotion` | promotion-tool, **con token del usuario** `ingeniero_riesgo` (`list_promotable`, `mark_active`), vía F08 |
 | `bias:compare` | governance-service |
+| `governance:read-dictionary` | explainability-service (leer el diccionario de features de una versión; agregado por U7 FD Q4) |
+| `governance:read-feature-spec` | case-service (leer el `feature_spec` de una versión para `derive`; agregado por U8 FD Q1) |
 | `registry:append:case` | case-service |
 | `registry:append:scoring` | scoring-service |
 | `registry:append:governance` | governance-service |
@@ -334,9 +336,10 @@ reglas de política, autorización por objeto) lo detalla la unidad dueña.
 
 | Tipo | Campos |
 |---|---|
-| `ScoringRequest` | `case_id`, `features: FeatureVector`, `monitoring_labels: MonitoringLabels`, `policy_inputs: PolicyInputs`, `attempt: int ≥ 1` |
+| `ScoringRequest` | `case_id`, `features: FeatureVector`, `monitoring_labels: MonitoringLabels`, `policy_inputs: PolicyInputs`, `attempt: int ≥ 1`, `model_version_id` (la versión cuyo `feature_spec` armó el vector; si difiere de `serving-config`, `version_mismatch`, BR-U0-02) (precisado el 2026-10-03 por U8 FD Q1) |
 | `PolicyInputs` | `property_value: COP`, `proposed_rate_ea: Decimal4`, `channel`; datos de la solicitud que la política necesita y que no son features (VIS, usura, reglas por canal) |
 | `ExplainRequest` | `case_id`, `model_version_id`, `features: FeatureVector`, `prediction_score: Decimal4` |
+| `ApplicantSummaryRequest` | `case_id`, `recommendation_entry_id` (lo pone el BFF desde el caso; BR-U7-13) (precisado el 2026-10-03 por U7 NFR Design Q3) |
 | `ApplicantSummary` | `case_id`, `factors: list[{label_es, direction: aumenta \| reduce}]` (solo entradas con `applicant_safe = true`), `posthoc_notice`, `generated_at`. **Sin** valores SHAP, `score` ni `model_version_id` (US-110) |
 
 ### 9.2 Casos (dueña: U8)
@@ -353,7 +356,7 @@ calcula case-service a partir de las entradas `explanation_view`.
 
 | Tipo | Campos |
 |---|---|
-| `ServingConfig` | `model_version_id`, `state: activo \| congelado`, `policy_version_id`, `feature_dictionary_version`, `effective_from`, `inference_service` (nombre del `InferenceService` de la versión servible, `isvc-<8 hex>`; agregado por U6 NFR Design Q2), `etag` (cambia si y solo si cambia el contenido), `normative_current: NormativeParams?` (el vigente a la fecha; nulo si no hay ninguno → fail-closed), `bias_monitoring_age_s: int` (U4 FD Q4, Q5, Q9) |
+| `ServingConfig` | `model_version_id`, `state: activo \| congelado`, `policy_version_id`, `feature_dictionary_version`, `effective_from`, `inference_service` (nombre del `InferenceService` de la versión servible, `isvc-<8 hex>`; agregado por U6 NFR Design Q2), `etag` (cambia si y solo si cambia el contenido), `normative_current: NormativeParams?` (el vigente a la fecha; nulo si no hay ninguno → la política da `revision_requerida` con `parametro_normativo_no_vigente`, precisado el 2026-10-03 por U7 FD Q1: alinea con US-207), `bias_monitoring_age_s: int` (U4 FD Q4, Q5, Q9) |
 | `PolicyDraft` | `cutoff: Decimal4` en [0, 1], `low_confidence_threshold: Decimal4` en [0, 1], `channel_rules: list[{channel, cutoff?: Decimal4}]`, `normative: list[NormativeParams]` (vigencias sin solaparse; se pueden cargar vigencias futuras, U4 FD Q4) |
 | `NormativeParams` | `vis_max_property_value: COP`, `usury_cap_ea: Decimal4`, `effective_from: date`, `effective_to: date?`, `source_ref: str(max=300)`. Los valores concretos son **[VERIFICAR]** contra la fuente oficial (FR-POL-02) |
 | `PolicyVersion` | `PolicyDraft`, más `policy_version_id`, `state: propuesta \| activa \| rechazada \| historica` (aprobar = activar de inmediato; la anterior pasa a `historica`, U4 FD Q4), `proposed_by`, `approved_by?` (distinto de `proposed_by`, U4 FD Q3), `created_at` |

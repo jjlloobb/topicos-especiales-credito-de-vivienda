@@ -4,7 +4,7 @@ Documento de síntesis. El detalle está en:
 - [`components.md`](./components.md): 18 componentes, responsabilidades, criticidad y restricciones.
 - [`component-methods.md`](./component-methods.md): tipos compartidos, contrato de sincronía y firmas, incluida la tabla de endpoints del BFF (rol, MFA y regla de objeto).
 - [`services.md`](./services.md): orquestación de los flujos S1–S9.
-- [`component-dependency.md`](./component-dependency.md): **inventario cerrado** de flujos de red (F01–F102, ampliado en U1, U2, U3 y U4 Infrastructure Design), acceso a la API de Kubernetes (K01–K14), roles de BD, egress, flujos prohibidos (X01–X10), diagrama y fronteras de confianza.
+- [`component-dependency.md`](./component-dependency.md): **inventario cerrado** de flujos de red (F01–F104, ampliado en U1, U2, U3 y U4 Infrastructure Design y en U7 y U8 FD), acceso a la API de Kubernetes (K01–K14), roles de BD, egress, flujos prohibidos (X01–X10), diagrama y fronteras de confianza.
 
 ---
 

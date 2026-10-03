@@ -36,7 +36,7 @@ Design.
 - Cualquier fallo del paso 3.d–3.f devuelve `FailClosed` con `retryable=true`: versión distinta, explicador ausente, error, timeout, factualidad fallida o registro sin confirmar. **No se usa ningún respaldo** (AUTONOMIA-06).
 - `case-service` pasa el caso a `en_sincronizacion` y reprograma el trabajo con backoff exponencial y un límite. Parámetros en Functional Design.
 - Si se agotan los reintentos, el caso pasa a `no_disponible` y sube la métrica `vectra_cases_failclosed_persistent`. Alertmanager dispara `FailClosedPersistente` y el caso aparece en `list_persistent_failures` (consola del CRO).
-- Cada fail-closed también se agrega al registro (`fail_closed`), con fines de auditoría y métricas.
+- Cada fail-closed también se agrega al registro (`fail_closed`), con fines de auditoría y métricas. scoring escribe la entrada de cada intento (BR-U7-16) y case-service escribe una sola al agotar los reintentos (BR-U8-09) (precisado el 2026-10-03 por U8 FD Q4).
 
 ## S3 — Promoción de versión de modelo (journey 7.2, US-201..204, US-208)
 

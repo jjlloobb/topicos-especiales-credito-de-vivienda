@@ -93,6 +93,8 @@ Tipo: **S** = llamada síncrona request/response · **R** = lectura · **A** = a
 | F21 | scoring-service | decision-registry-service | 8080 | A | Recomendación y fail-closed | Scope `registry:append:scoring` |
 | F22 | explainability-service | KServe explainer (`vectra-serving`) | 80 | S | `:explain` | Mismo `InferenceService` que el predictor (`serving-config.inference_service`); etiqueta `vectra.io/component=explainer` |
 | F23 | explainability-service | decision-registry-service | 8080 | R | Leer la explicación registrada para el resumen al solicitante | Scope `registry:read:explanation` |
+| F103 | explainability-service | governance-service | 8080 | R | `GET /v1/models/{id}/feature-dictionary` (diccionario de features de la versión, inmutable y cacheado) | Scope `governance:read-dictionary` (agregado por U7 FD Q4) |
+| F104 | case-service | governance-service | 8080 | R | `GET /v1/serving-config` y `GET /v1/models/{id}/feature-spec` (versión activa y su `feature_spec` para `derive`) | Scopes `governance:read-serving` y `governance:read-feature-spec` (agregado por U8 FD Q1) |
 | F24 | governance-service | decision-registry-service | 8080 | A | Eventos de modelo, política, fuente, congelamiento y resolución | Scope `registry:append:governance` |
 | F25 | governance-service | bias-monitoring-service | 8080 | S | `compare_source` (antes/después) | Scope `bias:compare` |
 | F26 | bias-monitoring-service | decision-registry-service | 8080 | R | Recomendaciones y decisiones con etiquetas de monitoreo | Scope `registry:read:monitoring` |
@@ -267,7 +269,7 @@ descarga de imágenes de contenedores la hace el kubelet desde el registro aprob
 
 ## 7. Diagrama de flujo de datos (vista lógica)
 
-El diagrama muestra la vista lógica de §2. Por legibilidad omite la observabilidad (F60–F67), la identidad (F50) y la plataforma, el borde interno y los Jobs del registro y de governance (F80–F98, F101, F102).
+El diagrama muestra la vista lógica de §2. Por legibilidad omite la observabilidad (F60–F67), la identidad (F50) y la plataforma, el borde interno y los Jobs del registro y de governance (F80–F98, F101, F102; F103 es un flujo de aplicación en §2.2).
 
 ```mermaid
 flowchart LR

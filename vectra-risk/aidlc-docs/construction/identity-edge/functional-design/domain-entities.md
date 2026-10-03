@@ -58,9 +58,9 @@ sus scopes (*optional client scopes* restringidos) y la audiencia correspondient
 
 | Client ID | Scopes | Audiencia del token |
 |---|---|---|
-| `case-service` | `case:recommend`, `registry:append:case`, `core:read-credit` | `scoring-service`, `decision-registry-service`, `core-banking-mock` |
+| `case-service` | `case:recommend`, `registry:append:case`, `core:read-credit`, `governance:read-serving`, `governance:read-feature-spec` | `scoring-service`, `decision-registry-service`, `core-banking-mock`, `governance-service` (los dos scopes y la audiencia de governance agregados por U8 FD Q1) |
 | `scoring-service` | `scoring:explain`, `governance:read-serving`, `registry:append:scoring` | `explainability-service`, `governance-service`, `decision-registry-service` |
-| `explainability-service` | `registry:read:explanation` | `decision-registry-service` |
+| `explainability-service` | `registry:read:explanation`, `governance:read-dictionary` | `decision-registry-service`, `governance-service` (este último agregado por U7 FD Q4) |
 | `governance-service` | `bias:compare`, `registry:append:governance` | `bias-monitoring-service`, `decision-registry-service` |
 | `bias-monitoring-service` | `governance:freeze`, `registry:read:monitoring` | `governance-service`, `decision-registry-service` |
 | `model-validation-job` | `governance:validation-report` | `governance-service` |

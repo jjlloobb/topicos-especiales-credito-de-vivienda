@@ -124,10 +124,12 @@ vectra-risk/governance/
 - [ ] **Paso 10 — Endpoints**
   - Modelos: registrar, lanzar validación (Job en `vectra-staging` por K01, con TTL, `activeDeadlineSeconds` y `backoffLimit: 0`), recibir el informe (F32), aprobar o rechazar, `mark_active`, retirar.
   - `freeze` (solo `governance:freeze`).
+  - `GET /v1/models/{id}/feature-dictionary` (solo `governance:read-dictionary`; BR-U4-18, agregado por U7 FD Q4).
+  - `GET /v1/models/{id}/feature-spec` (solo `governance:read-feature-spec`; BR-U4-19, agregado por U8 FD Q1). Prueba: otra identidad → 403; el contenido es byte a byte el `feature_spec.json` verificado.
   - `frozen-resolution`: solo `cumplimiento` + MFA + step-up; fija `SET LOCAL vectra.frozen_resolution`.
   - Políticas (cuatro ojos); fuentes (con `compare_source` F27; doble de U9 hasta que exista).
   - Todas las rutas como `RouteContract` en el registro de contratos de U0.
-  - Diseño: BR-U4-01..05, 07, 08, 10..13, 16; NFR-U4-11, 25; P-U4-03, 06. Historias: US-201, US-202, US-203, US-205, US-206, US-208, US-305.
+  - Diseño: BR-U4-01..05, 07, 08, 10..13, 16, 18, 19; NFR-U4-11, 25; P-U4-03, 06. Historias: US-201, US-202, US-203, US-205, US-206, US-208, US-305.
   - **Aceptación**: `uv run pytest governance/tests/integration/test_api_*.py` con las pruebas de ejemplo de business-logic-model §3:
     - `cro` aprueba → 200; `ingeniero_riesgo` → 403;
     - un CRO, un job o un webhook intentan reactivar → denegado;
@@ -248,7 +250,7 @@ Verificada con un script contra las líneas «Diseño» e «Historia(s)» de cad
 
 | Diseño | Pasos |
 |---|---|
-| BR-U4-01..17 | 2, 3, 4, 5, 6, 8, 10, 12, 13, 14, 17 |
+| BR-U4-01..19 | 2, 3, 4, 5, 6, 8, 10, 12, 13, 14, 17 |
 | NFR-U4-01..41 | 1, 2, 8, 9, 10, 12, 13, 14, 15, 16, 17, 19 |
 | P-U4-01..08 | 2, 4, 5, 8, 9, 10, 13, 17 |
 | INF-U4-01..04 | 2, 15, 16 |
@@ -269,7 +271,7 @@ Verificada con un script contra las líneas «Diseño» e «Historia(s)» de cad
 | AUTONOMIA-02 | Cumple | Cada paso tiene un comando de aceptación o una evidencia con comando |
 | AUTONOMIA-04 | Cumple | Triggers (Paso 2), `model_fsm` (Paso 3), endpoint (Paso 10) y script de CI (Paso 14) |
 | AUTONOMIA-05 | Cumple | La API sin egress; F100 sin datos de solicitantes (Pasos 15, 16) |
-| AUTONOMIA-06 | Cumple | `normative_current` nulo → fail-closed (Paso 10); promoción incompleta → `version_mismatch` (Paso 20) |
+| AUTONOMIA-06 | Cumple | Promoción incompleta → `version_mismatch` (Paso 20). `normative_current` nulo ya no es fail-closed (U7 FD Q1): lo prueba U7 |
 | SECURITY-01/05/06/07/08/11/12/13/14/15 | Cumple | Pasos 2, 6, 10, 12..17 |
 | RESILIENCY-05..12, 14, 15 | Cumple | Pasos 8, 9, 15, 16, 17, 20 |
 | PBT-01..10 | Cumple | Pasos 3..6, 8 (dos stateful), 19 |

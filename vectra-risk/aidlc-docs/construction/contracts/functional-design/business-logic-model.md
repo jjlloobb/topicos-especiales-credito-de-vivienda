@@ -9,7 +9,7 @@ todas las unidades.
 |---|---|---|---|
 | `outcome` | `vectra_contracts` | `check_preconditions` y `build_outcome`: invariante de sincronía en dos fases sobre la tabla de 10 causas; cuantización de la predicción | BR-U0-01..08 |
 | `finance` | `vectra_contracts` | Tasa mensual, cuota, cuota/ingreso, LTV, cuantización y representación JSON de decimales | BR-U0-10..15 |
-| `validation` | `vectra_contracts` | Validadores de `ApplicationIn`, `DecisionIn`, `PolicyDraft`, `FeatureValue` y del resto de las entradas | BR-U0-20..35, 95 |
+| `validation` | `vectra_contracts` | Validadores de `ApplicationIn`, `DecisionIn`, `PolicyDraft`, `FeatureValue` y del resto de las entradas | BR-U0-20..36, 95 |
 | `labels` | `vectra_contracts` | `derive_monitoring_labels(application, evaluated_at)` | BR-U0-40..43 |
 | `dictionary` | `vectra_contracts` | `covers(dictionary, shap_vector)` | BR-U0-80..81 |
 | `logging` | `vectra_common` | Logger JSON con allowlist | BR-U0-50..53 |
@@ -38,7 +38,8 @@ response (+ correlation_id)
 ### 2.2 `check_preconditions` y `build_outcome` (los usa U7)
 
 ```text
-check_preconditions(serving_state, prediction?, policy_result?, explicador?, dictionary?)
+check_preconditions(serving_state, requested_model_version_id, serving_model_version_id?,
+                    prediction?, policy_result?, explicador?, dictionary?)   (versiones: U8 FD Q1)
   1. recorrer las causas 1..9 de BR-U0-02 en orden
   2. la primera que aplique -> FailClosed(cause, status, retryable)       (BR-U0-03, 04)
   3. si ninguna aplica      -> Ready (única rama que lo construye)
@@ -80,7 +81,7 @@ derivaciones.
 
 | ID | Componente | Propiedad | Categoría | Generadores (PBT-07) |
 |---|---|---|---|---|
-| PBT-U0-01 | `outcome` | La composición `check_preconditions` → `build_outcome` devuelve `Recommendation` ⇔ no aplica ninguna de las 10 causas de BR-U0-02; si aplica alguna, `cause` es la de menor número, `status = modelo_congelado` ⇔ `cause = model_frozen` y `retryable = false` ⇔ `cause = model_frozen`. Además, los campos de la `Recommendation` son idénticos a los del `Ready` del que sale | Invariante + oráculo (implementación de referencia por tabla de verdad) | Producto de `serving_state` (3), presencia o ausencia de cada dependencia, salida de KServe válida o inválida, `explanation` o cada `ExplainerError` (6), versión de explicación y de diccionario igual o distinta, cobertura del diccionario, ack, `RegistryError` o ausente |
+| PBT-U0-01 | `outcome` | La composición `check_preconditions` → `build_outcome` devuelve `Recommendation` ⇔ no aplica ninguna de las 10 causas de BR-U0-02; si aplica alguna, `cause` es la de menor número, `status = modelo_congelado` ⇔ `cause = model_frozen` y `retryable = false` ⇔ `cause = model_frozen`. Además, los campos de la `Recommendation` son idénticos a los del `Ready` del que sale | Invariante + oráculo (implementación de referencia por tabla de verdad) | Producto de `serving_state` (3), presencia o ausencia de cada dependencia, salida de KServe válida o inválida, `explanation` o cada `ExplainerError` (6), versión de explicación y de diccionario igual o distinta, versión pedida igual o distinta de la de `serving-config` (U8 FD Q1), cobertura del diccionario, ack, `RegistryError` o ausente |
 | PBT-U0-02 | todos los tipos | `parse(serialize(x)) == x` para cada tipo del contrato, serializando a JSON con las reglas de BR-U0-15 (decimales como cadena, `FeatureValue` discriminado, `RecommendResult` por `kind`) | Round-trip | Un generador por tipo de dominio, con restricciones de negocio; decimales con 0 y con 28 dígitos significativos |
 | PBT-U0-03 | `finance` | La cuota coincide con un oráculo de alta precisión (`Decimal` a 50 dígitos) con error ≤ 1 peso | Oráculo | Montos 1..10¹², plazos 12..360, tasas 0.0001..0.9999 |
 | PBT-U0-04 | `finance` | La cuota es monótona no decreciente en monto y en tasa, y no creciente en plazo | Invariante | Pares de solicitudes que difieren en un solo campo |

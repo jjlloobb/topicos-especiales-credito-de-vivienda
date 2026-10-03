@@ -1,7 +1,7 @@
 # Reglas de negocio — U3 `decision-registry`
 
 Los IDs `BR-U3-xx` se referencian en los planes de tareas. La validación de los payloads
-es de U0 (BR-U0-20..35, 95); aquí se fija lo propio del registro.
+es de U0 (BR-U0-20..36, 95); aquí se fija lo propio del registro.
 
 ---
 
@@ -113,7 +113,8 @@ sigue aceptando appends (para no perder evidencia), pero todo expediente posteri
 **BR-U3-14 — Expediente.** `GET /v1/dossiers/{case_id}` (solo `cro` y `cumplimiento`):
 - entradas del caso en orden, con `canonical` exacto;
 - `IntegrityStatus` del tramo `range`;
-- `last_full_verification`.
+- `last_full_verification`;
+- `delivery_status` de cada entrada `recommendation`: `entregada` si alguna `human_decision` del caso la referencia en `recommendation_entry_id`; `no_entregada` si el caso tiene una `human_decision` que referencia otra; `pendiente_de_decision` si todavía no hay `human_decision` (P-U7-03) (precisado el 2026-10-03 por U7 NFR Design Q3).
 
 Si el tramo no verifica → `status = not_verified` y alerta `RegistryChainBroken`. El BFF
 agrega los identificadores directos desde case-service.

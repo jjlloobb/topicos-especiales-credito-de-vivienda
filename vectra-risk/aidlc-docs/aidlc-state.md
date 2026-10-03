@@ -5,7 +5,7 @@
 - **Project Type**: Greenfield
 - **Start Date**: 2026-09-26T13:02:25Z
 - **Current Phase**: CONSTRUCTION
-- **Current Stage**: CONSTRUCTION - U7 scoring-explainability - Functional Design (esperando respuestas)
+- **Current Stage**: CONSTRUCTION - U8 case-management - Functional Design (esperando aprobación)
 - **Requirements Depth**: Comprehensive (sistema regulado, alto riesgo, múltiples stakeholders)
 
 ## Workspace State
@@ -69,8 +69,8 @@
 
 ## Current Status
 - **Lifecycle Phase**: CONSTRUCTION
-- **Current Stage**: U7 scoring-explainability — Functional Design
-- **Next Stage**: U7 scoring-explainability — NFR Requirements
+- **Current Stage**: U8 case-management — Functional Design
+- **Next Stage**: U8 case-management — NFR Requirements
 
 ## Per-Unit Progress (CONSTRUCTION)
 | Unidad | FD | NFR Req | NFR Design | Infra Design | Plan de tareas |
@@ -82,8 +82,8 @@
 | U4 governance | aprobado 2026-10-03T12:39:24Z | aprobado 2026-10-03T12:50:53Z | aprobado 2026-10-03T12:58:28Z | aprobado 2026-10-03T13:08:38Z | aprobado 2026-10-03T13:12:18Z |
 | U5 reference-model | aprobado 2026-10-03T13:29:02Z | aprobado 2026-10-03T13:33:47Z | SKIP | SKIP | aprobado 2026-10-03T13:40:29Z |
 | U6 model-serving | SKIP | aprobado 2026-10-03T13:49:53Z | aprobado 2026-10-03T14:01:54Z | aprobado 2026-10-03T14:08:03Z | aprobado 2026-10-03T14:09:39Z |
-| U7 scoring-explainability | EN CURSO | pendiente | pendiente | pendiente | pendiente |
-| U8 case-management | pendiente | pendiente | pendiente | pendiente | pendiente |
+| U7 scoring-explainability | aprobado 2026-10-03T16:01:21Z | aprobado 2026-10-03T16:10:17Z | aprobado 2026-10-03T16:31:50Z | aprobado 2026-10-03T16:39:39Z | aprobado 2026-10-03T16:45:48Z |
+| U8 case-management | EN CURSO | pendiente | pendiente | pendiente | pendiente |
 | U9 bias-monitoring | pendiente | pendiente | pendiente | pendiente | pendiente |
 | U10 console | pendiente | pendiente | pendiente | pendiente | pendiente |
 | U11 product-metrics | pendiente | pendiente | pendiente | pendiente | pendiente |

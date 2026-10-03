@@ -17,7 +17,7 @@ plan de tareas.
 2. AuthnMiddleware         JWT + JWKS (BR-U0-70)
 3. AuthzDependency         require(scopes, roles, mfa) por ruta (BR-U0-71, 72)
 4. BodyGuard               content-type, JSON válido, tamaño <= 32 KiB (BR-U0-21, 31)
-5. Pydantic strict         validación de esquema (BR-U0-20..35)
+5. Pydantic strict         validación de esquema (BR-U0-20..36)
 6. handler del servicio
 7. ProblemHandler          VectraError -> Problem; resto -> internal_error (BR-U0-60)
 8. AccessLog               un LogRecord por request (BR-U0-50)
@@ -85,9 +85,13 @@ validar token(kid):
 ### P-U0-07 — Helper de llamadas a dependencias (Q6)
 - `vectra_common.deps.call(client, request, timeout)` exige un timeout explícito, sin valor por defecto, y envuelve los errores de transporte (P-U0-05).
 - Los servicios lo usan para KServe, explainability, el registro y governance.
-- El circuit breaker por dependencia es responsabilidad de cada servicio (NFR Design de U7 y U8). U0 solo garantiza que no existan llamadas sin timeout.
-- **Verificación**: regla de lint que prohíbe llamar a `httpx` directamente fuera de `vectra_common.deps`; prueba de que `call` sin timeout no compila (parámetro obligatorio).
-- **Satisface**: RESILIENCY-10 (timeouts); NFR-RES-11.
+- **Circuit breaker por dependencia** también en `deps` (precisado por U7 NFR Requirements Q4): estados cerrado, abierto y semiabierto con ventana deslizante. Cada servicio declara sus umbrales por dependencia. Abierto → la llamada falla de inmediato con `DependencyUnavailable`, sin salir del proceso. Métrica `vectra_circuit_state{dependency}`.
+- **Presupuesto propagado y aislamiento** (precisado el 2026-10-03 por U7 NFR Design Q1 y Q4):
+  - `call(..., deadline=)` usa `min(timeout, deadline − ahora)` y propaga la cabecera `x-vectra-deadline` (RFC 3339 con milisegundos); `vectra_common.deadline` la lee en el servicio que recibe y descarta una cabecera mal formada o en el pasado;
+  - un `httpx.AsyncClient` por dependencia con su propio límite de conexiones; la espera de una conexión libre cuenta dentro del timeout.
+- Antes decía que el circuit breaker era responsabilidad de cada servicio; se centralizó para que todos compartan la misma semántica y la misma métrica.
+- **Verificación**: regla de lint que prohíbe llamar a `httpx` directamente fuera de `vectra_common.deps`; prueba de que `call` sin timeout no compila (parámetro obligatorio); **propiedad stateful** del circuit breaker: para toda secuencia de éxitos, fallos y paso del tiempo, el estado coincide con un modelo de referencia, y en estado abierto nunca se emite una llamada.
+- **Satisface**: RESILIENCY-10 (timeouts y circuit breaking); NFR-RES-11.
 
 ### P-U0-08 — Enfoque de pruebas de resiliencia del proyecto (Q10 = C, RESILIENCY-14)
 - **Decisión del proyecto**: la ejecución se difiere a Operations. Cada unidad con runtime documenta sus escenarios en su NFR Design o Infrastructure Design.
@@ -153,7 +157,7 @@ lo sumo N refrescos cada 30 s hacia Keycloak, una carga despreciable.
 | SECURITY-05 | Cumple | P-U0-01 (capas 4–5) |
 | SECURITY-08 | Cumple | P-U0-01, P-U0-02 |
 | SECURITY-15 | Cumple | P-U0-05, P-U0-06 |
-| RESILIENCY-10 | Cumple (alcance de U0) | P-U0-06, P-U0-07: timeouts obligatorios; el circuit breaker por dependencia lo diseñan U7 y U8 |
+| RESILIENCY-10 | Cumple (alcance de U0) | P-U0-06, P-U0-07: timeouts obligatorios, presupuesto propagado, un cliente por dependencia y circuit breaker en `deps`; cada servicio fija sus umbrales (U7, U8). Antes decía que el circuit breaker lo diseñaban U7 y U8, desactualizado desde U7 NFR Requirements Q4 (precisado el 2026-10-03 por U7 NFR Design Q1) |
 | RESILIENCY-14 | Cumple | P-U0-08: enfoque C registrado para el proyecto, con los escenarios mínimos y sus dueños |
 | RESILIENCY-otros | N/A en U0 | Sin runtime propio |
 | PBT-01..10 | Sin cambios | Las propiedades del FD siguen vigentes; P-U0-03 y P-U0-10 añaden pruebas de ejemplo |

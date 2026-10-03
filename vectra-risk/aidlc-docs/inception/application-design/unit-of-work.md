@@ -70,7 +70,7 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
   - `model-validation-job`;
   - CLI `promotion-tool`, que genera un PR de un solo commit con evidencia en `vectra-risk-gitops`.
 - **Datos propios**: `governance-db`.
-- **Flujos**: F11, F18, F24, F25, F27, F32 (destino), F41, F47, F101, F102; egress F100; **K01**; X03, X04 (ver U4 Infrastructure Design).
+- **Flujos**: F11, F18, F24, F25, F27, F32 (destino), F41, F47, F101, F102, F103 y F104 (destino; U7 FD Q4 y U8 FD Q1); egress F100; **K01**; X03, X04 (ver U4 Infrastructure Design).
 - **Criticidad**: High.
 - **Historias (dueña)**: US-201, US-202, US-203, US-204, US-205, US-206, US-208, US-305.
 
@@ -111,7 +111,7 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
   - esquema de `case-db`;
   - `core-banking-mock`: `GET` de estado de crédito, y una ruta de escritura que **existe solo para demostrar el bloqueo RT-5**.
 - **Datos propios**: `case-db` (PII), estado de crédito simulado.
-- **Flujos**: F04, F10 (destino), F15, F16, F17, F40, F44; X01.
+- **Flujos**: F04, F10 (destino), F15, F16, F17, F40, F44, F104 (U8 FD Q1); X01.
 - **Criticidad**: High.
 - **Historias (dueña)**: US-101, US-102, US-107, US-108, US-112, US-501, US-502, US-603.
 

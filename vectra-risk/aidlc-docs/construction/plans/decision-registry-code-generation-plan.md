@@ -111,14 +111,16 @@ vectra-risk/decision-registry/
     - los 5 tipos de evento de gobierno con actor y rol (US-404).
 
 - [ ] **Paso 8 — Proyecciones, expediente y verificación bajo demanda**
-  - `GET /v1/entries` con la proyección del consumidor (réplica).
+  - `GET /v1/entries` con la proyección del consumidor (réplica). Filtros (`EntryFilter`): `case_id`, `entry_type`, `seq`, rango de `recorded_at`; la proyección `explanation` exige `case_id` y `seq` y devuelve como máximo una entrada (BR-U7-13; agregado por U7 NFR Design Q3).
   - `GET /v1/dossiers/{case_id}` (primaria, solo `cro`/`cumplimiento`), con verificación `range` y `last_full_verification`.
   - `POST /v1/integrity-checks` (`cro` con MFA; una sola `full` a la vez → 409).
   - Diseño: BR-U3-13..15; NFR-U3-21, 43; P-U3-05. Historias: US-402, US-403.
   - **Aceptación**: `uv run pytest decision-registry/tests/integration/test_dossier.py test_queries.py test_integrity_api.py`:
     - la narrativa del expediente es byte a byte igual a la guardada;
     - un `analista` recibe 403;
-    - un tramo alterado → `not_verified`.
+    - un tramo alterado → `not_verified`;
+    - proyección `explanation` con un `seq` de otro caso → página vacía (explainability responde 409);
+    - un caso con dos `recommendation` y una `human_decision` que referencia la segunda → la primera sale `no_entregada` (P-U7-03, agregado por U7 NFR Design Q3).
 
 - [ ] **Paso 9 — Readiness y contratos de rutas**
   - Readiness con `registry_health` (standby síncrono, cache de 5 s).

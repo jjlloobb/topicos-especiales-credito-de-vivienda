@@ -1030,3 +1030,193 @@ etapas no existe."
 **Context**: CONSTRUCTION - U7 scoring-explainability - Functional Design, GATE: esperando respuestas.
 
 ---
+## U7 scoring-explainability — Functional Design: respuestas y generación
+**Timestamp**: 2026-10-03T15:41:41Z
+**User Input**: "ya respondi"
+**AI Response**: Respuestas Q1..Q7 = A, sin ambigüedades. Generados `construction/scoring-explainability/functional-design/domain-entities.md`, `business-rules.md` (BR-U7-01..16) y `business-logic-model.md` (módulos, flujos de recomendación, explicación y resumen; PBT-U7-01..08; pruebas de ejemplo por historia). Tabla de cumplimiento revisada contra el cuerpo. Checklist del plan [x].
+**Cambios a artefactos aprobados (Q1, US-207)**: U0 ServingState y ServingConfig.normative_current (normative nulo ya no es no_disponible), ReasonCode (parametro_normativo_no_vigente), plan de tareas de U0 Paso 7; U4 BR-U4-11, domain-entities §5, business-logic-model (prueba y fila AUTONOMIA-06), NFR Design P-U4-05 (y se quitó la fila AUTONOMIA-06 de su tabla, que dependía del fail-closed), plan de tareas de U4 §4.
+**Cambios a artefactos aprobados (Q4)**: U0 catálogo de scopes (governance:read-dictionary); U2 realm (cliente explainability con el scope y la audiencia governance-service); U4 domain-entities (feature_dictionary), BR-U4-06 y nueva BR-U4-18, plan de tareas Paso 10 y su trazabilidad (verificada: 0 desfases); component-dependency (F103); component-methods C09 (get_feature_dictionary); application-design (F01–F103).
+**Context**: CONSTRUCTION - U7 scoring-explainability - Functional Design completada; solicitud de aprobación.
+
+---
+## U7 scoring-explainability — Functional Design: precisión de BR-U7-13
+**Timestamp**: 2026-10-03T15:48:00Z
+**User Input**: N/A
+**AI Response**: Autorrevisión antes de presentar: BR-U7-13 hacía que explainability comprobara la decisión final desfavorable, pero su proyección del registro (BR-U3-15) solo trae la explicación. Se precisó: el BFF comprueba la decisión desfavorable (regla de objeto de C03) y explainability comprueba que exista la explicación registrada. Mismo ajuste en el flujo §2.3 del modelo de lógica.
+**Context**: CONSTRUCTION - U7 scoring-explainability - Functional Design, GATE: aprobación.
+
+---
+## U7 scoring-explainability — Functional Design: observación sobre §4 (SECURITY-13)
+**Timestamp**: 2026-10-03T15:55:00Z
+**User Input**: "Un hallazgo en la tabla de cumplimiento de U7 (business-logic-model.md §4) — BR-U7-08 y la tabla de errores de domain-entities.md §5 ya establecen una verificación de integridad en tiempo real genuina: que la predicción y la explicación sean exactamente de la misma versión antes de que exista cualquier Recommendation. Esto es un mecanismo de integridad de datos específico de U7, distinto de los que Application Design ya citó para SECURITY-13 (checksums de artefactos, cadena de hashes del registro) — y no aparece citado en la tabla de U7."
+**AI Response**: Agregada la fila SECURITY-13 citando BR-U7-08 y domain-entities §5 (verificación de versión en runtime) y BR-U7-15 (recomendación auditable en el registro), con la nota de que la regla principal de la verificación de versión es AUTONOMIA-06 y que aquí se cita como el componente de integridad de datos de SECURITY-13. Sin cambios de diseño.
+**Context**: CONSTRUCTION - U7 scoring-explainability - Functional Design, GATE: aprobación.
+
+---
+## U4 governance — Precisión de P-U4-05 tras U7 FD Q1
+**Timestamp**: 2026-10-03T16:02:00Z
+**User Input**: "todavía necesito ver cómo quedó P-U4-05 — su texto original decía \"AUTONOMIA-06 (nunca se evalúa con un tope vencido)\", que ya no sería exacto ahora que scoring sí evalúa con un tope vencido (solo que fuerza revision_requerida en vez de aprobar silenciosamente)."
+**AI Response**: La cita de AUTONOMIA-06 ya se había quitado al aplicar U7 FD Q1 (también su fila en la tabla), pero la línea «Satisface» seguía diciendo «nunca se evalúa con un tope vencido», que se puede leer como que la solicitud no se evalúa. Reescrita: el tope vencido nunca se usa (normative_current pasa a nulo y la tasa no se compara contra ningún tope); la solicitud sí se evalúa y la política fuerza revision_requerida con parametro_normativo_no_vigente; sin aprobación silenciosa ni fail-closed. Se deja constancia del texto anterior y de por qué cambió.
+**Cambio a artefacto aprobado**: U4 NFR Design P-U4-05.
+**Context**: Corrección lateral; Functional Design de U7 pendiente de aprobación.
+
+---
+## U7 scoring-explainability — Functional Design: aprobación
+**Timestamp**: 2026-10-03T16:01:21Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: Functional Design de U7 aprobado. Inicio de U7 scoring-explainability — NFR Requirements (plan y preguntas).
+**Context**: CONSTRUCTION - U7 - Functional Design completado → NFR Requirements.
+
+---
+## U7 scoring-explainability — NFR Requirements: plan y preguntas
+**Timestamp**: 2026-10-03T16:01:21Z
+**User Input**: N/A
+**AI Response**: Creado `construction/plans/scoring-explainability-nfr-requirements-plan.md` con 5 preguntas (latencia objetivo de la recomendación que NFR-PER-01 dejó a fijar aquí, timeouts y circuit breakers, disponibilidad y escalado, implementación del circuit breaker, umbral de calidad de pruebas).
+**Context**: CONSTRUCTION - U7 scoring-explainability - NFR Requirements, GATE: esperando respuestas.
+
+---
+## U7 scoring-explainability — NFR Requirements: respuestas y generación
+**Timestamp**: 2026-10-03T16:03:59Z
+**User Input**: "ya respondi"
+**AI Response**: Respuestas Q1..Q5 = A, sin ambigüedades. Generados `construction/scoring-explainability/nfr-requirements/nfr-requirements.md` (NFR-U7-01..43: latencia de la recomendación p95 ≤ 400 ms / p99 ≤ 1 s, timeouts y circuit breakers, sin reintentos salvo el append, sin modo degradado, escalado, seguridad y calidad) y `tech-stack-decisions.md`. Tabla de cumplimiento revisada contra el cuerpo. Checklist del plan [x].
+**Cambios a artefactos aprobados**: U0 NFR Design P-U0-07 (circuit breaker centralizado en vectra_common.deps, con propiedad stateful; antes era responsabilidad de cada servicio); U0 plan de tareas Paso 10; requirements.md NFR-PER-01 (latencia fijada en NFR-U7-01).
+**Context**: CONSTRUCTION - U7 scoring-explainability - NFR Requirements completada; solicitud de aprobación.
+
+---
+## U7 scoring-explainability — NFR Requirements: aprobación
+**Timestamp**: 2026-10-03T16:10:17Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: NFR Requirements de U7 aprobado. Inicio de U7 scoring-explainability — NFR Design (plan y preguntas).
+**Context**: CONSTRUCTION - U7 - NFR Requirements completado → NFR Design.
+
+---
+## U7 scoring-explainability — NFR Design: plan y preguntas
+**Timestamp**: 2026-10-03T16:11:00Z
+**User Input**: N/A
+**AI Response**: Creado `construction/plans/scoring-explainability-nfr-design-plan.md` con 4 preguntas. Hallazgos al cruzar timeouts y latencias aprobados: (1) explainability en serie (diccionario 500 ms + :explain 500 ms) no cabe en los 800 ms que espera scoring; (2) el append al registro (2,5 s + reintento, U3) supera el p99 de 1 s en que NFR-U7-04 promete el fail-closed; (3) caso límite: una entrada recommendation puede quedar escrita y no entregada si el commit se confirma después de que scoring dejó de esperar, lo que contradice BR-U0-08 en ese extremo. Q4: aislamiento de conexiones por dependencia.
+**Context**: CONSTRUCTION - U7 scoring-explainability - NFR Design, GATE: esperando respuestas.
+
+---
+## U7 scoring-explainability — NFR Design: respuestas y artefactos
+**Timestamp**: 2026-10-03T16:14:19Z
+**User Input**: "ya respondi"
+**AI Response**: Respuestas Q1–Q4 = A. Generados `construction/scoring-explainability/nfr-design/nfr-design-patterns.md` (P-U7-01..09) y `logical-components.md` (Mermaid validado + alternativa en texto).
+**Context**: CONSTRUCTION - U7 - NFR Design.
+
+---
+
+## U7 NFR Design — precisiones derivadas y cambios a otros artefactos
+**Timestamp**: 2026-10-03T16:20:11Z
+**User Input**: N/A
+**AI Response**: Precisiones derivadas de las respuestas, que no estaban explícitas en las opciones:
+(a) Q1 generalizada a toda la fase previa al registro: presupuesto de 700 ms desde la llegada a scoring, porque las llamadas en serie (serving-config 500 + :predict 300 + explainability 800) también rompían NFR-U7-04.
+(b) fail_closed best effort con timeout de 250 ms, para que el fail-closed quepa en 1 s.
+(c) Peor caso con registro degradado ≈ 6,1 s, por lo que el timeout de case-service hacia scoring debe ser ≥ 7 s (pendiente U8).
+(d) Q3 obliga a que el resumen al solicitante lea la recomendación entregada (BFF envía recommendation_entry_id) y a que las proyecciones monitoring/metrics lleven seq y recommendation_entry_id (pendiente U9/U11).
+(e) Corregida fila RESILIENCY-10 de U0, desactualizada desde U7 NFR Req Q4.
+Corregidos en autorrevisión: IDs de flujo (F18/F20/F21, no F14/F15/F16), PriorityClass vectra-high (P-U1-09) y namespace vectra-app.
+Archivos modificados: U7 nfr-requirements.md (NFR-U7-04, 10); U7 business-rules.md (BR-U7-13, 15), business-logic-model.md §2.3, domain-entities.md §4; U0 business-rules.md (BR-U0-08, BR-U0-35), domain-entities.md (§5.2 human_decision.recommendation_entry_id, §9.1 ApplicantSummaryRequest), nfr-design-patterns.md (P-U0-07 y fila RESILIENCY-10), contracts-code-generation-plan.md (Paso 10); U3 business-rules.md (BR-U3-14), domain-entities.md (§3 proyecciones, §4.1 delivery_status), decision-registry-code-generation-plan.md (Paso 8); component-methods.md (explainability applicant_summary).
+**Context**: CONSTRUCTION - U7 - NFR Design, esperando aprobación.
+
+---
+
+## U7 NFR Design — prompt de aprobación
+**Timestamp**: 2026-10-03T16:20:11Z
+**AI Response**: Presentado el mensaje de cierre de 2 opciones (Request Changes / Continue to Next Stage).
+**Context**: CONSTRUCTION - U7 - NFR Design, GATE de aprobación.
+
+---
+## U7 NFR Design — Request Changes: rastro de cambios a U0 y U3
+**Timestamp**: 2026-10-03T16:24:18Z
+**User Input**: "El hallazgo: el rastro de auditoría hacia U0 y U3 no se actualizó
+
+La tabla "Cambios a otras unidades" de business-rules.md §6 sigue siendo exactamente la misma que antes de esta ronda de NFR Design — solo tiene las filas de los cambios de Q1–Q7 del Functional Design. No aparece ninguna fila nueva para:
+
+U0: Q3 dice explícitamente "la entrada human_decision lleva un campo nuevo, recommendation_entry_id... (cambio en el payload de U0)" — un cambio real a un tipo ya aprobado de U0.
+U3: Q3 dice "el expediente (U3) marca como «no entregada» toda entrada recommendation del caso que no corresponde..." — y el propio checklist de este plan de NFR Design (punto 5) lista a U3 explícitamente como una unidad que necesita el cambio aplicado y registrado (a diferencia de U8, que marca como "pendiente" porque todavía no existe). Dado que U3 ya completó sus cuatro etapas y su plan de tareas, esto implicaría una corrección real a artefactos de U3 ya aprobados — y no tengo manera de confirmar que ocurrió."
+**AI Response**: Hallazgo confirmado: la tabla §6 de `scoring-explainability/functional-design/business-rules.md` no tenía las filas de NFR Design (solo se habían registrado en `nfr-design/nfr-design-patterns.md` §7 y en audit.md). Verificado con grep que los cambios a U0 y U3 sí estaban aplicados, cada uno con su nota «precisado el 2026-10-03 por U7 NFR Design»: U0 BR-U0-08 (línea 80), BR-U0-35 (línea 125), domain-entities §5.2 human_decision (línea 237) y §9.1 ApplicantSummaryRequest (línea 341), P-U0-07 (línea 89) y fila RESILIENCY-10 (línea 160), plan Paso 10; U3 BR-U3-14 (línea 117), domain-entities §3 (línea 75) y §4.1 (línea 85), plan Paso 8 (línea 122). Agregadas 11 filas a la tabla §6 (U0 ×5, U3 ×3, component-methods, U8 pendiente, U9/U11 pendiente); nota en nfr-design-patterns §7 que remite a §6 como registro acumulado de la unidad.
+**Context**: CONSTRUCTION - U7 - NFR Design, esperando aprobación.
+
+---
+## U7 NFR Design — verificación del contenido real en U3
+**Timestamp**: 2026-10-03T16:26:36Z
+**User Input**: "Esta tabla es la promesa de U7 de lo que cambió en U3 — no son los propios artefactos de U3 ya corregidos. ¿Puedes confirmar o subir el contenido real de nfr-design-patterns.md de U7 (que se quedó fuera de esta subida) y los artefactos de U3 (business-rules.md, domain-entities.md) para verificar que BR-U3-14 y los campos de §3/§4.1 quedaron como se describe aquí?"
+**AI Response**: Mostrado el texto literal de U3 BR-U3-14, domain-entities §3 y §4.1, plan Paso 8, y la estructura de U7 nfr-design-patterns.md (229 líneas, P-U7-01..09, §6–§9). Script de trazabilidad del plan de U3: 0 desfases, ninguna BR sin citar. Hueco encontrado en el cambio propio: la proyección `explanation` lee por `seq`, pero `EntryFilter` (component-methods) no estaba definido. Agregados al Paso 8 del plan de U3 los filtros `case_id`, `entry_type`, `seq` y el rango de `recorded_at`, y un criterio de aceptación (un `seq` de otro caso devuelve una página vacía).
+**Context**: CONSTRUCTION - U7 - NFR Design, esperando aprobación.
+
+---
+## U7 NFR Design — Request Changes: fila SECURITY-11
+**Timestamp**: 2026-10-03T16:29:52Z
+**User Input**: "Un hallazgo en la tabla de cumplimiento (§6)
+
+P-U7-03 incluye una prueba de abuso real: "un recommendation_entry_id de otro caso → 409" — alguien intentando pedir el resumen de un caso ajeno. Es exactamente la categoría de evidencia que SECURITY-11 pide ("casos de abuso"), la misma que ya vengo citando en U4, U5 y en el propio Functional Design de U7 (BR-U7-12, el conjunto RT-1). No aparece citada en esta tabla."
+**AI Response**: Hallazgo confirmado con grep: SECURITY-11 no aparecía en el NFR Design de U7. Agregada la fila SECURITY-11 en §6, que cita P-U7-03 (resumen de un caso ajeno → 409; `seq` de otro caso en U3 → página vacía) y P-U7-01. Se agregó también, en la «Verificación» de P-U7-01, un caso de abuso que no tenía prueba: una cabecera `x-vectra-deadline` muy en el futuro o mal formada no extiende el presupuesto (tope de 700 ms). SECURITY-11 agregado a las líneas «Satisface» de P-U7-01 y P-U7-03.
+**Context**: CONSTRUCTION - U7 - NFR Design, esperando aprobación.
+
+---
+## U7 scoring-explainability — NFR Design: aprobación
+**Timestamp**: 2026-10-03T16:31:50Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: NFR Design de U7 aprobado. Inicio de U7 — Infrastructure Design.
+**Context**: CONSTRUCTION - U7 - NFR Design completado → Infrastructure Design.
+
+---
+
+## U7 scoring-explainability — Infrastructure Design: plan y preguntas
+**Timestamp**: 2026-10-03T16:33:00Z
+**User Input**: N/A
+**AI Response**: Creado `construction/plans/scoring-explainability-infrastructure-design-plan.md` con 3 preguntas: Q1 recursos y aporte a la cuota de vectra-app; Q2 apagado ordenado (hallazgo: ninguna unidad define preStop ni terminationGracePeriodSeconds; un SIGTERM durante un append, que puede durar hasta ~6,1 s, dejaría entradas no entregadas por un simple despliegue); Q3 presupuestos de tiempo como constantes en el código o en los values de Helm.
+**Context**: CONSTRUCTION - U7 - Infrastructure Design, GATE: esperando respuestas.
+
+---
+## U7 scoring-explainability — Infrastructure Design: respuestas y artefactos
+**Timestamp**: 2026-10-03T16:34:48Z
+**User Input**: "ya respondi"
+**AI Response**: Respuestas Q1–Q3 = A. Generados `construction/scoring-explainability/infrastructure-design/infrastructure-design.md` (INF-U7-01..05) y `deployment-architecture.md` (Mermaid validado + alternativa en texto). Precisiones: el preStop usa la acción `sleep` nativa de Kubernetes (≥ 1.30), sin binario en la imagen; prueba unitaria que relaciona el período de gracia con el peor caso del append. Corregido en autorrevisión: la identidad de servicio usa `private_key_jwt` (U2 §2.2), no un secreto de cliente. Sin cambios en U0 ni U1 (no hay chart común). Agregada en la tabla §6 de U7 la fila del pendiente para U8 (case-service escribe en el registro y debe adoptar INF-U7-03).
+**Context**: CONSTRUCTION - U7 - Infrastructure Design, esperando aprobación.
+
+---
+## U7 — Corrección en el NFR Design aprobado (P-U7-08), detectada al preparar el plan de tareas
+**Timestamp**: 2026-10-03T16:41:00Z
+**User Input**: "Continue to Next Stage" (aprobación del Infrastructure Design de U7, 2026-10-03T16:39:39Z)
+**AI Response**: Infrastructure Design de U7 aprobado. Al cruzar métricas para el plan de tareas se detectaron dos errores propios en P-U7-08, ya aprobado: (1) la métrica de fail-closed por causa se llamaba `vectra_recommendations_total{cause}`, cuando BR-U7-03 fija `vectra_scoring_failclosed_total{cause}`, que usa U4 para `PromotionMismatchPersistent` (BR-U4-08); (2) la tabla atribuía `FailClosedPersistente` a una métrica de U7, cuando sale de `vectra_cases_failclosed_persistent` de case-service (U8, services.md). Corregido P-U7-08: dos métricas separadas, sin la fila de FailClosedPersistente y con una nota sobre las alertas de otras unidades; ExplainerVersionMismatch se documenta como complemento de PromotionMismatchPersistent.
+**Context**: CONSTRUCTION - U7 - Infrastructure Design aprobado → Code Generation Part 1.
+
+---
+## U7 scoring-explainability — Code Generation Part 1: plan de tareas
+**Timestamp**: 2026-10-03T16:43:10Z
+**User Input**: N/A
+**AI Response**: Creado `construction/plans/scoring-explainability-code-generation-plan.md` con 20 pasos en 7 bloques: estructura y presupuestos; lógica pura (policy, narrative, factuality, applicant); explainability-service; scoring-service; despliegue y operación; verificación en kind por el operador; cierre. Script de trazabilidad: un desfase inicial (NFR-U7-41 citado en el Paso 5 y ausente de la tabla), ya corregido; resultado final: 0 desfases y ninguna BR-U7 sin citar. Verificado también que todos los NFR-U7, P-U7-01..09 e INF-U7-01..05 se citan en algún paso. Conforme a la instrucción del usuario, no se ejecutan Code Generation Part 2 ni Build and Test.
+**Context**: CONSTRUCTION - U7 - Code Generation Part 1, GATE de aprobación.
+
+---
+## U7 scoring-explainability — plan de tareas: aprobación
+**Timestamp**: 2026-10-03T16:45:48Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: Plan de tareas de U7 aprobado. U7 completa (FD, NFR Req, NFR Design, Infra Design, plan de tareas). Inicio de U8 case-management — Functional Design.
+**Context**: CONSTRUCTION - U7 cerrada → U8 Functional Design.
+
+---
+
+## U8 case-management — Functional Design: plan y preguntas
+**Timestamp**: 2026-10-03T16:52:00Z
+**User Input**: N/A
+**AI Response**: Creado `construction/plans/case-management-functional-design-plan.md` con 9 preguntas. Hallazgos: (Q1) case-service no tiene flujo hacia governance ni hacia el model-store, pero derive necesita el feature_spec de la versión activa (pendiente de U5 §7), y hay una carrera vector/modelo si se activa otra versión entre la ingesta y la evaluación; (Q4) ambigüedad entre BR-U0-08, BR-U7-16 y services.md S2 sobre quién escribe las entradas fail_closed. Además: máquina de estados (Q2), reintentos y cola transaccional (Q3), reglas de la decisión con evidencia en dos fases (Q5), consultas de la explicación (Q6), retención (Q7, NFR-U3-03), estado de crédito (Q8) e ingesta (Q9).
+**Context**: CONSTRUCTION - U8 - Functional Design, GATE: esperando respuestas.
+
+---
+## U8 case-management — Functional Design: respuestas y artefactos
+**Timestamp**: 2026-10-03T16:52:30Z
+**User Input**: "ya respondi"
+**AI Response**: Respuestas Q1–Q9 = A. Generados `construction/case-management/functional-design/domain-entities.md`, `business-rules.md` (BR-U8-01..22) y `business-logic-model.md` (máquina de estados con Mermaid validado y alternativa en texto, flujos, PBT-U8-01..08 con dos stateful, pruebas de ejemplo por historia, tabla de cumplimiento revisada contra el cuerpo).
+Cambios en otras unidades, con nota «precisado el 2026-10-03 por U8 FD Qn»:
+- U0: ScoringRequest.model_version_id; check_preconditions con requested/serving_model_version_id; BR-U0-02, causas 2, 5, 7 y 8 (la discrepancia de versión pedida produce version_mismatch y hace válidas las ausencias); BR-U0-08 (fail_closed: se reintenta con el caso); BR-U0-36 nueva (justificación); CaseDetail; scopes governance:read-serving (+case-service) y governance:read-feature-spec (nuevo); logic-model §2.2 y PBT-U0-01; plan Paso 6; rango BR-U0-20..36 en business-logic-model, NFR Design, plan Paso 3 y U3 business-rules.
+- U2: cliente case-service con los dos scopes y la audiencia governance-service; P-U2-06 define el prefijo reservado x-vectra-.
+- U4: BR-U4-06 guarda el feature_spec; BR-U4-19 nueva; domain-entities campo feature_spec; plan Paso 10 y tabla §3.
+- U7: BR-U7-01 (comparación de versión), BR-U7-16, PBT-U7-07, plan Paso 11.
+- Inventario: F104, component-methods (C04 retry_case, C09 get_feature_spec, BFF retry_case), application-design (F01–F104), unit-of-work (U8 y U4), services.md S2.
+- U5 FD §7: pendiente resuelto.
+Precisiones propias: (1) la cabecera de escenario se renombró de X-Vectra-Scenario a X-Test-Scenario, porque el gateway elimina las cabeceras internas y lo seguro es tratar x-vectra- como prefijo reservado; así un cliente externo tampoco puede inyectar x-vectra-deadline; (2) BR-U8-20: la anonimización no agrega transiciones; los casos anonimizados no se reevalúan. Corregido en autorrevisión: la referencia al patrón de U2 es P-U2-06, no P-U2-04. Pendiente para el NFR de U8: verificar la carga extra sobre serving-config contra NFR-U4-10/11.
+**Context**: CONSTRUCTION - U8 - Functional Design, esperando aprobación.
+
+---

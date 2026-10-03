@@ -93,7 +93,7 @@ vectra-risk/
 - [ ] **Paso 3 — Catálogos y tipos de dominio**
   - `catalog.py`: `Scope` (domain-entities §7.2, incluidos `core:read-credit` y `core:write-credit`), `Role`, `ReasonCode`, `FailClosedCause` (10, en el orden de BR-U0-02), `ProblemCode`.
   - `models/`: todos los tipos de domain-entities §1–§9 en Pydantic v2 `strict`, `extra="forbid"`; `Decimal4`/`Decimal` como cadena con patrón (BR-U0-15); `FeatureValue` discriminado; `RecommendResult` discriminado por `kind`; `LogRecord`.
-  - Reglas: BR-U0-15, 20..35, 95. Historias: US-111, US-602.
+  - Reglas: BR-U0-15, 20..36, 95. Historias: US-111, US-602.
   - **Aceptación**: `uv run mypy --strict contracts/python` sin errores; `uv run pytest contracts/tests/unit/test_models.py` (campos extra → error; `Decimal4` numérico → error; enums cerrados).
 
 - [ ] **Paso 4 — Invariante en dos fases**
@@ -109,11 +109,11 @@ vectra-risk/
 
 - [ ] **Paso 6 — Generadores y propiedades de la lógica de negocio**
   - `tests/strategies/`: solicitud colombiana realista, `FeatureVector`, `MonitoringLabels`, `Explanation`, `ExplainerError`, `ServingState`, `Principal` (NFR-U0-44).
-  - Propiedades: PBT-U0-01 (oráculo por tabla de verdad de las 10 causas y las dos fases), 02 (round-trip JSON de todos los tipos), 03, 04, 05, 06, 10, 11, 12, 13.
+  - Propiedades: PBT-U0-01 (oráculo por tabla de verdad de las 10 causas y las dos fases, incluida la discrepancia de versión pedida agregada por U8 FD Q1), 02 (round-trip JSON de todos los tipos), 03, 04, 05, 06, 10, 11, 12, 13.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest contracts/tests/property -m "not common"`; cada falla imprime la semilla.
 
 - [ ] **Paso 7 — Pruebas de ejemplo obligatorias de la lógica (PBT-10)**
-  - Tabla de verdad nombrada de `build_outcome` (una por causa y por par de causas que prueba la precedencia), cuota de un crédito calculado a mano, hash JCS de un vector conocido, matriz de `DecisionIn` contra cada `outcome` (BR-U0-35), contexto decimal global alterado sin efecto (P-U0-10), `PolicyDraft` con vigencias normativas solapadas → `validation_error` (BR-U0-33) y `ServingConfig` con `normative_current` nulo → `ServingState = no_disponible` → `FailClosed(serving_config_unavailable)` (agregados al revisar los cambios de U4).
+  - Tabla de verdad nombrada de `build_outcome` (una por causa y por par de causas que prueba la precedencia), cuota de un crédito calculado a mano, hash JCS de un vector conocido, matriz de `DecisionIn` contra cada `outcome` (BR-U0-35), contexto decimal global alterado sin efecto (P-U0-10), `PolicyDraft` con vigencias normativas solapadas → `validation_error` (BR-U0-33) (agregado al revisar los cambios de U4). La prueba de `normative_current` nulo pasa a U7: produce `revision_requerida` con `parametro_normativo_no_vigente`, no un fail-closed (U7 FD Q1).
   - **Aceptación**: `uv run pytest contracts/tests/examples -m logic`.
 
 - [ ] **Paso 8 — Resumen de la lógica de negocio**
@@ -128,9 +128,9 @@ vectra-risk/
   - **Aceptación**: `uv run pytest contracts/tests/unit/test_routes.py` (toda ruta declara requisitos; `POST /v1/credits/{id}/status` exige `core:write-credit`; ningún scope fuera del catálogo).
 
 - [ ] **Paso 10 — Middleware y fábrica de app**
-  - `telemetry.py` (P-U0-11, BR-U0-62), `jwks_cache.py` + `authn.py` (P-U0-06, BR-U0-70, NFR-U0-10..12), `authz.py` (P-U0-02, BR-U0-71..73), `errors.py` (P-U0-05, BR-U0-60..61), `deps.py` (P-U0-07), `logging.py` (P-U0-04, BR-U0-50..53), `metrics.py`, `app_factory.py` (P-U0-01: orden fijo, puerto 8081 separado, verificación de rutas contra el registro y deny by default).
+  - `telemetry.py` (P-U0-11, BR-U0-62), `jwks_cache.py` + `authn.py` (P-U0-06, BR-U0-70, NFR-U0-10..12), `authz.py` (P-U0-02, BR-U0-71..73), `errors.py` (P-U0-05, BR-U0-60..61), `deps.py` (P-U0-07: timeout obligatorio y circuit breaker con propiedad stateful, agregado por U7 NFR Q4; `deadline=` con la cabecera `x-vectra-deadline` y un cliente por dependencia con límite de conexiones, agregados por U7 NFR Design Q1 y Q4), `deadline.py` (lectura de la cabecera entrante), `logging.py` (P-U0-04, BR-U0-50..53), `metrics.py`, `app_factory.py` (P-U0-01: orden fijo, puerto 8081 separado, verificación de rutas contra el registro y deny by default).
   - Historias: US-601, US-602, US-604, US-611.
-  - **Aceptación**: `uv run pytest contracts/tests/unit/test_app_factory.py test_authn.py test_jwks_cache.py test_authz.py test_errors.py test_logging.py test_telemetry.py test_deps.py`.
+  - **Aceptación**: `uv run pytest contracts/tests/unit/test_app_factory.py test_authn.py test_jwks_cache.py test_authz.py test_errors.py test_logging.py test_telemetry.py test_deps.py test_deadline.py`.
 
 - [ ] **Paso 11 — Pruebas de ejemplo de la capa de API**
   - Respuestas exactas para 400, 401 (`alg=none`, `HS256`, `aud` sin el servicio, vencido por 31 s), 403, `mfa_required` (sin `acr = mfa`, y con `auth_time` de 901 s frente a 900 s aceptado), 415 y 422. Un token con varias audiencias que incluye el servicio → aceptado (BR-U0-70 precisado por U2).

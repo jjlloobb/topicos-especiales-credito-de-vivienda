@@ -59,6 +59,19 @@ dataset de validación, y fija `deadline_at = ahora + 2 h`. Sin informe al vence
 5. verifica que todos lleven el mismo `model_version_id` (precisado por U5 FD: el paquete tiene más archivos que predictor y explicador).
 
 Nunca carga el modelo. Cualquier fallo → `422 validation_error`, sin crear la versión.
+Al registrar con éxito, governance guarda una copia del `feature_dictionary.json` verificado
+en la versión (U7 FD Q4), y también del `feature_spec.json` con sus tablas de búsqueda (precisado el 2026-10-03 por U8 FD Q1).
+
+**BR-U4-18 — Diccionario de features.** `GET /v1/models/{id}/feature-dictionary` devuelve el
+diccionario guardado de esa versión. Solo lo puede leer la identidad con
+`governance:read-dictionary` (explainability-service, F103). El diccionario de una versión
+no cambia nunca, así que el llamador lo puede cachear por `model_version_id` sin límite de
+tiempo (agregado por U7 FD Q4).
+
+**BR-U4-19 — `feature_spec`.** `GET /v1/models/{id}/feature-spec` devuelve el `feature_spec`
+verificado de esa versión, con sus tablas de búsqueda. Solo lo puede leer la identidad con
+`governance:read-feature-spec` (case-service, F104). Es inmutable por versión y se puede
+cachear sin límite (agregado por U8 FD Q1).
 
 **BR-U4-07 — Qué bloquea.** Solo `sync_check.passed = false` lleva a `validacion_fallida`.
 AUC y disparidad inicial se informan con sus umbrales y **no** bloquean: decide el CRO.
@@ -99,7 +112,7 @@ Producción necesita al menos 2 usuarios con rol `cro`.
 **BR-U4-11 — Activación y vigencia.**
 - Aprobar una política `propuesta` la deja `activa` de inmediato; la anterior pasa a `historica` y `serving-config` se recalcula.
 - `normative` es una lista de vigencias que no se solapan; se pueden cargar vigencias futuras.
-- `normative_current = normative_at(policy, hoy)`. Si es nulo, scoring falla cerrado (`serving_config_unavailable`).
+- `normative_current = normative_at(policy, hoy)`. Si es nulo, la política de scoring produce `revision_requerida` con el motivo `parametro_normativo_no_vigente` (US-207); **no** es un fail-closed (precisado el 2026-10-03 por U7 FD Q1: alinea con US-207).
 - Alertas: `NormativeParamsExpiring` SEV2 15 días antes del fin de la última vigencia y SEV1 el día que vence.
 
 **BR-U4-12 — Los servicios no escriben política (FR-POL-04).** Ningún scope de servicio
@@ -164,13 +177,13 @@ Si el registro está caído, el modelo queda congelado igual y se alerta `Freeze
 | Unidad | Cambio | Motivo |
 |---|---|---|
 | U0 `ServingConfig` | `etag`, `normative_current`, `bias_monitoring_age_s` | Q4, Q5, Q9 |
-| U0 `ServingState` | `no_disponible` también si `normative_current` es nulo | Q4 |
+| U0 `ServingState` | ~~`no_disponible` también si `normative_current` es nulo~~ — revertido por U7 FD Q1 (US-207): sin normativa vigente → `revision_requerida` | Q4; U7 Q1 |
 | U0 `PolicyDraft` / `PolicyVersion` / BR-U0-33 | `normative` como lista sin solapes; estados `propuesta`, `activa`, `rechazada`, `historica`; aprobador ≠ proponente | Q3, Q4 |
 | U0 `model_event` | Eventos `validacion_fallida` e `inactivado` | Q1 |
 | U0 `policy_event` | `propuesta`, `activada`, `rechazada`, `historica` (sin `aprobada` separada) | Q4; BR-U4-17 (un evento por transición) |
 | U0 `data_source_event` | Agrega `evaluacion_iniciada` | Q8; BR-U4-17 |
 | U3 BR-U3-16 | Actores de servicio o de sistema para los eventos del Job de validación y del vencimiento del plazo | BR-U4-05, 07 |
-| U0 plan de tareas, Paso 7 | Pruebas de BR-U0-33 (vigencias solapadas) y de `normative_current` nulo → fail-closed | Q4 |
+| U0 plan de tareas, Paso 7 | Prueba de BR-U0-33 (vigencias solapadas); la de `normative_current` nulo pasa a U7 | Q4; U7 Q1 |
 | U5, U6 (pendiente) | Artefactos en ONNX, XGBoost JSON/UBJ o LightGBM texto; sin `pickle`/`joblib` | Q7 |
 | U7 (pendiente) | Métrica de `version_mismatch` para `PromotionMismatchPersistent`; caché de `serving-config` ≤ 5 s con `If-None-Match` | Q2, Q5 |
 | U9 (pendiente) | Definir W e informar la edad del último cálculo a governance | Q9 |

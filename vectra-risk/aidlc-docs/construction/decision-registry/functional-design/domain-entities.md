@@ -67,11 +67,12 @@ Además, un trigger `BEFORE UPDATE OR DELETE OR TRUNCATE` lanza una excepción (
 | Proyección | Para | Entradas | Campos |
 |---|---|---|---|
 | `full` | `cro`, `cumplimiento` (BFF) | Todas | Todos, incluido `canonical` |
-| `explanation` | explainability (`registry:read:explanation`) | `recommendation` de un `case_id` | `case_id`, `model_version_id`, `payload.explanation` |
-| `monitoring` | bias (`registry:read:monitoring`) | `recommendation`, `human_decision` | `recommendation`: `case_id`, `model_version_id`, `policy_version_id`, `score`, `confidence`, `outcome`, `reasons`, `monitoring_labels`, `recorded_at`. `human_decision`: `case_id`, `decision`, `final_outcome`, `recorded_at` |
-| `metrics` | product-metrics (`registry:read:metrics`) | `recommendation`, `human_decision`, `explanation_view` | `entry_type`, `case_id`, `outcome`, `decision`, `final_outcome`, `used_factors`, `explanation_viewed_before`, `actor_role`, `recorded_at` |
+| `explanation` | explainability (`registry:read:explanation`) | Una `recommendation` por `seq`, filtrada por `case_id` (BR-U7-13) | `seq`, `case_id`, `model_version_id`, `payload.explanation` |
+| `monitoring` | bias (`registry:read:monitoring`) | `recommendation`, `human_decision` | `recommendation`: `case_id`, `model_version_id`, `policy_version_id`, `score`, `confidence`, `outcome`, `reasons`, `monitoring_labels`, `recorded_at`, `seq`. `human_decision`: `case_id`, `decision`, `final_outcome`, `recommendation_entry_id`, `recorded_at` |
+| `metrics` | product-metrics (`registry:read:metrics`) | `recommendation`, `human_decision`, `explanation_view` | `entry_type`, `case_id`, `outcome`, `decision`, `final_outcome`, `used_factors`, `explanation_viewed_before`, `actor_role`, `recorded_at`, `seq`, `recommendation_entry_id` |
 
 - `analista` no tiene proyección: sus vistas vienen de case-service.
+- `seq` y `recommendation_entry_id` se agregaron a `explanation`, `monitoring` y `metrics` para que el resumen al solicitante, U9 y U11 usen solo la recomendación entregada (P-U7-03) (precisado el 2026-10-03 por U7 NFR Design Q3).
 - Ninguna proyección distinta de `full` incluye `feature_vector`, `justification`, `narrative` fuera de `explanation`, ni `actor_id`.
 
 ## 4. Expediente (Q7)
@@ -81,7 +82,7 @@ Además, un trigger `BEFORE UPDATE OR DELETE OR TRUNCATE` lanza una excepción (
 | Campo | Contenido |
 |---|---|
 | `case_id` | — |
-| `entries` | Todas las entradas del caso en orden de `seq`, con `canonical` en base64 (la narrativa se reproduce byte a byte) y sus campos decodificados |
+| `entries` | Todas las entradas del caso en orden de `seq`, con `canonical` en base64 (la narrativa se reproduce byte a byte) y sus campos decodificados. Cada `recommendation` lleva `delivery_status` (`entregada` \| `no_entregada` \| `pendiente_de_decision`), calculado al leer y nunca guardado (BR-U3-14) (precisado el 2026-10-03 por U7 NFR Design Q3) |
 | `integrity` | `IntegrityStatus` del tramo (§4.2) |
 | `last_full_verification` | Resultado y fecha de la última verificación completa |
 

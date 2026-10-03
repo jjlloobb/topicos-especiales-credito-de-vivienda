@@ -84,7 +84,7 @@ sin informe a las 2 h -> validacion_fallida (timeout)
 - rollback: `mark_active` de M1 `inactivo` → M1 activo, M2 inactivo (US-208);
 - cumplimiento reactiva con justificación; CRO, job o webhook → denegado (US-305);
 - el script de CI no encuentra rutas `congelado → activo` fuera del endpoint de cumplimiento;
-- vigencia normativa vencida → `normative_current` nulo → scoring `serving_config_unavailable`.
+- vigencia normativa vencida → `normative_current` nulo (la consecuencia en scoring, `revision_requerida` con `parametro_normativo_no_vigente`, la prueba U7).
 
 ## 4. Cumplimiento de extensiones (Functional Design U4)
 
@@ -95,7 +95,7 @@ Revisada contra el cuerpo de los tres artefactos antes de presentarla.
 | AUTONOMIA-01 | Cumple | BR-U4-09 (promoción por PR, sin sync ni apply) |
 | AUTONOMIA-03 | N/A en U4 | Governance no tiene flujo ni scope hacia core-banking-mock (F17 y `core:read-credit` son solo de case-service); este FD no agrega ninguno |
 | AUTONOMIA-04 | Cumple | BR-U4-01, 03 (solo cumplimiento saca de `congelado`; script de CI); PBT-U4-01 |
-| AUTONOMIA-06 | Cumple | BR-U4-08 (promoción incompleta → `version_mismatch`), BR-U4-11 (sin normativa vigente → fail-closed) |
+| AUTONOMIA-06 | Cumple | BR-U4-08 (promoción incompleta → `version_mismatch`), BR-U4-11 (`normative_current` nulo cuando no hay vigencia; scoring lo convierte en revisión humana obligatoria, U7) |
 | SECURITY-05 | Cumple | BR-U4-06 (formato y checksum), BR-U4-13 (fuentes no aprobadas → 422) |
 | SECURITY-08 | Cumple | BR-U4-01, 04, 10, 12 (transiciones por actor, cuatro ojos, sin escritura de servicios) |
 | SECURITY-11 | Cumple | Casos de abuso de la lógica de negocio con prueba: BR-U4-03 (script de CI que falla si existe otra ruta `congelado → activo` fuera del endpoint de cumplimiento), BR-U4-04 (bias solo congela, X04) y BR-U4-10 (cuatro ojos). Defensa en profundidad: en BR-U4-03, la restricción del endpoint (rol, MFA, step-up) más el script. Lógica crítica aislada en `model_fsm`, una función pura (§1). El rate limiting de los endpoints públicos es del gateway (U2) |
