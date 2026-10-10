@@ -20,8 +20,8 @@ Fila = unidad dependiente. Columna = unidad de la que depende.
 | **U4 governance** | C | P | I | R (append) | — | | | | | R* (compare_source) | | |
 | **U5 reference-model** | C (esquema de features y `MonitoringLabels`) | | | | | — | | | | | | |
 | **U6 model-serving** | | P | | | | D (artefactos) | — | | | | | |
-| **U7 scoring-explainability** | C | P | I | R (append, lectura) | R (serving-config) | | R (predict/explain) | — | | | | |
-| **U8 case-management** | C | P | I | R (append) | | | | R (recommend) | — | | | |
+| **U7 scoring-explainability** | C | P | I | R (append, lectura) | R (serving-config; diccionario F103) | | R (predict/explain) | — | | | | |
+| **U8 case-management** | C | P | I | R (append) | R (serving-config; `feature_spec` F104, U8 FD Q1) | | | R (recommend) | — | | | |
 | **U9 bias-monitoring** | C | P | I | R (lectura) | R (freeze) | D (modelo proxy, para pruebas) | | | | — | | |
 | **U10 console** | C (cliente TS, authz) | P | I | R | R | | | R (resumen al solicitante) | R | R | — | |
 | **U11 product-metrics** | C | P | I | R (lectura) | | | | | | | | — |
@@ -63,6 +63,7 @@ flowchart LR
     U4 --> U7
     U6 --> U7
     U7 --> U8
+    U4 --> U8
     U4 --> U9
     U5 --> U9
     U8 --> U10
@@ -95,7 +96,7 @@ Orden secuencial (un solo equipo):
   6. U5  reference-model          (U0)
   7. U6  model-serving            (U1, U5)
   8. U7  scoring-explainability   (U3, U4, U6)
-  9. U8  case-management          (U3, U7)
+  9. U8  case-management          (U3, U4, U7)
  10. U9  bias-monitoring          (U3, U4, U5)
  11. U10 console                  (U3, U4, U7, U8, U9)
  12. U11 product-metrics          (U3)

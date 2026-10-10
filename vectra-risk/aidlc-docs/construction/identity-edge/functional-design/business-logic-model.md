@@ -8,7 +8,7 @@ pocos validadores que corren en CI. La lógica de autorización en los servicios
 | Módulo | Forma | Responsabilidad | Reglas |
 |---|---|---|---|
 | `realm` | `realm.{env}.yaml` + `keycloak-config-cli` | Roles, clientes, scopes, audiencias, MFA, sesiones, fuerza bruta, eventos, LDAP | BR-U2-01, 03, 05, 06, 09, 12, 15, 16 |
-| `realm-lint` | Script de CI | Validar el `realm.yaml`: SoD, clientes sin comodines, scopes del catálogo de U0, nadie con `core:write-credit`, sin secretos compartidos en clientes de servicio | BR-U2-01, 09; AUTONOMIA-03 |
+| `realm-lint` | Script de CI | Validar el `realm.yaml`: SoD, clientes sin comodines, scopes del catálogo de U0, nadie con `core:write-credit`, sin secretos compartidos en clientes de servicio; en `realm.prod.yaml`, ni `channel-simulator` ni `case-service` con `core:read-credit` o la audiencia `core-banking-mock` (precisado el 2026-10-08 por U8 INF-U8-02); `governance:freeze` **solo** en `bias-monitoring-job` (tercera revisión del FD de U9, 2026-10-10) | BR-U2-01, 09; AUTONOMIA-03 |
 | `realm-drift` | CronJob | Exportar el realm y compararlo con Git | BR-U2-12 |
 | `gateway-routes` | Manifiestos de Envoy Gateway (`HTTPRoute`, `SecurityPolicy`, `BackendTrafficPolicy`, `ClientTrafficPolicy`) generados desde una tabla de rutas | Rutas cerradas, JWT, límites, cabeceras, errores | BR-U2-08, 10, 11, 13, 14 |
 | `route-gen` | Script de CI | Generar los manifiestos del gateway desde `routes.yaml` (domain-entities §4) y probarlos | BR-U2-10 |
@@ -65,7 +65,7 @@ request
 |---|---|---|---|---|
 | PBT-U2-01 | `realm-lint` | Para todo conjunto de roles generado, el validador acepta ⇔ contiene como máximo un rol de negocio | Oráculo | Subconjuntos de los 4 roles de negocio más roles técnicos |
 | PBT-U2-02 | `realm-lint` / mapeo LDAP | Para toda asignación de grupos LDAP, el usuario obtiene un rol ⇔ pertenece exactamente a un grupo mapeado; con dos o más, no obtiene ninguno | Oráculo | Conjuntos de grupos mapeados y no mapeados |
-| PBT-U2-03 | `realm-lint` | Para todo cliente del realm generado: ningún scope fuera del catálogo de U0 pasa, y `core:write-credit` no pasa nunca | Invariante | Clientes con scopes arbitrarios del catálogo y fuera de él |
+| PBT-U2-03 | `realm-lint` | Para todo cliente del realm generado: ningún scope fuera del catálogo de U0 pasa, `core:write-credit` no pasa nunca, y `governance:freeze` solo pasa en el cliente `bias-monitoring-job` (tercera revisión del FD de U9, 2026-10-10) | Invariante | Clientes con scopes arbitrarios del catálogo y fuera de él |
 | PBT-U2-04 | `route-gen` | Para todo path generado, el gateway lo enruta ⇔ coincide con una entrada de `routes.yaml`; todo path bajo `/auth/admin` o del realm `master` da 404 | Invariante | Paths aleatorios, prefijos de las rutas válidas, codificaciones (`%2F`, `..`, mayúsculas) |
 | PBT-U2-05 | `route-gen` | Para toda ruta generada, el perfil de cabeceras aplicado es el de su fila, y solo `/grafana/**` permite `frame-ancestors 'self'` | Invariante | Rutas de la tabla y paths dentro de cada una |
 | PBT-U2-06 | `route-gen` | `generate(routes.yaml)` es determinista: dos ejecuciones producen manifiestos idénticos | Idempotencia | Tablas de rutas con orden de entradas permutado |
@@ -84,6 +84,8 @@ CI. Se marca PBT-U2-08.
 - más de 20 req/s de un mismo usuario → 429 con `Retry-After` (US-611);
 - `/auth/admin` → 404 (X10);
 - un token de `scoring-service` presentado a `case-service` → 401 (audiencia);
+- `realm-lint` sobre un `realm.prod.yaml` en el que `case-service` tiene `core:read-credit` o la audiencia `core-banking-mock` → error; contra el realm de producción exportado, `case-service` no obtiene un token con ese scope ni con esa audiencia (U8 INF-U8-02, core deshabilitado en producción);
+- `realm-lint` sobre un realm en el que un cliente distinto de `bias-monitoring-job` (por ejemplo `bias-monitoring-service`) tiene `governance:freeze` → error; contra el realm exportado de cada entorno, solo `bias-monitoring-job` obtiene un token con `governance:freeze` y `bias-monitoring-service` recibe `invalid_scope` (quinta revisión del FD de U9, 2026-10-10);
 - el refresh token reusado → sesión revocada.
 
 ## 4. Cumplimiento de extensiones (Functional Design U2)

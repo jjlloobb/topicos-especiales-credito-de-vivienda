@@ -6,10 +6,10 @@
 
 | Componente | Namespace | Función | Patrón / NFR | PriorityClass |
 |---|---|---|---|---|
-| Envoy Gateway (controlador) | `vectra-edge` | Traduce Gateway API a configuración de Envoy | NFR-U2-03, 04 | `vectra-high` |
+| Envoy Gateway (controlador) | `envoy-gateway-system` (INF-U2-02, K14; precisado el 2026-10-08) | Traduce Gateway API a configuración de Envoy | NFR-U2-03, 04 | `vectra-high` |
 | Envoy (data plane) | `vectra-edge` | TLS, rutas, JWT, rate limit, cabeceras, access log | P-U2-01..03, 06, 07 | `vectra-high` |
 | Servicio de rate limit (`envoyproxy/ratelimit`) | `vectra-edge` | Decisiones de rate limit global | P-U2-01, 06 | `vectra-high` |
-| Redis (primaria + réplica + 3 Sentinel) | `vectra-edge` | Contadores efímeros | P-U2-04; NFR-U2-27 | `vectra-high` |
+| Valkey (primaria + réplica + 3 Sentinel) | `vectra-edge` | Contadores efímeros | P-U2-04; NFR-U2-27 | `vectra-high` |
 | Keycloak (2–4 réplicas) | `vectra-identity` | IdP: realm `vectra`, MFA, sesiones, eventos | P-U2-04, 05, 08 | `vectra-high` |
 | `keycloak-config-cli` (Job, hook de sync) | `vectra-identity` | Aplica `realm.{env}.yaml` | BR-U2-12 | `vectra-normal` |
 | `realm-drift` (CronJob diario) | `vectra-identity` | Compara el realm exportado con Git | BR-U2-12 | `vectra-low` |
@@ -26,11 +26,13 @@
 flowchart LR
     browser["Navegador"]
     lb["Balanceador L4"]
+    subgraph egsys["envoy-gateway-system"]
+        egctl["Envoy Gateway controller"]
+    end
     subgraph edge["vectra-edge"]
         envoy["Envoy data plane"]
-        egctl["Envoy Gateway controller"]
         rl["Servicio de rate limit"]
-        redis["Redis + Sentinel"]
+        valkey["Valkey + Sentinel"]
     end
     subgraph identity["vectra-identity"]
         kc["Keycloak"]
@@ -44,7 +46,7 @@ flowchart LR
     lb --> envoy
     egctl --> envoy
     envoy --> rl
-    rl --> redis
+    rl --> valkey
     envoy --> kc
     envoy --> backends
     kc --> kcdb
@@ -57,10 +59,10 @@ flowchart LR
 ```text
 Navegador -> balanceador L4 (IP real: Local o PROXY v2) -> Envoy (vectra-edge)
 Envoy:
-  -> servicio de rate limit -> Redis + Sentinel   (claves: sub, azp, IP; fail-closed solo en /auth/**)
+  -> servicio de rate limit -> Valkey + Sentinel   (claves: sub, azp, IP; fail-closed solo en /auth/**)
   -> Keycloak (rutas /auth/** y JWKS por URL interna, refresco cada 5 min)
   -> SPA, console-bff, case-service (intake), governance (promoción), Grafana, Prometheus (F09 opcional)
-Envoy Gateway controller -> configura Envoy (si cae, Envoy sigue con la última configuración)
+Envoy Gateway controller (envoy-gateway-system) -> configura Envoy por xDS, F95 (si cae, Envoy sigue con la última configuración)
 Keycloak -> keycloak-db (sesiones persistentes, jdbc-ping)
 keycloak-config-cli (hook de sync manual) -> API de administración de Keycloak (interna)
 realm-drift (CronJob) -> exporta el realm -> compara con Git -> RealmDrift
@@ -73,9 +75,9 @@ Se formalizan en el Infrastructure Design de U2 (`component-dependency.md` y `fl
 | Origen | Destino | Puerto | Propósito |
 |---|---|---|---|
 | Envoy | Servicio de rate limit | 8083 (gRPC; 8081 queda para health y métricas) | Decisiones de rate limit |
-| Servicio de rate limit | Redis (vía Sentinel) | 26379 / 6379 | Contadores |
-| Redis réplica | Redis primaria | 6379 | Replicación |
-| Sentinel | Redis | 6379 / 26379 | Monitoreo y failover |
+| Servicio de rate limit | Valkey (vía Sentinel) | 26379 / 6379 | Contadores |
+| Valkey réplica | Valkey primaria | 6379 | Replicación |
+| Sentinel | Valkey | 6379 / 26379 | Monitoreo y failover |
 | `keycloak-config-cli`, `realm-drift` | Keycloak (admin, interno) | 8443 | Aplicar y exportar el realm |
 | Envoy | Keycloak | 8443 | Rutas `/auth/**` (F05) y JWKS (F50) |
-| Prometheus | Keycloak (9000), Envoy, servicio de rate limit, exportador de Redis | puertos de métricas | Scrape |
+| Prometheus | Keycloak (9000), Envoy, servicio de rate limit, exportador de Valkey | puertos de métricas | Scrape |

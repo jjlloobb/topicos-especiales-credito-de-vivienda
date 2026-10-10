@@ -23,7 +23,8 @@ actualizados por este diseño. Aquí se definen las entidades de `governance-db`
 | `feature_dictionary_version` | `str` | Diccionario de features de esa versión (U0 §4) |
 | `feature_dictionary` | JSON | Copia del `feature_dictionary.json` del paquete, guardada al registrar tras verificar su SHA-256; la sirve `GET /v1/models/{id}/feature-dictionary` (agregado por U7 FD Q4) |
 | `feature_spec` | JSON | Copia del `feature_spec.json` del paquete, con sus tablas de búsqueda, guardada al registrar tras verificar su SHA-256; la sirve `GET /v1/models/{id}/feature-spec` (BR-U4-19; agregado por U8 FD Q1) |
-| `data_sources` | `list[ds_id]` | Fuentes aprobadas que usa (Q8) |
+| `data_sources` | `list[ds_id]` | Fuentes aprobadas que usa (Q8); en una candidata, también la fuente `en_evaluacion` que se compara |
+| `source_candidate_for` | `ds_id?` | Solo en la versión candidata de una fuente `en_evaluacion` (BR-U4-13): no puede aprobarse ni activarse mientras la fuente no esté `aprobada` (precisado el 2026-10-08 por U9 FD) |
 | `registered_by` | `sub` | `ingeniero_riesgo` |
 | `approved_by?` | `sub` | `cro`, distinto de `registered_by` (Q3) |
 | `investigation` | `bool` | Marca de `investigar` en `congelado` (Q1) |
@@ -36,24 +37,29 @@ actualizados por este diseño. Aquí se definen las entidades de `governance-db`
 `rechazado`, `activo`, `inactivo`, `congelado`, `retirado`. Las transiciones están en
 business-rules §1.
 
-### 1.3 `ModelTransition` (tabla `model_transitions`, historial)
-`transition_id` (UUID; también es la `idempotency_key` del evento del registro), `model_version_id`,
-`from_state`, `to_state`, `actor` (`{kind, sub, role, acr?, auth_time?}`), `justification?`,
-`status` (`pendiente_registro` \| `confirmada` \| `abandonada`), `registry_entry_id?`,
+### 1.3 `Transition` (tabla `transitions`, historial de modelo, política y fuente)
+Una sola tabla guarda las transiciones de las tres entidades con evidencia de BR-U4-17: versión de modelo, política (§3) y fuente de datos (§4) (precisado el 2026-10-06, revisión del FD de U8: antes solo existía `model_transitions` y las transiciones de política y de fuente no tenían dónde guardar su `n`, su llave ni su estado).
+
+`transition_id` (UUID), `entity_type` (`model_version` \| `policy` \| `data_source`), `entity_id` (`model_version_id`, `policy_version_id` o `ds_id`), `transition_number` (`n` = transiciones no abandonadas de la entidad + 1; índice único parcial `(entity_type, entity_id, transition_number) WHERE status <> 'abandonada'`), `idempotency_key` (= UUIDv5(`entity_type`:`entity_id`, `n`), determinista; el tipo entra en la llave para que dos entidades de tipos distintos nunca la compartan; BR-U4-17 precisada el 2026-10-06),
+`from_state`, `to_state` (estados de la máquina de la entidad: §1.2, §3.1 o §4), `actor` (`{kind, sub, role, acr?, auth_time?}`), `justification?`,
+`kind` (`cambio_estado` \| `compensacion`; una compensación tiene `from_state = to_state` y nunca aplica estado; solo existe en `model_version`, porque solo el `freeze` descarta transiciones, BR-U4-17), `status` (`pendiente_registro` \| `confirmada` \| `abandonada` \| `descartada`), `unit_id?` (el par de `mark_active` o el par de la activación de una política, `propuesta → activa` de la nueva y `activa → historica` de la anterior; la unidad se confirma, abandona y recupera completa; precisado el 2026-10-06, revisión del FD de U8), `event_payload` y `correlation_id` (guardados al crear la transición y reenviados sin cambios, BR-U4-17), `registry_entry_id?`,
 `created_at`, `confirmed_at?`.
 
 ## 2. Validación
 
 ### 2.1 `ValidationRun` (tabla `validation_runs`)
-`run_id`, `model_version_id`, `job_name` (Job en `vectra-staging`, K01), `state` (`lanzado` \|
+`run_id`, `model_version_id`, `job_name` (Job en `vectra-staging`, K01), `mode` (`validacion` \|
+`source_comparison`), `source_id?` y `baseline_version_id?` (solo en `source_comparison`: la fuente
+y la versión `activo` de la comparación; `model_version_id` es la candidata), `state` (`lanzado` \|
 `informe_recibido` \| `fallido` \| `timeout`), `started_at`, `deadline_at` (2 h), `finished_at?`.
+Un `timeout` en `source_comparison` no cambia el estado de ninguna versión (BR-U4-05; revisión del FD de U9, 2026-10-08, H7). `CHECK`: en `source_comparison`, `source_id` y `baseline_version_id` son obligatorios; en `validacion`, nulos (segunda revisión del FD de U9).
 
 ### 2.2 `ValidationReport`
 
 | Campo | Contenido |
 |---|---|
 | `auc_roc` | `Decimal4`, con `auc_target` (0,85 **[INTERNO]**) y `auc_meets_target: bool` |
-| `initial_disparity` | Por grupo y banda (`MonitoringLabels`), con el umbral de U9 y la indicación de si lo supera |
+| `initial_disparity` | Resultado de la librería de U9 sobre el dataset de validación: un `AttributeResult` por atributo (celdas, bandas, agregada e intervalo), `model_aggregate`, `trigger_attribute`, `n_min`, `threshold_pp` y `rule_met` (la regla de U9 BR-U9-11) (revisión del FD de U9, 2026-10-08, H11) |
 | `sync_check` | `passed: bool`, `predictor_version`, `explainer_version`, `samples_checked`, `failure_reason?` |
 | `dataset_ref` | Dataset de validación del model-store |
 | `disclaimer` | Texto fijo: el monitoreo mide disparidad en este dataset y **no** certifica la ausencia de discriminación (FR-BIA-08) |
@@ -68,7 +74,7 @@ list[NormativeParams]`, `state` (`propuesta` \| `activa` \| `rechazada` \| `hist
 `proposed_by`, `approved_by?` y `created_at`, más `activated_at?`, `superseded_at?` y
 `rejection_justification?`.
 
-Como máximo **una** política `activa`.
+Como máximo **una** política `activa`. Sus transiciones se guardan en `transitions` con `entity_type = policy` (§1.3).
 
 ### 3.2 Selección del parámetro normativo
 `normative_at(policy, date)` devuelve el único `NormativeParams` con `effective_from ≤ date`
@@ -80,7 +86,8 @@ vigencias no se solapan (BR-U0-33), hay a lo sumo uno.
 ### `DataSource` (tabla `data_sources`)
 `ds_id`, `name`, `description`, `provides_features: list[feature_id]`, `owner`, `proposed_by`
 (`ingeniero_riesgo`), `state` (`propuesta` → `en_evaluacion` → `aprobada` \| `rechazada`),
-`pre_post_report_ref?`, `decided_by?` (`cumplimiento`), `decision_justification?`, fechas.
+`pre_post_report?` (el `PrePostReport` de U9 que devolvió `compare_source`, guardado aquí; antes `pre_post_report_ref`, que no apuntaba a ninguna entidad; revisión del FD de U9, 2026-10-08, H7), `decided_by?` (`cumplimiento`), `decision_justification?`, fechas.
+Sus transiciones se guardan en `transitions` con `entity_type = data_source` (§1.3).
 
 ## 5. `serving-config` (tabla `serving_config`, una fila)
 
@@ -91,9 +98,8 @@ vigencias no se solapan (BR-U0-33), hay a lo sumo uno.
 | `feature_dictionary_version` | De la versión de modelo |
 | `inference_service` | `ModelVersion.inference_service` de la versión en `activo` o `congelado` (`isvc-<8 hex>`); es lo que scoring y explainability usan para saber a qué `InferenceService` llamar (azul/verde, P-U6-02; agregado aquí el 2026-10-03, faltaba en esta tabla aunque ya estaba en el contrato de U0) |
 | `normative_current` | `normative_at(policy, hoy)`; nulo → la política de scoring da `revision_requerida` con `parametro_normativo_no_vigente` (precisado el 2026-10-03 por U7 FD Q1: alinea con US-207) |
-| `bias_monitoring_age_s` | Edad del último cálculo de disparidad que informó U9 |
 | `effective_from` | Momento de la última transición confirmada |
-| `etag` | SHA-256 del contenido canónico (JCS) de todos los campos anteriores salvo `bias_monitoring_age_s` (incluido `inference_service`); cambia si y solo si cambia el contenido, así que un cambio de `InferenceService` en `mark_active` dispara la convergencia de P-U4-01 y el límite de ≤ 6 s de BR-U4-14 |
+| `etag` | SHA-256 del contenido canónico (JCS) de todos los campos anteriores (incluido `inference_service`; `bias_monitoring_age_s` se quitó, precisado el 2026-10-08 por U9 FD); cambia si y solo si cambia el contenido, así que un cambio de `InferenceService` en `mark_active` dispara la convergencia de P-U4-01 y el límite de ≤ 6 s de BR-U4-14 |
 
 `GET /v1/serving-config` admite `If-None-Match` (304 si no cambió).
 
@@ -105,4 +111,4 @@ vigencias no se solapan (BR-U0-33), hay a lo sumo uno.
 | Caché de `serving-config` en scoring | ≤ 5 s (efecto del congelamiento ≤ 6 s con la convergencia entre réplicas) | BR-U4-14, NFR-U4-06 |
 | Aviso de vencimiento normativo | 15 días (SEV2) y el día del vencimiento (SEV1) | BR-U4-11 |
 | Desfase de promoción tolerado | 10 min | BR-U4-08 |
-| Monitoreo de sesgo detenido | SEV2 a W, SEV1 a 2W (W lo define U9) | BR-U4-16 |
+| Monitoreo de sesgo detenido | SEV2 a 1 h, SEV1 a 2 h (U9 BR-U9-21) | BR-U4-16 |

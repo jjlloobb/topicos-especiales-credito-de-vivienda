@@ -22,7 +22,7 @@
 | Consumen U0 | U2 (catálogo de scopes), U3, U4, U7, U8, U9, U11 (librerías), U10 (cliente TS), U5 (derivación de features), U12 (pruebas) |
 
 **Diseño de entrada:**
-- Functional Design: `construction/contracts/functional-design/` (BR-U0-01..95, PBT-U0-01..13).
+- Functional Design: `construction/contracts/functional-design/` (BR-U0-01..95, PBT-U0-01..16).
 - NFR Requirements: `construction/contracts/nfr-requirements/` (NFR-U0-01..46, stack).
 - NFR Design: `construction/contracts/nfr-design/` (P-U0-01..12, componentes lógicos).
 
@@ -93,8 +93,8 @@ vectra-risk/
 - [ ] **Paso 3 — Catálogos y tipos de dominio**
   - `catalog.py`: `Scope` (domain-entities §7.2, incluidos `core:read-credit` y `core:write-credit`), `Role`, `ReasonCode`, `FailClosedCause` (10, en el orden de BR-U0-02), `ProblemCode`.
   - `models/`: todos los tipos de domain-entities §1–§9 en Pydantic v2 `strict`, `extra="forbid"`; `Decimal4`/`Decimal` como cadena con patrón (BR-U0-15); `FeatureValue` discriminado; `RecommendResult` discriminado por `kind`; `LogRecord`.
-  - Reglas: BR-U0-15, 20..36, 95. Historias: US-111, US-602.
-  - **Aceptación**: `uv run mypy --strict contracts/python` sin errores; `uv run pytest contracts/tests/unit/test_models.py` (campos extra → error; `Decimal4` numérico → error; enums cerrados).
+  - Reglas: BR-U0-15, 20..38, 95. Historias: US-111, US-602.
+  - **Aceptación**: `uv run mypy --strict contracts/python` sin errores; `uv run pytest contracts/tests/unit/test_models.py test_business_time.py test_fail_closed_payload.py` (campos extra → error; `Decimal4` numérico → error; enums cerrados; §9.4: un `MonitoringQuery` con 13 rangos → error, `CountTable` con `favorable > total` → error, `CompareSourceRequest` con un atributo repetido o faltante → error; `unattributable_range` con `from_day > to_day` → error; `unattributable_invalid < 0` → error (séptima revisión del FD de U9, 2026-10-10); `CellResult` con `status = muestra_insuficiente` y `rate` → error (revisión del Infrastructure Design de U9, 2026-10-10); cuarta revisión del FD de U9, 2026-10-10). Ejemplos de BR-U0-37 sobre la función pura `check_business_time` (`test_business_time.py`): momento de negocio posterior a `occurred_at` → error; 8 días antes → error; 24 h antes → válido. La función no se llama desde el pipeline de validación; su uso tras la idempotencia lo prueba el plan de U3, Paso 7 (agregado el 2026-10-06). Ejemplos de BR-U0-38 (`test_fail_closed_payload.py`): `cause` y `local_cause` a la vez → error; ninguno → error; `scoring_rejected` con `retryable = true` → error; `local_cause` sin `escalated_at` → error; `scoring_unreachable` + `retryable = true` + `escalated_at` → válido. El modelo `FailClosedPayload` incluye `local_cause` (`serving_config_unavailable` \| `scoring_unreachable` \| `scoring_rejected`) y `escalated_at`.
 
 - [ ] **Paso 4 — Invariante en dos fases**
   - `outcome/`: `check_preconditions` (causas 1–9), `build_outcome` (causa 10), `Ready` y `Recommendation` con un token privado en `_internal`, `model_validator` estructural y `RecommendResult.from_wire()`.
@@ -109,7 +109,7 @@ vectra-risk/
 
 - [ ] **Paso 6 — Generadores y propiedades de la lógica de negocio**
   - `tests/strategies/`: solicitud colombiana realista, `FeatureVector`, `MonitoringLabels`, `Explanation`, `ExplainerError`, `ServingState`, `Principal` (NFR-U0-44).
-  - Propiedades: PBT-U0-01 (oráculo por tabla de verdad de las 10 causas y las dos fases, incluida la discrepancia de versión pedida agregada por U8 FD Q1), 02 (round-trip JSON de todos los tipos), 03, 04, 05, 06, 10, 11, 12, 13.
+  - Propiedades: PBT-U0-01 (oráculo por tabla de verdad de las 10 causas y las dos fases, incluida la discrepancia de versión pedida agregada por U8 FD Q1), 02 (round-trip JSON de todos los tipos), 03, 04, 05, 06, 10, 11, 12, 13, 15 (`check_business_time`, BR-U0-37) y 16 (payload de `fail_closed`, BR-U0-38); agregadas el 2026-10-06.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest contracts/tests/property -m "not common"`; cada falla imprime la semilla.
 
 - [ ] **Paso 7 — Pruebas de ejemplo obligatorias de la lógica (PBT-10)**
@@ -125,12 +125,12 @@ vectra-risk/
 - [ ] **Paso 9 — Registro de contratos de rutas**
   - `routes/`: un `RouteContract` por ruta de cada servicio (case, scoring, explainability, governance, bias, registry, core-banking-mock, console-bff), con scopes, roles y MFA según `component-methods.md` y `component-dependency.md` §2.
   - Patrón: P-U0-12. Historia: US-602.
-  - **Aceptación**: `uv run pytest contracts/tests/unit/test_routes.py` (toda ruta declara requisitos; `POST /v1/credits/{id}/status` exige `core:write-credit`; ningún scope fuera del catálogo).
+  - **Aceptación**: `uv run pytest contracts/tests/unit/test_routes.py` (toda ruta declara requisitos; `POST /v1/credits/{id}/status` exige `core:write-credit`; ningún scope fuera del catálogo; `POST /v1/monitoring/daily:query` de registry declarado con `read_only=True` y scope `registry:read:monitoring`; séptima revisión del FD de U9, 2026-10-10).
 
 - [ ] **Paso 10 — Middleware y fábrica de app**
-  - `telemetry.py` (P-U0-11, BR-U0-62), `jwks_cache.py` + `authn.py` (P-U0-06, BR-U0-70, NFR-U0-10..12), `authz.py` (P-U0-02, BR-U0-71..73), `errors.py` (P-U0-05, BR-U0-60..61), `deps.py` (P-U0-07: timeout obligatorio y circuit breaker con propiedad stateful, agregado por U7 NFR Q4; `deadline=` con la cabecera `x-vectra-deadline` y un cliente por dependencia con límite de conexiones, agregados por U7 NFR Design Q1 y Q4), `deadline.py` (lectura de la cabecera entrante), `logging.py` (P-U0-04, BR-U0-50..53), `metrics.py`, `app_factory.py` (P-U0-01: orden fijo, puerto 8081 separado, verificación de rutas contra el registro y deny by default).
+  - `telemetry.py` (P-U0-11, BR-U0-62), `jwks_cache.py` + `authn.py` (P-U0-06, BR-U0-70, NFR-U0-10..12), `authz.py` (P-U0-02, BR-U0-71..73), `errors.py` (P-U0-05, BR-U0-60..61), `deps.py` (P-U0-07, NFR-U0-23, PBT-U0-14: timeout obligatorio y circuit breaker con propiedad stateful, agregado por U7 NFR Q4; solo timeouts, errores de conexión y 5xx cuentan como fallo, nunca un 4xx (U8 NFR Requirements, 2026-10-06); `deadline=` con la cabecera `x-vectra-deadline` y un cliente por dependencia con límite de conexiones, agregados por U7 NFR Design Q1 y Q4), `deadline.py` (lectura de la cabecera entrante), `logging.py` (P-U0-04, BR-U0-50..53), `metrics.py`, `app_factory.py` (P-U0-01: orden fijo, puerto 8081 separado, verificación de rutas contra el registro y deny by default).
   - Historias: US-601, US-602, US-604, US-611.
-  - **Aceptación**: `uv run pytest contracts/tests/unit/test_app_factory.py test_authn.py test_jwks_cache.py test_authz.py test_errors.py test_logging.py test_telemetry.py test_deps.py test_deadline.py`.
+  - **Aceptación**: `uv run pytest contracts/tests/unit/test_app_factory.py test_authn.py test_jwks_cache.py test_authz.py test_errors.py test_logging.py test_telemetry.py test_deps.py test_deadline.py` (en `test_app_factory.py`: `create_app` rechaza al arrancar un `POST` con solo scopes de lectura y sin `read_only`, y acepta el de `monitoring/daily:query`; la prueba pasó del Paso 9 a este, porque `create_app` se construye aquí, revisión del Infrastructure Design de U9, 2026-10-10; en `test_logging.py`: un `event` fuera del catálogo `log_events` de domain-entities §8.1 → error; los eventos de U9 `disparity.viewed` y `freeze_context.viewed` están en el catálogo; revisión del NFR Requirements de U9, 2026-10-10) y `HYPOTHESIS_PROFILE=ci uv run pytest contracts/tests/property/test_deps_stateful.py` (PBT-U0-14); en `test_deps.py`: `breaker="disabled"` con `process_kind="batch"` → cliente sin breaker y con timeout; en un servicio HTTP → error al crear el cliente (precisado el 2026-10-10 por U9 NFR Design Q1).
 
 - [ ] **Paso 11 — Pruebas de ejemplo de la capa de API**
   - Respuestas exactas para 400, 401 (`alg=none`, `HS256`, `aud` sin el servicio, vencido por 31 s), 403, `mfa_required` (sin `acr = mfa`, y con `auth_time` de 901 s frente a 900 s aceptado), 415 y 422. Un token con varias audiencias que incluye el servicio → aceptado (BR-U0-70 precisado por U2).
@@ -158,7 +158,7 @@ vectra-risk/
 - [ ] **Paso 15 — Generación de specs, catálogo para U2 y matriz US-602**
   - `tools/codegen.py` + `make -C contracts openapi`: specs `openapi/{service}.yaml`, `openapi/scopes-catalog.json` (para el realm de U2) y `openapi/role-endpoint-matrix.md` (US-602).
   - NFR: NFR-U0-30. Reglas: BR-U0-93 (las specs salen solo del registro de contratos de U0, la fuente autoritativa).
-  - **Aceptación**: `make -C contracts openapi && git diff --exit-code contracts/openapi/`.
+  - **Aceptación**: `make -C contracts openapi && git diff --exit-code contracts/openapi/`; la spec de registry incluye `POST /v1/monitoring/daily:query` y `GET /v1/monitoring/freezes` con `registry:read:monitoring` (séptima revisión del FD de U9, 2026-10-10).
 
 - [ ] **Paso 16 — Cliente TS**
   - `contracts/ts`: tipos con `openapi-typescript`, cliente `openapi-fetch`, utilidades `decimal.js` para `Decimal4`; regla de ESLint que prohíbe `Number(`/`parseFloat` sobre tipos `Decimal*`.
@@ -181,7 +181,7 @@ vectra-risk/
   - **Aceptación**: `uv run pytest contracts/tests/bench -m benchmark --benchmark-json=benchmark.json && uv run python contracts/tools/bench_gate.py benchmark.json`.
 
 - [ ] **Paso 20 — Cobertura, mutación y trazabilidad**
-  - Configuración de cobertura de ramas (≥ 95 % global; 100 % en `outcome`, `authz`, `logging`), `mutmut` en `outcome` y `authz` con `mutmut-allowlist.txt`, y `tools/traceability.py` completo (cada BR-U0-xx tiene al menos una prueba).
+  - Configuración de cobertura de ramas (≥ 95 % global; 100 % en `outcome`, `authz`, `logging`, `deps` y `deadline`), `mutmut` en `outcome`, `authz`, `deps` y `deadline` con `mutmut-allowlist.txt`, y `tools/traceability.py` completo (cada BR-U0-xx tiene al menos una prueba).
   - NFR: NFR-U0-35, 40, 41.
   - **Aceptación**: `uv run pytest contracts/tests --cov --cov-branch --cov-fail-under=95`, `uv run python contracts/tools/coverage_gate.py` (umbral por módulo), `uv run mutmut run` y `uv run mutmut results` sin sobrevivientes fuera de la allowlist, y `uv run python contracts/tools/traceability.py --all`.
 
@@ -242,6 +242,8 @@ vectra-risk/
 |---|---|
 | PBT-U0-01..06, 10..13 | 6 |
 | PBT-U0-07..09 | 12 |
+| PBT-U0-15 (`check_business_time`) y PBT-U0-16 (payload de `fail_closed`) | 6 |
+| PBT-U0-14 (stateful del circuit breaker) | 10 |
 | PBT-10 (ejemplos) | 7, 11 |
 | PBT TS (fast-check) | 17 |
 

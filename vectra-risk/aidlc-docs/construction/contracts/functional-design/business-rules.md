@@ -21,7 +21,7 @@ build_outcome(ready: Ready, registry_ack | RegistryError ?, now)
 
 - `check_preconditions` evalúa las causas 1–9 de BR-U0-02 y es la **única** que construye `Ready`.
 - `build_outcome` solo evalúa la causa 10 y es la **única** que construye `Recommendation`.
-- `requested_model_version_id` es el de `ScoringRequest` (la versión cuyo `feature_spec` armó el vector) y `serving_model_version_id` el de `serving-config` (ausente si no se pudo leer) (precisado el 2026-10-03 por U8 FD Q1).
+- `requested_model_version_id` es el de `ScoringRequest` (la versión cuyo `feature_spec` armó el vector) y `serving_model_version_id` el de `serving-config` (ausente si no se pudo leer) (precisado el 2026-10-06 por U8 FD Q1).
 - Los tipos de entrada están en domain-entities §3.6. Ninguna rama fuera de estas dos funciones puede producir `Ready` ni `Recommendation`.
 
 **BR-U0-02 — Tabla de causas.** Una causa aplica cuando:
@@ -34,7 +34,7 @@ build_outcome(ready: Ready, registry_ack | RegistryError ?, now)
 | 4 | `timeout` | precondiciones | el explicador devolvió `ExplainerError.timeout` |
 | 5 | `explainer_unavailable` | precondiciones | el explicador devolvió `ExplainerError.unavailable`, **o** falta el resultado del explicador sin que aplique una causa anterior (S2) ni haya discrepancia de versión pedida (causa 7) |
 | 6 | `explainer_error` | precondiciones | el explicador devolvió `ExplainerError.error` |
-| 7 | `version_mismatch` | precondiciones | el explicador devolvió `ExplainerError.version_mismatch`, o `explanation.model_version_id ≠ prediction.model_version_id`, o `dictionary.model_version_id ≠ prediction.model_version_id` (BR-U0-81), **o** `requested_model_version_id ≠ serving_model_version_id` con `serving_state == activo` (discrepancia de versión pedida: scoring no invoca a KServe ni al explicador, y esas ausencias son válidas, S2) (precisado el 2026-10-03 por U8 FD Q1) |
+| 7 | `version_mismatch` | precondiciones | el explicador devolvió `ExplainerError.version_mismatch`, o `explanation.model_version_id ≠ prediction.model_version_id`, o `dictionary.model_version_id ≠ prediction.model_version_id` (BR-U0-81), **o** `requested_model_version_id ≠ serving_model_version_id` con `serving_state == activo` (discrepancia de versión pedida: scoring no invoca a KServe ni al explicador, y esas ausencias son válidas, S2) (precisado el 2026-10-06 por U8 FD Q1) |
 | 8 | `feature_dictionary_incomplete` | precondiciones | el explicador devolvió `ExplainerError.feature_dictionary_incomplete`, o falta `dictionary` sin discrepancia de versión pedida, o `covers(dictionary, explanation.shap_vector)` es falso |
 | 9 | `factuality_failed` | precondiciones | el explicador devolvió `ExplainerError.factuality_failed` |
 | 10 | `registry_unavailable` | registro | se recibió `RegistryError`, **o** falta el resultado del registro (S2) |
@@ -47,7 +47,10 @@ número**. El orden es fijo y forma parte del contrato.
 
 **BR-U0-04 — Reintentable.** `retryable = true` para todas las causas salvo `model_frozen`,
 que solo se resuelve con una acción humana (AUTONOMIA-04). El presupuesto de reintentos de
-case-service termina en `no_disponible` para cualquier causa reintentable.
+case-service termina en `no_disponible` para cualquier causa reintentable. Para las **causas
+locales** de una entrada de escalamiento (U8 BR-U8-08/09): `serving_config_unavailable` y
+`scoring_unreachable` → `true`; `scoring_rejected` → `false`, porque es un defecto o un error de
+configuración que reintentar no resuelve (precisado el 2026-10-06, revisión del FD de U8).
 
 **BR-U0-05 — Sin respaldos.** No existe ningún parámetro, valor por defecto ni rama que
 construya una `Explanation` sustituta. Las revisiones de código y la prueba PBT-U0-01 lo
@@ -56,7 +59,7 @@ verifican.
 **BR-U0-06 — Transporte del resultado (R2).** `POST /v1/recommendations` responde **200**
 con `RecommendResult`, discriminado por `kind`. El fail-closed nunca viaja como error
 HTTP. Los 4xx y 5xx de esa ruta solo significan fallos de transporte, autenticación o
-validación (`Problem`), y case-service los trata como reintentables.
+validación (`Problem`). case-service reintenta los 5xx y los fallos de transporte; un 4xx indica un defecto o un problema de configuración y no se reintenta a ciegas (BR-U8-08) (precisado el 2026-10-06, revisión del FD de U8).
 
 **BR-U0-07 — Cuantización de la predicción (R3, S3).** scoring convierte el `score` y la
 `confidence` flotantes de KServe a `Decimal4` con `ROUND_HALF_UP` **en la frontera**,
@@ -69,18 +72,22 @@ silencioso.
 
 ```text
 1. leer serving-config            -> serving_state (no_disponible si falla)
-2. si activo: predecir + cuantizar (BR-U0-07) + aplicar política
+2. si activo y requested_model_version_id == serving_model_version_id:
+     predecir + cuantizar (BR-U0-07) + aplicar política
+   si activo y difieren: no se llama a nada; ir al paso 4 (causa 7, BR-U0-02)   (U8 FD Q1)
 3. si hay prediction válida: llamar al explicador
 4. check_preconditions(...)       -> FailClosed: registrar fail_closed (best effort) y responder
                                   -> Ready: seguir
 5. append entrada recommendation construida SOLO desde Ready (+ evaluated_at, feature_vector_hash),
-   con una idempotency_key fija por intento de evaluación (reintentos del append reusan la misma)
+   con una idempotency_key fija por intento de evaluación: un UUID v4 nuevo que scoring genera al
+   recibir cada POST /v1/recommendations, nunca derivado de case_id ni de attempt (reintentos del
+   append dentro de la misma solicitud reusan la misma)   (precisado el 2026-10-06, revisión del FD de U8)
 6. build_outcome(ready, ack | RegistryError) -> responder RecommendResult (200)
 ```
 
 - Una dependencia que no se invocó se pasa **ausente**. Una ausencia solo es válida si ya aplicó una causa anterior (S2). Si no, se trata como la causa de su dependencia (5 o 10).
 - La entrada `recommendation` se escribe solo con lo que contiene `Ready`, así que todo lo que se **entrega** está en el registro, exactamente como se entregó. Al revés no siempre: si el registro confirma el commit después de que scoring dejó de esperar, queda una entrada que no se entregó. Esa entrada queda identificada: `human_decision.recommendation_entry_id` apunta a la entregada y el expediente marca las demás como `no_entregada` (BR-U3-14; P-U7-03) (precisado el 2026-10-03 por U7 NFR Design Q3).
-- Si el registro no responde en el paso 4, el `FailClosed` igual se entrega; la entrada `fail_closed` se reintenta con el caso. Eso significa que el **intento siguiente** del caso produce su propia entrada (BR-U7-16), no que se reintente la misma escritura. case-service no duplica las entradas por intento: escribe **una** sola entrada `fail_closed` (`retryable = false`) cuando el caso agota los reintentos (BR-U8-09) (precisado el 2026-10-03 por U8 FD Q4).
+- Si el registro no responde en el paso 4, el `FailClosed` igual se entrega; la entrada `fail_closed` se reintenta con el caso. Eso significa que el **intento siguiente** del caso produce su propia entrada (BR-U7-16), no que se reintente la misma escritura. case-service no duplica las entradas por intento: escribe **una** sola entrada `fail_closed` cuando el caso escala (agota los reintentos o recibe un 4xx no reintentable), con `cause` o `local_cause` (exactamente uno, BR-U0-38), `retryable` según BR-U0-04 (que incluye las causas locales: `false` solo para `scoring_rejected`) y marcada por `escalated_at` (BR-U8-09) (precisado el 2026-10-06 por U8 FD Q4).
 
 ## 2. Cálculos financieros (Q8=A)
 
@@ -127,7 +134,9 @@ viven en U7 y U4, no aquí.
 | BR-U0-35 | `DecisionIn` (S4): `sigue` exige `final_outcome == recommendation.outcome`; `se_aparta` exige `final_outcome ≠ recommendation.outcome`; `resuelve_revision` solo es válido si `recommendation.outcome == revision_requerida`, y `sigue`/`se_aparta` solo si es `favorable` o `desfavorable`. U0 fija la regla; la comprobación contra el caso la implementa U8, con la recomendación cuyo `registry_entry_id` guardó el caso, que es también el `recommendation_entry_id` de la entrada `human_decision` (precisado el 2026-10-03 por U7 NFR Design Q3) | `conflict_state` |
 | BR-U0-33 | `PolicyDraft`: `cutoff` y `low_confidence_threshold` en [0, 1]; en cada `normative`, `effective_to`, si existe, es posterior a `effective_from`, y las vigencias de la lista no se solapan (U4 FD Q4); `channel_rules` sin canales repetidos | `validation_error` |
 | BR-U0-34 | `FeatureValue`: el `value` concuerda con su `type`; las claves de `features` no incluyen campos de identificación de §1.1 ni `free_text` | `validation_error` |
-| BR-U0-36 | `DecisionIn.justification`: en `se_aparta` y `resuelve_revision` es obligatoria, de 20 a 2000 caracteres después de quitar los espacios del inicio y del final; en `sigue` puede estar vacía (precisado el 2026-10-03 por U8 FD Q5) | `validation_error` |
+| BR-U0-36 | `DecisionIn.justification`: en `se_aparta` y `resuelve_revision` es obligatoria, de 20 a 2000 caracteres después de quitar los espacios del inicio y del final; en `sigue` puede estar vacía (precisado el 2026-10-06 por U8 FD Q5) | `validation_error` |
+| BR-U0-37 | Momentos de negocio de una entrada del registro (`evaluated_at`, `decided_at`, `viewed_at`, `frozen_at`, `escalated_at`): cada uno ≤ `occurred_at` y `occurred_at − *_at ≤ 7 días`. Acota la evidencia que llega tarde por un outbox o un reconciliador; 7 días cubre el evento `freeze` de U4, que no se abandona (precisado el 2026-10-06). No es parte de la validación de esquema genérica: la aplica el registro solo a llaves nuevas, después de la búsqueda de idempotencia (BR-U3-05) (precisado el 2026-10-06, revisión del FD de U8). Función pura `vectra_contracts.validation.check_business_time(entry, now) -> None | ValidationError`; la llama decision-registry dentro del append, después de la búsqueda de idempotencia y solo si la llave es nueva (U3 BR-U3-05, plan de U3, Paso 7) (precisado el 2026-10-06, revisión del FD de U8) | `validation_error` |
+| BR-U0-38 | Payload de `fail_closed`: **exactamente uno** de `cause` o `local_cause`; `local_cause` solo junto con `escalated_at`; `retryable` coherente con BR-U0-04 (con `cause`: `false` ⇔ `model_frozen`; con `local_cause`: `false` ⇔ `scoring_rejected`). Que solo case-service pueda escribir `local_cause` y `escalated_at` lo impone el registro por scope (U3 BR-U3-03) (precisado el 2026-10-06, revisión del FD de U8) | `validation_error` |
 
 ## 4. Derivación de `MonitoringLabels` (Q3=A)
 
@@ -169,7 +178,7 @@ Nunca se infieren.
 `LogRecord` (domain-entities §8). Todo campo adicional se **descarta**, no se enmascara.
 
 **BR-U0-51 — Mensaje del log.** El campo `event` es un identificador de evento del
-catálogo (p. ej. `recommendation.fail_closed`). No es texto libre, así que nunca
+catálogo de domain-entities §8.1 (p. ej. `recommendation.fail_closed`). No es texto libre, así que nunca
 interpola valores.
 
 **BR-U0-52 — Excepciones.** Las excepciones se registran solo con su tipo y `error_code`.
@@ -202,6 +211,7 @@ endpoint que no declara ninguno de los dos se rechaza al arrancar el servicio (d
 default). No se usan comodines. Esta regla aplica al puerto de la API (8080). Los health
 checks y `/metrics` viven en el puerto 8081, no exponen rutas de negocio y no pasan por
 este middleware (`component-dependency.md` §puertos).
+**Rutas de consulta con `POST`** (octava revisión del FD de U9, 2026-10-10): un endpoint `POST` que solo consulta (hoy, `POST /v1/monitoring/daily:query` de U3, con un cuerpo de hasta 12 rangos) se declara con `read_only = true` en su `RouteContract` (P-U0-12). Solo así puede autorizarse con un **scope de lectura**. U0 no define idempotencia por cabecera: la `Idempotency-Key` es una regla de las unidades dueñas para sus `POST` de escritura (p. ej. U8 BR-U8-02), y una ruta `read_only` no la necesita porque no escribe. Definiciones (revisión del NFR Requirements de U9, 2026-10-10): un scope de lectura es uno del catálogo de §7.2 cuyo nombre tiene la forma `<dominio>:read:<recurso>` o `<dominio>:read-<recurso>` (por ejemplo `registry:read:monitoring`, `governance:read-serving`); una ruta **sin efectos** no escribe en ninguna base ni en ningún outbox, no llama a ninguna ruta que no sea a su vez de solo lectura y da la misma respuesta si se repite con el mismo cuerpo y el mismo estado del sistema. El registro de contratos lo comprueba: el handler de una ruta `read_only` solo recibe clientes de lectura (pools de solo lectura y clientes de rutas `GET` o `read_only`). Un `POST` con solo scopes de lectura y sin `read_only` se rechaza al arrancar, igual que una ruta sin requisitos.
 
 **BR-U0-72 — MFA y step-up.** Si un endpoint declara `mfa_required`, el principal necesita
 `acr == "mfa"` **y** `now − auth_time ≤ mfa_max_age` (por defecto 900 s; precisado el

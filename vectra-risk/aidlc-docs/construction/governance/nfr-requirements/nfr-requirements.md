@@ -24,9 +24,9 @@ Los IDs `NFR-U4-xx` se referencian en NFR Design, Infrastructure Design y el pla
 
 | ID | Requisito | Verificación |
 |---|---|---|
-| NFR-U4-10 | `GET /v1/serving-config`: p95 ≤ 20 ms, incluido el 304, con 6 réplicas de scoring consultando cada 5 s | Prueba de carga k6 en kind (operador) |
+| NFR-U4-10 | `GET /v1/serving-config`: p95 ≤ 20 ms, incluido el 304, con **12 clientes** consultando cada 5 s: 6 réplicas de scoring y 6 de `case-worker` (U8), más una lectura de `GET /v1/models/{id}/feature-spec` por cliente de U8 al cambiar de versión (precisado el 2026-10-06 por U8 NFR Requirements, NFR-U8-15) | Prueba de carga k6 en kind (operador) |
 | NFR-U4-11 | Transiciones con firma: p95 ≤ 500 ms, incluido el append al registro | Misma prueba |
-| NFR-U4-12 | `model-validation-job`: ≤ 30 min con el dataset de validación de U5 (plazo de corte de 2 h, BR-U4-05) | Ejecución en kind con el modelo de referencia (operador) |
+| NFR-U4-12 | `model-validation-job`: ≤ 30 min con el dataset de validación de U5 en modo `validacion`, y ≤ 60 min en modo `source_comparison` (dos modelos sobre el mismo dataset), los dos con el límite de 2 CPU / 4 GiB y el plazo de corte de 2 h (BR-U4-05; segunda revisión del FD de U9, 2026-10-08) | Ejecución en kind con el modelo de referencia y su variante en los dos modos (operador) |
 
 ## 3. Seguridad
 

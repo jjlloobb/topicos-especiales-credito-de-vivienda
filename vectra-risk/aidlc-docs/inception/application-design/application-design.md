@@ -4,7 +4,7 @@ Documento de síntesis. El detalle está en:
 - [`components.md`](./components.md): 18 componentes, responsabilidades, criticidad y restricciones.
 - [`component-methods.md`](./component-methods.md): tipos compartidos, contrato de sincronía y firmas, incluida la tabla de endpoints del BFF (rol, MFA y regla de objeto).
 - [`services.md`](./services.md): orquestación de los flujos S1–S9.
-- [`component-dependency.md`](./component-dependency.md): **inventario cerrado** de flujos de red (F01–F104, ampliado en U1, U2, U3 y U4 Infrastructure Design y en U7 y U8 FD), acceso a la API de Kubernetes (K01–K14), roles de BD, egress, flujos prohibidos (X01–X10), diagrama y fronteras de confianza.
+- [`component-dependency.md`](./component-dependency.md): **inventario cerrado** de flujos de red (F01–F108, ampliado en U1, U2, U3 y U4 Infrastructure Design, en U7 y U8 FD y en el FD de U9: F106–F108), acceso a la API de Kubernetes (K01–K14), roles de BD, egress, flujos prohibidos (X01–X10), diagrama y fronteras de confianza.
 
 ---
 
@@ -35,7 +35,7 @@ Documento de síntesis. El detalle está en:
 | C08 | model-store | Objetos compatible S3, in-cluster | High | artefactos |
 | C09 | governance-service | FastAPI | High | `governance-db` |
 | C10 | model-validation-job | K8s Job | Medium | — |
-| C11 | bias-monitoring-service | FastAPI + CronJob | High | — (lee el registro) |
+| C11 | bias-monitoring-service | FastAPI + CronJob | CronJob High; servicio HTTP Medium (precisado el 2026-10-10 por U9 NFR Requirements) | — (lee el registro) |
 | C12 | decision-registry-service | FastAPI | **Critical** | `registry-db` (append-only) |
 | C13 | product-metrics | Servicio ligero | Medium | — |
 | C14 | channel-simulator | CLI/Job | Low | — |
@@ -45,10 +45,10 @@ Documento de síntesis. El detalle está en:
 | C18 | delivery | Helm, GitOps, Argo CD, GitHub Actions, promotion-tool | — (fuera del runtime) | repositorios |
 
 **Impacto de la indisponibilidad:**
-- **registry:** se detienen todas las recomendaciones (fail-closed) y no se pierde evidencia.
+- **registry:** se detienen todas las recomendaciones (fail-closed) y no se pierde evidencia; las decisiones y las transiciones de gobierno quedan pendientes (503) y las reintenta su reconciliador hasta 24 h (BR-U4-17, BR-U8-18) (precisado el 2026-10-06).
 - **scoring, explainability o KServe:** casos en `en_sincronizacion`; el banco sigue con su proceso manual.
-- **governance:** scoring no puede leer la configuración y hace fail-closed.
-- **bias-monitoring:** alerta `MonitoreoSesgoDetenido`; el efecto sobre el modelo lo define Functional Design.
+- **governance:** scoring no puede leer la configuración y hace fail-closed; case-service tampoco puede armar el vector (F104), así que el intento termina como `serving_config_unavailable` y el caso reintenta (precisado el 2026-10-06).
+- **bias-monitoring:** alerta `MonitoreoSesgoDetenido`; el modelo sigue sirviendo (U4 FD Q9) (precisado el 2026-10-06).
 
 ## 3. Contrato central: sincronía scoring ↔ explicación ↔ registro
 
@@ -74,11 +74,12 @@ Ver `component-dependency.md` §7 (Mermaid validado y alternativa en texto).
 
 | Tema | Etapa |
 |---|---|
-| Efecto de `MonitoreoSesgoDetenido` sobre el modelo (NFR-RES-11 / US-308) | Functional Design (unidad de bias-monitoring) |
-| Umbrales, parámetros de backoff, TTL de `serving-config`, ventana W | Functional Design |
-| Topología física de PostgreSQL, réplica síncrona, WAL fuera del sitio | Infrastructure Design |
-| mTLS entre servicios (malla o TLS por servicio) | NFR Design |
-| Latencia objetivo, SLA, intervalo WAL | NFR Requirements |
+| Ventana W y regla de muestra mínima de la disparidad | **Abierto**: Functional Design de U9 |
+| ~~Efecto de `MonitoreoSesgoDetenido` sobre el modelo~~ | Resuelto: U4 FD Q9 (BR-U4-16, el modelo sigue sirviendo) |
+| ~~Umbrales, parámetros de backoff, TTL de `serving-config`~~ | Resuelto: U7 FD (política), BR-U8-07 (backoff), BR-U4-14 y BR-U7-01 (caché ≤ 5 s) |
+| ~~Topología física de PostgreSQL, réplica síncrona, WAL fuera del sitio~~ | Resuelto: U1 Infrastructure Design (INF-U1-02) y NFR-U1-05 |
+| ~~mTLS entre servicios~~ | Resuelto: U1 NFR Design (Linkerd con sidecar nativo, P-U1-05) |
+| ~~Latencia objetivo, SLA, intervalo WAL~~ | Resuelto: NFR-U7-01, P-U1-11 (SLO 99,5 %), NFR-U1-05 (`archive_timeout = 60 s`) |
 
 ## 7. Cumplimiento de extensiones (Application Design)
 

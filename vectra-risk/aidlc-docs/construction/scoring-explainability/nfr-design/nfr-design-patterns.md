@@ -40,7 +40,7 @@ en CI.
 | `fail_closed` (best effort, BR-U7-16) | 1 | 250 ms | — (el caso reevalúa, BR-U0-08) |
 
 - El reintento sale de inmediato, con un jitter de 0 a 100 ms. Si el circuito del registro está abierto, el reintento no se hace.
-- Peor caso de una solicitud con el registro degradado: 0,7 s + 2 × 2,5 s + 0,1 s + 0,25 s ≈ **6,1 s**. Queda fuera del p99 (NFR-U7-04 precisado). El timeout de case-service hacia scoring debe superarlo: **≥ 7 s** (pendiente para U8, §8).
+- Peor caso de una solicitud con el registro degradado: 0,7 s + 2 × 2,5 s + 0,1 s + 0,25 s ≈ **6,1 s**. Queda fuera del p99 (NFR-U7-04 precisado). El timeout de case-worker hacia scoring debe superarlo: **≥ 7 s** (resuelto por U8: NFR-U8-30; el cliente de scoring es `case-worker` desde U8 INF-U8-01).
 - Un 409 de idempotencia (misma llave y otro contenido) es un defecto, no una caída. Se responde `FailClosed(registry_unavailable)`, se registra el log `registry.idempotency_conflict` y se incrementa la métrica que dispara `RegistryIdempotencyConflict` (SEV2).
 - Alerta `RegistryAppendSlow` (SEV2): p99 del append de scoring > 1 s durante 5 min.
 - **Verificación**:
@@ -56,13 +56,13 @@ en CI.
 - **Caso límite**: el registro confirma el commit después de que scoring dejó de esperar. Pasa cuando los dos intentos vencen o fallan, o cuando el circuito se abre antes del reintento. Queda una entrada `recommendation` que no se entregó.
 - **Cómo se distingue**:
   1. scoring cuenta cada abandono en `vectra_registry_append_abandoned_total`, y la alerta `RegistryAppendAbandoned` (SEV2) se dispara con cualquier valor > 0 en 15 min, porque cada abandono **puede** dejar una entrada no entregada;
-  2. case-service guarda en el caso el `registry_entry_id` de la `Recommendation` que recibió (U8);
+  2. case-worker guarda en el caso el `registry_entry_id` de la `Recommendation` que recibió (U8, BR-U8-08; precisado el 2026-10-08);
   3. la entrada `human_decision` lleva `recommendation_entry_id`. Lo llena **case-service** con el valor guardado en el caso, nunca el cliente: no está en `DecisionIn` (cambio en U0 domain-entities §5.2);
   4. el expediente (U3, BR-U3-14) calcula `delivery_status` para cada entrada `recommendation` del caso:
      - `entregada`: alguna `human_decision` del caso la referencia;
      - `no_entregada`: el caso tiene una `human_decision` que referencia otra;
      - `pendiente_de_decision`: todavía no hay una `human_decision`.
-  5. las proyecciones `monitoring` y `metrics` llevan el `seq` de cada `recommendation` y el `recommendation_entry_id` de cada `human_decision`, para que U9 y U11 cuenten solo las recomendaciones entregadas;
+  5. la proyección `metrics` lleva el `seq` de cada `recommendation` y el `recommendation_entry_id` de cada `human_decision`, para que U11 cuente solo las recomendaciones entregadas; para U9, el agregador de U3 aplica la misma regla y bias lee `monitoring_daily` (la proyección `monitoring` por filas se retiró; revisión del FD de U9, 2026-10-08);
   6. el resumen al solicitante usa la recomendación **entregada**:
      - el BFF envía el `recommendation_entry_id` del caso a explainability;
      - explainability lee esa entrada (proyección `explanation`, ahora con `seq`) y comprueba que pertenece al `case_id` (BR-U7-13 precisada).
@@ -207,7 +207,7 @@ Revisada contra el cuerpo del documento antes de presentarla.
 | RESILIENCY-08 / 09 | Cumple | P-U7-06 |
 | RESILIENCY-10 | Cumple | P-U7-01, 02, 04 |
 | RESILIENCY-14 | Cumple | P-U7-09 (enfoque C) |
-| PBT-06 | Cumple | Propiedad stateful del circuit breaker (U0, P-U0-07) |
+| PBT-06 | Cumple | PBT-U0-14, propiedad stateful del circuit breaker de U0 (P-U0-07) |
 | PBT-08 / 09 | Cumple | NFR-U7-42; propiedad de P-U7-01 con el perfil `ci` |
 
 ## 7. Cambios a otros artefactos (registrados en `audit.md`)
@@ -225,9 +225,9 @@ Las mismas filas están en la tabla de cambios a otras unidades de U7 (`function
 | `component-methods.md` (explainability `applicant_summary`) | Recibe `case_id` y `recommendation_entry_id` | Q3 |
 
 ## 8. Pendiente para U8 `case-management`
-- Guardar en el caso el `registry_entry_id` de la `Recommendation` recibida y llenar con él `human_decision.recommendation_entry_id` (P-U7-03).
-- Timeout de case-service hacia scoring ≥ 7 s (P-U7-02).
-- Si U8 permite reevaluar un caso con decisión pendiente, revisar `delivery_status` (P-U7-03).
+- ~~Guardar en el caso el `registry_entry_id` de la `Recommendation` recibida y llenar con él `human_decision.recommendation_entry_id` (P-U7-03).~~ Resuelto: `case-worker` guarda `cases.recommendation_entry_id` (BR-U8-08) y `case-service` lo copia en `human_decision` y `explanation_view` (BR-U8-18, 19).
+- ~~Timeout de case-service hacia scoring ≥ 7 s (P-U7-02).~~ Resuelto: `case-worker`, 7 s (NFR-U8-30, U8 INF-U8-01).
+- ~~Si U8 permite reevaluar un caso con decisión pendiente, revisar `delivery_status` (P-U7-03).~~ Resuelto: U8 no reevalúa un caso `listo`; solo pasa a `decidido` o `vencido` (BR-U8-12, `guard_transition` de INF-U8-01), y un congelamiento posterior solo lo marca (BR-U8-14).
 
 ## 9. Pendiente para U9 `bias-monitoring` y U11 `product-metrics`
-- Contar solo las `recommendation` entregadas: las que referencia una `human_decision` por `recommendation_entry_id` (proyecciones `monitoring` y `metrics`, P-U7-03).
+- Contar solo las `recommendation` entregadas: las que referencia una `human_decision` por `recommendation_entry_id` (proyecciones `monitoring` y `metrics`, P-U7-03). **U9 resuelto el 2026-10-08 por U9 FD**: el agregador de U3 cuenta una por caso, la referenciada o, sin decisión, la más reciente (BR-U9-07, BR-U3-17), como aproximación aceptada. Sigue pendiente para U11.

@@ -181,9 +181,9 @@ vectra-risk/scoring-explainability/
 - [ ] **Paso 11 — `orchestrator`**
   - Secuencia de BR-U0-08 con `check_preconditions` y `build_outcome` de U0:
     - presupuesto previo al registro de 700 ms, con `deadline=` en cada llamada y `x-vectra-deadline` hacia explainability;
-    - append de la `recommendation` con `idempotency_key` fija por intento: 2 intentos, solo ante 503, timeout o error de conexión, sin reintento con el circuito abierto;
+    - append de la `recommendation` con `idempotency_key` = UUID v4 generado al recibir cada `POST /v1/recommendations`, **nunca** derivado de `case_id` ni de `attempt`, y reutilizado solo por el reintento de ese append: 2 intentos, solo ante 503, timeout o error de conexión, sin reintento con el circuito abierto (BR-U7-15; precisado el 2026-10-06, revisión del FD de U8);
     - un 409 de idempotencia → `registry_unavailable` + `registry.idempotency_conflict`;
-    - `fail_closed` best effort de 250 ms.
+    - `fail_closed` best effort de 250 ms, con **otro** UUID v4 de la misma solicitud y solo `cause` (nunca `local_cause` ni `escalated_at`, BR-U7-16, BR-U0-38).
   - Métricas:
     - `vectra_scoring_failclosed_total{cause}`;
     - `vectra_recommendations_total{outcome}`;
@@ -198,6 +198,9 @@ vectra-risk/scoring-explainability/
       - respuesta con `model_version_id = M` y `policy_version_id = P` (US-103);
       - versión distinta (RT-3) → `FailClosed(version_mismatch)` y la métrica sube (US-111);
       - `ScoringRequest.model_version_id` distinto del de `serving-config` → `FailClosed(version_mismatch)` sin llamar a KServe ni al explicador (agregado por U8 FD Q1);
+      - `serving-config` congelado **y** versión pedida distinta → `FailClosed(model_frozen)` (no `version_mismatch`), sin llamadas (BR-U7-01; precisado el 2026-10-06, revisión del FD de U8);
+      - dos solicitudes del mismo caso con el mismo `attempt` (p. ej. tras un `retry`) → llaves distintas, ninguna derivada de `case_id` ni de `attempt`; el reintento del append de una solicitud reutiliza su llave, y su `fail_closed` usa otra (precisado el 2026-10-06, revisión del FD de U8);
+      - la entrada `fail_closed` que escribe scoring lleva `cause` y no lleva `local_cause` ni `escalated_at` (BR-U7-16; precisado el 2026-10-06, revisión del FD de U8);
       - registro sin réplica → `FailClosed(registry_unavailable)` sin recomendación entregada (US-113);
       - registro que falla una vez → dos llamadas con la misma llave y una entrada;
       - registro que confirma a los 2,6 s en los dos intentos → `FailClosed`, la entrada existe y `abandoned` = 1;

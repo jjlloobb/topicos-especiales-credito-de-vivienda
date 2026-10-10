@@ -45,8 +45,18 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 | `keycloak-db` | 10 Gi | 5 Gi | 100 |
 
 - StorageClass de producción y staging: la del banco, con cifrado, `volumeBindingMode: WaitForFirstConsumer` y `allowVolumeExpansion: true`. En kind se usa `local-path`, sin cifrado (documentado como no aplicable a NFR-U1-23).
-- `max_connections` se calcula con P-U1-08: `(réplicas máximas del HPA × 5) × 1,2 + conexiones del operador y de los backups`. Los valores iniciales cubren hasta 12 réplicas por servicio. Para Keycloak se fija un pool máximo de 20 conexiones por pod. Se recalculan con los máximos reales tras la prueba de carga.
-- Alertas: `PostgresVolumeUsageHigh` al 80 % (SEV3) y al 90 % (SEV2).
+- `max_connections` se calcula con P-U1-08: `(réplicas máximas del HPA × 5) × 1,2 + conexiones del operador y de los backups`. Los valores iniciales cubren hasta 12 réplicas por servicio. `case-db` tiene dos Deployments clientes (`case-service` y `case-worker`, 6 réplicas máximas cada uno = 12 × 5 conexiones), más el CronJob `case-retention` y el Job de migración; el valor inicial lo cubre (precisado el 2026-10-06 por U8 NFR Requirements, NFR-U8-14). Para Keycloak se fija un pool máximo de 20 conexiones por pod. Se recalculan con los máximos reales tras la prueba de carga. `registry-db` suma además la conexión del CronJob `registry-aggregator` (F107, 1 conexión a `-rw`): ≈ 47 en total (U3 INF-U3-04; quinta revisión del FD de U9, 2026-10-10).
+- Alertas, para los cuatro `Cluster` (es la única alerta de volumen; U8 la reutiliza para `case-db`, INF-U8-08):
+
+  | Alerta | Condición | Severidad |
+  |---|---|---|
+  | `PostgresVolumeUsageHigh` | `kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes` de los PVC de un `Cluster` > 0,80 durante 15 min | SEV3 |
+  | `PostgresVolumeUsageHigh` | Lo mismo > 0,90 durante 15 min | SEV2 |
+  | `PostgresVolumeUsageHigh` | **Una regla por `Cluster`** (`registry-db`, `case-db`, `governance-db`, `keycloak-db`), con la etiqueta `cluster`: `(count(kubelet_volume_stats_capacity_bytes{namespace="vectra-data", persistentvolumeclaim=~"<cluster>-[0-9]+(-wal)?"}) or vector(0)) < 6` durante 15 min. Si el kubelet deja de reportar los volúmenes de ese `Cluster`, o uno solo de ellos, la alerta no calla justo cuando el disco se llena (precisado el 2026-10-08, revisiones del Infrastructure Design de U8) | SEV2 |
+
+  - **Por qué no un solo `absent()`**: `absent()` solo devuelve 1 si no existe **ninguna** serie que coincida. Con un filtro que abarca los cuatro `Cluster`, si deja de reportar solo `case-db`, las otras tres siguen reportando y la alerta calla. Por eso hay una regla por `Cluster`.
+  - **Por qué `count < 6`**: cada `Cluster` tiene 3 instancias con un volumen de datos y uno de WAL (INF-U1-02), así que se esperan 6 PVC. El `or vector(0)` cubre el caso sin ninguna serie, que `count()` no devuelve. Si cambia el número de instancias, cambia el 6 (el chart lo calcula de `instances × 2`). Los 15 min absorben la recreación de un PVC durante un failover.
+  - `promtool test rules`: 79 % no dispara; 81 % → SEV3; 91 % → SEV2; con los cuatro `Cluster` reportando, **se quitan las series de `case-db`** y a los 15 min dispara la regla de `case-db` (SEV2) y ninguna otra; quitar una sola de las 6 series de `case-db` también dispara; con las 6 series presentes no dispara.
 
 ### INF-U1-03 — Almacenamiento de objetos (Q4)
 
@@ -83,6 +93,7 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 | `external-secrets` | ESO | deny-all + F86 (kind) / F74 (prod) |
 | `vectra-restore-drill` | CronJob y cluster efímero | deny-all + F75 (egress a backups fuera del sitio) + F87 (egress al Pushgateway, 9091) + F80 (ingress desde el operador CloudNativePG hacia el cluster efímero) |
 | `vault` (solo kind) | Vault dev | deny-all + F86 |
+| `envoy-gateway-system` | Controlador de Envoy Gateway (U2, INF-U2-02; binding K14) | deny-all + F95 (agregado el 2026-10-08) |
 
 - MinIO se despliega en `vectra-data` (Q7), junto a PostgreSQL.
 - Los flujos de cada namespace se declaran en `flows.yaml` y se generan como los demás (P-U1-01).
@@ -98,7 +109,7 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 | Loki | Modo simple escalable, por zona | 90 días (object lock + lifecycle) | MinIO `loki` |
 | Tempo | Modo distribuido mínimo | 7 días | MinIO `tempo` |
 | OTel Collector | Deployment, 2 réplicas | — | — |
-| Pushgateway | 1 réplica, sin persistencia, `vectra-normal` | Hasta el siguiente push | — (F87 de entrada, F88 de scrape) |
+| Pushgateway | 1 réplica, sin persistencia, `vectra-normal` | Hasta el siguiente push | — (F87 y F106 de entrada, F88 de scrape; F106 = CronJob de bias desde `vectra-app`, revisión del FD de U9, 2026-10-08) |
 | **Grafana Alloy** | DaemonSet (logs de stdout → Loki) | — | — |
 | Grafana | 2 réplicas, dashboards como código | — | BD SQLite efímera; los dashboards vienen de Git |
 

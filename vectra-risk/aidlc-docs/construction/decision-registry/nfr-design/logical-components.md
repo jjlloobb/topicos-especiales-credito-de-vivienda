@@ -12,11 +12,14 @@
 | `registry-verify-nightly` | CronJob (cada noche) | Verificación `nightly` en la réplica | P-U3-05 | `vectra-normal` |
 | `registry-verify-full` | CronJob (mensual, domingo 02:00) | Verificación `full` en la réplica | P-U3-05 | `vectra-low` |
 | `registry-archive` | CronJob (mensual) | Export de 10 años con verificación | P-U3-07 | `vectra-low` |
+| `registry-aggregator-rebuild` | Job a demanda (runbook `monitoring-rebuild`) | `aggregator run --until-head` tras un reset (F107; octava revisión del FD de U9, 2026-10-10) | BR-U3-17 | `vectra-high` |
+| `registry-aggregator-reset` | Job a demanda (runbook `monitoring-rebuild`) | `aggregator reset` con `registry_migrator` (F108; octava revisión del FD de U9, 2026-10-10) | BR-U3-17 | `vectra-normal` |
+| `registry-aggregator` | CronJob (cada 5 min) | Tablas derivadas de monitoreo para U9 (BR-U3-17; segunda revisión del FD de U9, 2026-10-08) | BR-U3-17 | `vectra-high` |
 | Job de migración | Job (hook de sync) | DDL y particiones (F44) | P-U3-06 | `vectra-normal` |
-| `vectra-registry` (CLI) | Binario del paquete | `verify` y `checkpoint`; la usan los CronJobs y `restore-drill` | BR-U3-11 | — |
+| `vectra-registry` (CLI) | Binario del paquete | `verify`, `checkpoint`, `archive`, `aggregator run` (`--until-head` en el runbook) y `aggregator reset`; la usan los CronJobs, el runbook `monitoring-rebuild` y `restore-drill` (sexta revisión del FD de U9, 2026-10-10) | BR-U3-11, 17 | — |
 | `registry-db` | Cluster de CloudNativePG (U1) | Primaria + 2 réplicas; servicios `-rw` y `-ro` | NFR-U3-10 | `vectra-critical` |
-| Bucket `registry-checkpoints` | WORM | Copia de los checkpoints | BR-U3-08 | — |
-| Bucket `registry-archive` | WORM, 10 años | Archivo mensual | P-U3-07 | — |
+| Bucket `vectra-registry-checkpoints` | WORM | Copia de los checkpoints | BR-U3-08 | — |
+| Bucket `vectra-registry-archive` | WORM, 10 años | Archivo mensual | P-U3-07 | — |
 | Bóveda (Transit) | Externa a U3 | Firma Ed25519 | P-U3-03, 07 | — |
 
 ## 2. Dependencias
@@ -32,12 +35,14 @@ flowchart LR
         ckpt["registry-checkpoint"]
         verify["registry-verify jobs"]
         archive["registry-archive"]
+        agg["registry-aggregator"]
+        rebuild["Jobs a demanda rebuild y reset"]
     end
     rw["registry-db rw primaria"]
     ro["registry-db ro replica"]
     vault["Boveda Transit"]
-    wormC["Bucket registry-checkpoints"]
-    wormA["Bucket registry-archive"]
+    wormC["Bucket vectra-registry-checkpoints"]
+    wormA["Bucket vectra-registry-archive"]
 
     callers --> api
     readers --> api
@@ -51,6 +56,8 @@ flowchart LR
     archive --> ro
     archive --> vault
     archive --> wormA
+    agg --> rw
+    rebuild --> rw
 ```
 
 ### Alternativa en texto
@@ -60,9 +67,11 @@ scoring, case, governance -> decision-registry-service (append) -> registry-db -
 BFF, explainability, bias, product-metrics -> decision-registry-service
    expediente   -> registry-db -rw (pool dossier, 1)
    proyecciones -> registry-db -ro (pool projections, 1)
-registry-checkpoint (cada hora) -> registry-db -rw (append) ; bóveda (firma) ; bucket registry-checkpoints
-registry-verify-* (15 min / noche / mes) -> registry-db -ro ; bucket registry-checkpoints (comparación)
-registry-archive (mes) -> registry-db -ro ; bóveda (firma del manifiesto) ; bucket registry-archive (10 años)
+registry-checkpoint (cada hora) -> registry-db -rw (append) ; bóveda (firma) ; bucket vectra-registry-checkpoints
+registry-verify-* (15 min / noche / mes) -> registry-db -ro ; bucket vectra-registry-checkpoints (comparación)
+registry-archive (mes) -> registry-db -ro ; bóveda (firma del manifiesto) ; bucket vectra-registry-archive (10 años)
+registry-aggregator (5 min) -> registry-db -rw (lee entradas, escribe tablas derivadas; F107)
+registry-aggregator-rebuild / -reset (a demanda, runbook monitoring-rebuild) -> registry-db -rw (F107 / F108)
 readiness del servicio -> registry-db -rw con registry_health (standby síncrono presente)
 ```
 

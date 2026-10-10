@@ -13,7 +13,7 @@
 | `serving_config` | Recalcular y servir con `etag` / `If-None-Match` | BR-U4-14 |
 | `evidence` | Transiciones en dos fases con el registro, reconciliador y excepción de `freeze` | BR-U4-15, 17 |
 | `promotion-tool` (CLI) | `list_promotable`, `create_promotion_pr`, `mark_active` (token de usuario con MFA, F08) | BR-U4-08, 09 |
-| `model-validation-job` | AUC-ROC, disparidad inicial (librería de U9), prueba de sincronía | BR-U4-07 |
+| `model-validation-job` | AUC-ROC, disparidad inicial (librería de U9), prueba de sincronía; modo `source_comparison`: tablas de conteo de la versión activa y de la candidata (precisado el 2026-10-08 por U9 FD) | BR-U4-07, 13 |
 
 `model_fsm`, `normative_at` y el cálculo del `etag` son puros y se prueban con propiedades.
 
@@ -25,8 +25,8 @@
 acción (actor, versión, transición)
   -> U0: authn, rol o scope, MFA + auth_time <= 15 min
   -> model_fsm.transition(...)  -> 403 / 409 si no está permitida
-  -> TX1: INSERT model_transitions(status=pendiente_registro)   (sin efecto)
-  -> registry.append(evento, idempotency_key=transition_id)
+  -> TX1: INSERT transitions(entity_type, entity_id, n, status=pendiente_registro)   (sin efecto)
+  -> registry.append(evento, idempotency_key=UUIDv5(entity_type:entity_id, n))
        falla -> 503 ; la transición queda pendiente (reconciliador)
   -> TX2: status=confirmada ; aplicar estado ; recalcular serving-config (etag)
 ```
@@ -34,9 +34,13 @@ acción (actor, versión, transición)
 ### 2.2 Congelamiento (excepción)
 
 ```text
-bias-monitoring (governance:freeze) -> freeze(mv_id, contexto)
+bias-monitoring-job (CronJob de U9, governance:freeze) -> freeze(mv_id, FreezeContext)
   -> model_fsm: activo -> congelado (solo esta identidad)
-  -> TX única: estado=congelado ; serving-config recalculado ; transición pendiente_registro
+  -> TX única: estado=congelado ; serving-config recalculado ; transición pendiente_registro (n siguiente);
+     cualquier transición pendiente de la versión y su unidad (mark_active) -> descartada,
+     con un model_event transicion_descartada por cada una; el reconciliador escribe en orden de n
+  -> agregar al FreezeContext data_sources e initial_disparity (BR-U4-15); si el evento supera 60 KiB,
+     initial_disparity solo con sus agregadas (U9 BR-U9-16)
   -> registry.append(freeze) ; falla -> FreezeEventPending, reintento del reconciliador
   -> réplicas de governance convergen en <= 1 s ; scoring ve el etag nuevo en <= 6 s -> FailClosed(model_frozen)
 ```
@@ -62,17 +66,31 @@ Job -> PUT /v1/models/{id}/validation-report (F32)
 sin informe a las 2 h -> validacion_fallida (timeout)
 ```
 
+### 2.5 Fuente nueva (BR-U4-13, US-306; revisión del FD de U9, 2026-10-08, H7)
+
+```text
+ingeniero (MFA): proponer fuente -> data_source en_evaluacion
+ingeniero: registrar versión candidata con source_candidate_for = fuente (se admite solo así)
+humanos: PR + sync manual -> InferenceServices de staging de la candidata y del artefacto de la versión activo
+start_source_comparison -> Job en vectra-staging (K01), mode=source_comparison, deadline 2 h
+Job -> F30 (KServe staging, las dos versiones) -> counts_from_records (librería de U9)
+Job -> PUT /v1/validation-runs/{run_id}/source-counts (F32): {pre, post} tablas de conteo, sin filas
+governance -> compare_source(source_id, pre, post) (F25) -> PrePostReport -> data_sources.pre_post_report
+cumplimiento (MFA): aprobar | rechazar (solo con pre_post_report) -> data_source_event con el PrePostReport
+sin conteos a las 2 h -> ValidationRun timeout ; la fuente sigue en_evaluacion ; ninguna versión cambia
+```
+
 ## 3. Propiedades testeables (PBT-01)
 
 | ID | Componente | Propiedad | Categoría | Generadores (PBT-07) |
 |---|---|---|---|---|
-| PBT-U4-01 | `model_fsm` | **Stateful (PBT-06)**: para toda secuencia de acciones con actores arbitrarios (incluidos bias, jobs, CRO y cumplimiento con y sin MFA), se cumplen siempre: a lo sumo una versión `activo` o `congelado`; `congelado → activo` solo ocurre con `cumplimiento` + MFA + `reactivar`; bias nunca produce un estado distinto de `congelado`; los estados terminales no cambian | Stateful (máquina contra un modelo de referencia) | Secuencias de acciones × actores × estados de MFA |
+| PBT-U4-01 | `model_fsm` | **Stateful (PBT-06)**: para toda secuencia de acciones con actores arbitrarios (incluidos bias, jobs, CRO y cumplimiento con y sin MFA), se cumplen siempre: a lo sumo una versión `activo` o `congelado`; una versión con `source_candidate_for` nunca llega a `aprobado` ni a `activo` mientras su fuente no esté `aprobada` (segunda revisión del FD de U9, 2026-10-08); `congelado → activo` solo ocurre con `cumplimiento` + MFA + `reactivar`; un `freeze` con un `mark_active` pendiente deja la versión `congelado` y ninguna otra versión pasa a `activo` por ese `mark_active`, confirme o no el registro (precisado el 2026-10-06, revisión del FD de U8); bias nunca produce un estado distinto de `congelado`; los estados terminales no cambian | Stateful (máquina contra un modelo de referencia) | Secuencias de acciones × actores × estados de MFA |
 | PBT-U4-02 | `model_fsm` | `transition` coincide con la tabla de BR-U4-01 para toda combinación (estado, acción, actor) | Oráculo | Producto completo de estados × acciones × actores |
 | PBT-U4-03 | `policy` | `normative_at(p, d)` devuelve el único parámetro vigente en `d`, o nulo, para toda lista sin solapes y toda fecha; y la validación rechaza toda lista con solapes | Oráculo + invariante | Listas de vigencias con huecos, bordes y solapes |
 | PBT-U4-04 | `policy` | Cuatro ojos: aprobar ⇔ `approved_by ≠ proposed_by` y rol `cro` con MFA | Oráculo | Pares de usuarios y roles |
-| PBT-U4-05 | `serving_config` | `etag(a) == etag(b)` ⇔ el contenido canónico (sin `bias_monitoring_age_s`) de `a` y `b` es igual | Invariante | Pares de configuraciones que difieren en un campo o en nada |
+| PBT-U4-05 | `serving_config` | `etag(a) == etag(b)` ⇔ el contenido canónico de `a` y `b` es igual | Invariante | Pares de configuraciones que difieren en un campo o en nada |
 | PBT-U4-06 | `registration` | Para todos los bytes generados: un archivo con bytes mágicos de `pickle`/`joblib` se rechaza con cualquier extensión, y un checksum distinto se rechaza siempre; ningún camino llama a un deserializador | Invariante | Bytes aleatorios con y sin cabeceras de pickle/zip/ONNX |
-| PBT-U4-07 | `evidence` | Para toda secuencia de fallos del registro, ninguna transición distinta de `freeze` cambia el estado sin un `registry_entry_id`; los reintentos nunca crean dos eventos (misma `idempotency_key`) | Invariante (stateful) | Secuencias de acciones con el registro caído o lento al azar |
+| PBT-U4-07 | `evidence` | Para toda secuencia de fallos del registro, ninguna transición distinta de `freeze` cambia el estado sin un `registry_entry_id`; los reintentos nunca crean dos eventos (misma `idempotency_key`); **nunca hay dos eventos para el mismo número de transición de una entidad**, incluso con un abandono seguido de una transición nueva cuando la abandonada sí se había escrito; los eventos de una entidad aparecen en la cadena en orden de `n`; nunca hay una `frozen_resolution` sin su `freeze` antes; hay a lo sumo una transición pendiente por entidad, salvo un `freeze`; una transición `descartada` nunca aplica estado, aunque llegue su ack; las dos mitades de un `mark_active` se confirman, descartan, abandonan y recuperan juntas (una mitad con ack nunca aplica sola; si la otra se abandona, la que tenía ack queda `descartada` con su compensación); una compensación nunca cambia el estado y **nunca queda `abandonada`**: mientras no se escriba, la entidad sigue bloqueada y no entra ninguna `frozen_resolution` (precisado el 2026-10-06, revisión del FD de U8); por cada descartada hay un `transicion_descartada` en la cadena, después del `freeze` (precisado el 2026-10-06, revisión del FD de U8); lo anterior vale igual para política y fuente en la tabla `transitions`, y las dos mitades de la activación de una política se confirman y abandonan juntas (precisado el 2026-10-06, revisión del FD de U8) | Invariante (stateful) | Secuencias de acciones sobre versiones de modelo, políticas y fuentes, con el registro caído o lento al azar |
 
 **Pruebas de ejemplo obligatorias (PBT-10):**
 - registro válido → `registrado`; checksum alterado → rechazo sin deserializar (US-201);
@@ -84,6 +102,12 @@ sin informe a las 2 h -> validacion_fallida (timeout)
 - rollback: `mark_active` de M1 `inactivo` → M1 activo, M2 inactivo (US-208);
 - cumplimiento reactiva con justificación; CRO, job o webhook → denegado (US-305);
 - el script de CI no encuentra rutas `congelado → activo` fuera del endpoint de cumplimiento;
+- fuente nueva (US-306): propuesta → candidata con `source_candidate_for` → Job en modo `source_comparison` → `PrePostReport` guardado; cumplimiento aprueba → evento con el informe; aprobar sin informe → 409; activar la candidata con la fuente `en_evaluacion` → 409 (revisión del FD de U9, 2026-10-08, H7);
+- `source_comparison` sin conteos a las 2 h → `ValidationRun` en `timeout`, fuente `en_evaluacion` y la candidata sin `validacion_fallida` (revisión del FD de U9, 2026-10-08, H7);
+- la salida del Job en modo `source_comparison` solo tiene tablas de conteo; ningún campo por registro;
+- `start_source_comparison` sin versión `activo` → 409 `no_active_version`; con la versión servible `congelado` → 409 `active_version_frozen`; con otra comparación `lanzado` de la misma fuente → 409 (segunda revisión del FD de U9, 2026-10-08);
+- `PUT …/source-counts` sobre un `ValidationRun` en modo `validacion`, o repetido → 409; con un token sin `governance:validation-report` → 403 (segunda revisión del FD de U9, 2026-10-08);
+- un evento `freeze` que con `initial_disparity` completa supera 60 KiB → se escribe con sus agregadas; si aún supera 64 KiB, con `data_sources` reducido a ids; el registro nunca responde 413 (segunda revisión del FD de U9, 2026-10-08);
 - vigencia normativa vencida → `normative_current` nulo (la consecuencia en scoring, `revision_requerida` con `parametro_normativo_no_vigente`, la prueba U7).
 
 ## 4. Cumplimiento de extensiones (Functional Design U4)

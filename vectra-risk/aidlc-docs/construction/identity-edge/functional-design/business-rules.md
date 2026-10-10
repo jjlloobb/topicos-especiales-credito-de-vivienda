@@ -67,7 +67,7 @@ Cualquier otra ruta devuelve 404 genérico, incluida `/auth/admin/**` (X10). En 
 solo se enrutan los endpoints públicos del realm `vectra`; el realm `master` no se expone.
 
 **BR-U2-11 — Validación de JWT en el gateway.** Para las rutas autenticadas, el gateway
-valida firma (JWKS), `exp`, `iss`, el `azp` esperado y los claims de la tabla de rutas.
+valida firma (JWKS), `exp`, `iss`, el `azp` esperado y los claims de la tabla de rutas. El `azp` esperado puede ser un conjunto por ruta y por entorno: en `/api/intake/**`, `channel` y, fuera de producción, `channel-simulator` (precisado el 2026-10-06, revisión del FD de U8).
 Un fallo responde 401 o 403 con `Problem`. El servicio de destino **vuelve** a validar
 todo (BR-U0-70..72): el gateway es la primera capa, no la única.
 
@@ -114,3 +114,5 @@ correlación con los logs de los servicios se hace por `userId` = `sub` =
 | U0 BR-U0-70 | `aud` **contiene** el servicio (antes «igual») | Q7: token de usuario con varias audiencias |
 | U0 BR-U0-72, `Principal`, `RegistryEntryIn.actor`, `RouteContract` | Step-up con `acr = mfa` y `auth_time ≤ mfa_max_age`; `acr`/`auth_time` en el actor del registro; `mfa_max_age` en `RouteContract` | Q3 |
 | U0 plan de tareas, Paso 11 | Pruebas de los bordes de 900 s y de la audiencia múltiple | Q3, Q7 |
+| U2 (esta unidad), por U8 INF-U8-01 y 02 | Cliente nuevo `case-worker` (`case:recommend`, `governance:read-serving`, `governance:read-feature-spec`); `case-service` sin esos scopes y, en el realm de producción, sin `core:read-credit` ni la audiencia `core-banking-mock` (domain-entities §2.2) | U8 Infrastructure Design, 2026-10-08 |
+| U2 (esta unidad), por el FD de U9 | Cliente nuevo `bias-monitoring-job` (`governance:freeze`, `registry:read:monitoring`); `bias-monitoring-service` solo con `registry:read:monitoring`; `realm-lint` y PBT-U2-03: `governance:freeze` solo en `bias-monitoring-job` (domain-entities §2.2) | FD de U9, 2026-10-08; tercera revisión del FD de U9, 2026-10-10 |

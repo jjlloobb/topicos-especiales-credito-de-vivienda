@@ -19,7 +19,8 @@ compartidos ni bases de datos nuevas.
 | `authn` + `jwks_cache` | `vectra_common` | Middleware + cache | P-U0-06 | Cache en memoria por proceso |
 | `authz` (`require`) | `vectra_common` | Dependencia de FastAPI | P-U0-02 | — |
 | `errors` (`VectraError`, `ProblemHandler`) | `vectra_common` | Jerarquía + handler | P-U0-05 | — |
-| `deps` (`call`) | `vectra_common` | Helper HTTP con timeout | P-U0-07 | Usa el cliente `httpx` del servicio |
+| `deps` (`call`) | `vectra_common` | Helper HTTP: timeout obligatorio, presupuesto propagado, un cliente `httpx` por dependencia con límite de conexiones y circuit breaker | P-U0-07; NFR-U0-23; PBT-U0-14 | **Estado por proceso**: un circuit breaker por dependencia (ventana deslizante) (precisado el 2026-10-06) |
+| `deadline` | `vectra_common` | Lectura de `x-vectra-deadline` entrante | P-U0-07; NFR-U0-23 | — (precisado el 2026-10-06) |
 | `logging` (`allowlist_filter`) | `vectra_common` | Procesador de structlog | P-U0-04 | — |
 | `telemetry` (OTel + `SpanAllowlist`) | `vectra_common` | Configuración + procesador | P-U0-11 | Exportador OTLP hacia el Collector in-cluster |
 | `metrics` | `vectra_common` | Contadores Prometheus | P-U0-04, 06; BR-U0-73 | Registro por proceso, expuesto en 8081 |
@@ -36,6 +37,7 @@ compartidos ni bases de datos nuevas.
 | `vectra_authz_denied_total` | `code`, `route_template` | BR-U0-73 |
 | `vectra_jwks_refresh_total` | `result` (`ok`, `error`, `throttled`) | P-U0-06 |
 | `vectra_log_fields_dropped_total` | `service`, `event` | P-U0-04 |
+| `vectra_circuit_state` | `dependency` | P-U0-07, NFR-U0-23 (precisado el 2026-10-06) |
 
 Ninguna etiqueta lleva identificadores de usuario ni de caso (cardinalidad acotada,
 sin PII).

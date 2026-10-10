@@ -43,11 +43,12 @@ casos.
 - **Responsabilidades**:
   - recibir solicitudes del simulador y del alta manual, y validarlas por esquema;
   - guardar los datos del solicitante (PII) en `case-db`;
-  - manejar los estados del caso: `en_evaluacion`, `listo`, `en_sincronizacion`, `no_disponible`, `modelo_congelado`, `decidido`;
-  - invocar a `scoring-service` y reintentar con backoff mediante una cola transaccional (`SKIP LOCKED`);
+  - manejar los estados del caso: `en_evaluacion`, `listo`, `en_sincronizacion`, `no_disponible`, `modelo_congelado`, `decidido` y `vencido` (precisado el 2026-10-06);
+  - en cada intento, leer de governance la versión activa y su `feature_spec` (F104), armar el `FeatureVector` con `derive` e invocar a `scoring-service` con esa versión; reintentar con backoff mediante una cola transaccional (`SKIP LOCKED`) (precisado el 2026-10-06);
   - escalar los casos persistentes (métrica que dispara la alerta `FailClosedPersistente`, más la lista para la vista del CRO);
   - recibir la decisión humana y los eventos de consulta de la explicación, y enviarlos al registro;
-  - leer el estado del crédito (solo lectura) del core simulado.
+  - leer el estado del crédito (solo lectura) del core simulado;
+  - eliminar los identificadores al vencer la retención, con un CronJob y un rol propios (F105) (precisado el 2026-10-06).
 - **Interfaces**: REST de ingesta (vía gateway) y REST interno para el BFF.
 - **Criticidad**: High.
 - **Restricciones**: FR-ING-04 (el texto libre es dato); AUTONOMIA-03 (solo `GET` hacia el core); SECURITY-05.
@@ -56,6 +57,7 @@ casos.
 - **Propósito**: producir la **recomendación usable** o un fail-closed.
 - **Responsabilidades**:
   - leer de `governance-service` la versión de modelo activa, su estado (congelado o no) y la política vigente;
+  - comprobar que `ScoringRequest.model_version_id` sea la versión activa antes de invocar al predictor; si no, `FailClosed(version_mismatch)` sin llamadas (U8 FD Q1) (precisado el 2026-10-06);
   - invocar al predictor de KServe;
   - aplicar el **motor de política** (punto de corte, baja confianza, VIS y tope de usura);
   - pedir la explicación a `explainability-service` en el mismo request y verificar que el `model_version_id` sea idéntico;
@@ -67,7 +69,7 @@ casos.
 
 ## C06 — `explainability-service` (FastAPI)
 - **Propósito**: una explicación fiel, legible y de la misma versión.
-- **Responsabilidades**: pedir el vector SHAP al `explainer` del `InferenceService` de la versión solicitada; rechazar si la versión no coincide o no hay explicador; generar la narrativa con el `NarrativeGenerator` activo (plantilla determinística en el MVP); validar la factualidad contra el vector; generar el resumen para el solicitante (US-110).
+- **Responsabilidades**: pedir el vector SHAP al `explainer` del `InferenceService` de la versión solicitada; rechazar si la versión no coincide o no hay explicador; obtener de governance el diccionario de features de la versión (F103, cacheado por versión) (precisado el 2026-10-06); generar la narrativa con el `NarrativeGenerator` activo (plantilla determinística en el MVP); validar la factualidad contra el vector; generar el resumen para el solicitante (US-110).
 - **Interfaces**: REST interno `POST /v1/explanations` (solo lo llama `scoring-service`) y `POST /v1/applicant-summaries` (vía BFF, con rol CRO o analista).
 - **Criticidad**: High. Sin este servicio no hay recomendaciones usables.
 - **Restricciones**: AUTONOMIA-05, AUTONOMIA-06 (sin respaldo genérico); FR-EXP-06 (interfaz reemplazable).
@@ -91,7 +93,7 @@ casos.
   - llevar la máquina de estados del modelo: `registrado → en_validacion → lista_para_aprobacion → aprobado → activo → congelado → retirado`;
   - aprobaciones del CRO (modelo y política) y de cumplimiento (fuentes, reactivación y descarte);
   - aplicar **transiciones acotadas por identidad**: `bias-monitoring` solo puede `activo → congelado`, y solo `cumplimiento` puede sacar un modelo de `congelado`;
-  - servir, en lectura, la versión activa y la política vigente;
+  - servir, en lectura, la versión activa y la política vigente, y por versión el diccionario (F103) y el `feature_spec` (F104) (precisado el 2026-10-06);
   - enviar todos los eventos de gobierno al registro;
   - exponer las versiones aprobadas para que `promotion-tool` genere el PR.
 - **Interfaces**: REST interno y REST vía BFF.
@@ -108,7 +110,7 @@ casos.
 - **Propósito**: medir la disparidad, alertar y congelar.
 - **Responsabilidades**: leer recomendaciones y decisiones con sus etiquetas de monitoreo desde el registro; calcular la disparidad por grupo y por banda de cuota/ingreso, y la agregada (librería propia validada contra Fairlearn); congelar vía `governance-service` cuando se supera el umbral; generar el paquete de contexto; comparar antes y después para fuentes nuevas; exponer el timestamp del último cálculo, que alimenta la alerta `MonitoreoSesgoDetenido`.
 - **Interfaces**: REST interno de consulta (dashboard y paquete) y CronJob de cálculo.
-- **Criticidad**: High. Un modelo sin vigilancia es un riesgo regulatorio; ver NFR-RES-11.
+- **Criticidad**: el **CronJob de cálculo es High** (un modelo sin vigilancia es un riesgo regulatorio; ver NFR-RES-11); el **servicio HTTP es Medium** (dashboard, paquetes y `compare_source`; su caída no detiene el monitoreo ni el congelamiento) (precisado el 2026-10-10 por U9 NFR Requirements, Q3).
 - **Restricciones**: AUTONOMIA-04 (sin rutas de reactivación); AUTONOMIA-05; P4 (no certifica).
 
 ## C12 — `decision-registry-service` (FastAPI + PostgreSQL `registry-db`)

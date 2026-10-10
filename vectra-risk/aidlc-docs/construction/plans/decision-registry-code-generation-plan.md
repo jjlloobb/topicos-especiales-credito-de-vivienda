@@ -20,7 +20,7 @@
 | Lo consumen | scoring y case (append), governance (eventos), BFF (expediente y verificación), explainability, bias y product-metrics (proyecciones), U1 `restore-drill` (CLI) |
 
 **Diseño de entrada:**
-- Functional Design: `construction/decision-registry/functional-design/` (BR-U3-01..16, PBT-U3-01..08).
+- Functional Design: `construction/decision-registry/functional-design/` (BR-U3-01..17, PBT-U3-01..09; BR-U3-17 y PBT-U3-09 agregados por el FD de U9).
 - NFR Requirements: `construction/decision-registry/nfr-requirements/` (NFR-U3-01..52).
 - NFR Design: `construction/decision-registry/nfr-design/` (P-U3-01..09).
 - Infrastructure Design: `construction/decision-registry/infrastructure-design/` (INF-U3-01..06).
@@ -38,10 +38,11 @@ vectra-risk/decision-registry/
 |-- src/vectra_registry/
 |   |-- chain.py  verify.py  projections.py      # funciones puras
 |   |-- append.py  dossier.py  api.py  pools.py  health.py
-|   |-- checkpoint.py  archive.py  vault.py  worm.py
+|   |-- checkpoint.py  archive.py  vault.py  worm.py  aggregator.py
 |   `-- cli.py                                    # vectra-registry
 |-- migrations/                  # Alembic: esquema, particiones, roles, trigger, génesis
 |-- chart/                       # servicio + CronJobs
+|-- chart-rebuild/               # Application aparte decision-registry-rebuild: Jobs de reconstrucción (revisión del plan de tareas de U9, 2026-10-10)
 |-- vault-policies/              # HCL versionado
 |-- observability/               # PrometheusRule + tests
 |-- runbooks/
@@ -66,12 +67,18 @@ vectra-risk/decision-registry/
   - Tabla `registry_entries` (domain-entities §1) **particionada por rango de `seq`**: el año en curso, los dos siguientes y una partición `DEFAULT`.
   - Roles `registry_app`, `registry_verifier`, `registry_health` (`pg_monitor`) y `registry_migrator`, con sus grants: `registry_app` sin `UPDATE`, `DELETE` ni `TRUNCATE`.
   - Trigger `BEFORE UPDATE OR DELETE OR TRUNCATE`; índices (`case_id`, `idempotency_key` único, `entry_type`); entrada **génesis**.
+  - Índice de `registry_entries` por `recorded_at` (para el `aggregator reset`; quinta revisión del FD de U9, 2026-10-10).
+  - Las cinco tablas derivadas de domain-entities §1.3: `monitoring_daily` (marginales por atributo), `monitoring_entry_totals`, `monitoring_case_index` (solo `case_id`, `counted_seq`, `evaluated_at` y `fixed_by_decision`), `monitoring_invalid` y `monitoring_watermark`, con sus llaves y `CHECK (count >= 0)`. El trigger de solo-anexar no las cubre (BR-U3-02, 17).
+  - Rol `registry_aggregator`: `SELECT` sobre `registry_entries` y escritura solo sobre las tablas derivadas, sin `TRUNCATE`. `registry_verifier`: `SELECT` sobre las tablas derivadas salvo `monitoring_case_index`.
+  - La `idempotency_key` del checkpoint es `UUIDv5(NS_CHECKPOINT, "checkpoint:<hora UTC>")`, porque la columna es `uuid` (P-U3-03).
+  - (Precisado el 2026-10-08 por el FD de U9 y sus revisiones; frase separada en la tercera revisión del FD de U9, 2026-10-10.)
   - Diseño: BR-U3-01, 02, 10; NFR-U3-31, 42; P-U3-06; INF-U3-05. Historia: US-401.
   - **Aceptación**: `uv run pytest decision-registry/tests/integration/test_migrations.py` (Testcontainers):
     - `UPDATE`, `DELETE` y `TRUNCATE` con `registry_app` → `permission denied`;
     - con el trigger, un `UPDATE` de superusuario → excepción;
     - existe una sola génesis con `seq = 0`;
-    - una fila fuera de rango cae en `DEFAULT`.
+    - una fila fuera de rango cae en `DEFAULT`;
+    - `registry_aggregator` intenta `INSERT` o `UPDATE` sobre `registry_entries` → `permission denied`; escribe en `monitoring_daily` → éxito; `registry_app` escribe en `monitoring_daily` → `permission denied`.
 
 ### Bloque C — Lógica pura
 
@@ -88,7 +95,7 @@ vectra-risk/decision-registry/
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest decision-registry/tests/property/test_verify.py decision-registry/tests/unit/test_verify_modes.py`.
 
 - [ ] **Paso 5 — `projections`**
-  - Las 4 proyecciones de domain-entities §3; un campo o una proyección no permitidos → `Forbidden`, sin datos parciales.
+  - Las proyecciones de domain-entities §3 (`full`, `explanation`, `metrics`, `monitoring_daily` y `monitoring_freezes`; la `monitoring` por filas se retira porque ya no tiene consumidor, precisado el 2026-10-08 por U9 FD); un campo o una proyección no permitidos → `Forbidden`, sin datos parciales.
   - Propiedad PBT-U3-06.
   - Diseño: BR-U3-15. Historia: US-403.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest decision-registry/tests/property/test_projections.py`.
@@ -100,7 +107,7 @@ vectra-risk/decision-registry/
 ### Bloque D — Servicio
 
 - [ ] **Paso 7 — Append**
-  - Autorización por scope y tipo (BR-U3-03), tamaño de 64 KiB (BR-U3-07), idempotencia dentro del lock (BR-U3-06), `recorded_at` no decreciente y margen de `occurred_at` (BR-U3-05).
+  - Autorización por scope, tipo y, en `fail_closed`, forma del payload: scoring sin `local_cause` ni `escalated_at`, case solo con `escalated_at` (BR-U3-03). Tamaño de 64 KiB (BR-U3-07). Idempotencia dentro del lock por **campos de negocio**, sin `occurred_at`, `correlation_id` ni `contract_version` (BR-U3-06). `recorded_at` no decreciente. La ventana de ±5 min de `occurred_at` y `check_business_time` (BR-U0-37) se aplican **solo a llaves nuevas**, después de la búsqueda de idempotencia (BR-U3-05) (precisado el 2026-10-06, revisión del FD de U8).
   - Lock, hash, `INSERT` y commit con `synchronous_commit = remote_apply` (BR-U3-04).
   - Tiempos límite de P-U3-02, sin reintento interno; pools de P-U3-04 (`append` 2, `dossier` 1, `projections` 1, `health` 1).
   - Propiedades PBT-U3-07 y 08, y la **stateful PBT-U3-01** (`RuleBasedStateMachine` contra primaria + standby de Testcontainers).
@@ -108,10 +115,14 @@ vectra-risk/decision-registry/
   - **Aceptación**:
     - `HYPOTHESIS_PROFILE=ci uv run pytest decision-registry/tests/property/test_append_*.py decision-registry/tests/integration/test_append.py`;
     - standby pausado → 503 en ≤ 2,5 s; reintento con la misma llave → ack original y una sola fila;
-    - los 5 tipos de evento de gobierno con actor y rol (US-404).
+    - reintento con la misma llave 10 min después, con un `occurred_at`, un `correlation_id` y una `contract_version` nuevos → ack original; una llave nueva con `occurred_at` de hace 6 min → 422; una llave nueva con un momento de negocio de hace 8 días → 422 (`check_business_time` de U0); el reenvío de una llave existente con un momento de negocio de hace 8 días → ack original (BR-U3-05/06 precisadas el 2026-10-06);
+    - los 5 tipos de evento de gobierno con actor y rol (US-404);
+    - `fail_closed` con `escalated_at` desde `registry:append:scoring` → 403; `fail_closed` con `local_cause` (sin `escalated_at`) desde `registry:append:scoring` → 403; `fail_closed` sin `escalated_at` desde `registry:append:case` → 403; cada scope con su forma correcta → aceptado (BR-U3-03 simétrica, precisado el 2026-10-06, revisión del FD de U8).
 
 - [ ] **Paso 8 — Proyecciones, expediente y verificación bajo demanda**
   - `GET /v1/entries` con la proyección del consumidor (réplica). Filtros (`EntryFilter`): `case_id`, `entry_type`, `seq`, rango de `recorded_at`; la proyección `explanation` exige `case_id` y `seq` y devuelve como máximo una entrada (BR-U7-13; agregado por U7 NFR Design Q3).
+  - Gauge `vectra_registry_monitoring_lag_seconds`, calculado cada 60 s con el pool `projections` (BR-U3-17; segunda revisión del FD de U9, 2026-10-08).
+  - `POST /v1/monitoring/daily:query` (`registry:read:monitoring`, réplica; solo lectura, con el `MonitoringQuery` de U0 en el cuerpo; sexta revisión del FD de U9, 2026-10-10): `versions` (primer y último día por versión y población), hasta 12 rangos de días (`from_day ≤ to_day`), **sumados en el servidor**, y el `unattributable_range` opcional, del que devuelve un único `unattributable_invalid` (séptima revisión del FD de U9, 2026-10-10); devuelve conteos por rango, `total_entries`, `invalid_entries`, hasta 100 `invalid_seqs`, `watermark_seq` y el atraso; `GET /v1/monitoring/freezes` (BR-U3-17; precisado el 2026-10-08 por U9 FD).
   - `GET /v1/dossiers/{case_id}` (primaria, solo `cro`/`cumplimiento`), con verificación `range` y `last_full_verification`.
   - `POST /v1/integrity-checks` (`cro` con MFA; una sola `full` a la vez → 409).
   - Diseño: BR-U3-13..15; NFR-U3-21, 43; P-U3-05. Historias: US-402, US-403.
@@ -120,7 +131,15 @@ vectra-risk/decision-registry/
     - un `analista` recibe 403;
     - un tramo alterado → `not_verified`;
     - proyección `explanation` con un `seq` de otro caso → página vacía (explainability responde 409);
-    - un caso con dos `recommendation` y una `human_decision` que referencia la segunda → la primera sale `no_entregada` (P-U7-03, agregado por U7 NFR Design Q3).
+    - un caso con dos `recommendation` y una `human_decision` que referencia la segunda → la primera sale `no_entregada` (P-U7-03, agregado por U7 NFR Design Q3);
+    - `POST /v1/monitoring/daily:query` con 12 rangos de 90 días responde dentro del tiempo límite del pool `projections` (2 s) y con unos miles de filas, porque suma en el servidor; una consulta `explanation` concurrente no supera su límite (segunda revisión del FD de U9, 2026-10-08);
+    - `registry_verifier` no puede leer `monitoring_case_index` (segunda revisión del FD de U9, 2026-10-08);
+    - gauge `vectra_registry_monitoring_lag_seconds`: 0 con la marca igual a la cabeza y el registro sin tráfico durante 2 h; con una entrada pendiente de hace 31 min → > 1800 (tercera revisión del FD de U9, 2026-10-10);
+    - `GET /v1/monitoring/freezes`: un `freeze` con una `frozen_resolution` `reactivar` → `resolution.action = reactivar` y `resolution.recorded_at` = el `recorded_at` de la entrada (tercera revisión del FD de U9, 2026-10-10);
+    - `versions` devuelve `first_day` y `last_day` por versión y población; `totals` trae una fila por `range_id` (tercera revisión del FD de U9, 2026-10-10);
+    - una solicitud con 13 rangos → 422 (tercera revisión del FD de U9, 2026-10-10);
+    - `unattributable_invalid`: un solo valor sobre el `unattributable_range` pedido; 0 sin ese rango; no aparece en `totals` (sexta revisión del FD de U9, 2026-10-10);
+    - un rango o un `unattributable_range` con `from_day > to_day` → 422 (séptima revisión del FD de U9, 2026-10-10).
 
 - [ ] **Paso 9 — Readiness y contratos de rutas**
   - Readiness con `registry_health` (standby síncrono, cache de 5 s).
@@ -136,43 +155,51 @@ vectra-risk/decision-registry/
 
 - [ ] **Paso 11 — CLI `vectra-registry`**
   - `verify --mode incremental|nightly|full|range [--source db|archive]` con códigos 0/1/2.
-  - `checkpoint`: cabeza → firma Transit → append con `idempotency_key = checkpoint:<hora>` → export WORM y lectura de vuelta.
+  - `checkpoint`: cabeza → firma Transit → append con `idempotency_key = UUIDv5(NS_CHECKPOINT, "checkpoint:<hora UTC>")` (la columna es `uuid`) → export WORM y lectura de vuelta.
   - `archive --month`: NDJSON + zstd, manifiesto firmado, subida, descarga y `verify --source archive`.
-  - Diseño: BR-U3-08, 11, 13; NFR-U3-04, 12, 40; P-U3-03, 07. Historia: US-402.
+  - `aggregator run` (BR-U3-17): el comando del CronJob `registry-aggregator`; itera lotes hasta la cabeza o 240 s (quinta revisión del FD de U9, 2026-10-10); con `--until-head` itera sin tope de tiempo (Job a demanda del runbook `monitoring-rebuild`; sexta revisión del FD de U9, 2026-10-10).
+  - `aggregator reset` (BR-U3-17): solo con `registry_migrator`; la usa el runbook `monitoring-rebuild`.
+  - Diseño: BR-U3-08, 11, 13, 17; NFR-U3-04, 12, 40; P-U3-03, 07. Historia: US-402.
   - **Aceptación**: `uv run pytest decision-registry/tests/integration/test_cli.py`, con Testcontainers (PostgreSQL, MinIO con object lock y Vault dev):
     - `exit 0` en una cadena íntegra, `1` en una alterada, `2` con la base caída;
     - dos `checkpoint` en la misma hora → uno;
     - archivo alterado → `exit 1`;
-    - Vault caído → los appends siguen y el checkpoint falla con alerta.
+    - Vault caído → los appends siguen y el checkpoint falla con alerta;
+    - `aggregator reset` con `registry_migrator` vacía las cuatro tablas, deja `id = 1` con `last_seq` justo antes de la primera entrada de los últimos 181 días (tercera revisión del FD de U9, 2026-10-10); con `registry_aggregator` → `permission denied` (revisión del FD de U9, 2026-10-08).
 
 - [ ] **Paso 12 — CronJobs, identidades y políticas de la bóveda**
   - Los 5 CronJobs (INF-U3-03): `concurrencyPolicy: Forbid`, `activeDeadlineSeconds`, sidecar nativo de Linkerd, prioridades.
+  - Plantillas de Job a demanda del runbook `monitoring-rebuild`, en `decision-registry/chart-rebuild/` (revisión del plan de tareas de U9, 2026-10-10; INF-U3-03; séptima revisión del FD de U9, 2026-10-10): `registry-aggregator-rebuild` (`aggregator run --until-head`, rol `registry_aggregator`, `activeDeadlineSeconds: 5400`, `backoffLimit: 0`, `vectra-high`, sidecar nativo) y `registry-aggregator-reset` (`aggregator reset`, credencial de `registry_migrator` por ESO, flujo F108, `activeDeadlineSeconds: 300`, `backoffLimit: 0`, `vectra-normal`, sidecar nativo); los dos suman en la cuota de `vectra-app` mientras corren (U1 Paso 6; octava revisión del FD de U9, 2026-10-10). Se renderizan como **Jobs normales** solo con el value `monitoringRebuild.runId` (reset en una `sync-wave` anterior al rebuild, sin `ttlSecondsAfterFinished`), y los dos comandos toman el *advisory lock* de la reconstrucción (aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10). Aceptación adicional: `helm template` sin `runId` no renderiza los Jobs y con `runId` los renderiza en orden; en Testcontainers, dos `aggregator reset` a la vez → el segundo termina con error sin cambios; un reset durante un `run --until-head` → error; un reset con un lote del CronJob en curso espera el `FOR UPDATE` y los conteos finales son correctos.
+  - **Sexto CronJob, `registry-aggregator`** (cada 5 min, `Forbid`, `activeDeadlineSeconds: 280`, `vectra-high`, sidecar nativo de Linkerd, rol `registry_aggregator`, F107; itera lotes hasta la cabeza o 240 s; segunda revisión del FD de U9, 2026-10-08): BR-U3-17, con la regla de una recomendación por caso, las inválidas y la marca de agua en la misma transacción que los conteos; métrica del atraso para `MonitoringAggregatorStale` (precisado el 2026-10-08 por U9 FD).
   - ServiceAccounts y `ExternalSecret` por identidad (P-U3-08); políticas HCL versionadas (firma solo para checkpoint y archivo).
   - En U1, el Paso 13 (`restore-drill`) reemplaza su doble de prueba por esta CLI.
-  - Diseño: P-U3-03, 05, 07, 08; INF-U3-02, 03.
+  - Diseño: BR-U3-17; PBT-U3-09; NFR-U3-24, 35, 42; P-U3-03, 05, 07, 08; INF-U3-02, 03 (tercera revisión del FD de U9, 2026-10-10).
   - **Aceptación**:
     - `helm template` + `conftest test decision-registry/chart/` (límites de tiempo, `Forbid`, anotación de sidecar nativo, sin Secret plano);
-    - `uv run pytest decision-registry/tests/unit/test_vault_policies.py` (solo las identidades de checkpoint y archivo tienen `sign`; la API ninguna).
+    - `uv run pytest decision-registry/tests/unit/test_vault_policies.py` (solo las identidades de checkpoint y archivo tienen `sign`; la API ninguna);
+    - `HYPOTHESIS_PROFILE=ci uv run pytest decision-registry/tests/property/test_aggregator.py decision-registry/tests/integration/test_aggregator.py`: PBT-U3-09; matar el proceso entre lotes y reanudar → mismos conteos; 20 000 entradas pendientes → la misma corrida llega a la cabeza; restar relee las etiquetas de `registry_entries` por `counted_seq`; purga: filas de 181 días borradas y de 179 días intactas, y en `monitoring_case_index` por `evaluated_at`; `aggregator run --until-head` con 20 000 entradas pendientes → llega a la cabeza sin el tope de 240 s; con el CronJob y el Job solapados (sin suspender), el `FOR UPDATE` serializa los lotes y los conteos no cambian; `conftest` de las plantillas de los dos Jobs (séptima revisión del FD de U9, 2026-10-10); una `human_decision` que referencia un `seq` inexistente → fila no atribuible y `unattributable_invalid` = 1 en la proyección (quinta revisión del FD de U9, 2026-10-10); una que referencia una entrada `freeze` → igual que inexistente; una sobre una recomendación inválida → el caso queda fijado con `counted_seq = NULL` y una recomendación válida posterior no suma en `modelo` (sexta revisión del FD de U9, 2026-10-10); `monitoring_freezes` con un `reactivar` (tercera revisión del FD de U9, 2026-10-10); una `human_decision` que referencia una recomendación anterior → resta la más reciente y suma la referenciada; una entrada con `region` fuera del catálogo → cuenta como inválida con su `seq`.
 
 ### Bloque F — Despliegue y operación
 
 - [ ] **Paso 13 — Chart del servicio, buckets y flujos**
   - Deployment: HPA de 2 a 6, spread por zona, PDB, `vectra-critical`, recursos de INF-U3-03.
   - Values por entorno: buckets (MinIO en kind; S3 del banco en staging y prod) y URL de Transit.
-  - Agregar a `platform/network/flows.yaml` de U1: F42, F96, F97, F98 (kind), F77, F78, F79, F99, y F75 ampliado.
+  - `ServiceMonitor` del puerto de métricas del servicio, que incluye el gauge `vectra_registry_monitoring_lag_seconds` (F60; sexta revisión del FD de U9, 2026-10-10).
+  - Agregar a `platform/network/flows.yaml` de U1: F42, F96, F97, F98 (kind), F77, F78, F79, F99, F107 (`registry-aggregator` y el Job `registry-aggregator-rebuild` → `registry-db-rw`), F108 (Job `registry-aggregator-reset` → `registry-db-rw`; octava revisión del FD de U9, 2026-10-10) y F75 ampliado.
   - Diseño: NFR-U3-11, 41; INF-U3-01..06.
-  - **Aceptación**: `helm template` + `conftest`; `uv run python platform/network/generate.py --check && uv run pytest platform/network/tests` (los IDs F77–F79 y F96–F99 de `component-dependency.md` están en `flows.yaml`).
+  - **Aceptación**: `helm template` + `conftest`; `uv run python platform/network/generate.py --check && uv run pytest platform/network/tests` (los IDs F77–F79, F96–F99, F107 y F108 de `component-dependency.md` están en `flows.yaml`, y F60 admite el scrape de Prometheus al puerto de métricas de `decision-registry-service`; sexta revisión del FD de U9, 2026-10-10); `conftest`: el `ServiceMonitor` existe y apunta al puerto de métricas.
 
 - [ ] **Paso 14 — Alertas y runbooks**
-  - `PrometheusRule` con las 11 alertas de P-U3-09; runbooks: `registry-chain-broken`, `registry-default-partition-used`, `checkpoint-missing`, `archive-export-failed`, `registry-partition-missing`, `registry-append-pool-saturated`, `registry-volume-fill-forecast`, `registry-growth-above-forecast` y uno de rotación de la llave de checkpoints (*cross-signing*).
+  - `PrometheusRule` con las 11 alertas de P-U3-09, incluida `MonitoringAggregatorStale` (que también delata un rebuild fallido, BR-U3-17; runbook `monitoring-rebuild` con el paso de silencio de `MonitoringAggregatorStale` y `MonitoreoSesgoDetenido` (U9) y su vencimiento; revisión del NFR Requirements de U9, 2026-10-10 (segunda)) (BR-U3-17: `max(vectra_registry_monitoring_lag_seconds) > 1800` durante 5 min o la serie ausente 15 min; segunda revisión del FD de U9, 2026-10-08); runbooks: `monitoring-aggregator-stale`, `monitoring-rebuild`, `registry-chain-broken`, `registry-default-partition-used`, `checkpoint-missing`, `archive-export-failed`, `registry-partition-missing`, `registry-append-pool-saturated`, `registry-volume-fill-forecast`, `registry-growth-above-forecast` y uno de rotación de la llave de checkpoints (*cross-signing*).
   - `docs/retention.md` (NFR-U3-01..04, con los **[VERIFICAR]**) y `docs/capacity.md` (§3.1 de NFR: volumen esperado frente a capacidad de diseño).
   - Diseño: P-U3-09; NFR-U3-01..04, 30..34.
   - **Aceptación**: `promtool test rules decision-registry/observability/rules/tests/*.yaml`; `uv run python platform/tests/test_runbooks.py --root decision-registry`; `test -s decision-registry/docs/retention.md && test -s decision-registry/docs/capacity.md`.
 
 - [ ] **Paso 15 — Applications de GitOps**
   - Application en la wave 5 (Job de migración como hook + servicio + CronJobs).
-  - Diseño: P-U1-12.
-  - **Aceptación**: `uv run python platform/tests/test_waves.py` y `kyverno test` de `disallow-argocd-auto-sync`.
+  - **Application aparte `decision-registry-rebuild`** (revisión del Infrastructure Design de U9, 2026-10-10), sin auto-sync, con el chart de los Jobs de reconstrucción (`decision-registry/chart-rebuild/`) (solo con `monitoringRebuild.runId`); `rebuild-history.yaml` en el repositorio GitOps y un check de CI que rechaza un `runId` repetido o que no tenga el formato `AAAAMMDD-HHMM`.
+  - Diseño: P-U1-12; BR-U3-17.
+  - **Aceptación**: `uv run python platform/tests/test_waves.py` y `kyverno test` de `disallow-argocd-auto-sync`; el render de `decision-registry` no contiene los Jobs de reconstrucción y el de `decision-registry-rebuild` sí (con `runId`); `uv run pytest decision-registry/tests/unit/test_rebuild_runid_check.py` (formato inválido → error; `runId` ya en el historial → error; nuevo → aceptado).
 
 ### Bloque G — Calidad
 
@@ -185,8 +212,13 @@ vectra-risk/decision-registry/
   - Benchmark de la verificación incremental (NFR-U3-22) con Testcontainers en CI.
   - Script k6 del append a 50 entradas/s con expedientes concurrentes (NFR-U3-20, 21; P-U3-04).
   - Generador de 10 años sintéticos (36 M entradas) para el benchmark `nightly` (NFR-U3-23).
-  - Diseño: NFR-U3-20..23; P-U3-04.
-  - **Aceptación**: `uv run pytest decision-registry/tests/bench -m benchmark` (≤ 30 s); `k6 inspect decision-registry/tests/load/append.js` muestra los umbrales p95/p99; `uv run python decision-registry/tests/bench/gen_synthetic.py --dry-run --years 10` informa 36 M entradas.
+  - Benchmarks del agregador (NFR-U3-24, 35; tercera revisión del FD de U9, 2026-10-10): reconstrucción de ~1,8 M entradas sintéticas (181 días a 10 000/día) en ≤ 1 h; atraso p95 ≤ 10 min con 50 entradas/s y corridas cada 5 min; `monitoring_daily` con 12 rangos de 90 días p95 ≤ 200 ms; tamaño de las tablas derivadas con 180 días y 3 versiones (< 350 000 filas en `monitoring_daily`, ≈ 360 000 en `monitoring_case_index`).
+  - Diseño: NFR-U3-20..24, 35; P-U3-04.
+  - **Aceptación** (quinta revisión del FD de U9, 2026-10-10, separada por benchmark):
+    - `uv run pytest decision-registry/tests/bench/test_verify_incremental.py -m benchmark`: verificación incremental ≤ 30 s (NFR-U3-22);
+    - `uv run pytest decision-registry/tests/bench/test_aggregator.py -m benchmark` (CI escalado): 100 000 entradas en el tiempo que, extrapolado, da ≤ 1 h para 1,8 M; pico de memoria del proceso ≤ 70 % del límite de INF-U3-03 con el lote por omisión (si no, se reduce el lote); `monitoring_daily` con 12 rangos p95 ≤ 200 ms; tamaño de las tablas con 180 días y 3 versiones;
+    - la reconstrucción completa de ~1,8 M entradas y el atraso p95 ≤ 10 min se miden en kind (Paso 18);
+    - `k6 inspect decision-registry/tests/load/append.js` muestra los umbrales p95/p99; `uv run python decision-registry/tests/bench/gen_synthetic.py --dry-run --years 10` informa 36 M entradas.
 
 ### Bloque H — Verificación en kind (con aprobación humana)
 
@@ -199,7 +231,8 @@ vectra-risk/decision-registry/
     4. la bóveda caída: appends normales y `CheckpointMissing`;
     5. el S3 caído: `CheckpointExportFailed`;
     6. la manipulación de superusuario (trigger deshabilitado + recálculo) → `RegistryChainBroken` en la siguiente `incremental`;
-    7. `restore-drill` con la CLI real, verificando contra los checkpoints externos.
+    7. `restore-drill` con la CLI real, verificando contra los checkpoints externos;
+    8. agregador: suspender el CronJob 35 min → `MonitoringAggregatorStale` y corridas de bias fallidas por atraso; reanudar → atraso en 0; runbook `monitoring-rebuild` (aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10): PR con un `runId` nuevo en la Application `decision-registry-rebuild` y sync manual con prune → Argo CD aplica el reset, espera a que termine y aplica el rebuild → reconstrucción de los últimos 181 días en ≤ 1 h con conteos iguales a los anteriores; se mide si el sync queda en curso hasta el fin del rebuild; un sync posterior con el mismo `runId` no repite nada; un `runId` nuevo poda los Jobs del anterior; durante el rebuild, un sync o un rollback de `decision-registry` no espera al rebuild; un rebuild que vence a los 90 min → el CronJob termina la reconstrucción y el atraso llega a 0; el runbook silencia `MonitoringAggregatorStale` y `MonitoreoSesgoDetenido` (U9) con vencimiento de 2 h y el `runId`; un rebuild que falla a propósito → las dos vuelven al vencer el silencio (revisión del plan de tareas de U9, 2026-10-10); atraso p95 ≤ 10 min durante la prueba de carga (NFR-U3-24).
   - Historias: US-401, US-402, US-403.
   - **Aceptación**: un archivo de evidencia por escenario adjunto al PR, con comando, salida y resultado esperado contra el obtenido.
 
@@ -234,11 +267,14 @@ Revisada contra las líneas «Diseño» de cada paso antes de presentarla.
 | BR-U3-09 | 3 |
 | BR-U3-11, 12 | 4, 11 |
 | BR-U3-13..15 | 5, 8, 11 |
+| BR-U3-17 | 2, 5, 8, 11, 12, 13, 14, 17, 18 |
 | NFR-U3-01..04 | 11, 14 |
 | NFR-U3-11, 12 | 9, 11, 13 |
 | NFR-U3-20..23 | 7, 8, 17 |
+| NFR-U3-24 | 8, 12, 17, 18 |
 | NFR-U3-30..34 | 2, 4, 14 |
-| NFR-U3-40..43 | 2, 8, 11, 13 |
+| NFR-U3-35 | 2, 12, 17, 18 |
+| NFR-U3-40..43 | 2, 8, 11, 12, 13 |
 | NFR-U3-50..52 | 1, 7, 16 |
 | P-U3-01..09 | 1, 2, 7, 8, 9, 11, 12, 14, 17 |
 | INF-U3-01..06 | 2, 7, 12, 13 |
@@ -250,6 +286,7 @@ Revisada contra las líneas «Diseño» de cada paso antes de presentarla.
 | PBT-U3-04, 05 | 3 |
 | PBT-U3-06 | 5 |
 | PBT-U3-07, 08 | 7 |
+| PBT-U3-09 | 12 |
 
 ## 4. Cumplimiento de extensiones (plan de tareas U3)
 

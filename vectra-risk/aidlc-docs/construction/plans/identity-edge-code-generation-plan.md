@@ -75,7 +75,9 @@ vectra-risk/identity-edge/
     - eventos de login y de administración sin username ni email (BR-U2-16).
   - Clientes de domain-entities §2:
     - `vectra-console` y `promotion-tool` (PKCE S256, redirect URIs exactas);
-    - `grafana` y los 8 de servicio con `private_key_jwt`;
+    - `grafana` y los 10 de servicio con `private_key_jwt` (incluidos `case-worker`, agregado el 2026-10-08 por U8 INF-U8-01, y `bias-monitoring-job`, revisión del FD de U9, 2026-10-08); solo `bias-monitoring-job` tiene `governance:freeze`;
+    - `channel-simulator` (`private_key_jwt`, `intake:submit`, audiencia `case-service`) solo en `realm.kind.yaml` y `realm.staging.yaml`; `realm-lint` falla si aparece en `realm.prod.yaml` (precisado el 2026-10-06, revisión del FD de U8);
+    - `case-service` con `core:read-credit` y la audiencia `core-banking-mock` solo en `realm.kind.yaml` y `realm.staging.yaml`; `realm-lint` falla si aparecen en `realm.prod.yaml`, y una prueba sobre el realm de producción comprueba que `case-service` no obtiene un token con ese scope ni con esa audiencia (precisado el 2026-10-08 por U8 INF-U8-02, core deshabilitado en producción);
     - mapper de audiencias y mapper `roles`;
     - access token sin `preferred_username`, `email` ni `name`.
   - kind y staging: ≥ 2 usuarios sintéticos por rol. prod: federación LDAPS `READ_ONLY` con `group-role-map.yaml` (INF-U2-07) y el usuario `break-glass`.
@@ -86,12 +88,14 @@ vectra-risk/identity-edge/
   - El validador verifica:
     - separación de funciones (BR-U2-01) y mapeo de grupos LDAP (BR-U2-15);
     - scopes solo del catálogo de U0 y **ningún cliente con `core:write-credit`**;
+    - `governance:freeze` **solo** en `bias-monitoring-job` (revisión del FD de U9, 2026-10-08);
+    - en `realm.prod.yaml`: ni `channel-simulator`, ni `case-service` con `core:read-credit` o la audiencia `core-banking-mock` (U8 INF-U8-02; precisado el 2026-10-08);
     - clientes de servicio sin `client_secret` y sin redirect URIs con comodines;
     - claims prohibidos en el access token;
     - parámetros de §6 de domain-entities y política de contraseñas.
   - Propiedades PBT-U2-01, 02 y 03, con generadores en `tests/strategies/`.
   - Diseño: BR-U2-01, 09, 15; NFR-U2-40; AUTONOMIA-03. Historia: US-601 (su verificación pide la prueba del realm exportado: MFA por rol y fuerza bruta).
-  - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest identity-edge/tests/property/test_realm_*.py identity-edge/tests/unit/test_realm_lint.py`, con casos nombrados: un usuario con dos roles → error; un cliente con `core:write-credit` → error.
+  - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest identity-edge/tests/property/test_realm_*.py identity-edge/tests/unit/test_realm_lint.py`, con casos nombrados: un usuario con dos roles → error; un cliente con `core:write-credit` → error; un cliente distinto de `bias-monitoring-job` con `governance:freeze` → error; `case-service` con `core:read-credit` en `realm.prod.yaml` → error; el mismo cliente en `realm.staging.yaml` → aceptado.
 
 - [ ] **Paso 4 — Tema `vectra` e imagen de Keycloak**
   - Tema hijo de `keycloak.v2` con `messages_es.properties`, logo y colores; sin JavaScript propio ni recursos de otro origen.
@@ -135,7 +139,8 @@ vectra-risk/identity-edge/
     - `uv run python identity-edge/tools/route_gen.py --check` (los manifiestos versionados coinciden con los generados);
     - `kubeconform` con los CRDs de Gateway API y Envoy Gateway;
     - `HYPOTHESIS_PROFILE=ci uv run pytest identity-edge/tests/property/test_routes_*.py`;
-    - `conftest`: ningún reintento en `POST`/`PUT`/`PATCH`; toda ruta autenticada tiene SecurityPolicy.
+    - `conftest`: ningún reintento en `POST`/`PUT`/`PATCH`; toda ruta autenticada tiene SecurityPolicy;
+    - `/api/intake/**`: el JWT de `channel-simulator` pasa en kind y staging y se rechaza (403) con los values de producción; descriptores separados por `azp` (10/20 para `channel`, 30/60 para `channel-simulator`), y el de `channel-simulator` no existe en producción (precisado el 2026-10-06, revisión del FD de U8).
 
 - [ ] **Paso 8 — Envoy Gateway, `Gateway` y verificación de la versión pinneada**
   - Values del controlador (`envoy-gateway-system`, 2 réplicas); `EnvoyProxy` (data plane en `vectra-edge`, HPA de 2 a 6, spread, PDB, Service `LoadBalancer` con `externalTrafficPolicy: Local` o PROXY protocol); `GatewayClass`, `Gateway` (HTTPS 443) y `Certificate` con el `ClusterIssuer` de cada entorno; binding K14.
@@ -183,13 +188,14 @@ vectra-risk/identity-edge/
     - token de otro servicio → 401;
     - `X-Forwarded-For` falso no cambia la IP registrada;
     - cabecera interna `x-vectra-sub` inyectada → sin efecto;
+    - backend de eco: `Idempotency-Key` (en `/api/intake/**` y `/api/console/**`) y `X-Test-Scenario` (en `/api/intake/**`) llegan intactas, y ninguna `x-vectra-*` entrante llega (P-U2-06; precisado el 2026-10-06, revisión del FD de U8);
     - accesibilidad del login.
   - PBT-U2-08: modelo de estados de la fuerza bruta contra el Keycloak de kind.
   - Diseño: PBT-10; NFR-U2-42; BR-U2-03..08, 10, 13, 16; P-U2-06, 08. Historias: US-601, US-611.
   - **Aceptación** (estática): `uv run ruff check identity-edge/tests/e2e` y `uv run pytest identity-edge/tests/e2e --collect-only` lista todos los casos nombrados. La ejecución es del Paso 16.
 
 - [ ] **Paso 14 — Especificación de la prueba de carga**
-  - Script k6: 200 usuarios concurrentes con login y token, 8 identidades de servicio renovando cada 5 min, ráfagas contra la consola; umbrales de NFR-U2-10..12 como `thresholds`.
+  - Script k6: 200 usuarios concurrentes con login y token, 10 identidades de servicio renovando cada 5 min (incluidas `case-worker` y `bias-monitoring-job`), ráfagas contra la consola; umbrales de NFR-U2-10..12 como `thresholds`.
   - Diseño: NFR-U2-10..12.
   - **Aceptación** (estática): `k6 inspect identity-edge/tests/load/identity.js` muestra los umbrales p95 de login (500 ms), token (200 ms) y JWKS (50 ms). La ejecución es del Paso 16.
 

@@ -69,8 +69,8 @@ Grafana (F06), con login OIDC y permisos por equipo.
 | `record_explanation_view(case_id)` | `POST /api/console/cases/{id}/explanation-views` | analista | — | el caso está `listo` o `decidido` | case `record_explanation_view` |
 | `record_decision(case_id, d) -> DecisionRef` | `POST /api/console/cases/{id}/decision` | analista | — | el caso está `listo` (si no, 409); la decisión queda a nombre del llamante | case `record_decision` |
 | `create_applicant_summary(case_id) -> ApplicantSummary` | `POST /api/console/cases/{id}/applicant-summary` | analista, cro | — | caso `decidido` con explicación sincronizada | explainability `applicant_summary` |
-| `list_persistent_failures() -> list[CaseSummary]` | `GET /api/console/cases/failures` | cro | — | — | case `list_persistent_failures` |
-| `retry_case(case_id) -> CaseRef` | `POST /api/console/cases/{id}/retry` | cro | — | el caso está `no_disponible` y no anonimizado (si no, 409) | case `retry_case` (agregado por U8 FD Q2) |
+| `list_persistent_failures() -> list[PersistentFailure]` | `GET /api/console/cases/failures` | cro | — | — | case `list_persistent_failures` (tipo precisado el 2026-10-06) |
+| `retry_case(case_id) -> CaseRef` | `POST /api/console/cases/{id}/retry` | cro | no (acción técnica, sin efecto sobre el crédito; queda en el log `case.retry_requested`) | el caso está `no_disponible` y no anonimizado (si no, 409) | case `retry_case` (agregado por U8 FD Q2) |
 | `get_dossier(case_id) -> Dossier` | `GET /api/console/cases/{id}/dossier` | cro, cumplimiento | — | el caso existe | registry `get_case_dossier` + case `get_case` (identificadores directos); el BFF compone, el registro no toca identificadores (U3 FD Q7) |
 | `run_integrity_check() -> IntegrityReport` | `POST /api/console/integrity-checks` | cro | sí | — | registry `verify_chain` |
 
@@ -82,6 +82,7 @@ Grafana (F06), con login OIDC y permisos por equipo.
 | `get_model(mv_id) -> ModelVersionDetail` | `GET /api/console/models/{id}` | ingeniero_riesgo, cro, cumplimiento | — | incluye el informe de validación | governance |
 | `register_model(m) -> ModelVersion` | `POST /api/console/models` | ingeniero_riesgo | sí | — | governance `register_model` |
 | `start_validation(mv_id) -> ValidationRun` | `POST /api/console/models/{id}/validations` | ingeniero_riesgo | sí | estado `registrado` | governance `start_validation` |
+| `start_source_comparison(ds_id, candidate_version_id) -> ValidationRun` | `POST /api/console/data-sources/{id}/comparisons` | ingeniero_riesgo | sí | fuente `en_evaluacion`; candidata con `source_candidate_for`; existe una versión `activo` (U4 BR-U4-13, segunda revisión del FD de U9, 2026-10-08) | governance `start_source_comparison` |
 | `approve_model(mv_id, decision)` | `POST /api/console/models/{id}/approval` | cro | sí | estado `lista_para_aprobacion` | governance `approve_model` |
 | `resolve_frozen(mv_id, action, justification)` | `POST /api/console/models/{id}/frozen-resolution` | **cumplimiento** | sí | estado `congelado` | governance `resolve_frozen` |
 
@@ -108,7 +109,7 @@ sync manual aprobado (flujo S3).
 
 | Operación | Endpoint | Roles | MFA | Objeto | Destino |
 |---|---|---|---|---|---|
-| `get_disparity(filter) -> DisparityView` | `GET /api/console/disparity` | cumplimiento, cro | — | — | bias `get_dashboard` |
+| `get_disparity(filter) -> DisparityView` | `GET /api/console/disparity` | cumplimiento, cro | — | — | governance `list_models(state=activo,congelado)` (F11, la versión servible) y después bias `get_dashboard` con esa versión (U9 BR-U9-18; quinta revisión del FD de U9, 2026-10-10) |
 | `list_freezes() -> list[FreezeSummary]` | `GET /api/console/freezes` | cumplimiento, cro | — | — | bias |
 | `get_freeze(freeze_id) -> FreezeContext` | `GET /api/console/freezes/{id}` | cumplimiento | — | el congelamiento existe | bias `get_context_package` |
 
@@ -122,11 +123,11 @@ rol × endpoint de US-602 se genera desde esta tabla.
 |---|---|---|---|
 | `submit_application(app: ApplicationIn) -> CaseRef` | `POST /v1/intake/applications` | solicitud validada → `case_id`, estado | gateway (simulador) |
 | `create_manual_application(app: ApplicationIn, user) -> CaseRef` | `POST /v1/cases` | ídem, canal "manual" | BFF (analista) |
-| `list_cases(filter: CaseFilter, user) -> Page[CaseSummary]` | `GET /v1/cases` | filtros → bandeja (sin score en casos no listos) | BFF |
+| `list_cases(filter: CaseFilter, user) -> Page[CaseSummary]` | `GET /v1/cases` | filtros (U0 §1.2) → bandeja (sin score en casos no listos; `vencido` solo con el filtro explícito) | BFF |
 | `get_case(case_id, user) -> CaseDetail` | `GET /v1/cases/{id}` | → detalle (+ estado de crédito en lectura) | BFF |
 | `record_explanation_view(case_id, user) -> None` | `POST /v1/cases/{id}/explanation-views` | → evento al registro | BFF |
 | `record_decision(case_id, d: DecisionIn, user) -> DecisionRef` | `POST /v1/cases/{id}/decision` | sigue / se aparta / resuelve_revision + factores + texto → registro (BR-U0-35) | BFF (analista) |
-| `list_persistent_failures(user) -> list[CaseSummary]` | `GET /v1/cases/failures` | → casos `no_disponible` | BFF (CRO) |
+| `list_persistent_failures(user) -> list[PersistentFailure]` | `GET /v1/cases/failures` | → casos `no_disponible` (tipo precisado el 2026-10-06) | BFF (CRO) |
 | `retry_case(case_id, user) -> CaseRef` | `POST /v1/cases/{id}/retry` | caso `no_disponible` → `en_evaluacion` con intentos en cero (BR-U8-11; agregado por U8 FD Q2) | BFF (CRO) |
 | `evaluate(case_id) -> RecommendResult` | interno (worker) | invoca a scoring; reprograma el reintento | cola de trabajos |
 
@@ -168,11 +169,14 @@ En el MVP solo existe `TemplateNarrativeGenerator`. Un futuro `InClusterLLMNarra
 |---|---|---|
 | `register_model(m: ModelRegistration) -> ModelVersion` | `POST /v1/models` | BFF (ingeniero_riesgo) |
 | `start_validation(mv_id) -> ValidationRun` | `POST /v1/models/{id}/validations` | BFF (ingeniero_riesgo) |
+| `start_source_comparison(ds_id, candidate_version_id) -> ValidationRun` | `POST /v1/data-sources/{id}/comparisons` | BFF (ingeniero_riesgo, MFA; U4 BR-U4-13, segunda revisión del FD de U9, 2026-10-08) |
+| `submit_source_counts(run_id, pre, post)` | `PUT /v1/validation-runs/{run_id}/source-counts` | model-validation-job (`governance:validation-report`) |
 | `submit_validation_report(mv_id, r: ValidationReport)` | `PUT /v1/models/{id}/validation-report` | model-validation-job (identidad de servicio) |
 | `approve_model(mv_id, decision, user)` | `POST /v1/models/{id}/approval` | BFF (cro, con MFA) |
+| `list_models(filter) -> Page[ModelVersion]` | `GET /v1/models?state=…` (filtro por uno o varios estados; `state=activo,congelado` da la versión servible) | BFF (ingeniero_riesgo, cro, cumplimiento; para `get_disparity` del BFF, cro y cumplimiento) (sexta revisión del FD de U9, 2026-10-10) |
 | `list_promotable() -> list[ModelVersion]` | `GET /v1/models?state=aprobado` | promotion-tool |
 | `mark_active(mv_id, evidence)` | `POST /v1/models/{id}/activation` | promotion-tool tras sync aprobado (ingeniero_riesgo) |
-| `freeze_model(mv_id, ctx: FreezeContext)` | `POST /v1/models/{id}/freeze` | **solo** identidad `bias-monitoring` |
+| `freeze_model(mv_id, ctx: FreezeContext)` | `POST /v1/models/{id}/freeze` | **solo** identidad `bias-monitoring-job` (CronJob de U9, scope `governance:freeze`; tercera revisión del FD de U9, 2026-10-10) |
 | `resolve_frozen(mv_id, action: Literal["reactivar","descartar","investigar"], justification, user)` | `POST /v1/models/{id}/frozen-resolution` | BFF (**solo** cumplimiento, con MFA) |
 | `get_active_serving_config() -> ServingConfig` | `GET /v1/serving-config` | scoring-service (lectura: versión activa, estado, política vigente) |
 | `get_feature_spec(mv_id) -> FeatureSpec` | `GET /v1/models/{id}/feature-spec` | case-service (F104, scope `governance:read-feature-spec`; agregado por U8 FD Q1) |
@@ -186,22 +190,28 @@ En el MVP solo existe `TemplateNarrativeGenerator`. Un futuro `InClusterLLMNarra
 ```python
 def run_validation(model_version_id: ModelVersionId, dataset_ref: str) -> ValidationReport
     # AUC-ROC, disparidad inicial (librería de C11), prueba de sincronía predictor↔explainer
+
+def run_source_comparison(run_id, candidate_version_id, baseline_version_id, dataset_ref) -> SourceCounts
+    # modo source_comparison (U4 BR-U4-05, 13; revisión del FD de U9, 2026-10-08): puntúa el dataset con la versión activa
+    # y con la candidata en KServe de staging (F30) y devuelve solo tablas de conteo por atributo
 ```
 
 ## C11 `bias-monitoring-service`
 
 | Operación | Endpoint / disparador |
 |---|---|
-| `compute_disparity(window) -> DisparityReport` | CronJob periódico |
-| `evaluate_freeze(report) -> FreezeDecision` | tras cada cálculo (umbral en Functional Design) |
-| `build_context_package(mv_id, report) -> FreezeContext` | al congelar |
-| `compare_source(ds_id) -> PrePostReport` | a pedido desde governance (fuente nueva) |
+| `compute_disparity(window) -> RunReport` | CronJob cada 15 min, sobre conteos agregados de `monitoring_daily` (U9 BR-U9-07..10) |
+| `evaluate_freeze(result) -> FreezeDecision` | tras cada cálculo: agregada > 5 pp y límite inferior del intervalo > 0 (BR-U9-11) |
+| `build_context_package(mv_id, before, after, last_7_days) -> FreezeContext` | al congelar (BR-U9-15) |
+| `compare_source(source_id, pre, post) -> PrePostReport` | `POST /v1/source-comparisons` desde governance (F25), con tablas de conteo |
 | `get_dashboard(filter, user) -> DisparityView` | `GET /v1/disparity` (BFF: cumplimiento, cro) |
+| `list_freezes(user) -> list[FreezeSummary]` | `GET /v1/freezes` (BFF: cumplimiento, cro) |
 | `get_context_package(freeze_id, user)` | `GET /v1/freezes/{id}` (BFF: cumplimiento) |
 
-Librería compartida (también la usa C10):
+Librería compartida (también la usan C10 y U5; firmas U9 FD, 2026-10-08):
 ```python
-def disparity_by_band(records: Iterable[LabeledOutcome], group: str) -> DisparityResult
+def counts_from_records(records: Iterable[LabeledOutcome]) -> dict[str, CountTable]
+def disparity_by_band(counts: CountTable, attribute: str, n_min: int) -> AttributeResult
 ```
 
 ## C12 `decision-registry-service`
@@ -209,7 +219,9 @@ def disparity_by_band(records: Iterable[LabeledOutcome], group: str) -> Disparit
 | Operación | Endpoint | Llamado por |
 |---|---|---|
 | `append(entry: RegistryEntryIn) -> RegistryAck` | `POST /v1/entries` | scoring, case, governance (identidades de servicio). bias **no** escribe: el congelamiento lo registra governance (F24) |
-| `query(filter: EntryFilter, principal) -> Page[RegistryEntry]` | `GET /v1/entries` | BFF (filtrado por rol), explainability (F23), bias, product-metrics |
+| `query(filter: EntryFilter, principal) -> Page[RegistryEntry]` | `GET /v1/entries` | BFF (filtrado por rol), explainability (F23), product-metrics |
+| `monitoring_daily(q: MonitoringQuery) -> MonitoringWindow` | `POST /v1/monitoring/daily:query` (solo lectura e idempotente; la consulta va en el cuerpo porque son hasta 12 rangos; sexta revisión del FD de U9, 2026-10-10) | bias (servicio y CronJob, `registry:read:monitoring`; U3 BR-U3-17; quinta revisión del FD de U9, 2026-10-10) |
+| `monitoring_freezes() -> list[FreezeRecord]` | `GET /v1/monitoring/freezes` | bias (`registry:read:monitoring`) |
 | `get_case_dossier(case_id, principal) -> Dossier` | `GET /v1/dossiers/{case_id}` | BFF (cro, cumplimiento) |
 | `verify_chain(from_seq=None) -> IntegrityReport` | `POST /v1/integrity-checks` + CLI/Job | BFF (cro), CronJob |
 

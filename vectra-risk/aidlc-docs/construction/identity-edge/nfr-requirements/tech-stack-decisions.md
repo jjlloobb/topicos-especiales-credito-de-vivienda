@@ -12,7 +12,7 @@ exactas se pinnean por digest en los values del repositorio GitOps.
 | Clúster de Keycloak | Infinispan embebido + `jdbc-ping` sobre `keycloak-db` | Sin componentes extra de descubrimiento | Q2 |
 | Realm como código | `keycloak-config-cli` como hook de sync | Idempotente; cambios solo por PR | U2 FD Q10 |
 | Gateway | Envoy Gateway (Gateway API) | INCEPTION | INCEPTION |
-| Rate limiting | Servicio de rate limit de Envoy (`envoyproxy/ratelimit`) + **Redis** con Sentinel | Límites exactos con varias réplicas | Q5 |
+| Rate limiting | Servicio de rate limit de Envoy (`envoyproxy/ratelimit`) + **Valkey 8** con Sentinel (compatible con el protocolo de Redis; la imagen pinneada y firmada es la oficial de Valkey, INF-U2-04; antes decía «Redis», unificado el 2026-10-08) | Límites exactos con varias réplicas | Q5 |
 | TLS del borde | cert-manager + `ClusterIssuer` de la CA del banco; CA interna de U1 en kind | Certificado de confianza en los navegadores del banco | Q6 |
 | IP de origen | `externalTrafficPolicy: Local` o PROXY protocol v2 | Límite por IP y eventos con la IP real | Q7 |
 | Hash de contraseñas | Argon2 (predeterminado de Keycloak 26) | NIST SP 800-63B | Q8 |

@@ -40,6 +40,7 @@ Sitio del banco
   Zona A / Zona B: governance-service (2..6, spread por zona; serving-config en memoria; LISTEN/NOTIFY)
   governance-db (CloudNativePG, U1)
   vectra-staging: model-validation-job (K01) -> KServe staging, model-store (lectura)
+                  en source_comparison: isvc de la candidata y predictor de la versión activa (INF-U4-05; segunda revisión del FD de U9, 2026-10-08)
   model-archive (CronJob diario) -> model-store (F101) ; S3 fuera del sitio (F100) ; governance-db (F102)
 Fuera del sitio: S3 del banco, bucket vectra-model-archive (WORM COMPLIANCE, 10 años)
 ```

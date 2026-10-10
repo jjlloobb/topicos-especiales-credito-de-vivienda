@@ -22,18 +22,19 @@ Testcontainers en CI.
 
 ### P-U4-02 — Reconciliador y barridos sin líder (Q2, Q3; BR-U4-05, 17)
 Una tarea de fondo en cada réplica, cada 10 s:
-1. toma hasta 20 transiciones `pendiente_registro` con `SELECT ... FOR UPDATE SKIP LOCKED` y reintenta el append con su `idempotency_key` (`transition_id`); con el ack, confirma y aplica (BR-U4-17);
-2. las que llevan más de 24 h → `abandonada` + `GovernanceTransitionAbandoned` (SEV2);
+1. toma hasta 20 transiciones `pendiente_registro`, **solo la de menor `n` de cada entidad**, con `SELECT ... FOR UPDATE SKIP LOCKED`, y reintenta el append con su `idempotency_key` (UUIDv5(`entity_type`:`entity_id`, n), tabla `transitions`, precisado el 2026-10-06); con el ack, confirma y aplica (BR-U4-17). Como solo se toma la menor pendiente de cada entidad, dos réplicas no pueden escribir `n` y `n+1` de la misma entidad a la vez, y la cadena respeta el orden (precisado el 2026-10-06);
+2. las que llevan más de 24 h → `abandonada` + `GovernanceTransitionAbandoned` (SEV2). Las `descartada` nunca se escriben; sí se escriben sus eventos `transicion_descartada`, que **no se abandonan** (BR-U4-17; precisado el 2026-10-06, revisión del FD de U8);
 3. los eventos `freeze` pendientes se reintentan igual; mientras existan, `FreezeEventPending` (SEV2).
+4. las compensaciones `transicion_descartada` pendientes se reintentan sin límite de tiempo; mientras existan, `CompensationEventPending` (SEV2) (precisado el 2026-10-06, revisión del FD de U8);
 
 Cada 60 s, la misma tarea:
 - toma las `ValidationRun` con `deadline_at` vencido (`SKIP LOCKED`);
 - consulta el Job (`get`, K01) para registrar el motivo (`failed`, `deadline`, `sin informe`);
-- aplica `validacion_fallida`.
+- en modo `validacion`, aplica `validacion_fallida` a la versión; en modo `source_comparison`, solo pasa el `ValidationRun` a `timeout`: la fuente sigue `en_evaluacion` y ninguna versión cambia (BR-U4-05; segunda revisión del FD de U9, 2026-10-08).
 
 Dos réplicas nunca procesan la misma fila.
 
-- **Verificación**: Testcontainers con 2 réplicas y un doble del registro que falla al azar: ninguna transición se aplica sin ack; ningún evento se duplica (PBT-U4-07); un Job vencido termina en `validacion_fallida` con su motivo.
+- **Verificación**: Testcontainers con 2 réplicas y un doble del registro que falla al azar: ninguna transición se aplica sin ack; ningún evento se duplica (PBT-U4-07); un Job vencido termina en `validacion_fallida` con su motivo; un `source_comparison` vencido termina en `timeout` sin cambiar ninguna versión.
 - **Satisface**: BR-U4-05, 15, 17; RESILIENCY-10.
 
 ### P-U4-03 — Seguimiento de Jobs sin watch (Q3; K01)
@@ -73,8 +74,8 @@ Dos réplicas nunca procesan la misma fila.
 
 | Trigger | Rechaza | Salvo que |
 |---|---|---|
-| `guard_unfreeze` | `UPDATE model_versions` de `congelado` a `activo` o `retirado`, y cambios de `investigation` | La transacción haya fijado `SET LOCAL vectra.frozen_resolution = '<transition_id>'` **y** exista una `model_transitions` confirmada con ese id, acción `frozen_resolution` y actor con rol `cumplimiento` |
-| `guard_freeze` | `UPDATE model_versions` a `congelado` | La transacción haya fijado `SET LOCAL vectra.freeze = '<transition_id>'` y exista la transición `freeze` con actor `bias-monitoring-service` |
+| `guard_unfreeze` | `UPDATE model_versions` de `congelado` a `activo` o `retirado`, y cambios de `investigation` | La transacción haya fijado `SET LOCAL vectra.frozen_resolution = '<transition_id>'` **y** exista en `transitions` una fila confirmada con ese id, `entity_type = model_version`, `entity_id` igual a la versión que se actualiza, `kind = cambio_estado`, `from_state = congelado` y `to_state` igual al estado nuevo (`congelado` para `investigar`), y actor con rol `cumplimiento` (precisado el 2026-10-06, revisión del FD de U8: la tabla era `model_transitions`) |
+| `guard_freeze` | `UPDATE model_versions` a `congelado` | La transacción haya fijado `SET LOCAL vectra.freeze = '<transition_id>'` y exista en `transitions` esa transición `freeze` (`entity_type = model_version`, `entity_id` igual a la versión que se actualiza, `to_state = congelado`) con actor `bias-monitoring-job` (precisado el 2026-10-06, revisión del FD de U8; identidad cambiada en la revisión del FD de U9, 2026-10-08, H4) |
 
 - Solo los handlers de `frozen-resolution` y de `freeze`, después de autorizar, fijan esas variables.
 - Las barreras quedan así: endpoint (rol, MFA, step-up) → `model_fsm` → **trigger** → script de CI (BR-U4-03).
@@ -82,8 +83,8 @@ Dos réplicas nunca procesan la misma fila.
 - **Satisface**: AUTONOMIA-04; SECURITY-08, 11 (defensa en profundidad).
 
 ### P-U4-07 — Copia en memoria sin datos sensibles
-`serving-config` solo contiene identificadores de versión, estado, parámetros normativos y
-la edad del monitoreo. Servirla desde memoria no expone datos personales (no hay ninguno en
+`serving-config` solo contiene identificadores de versión, estado y parámetros normativos
+(la edad del monitoreo se quitó en la revisión del FD de U9, 2026-10-08). Servirla desde memoria no expone datos personales (no hay ninguno en
 `governance-db`).
 - **Verificación**: PBT-U4-05 y una prueba de que la respuesta de `serving-config` solo tiene los campos del tipo de U0.
 
@@ -96,9 +97,10 @@ la edad del monitoreo. Servirla desde memoria no expone datos personales (no hay
 | `ServingConfigUnavailable` | SEV1 | NFR-U4-07 |
 | `ModeloCongelado` | SEV1 | BR-U4-15 |
 | `NormativeParamsExpiring` | SEV2 / SEV1 | P-U4-05 |
-| `MonitoreoSesgoDetenido` | SEV2 / SEV1 | BR-U4-16 |
+| `MonitoreoSesgoDetenido` | SEV2 / SEV1 | BR-U4-16; regla y `runbook_url` en U9 (BR-U9-21) |
 | `PromotionMismatchPersistent` | SEV2 | BR-U4-08 |
 | `FreezeEventPending` | SEV2 | P-U4-02 |
+| `CompensationEventPending` | SEV2 | P-U4-02: una compensación `transicion_descartada` pendiente, que nunca se abandona (precisado el 2026-10-06, revisión del FD de U8) |
 | `GovernanceTransitionAbandoned` | SEV2 | P-U4-02 |
 | `ServingConfigConvergenceSlow` | SEV2 | Una réplica con un `etag` distinto al de la base durante más de 5 s (P-U4-01) |
 | `ModelArchivePending` | SEV2 | Versión `activo` o `inactivo` sin `archived_uri` en 48 h (INF-U4-02) |

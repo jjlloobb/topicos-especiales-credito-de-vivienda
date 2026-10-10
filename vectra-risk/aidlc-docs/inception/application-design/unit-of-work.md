@@ -56,18 +56,19 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
 
 ### U3 — `decision-registry`
 - **Propósito**: el registro append-only encadenado, que es el único componente Critical.
-- **Contenido**: `decision-registry-service` (append serializado con hash encadenado, confirmación tras réplica síncrona, consultas filtradas por rol y scope, expediente, `verify_chain` como API, CLI y CronJob); esquema y migraciones de `registry-db`; roles `registry_app` (solo `INSERT`/`SELECT`) y `registry_migrator`.
+- **Contenido**: `decision-registry-service` (append serializado con hash encadenado, confirmación tras réplica síncrona, consultas filtradas por rol y scope, expediente, `verify_chain` como API, CLI y CronJob); esquema y migraciones de `registry-db`; roles `registry_app` (solo `INSERT`/`SELECT`), `registry_migrator` y `registry_aggregator`; CronJob `registry-aggregator` (y los Jobs a demanda `registry-aggregator-rebuild` y `registry-aggregator-reset` del runbook `monitoring-rebuild`) con las tablas derivadas de monitoreo y las proyecciones `monitoring_daily` y `monitoring_freezes` para U9 (BR-U3-17; revisión del FD de U9, 2026-10-08).
 - **Datos propios**: `registry-db`.
-- **Flujos**: F42, F44 (migración), F96, F97, F98 (solo kind); egress F77, F78, F79, F99; destino de F13, F16, F21, F23, F24, F26 y F28; X06 (ver U3 Infrastructure Design).
+- **Flujos**: F42, F44 (migración), F96, F97, F98 (solo kind), F107 (`registry-aggregator` y el Job a demanda `registry-aggregator-rebuild`, U9 FD, 2026-10-08), F108 (Job a demanda `registry-aggregator-reset`; octava revisión del FD de U9, 2026-10-10); egress F77, F78, F79, F99; destino de F13, F16, F21, F23, F24, F26 y F28; X06 (ver U3 Infrastructure Design).
 - **Criticidad**: **Critical**.
 - **Historias (dueña)**: US-401, US-402, US-403, US-404.
 
 ### U4 — `governance`
 - **Propósito**: gobierno de modelos, políticas y fuentes de datos.
 - **Contenido**:
-  - `governance-service`: máquina de estados del modelo, aprobaciones del CRO y de cumplimiento con MFA, transiciones acotadas por identidad (`freeze` solo para bias; salida de `congelado` solo para cumplimiento), políticas versionadas (con parámetros normativos VIS/usura con vigencia), fuentes de datos y `serving-config`;
+  - `governance-service`: máquina de estados del modelo, aprobaciones del CRO y de cumplimiento con MFA, transiciones acotadas por identidad (`freeze` solo para `bias-monitoring-job`, el CronJob de U9; salida de `congelado` solo para cumplimiento), políticas versionadas (con parámetros normativos VIS/usura con vigencia), fuentes de datos y `serving-config`;
   - esquema de `governance-db`;
-  - `model-validation-job`;
+  - CronJob `model-archive` (archivo de artefactos de modelo, F100–F102);
+  - `model-validation-job` (modos `validacion` y `source_comparison`; depende de la librería `vectra_disparity` de U9; tercera revisión del FD de U9, 2026-10-10);
   - CLI `promotion-tool`, que genera un PR de un solo commit con evidencia en `vectra-risk-gitops`.
 - **Datos propios**: `governance-db`.
 - **Flujos**: F11, F18, F24, F25, F27, F32 (destino), F41, F47, F101, F102, F103 y F104 (destino; U7 FD Q4 y U8 FD Q1); egress F100; **K01**; X03, X04 (ver U4 Infrastructure Design).
@@ -107,11 +108,11 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
 ### U8 — `case-management`
 - **Propósito**: ciclo de vida del caso y la frontera con el core bancario.
 - **Contenido**:
-  - `case-service`: ingesta, alta manual, estados, cola transaccional de reintentos con backoff, escalamiento (métrica `FailClosedPersistente` y lista para el CRO), decisión humana con justificación estructurada, eventos de consulta de la explicación y lectura del estado del crédito;
+  - `case-service`: ingesta, alta manual, armado del `FeatureVector` con el `feature_spec` de la versión activa en cada intento (F104), estados, cola transaccional de reintentos con backoff, escalamiento (métrica `FailClosedPersistente` y lista para el CRO), decisión humana con justificación estructurada, eventos de consulta de la explicación y lectura del estado del crédito;
   - esquema de `case-db`;
   - `core-banking-mock`: `GET` de estado de crédito, y una ruta de escritura que **existe solo para demostrar el bloqueo RT-5**.
 - **Datos propios**: `case-db` (PII), estado de crédito simulado.
-- **Flujos**: F04, F10 (destino), F15, F16, F17, F40, F44, F104 (U8 FD Q1); X01.
+- **Flujos**: F04, F10 (destino), F15, F16, F17, F40, F44, F104 (U8 FD Q1), F105 (CronJob `case-retention`, 2026-10-06); X01.
 - **Criticidad**: High.
 - **Historias (dueña)**: US-101, US-102, US-107, US-108, US-112, US-501, US-502, US-603.
 
@@ -119,14 +120,14 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
 - **Propósito**: medir, alertar y congelar, sin certificar.
 - **Contenido**: `bias-monitoring-service` y su CronJob; librería de disparidad por banda de capacidad de pago y agregada (validada contra el oráculo de Fairlearn; también la usa el validation-job de U4); disparidad de decisiones humanas (sin congelar); evaluación de umbral y `freeze` vía governance; paquete de contexto; `compare_source`; API del dashboard; métrica del último cálculo y alerta `MonitoreoSesgoDetenido`.
 - **Datos propios**: ninguno (lee el registro).
-- **Flujos**: F14 (destino), F25 (destino), F26, F27; sin egress (X02); X04.
+- **Flujos**: F14 (destino), F25 (destino), F26, F27, F106 (CronJob → Pushgateway); sin egress (X02); X04 (U9 FD, 2026-10-08: F106).
 - **Criticidad**: High.
 - **Historias (dueña)**: US-301, US-302, US-303, US-304, US-306, US-307, US-308.
 
 ### U10 — `console`
 - **Propósito**: la experiencia de las cuatro personas que operan el sistema.
 - **Contenido**:
-  - `console-bff`: 29 endpoints con rol, MFA y regla de objeto (tabla de `component-methods.md`), propagación del token y errores genéricos;
+  - `console-bff`: 27 endpoints (corregido en la sexta revisión del FD de U9, 2026-10-10: 1 de sesión, 10 de casos, 7 de modelos, 3 de políticas, 3 de fuentes y 3 de vigilancia) con rol, MFA y regla de objeto (tabla de `component-methods.md`), propagación del token y errores genéricos;
   - `console-spa`: bandeja, detalle, decisión con factores, aprobaciones, congelados, dashboards embebidos de Grafana, i18n en español y **lint de frases prohibidas** ("sin sesgo" y similares).
 - **Datos propios**: ninguno.
 - **Flujos**: F02 y F03 (destino), F10–F14.
@@ -199,21 +200,22 @@ vectra-risk/
 |   |-- python/vectra_common/     #   logger sin PII, authz, correlación, errores, OTel
 |   |-- ts/                       #   cliente TypeScript generado
 |   `-- tests/
-|-- platform/                     # U1
-|   |-- charts/                   #   namespaces, netpol base, postgres, model-store, observabilidad, argocd
-|   |-- ci/                       #   workflows reutilizables
-|   |-- runbooks/
-|   `-- tests/
+|-- platform/                     # U1 (estructura del plan de U1)
+|   |-- kind/  network/  mesh/  namespaces/  policies/  data/  secrets/
+|   |-- observability/  restore-drill/  runbooks/  docs/
+|   `-- tests/                    #   workflows reutilizables en .github/workflows/
 |-- identity-edge/                # U2
 |   |-- keycloak/                 #   realm como código
 |   |-- gateway/                  #   Envoy Gateway
 |   `-- tests/
-|-- decision-registry/            # U3
-|   |-- src/  tests/  migrations/  chart/
+|-- decision-registry/            # U3 (estructura del plan de U3)
+|   |-- src/vectra_registry/  migrations/  chart/  vault-policies/
+|   |-- observability/  runbooks/  docs/  tests/
 |-- governance/                   # U4
 |   |-- src/  tests/  migrations/  chart/
-|   |-- validation-job/
-|   `-- promotion-tool/
+|   |-- validation_job/
+|   |-- archive_job/
+|   `-- promotion_tool/
 |-- reference-model/              # U5
 |   |-- src/  tests/  datasets/
 |-- model-serving/                # U6

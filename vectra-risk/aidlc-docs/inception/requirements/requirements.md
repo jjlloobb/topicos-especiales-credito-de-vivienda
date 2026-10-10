@@ -116,7 +116,7 @@ Trazabilidad: sección del PRD de origen.
 | FR-ING-01 | El sistema recibe solicitudes de crédito de vivienda a través del API Gateway con un esquema validado (datos del solicitante, ingreso, valor de vivienda, monto, plazo, canal, atributos demográficos para monitoreo) | M | §5 caso 1, Q10 |
 | FR-ING-02 | Un **simulador de canal** genera solicitudes sintéticas con volumen configurable y permite inyectar los casos adversariales curados (30–50) del plan de red-teaming | M | Q10, §11 |
 | FR-ING-03 | El analista puede registrar una solicitud manualmente desde la consola | M | Q10 |
-| FR-ING-04 | Los campos de texto libre se tratan como **datos, nunca como instrucciones**; se almacenan escapados y no se pasan a ningún componente generador de texto | M | §11 red-teaming #1 |
+| FR-ING-04 | Los campos de texto libre se tratan como **datos, nunca como instrucciones**; se almacenan escapados y no se pasan a ningún componente generador de texto. *Precisado el 2026-10-06 (BR-U0-29, BR-U8-01): «escapados» se cumple guardando el texto tal cual con consultas parametrizadas y escapándolo al presentarlo (U10)* | M | §11 red-teaming #1 |
 | FR-ING-05 | Los atributos protegidos (sexo, rango de edad, región, estrato) se capturan **solo para monitoreo de sesgo** y no se envían como features al modelo, salvo decisión explícita documentada en la política | M | Q7 |
 
 ### 5.2 Scoring (FR-SCO) — `scoring-service`
@@ -300,7 +300,7 @@ Trazabilidad: sección del PRD de origen.
 
 | ID | Requisito |
 |---|---|
-| NFR-PER-01 | Recomendación explicada disponible para el analista al abrir el caso (cálculo síncrono o precalculado en ingesta); latencia objetivo por request **[INTERNO]** a fijar en NFR Requirements (**fijada en U7**: `POST /v1/recommendations` p95 ≤ 400 ms y p99 ≤ 1 s a 10 solicitudes/s, NFR-U7-01); el scoring nunca es cuello de botella frente al target < 1 h |
+| NFR-PER-01 | Recomendación explicada disponible para el analista al abrir el caso (cálculo síncrono o precalculado en ingesta); latencia objetivo por request **[INTERNO]** a fijar en NFR Requirements (**fijada en U7**: `POST /v1/recommendations` p95 ≤ 400 ms y p99 ≤ 1 s a 10 solicitudes/s, NFR-U7-01; tiempo desde la ingesta hasta `listo` al primer intento: p95 ≤ 5 s, NFR-U8-02, precisado el 2026-10-06); el scoring nunca es cuello de botella frente al target < 1 h |
 | NFR-USA-01 | Explicación en español sin jerga técnica; accesibilidad WCAG 2.1 AA como objetivo de la SPA |
 | NFR-MNT-01 | Contratos de API versionados (OpenAPI); servicios desacoplados por contrato; narrativa y método de explicación como interfaces reemplazables |
 | NFR-AUD-01 | Toda aprobación humana (modelo, política, fuente, reactivación) queda en el Decision Registry con `user_id`, rol y timestamp |

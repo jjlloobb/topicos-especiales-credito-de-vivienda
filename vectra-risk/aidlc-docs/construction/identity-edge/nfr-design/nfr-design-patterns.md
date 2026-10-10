@@ -10,7 +10,7 @@ ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 
 ### P-U2-01 — Modo de fallo del rate limit por ruta (Q1, NFR-U2-21)
 
-| Ruta | Si Redis o el servicio de rate limit no responden |
+| Ruta | Si Valkey o el servicio de rate limit no responden |
 |---|---|
 | `/auth/**` | **fail-closed**: 503 `dependency_unavailable` (además, el bloqueo de Keycloak sigue activo) |
 | `/api/console/**`, `/api/intake/**`, `/api/promotion/**` | **fail-open**: la request sigue; los servicios autentican y autorizan igual (U0) |
@@ -21,7 +21,7 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 2. **Parche acotado**: una `EnvoyPatchPolicy` que fija `failure_mode_deny: true` **solo** en el filtro de rate limit de la ruta de `/auth/**`. Una prueba sobre la configuración renderizada de Envoy (`egctl config envoy-proxy`) falla si una actualización rompe el parche.
 3. **Gateway separado**: `/auth/**` en un `Gateway` propio con un `EnvoyProxy` configurado en fail-closed.
 
-- **Verificación**: en kind, con Redis escalado a 0 → `GET /api/console/me` = 200 y `POST /auth/realms/vectra/protocol/openid-connect/token` = 503.
+- **Verificación**: en kind, con Valkey escalado a 0 → `GET /api/console/me` = 200 y `POST /auth/realms/vectra/protocol/openid-connect/token` = 503.
 - **Satisface**: NFR-U2-21; SECURITY-15; RESILIENCY-10.
 
 ### P-U2-02 — Timeouts, reintentos y outlier detection (Q4)
@@ -49,8 +49,8 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 ### P-U2-04 — Keycloak tolerante a fallos
 - 2 réplicas por zona, HPA de 2 a 4, PDB `minAvailable: 1`; Infinispan embebido con `jdbc-ping`; sesiones persistentes en `keycloak-db` (NFR-U2-01, 02).
 - Readiness = su base (`keycloak-db`), según P-U1-04. Liveness y readiness en el puerto de gestión (9000), que no se expone en el gateway.
-- Redis: primaria + réplica + 3 Sentinel repartidos por zona. Un failover de Sentinel dura segundos y reinicia los contadores, lo que se acepta porque son efímeros.
-- **Verificación**: escenario NFR-U2-02 en kind; borrar la primaria de Redis → Sentinel promueve la réplica y el rate limit se recupera.
+- Valkey: primaria + réplica + 3 Sentinel repartidos por zona. Un failover de Sentinel dura segundos y reinicia los contadores, lo que se acepta porque son efímeros.
+- **Verificación**: escenario NFR-U2-02 en kind; borrar la primaria de Valkey → Sentinel promueve la réplica y el rate limit se recupera.
 
 ## 2. Seguridad
 
@@ -70,8 +70,9 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 | `/auth/**` | IP de origen | Dirección que fija Envoy desde el balanceador de confianza (NFR-U2-23) |
 
 - Las cabeceras internas se **eliminan** de la request entrante antes del filtro JWT (un cliente no puede inyectarlas) y otra vez antes de enviar la request al backend.
-- «Cabeceras internas» = toda cabecera con el prefijo reservado `x-vectra-` (incluidas `x-vectra-sub`, `x-vectra-azp` y `x-vectra-deadline` de U7). Una cabecera legítima de un cliente externo no puede usar ese prefijo; por ejemplo, el simulador usa `X-Test-Scenario` (precisado el 2026-10-03 por U8 FD Q9).
-- **Verificación**: en kind, un cliente que manda `x-vectra-sub: otro` no cambia su contador; el backend de eco no recibe las cabeceras internas.
+- «Cabeceras internas» = toda cabecera con el prefijo reservado `x-vectra-` (incluidas `x-vectra-sub`, `x-vectra-azp` y `x-vectra-deadline` de U7). Una cabecera legítima de un cliente externo no puede usar ese prefijo; por ejemplo, el simulador usa `X-Test-Scenario` (precisado el 2026-10-06 por U8 FD Q9).
+- **Cabeceras de aplicación**: `Idempotency-Key` (obligatoria en `POST /v1/intake/applications` y en el alta manual, BR-U8-02 y 04) y `X-Test-Scenario` (BR-U8-03) **pasan intactas**. El gateway no las elimina, no las reescribe y no las usa como clave (precisado el 2026-10-06, revisión del FD de U8).
+- **Verificación**: en kind, un cliente que manda `x-vectra-sub: otro` no cambia su contador; el backend de eco no recibe las cabeceras internas y **sí** recibe intactas `Idempotency-Key` (en `/api/intake/**` y `/api/console/**`) y `X-Test-Scenario` (en `/api/intake/**`), byte a byte (precisado el 2026-10-06, revisión del FD de U8).
 - **Satisface**: NFR-U2-20; SECURITY-11.
 
 ### P-U2-07 — Access log del gateway con allowlist
@@ -96,7 +97,7 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 | Alerta | Severidad | Fuente |
 |---|---|---|
 | `KeycloakDown` | SEV1 | Ninguna réplica lista |
-| `RateLimitBackendDown` | SEV2 | Servicio de rate limit o Redis sin respuesta (con `/auth/**` en fail-closed) |
+| `RateLimitBackendDown` | SEV2 | Servicio de rate limit o Valkey sin respuesta (con `/auth/**` en fail-closed) |
 | `AuthDeniedBurst` | SEV2 | Eventos de Keycloak + 401/403 de U0 |
 | `BreakGlassLogin` | SEV1 | Evento de login del usuario `break-glass` |
 | `RealmDrift` | SEV2 | CronJob de comparación del realm |

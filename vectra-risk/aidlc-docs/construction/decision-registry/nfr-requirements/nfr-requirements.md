@@ -47,6 +47,7 @@ cosas distintas, y el documento no lo decía:
 | NFR-U3-21 | **Expediente**: p95 ≤ 2 s para un caso típico (≤ 20 entradas), incluida la verificación `range` | Misma prueba |
 | NFR-U3-22 | **Verificación incremental** de 15 min de entradas: ≤ 30 s | Benchmark en CI con Testcontainers y 50 entradas/s × 15 min sintéticas |
 | NFR-U3-23 | **Verificación `nightly`**: ≤ 30 min con 10 años de datos simulados (36 M entradas) | Benchmark en kind con datos sintéticos generados (operador) |
+| NFR-U3-24 | **Agregador de monitoreo** (segunda revisión del FD de U9, 2026-10-08): atraso p95 ≤ 10 min en operación normal (corrida cada 5 min), vigilado por `MonitoringAggregatorStale` (SEV2, > 30 min; BR-U3-17); una reconstrucción de los ~181 días que cubre la retención (~1,8 M entradas con el volumen de NFR-U3-30) en ≤ 1 h: el `aggregator reset` solo vacía las tablas, y la reconstrucción la hace el Job a demanda `registry-aggregator-rebuild` con `aggregator run --until-head`; su `activeDeadlineSeconds` de 5400 s (90 min) es un margen sobre el objetivo de 1 h, no el objetivo (tercera revisión del FD de U9; octava revisión del FD de U9, 2026-10-10); la proyección `monitoring_daily` con 12 rangos de hasta 90 días responde con p95 ≤ 200 ms | **CI** (Testcontainers, escalado): 100 000 entradas sintéticas, rendimiento por lote y memoria; se extrapola a 1,8 M. **kind** (operador): reconstrucción completa de ~1,8 M entradas en ≤ 1 h, atraso p95 con la prueba de carga y la latencia de los 12 rangos (quinta revisión del FD de U9, 2026-10-10) |
 
 ## 4. Escalabilidad y almacenamiento (Q3, Q4)
 
@@ -57,6 +58,7 @@ cosas distintas, y el documento no lo decía:
 | NFR-U3-32 | Expansión del volumen cuando llega al 70 %; alerta de proyección de llenado a 90 días (`predict_linear`) | Regla `RegistryVolumeFillForecast` probada con `promtool` |
 | NFR-U3-33 | Verificación en dos niveles: `nightly` (cadena de checkpoints + 7 días + muestra del 1 %) y `full` mensual (BR-U3-11, precisado por Q4) | Pruebas de la CLI por modo; PBT-U3-03 garantiza que la reescritura se detecta con los checkpoints |
 | NFR-U3-34 | **Crecimiento por encima del volumen esperado**: si las entradas diarias superan 3× el volumen esperado durante 7 días seguidos, alerta `RegistryGrowthAboveForecast` (SEV3) para rehacer el pronóstico de capacidad (particiones, volumen y verificación `nightly`) | Regla probada con `promtool` con series sintéticas |
+| NFR-U3-35 | **Tablas derivadas** (segunda revisión del FD de U9, 2026-10-08): `monitoring_daily` hasta 594 filas por día y versión (198 de `modelo` y 396 de `humana`); con 180 días de retención y 3 versiones, < 350 000 filas (< 70 MB con índices; corregido en la cuarta revisión del FD de U9, 2026-10-10); `monitoring_case_index` ≈ una fila por caso de los últimos 180 días: ≈ 360 000 con ~2 000 casos/día (tercera revisión del FD de U9, 2026-10-10). No cambian el dimensionamiento de `registry-db` (NFR-U3-30) | Medición en la prueba de carga de kind |
 
 ## 5. Seguridad
 
@@ -64,7 +66,7 @@ cosas distintas, y el documento no lo decía:
 |---|---|---|---|
 | NFR-U3-40 | **La llave de checkpoints nunca sale de la bóveda**: la firma la hace el motor de la bóveda (Vault Transit en kind; la bóveda o el HSM del banco en prod) | Q5, SECURITY-12, 13 | Prueba de que ningún Secret ni variable del pod contiene la llave privada; la firma se verifica con la llave pública |
 | NFR-U3-41 | Un **egress** nuevo del registro hacia la bóveda del banco en producción (y un flujo in-cluster hacia Vault en kind). Sin datos de solicitantes: solo el digest a firmar | Q5, AUTONOMIA-05 | Flujo en `flows.yaml`; prueba de que la solicitud a la bóveda solo contiene `{checkpoint_seq, checkpoint_hash, recorded_at}` |
-| NFR-U3-42 | Roles de base de mínimo privilegio (`registry_app`, `registry_verifier`, `registry_migrator`) con contraseñas desde ESO y TLS `verify-full` | SECURITY-06, 01 | Prueba SQL de permisos (US-401) |
+| NFR-U3-42 | Roles de base de mínimo privilegio (`registry_app`, `registry_verifier`, `registry_migrator` y `registry_aggregator`, este con lectura de `registry_entries` y escritura solo sobre las tablas derivadas; segunda revisión del FD de U9, 2026-10-08; `registry_migrator` lo usan el Job de migración y el Job a demanda `registry-aggregator-reset` del runbook; octava revisión del FD de U9, 2026-10-10) con contraseñas desde ESO y TLS `verify-full` | SECURITY-06, 01 | Prueba SQL de permisos (US-401) |
 | NFR-U3-43 | El verificador con MFA bajo demanda: una sola verificación `full` a la vez (las solicitudes concurrentes reciben `409 conflict_state`) | SECURITY-11 | Prueba de integración |
 
 ## 6. Pruebas (Q6, PBT-09)
@@ -82,7 +84,7 @@ Revisada contra el cuerpo del documento antes de presentarla.
 | Regla | Estado | Evidencia |
 |---|---|---|
 | RESILIENCY-01 / 02 | Cumple | NFR-U3-10 (Critical; RPO y RTO heredados de U1) |
-| RESILIENCY-05 / 07 / 15 | Cumple | Alertas `ArchiveExportFailed`, `CheckpointMissing`, `RegistryPartitionMissing`, `RegistryVolumeFillForecast` y `RegistryGrowthAboveForecast` (NFR-U3-04, 12, 31, 32, 34), con el proceso de U1 |
+| RESILIENCY-05 / 07 / 15 | Cumple | Alertas `ArchiveExportFailed`, `CheckpointMissing`, `RegistryPartitionMissing`, `RegistryVolumeFillForecast` y `RegistryGrowthAboveForecast` (NFR-U3-04, 12, 31, 32, 34), con el proceso de U1; `MonitoringAggregatorStale` (BR-U3-17, NFR-U3-24; sexta revisión del FD de U9, 2026-10-10) |
 | RESILIENCY-06 | Cumple | NFR-U3-11 (readiness = escritura posible) |
 | RESILIENCY-08 / 09 | Cumple | NFR-U3-11, 20, 30..32, 34 (capacidad de diseño y volumen esperado separados en §3.1) |
 | RESILIENCY-10 | Cumple | NFR-U3-12 (la caída de la bóveda no detiene los appends) |
@@ -91,7 +93,7 @@ Revisada contra el cuerpo del documento antes de presentarla.
 | SECURITY-06 | Cumple | NFR-U3-42 |
 | SECURITY-11 | Cumple | NFR-U3-43 |
 | SECURITY-12 / 13 | Cumple | NFR-U3-40, 04 (export firmado y verificado) |
-| SECURITY-14 | Cumple | Alertas nombradas con severidad: `ArchiveExportFailed` (NFR-U3-04), `CheckpointMissing` (NFR-U3-12), `RegistryPartitionMissing` (NFR-U3-31), `RegistryVolumeFillForecast` (NFR-U3-32) y `RegistryGrowthAboveForecast` (NFR-U3-34) |
+| SECURITY-14 | Cumple | Alertas nombradas con severidad: `ArchiveExportFailed` (NFR-U3-04), `CheckpointMissing` (NFR-U3-12), `RegistryPartitionMissing` (NFR-U3-31), `RegistryVolumeFillForecast` (NFR-U3-32) y `RegistryGrowthAboveForecast` (NFR-U3-34); `MonitoringAggregatorStale` (BR-U3-17, NFR-U3-24; sexta revisión del FD de U9, 2026-10-10) |
 | SECURITY-15 | Cumple | NFR-U3-12: si la bóveda no responde, los appends siguen y solo se atrasa el checkpoint; se degrada sin detener la escritura de evidencia |
 | PBT-06 / 08 / 09 | Cumple | NFR-U3-51 (stateful; semilla; Hypothesis) |
 | AUTONOMIA-01 / 02 | Cumple | Verificaciones estáticas en CI, en kind por el operador; cada requisito con su verificación |
@@ -105,4 +107,5 @@ Revisada contra el cuerpo del documento antes de presentarla.
 | U3 FD BR-U3-08 | La bóveda firma; si no responde, el checkpoint se atrasa |
 | U0 domain-entities §5.4 y BR-U0-95 | Remiten a la decisión de NFR-U3-01..04 |
 | U8 (pendiente) | NFR-U3-03: eliminar los identificadores de case-db al vencer su retención |
-| U3 Infrastructure Design (pendiente) | Bucket WORM de 10 años, bucket de checkpoints y flujo hacia la bóveda |
+| ~~U3 Infrastructure Design (pendiente)~~ **Resuelto** por INF-U3-01, 02 y 06 | Bucket WORM de 10 años, bucket de checkpoints y flujo hacia la bóveda (octava revisión del FD de U9, 2026-10-10) |
+| NFR-U3-24, 35, 42; §7 (RESILIENCY-05/07/15, SECURITY-14) | Agregador de monitoreo: rendimiento, almacenamiento, rol y alerta `MonitoringAggregatorStale`; verificación separada en CI escalado y kind; reconstrucción con Job a demanda (revisiones segunda a octava del FD de U9, 2026-10-08 y 2026-10-10, y revisión del NFR Requirements de U9) |

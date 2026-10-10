@@ -34,7 +34,7 @@ flowchart LR
     k8s["API de Kubernetes K01"]
     job["model-validation-job"]
     store["model-store"]
-    biassvc["bias compare_source"]
+    biassvc["bias compare_source (F25)"]
 
     scoring --> svc
     bff --> svc
@@ -58,11 +58,11 @@ flowchart LR
 ```text
 scoring -> GET serving-config (desde memoria, If-None-Match)
 BFF -> modelos, políticas, fuentes (firmas con MFA)
-bias-monitoring -> freeze (solo governance:freeze)
+bias-monitoring-job (CronJob de U9) -> freeze (solo governance:freeze, F27)
 promotion-tool -> list_promotable, mark_active (F08, token de usuario con MFA)
 governance-service -> governance-db (tx 2, read 1, listen 1) ; registro (append con idempotency_key)
                    -> API de Kubernetes (K01: crear Job, get, pods/log bajo demanda)
-                   -> model-store (verificar checksum, F47) ; bias compare_source (F27)
+                   -> model-store (verificar checksum, F47) ; bias compare_source (F25)
 tarea de fondo -> governance-db (background 1: reconciliador, barridos, sondeo del etag)
                -> registro (reintentos) ; API de Kubernetes (get del Job vencido)
 model-validation-job -> model-store (F31) ; KServe staging (F30) ; informe a governance (F32)

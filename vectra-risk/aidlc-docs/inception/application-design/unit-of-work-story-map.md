@@ -9,7 +9,7 @@ Cada historia tiene **una unidad dueña** y puede tener **unidades contribuyente
 
 | Historia | Título corto | Prio | Dueña | Contribuyentes | Verificación e2e |
 |---|---|---|---|---|---|
-| US-101 | Ingesta desde el simulador | M | U8 | U2 (ruta F04), U12 (simulador) | U12 |
+| US-101 | Ingesta desde el simulador | M | U8 | U2 (ruta de intake, F07 para el simulador), U12 (simulador) | U12 |
 | US-102 | Alta manual | M | U8 | U10 (formulario) | U10 |
 | US-103 | Recomendación con política | M | U7 | U4 (política), U0 (tipos) | U7 |
 | US-104 | Explicación no técnica | M | U7 | U10 (vista) | U7 |
@@ -17,7 +17,7 @@ Cada historia tiene **una unidad dueña** y puede tener **unidades contribuyente
 | US-106 | Marca de baja confianza (RT-4) | M | U7 | U5 (casos RT-4), U10 (marca visible) | U12 (RT-4) |
 | US-107 | Bandeja con estados | M | U8 | U10 (vista) | U10 |
 | US-108 | Decisión firmada | M | U8 | U3 (append), U10 (vista) | U8 |
-| US-109 | Texto libre como dato (RT-1) | M | U7 | U8 (almacenamiento escapado), U10 (escape en UI), U5 (casos RT-1) | U12 (RT-1) |
+| US-109 | Texto libre como dato (RT-1) | M | U7 | U8 (almacenamiento tal cual con consultas parametrizadas; FR-ING-04 precisado), U10 (escape en UI), U5 (casos RT-1) | U12 (RT-1) |
 | US-110 | Resumen al solicitante | S | U7 | U10 (acción), U3 (lectura) | U7 |
 | US-111 | Fail-closed por desincronía (RT-3) 🎯 | M | U7 | U0 (invariante de tipo), U6 (misma revisión), U5 (artefacto desincronizado) | U12 (RT-3, demo 7.3) |
 | US-112 | Reintento y escalamiento | M | U8 | U1 (Alertmanager), U10 (vista del CRO) | U8 |

@@ -35,7 +35,7 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 - Ejecuta `vectra-registry checkpoint`:
   1. lee la cabeza en la primaria;
   2. pide la firma a la bóveda (Vault Transit; solo con el digest);
-  3. hace append por el mismo camino del servicio (rol `registry_app`, lock, hash), con `idempotency_key = checkpoint:<hora UTC>`;
+  3. hace append por el mismo camino del servicio (rol `registry_app`, lock, hash), con `idempotency_key = UUIDv5(NS_CHECKPOINT, "checkpoint:<hora UTC>")`, porque la columna es `uuid` (BR-U3-06; segunda revisión del FD de U9, 2026-10-08);
   4. exporta al bucket WORM y verifica que el objeto quedó escrito.
 - Su ServiceAccount es la **única** con la política de firma en la bóveda. La del servicio de la API no puede firmar.
 - **Verificación**: dos ejecuciones manuales en la misma hora → un solo checkpoint; prueba de que la ServiceAccount de la API recibe 403 de la bóveda al intentar firmar.
@@ -47,7 +47,7 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 |---|---|---|---|---|---|
 | `append` | 2 | Primaria | `registry_app` | Appends | 500 ms |
 | `dossier` | 1 | Primaria | `registry_app` (solo `SELECT`) | Expediente | 2 s |
-| `projections` | 1 | Réplica `-ro` | `registry_verifier` | Proyecciones | 2 s |
+| `projections` | 1 | Réplica `-ro` | `registry_verifier` | Proyecciones (incluida `monitoring_daily`, agregada en el servidor, y el gauge del atraso del agregador cada 60 s; segunda revisión del FD de U9, 2026-10-08) | 2 s |
 | `health` | 1 | Primaria | `registry_health` | Readiness (P-U3-01) | 1 s |
 
 - Total por réplica: **5** (P-U1-08). Corregido el 2026-10-03 en el Infrastructure Design de U3 (Q5): la versión anterior tenía un pool `read` que apuntaba a dos servidores y, con la readiness, sumaba 6 conexiones. Dos conexiones de append alcanzan porque los appends se serializan en el advisory lock (BR-U3-04); más conexiones solo harían cola en el lock. Métrica `vectra_registry_pool_wait_seconds{pool}` y alerta `RegistryAppendPoolSaturated` (SEV2) si la espera p95 del pool `append` supera 100 ms durante 5 min.
@@ -93,6 +93,7 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 | `registry-checkpoint` | `registry_app` | Firma (Transit) | Escritura en `registry-checkpoints` |
 | `registry-verify` (CronJobs) | `registry_verifier` | Lectura de la llave pública | Lectura de `registry-checkpoints` |
 | `registry-archive` | `registry_verifier` | Firma (Transit) | Escritura en `registry-archive` |
+| `registry-aggregator` | `registry_aggregator` (BR-U3-17; segunda revisión del FD de U9, 2026-10-08) | Ninguno | Ninguno |
 
 - Las credenciales de la base y de los buckets las entrega ESO. Sin comodines en las políticas de la bóveda.
 - **Verificación**: pruebas de autorización por identidad (cada una recibe 403 fuera de su fila); `conftest` sobre los RBAC y las políticas versionadas de la bóveda.
@@ -114,6 +115,7 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 | `RegistryVolumeFillForecast` | SEV3 | NFR-U3-32 |
 | `RegistryGrowthAboveForecast` | SEV3 | NFR-U3-34 |
 | `RegistryEntryLarge` | SEV3 | BR-U3-07 |
+| `MonitoringAggregatorStale` | SEV2 | BR-U3-17: `max(vectra_registry_monitoring_lag_seconds) > 1800` durante 5 min, o `absent()` de la serie durante 15 min (segunda revisión del FD de U9, 2026-10-08) |
 
 - Toda alerta tiene `runbook_url` (P-U1-10).
 - **Verificación**: `promtool test rules decision-registry/observability/rules/tests/*.yaml` y el test de runbooks de U1.

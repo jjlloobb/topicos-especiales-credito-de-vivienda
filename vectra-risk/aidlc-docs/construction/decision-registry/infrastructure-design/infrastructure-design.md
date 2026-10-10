@@ -41,9 +41,12 @@ en la infraestructura compartida de U1. Los IDs `INF-U3-xx` se referencian en el
 | `registry-verify-nightly` | 500m / 512 MiB | 2 CPU / 1 GiB | 2 700 s | `vectra-normal` |
 | `registry-verify-full` | 500m / 512 MiB | 2 CPU / 1 GiB | 21 600 s | `vectra-low` |
 | `registry-archive` | 250m / 512 MiB | 1 CPU / 1 GiB | 7 200 s | `vectra-low` |
+| `registry-aggregator-rebuild-<runId>` (Job normal del chart de la Application aparte `decision-registry-rebuild`, revisión del Infrastructure Design de U9, 2026-10-10; solo con `monitoringRebuild.runId`; `sync-wave` la siguiente al reset; *advisory lock* de la reconstrucción; sin `ttlSecondsAfterFinished`; aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10) | 100m / 256 MiB | 500m / 512 MiB | `activeDeadlineSeconds: 5400`; `backoffLimit: 0`; `aggregator run --until-head`; rol `registry_aggregator`; sidecar nativo de Linkerd | `vectra-high` (séptima revisión del FD de U9, 2026-10-10) |
+| `registry-aggregator-reset-<runId>` (Job normal del chart de la Application aparte `decision-registry-rebuild`, revisión del Infrastructure Design de U9, 2026-10-10; solo con `monitoringRebuild.runId`; `sync-wave` una anterior al rebuild; *advisory lock* de la reconstrucción; sin `ttlSecondsAfterFinished`; aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10) | 100m / 128 MiB | 500m / 256 MiB | `activeDeadlineSeconds: 300`; `backoffLimit: 0`; `aggregator reset` con `registry_migrator` (credencial del Job de migración vía ESO; flujo F108); sidecar nativo | `vectra-normal` (séptima revisión del FD de U9, 2026-10-10) |
+| `registry-aggregator` (cada 5 min) | 100m / 256 MiB | 500m / 512 MiB (inicial: un lote de 5 000 entradas con solo los campos que usa ronda los 10 MB; se mide en el plan y se ajusta el lote o el límite si el uso supera el 70 %) | `activeDeadlineSeconds: 280` (240 s de lotes, BR-U3-17) | `vectra-high` (alimenta el monitoreo de sesgo de U9, criticidad High; segunda revisión del FD de U9, 2026-10-08) |
 
 - Todos los CronJobs: `concurrencyPolicy: Forbid`, sidecar nativo de Linkerd (P-U1-05), `restartPolicy: Never`, `backoffLimit: 1`.
-- Un Job que vence su límite → `RegistryVerificationFailed` o `ArchiveExportFailed`.
+- Un Job que vence su límite → `RegistryVerificationFailed` o `ArchiveExportFailed`; el agregador, por su atraso → `MonitoringAggregatorStale`.
 
 ### INF-U3-04 — Conexiones a `registry-db` (Q5)
 
@@ -54,8 +57,10 @@ en la infraestructura compartida de U1. Los IDs `INF-U3-xx` se referencian en el
 | `registry-checkpoint` | 1 | `-rw` |
 | `registry-verify-*`, `registry-archive` | 1 cada uno | `-ro` |
 | Job de migración | 1 | `-rw` |
+| `registry-aggregator` | 1 | `-rw` (segunda revisión del FD de U9, 2026-10-08) |
+| `registry-aggregator-reset-<runId>` o `registry-aggregator-rebuild-<runId>` (uno a la vez por el *advisory lock*; el CronJob del agregador sigue corriendo; aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10) | 1 | `-rw` |
 
-- Máximo con 6 réplicas: 30 del servicio + 5 de Jobs + las del operador y los backups ≈ **45**, dentro de los 100 de `max_connections` (INF-U1-02).
+- Máximo con 6 réplicas: 30 del servicio + 7 de Jobs (checkpoint, tres verificaciones, archivo, agregador y migración) + las del operador y los backups ≈ **47** (cuarta revisión del FD de U9, 2026-10-10), dentro de los 100 de `max_connections` (INF-U1-02).
 - **Corrección registrada**: P-U3-04 decía `append` 3 + `read` 2 (un pool sobre dos servidores) y, con la readiness, sumaba 6 conexiones por réplica, por encima del máximo de 5 de P-U1-08. Ahora son 5 sin excepción.
 
 ## 4. `registry-db`
@@ -63,7 +68,7 @@ en la infraestructura compartida de U1. Los IDs `INF-U3-xx` se referencian en el
 ### INF-U3-05
 - Cluster de CloudNativePG de U1 (INF-U1-02): 3 instancias, 100 Gi + 20 Gi de WAL, expansible; particiones por migración (P-U3-06).
 - Servicios: `registry-db-rw` (primaria) y `registry-db-ro` (réplicas).
-- Roles gestionados por la migración inicial: `registry_app`, `registry_verifier`, `registry_health` (con `pg_monitor`) y `registry_migrator`. Contraseñas desde ESO; TLS `verify-full`.
+- Roles gestionados por la migración inicial: `registry_app`, `registry_verifier` (con `SELECT` sobre las tablas derivadas salvo `monitoring_case_index`), `registry_health` (con `pg_monitor`), `registry_migrator` y `registry_aggregator` (segunda revisión del FD de U9, 2026-10-08). Contraseñas desde ESO; TLS `verify-full`.
 
 ## 5. Red
 
@@ -74,6 +79,10 @@ en la infraestructura compartida de U1. Los IDs `INF-U3-xx` se referencian en el
 | F96 | decision-registry-service | `registry-db-ro` | 5432 | R | Proyecciones (pool `projections`) |
 | F97 | `registry-checkpoint` → `registry-db-rw`; `registry-verify-*` y `registry-archive` → `registry-db-ro` | `registry-db` | 5432 | A / R | Checkpoint; verificación y archivo |
 | F98 | `registry-checkpoint`, `registry-archive` | Vault (`vault`, **solo kind**) | 8200 | S | Firma Transit |
+| F107 | `registry-aggregator` | `registry-db-rw` | 5432 | R / W | Lee entradas y escribe las tablas derivadas (agregado por el FD de U9, 2026-10-08); también el Job `registry-aggregator-rebuild-<runId>` (séptima revisión del FD de U9, 2026-10-10) |
+| F108 | `registry-aggregator-reset` (Job a demanda) | `registry-db-rw` | 5432 | W | `aggregator reset` con `registry_migrator` (octava revisión del FD de U9, 2026-10-10) |
+
+- **Sin flujo nuevo para el atraso** (tercera revisión del FD de U9, 2026-10-10): el gauge `vectra_registry_monitoring_lag_seconds` lo calcula `decision-registry-service` y Prometheus lo lee por **F60** (Prometheus → puerto de métricas 8081 de cada pod de `vectra-app`, flujo existente, `ServiceMonitor` del chart de U3). El agregador no publica métricas: no necesita Pushgateway.
 
 Egress (§5 del inventario):
 
@@ -94,7 +103,8 @@ Registrados en `audit.md` (2026-10-03):
 | `component-dependency.md` §2.4 | F96, F97 |
 | `component-dependency.md` §2.7 | F98 |
 | `component-dependency.md` §5 | F77, F78, F79, F99 |
-| `component-dependency.md` §7 y §9; `unit-of-work.md` U3; `application-design.md` | Rangos F01–F99; egress F70–F79 y F99 |
+| `component-dependency.md` §7 y §9; `unit-of-work.md` U3; `application-design.md` | Rangos F01–F99; egress F70–F79 y F99 (registro histórico del 2026-10-03; el rango vigente es F01–F108) |
+| `component-dependency.md` §2.4 | F107 (`registry-aggregator` y el Job de rebuild) y F108 (Job de reset), agregados por el FD de U9 (revisión del NFR Requirements de U9, 2026-10-10) |
 | `decision-registry/nfr-design/nfr-design-patterns.md` P-U3-04 y P-U3-08; `logical-components.md` | Pools corregidos (Q5) |
 
 ## 7. Cumplimiento de extensiones (Infrastructure Design U3)

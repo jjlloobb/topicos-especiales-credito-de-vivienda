@@ -18,6 +18,8 @@ exactas no se fijan aquí: quedan pinneadas en `uv.lock` y `package-lock.json` (
 | Logging | `structlog` con un procesador de allowlist; salida JSON a stdout; `logging` estándar redirigido | BR-U0-50..53 | Q11 |
 | Telemetría | OpenTelemetry SDK + exportador OTLP/gRPC hacia el Collector in-cluster (F61); propagador W3C `traceparent` | BR-U0-62, AUTONOMIA-05 | INCEPTION |
 | Integración web | Middleware y dependencias de FastAPI (Starlette) | Stack de los servicios | INCEPTION |
+| Cliente HTTP | `httpx` (async), usado **solo** dentro de `vectra_common.deps` (timeout obligatorio, presupuesto propagado, un cliente por dependencia, circuit breaker); import-linter lo prohíbe fuera de `deps` | NFR-U0-23; lo usan U3, U4, U7 y U8 | U7 NFR Req Q4 (agregado el 2026-10-06; ya estaba pinneado en el plan de tareas) |
+| Métricas | `prometheus-client`, expuesto en el puerto 8081 que fija `create_app`; incluye la métrica de denegaciones (BR-U0-73) y `vectra_circuit_state` | BR-U0-73, NFR-U0-23 | INCEPTION (agregado el 2026-10-06; ya estaba pinneado en el plan de tareas) |
 | JSON canónico | Implementación de RFC 8785 (JCS) para `feature_vector_hash` | BR del FD (N5) | FD |
 | Datos DANE | Snapshot DIVIPOLA versionado como archivo de datos del paquete, con checksum | Sin egress en runtime | Q10 |
 
@@ -39,7 +41,7 @@ exactas no se fijan aquí: quedan pinneadas en `uv.lock` y `package-lock.json` (
 
 Complementos:
 - `pytest-cov` (cobertura de ramas, NFR-U0-40);
-- `mutmut` (mutación en `outcome` y `authz`, NFR-U0-41);
+- `mutmut` (mutación en `outcome`, `authz`, `deps` y `deadline`, NFR-U0-41);
 - `pytest-benchmark` (NFR-U0-01..03);
 - `import-linter` (pureza y límites entre paquetes, NFR-U0-22 y 44).
 

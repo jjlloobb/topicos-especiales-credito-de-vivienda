@@ -140,8 +140,13 @@ Escenario: estados visibles
   Cuando el analista abre la bandeja
   Entonces ve cada caso con su estado
   Y los casos no listos no muestran score, recomendación ni explicación
+
+Escenario: casos vencidos (precisado el 2026-10-06 por U8 FD)
+  Dado un caso cuya retención venció sin decisión (estado vencido)
+  Cuando el analista abre la bandeja
+  Entonces el caso no aparece salvo con el filtro explícito de vencidos
 ```
-**Verificación:** prueba e2e de la SPA con fixtures de los 4 estados + prueba de API: GET de caso no listo no incluye `score`.
+**Verificación:** prueba e2e de la SPA con fixtures de los 4 estados y un caso `vencido` (oculto por defecto y visible con el filtro explícito) + prueba de API: GET de caso no listo no incluye `score` (precisado el 2026-10-06 por U8 FD).
 
 ### US-108 — Registro de decisión firmada · `M`
 **Como** analista, **quiero** registrar mi recomendación final indicando si sigo o me aparto del score, **para** que el comité y el registro reflejen mi criterio.
@@ -537,8 +542,13 @@ Escenario: evento de gobierno
 - Persona: P3, P1 · Requisitos: FR-REG-03, FR-MET-02
 ```gherkin
 Escenario: consulta registrada
-  Cuando el analista abre el detalle de la explicación de un caso
-  Entonces se registra el evento con caso, user_id y timestamp, sin PII del solicitante
+  Cuando el analista abre por primera vez el detalle de la explicación de un caso
+  Entonces se registra el evento con caso, user_id, timestamp y la recomendación consultada, sin PII del solicitante
+
+Escenario: aperturas posteriores (precisado el 2026-10-06 por U8 FD)
+  Dado que el analista ya consultó la explicación de ese caso
+  Cuando vuelve a abrir el detalle
+  Entonces no se registra un evento nuevo
 ```
 **Verificación:** prueba e2e + consulta del evento.
 

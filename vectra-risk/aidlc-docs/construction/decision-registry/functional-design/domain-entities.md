@@ -25,6 +25,8 @@ encadenan, anclan, proyectan y verifican**.
 | `prev_hash` | `bytea(32)` | Hash de `seq − 1`; 32 bytes en cero para la génesis |
 | `hash` | `bytea(32)` | `SHA-256(prev_hash ‖ canonical)` (Q3) |
 
+Índices de `registry_entries`: `seq` (llave), `case_id`, `idempotency_key` (único), `entry_type` y **`recorded_at`**, este último para el `aggregator reset`, que busca la primera entrada de los últimos 181 días (quinta revisión del FD de U9, 2026-10-10).
+
 Las columnas fuera de `canonical` existen **solo para consultar**. La fuente de verdad es
 `canonical`, y el verificador comprueba que las columnas coinciden con él (BR-U3-06).
 
@@ -38,11 +40,26 @@ Objeto JCS con: `seq`, `entry_type`, `idempotency_key`, `actor`, `occurred_at`,
 | Rol | Permisos | Usado por |
 |---|---|---|
 | `registry_app` | `INSERT`, `SELECT` sobre `registry_entries`; `SELECT` sobre la vista de cabeza; **sin** `UPDATE`, `DELETE` ni `TRUNCATE` | decision-registry-service (F42) |
-| `registry_verifier` | Solo `SELECT` | CLI y CronJob de verificación, `restore-drill` |
+| `registry_verifier` | Solo `SELECT` (incluido `SELECT` explícito sobre `monitoring_daily`, `monitoring_entry_totals`, `monitoring_invalid` y `monitoring_watermark`; **no** sobre `monitoring_case_index`; segunda revisión del FD de U9, 2026-10-08) | CLI y CronJob de verificación, `restore-drill` |
 | `registry_health` | `pg_monitor` (solo estadísticas; sin acceso a `registry_entries`) | Readiness del servicio: comprueba que haya un standby síncrono (agregado por U3 NFR Design Q1, P-U3-01) |
 | `registry_migrator` | DDL | Job de migración (F44), solo en un sync aprobado |
+| `registry_aggregator` | `SELECT` sobre `registry_entries`; `SELECT`, `INSERT`, `UPDATE` y `DELETE` **solo** sobre las cinco tablas derivadas de §1.3; sin `TRUNCATE` | `registry-aggregator` (F107; BR-U3-17, precisado el 2026-10-08 por U9 FD) |
 
 Además, un trigger `BEFORE UPDATE OR DELETE OR TRUNCATE` lanza una excepción (BR-U3-02).
+`registry_migrator` es dueño de las tablas derivadas y las vacía en una reconstrucción (BR-U3-17).
+
+### 1.3 Tablas derivadas de monitoreo (BR-U3-17; revisión del FD de U9, 2026-10-08, H6)
+
+Ninguna está bajo el trigger de solo-anexar: se reconstruyen desde la cadena. Retención:
+180 días: por `day` en las tablas que lo tienen, y por `evaluated_at` en `monitoring_case_index` (tercera revisión del FD de U9, 2026-10-10).
+
+| Tabla | Columnas | Llave y restricciones |
+|---|---|---|
+| `monitoring_daily` | `population` (`modelo \| humana`), `model_version_id`, `day` (fecha UTC del momento de negocio), `attribute`, `group`, `band`, `result` (`outcome` o `final_outcome`), `decision` (`sigue \| se_aparta \| resuelve_revision`, o `-` en `modelo`, porque la columna es parte de la llave; la proyección lo devuelve como nulo), `count` | PK (`population`, `model_version_id`, `day`, `attribute`, `group`, `band`, `result`, `decision`); `CHECK (count >= 0)`; `CHECK` de cada valor contra el catálogo de U0 §2.2 |
+| `monitoring_entry_totals` | `population`, `model_version_id` (`-` para una decisión cuya recomendación no existe o no es una `recommendation`: fila no atribuible; cuarta revisión del FD de U9, 2026-10-10), `day`, `total`, `invalid` | PK (`population`, `model_version_id`, `day`); `CHECK (total >= 0 AND invalid >= 0 AND invalid <= total)` |
+| `monitoring_case_index` | `case_id`, `counted_seq?` (nulo si una decisión fijó el caso sobre una recomendación inválida; sexta revisión del FD de U9, 2026-10-10), `evaluated_at`, `fixed_by_decision` (`bool`). Sin etiquetas, versión, día ni resultado: se releen de `registry_entries` por `counted_seq` al restar (segunda revisión del FD de U9, 2026-10-08) | PK (`case_id`); es interna: ninguna proyección la expone |
+| `monitoring_invalid` | `seq`, `population`, `model_version_id`, `day`, `reason` | PK (`seq`) |
+| `monitoring_watermark` | `id`, `last_seq`, `updated_at` | PK (`id`), `CHECK (id = 1)`; una sola fila |
 
 ## 2. Checkpoints (Q1)
 
@@ -68,10 +85,14 @@ Además, un trigger `BEFORE UPDATE OR DELETE OR TRUNCATE` lanza una excepción (
 |---|---|---|---|
 | `full` | `cro`, `cumplimiento` (BFF) | Todas | Todos, incluido `canonical` |
 | `explanation` | explainability (`registry:read:explanation`) | Una `recommendation` por `seq`, filtrada por `case_id` (BR-U7-13) | `seq`, `case_id`, `model_version_id`, `payload.explanation` |
-| `monitoring` | bias (`registry:read:monitoring`) | `recommendation`, `human_decision` | `recommendation`: `case_id`, `model_version_id`, `policy_version_id`, `score`, `confidence`, `outcome`, `reasons`, `monitoring_labels`, `recorded_at`, `seq`. `human_decision`: `case_id`, `decision`, `final_outcome`, `recommendation_entry_id`, `recorded_at` |
-| `metrics` | product-metrics (`registry:read:metrics`) | `recommendation`, `human_decision`, `explanation_view` | `entry_type`, `case_id`, `outcome`, `decision`, `final_outcome`, `used_factors`, `explanation_viewed_before`, `actor_role`, `recorded_at`, `seq`, `recommendation_entry_id` |
+| ~~`monitoring`~~ **retirada** (sin consumidor desde el FD de U9) | — | `recommendation`, `human_decision` | `recommendation`: `case_id`, `model_version_id`, `policy_version_id`, `score`, `confidence`, `outcome`, `reasons`, `monitoring_labels`, `evaluated_at`, `recorded_at`, `seq`. `human_decision`: `case_id`, `decision`, `final_outcome`, `recommendation_entry_id`, `decided_at`, `recorded_at` |
+| `metrics` | product-metrics (`registry:read:metrics`) | `recommendation`, `human_decision`, `explanation_view` | `entry_type`, `case_id`, `outcome`, `decision`, `final_outcome`, `used_factors`, `explanation_viewed_before`, `actor_role`, `recorded_at`, `seq`, `recommendation_entry_id`, `evaluated_at`, `decided_at`, `viewed_at` |
+| `monitoring_daily` | bias (`registry:read:monitoring`) | Conteos de la tabla derivada (BR-U3-17), no entradas | U9 domain-entities §1.2: por cada rango pedido (hasta 12), la **suma en el servidor** de los conteos marginales por (población, versión, atributo, grupo, banda, resultado, decisión), sin el día ni la combinación de etiquetas, (segunda revisión del FD de U9, 2026-10-08); `versions` con `first_day` y `last_day` por versión y población; `totals` por rango (`range_id`, `total_entries`, `invalid_entries`); servida por `POST /v1/monitoring/daily:query` (rangos con `from_day ≤ to_day`, si no → 422; séptima revisión del FD de U9, 2026-10-10); `unattributable_invalid`, un **solo** valor por solicitud sobre el `unattributable_range` pedido (0 si no se pidió) (las filas `'-'`: decisiones sin recomendación atribuible; quinta revisión del FD de U9, valor único en la sexta revisión del FD de U9, 2026-10-10); hasta 100 `invalid_seqs`; `watermark_seq` y `lag_seconds` (precisado el 2026-10-08 por U9 FD; alineado con U0 §9.4 `MonitoringWindow` en la tercera revisión del FD de U9, 2026-10-10) |
+| `monitoring_freezes` | bias (`registry:read:monitoring`) | `freeze` y `frozen_resolution` | `freeze`: `seq`, `freeze_id`, `model_version_id`, `frozen_at`, `context_package`; `frozen_resolution`: `seq`, `model_version_id`, `action`, `recorded_at` (la reactivación tiene efecto al confirmarse, BR-U4-17; revisión del FD de U9, 2026-10-08, H1) (precisado el 2026-10-08 por U9 FD) |
 
+- bias usa `monitoring_daily` y `monitoring_freezes`; la proyección `monitoring` por filas queda sin consumidor y se retira en el plan de U3 (precisado el 2026-10-08 por U9 FD).
 - `analista` no tiene proyección: sus vistas vienen de case-service.
+- Las proyecciones llevan el momento de negocio (`evaluated_at`, `decided_at`, `viewed_at`) además de `recorded_at`. Un reintento tardío puede separar `recorded_at` hasta 24 h del hecho, así que U9 y U11 deben medir con el momento de negocio (precisado el 2026-10-06, revisión del FD de U8).
 - `seq` y `recommendation_entry_id` se agregaron a `explanation`, `monitoring` y `metrics` para que el resumen al solicitante, U9 y U11 usen solo la recomendación entregada (P-U7-03) (precisado el 2026-10-03 por U7 NFR Design Q3).
 - Ninguna proyección distinta de `full` incluye `feature_vector`, `justification`, `narrative` fuera de `explanation`, ni `actor_id`.
 

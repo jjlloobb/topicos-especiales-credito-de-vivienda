@@ -9,9 +9,10 @@ todas las unidades.
 |---|---|---|---|
 | `outcome` | `vectra_contracts` | `check_preconditions` y `build_outcome`: invariante de sincronía en dos fases sobre la tabla de 10 causas; cuantización de la predicción | BR-U0-01..08 |
 | `finance` | `vectra_contracts` | Tasa mensual, cuota, cuota/ingreso, LTV, cuantización y representación JSON de decimales | BR-U0-10..15 |
-| `validation` | `vectra_contracts` | Validadores de `ApplicationIn`, `DecisionIn`, `PolicyDraft`, `FeatureValue` y del resto de las entradas | BR-U0-20..36, 95 |
+| `validation` | `vectra_contracts` | Validadores de `ApplicationIn`, `DecisionIn`, `PolicyDraft`, `FeatureValue` y del resto de las entradas; `check_business_time` (BR-U0-37), que **no** corre en el pipeline de validación: la llama el registro solo para llaves nuevas (precisado el 2026-10-06, revisión del FD de U8) | BR-U0-20..38, 95 |
 | `labels` | `vectra_contracts` | `derive_monitoring_labels(application, evaluated_at)` | BR-U0-40..43 |
 | `dictionary` | `vectra_contracts` | `covers(dictionary, shap_vector)` | BR-U0-80..81 |
+| `deps` | `vectra_common` | `call` con timeout obligatorio, presupuesto propagado (`x-vectra-deadline`), un cliente por dependencia y circuit breaker; `deadline` lee la cabecera entrante | NFR-U0-23 (sin BR: es una garantía técnica; agregado el 2026-10-06) |
 | `logging` | `vectra_common` | Logger JSON con allowlist | BR-U0-50..53 |
 | `errors` | `vectra_common` | Handler global y fábrica de `Problem` | BR-U0-60..62 |
 | `authz` | `vectra_common` | Validación de JWT, scopes, roles, MFA y métrica de denegaciones | BR-U0-70..73 |
@@ -57,14 +58,16 @@ Una dependencia que no se invocó se pasa ausente (S2). Si la lectura de `servin
 falla, scoring llama igual a `check_preconditions` con `serving_state = no_disponible`:
 la decisión de fail-closed también pasa por la fábrica.
 
-### 2.3 Derivación de features y etiquetas (la usan U8 al ingerir y U5 al sintetizar)
+### 2.3 Derivación de features y etiquetas (la usan U8 en cada intento de evaluación, con el `feature_spec` de la versión activa, y U5 al sintetizar; precisado el 2026-10-06 por U8 FD Q1)
 
 Firma, precisada el 2026-10-03 por U5 FD (BR-U5 §7): `derive(application, evaluated_at,
 feature_spec)`. Además de las features estándar, aplica las **búsquedas** del
-`feature_spec.json` de la versión activa (tablas incluidas en el paquete), solo sobre campos
-permitidos de `ApplicationIn`. El resultado de una búsqueda es una feature nueva (p. ej.
-`zona_vivienda`); el campo de origen nunca pasa al `FeatureVector` si es de identificación
-(BR-U0-34), y `free_text` nunca se usa. Las mismas entradas dan las mismas features en U5 y
+`feature_spec.json` de la versión activa (tablas incluidas en el paquete) sobre campos de
+`ApplicationIn`. El resultado de una búsqueda es una feature nueva (p. ej. `zona_vivienda`).
+El campo de origen puede ser de identificación (§1.1; `zona_vivienda` se busca sobre
+`municipality_code`): `derive` lo **recibe**, pero nunca lo devuelve ni lo usa como clave del
+`FeatureVector` (BR-U0-34). `free_text` nunca se usa (redacción precisada el 2026-10-06,
+revisión del FD de U8). Las mismas entradas dan las mismas features en U5 y
 en U8.
 
 ```text
@@ -88,17 +91,24 @@ derivaciones.
 | PBT-U0-05 | `finance` | `quantize(quantize(x)) == quantize(x)` | Idempotencia | Decimales arbitrarios |
 | PBT-U0-06 | `labels` | La derivación es total: toda edad de 18 a 120 cae en exactamente un rango; los 33 departamentos tienen región; la banda es monótona en `installment_to_income` | Invariante | Edades en el rango y en sus bordes, códigos DANE, ratios cerca de 0.2 y 0.3 |
 | PBT-U0-07 | `logging` | Para cualquier diccionario de campos que incluya PII generada, la salida solo contiene claves de la allowlist y ningún valor de PII generado aparece en la cadena emitida | Invariante | Solicitudes realistas y campos extra arbitrarios |
-| PBT-U0-08 | `errors` | Para cualquier excepción, la respuesta es un `Problem` con solo los campos permitidos y un `code` del catálogo | Invariante | Tipos de excepción y mensajes arbitrarios (con PII) |
+| PBT-U0-08 | `errors` | Para cualquier excepción, la respuesta es un `Problem` con solo los campos permitidos, un `code` del catálogo y, si hay `reason`, un valor de su catálogo y solo con `conflict_state` o `unprocessable_explanation` (precisado el 2026-10-06, revisión del FD de U8) | Invariante | Tipos de excepción y mensajes arbitrarios (con PII) |
 | PBT-U0-09 | `authz` | `authorize(p, ep) == (ep.scopes ⊆ p.scopes) ∧ (ep.roles = ∅ ∨ ep.roles ∩ p.roles ≠ ∅) ∧ (¬ep.mfa ∨ (p.acr = "mfa" ∧ now − p.auth_time ≤ ep.mfa_max_age))` (BR-U0-71, 72), incluidos los bordes de 900 s | Oráculo (operación de conjuntos) | Subconjuntos del catálogo de scopes y roles, con y sin MFA |
 | PBT-U0-10 | `dictionary` | `covers(d, v)` es falso ⇔ existe un `feature_id` en `v` ausente de `d` | Invariante | Diccionarios y vectores con solapamiento parcial |
 | PBT-U0-11 | `validation` | Toda `ApplicationIn` generada válida pasa; toda mutación de un campo fuera de rango falla con `validation_error` y la respuesta no contiene el valor mutado | Invariante | Generador de solicitudes válidas + mutadores por regla |
 | PBT-U0-12 | `outcome` | Para todo `float` de KServe: si es finito y está en [0, 1], la cuantización da un `Decimal4` en [0, 1] y es monótona no decreciente; si no, el resultado es `FailClosed(model_output_invalid)` | Invariante | Flotantes arbitrarios, incluidos `NaN`, `±inf`, `-0.0`, subnormales y valores junto a 0 y 1 |
 | PBT-U0-13 | `validation` | Ningún `RegistryEntryIn` ni `FeatureVector` con una clave de identificación de §1.1 o `free_text` pasa la validación (BR-U0-34, 95) | Invariante | Payloads válidos con claves prohibidas inyectadas en cualquier nivel |
+| PBT-U0-14 | `deps` | **Stateful (PBT-06)**: para toda secuencia de llamadas exitosas, fallidas y avances del reloj, el estado del circuit breaker (cerrado, abierto, semiabierto) coincide con un modelo de referencia de la ventana deslizante; en estado abierto **nunca** se emite una llamada saliente; en semiabierto sale una sola llamada de prueba; con `deadline=`, el timeout efectivo nunca supera el presupuesto restante; una respuesta 4xx nunca cuenta como fallo (agregado el 2026-10-06; el 4xx, por U8 NFR Requirements) | Stateful (máquina de estados contra un modelo) | Secuencias de 1 a 200 comandos (`call_ok`, `call_fail` (5xx o conexión), `call_timeout`, `call_4xx`, `tick(Δt)`) con umbrales generados (tamaño de ventana, porcentaje, tiempo abierto) |
+| PBT-U0-15 | `validation` | `check_business_time(entry, now)` acepta ⇔ cada momento de negocio presente (`evaluated_at`, `decided_at`, `viewed_at`, `frozen_at`, `escalated_at`) es ≤ `occurred_at` y ≥ `occurred_at − 7 días`, contra un oráculo; la función es pura (sin reloj implícito) y nunca corre en el pipeline de validación (precisado el 2026-10-06, revisión del FD de U8) | Oráculo (bordes) | Entradas de los tipos con momento de negocio, con desfases alrededor de 0 y de 7 días (± 1 ms) y entradas sin momento de negocio |
+| PBT-U0-16 | `validation` | Para todo payload de `fail_closed`, la validación acepta ⇔ hay exactamente uno de `cause` o `local_cause`, `local_cause` aparece solo con `escalated_at` y `retryable` coincide con BR-U0-04 (con `cause`: `false` ⇔ `model_frozen`; con `local_cause`: `false` ⇔ `scoring_rejected`); contra un oráculo por tabla de verdad (BR-U0-38) (precisado el 2026-10-06, revisión del FD de U8) | Oráculo | Producto de: `cause` presente o ausente (10 valores) × `local_cause` presente o ausente (3 valores) × `escalated_at` presente o ausente × `retryable` |
 
-**PBT-06 (stateful):** N/A. U0 no tiene componentes con estado mutable. Las máquinas de
-estado del caso y del modelo están en U8 y U4.
+**PBT-06 (stateful):** el único componente con estado de U0 es el circuit breaker de
+`vectra_common.deps`, con su propiedad stateful PBT-U0-14 (NFR-U0-23, P-U0-07). Las funciones de
+`vectra_contracts` siguen sin estado. Las máquinas de estado del caso y del modelo están en U8
+y U4 (agregado el 2026-10-06: U7 centralizó el circuit breaker en `vectra_common.deps`).
 
 **Pruebas de ejemplo obligatorias (PBT-10):**
+- payload de `fail_closed` (BR-U0-38): con `cause` y `local_cause` → error; sin ninguno → error; `local_cause = scoring_rejected` con `retryable = true` → error; `local_cause` sin `escalated_at` → error; `local_cause = scoring_unreachable`, `retryable = true` y `escalated_at` → válido (precisado el 2026-10-06, revisión del FD de U8);
+- `check_business_time` (BR-U0-37): momento posterior a `occurred_at` → error; 8 días antes → error; exactamente 7 días antes → válido; 24 h antes → válido; sin momento de negocio → válido (precisado el 2026-10-06, revisión del FD de U8);
 - tabla de verdad completa de `build_outcome` con casos nombrados, uno por cada causa y uno por cada par de causas simultáneas que prueba la precedencia;
 - respuesta 200 con `kind = fail_closed` en `POST /v1/recommendations`;
 - `feature_vector_hash` de un vector conocido, recalculado con JCS;
@@ -122,5 +132,5 @@ estado del caso y del modelo están en U8 y U4.
 | SECURITY-15 | Cumple | BR-U0-60..62, fábrica fail-closed |
 | SECURITY-01/02/04/06/07/09/10/11/12/13 | N/A en esta unidad y etapa | Son de infraestructura, borde, CI o identidad (U1 y U2) |
 | PBT-01 | Cumple | §3: propiedades identificadas por componente, con categoría |
-| PBT-06 | N/A | Sin componentes con estado |
+| PBT-06 | Cumple | PBT-U0-14: propiedad stateful del circuit breaker de `vectra_common.deps` (NFR-U0-23); antes decía «N/A, sin componentes con estado» (agregado el 2026-10-06: U7 centralizó el circuit breaker en `vectra_common.deps`) |
 | RESILIENCY-* | N/A | U0 no tiene runtime |

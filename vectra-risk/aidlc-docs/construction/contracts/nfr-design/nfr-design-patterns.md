@@ -17,7 +17,7 @@ plan de tareas.
 2. AuthnMiddleware         JWT + JWKS (BR-U0-70)
 3. AuthzDependency         require(scopes, roles, mfa) por ruta (BR-U0-71, 72)
 4. BodyGuard               content-type, JSON válido, tamaño <= 32 KiB (BR-U0-21, 31)
-5. Pydantic strict         validación de esquema (BR-U0-20..36)
+5. Pydantic strict         validación de esquema (BR-U0-20..38)
 6. handler del servicio
 7. ProblemHandler          VectraError -> Problem; resto -> internal_error (BR-U0-60)
 8. AccessLog               un LogRecord por request (BR-U0-50)
@@ -85,13 +85,14 @@ validar token(kid):
 ### P-U0-07 — Helper de llamadas a dependencias (Q6)
 - `vectra_common.deps.call(client, request, timeout)` exige un timeout explícito, sin valor por defecto, y envuelve los errores de transporte (P-U0-05).
 - Los servicios lo usan para KServe, explainability, el registro y governance.
-- **Circuit breaker por dependencia** también en `deps` (precisado por U7 NFR Requirements Q4): estados cerrado, abierto y semiabierto con ventana deslizante. Cada servicio declara sus umbrales por dependencia. Abierto → la llamada falla de inmediato con `DependencyUnavailable`, sin salir del proceso. Métrica `vectra_circuit_state{dependency}`.
+- **Circuit breaker por dependencia** también en `deps` (precisado por U7 NFR Requirements Q4): estados cerrado, abierto y semiabierto con ventana deslizante. Cada servicio declara sus umbrales por dependencia. Solo cuentan como fallo los timeouts, los errores de conexión y los 5xx; un 4xx no cuenta (precisado el 2026-10-06 por U8 NFR Requirements, NFR-U8-32). Abierto → la llamada falla de inmediato con `DependencyUnavailable`, sin salir del proceso. Métrica `vectra_circuit_state{dependency}`.
 - **Presupuesto propagado y aislamiento** (precisado el 2026-10-03 por U7 NFR Design Q1 y Q4):
   - `call(..., deadline=)` usa `min(timeout, deadline − ahora)` y propaga la cabecera `x-vectra-deadline` (RFC 3339 con milisegundos); `vectra_common.deadline` la lee en el servicio que recibe y descarta una cabecera mal formada o en el pasado;
   - un `httpx.AsyncClient` por dependencia con su propio límite de conexiones; la espera de una conexión libre cuenta dentro del timeout.
+- **Modo `disabled` del breaker, solo para procesos batch** (precisado el 2026-10-10 por U9 NFR Design Q1): un cliente puede crearse con `breaker="disabled"` únicamente si el proceso declara `process_kind="batch"` (un Job o CronJob que termina en cada corrida y no acumula estadística, como el CronJob de U9); un servicio HTTP que lo intente falla al crear el cliente. El timeout sigue siendo obligatorio.
 - Antes decía que el circuit breaker era responsabilidad de cada servicio; se centralizó para que todos compartan la misma semántica y la misma métrica.
-- **Verificación**: regla de lint que prohíbe llamar a `httpx` directamente fuera de `vectra_common.deps`; prueba de que `call` sin timeout no compila (parámetro obligatorio); **propiedad stateful** del circuit breaker: para toda secuencia de éxitos, fallos y paso del tiempo, el estado coincide con un modelo de referencia, y en estado abierto nunca se emite una llamada.
-- **Satisface**: RESILIENCY-10 (timeouts y circuit breaking); NFR-RES-11.
+- **Verificación**: regla de lint que prohíbe llamar a `httpx` directamente fuera de `vectra_common.deps`; prueba de que `call` sin timeout no compila (parámetro obligatorio); **propiedad stateful PBT-U0-14** del circuit breaker: para toda secuencia de éxitos, fallos y paso del tiempo, el estado coincide con un modelo de referencia, y en estado abierto nunca se emite una llamada.
+- **Satisface**: NFR-U0-23; RESILIENCY-10 (timeouts y circuit breaking); NFR-RES-11.
 
 ### P-U0-08 — Enfoque de pruebas de resiliencia del proyecto (Q10 = C, RESILIENCY-14)
 - **Decisión del proyecto**: la ejecución se difiere a Operations. Cada unidad con runtime documenta sus escenarios en su NFR Design o Infrastructure Design.
@@ -106,6 +107,7 @@ validar token(kid):
 | Restore del registro desde backup | `verify_chain` sin rupturas tras el restore | U3 |
 
 - Lo que aporta U0: la prueba de Keycloak caído es unitaria y corre en CI (P-U0-06).
+- Los escenarios de U8 (incluido explainability caído desde el lado del caso) están en U8 P-U8-09 (agregado el 2026-10-08 por U8 NFR Design).
 - El seguimiento de resultados lo define Operations, que hoy es placeholder.
 
 ## 3. Patrones de rendimiento
@@ -131,7 +133,7 @@ validar token(kid):
 ## 4. Patrón de contratos
 
 ### P-U0-12 — Registro de contratos de rutas (Q7)
-- `vectra_contracts.routes` declara, por servicio, cada ruta como dato: `RouteContract(service, method, path, request_model, response_model, scopes, roles, mfa, mfa_max_age=900, port=8080)`.
+- `vectra_contracts.routes` declara, por servicio, cada ruta como dato: `RouteContract(service, method, path, request_model, response_model, scopes, roles, mfa, mfa_max_age=900, port=8080, read_only=False)`. `read_only=True` marca un `POST` de consulta sin efectos (hoy, `POST /v1/monitoring/daily:query` de U3): `create_app` lo admite con un scope de lectura como `registry:read:monitoring` y sin `Idempotency-Key`; un `POST` sin `read_only` con solo scopes de lectura falla al arrancar (séptima revisión del FD de U9, 2026-10-10).
 - Del registro se generan:
   - las specs `contracts/openapi/{service}.yaml` (NFR-U0-30);
   - el catálogo de scopes y clientes para el realm de U2;

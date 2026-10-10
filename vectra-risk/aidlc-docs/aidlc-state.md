@@ -5,7 +5,7 @@
 - **Project Type**: Greenfield
 - **Start Date**: 2026-09-26T13:02:25Z
 - **Current Phase**: CONSTRUCTION
-- **Current Stage**: CONSTRUCTION - U8 case-management - Functional Design (esperando aprobación)
+- **Current Stage**: CONSTRUCTION - U10 console - Functional Design
 - **Requirements Depth**: Comprehensive (sistema regulado, alto riesgo, múltiples stakeholders)
 
 ## Workspace State
@@ -69,8 +69,8 @@
 
 ## Current Status
 - **Lifecycle Phase**: CONSTRUCTION
-- **Current Stage**: U8 case-management — Functional Design
-- **Next Stage**: U8 case-management — NFR Requirements
+- **Current Stage**: U10 console — Functional Design
+- **Next Stage**: U10 console — NFR Requirements
 
 ## Per-Unit Progress (CONSTRUCTION)
 | Unidad | FD | NFR Req | NFR Design | Infra Design | Plan de tareas |
@@ -83,8 +83,8 @@
 | U5 reference-model | aprobado 2026-10-03T13:29:02Z | aprobado 2026-10-03T13:33:47Z | SKIP | SKIP | aprobado 2026-10-03T13:40:29Z |
 | U6 model-serving | SKIP | aprobado 2026-10-03T13:49:53Z | aprobado 2026-10-03T14:01:54Z | aprobado 2026-10-03T14:08:03Z | aprobado 2026-10-03T14:09:39Z |
 | U7 scoring-explainability | aprobado 2026-10-03T16:01:21Z | aprobado 2026-10-03T16:10:17Z | aprobado 2026-10-03T16:31:50Z | aprobado 2026-10-03T16:39:39Z | aprobado 2026-10-03T16:45:48Z |
-| U8 case-management | EN CURSO | pendiente | pendiente | pendiente | pendiente |
-| U9 bias-monitoring | pendiente | pendiente | pendiente | pendiente | pendiente |
-| U10 console | pendiente | pendiente | pendiente | pendiente | pendiente |
+| U8 case-management | aprobado 2026-10-06T22:28:34Z | aprobado 2026-10-08T02:01:51Z | aprobado 2026-10-08T02:30:25Z | aprobado 2026-10-08T03:55:19Z | aprobado 2026-10-08T04:15:32Z |
+| U9 bias-monitoring | aprobado 2026-10-10T10:14:20Z | aprobado 2026-10-10T10:57:22Z | aprobado 2026-10-10T11:06:54Z | aprobado 2026-10-10T11:22:07Z | aprobado 2026-10-10T11:31:14Z |
+| U10 console | EN CURSO | pendiente | pendiente | pendiente | pendiente |
 | U11 product-metrics | pendiente | pendiente | pendiente | pendiente | pendiente |
 | U12 system-verification | pendiente | pendiente | SKIP | pendiente | pendiente |

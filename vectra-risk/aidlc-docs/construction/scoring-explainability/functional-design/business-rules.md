@@ -9,7 +9,7 @@ U7 los **aplica**.
 ## 1. Scoring: orquestación (US-103, US-111, US-113)
 
 **BR-U7-01 — Secuencia.** scoring sigue exactamente BR-U0-08:
-1. `serving-config` (caché ≤ 5 s, `If-None-Match`); si `ScoringRequest.model_version_id` difiere de la versión de `serving-config` → `version_mismatch` sin pasos 2–5 (BR-U0-02 causa 7; precisado el 2026-10-03 por U8 FD Q1);
+1. `serving-config` (caché ≤ 5 s, `If-None-Match`). Primero se evalúa `serving_state`: `congelado` → `model_frozen` aunque la versión pedida también difiera, porque la causa 1 tiene precedencia sobre la 7 y el caso debe ir a `modelo_congelado`, no al bucle de reintentos. Si está `activo` y `ScoringRequest.model_version_id` difiere de la versión de `serving-config` → `version_mismatch` sin pasos 2–5 (BR-U0-02 causa 7; precisado el 2026-10-06 por U8 FD Q1 y en la revisión del FD de U8);
 2. `:predict` al `inference_service` de `serving-config`;
 3. cuantización;
 4. política (BR-U7-04..07);
@@ -104,13 +104,13 @@ adicional) → `factuality_failed`.
 **BR-U7-15 — Sin persistencia no hay recomendación (FR-SCO-08).** Si el append de la
 entrada `recommendation` no se confirma (503 o timeout del registro), scoring responde
 `FailClosed(registry_unavailable)` y reintenta el append solo dentro del mismo intento de
-evaluación con la misma `idempotency_key` (BR-U3-06). Ninguna recomendación sale sin
+evaluación con la misma `idempotency_key` (BR-U3-06). Esa llave es un UUID v4 que scoring genera al recibir cada `POST /v1/recommendations`, **nunca** derivado de `case_id` ni de `attempt`: case-service reinicia `attempt` en cada `retry` y al descongelar, y una llave derivada repetiría valores con otro contenido (409 permanente) (precisado el 2026-10-06, revisión del FD de U8). Ninguna recomendación sale sin
 `registry_entry_id`. El reintento es uno solo, solo ante 503, timeout o error de conexión
 (nunca ante 4xx) y no se hace con el circuito abierto (P-U7-02) (precisado el 2026-10-03 por U7 NFR Design Q2).
 
 **BR-U7-16 — Entrada `fail_closed`.** Por cada `FailClosed`, scoring intenta escribir la
-entrada `fail_closed` (*best effort*). Si el registro no responde, la respuesta sale igual
-y el caso la reintenta (BR-U0-08). case-service no duplica estas entradas; solo escribe una al escalar a `no_disponible` (BR-U8-09, precisado el 2026-10-03 por U8 FD Q4).
+entrada `fail_closed` (*best effort*), con otro UUID v4 propio de la solicitud (precisado el 2026-10-06, revisión del FD de U8). Si el registro no responde, la respuesta sale igual
+y esa escritura no se reintenta: el **intento siguiente** del caso produce su propia entrada (BR-U0-08). scoring escribe solo `cause`, **nunca** `local_cause` ni `escalated_at` (BR-U0-38; el registro lo rechaza con 403, BR-U3-03). case-service no duplica estas entradas; solo escribe una al escalar a `no_disponible` (BR-U8-09) (precisado el 2026-10-06, revisión del FD de U8).
 
 ## 6. Cambios a otras unidades (registrados en `audit.md`)
 
@@ -132,6 +132,6 @@ y el caso la reintenta (BR-U0-08). case-service no duplica estas entradas; solo 
 | U3 domain-entities §3 y §4.1 | `seq` y `recommendation_entry_id` en las proyecciones `explanation`, `monitoring` y `metrics`; `delivery_status` en `RegistryDossier.entries`, calculado al leer y nunca guardado | NFR Design Q3 |
 | U3 plan de tareas, Paso 8 | Filtros de `GET /v1/entries` (`EntryFilter`: `case_id`, `entry_type`, `seq`, rango de `recorded_at`); dos criterios de aceptación nuevos: `no_entregada`, y un `seq` de otro caso → página vacía | NFR Design Q3 |
 | `component-methods` (explainability `applicant_summary`) | Recibe `recommendation_entry_id`, que pone el BFF desde el caso | NFR Design Q3 |
-| U8 (todavía sin artefactos) | **Pendiente** para su FD: guardar el `registry_entry_id` recibido y llenar `human_decision.recommendation_entry_id`; timeout hacia scoring ≥ 7 s; revisar `delivery_status` si permite reevaluar | NFR Design Q2, Q3 |
-| U9, U11 (todavía sin artefactos) | **Pendiente**: contar solo las recomendaciones entregadas | NFR Design Q3 |
-| U8 (todavía sin artefactos) | **Pendiente**: case-service también escribe en el registro (F16); debe adoptar el apagado ordenado de INF-U7-03 con su propio peor caso | Infrastructure Design Q2 |
+| U8 | **Resuelto** por U8: `registry_entry_id` guardado por `case-worker` (BR-U8-08) y `human_decision.recommendation_entry_id` llenado por case-service (BR-U8-18); timeout de 7 s (NFR-U8-30); un caso `listo` nunca se reevalúa (BR-U8-12) | NFR Design Q2, Q3 |
+| U9 (resuelto el 2026-10-08 por U9 FD, BR-U9-07 y U3 BR-U3-17: una recomendación por caso, la referenciada por la decisión o la más reciente); U11 | **Pendiente para U11**: contar solo las recomendaciones entregadas | NFR Design Q3 |
+| U8 | **Resuelto** por U8 INF-U8-06: apagado ordenado de case-service (20 s) y de case-worker (30 s) | Infrastructure Design Q2 |

@@ -23,14 +23,22 @@ propiedades. El contrato de import-linter impide que `factuality` importe `narra
 ```text
 case -> POST /v1/recommendations (ScoringRequest)
 scoring:
+  idempotency_key = UUID v4 nuevo para esta solicitud (nunca derivado de case_id ni de attempt)
   serving-config (caché <= 5 s) ; fallo -> serving_state = no_disponible
-  si activo: KServe :predict (isvc de serving-config) -> cuantizar (fuera de [0,1] -> model_output_invalid)
+  si congelado: sin llamadas -> check_preconditions(...) -> FailClosed(model_frozen)
+           (aunque la versión pedida también difiera: la causa 1 precede a la 7)
+  si activo y ScoringRequest.model_version_id != serving-config.model_version_id:
+           sin llamadas -> check_preconditions(...) -> FailClosed(version_mismatch)   (BR-U0-02 causa 7)
+  si activo y las versiones coinciden: KServe :predict (isvc de serving-config) -> cuantizar (fuera de [0,1] -> model_output_invalid)
            policy.evaluate(...) -> outcome + reasons   (normative nulo -> revision_requerida)
            explainability POST /v1/explanations -> Explanation | error tipificado
   check_preconditions(...) -> FailClosed -> append fail_closed (best effort) -> 200 FailClosed
-                           -> Ready -> append recommendation (idempotency_key del intento)
+                           -> Ready -> append recommendation (el UUID v4 de esta solicitud; el reintento
+                              del append dentro de la solicitud usa el mismo)
   build_outcome(ready, ack | RegistryError) -> 200 RecommendResult
 ```
+
+La comparación de versión pedida va antes de cualquier llamada a KServe o al explicador (precisado el 2026-10-06: comparación de versión de U8 FD Q1). Antes que ella se evalúa `serving_state` (BR-U7-01), y la entrada `fail_closed` de scoring usa otro UUID v4 propio de la solicitud (BR-U7-16) (precisado el 2026-10-06, revisión del FD de U8).
 
 ### 2.2 Explicación
 
@@ -67,7 +75,7 @@ explainability: registro F23 (proyección explanation, entrada seq = recommendat
 | PBT-U7-04 | `factuality` | `validate(generate(v), v) == True` para todo vector y diccionario que lo cubre | Round-trip | Vectores y diccionarios válidos |
 | PBT-U7-05 | `factuality` | Para toda mutación de una narrativa válida (omitir, reordenar, invertir un signo, cambiar un factor, agregar texto, cambiar el encabezado o la leyenda), `validate` da `False` | Invariante (prueba de mutación) | Narrativas válidas × operadores de mutación |
 | PBT-U7-06 | `applicant` | El resumen nunca contiene campos prohibidos ni números; solo factores `applicant_safe` con SHAP > 0, como máximo 3 | Invariante | Vectores y diccionarios con `applicant_safe` mixto |
-| PBT-U7-07 | `orchestrator` | Para toda combinación de fallos de serving-config, KServe, explainability y registro: la respuesta es siempre 200 `RecommendResult`; una `Recommendation` solo sale con `registry_entry_id` y con la misma versión en predicción y explicación | Invariante (con dobles) | Productos de resultados de cada dependencia (ok, timeout, error, versión distinta) y versión pedida igual o distinta de la de `serving-config` (U8 FD Q1) |
+| PBT-U7-07 | `orchestrator` | Para toda combinación de fallos de serving-config, KServe, explainability y registro: la respuesta es siempre 200 `RecommendResult`; una `Recommendation` solo sale con `registry_entry_id` y con la misma versión en predicción y explicación; con `serving_state = congelado` la causa es `model_frozen` aunque la versión pedida también difiera; con la versión pedida distinta y `activo`, `version_mismatch` sin llamadas a KServe ni al explicador (precisado el 2026-10-06, revisión del FD de U8) | Invariante (con dobles) | Productos de `serving_state` (activo, congelado, no_disponible), resultados de cada dependencia (ok, timeout, error, versión distinta) y versión pedida igual o distinta de la de `serving-config` (U8 FD Q1) |
 | PBT-U7-08 | `orchestrator` | RT-1: dos `ScoringRequest` derivados de solicitudes que solo difieren en `free_text` dan la misma recomendación y la misma narrativa | Invariante | Pares de solicitudes del conjunto RT-1 de U5 y generados |
 
 **Pruebas de ejemplo obligatorias (PBT-10):**
@@ -98,4 +106,4 @@ Revisada contra el cuerpo de los tres artefactos antes de presentarla.
 | PBT-01 | Cumple | §3 |
 | PBT-07 | Cumple | Columna «Generadores» de §3 |
 | PBT-10 | Cumple | Pruebas de ejemplo de §3, una por historia |
-| PBT-06 | N/A | Servicios sin estado; la máquina de estados del caso es de U8 |
+| PBT-06 | N/A en la lógica de U7 | Los módulos de U7 no tienen estado de negocio; la máquina de estados del caso es de U8. El único estado en proceso, el circuit breaker de `vectra_common.deps`, es de U0 y lo cubre PBT-U0-14. Por eso el NFR de U7 marca PBT-06 como «Cumple» por esa propiedad (precisado el 2026-10-06) |

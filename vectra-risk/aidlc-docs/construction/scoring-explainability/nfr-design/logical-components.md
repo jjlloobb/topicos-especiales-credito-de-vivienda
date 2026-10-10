@@ -25,7 +25,7 @@ Namespace `vectra-app`, el de los servicios de negocio en U1 (deployment-archite
 
 ```mermaid
 flowchart LR
-    case["case-service"]
+    case["case-worker"]
     bff["console-bff"]
     subgraph u7["U7"]
         scoring["scoring-service"]
@@ -50,7 +50,7 @@ flowchart LR
 ### Alternativa en texto
 
 ```text
-case-service -> scoring-service           POST /v1/recommendations                          F15
+case-worker  -> scoring-service           POST /v1/recommendations                          F15
 scoring -> governance                     GET /v1/serving-config (cache <= 5 s)              F18  pool 5
 scoring -> KServe predictor activo        :predict                                           F19  pool 20
 scoring -> explainability                 POST /v1/explanations + x-vectra-deadline          F20  pool 20
@@ -75,7 +75,10 @@ Cada pool tiene su propio circuit breaker (vectra_common.deps).
 | Proceso y red | ~50 ms |
 | **Total** | **≈ 380 ms ≤ 400 ms (NFR-U7-01)** |
 
-## 3. Pendiente para el Infrastructure Design de U7
+## 3. ~~Pendiente para el Infrastructure Design de U7~~ Resuelto
+
+**Todos resueltos por el Infrastructure Design de U7** (anotado el 2026-10-08): recursos (INF-U7-01, 02), flujos (INF-U7-05) y empaquetado (`deployment-architecture.md`).
+
 - Recursos (requests y limits) por servicio y su relación con el HPA al 70 %.
 - Confirmar que F12, F15, F18–F23 y F103 ya existen en las `NetworkPolicy` y `AuthorizationPolicy` de U1 y U2 (sin flujos nuevos).
 - Ubicación de las plantillas en la imagen y empaquetado de las reglas de alerta.

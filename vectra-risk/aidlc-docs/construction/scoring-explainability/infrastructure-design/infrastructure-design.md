@@ -65,7 +65,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 
 ### INF-U7-05 — Sin flujos nuevos
 - Entrada:
-  - scoring: F15 (case-service);
+  - scoring: F15 (case-worker; antes case-service, precisado el 2026-10-08 por U8 INF-U8-01);
   - explainability: F20 (scoring) y F12 (BFF).
 - Salida:
   - scoring: F18, F19, F20 y F21;
@@ -80,7 +80,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 | Artefacto | Cambio |
 |---|---|
 | U7 FD `business-rules.md` §6 | Fila del apagado ordenado y del pendiente para U8 |
-| Pendiente para U8 (case-service) | case-service también escribe en el registro (F16). Debe adoptar INF-U7-03 con su propio peor caso |
+| ~~Pendiente para U8 (case-service)~~ **Resuelto** | case-service también escribe en el registro (F16). Debe adoptar INF-U7-03 con su propio peor caso (resuelto el 2026-10-08 por U8 INF-U8-06: `case-service` adopta INF-U7-03 y `case-worker` tiene su propia gracia de 30 s) |
 
 No se modifican artefactos de U0 ni de U1: no hay un chart común y la convención queda en
 cada servicio que escribe evidencia.

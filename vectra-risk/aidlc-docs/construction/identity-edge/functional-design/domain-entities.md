@@ -58,16 +58,20 @@ sus scopes (*optional client scopes* restringidos) y la audiencia correspondient
 
 | Client ID | Scopes | Audiencia del token |
 |---|---|---|
-| `case-service` | `case:recommend`, `registry:append:case`, `core:read-credit`, `governance:read-serving`, `governance:read-feature-spec` | `scoring-service`, `decision-registry-service`, `core-banking-mock`, `governance-service` (los dos scopes y la audiencia de governance agregados por U8 FD Q1) |
+| `case-service` | `registry:append:case`, `core:read-credit` (solo kind y staging), `governance:read-serving` | `decision-registry-service`, `core-banking-mock` (solo kind y staging), `governance-service` (`case:recommend` y `governance:read-feature-spec` pasaron a `case-worker` el 2026-10-08, U8 INF-U8-01) |
+| `case-worker` | `case:recommend`, `governance:read-serving`, `governance:read-feature-spec` | `scoring-service`, `governance-service` (cliente nuevo, U8 INF-U8-01, 2026-10-08) |
 | `scoring-service` | `scoring:explain`, `governance:read-serving`, `registry:append:scoring` | `explainability-service`, `governance-service`, `decision-registry-service` |
 | `explainability-service` | `registry:read:explanation`, `governance:read-dictionary` | `decision-registry-service`, `governance-service` (este último agregado por U7 FD Q4) |
 | `governance-service` | `bias:compare`, `registry:append:governance` | `bias-monitoring-service`, `decision-registry-service` |
-| `bias-monitoring-service` | `governance:freeze`, `registry:read:monitoring` | `governance-service`, `decision-registry-service` |
+| `bias-monitoring-service` | `registry:read:monitoring` | `decision-registry-service` (sin `governance:freeze`: el servicio HTTP no congela; revisión del FD de U9, 2026-10-08) |
+| `bias-monitoring-job` | `governance:freeze`, `registry:read:monitoring` | `governance-service`, `decision-registry-service` (cliente nuevo del CronJob de U9, la única identidad que congela; revisión del FD de U9, 2026-10-08) |
 | `model-validation-job` | `governance:validation-report` | `governance-service` |
 | `product-metrics` | `registry:read:metrics` | `decision-registry-service` |
 | `channel` | `intake:submit` | `case-service` |
+| `channel-simulator` | `intake:submit` | `case-service`. Solo existe en los realms que no son de producción; case-service reconoce el simulador por `azp = channel-simulator` (BR-U8-03) (precisado el 2026-10-06, revisión del FD de U8) |
 
 - **Ningún cliente tiene `core:write-credit`** (AUTONOMIA-03). Una prueba sobre el realm lo verifica.
+- **Core en producción** (precisado el 2026-10-08 por U8 INF-U8-02, aclaración Q1 = A): en el MVP el core está deshabilitado en producción y no existe el mock. Por mínimo privilegio, el cliente `case-service` del **realm de producción** no tiene el scope `core:read-credit` ni la audiencia `core-banking-mock`; los realms de kind y staging sí los tienen. Una prueba sobre el realm de producción comprueba que `case-service` no obtiene un token con ese scope ni con esa audiencia. Cuando se integre el core real (pendiente para Operations), el scope y la audiencia vuelven con el contrato de ese core.
 - Los clientes de servicio no tienen roles de usuario ni `acr = mfa`, así que nunca pasan un endpoint con MFA.
 - Las llaves públicas de cada cliente se registran en el realm; las privadas las entrega ESO (U1) desde la bóveda.
 
@@ -87,7 +91,7 @@ banco; su login genera una alerta SEV1 (BR-U2-12).
 |---|---|---|---|---|---|---|
 | `/` y estáticos | F02 | console-spa | Pública | Global | — | Perfil `spa` |
 | `/api/console/**` | F03 | console-bff | JWT válido de `vectra-console`, cualquier rol de negocio | 20 req/s por `sub`, ráfaga 40 | 64 KiB | Perfil `api` |
-| `/api/intake/**` (solo `POST /v1/intake/applications`) | F04, F07 | case-service | JWT de `channel` con `intake:submit` | 10 req/s por cliente, ráfaga 20 | 32 KiB | Perfil `api` |
+| `/api/intake/**` (solo `POST /v1/intake/applications`) | F04, F07 | case-service | JWT con `intake:submit` y `azp` = `channel` (F04) o `channel-simulator` (F07, solo en los realms que no son de producción) | Por `azp`: `channel` 10 req/s, ráfaga 20; `channel-simulator` 30 req/s, ráfaga 60 (cubre los 20/s de NFR-U1-11), solo fuera de producción | 32 KiB | Perfil `api` |
 | `/api/promotion/**` (solo `GET /v1/models?state=aprobado` y `POST /v1/models/{id}/activation`) | F08 | governance-service | JWT de `promotion-tool`, rol `ingeniero_riesgo`, `governance:promotion`, `acr = mfa` | 1 req/s por `sub` | 16 KiB | Perfil `api` |
 | `/auth/realms/vectra/**` (solo endpoints públicos: autorización, token, JWKS, logout, cuenta) | F05 | Keycloak | Pública | 10 req/min por IP en login y token | Por defecto | Perfil `auth` |
 | `/grafana/**` | F06 | Grafana | Grafana hace su propio OIDC | Global | 64 KiB | Perfil `grafana` |
@@ -96,6 +100,7 @@ banco; su login genera una alerta SEV1 (BR-U2-12).
 - F09 está **deshabilitada por defecto** (`enabled: false` en los values).
 - Cualquier otra ruta, incluida `/auth/admin/**`, devuelve **404** (X10).
 - Límite global: 200 req/s.
+- `channel` y `channel-simulator` tienen contadores separados (la clave es el `azp`, P-U2-06): el simulador nunca consume la cuota de un canal real, y en producción no existe. Los dos cuentan para el límite global (precisado el 2026-10-06, revisión del FD de U8).
 
 ### 4.1 Perfiles de cabeceras (Q9)
 

@@ -19,6 +19,7 @@ de U0 y U1. Versiones pinneadas en `uv.lock`.
 | Integración | **Testcontainers** (PostgreSQL y un doble de la bóveda) en CI | Base real sin clúster | Q6 |
 | Cobertura y mutación | `pytest-cov`, `mutmut` | NFR-U3-52 | U0 |
 | Carga | k6 (append, expediente) en kind | NFR-U3-20, 21 | Q2 |
+| Datos sintéticos | Generador propio (`tests/bench/gen_synthetic.py`): 10 años para `nightly` (NFR-U3-23) y ~1,8 M entradas de 181 días para el agregador (NFR-U3-24, 35) | Benchmarks reproducibles sin datos reales | séptima revisión del FD de U9, 2026-10-10 |
 
 ## Descartado
 

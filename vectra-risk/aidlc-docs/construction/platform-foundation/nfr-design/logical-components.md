@@ -12,7 +12,7 @@ Infrastructure Design de U1.
 |---|---|---|---|---|
 | CloudNativePG (operador) | Ciclo de vida de PostgreSQL, failover, backups | NFR-U1-02, 05 | 0 | `vectra-critical` |
 | Clusters PostgreSQL ×4 | `case-db`, `governance-db`, `registry-db`, `keycloak-db` (3 instancias c/u) | NFR-U1-02..06 | 2 | `vectra-critical` |
-| MinIO (solo kind) | Almacenamiento S3: backups, WAL, model-store, Loki, Tempo | Q6 | 2 | `vectra-normal` |
+| MinIO in-cluster (todos los entornos; INF-U1-03) | Almacenamiento S3: model-store, `validation-datasets`, Loki, Tempo. Los backups y el WAL van al S3 del banco fuera del sitio (F70), no a MinIO (precisado el 2026-10-08) | Q6; INF-U1-03 | 2 | `vectra-normal` |
 | cert-manager | CA interna, certificados del borde, de PostgreSQL y de Linkerd | P-U1-03 | 0 | `vectra-critical` |
 | Linkerd (+ linkerd-cni) | mTLS y autorización por identidad | P-U1-02 | 0–1 | `vectra-critical` |
 | Kyverno | Admisión y políticas | P-U1-06, 09 | 0–1 | `vectra-critical` |
@@ -23,7 +23,7 @@ Infrastructure Design de U1.
 | Alertmanager | Enrutamiento por severidad, `Watchdog` por F72 | P-U1-07, 10 | 4 | `vectra-normal` |
 | Loki + agente de logs | Logs con object lock, 90 días | NFR-U1-30 | 4 | `vectra-normal` |
 | Tempo + OTel Collector | Trazas, 7 días | NFR-U1-31 | 4 | `vectra-normal` |
-| Pushgateway | Métricas de jobs batch (`restore-drill`) | P-U1-05 | 4 | `vectra-normal` |
+| Pushgateway | Métricas de jobs batch (`restore-drill`, F87; CronJob de bias de U9, F106, revisión del FD de U9, 2026-10-08) | P-U1-05 | 4 | `vectra-normal` |
 | Grafana | Dashboards como código | NFR-U1-33 | 4 | `vectra-normal` |
 | Argo CD | GitOps con sync manual | P-U1-12 | 0 | `vectra-normal` |
 | `restore-drill` (CronJob) | Simulacro semanal de restore | P-U1-05 | 5 | `vectra-low` |
@@ -66,6 +66,7 @@ flowchart TB
     end
     bank["Canal del banco F72"]
     drill["restore-drill"]
+    biascj["CronJob de bias U9"]
 
     flows --> gen
     gen --> gitops
@@ -83,6 +84,7 @@ flowchart TB
     am --> bank
     drill --> s3
     drill --> pushgw
+    biascj -->|"F106"| pushgw
     prom --> pushgw
 ```
 
@@ -98,6 +100,8 @@ Wave 2-3: PostgreSQL x4 -> S3 (backups + WAL, archive_timeout 60 s)
           ESO -> bóveda (Vault en kind; bóveda del banco en prod)
 Wave 4:   Loki, Tempo -> S3 ; Prometheus -> Alertmanager -> canal del banco (F72, Watchdog)
 Wave 5:   restore-drill -> lee S3, crea cluster efímero, verify_chain, empuja métricas al Pushgateway (F87); Prometheus lo lee (F88)
+          CronJob de bias (U9) -> empuja las métricas de cada corrida al Pushgateway (F106)
+          registry-aggregator (U3) -> tablas derivadas de monitoreo en registry-db -rw (F107)
 ```
 
 ## 3. Métricas y alertas que introduce U1
@@ -116,13 +120,17 @@ Wave 5:   restore-drill -> lee S3, crea cluster efímero, verify_chain, empuja m
 | `FailClosedPersistente` | SEV2 | P-U1-11 |
 | `AuthDeniedBurst` | SEV2 | SECURITY-14 |
 | `PostgresConnectionsHigh` (> 80 %) | SEV3 | P-U1-08 |
+| `PostgresVolumeUsageHigh` (> 80 % SEV3; > 90 % o sin serie SEV2; agregada el 2026-10-08) | SEV3 / SEV2 | INF-U1-02 |
 | `HPAMaxedOut` | SEV3 | NFR-U1-32 |
+| `PushgatewayDown` (`up{job="pushgateway"} == 0` o `absent()` durante 5 min; sin él no llegan las métricas de `restore-drill` ni de bias; tercera revisión del FD de U9, 2026-10-10) | SEV2 | P-U1-05 |
 | `Watchdog` | latido | P-U1-07 |
 
 ## 4. Pendiente para Infrastructure Design de U1
 
-- Namespaces y bindings K0x de cert-manager, Linkerd, Kyverno y ESO.
-- Destino del almacenamiento S3 en producción (in-cluster o del banco) y, si es externo, los flujos de egress de Loki, Tempo y el model-store.
-- Egress de ESO hacia la bóveda del banco.
-- `max_connections` por cluster según los máximos de HPA (P-U1-08).
-- CNI de kind (Calico propuesto) y agente de logs (Alloy o Promtail).
+**Todos resueltos por el Infrastructure Design de U1** (anotado el 2026-10-08):
+
+- ~~Namespaces y bindings K0x de cert-manager, Linkerd, Kyverno y ESO~~ → INF-U1-06; bindings K07–K14 en §3 de `component-dependency.md`.
+- ~~Destino del almacenamiento S3 en producción~~ → INF-U1-03: MinIO in-cluster para model-store, Loki y Tempo (sin egress nuevo); backups y WAL en el S3 del banco fuera del sitio (F70).
+- ~~Egress de ESO hacia la bóveda del banco~~ → F74.
+- ~~`max_connections` por cluster~~ → INF-U1-02.
+- ~~CNI de kind y agente de logs~~ → Calico (INF-U1-04) y Grafana Alloy (INF-U1, K13).

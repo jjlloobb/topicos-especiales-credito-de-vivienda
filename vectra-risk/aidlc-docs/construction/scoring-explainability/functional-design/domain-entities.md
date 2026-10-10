@@ -71,8 +71,8 @@ con un error tipificado que scoring convierte en `ExplainerError` (U0 §3.6):
 | Situación | Código HTTP | `ExplainerError` |
 |---|---|---|
 | El `model_version_id` pedido no coincide con el que devuelve el explicador de KServe | 409 `conflict_state` + `reason = version_mismatch` | `version_mismatch` |
-| El diccionario no cubre un factor del vector | 422 + `reason = feature_dictionary_incomplete` | `feature_dictionary_incomplete` |
-| La narrativa no pasa la validación | 422 + `reason = factuality_failed` | `factuality_failed` |
+| El diccionario no cubre un factor del vector | 422 `unprocessable_explanation` + `reason = feature_dictionary_incomplete` (precisado el 2026-10-06, revisión del FD de U8) | `feature_dictionary_incomplete` |
+| La narrativa no pasa la validación | 422 `unprocessable_explanation` + `reason = factuality_failed` | `factuality_failed` |
 | KServe no responde a tiempo | 504 | `timeout` |
 | KServe o el diccionario no disponibles (503, circuito abierto) | 503 | `unavailable` |
 | Cualquier otro error | 500 | `error` |
@@ -85,5 +85,4 @@ la tabla. Ningún otro dato.
 | Dato | Dónde | Duración |
 |---|---|---|
 | `serving-config` | scoring | ≤ 5 s, con `If-None-Match` (BR-U4-14) |
-| Diccionario de features | explainability, por `model_version_id` | Sin vencimiento: es inmutable (BR-U4-18) |
-| Diccionario de features | explainability | Se descarta el de versiones que no se usaron en 24 h (memoria acotada) |
+| Diccionario de features | explainability, por `model_version_id` | Sin vencimiento por tiempo, porque es inmutable (BR-U4-18); memoria acotada con LRU de 4 versiones (P-U7-05) |

@@ -9,7 +9,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 ## 1. Seguridad
 
 ### P-U1-01 — Red generada desde un inventario de flujos (Q1)
-- `platform/network/flows.yaml` es la única fuente de los flujos permitidos. Refleja las tablas de `component-dependency.md` (F01–F73, más los flujos nuevos que agregue el Infrastructure Design de U1).
+- `platform/network/flows.yaml` es la única fuente de los flujos permitidos. Refleja las tablas de `component-dependency.md` (hoy F01–F108: los flujos de INCEPTION, los que agregó el Infrastructure Design de U1 y los de las unidades siguientes; precisado el 2026-10-08). La prueba de completitud extrae los IDs del Markdown, sin un rango fijo.
 - Cada entrada tiene `id`, `from` (namespace + ServiceAccount), `to` (namespace + ServiceAccount + puerto), `protocol` y `justification`.
 - `platform/network/generate.py` produce, para cada namespace de Vectra:
   - la NetworkPolicy `deny-all` de ingress y egress;
@@ -45,6 +45,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 | Servicio | Readiness depende de |
 |---|---|
 | case-service | `case-db` |
+| case-worker (U8 INF-U8-01, agregado el 2026-10-08) | `case-db` |
 | governance-service | `governance-db` |
 | decision-registry-service | `registry-db` (incluida la escritura posible: réplica síncrona disponible) |
 | scoring-service, explainability-service, bias, BFF, métricas | ninguna dependencia externa (solo su proceso) |
@@ -60,17 +61,20 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 - **Satisface**: NFR-RES-07 (precisado); RESILIENCY-06; NFR-U1-32.
 
 ### P-U1-05 — Simulacro de restore semanal (Q6)
-- `CronJob restore-drill` (semanal) en el namespace aislado `vectra-restore-drill`, cuyas NetworkPolicies solo permiten leer del almacenamiento de backups (F75) y empujar métricas al Pushgateway (F87):
+- `CronJob restore-drill` (semanal) en el namespace aislado `vectra-restore-drill`, cuyas NetworkPolicies solo permiten leer del almacenamiento de backups (F75, con una credencial de solo lectura limitada a los backups y WAL de `registry-db` y `case-db` y a los checkpoints; precisado el 2026-10-06, revisión del FD de U8) y empujar métricas al Pushgateway (F87):
   1. crea un `Cluster` efímero de CloudNativePG desde el último backup base + WAL;
   2. corre `verify_chain` (CLI de U3) sobre la copia de `registry-db`;
-  3. empuja al Pushgateway `vectra_restore_drill_success` (0/1), `vectra_restore_drill_duration_seconds` y el LSN alcanzado; Prometheus las lee por F88;
-  4. destruye el cluster efímero.
-- Alertas: `RestoreDrillFailed` (SEV1) y `RestoreDrillMissing` (SEV1 si `push_time_seconds` de una corrida exitosa tiene más de 8 días).
+  2b. crea un segundo `Cluster` efímero desde el último backup de `case-db`, ejecuta `case-retention` (CLI de U8, BR-U8-20) y cuenta las filas de `case_identifiers` con la retención vencida, que deben ser **0** (precisado el 2026-10-06, revisión del FD de U8);
+  3. empuja al Pushgateway `vectra_restore_drill_success` (0/1), `vectra_restore_drill_duration_seconds`, el LSN alcanzado y `vectra_restore_drill_retention_violations`; Prometheus las lee por F88;
+  4. destruye los clusters efímeros.
+- Alertas: `RestoreDrillFailed` (SEV1), `RestoreDrillMissing` (SEV1 si `push_time_seconds` de una corrida exitosa tiene más de 8 días) y `RestoreDrillRetentionViolation` (SEV2 si `vectra_restore_drill_retention_violations` > 0: una restauración devolvería identificadores vencidos; BR-U8-20), todas con `runbook_url` (precisado el 2026-10-06, revisión del FD de U8).
 - **Sidecar nativo de Linkerd**: los pods del namespace están mallados (mTLS para F87). Con el proxy como contenedor normal, un Job nunca termina: el proxy sigue vivo después de que el contenedor principal sale, el Job no llega a `Complete` y el simulacro no reporta éxito.
   - El namespace `vectra-restore-drill` lleva la anotación `config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"`, y el pod template del CronJob también, por si la herencia no aplica.
   - Con esa anotación, el proxy se inyecta como *init container* con `restartPolicy: Always` (sidecar nativo de Kubernetes). Kubernetes lo detiene cuando termina el contenedor principal, y lo arranca antes que él, así que el push a F87 ya tiene red mallada desde el inicio.
   - Cubre también los pods de Job que CloudNativePG crea para el bootstrap por recuperación del cluster efímero.
   - Requisitos: Kubernetes ≥ 1.29 (sidecars nativos habilitados por defecto), ya cubierto por NFR-U1 Q1 (≥ 1.30), y una versión de Linkerd que soporte la anotación, que se fija en `Chart.lock`.
+  - **Regla general** (tercera revisión del FD de U9; corregida en la cuarta revisión del FD de U9, 2026-10-10): todo `Job` y `CronJob` de un **namespace mallado** usa el sidecar nativo. «Namespace mallado» = todo namespace de Vectra con la **etiqueta** `vectra.io/mesh: enabled`, que pone el chart de namespaces de U1 junto con la **anotación** de Linkerd `linkerd.io/inject: enabled` (en Linkerd, `inject` es una anotación, y el `namespaceSelector` de Kyverno solo ve etiquetas; séptima revisión del FD de U9, 2026-10-10). Hoy: `vectra-app`, `vectra-data`, `vectra-restore-drill`, `vectra-staging`, `vectra-identity` (Job hook de `keycloak-config-cli`, CronJob `realm-drift`), `vectra-mock` y los demás que se mallen. La política selecciona por la etiqueta; una prueba del chart de namespaces verifica que la etiqueta y la anotación vayan siempre juntas. Un hook de sync colgado bloquearía su wave (por ejemplo, la 3 de Keycloak). La política de Kyverno `add-native-sidecar-to-jobs` es de **mutación**, no de validación: agrega la anotación al pod template de todo Job (y de los Jobs que crea un CronJob) que no la tenga. Así cubre también los Jobs que crea CloudNativePG (`initdb`, `join`, `recovery`), que no llevan la anotación, y nunca rechaza el `join` que reclona una réplica tras un fallo de zona (NFR-U1-03). Una política de validación con `failurePolicy: Fail` habría bloqueado ese reclonado. Un informe de Kyverno en modo `Audit` señala los Jobs sin la anotación después de la mutación.
+  - **Sin deriva en Argo CD** (quinta revisión del FD de U9, 2026-10-10): los charts de Vectra llevan la anotación del sidecar nativo **explícita** en el pod template de cada Job y CronJob. Así la mutación es una red de seguridad (para los Jobs que crean los operadores, que no están en Git) y nunca cambia un recurso que Argo CD gestiona; `kubectl diff` del Paso 3 de evidencia no muestra diferencias por la anotación.
 - **Verificación**:
   - ejecución manual del CronJob en kind (`kubectl create job --from=cronjob/restore-drill`) con la salida de `verify_chain` «íntegra»;
   - el Job llega a `Complete` dentro del tiempo esperado (`kubectl wait --for=condition=complete job/<nombre> --timeout=…`);
@@ -110,9 +114,9 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 | PriorityClass | Valor | Cargas | Preemptible |
 |---|---|---|---|
 | `vectra-critical` | 1 000 000 | PostgreSQL, decision-registry-service, Linkerd, Kyverno, CloudNativePG | No |
-| `vectra-high` | 100 000 | scoring, explainability, case, governance, Keycloak, gateway, KServe | No |
-| `vectra-normal` | 10 000 | BFF, bias, product-metrics, observabilidad | No |
-| `vectra-low` | 100 | channel-simulator, jobs batch, `restore-drill` | Sí |
+| `vectra-high` | 100 000 | scoring, explainability, case, governance, Keycloak, gateway, KServe, CronJob de cálculo de bias (U9: alimenta el congelamiento y `MonitoreoSesgoDetenido`) y `registry-aggregator` (U3) (tercera revisión del FD de U9, 2026-10-10), y el Job a demanda `registry-aggregator-rebuild` de U3 (revisión del NFR Requirements de U9, 2026-10-10) | No |
+| `vectra-normal` | 10 000 | BFF, servicio HTTP de bias (U9 NFR-U9-10), product-metrics, observabilidad, Job a demanda `registry-aggregator-reset` de U3 (revisión del NFR Requirements de U9, 2026-10-10) | No |
+| `vectra-low` | 100 | channel-simulator, `core-banking-mock` (solo kind y staging, U8 INF-U8-02), jobs batch (incluido `case-retention`), `restore-drill`, `InferenceService` de staging (U6), incluido el predictor de la versión activa para `source_comparison` (U4 INF-U4-05; quinta revisión del FD de U9, 2026-10-10) | Sí |
 
 - Una política de Kyverno exige `priorityClassName` en todo Pod de Vectra.
 - **Verificación**: `kyverno test`; prueba en kind con nodos saturados → se desalojan primero las cargas `vectra-low`.

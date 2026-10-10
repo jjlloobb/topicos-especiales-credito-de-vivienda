@@ -20,7 +20,7 @@ flowchart TB
             eB["explainability-service"]
         end
     end
-    case["case-service"]
+    case["case-worker"]
     bff["console-bff"]
     gov["governance-service"]
     isvc["KServe isvc activo - vectra-serving"]
@@ -47,7 +47,7 @@ Sitio del banco, namespace vectra-app (pool general)
   Zona A / Zona B:
     scoring-service        2..6 (HPA CPU 70 %), PDB minAvailable 1, vectra-high
     explainability-service 2..6 (HPA CPU 70 %), PDB minAvailable 1, vectra-high
-  Entradas:  case-service -> scoring (F15); console-bff -> explainability (F12); scoring -> explainability (F20)
+  Entradas:  case-worker -> scoring (F15; precisado el 2026-10-08 por U8 INF-U8-01); console-bff -> explainability (F12); scoring -> explainability (F20)
   Salidas de scoring:         governance (F18), KServe :predict (F19), registro (F21)
   Salidas de explainability:  KServe :explain (F22), registro (F23), governance (F103)
   Cada pod: sidecar nativo de Linkerd (mTLS); sin volúmenes; sin egress

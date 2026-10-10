@@ -14,16 +14,17 @@
 |---|---|
 | Unidad | U4 `governance`: modelos, políticas, fuentes de datos y `serving-config` |
 | Historias (dueña) | US-201, US-202, US-203, US-204, US-205, US-206, US-208, US-305 |
+| Historias (participa) | US-306 (dueña U9): ciclo de la fuente, versión candidata y modo `source_comparison` (quinta revisión del FD de U9, 2026-10-10) |
 | Ubicación | `vectra-risk/governance/` (servicio, `promotion-tool`, `model-validation-job`) y Applications en `vectra-risk-gitops` |
 | Datos propios | `governance-db` (esquema, triggers, roles) y el bucket `vectra-model-archive` |
 | Depende de | U0 (tipos y `create_app`), U1 (plataforma, K01, model-store), U2 (roles, MFA, step-up, cliente `promotion-tool`), U3 (append con idempotencia), U9 (librería de disparidad y `compare_source`; se usa un doble hasta que exista), U5/U6 (modelo de referencia y KServe de staging para la validación real) |
 | Lo consumen | scoring (`serving-config`), BFF (consola), bias (`freeze`), U12 (verificación) |
 
 **Diseño de entrada:**
-- Functional Design: `construction/governance/functional-design/` (BR-U4-01..17, PBT-U4-01..07).
+- Functional Design: `construction/governance/functional-design/` (BR-U4-01..19, PBT-U4-01..07).
 - NFR Requirements: `construction/governance/nfr-requirements/` (NFR-U4-01..41).
 - NFR Design: `construction/governance/nfr-design/` (P-U4-01..08).
-- Infrastructure Design: `construction/governance/infrastructure-design/` (INF-U4-01..04).
+- Infrastructure Design: `construction/governance/infrastructure-design/` (INF-U4-01..05; INF-U4-05 agregada por el FD de U9).
 
 **AUTONOMIA-01:** las verificaciones estáticas y las de integración con Testcontainers
 corren en CI; las que necesitan el clúster las ejecuta **un operador en kind** después de
@@ -54,6 +55,7 @@ vectra-risk/governance/
 
 - [ ] **Paso 1 — Esqueleto de `governance/`**
   - Directorios de §1; `pyproject.toml` (miembro del workspace) con extras separados: el servicio **sin** librerías de inferencia y `validation_job` con ONNX Runtime, `xgboost` y `lightgbm`.
+  - `validation_job` depende además de `vectra_disparity` (librería de U9, ruta del workspace; doble mientras no exista) para la disparidad inicial y el modo `source_comparison` (tercera revisión del FD de U9, 2026-10-10).
   - Contrato de import-linter: `model_fsm`, `policy`, `serving_config` y `registration` sin E/S; ningún módulo del servicio importa librerías de inferencia.
   - Diseño: NFR-U4-24.
   - **Aceptación**: `uv sync --frozen && uv run lint-imports --config governance/.importlinter && make -C governance check` sobre el esqueleto.
@@ -61,16 +63,20 @@ vectra-risk/governance/
 ### Bloque B — Datos
 
 - [ ] **Paso 2 — Migraciones de `governance-db`**
-  - Tablas de domain-entities §1–§5 (incluidos `archived_uri` y `archived_at`); índice único parcial «una sola versión `activo` o `congelado`»; una sola política `activa`.
+  - Tablas de domain-entities §1–§5 (incluidos `archived_uri` y `archived_at`); índice único parcial «una sola versión `activo` o `congelado`»; una sola política `activa`; tabla única `transitions` para modelo, política y fuente, con `entity_type` y `entity_id`, e índice único parcial `(entity_type, entity_id, transition_number) WHERE status <> 'abandonada'` (precisado el 2026-10-06, revisión del FD de U8); columnas `unit_id`, `kind` (`cambio_estado` \| `compensacion`) y estado `descartada` (precisado el 2026-10-06, revisión del FD de U8).
   - Triggers `guard_unfreeze` y `guard_freeze` (P-U4-06).
+  - `validation_runs.mode` (`validacion` por omisión en las filas existentes), `source_id`, `baseline_version_id`; `model_versions.source_candidate_for`; `data_sources.pre_post_report` (segunda revisión del FD de U9, 2026-10-08).
   - `NOTIFY serving_config` al confirmar.
   - Roles `gov_app`, `gov_migrator` y `gov_archiver` (permiso por columna); sin `DELETE` en tablas de historia.
   - Diseño: BR-U4-02, 03; NFR-U4-30; P-U4-01, 06; INF-U4-03. Historia: US-305.
   - **Aceptación**: `uv run pytest governance/tests/integration/test_migrations.py` (Testcontainers):
-    - un `UPDATE` directo `congelado → activo` → excepción; con la variable fijada pero sin transición de cumplimiento → excepción;
+    - una transición `descartada` con `n = 5` → otra inserción con `n = 5` en la misma entidad viola el índice (el `n` sigue reservado); una `abandonada` con `n = 5` → se puede insertar otra con `n = 5` (precisado el 2026-10-06, revisión del FD de U8);
+    - un `UPDATE` directo `congelado → activo` → excepción; con la variable fijada pero sin transición de cumplimiento → excepción; con la variable apuntando a una `frozen_resolution` confirmada de **otra** versión, o a una fila de `transitions` de política o de fuente → excepción (precisado el 2026-10-06, revisión del FD de U8);
     - dos versiones `activo` → violación del índice;
+    - la migración de `validation_runs` deja `mode = validacion` en las filas existentes; `mode = source_comparison` sin `source_id` → violación del `CHECK` (segunda revisión del FD de U9, 2026-10-08);
     - `gov_archiver` no puede cambiar `state`;
-    - ningún rol tiene `DELETE` sobre `model_versions`, `policies` ni `model_transitions`.
+    - ningún rol tiene `DELETE` sobre `model_versions`, `policies`, `data_sources` ni `transitions`;
+    - una transición de política y una de fuente con el mismo `entity_id` textual y el mismo `n` → llaves distintas; dos pendientes de la misma política con el mismo `n` → violación del índice.
 
 ### Bloque C — Lógica pura
 
@@ -87,7 +93,7 @@ vectra-risk/governance/
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_policy.py`, y la prueba con reloj simulado: el cambio de vigencia ocurre a las 00:00 de Bogotá y no a las 19:00 de Bogotá.
 
 - [ ] **Paso 5 — `serving_config`**
-  - Composición de domain-entities §5 (incluido `inference_service`) y `etag` (JCS sin `bias_monitoring_age_s`); prueba de ejemplo: cambiar solo `inference_service` cambia el `etag`.
+  - Composición de domain-entities §5 (incluido `inference_service`) y `etag` (JCS de todos los campos; sin `bias_monitoring_age_s`, precisado el 2026-10-08 por U9 FD); prueba de ejemplo: cambiar solo `inference_service` cambia el `etag`.
   - Propiedad PBT-U4-05.
   - Diseño: BR-U4-11, 14; P-U4-07.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_serving_config.py`.
@@ -105,11 +111,11 @@ vectra-risk/governance/
 ### Bloque D — Servicio
 
 - [ ] **Paso 8 — Evidencia en dos fases, reconciliador y barridos**
-  - Transición `pendiente_registro` → append con `idempotency_key = transition_id` → `confirmada` + efecto (BR-U4-17); excepción de `freeze` (BR-U4-15).
-  - Tarea de fondo con `SKIP LOCKED`: reintentos, `abandonada` a las 24 h, `FreezeEventPending` y barrido de validaciones vencidas (P-U4-02).
+  - Transición `pendiente_registro` → append con `idempotency_key = UUIDv5(entity_type:entity_id, n)` → `confirmada` + efecto (BR-U4-17); excepción de `freeze` (BR-U4-15); conflicto tras un abandono → reenviar la abandonada y confirmarla (precisado el 2026-10-06).
+  - Tarea de fondo con `SKIP LOCKED`, que toma solo la menor `n` pendiente de cada entidad: reintentos, `abandonada` a las 24 h (salvo `freeze` y compensaciones), `FreezeEventPending`, compensaciones `transicion_descartada` sin abandono con `CompensationEventPending`, y barrido de validaciones vencidas (P-U4-02; precisado el 2026-10-06, revisión del FD de U8).
   - Propiedades stateful **PBT-U4-01** (máquina completa con actores y MFA, contra el servicio y Testcontainers) y **PBT-U4-07** (registro con fallos al azar).
   - Diseño: BR-U4-05, 15, 17; NFR-U4-40; P-U4-02.
-  - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_stateful_*.py governance/tests/integration/test_evidence.py`, con 2 réplicas y un doble del registro que falla al azar: ninguna transición distinta de `freeze` cambia el estado sin ack; ningún evento se duplica.
+  - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_stateful_*.py governance/tests/integration/test_evidence.py`, con 2 réplicas y un doble del registro que falla al azar: ninguna transición distinta de `freeze` cambia el estado sin ack; ningún evento se duplica; abandono + transición nueva con la abandonada ya escrita → un solo evento y el estado de la abandonada; `frozen_resolution` con el `freeze` pendiente → 409 `transition_pending`; `freeze` con un `mark_active` pendiente → la versión queda `congelado`, el par queda `descartada` sin aplicar aunque luego llegue el ack, la versión destino no pasa a `activo` y la cadena tiene `freeze` y después los `transicion_descartada` (precisado el 2026-10-06, revisión del FD de U8). Una compensación pendiente más de 24 h no pasa a `abandonada`, sigue bloqueando la `frozen_resolution` (409 `transition_pending`) y dispara `CompensationEventPending`; `promtool test rules` de esa alerta. Barrido por modo (tercera revisión del FD de U9, 2026-10-10): un `ValidationRun` `validacion` vencido → la versión a `validacion_fallida`; uno `source_comparison` vencido → solo el run a `timeout`, la fuente sigue `en_evaluacion` y ninguna versión cambia.
 
 - [ ] **Paso 9 — `serving-config` en memoria, convergencia y pools**
   - Copia en memoria; `LISTEN serving_config` + sondeo del `etag` cada 1 s; temporizador de medianoche de Bogotá; readiness solo con la copia cargada.
@@ -127,14 +133,24 @@ vectra-risk/governance/
   - `GET /v1/models/{id}/feature-dictionary` (solo `governance:read-dictionary`; BR-U4-18, agregado por U7 FD Q4).
   - `GET /v1/models/{id}/feature-spec` (solo `governance:read-feature-spec`; BR-U4-19, agregado por U8 FD Q1). Prueba: otra identidad → 403; el contenido es byte a byte el `feature_spec.json` verificado.
   - `frozen-resolution`: solo `cumplimiento` + MFA + step-up; fija `SET LOCAL vectra.frozen_resolution`.
-  - Políticas (cuatro ojos); fuentes (con `compare_source` F27; doble de U9 hasta que exista).
+  - Políticas (cuatro ojos); fuentes (BR-U4-13, precisado el 2026-10-08 por U9 FD): versión candidata con `source_candidate_for`, Job en modo `source_comparison` (con la versión activa también desplegada en KServe de staging, X08), `PUT /v1/validation-runs/{run_id}/source-counts` (F32), `compare_source` por **F25** con tablas de conteo (doble de U9 hasta que exista) y `data_sources.pre_post_report`; un `timeout` en ese modo no cambia ninguna versión (revisión del FD de U9, 2026-10-08); `freeze` agrega `data_sources` e `initial_disparity` al `FreezeContext` antes de escribir el evento (BR-U4-15).
   - Todas las rutas como `RouteContract` en el registro de contratos de U0.
-  - Diseño: BR-U4-01..05, 07, 08, 10..13, 16, 18, 19; NFR-U4-11, 25; P-U4-03, 06. Historias: US-201, US-202, US-203, US-205, US-206, US-208, US-305.
+  - Diseño: BR-U4-01..05, 07, 08, 10..13, 15, 16, 18, 19; NFR-U4-11, 25; P-U4-03, 06. Historias: US-201, US-202, US-203, US-205, US-206, US-208, US-305.
   - **Aceptación**: `uv run pytest governance/tests/integration/test_api_*.py` con las pruebas de ejemplo de business-logic-model §3:
     - `cro` aprueba → 200; `ingeniero_riesgo` → 403;
     - un CRO, un job o un webhook intentan reactivar → denegado;
     - el mismo CRO propone y aprueba → 409;
-    - una vigencia normativa vencida da `normative_current` nulo.
+    - una vigencia normativa vencida da `normative_current` nulo;
+    - una candidata con `source_candidate_for` y la fuente `en_evaluacion` se registra; aprobarla o activarla → 409; una versión común que declara esa fuente → 422;
+    - el evento `freeze` lleva el `FreezeContext` de bias más `data_sources` e `initial_disparity`;
+    - `freeze` con un token del cliente `bias-monitoring-service` → 403; con `bias-monitoring-job` → 200 (revisión del FD de U9, 2026-10-08);
+    - `start_source_comparison` (`ingeniero_riesgo` con MFA): sin versión `activo` → 409 `no_active_version`; con la servible `congelado` → 409 `active_version_frozen`; sin los `InferenceService` de staging → 409; otro rol → 403 (segunda revisión del FD de U9, 2026-10-08);
+    - `PUT /v1/validation-runs/{run_id}/source-counts`: con `governance:validation-report` sobre un run `source_comparison` `lanzado` → 200 y `PrePostReport` guardado; en un run `validacion` o repetido → 409; sin el scope → 403 (segunda revisión del FD de U9, 2026-10-08);
+    - evento `freeze` mayor de 60 KiB → `initial_disparity` con sus agregadas; mayor de 64 KiB → `data_sources` con ids; el doble del registro nunca recibe más de 64 KiB (segunda revisión del FD de U9, 2026-10-08);
+    - aprobar o activar una candidata con su fuente `en_evaluacion` → 409 (segunda revisión del FD de U9, 2026-10-08);
+    - `GET /v1/models?state=activo,congelado` (la versión servible que usa el BFF para `get_disparity`): con `cro` o `cumplimiento` → 200 con una sola versión; tras un congelamiento, la `congelado`; con `analista` → 403 (sexta revisión del FD de U9, 2026-10-10);
+    - el `data_source_event` de `aprobada` y de `rechazada` lleva el `pre_post_report` con ≤ 48 KiB; un informe más grande llega con `truncated = true` (tercera revisión del FD de U9, 2026-10-10);
+    - `source_comparison` vencido (reloj simulado) → `ValidationRun` `timeout`, sin `validacion_fallida` (tercera revisión del FD de U9, 2026-10-10).
     
     Además, `make -C contracts openapi && git diff --exit-code contracts/openapi/`.
 
@@ -154,12 +170,14 @@ vectra-risk/governance/
     - `! grep -rE "argocd app sync|kubectl apply|helm (install|upgrade)" governance/promotion_tool/`.
 
 - [ ] **Paso 13 — `model-validation-job`**
-  - AUC-ROC (con `auc_target` y `auc_meets_target`), disparidad inicial con la librería de U9 (doble mientras no exista), prueba de sincronía predictor ↔ explicador, informe con el `disclaimer` y envío por F32.
+  - AUC-ROC (con `auc_target` y `auc_meets_target`), disparidad inicial con la librería de U9 (`counts_from_records` + `disparity_by_band`; doble mientras no exista), prueba de sincronía predictor ↔ explicador, informe con el `disclaimer` y envío por F32.
+  - Modo `source_comparison` (BR-U4-13): puntúa el dataset con la versión activa y con la candidata y envía por F32 **solo** tablas de conteo por atributo, nunca filas (precisado el 2026-10-08 por U9 FD).
   - Imagen con las librerías de inferencia, `runAsNonRoot`, `readOnlyRootFilesystem`, sin token de Kubernetes.
   - Diseño: BR-U4-07; NFR-U4-12, 23; P-U4-03. Historia: US-202.
   - **Aceptación**: `uv run pytest governance/tests/unit/test_validation_job.py`:
     - con un modelo ONNX de fixture y un explicador que no produce vectores → `sync_check.passed = false`;
-    - las plantillas del informe no contienen «sin sesgo», «libre de discriminación» ni equivalentes (FR-BIA-08).
+    - las plantillas del informe no contienen «sin sesgo», «libre de discriminación» ni equivalentes (FR-BIA-08);
+    - modo `source_comparison`: la salida solo tiene tablas de conteo (ninguna clave por registro) y la suma de cada tabla es el tamaño del dataset.
 
 - [ ] **Paso 14 — Scripts de CI**
   - `no-unfreeze-paths`: falla si hay escrituras `congelado → activo` fuera del handler de cumplimiento.
@@ -183,12 +201,14 @@ vectra-risk/governance/
   - Deployment: HPA de 2 a 6, spread, PDB, `vectra-high`, recursos de INF-U4-01, `tzdata`.
   - CronJob `model-archive` (sidecar nativo de Linkerd, `Forbid`); Job de migración como hook.
   - RBAC K01; values del bucket por entorno.
+  - Values de staging de U6 con el predictor de la versión activa para `source_comparison` (INF-U4-05; tercera revisión del FD de U9, 2026-10-10).
   - Agregar F100, F101 y F102 a `platform/network/flows.yaml` de U1.
-  - Diseño: NFR-U4-03, 25; INF-U4-01..04.
-  - **Aceptación**: `helm template` + `conftest test governance/chart/`; `uv run python platform/network/generate.py --check && uv run pytest platform/network/tests` (F100–F102 presentes).
+  - `AuthorizationPolicy` de Linkerd de la ruta `freeze`: solo la identidad `bias-monitoring-job`; prueba de conectividad: `bias-monitoring-service` → `freeze` → denegado (precisado el 2026-10-10 por U9 Infrastructure Design Q4).
+  - Diseño: NFR-U4-03, 25; INF-U4-01..05.
+  - **Aceptación**: `helm template` + `conftest test governance/chart/`; `conftest test` sobre los values de staging (el `InferenceService` de la versión activa es solo predictor, 1 réplica, `vectra-low`; tercera revisión del FD de U9, 2026-10-10); `uv run python platform/network/generate.py --check && uv run pytest platform/network/tests` (F100–F102 presentes).
 
 - [ ] **Paso 17 — Alertas, runbooks y documentación**
-  - `PrometheusRule` con las alertas de P-U4-08 (incluidas `ServingConfigConvergenceSlow` y `ModelArchivePending`) y sus runbooks.
+  - `PrometheusRule` con las alertas de P-U4-08 (incluidas `ServingConfigConvergenceSlow`, `ModelArchivePending` y `CompensationEventPending`, esta última precisado el 2026-10-06, revisión del FD de U8) y sus runbooks, cada una con `runbook_url`.
   - `docs/slo.md` (governance dentro del SLO, NFR-U4-01).
   - Diseño: NFR-U4-01, 07; P-U4-08; BR-U4-08, 11, 16.
   - **Aceptación**: `promtool test rules governance/observability/rules/tests/*.yaml`; `uv run python platform/tests/test_runbooks.py --root governance`; `test -s governance/docs/slo.md`.
@@ -202,7 +222,7 @@ vectra-risk/governance/
 
 - [ ] **Paso 19 — Cobertura, mutación, trazabilidad y especificación de carga**
   - Cobertura de ramas ≥ 95 % y **100 %** en `model_fsm`, `policy` y `evidence`; `mutmut` en `model_fsm`; trazabilidad de cada BR-U4 a una prueba.
-  - Script k6: `serving-config` con 6 clientes cada 5 s y transiciones con firma.
+  - Script k6: `serving-config` con 12 clientes cada 5 s (6 de scoring y 6 de `case-worker`), una lectura de `feature_spec` por cliente de U8 al cambiar de versión y transiciones con firma (precisado el 2026-10-06 por U8 NFR Requirements, NFR-U8-15).
   - Diseño: NFR-U4-10, 11, 41.
   - **Aceptación**: `uv run pytest governance/tests --cov --cov-branch --cov-fail-under=95`, el umbral por módulo, `uv run mutmut run` sin sobrevivientes fuera de la allowlist, `uv run python platform/tests/test_traceability.py --unit governance --all` y `k6 inspect governance/tests/load/governance.js` (umbrales p95 de 20 ms y 500 ms).
 
@@ -218,8 +238,9 @@ vectra-risk/governance/
     5. `governance-db` pausada → `serving-config` sigue respondiendo;
     6. registro caído → transiciones pendientes sin efecto y `freeze` aplicado igual;
     7. la propagación del congelamiento en ≤ 6 s (completa cuando existan U7 y U9);
-    8. la protección de rama verificada con `branch-protection-check`.
-  - Historias: US-201, US-202, US-204, US-206, US-208.
+    8. la protección de rama verificada con `branch-protection-check`;
+    9. **US-306** (cuando existan U5 y U9): fuente propuesta, candidata con `source_candidate_for`, predictor de la versión activa en staging (INF-U4-05), Job en modo `source_comparison` dentro de **60 min** (NFR-U4-12), `PrePostReport` guardado, aprobación de cumplimiento y evento en el registro (tercera revisión del FD de U9, 2026-10-10).
+  - Historias: US-201, US-202, US-204, US-206, US-208, US-306.
   - **Aceptación**: un archivo de evidencia por escenario adjunto al PR, con comando, salida y resultado esperado contra el obtenido. Los que dependen de U5, U6, U7 y U9 se marcan como pendientes hasta que esas unidades existan.
 
 ### Bloque I — Cierre
@@ -247,13 +268,14 @@ Verificada con un script contra las líneas «Diseño» e «Historia(s)» de cad
 | US-206 | 4, 10, 20 |
 | US-208 | 10, 12, 20 |
 | US-305 | 2, 3, 10, 14 |
+| US-306 (participa) | 2, 10, 13, 16, 20 |
 
 | Diseño | Pasos |
 |---|---|
 | BR-U4-01..19 | 2, 3, 4, 5, 6, 8, 10, 12, 13, 14, 17 |
 | NFR-U4-01..41 | 1, 2, 8, 9, 10, 12, 13, 14, 15, 16, 17, 19 |
 | P-U4-01..08 | 2, 4, 5, 8, 9, 10, 13, 17 |
-| INF-U4-01..04 | 2, 15, 16 |
+| INF-U4-01..05 | 2, 15, 16, 20 |
 
 | Propiedad | Paso |
 |---|---|

@@ -33,7 +33,7 @@ Los IDs `NFR-U1-xx` se referencian en NFR Design, Infrastructure Design y el pla
 | NFR-U1-04 | Todos los Deployments de Vectra, Keycloak y el api-gateway tienen ≥ 2 réplicas, `topologySpreadConstraints` por zona y PodDisruptionBudget (`minAvailable: 1`) | `helm template` de los values de producción + política Kyverno `require-spread-and-pdb` en `kyverno test` (US-605) |
 | NFR-U1-05 | Archivado continuo de WAL con `archive_timeout = 60 s` y backup base diario hacia almacenamiento compatible con S3 fuera del sitio | Inspección del `ScheduledBackup` y del `Cluster`; alerta `WalArchiveStale` si el último WAL archivado tiene más de 5 min |
 | NFR-U1-06 | Retención: PITR de 30 días y un backup mensual retenido 12 meses. Bucket de `registry-db` con **object lock** durante todo el periodo de retención. La retención regulatoria del registro se decide en U3 **[VERIFICAR]** | Configuración de `retentionPolicy`; prueba en MinIO de que borrar un objeto bloqueado falla |
-| NFR-U1-07 | Runbook de restore del sitio probado en kind: clúster limpio → restore de base + WAL → `verify_chain` «íntegra» → servicios en `Ready`, dentro de las 4 h del RTO | Job `restore-drill` en kind que mide la duración y guarda la salida de `verify_chain` (US-608) |
+| NFR-U1-07 | Runbook de restore del sitio probado en kind: clúster limpio → restore de base + WAL → `verify_chain` «íntegra» → **`case-retention` sobre `case-db` restaurada (BR-U8-20; precisado el 2026-10-06, revisión R2 del FD de U8)** → servicios en `Ready`, dentro de las 4 h del RTO | Job `restore-drill` en kind que mide la duración y guarda la salida de `verify_chain` (US-608). Además restaura `case-db` en un segundo cluster efímero, ejecuta `case-retention` y comprueba que quedan **0** identificadores con la retención vencida (métrica `vectra_restore_drill_retention_violations`) (precisado el 2026-10-06, revisión del FD de U8) |
 | NFR-U1-08 | Runbook de failover de zona con verificación posterior (réplica sincronizada, lag 0, pods repartidos de nuevo) y vuelta a dos zonas | Escenario de NFR-U1-03 + checklist del runbook ejecutado en kind |
 
 ## 2. Escalabilidad y capacidad (RESILIENCY-09, R8; Q13)
@@ -42,7 +42,7 @@ Los IDs `NFR-U1-xx` se referencian en NFR Design, Infrastructure Design y el pla
 |---|---|---|
 | NFR-U1-10 | Volumen de diseño: **2 solicitudes/s sostenidas** y **picos de 10/s** en la ruta de recomendación | Documento de capacidad `platform/docs/capacity.md` |
 | NFR-U1-11 | La prueba de carga simulada (channel-simulator) sostiene **20/s durante 15 min** sin errores 5xx ni fail-closed por saturación; el HPA escala dentro de su máximo | Job `load-test` en kind con resultados (p95, errores, réplicas máximas); lo ejecuta U12 sobre la plataforma de U1 |
-| NFR-U1-12 | Cada servicio tiene HPA con mínimo (≥ 2) y máximo derivados de la prueba; KServe con `minReplicas ≥ 2` y `maxReplicas` definido | `helm template` + política `require-hpa-bounds` |
+| NFR-U1-12 | Cada servicio tiene HPA con mínimo (≥ 2) y máximo derivados de la prueba, salvo un Deployment con réplicas fijas (≥ 2, PDB y spread por zona) exento por la anotación `vectra.io/hpa-exempt` con su justificación (hoy, `bias-monitoring-service`, U9 NFR-U9-11; precisado el 2026-10-10 por U9 NFR Requirements); KServe con `minReplicas ≥ 2` y `maxReplicas` definido | `helm template` + política `require-hpa-bounds` |
 | NFR-U1-13 | `ResourceQuota` y `LimitRange` por namespace, documentados y dimensionados para el máximo del HPA + un 30 % de margen | `kubectl get resourcequota -o yaml` en kind; test de política sobre los manifiestos |
 
 ## 3. Seguridad de la plataforma
@@ -54,9 +54,9 @@ Los IDs `NFR-U1-xx` se referencian en NFR Design, Infrastructure Design y el pla
 | NFR-U1-22 | **cert-manager** con una CA interna para el borde (Envoy Gateway) y para TLS cliente-servidor de PostgreSQL (`sslmode=verify-full`); TLS ≥ 1.2 | NFR-SEC-01 | `openssl s_client` contra el gateway y `psql "sslmode=verify-full"` en kind |
 | NFR-U1-23 | Cifrado en reposo de los volúmenes de PostgreSQL (StorageClass cifrada del banco; en kind se documenta como no aplicable) y de los backups (cifrado del lado del servidor en S3) | NFR-SEC-01 | Inspección de la StorageClass y de la configuración del bucket |
 | NFR-U1-24 | **External Secrets Operator** como única vía para los Secrets de aplicación: la bóveda del banco en producción y HashiCorp Vault en kind. Ningún Secret de aplicación en Git, ni siquiera cifrado. Cifrado de Secrets en etcd habilitado | NFR-SEC-12, Q9 | `grep -r "kind: Secret" vectra-risk-gitops/` solo encuentra `ExternalSecret`; test de política `disallow-plain-secrets` |
-| NFR-U1-25 | **Kyverno** con políticas versionadas y probadas: imágenes por digest y firmadas (Cosign), sin `latest`, `runAsNonRoot`, sin `privileged` ni `hostPath`, `readOnlyRootFilesystem`, límites de recursos obligatorios y Applications sin `syncPolicy.automated`. Pod Security Admission `restricted` por namespace | Q10, SECURITY-09/10, US-606, US-607 | `kyverno test platform/policies/` en CI; en kind, un Pod con `latest` → rechazado |
+| NFR-U1-25 | **Kyverno** con políticas versionadas y probadas: imágenes por digest y firmadas (Cosign), sin `latest`, `runAsNonRoot`, sin `privileged` ni `hostPath`, `readOnlyRootFilesystem`, límites de recursos obligatorios y Applications sin `syncPolicy.automated`; mutación `add-native-sidecar-to-jobs` (sidecar nativo de Linkerd en todo Job y CronJob mallado, P-U1-05; quinta revisión del FD de U9, 2026-10-10). Pod Security Admission `restricted` por namespace | Q10, SECURITY-09/10, US-606, US-607 | `kyverno test platform/policies/` en CI; en kind, un Pod con `latest` → rechazado |
 | NFR-U1-26 | Cadena de suministro en CI: Trivy (imágenes, dependencias, IaC, Dockerfiles), Syft (SBOM SPDX) y Cosign (firma + attestation del SBOM). El build falla con hallazgos críticos o altos sin una excepción documentada (`.trivyignore` con justificación y vencimiento) | Q11, SECURITY-10/13, US-606 | Workflow reutilizable `supply-chain.yml`; un Dockerfile con `latest` hace fallar el PR |
-| NFR-U1-27 | RBAC de Kubernetes de mínimo privilegio y sin comodines; solo existen los bindings K01–K06, más los de los nuevos controladores (Kyverno, Linkerd, cert-manager, ESO), que se inventarían en Infrastructure Design | NFR-SEC-06, AUTONOMIA-03 | Test de política que rechaza `*` en `verbs`/`resources`; `kubectl auth can-i --list` por ServiceAccount en kind |
+| NFR-U1-27 | RBAC de Kubernetes de mínimo privilegio y sin comodines; solo existen los bindings K01–K14 del inventario (§3 de `component-dependency.md`; K07–K14 agregados por los Infrastructure Design de U1 y U2, precisado el 2026-10-08) | NFR-SEC-06, AUTONOMIA-03 | Test de política que rechaza `*` en `verbs`/`resources`; `kubectl auth can-i --list` por ServiceAccount en kind |
 
 ## 4. Observabilidad y retención (RESILIENCY-05, 06, 07; SECURITY-14; Q8)
 
@@ -64,7 +64,7 @@ Los IDs `NFR-U1-xx` se referencian en NFR Design, Infrastructure Design y el pla
 |---|---|---|
 | NFR-U1-30 | Retención: **Loki 90 días** sobre almacenamiento de objetos con **object lock** (las aplicaciones no pueden borrar ni modificar sus logs). La retención la aplica el lock y el lifecycle del bucket, **no** el compactor de Loki, cuya eliminación queda deshabilitada para no chocar con el lock | Configuración de Loki (`retention_enabled: false`) + prueba en MinIO de que borrar un chunk bloqueado falla |
 | NFR-U1-31 | **Prometheus 30 días**, **Tempo 7 días** | Flags y values del chart |
-| NFR-U1-32 | Alarmas mínimas de resiliencia: réplica de BD caída o rezagada, `WalArchiveStale`, fallo de backup, operación en una sola zona, HPA saturado, `FailClosedPersistente`, certificados por vencer y fallos repetidos de authn/authz (SECURITY-14). Cada alerta tiene `runbook_url` | Pruebas de reglas con `promtool test rules`; un test verifica que toda regla tiene `runbook_url` |
+| NFR-U1-32 | Alarmas mínimas de resiliencia: réplica de BD caída o rezagada, `WalArchiveStale`, fallo de backup, operación en una sola zona, HPA saturado, `FailClosedPersistente`, certificados por vencer, fallos repetidos de authn/authz (SECURITY-14) y simulacro de restore fallido o ausente (`RestoreDrillFailed`, `RestoreDrillMissing`) e identificadores vencidos tras restaurar `case-db` (`RestoreDrillRetentionViolation`, SEV2, con `runbook_url`; precisado el 2026-10-06, revisión del FD de U8), y Pushgateway caído (`PushgatewayDown`, SEV2; quinta revisión del FD de U9, 2026-10-10). Cada alerta tiene `runbook_url` | Pruebas de reglas con `promtool test rules`; un test verifica que toda regla tiene `runbook_url` |
 | NFR-U1-33 | Dashboards de seguridad, resiliencia y operación versionados como código (JSON en el repo) | Lint de dashboards en CI |
 | NFR-U1-34 | Ningún componente de observabilidad exporta fuera del clúster salvo F72 (Alertmanager), sin PII | NetworkPolicies de `vectra-observability`; prueba de egress en kind |
 
@@ -86,10 +86,12 @@ actualiza `component-dependency.md` y lo registra en `audit.md`:
 
 | Cambio | Motivo |
 |---|---|
-| Egress nuevo: ESO → bóveda de secretos del banco (solo producción) | Q9 |
-| Destino de almacenamiento de objetos de Loki y Tempo: in-cluster (MinIO) o almacenamiento del banco. Si es externo, es un egress nuevo desde `vectra-observability` | Q8; hoy la observabilidad no tiene egress salvo F72 |
-| model-store sobre la API S3: confirmar si es in-cluster (`vectra-data`) o del banco | Q6 |
-| Namespaces y bindings de Kyverno, Linkerd, cert-manager y ESO (nuevos K0x) | Q10, Q12, Q9 |
+| Egress nuevo: ESO → bóveda de secretos del banco (solo producción). **Resuelto**: F74 | Q9 |
+| ~~Destino de almacenamiento de objetos de Loki y Tempo~~ **Resuelto** por INF-U1-03: MinIO in-cluster, sin egress nuevo (F66, F67) | Q8 |
+| ~~model-store sobre la API S3: in-cluster o del banco~~ **Resuelto** por INF-U1-03: MinIO in-cluster en `vectra-data` | Q6 |
+| ~~Namespaces y bindings de Kyverno, Linkerd, cert-manager y ESO~~ **Resuelto** por INF-U1-06 y los bindings K07–K11 | Q10, Q12, Q9 |
+
+Los cuatro quedaron resueltos en el Infrastructure Design de U1 (anotado el 2026-10-08).
 
 ## 7. Cumplimiento de extensiones (NFR Requirements U1)
 

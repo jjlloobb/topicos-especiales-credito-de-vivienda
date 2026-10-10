@@ -35,7 +35,7 @@ infraestructura compartida de U1. Los IDs `INF-U4-xx` se referencian en el plan 
 - En kind, el bucket vive en MinIO con object lock.
 
 ### INF-U4-03 — Rol `gov_archiver`
-Permisos en `governance-db`: `SELECT` sobre `model_versions` y `model_transitions`, y
+Permisos en `governance-db`: `SELECT` sobre `model_versions` y `transitions` (tabla única de transiciones, precisada el 2026-10-06), y
 `UPDATE (archived_uri, archived_at)` sobre `model_versions` (permiso por columna). Sin
 permiso sobre `state`. Los triggers de P-U4-06 siguen aplicando.
 
@@ -55,6 +55,14 @@ Egress:
 | F100 | `model-archive` | S3 del banco fuera del sitio, bucket `vectra-model-archive` (WORM `COMPLIANCE`, 10 años) | 443 | Artefactos de modelo y explicadores; **sin datos de solicitantes** |
 
 Los demás flujos del servicio ya existían (F11, F18, F24, F25, F27, F30–F32, F41, F47, K01).
+
+**F27 (`freeze`)** (precisado el 2026-10-10 por U9 Infrastructure Design Q4): la `AuthorizationPolicy` de Linkerd de la ruta `POST /v1/models/{id}/freeze` admite **solo** la identidad `bias-monitoring-job` (ServiceAccount del CronJob de U9); la `NetworkPolicy` admite solo los pods del CronJob. El servicio HTTP de bias queda bloqueado en L7 aunque tuviera un token válido.
+
+### INF-U4-05 — Versión activa en KServe de staging para `source_comparison` (segunda revisión del FD de U9, 2026-10-08)
+- X08 impide que el `model-validation-job` llame a `vectra-serving`. Para comparar una fuente, el ingeniero abre un PR en el repositorio GitOps que agrega a los values de staging de U6 un `InferenceService` **solo predictor** (sin explicador) con el artefacto de la versión `activo`, tomado del model-store; se aplica con sync manual (AUTONOMIA-01), igual que el de la candidata. Al terminar la comparación, otro PR lo retira.
+- Recursos: los de un predictor de staging de U6 (250m / 256 MiB; 1 CPU / 512 MiB; 1 réplica; `vectra-low`). El aporte a la cuota de `vectra-staging` es **un predictor más** durante la comparación; U1 lo suma (NFR-U1-13, Paso 6 de su plan).
+- `start_source_comparison` comprueba que existan los dos `InferenceService` (BR-U4-13); si no, 409.
+- **Verificación**: `conftest` sobre los values de staging (el `InferenceService` de la versión activa es solo predictor, 1 réplica, `vectra-low`); en kind (operador), una comparación completa con el modelo de referencia y su variante dentro de NFR-U4-12.
 
 ## 4. Cambios aplicados a otros artefactos
 
