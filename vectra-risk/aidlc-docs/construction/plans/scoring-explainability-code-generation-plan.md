@@ -16,7 +16,7 @@
 | Historias (dueña) | US-103, US-104, US-105, US-106, US-109, US-110, US-111, US-113, US-207 |
 | Ubicación | `vectra-risk/scoring-explainability/` (dos servicios) y Applications en `vectra-risk-gitops` |
 | Datos propios | Ninguno: servicios sin estado, cachés en memoria |
-| Depende de | U0 (tipos, `check_preconditions`/`build_outcome`, `create_app`, `deps` con deadline y circuit breaker, `vectra_common.deadline`), U1 (plataforma, cuotas, `flows.yaml`, supply chain), U2 (clientes `scoring-service` y `explainability-service`), U3 (append con idempotencia, proyección `explanation` por `seq`), U4 (`serving-config`, diccionario F103), U5 (conjuntos RT-1/RT-3/RT-4 como fixtures), U6 (`:predict`, `:explain`) |
+| Depende de | U0 (tipos, con `received_at` y `first_evaluation` en `ScoringRequest` y en el payload de `recommendation`, `check_preconditions`/`build_outcome`, `create_app`, `deps` con deadline y circuit breaker, `vectra_common.deadline`), U1 (plataforma, cuotas, `flows.yaml`, supply chain), U2 (clientes `scoring-service` y `explainability-service`), U3 (append con idempotencia, proyección `explanation` por `seq`), U4 (`serving-config`, diccionario F103), U5 (conjuntos RT-1/RT-3/RT-4 como fixtures), U6 (`:predict`, `:explain`) |
 | Lo consumen | case-service (U8, F15), console-bff (U10, F12), U12 (carga y RT) |
 
 **Diseño de entrada:**
@@ -182,6 +182,7 @@ vectra-risk/scoring-explainability/
   - Secuencia de BR-U0-08 con `check_preconditions` y `build_outcome` de U0:
     - presupuesto previo al registro de 700 ms, con `deadline=` en cada llamada y `x-vectra-deadline` hacia explainability;
     - append de la `recommendation` con `idempotency_key` = UUID v4 generado al recibir cada `POST /v1/recommendations`, **nunca** derivado de `case_id` ni de `attempt`, y reutilizado solo por el reintento de ese append: 2 intentos, solo ante 503, timeout o error de conexión, sin reintento con el circuito abierto (BR-U7-15; precisado el 2026-10-06, revisión del FD de U8);
+    - el payload de la `recommendation` copia de la `ScoringRequest` `received_at`, `policy_inputs.channel` (como `channel`), `attempt` y `first_evaluation`, sin recalcularlos (BR-U7, paso 7; U0 §5.3; los usa U11; revisión de coherencia entre unidades, 2026-10-10);
     - un 409 de idempotencia → `registry_unavailable` + `registry.idempotency_conflict`;
     - `fail_closed` best effort de 250 ms, con **otro** UUID v4 de la misma solicitud y solo `cause` (nunca `local_cause` ni `escalated_at`, BR-U7-16, BR-U0-38).
   - Métricas:
@@ -201,6 +202,7 @@ vectra-risk/scoring-explainability/
       - `serving-config` congelado **y** versión pedida distinta → `FailClosed(model_frozen)` (no `version_mismatch`), sin llamadas (BR-U7-01; precisado el 2026-10-06, revisión del FD de U8);
       - dos solicitudes del mismo caso con el mismo `attempt` (p. ej. tras un `retry`) → llaves distintas, ninguna derivada de `case_id` ni de `attempt`; el reintento del append de una solicitud reutiliza su llave, y su `fail_closed` usa otra (precisado el 2026-10-06, revisión del FD de U8);
       - la entrada `fail_closed` que escribe scoring lleva `cause` y no lleva `local_cause` ni `escalated_at` (BR-U7-16; precisado el 2026-10-06, revisión del FD de U8);
+      - la `recommendation` registrada lleva `received_at`, `channel`, `attempt` y `first_evaluation` iguales a los de la `ScoringRequest`; con `first_evaluation = false` y `attempt = 2` el payload los conserva; la entrada `fail_closed` no los lleva (revisión de coherencia entre unidades, 2026-10-10);
       - registro sin réplica → `FailClosed(registry_unavailable)` sin recomendación entregada (US-113);
       - registro que falla una vez → dos llamadas con la misma llave y una entrada;
       - registro que confirma a los 2,6 s en los dos intentos → `FailClosed`, la entrada existe y `abandoned` = 1;

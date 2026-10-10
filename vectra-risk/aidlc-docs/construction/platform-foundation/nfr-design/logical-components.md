@@ -117,12 +117,13 @@ Wave 5:   restore-drill -> lee S3, crea cluster efímero, verify_chain, empuja m
 | `PostgresReplicaLag` | SEV2 | NFR-U1-32 |
 | `CertificateExpiringSoon` | SEV2 / SEV1 | P-U1-03 |
 | `RecommendationSLOBurnFast` / `Slow` | SEV2 / SEV3 | P-U1-11 |
-| `FailClosedPersistente` | SEV2 | P-U1-11 |
-| `AuthDeniedBurst` | SEV2 | SECURITY-14 |
+| `FailClosedPersistente` (`max(vectra_cases_failclosed_persistent) > 0` durante 1 min; gauge de U8) | SEV2 | P-U1-11; US-112 (tercera revisión de coherencia entre unidades, 2026-10-10) |
+| `AuthDeniedBurst` | SEV2 | SECURITY-14; **definida en U2** (P-U2-09, con sus eventos de Keycloak y los 401/403 de U0): la `PrometheusRule` de U1 no la incluye, para no duplicarla (segunda revisión de coherencia entre unidades, 2026-10-10) |
 | `PostgresConnectionsHigh` (> 80 %) | SEV3 | P-U1-08 |
 | `PostgresVolumeUsageHigh` (> 80 % SEV3; > 90 % o sin serie SEV2; agregada el 2026-10-08) | SEV3 / SEV2 | INF-U1-02 |
 | `HPAMaxedOut` | SEV3 | NFR-U1-32 |
 | `PushgatewayDown` (`up{job="pushgateway"} == 0` o `absent()` durante 5 min; sin él no llegan las métricas de `restore-drill` ni de bias; tercera revisión del FD de U9, 2026-10-10) | SEV2 | P-U1-05 |
+| `GrafanaFolderPermissionsDrift` | SEV3 | Los permisos de una carpeta de Grafana difieren de `folder-permissions.yaml`; los compara el CronJob de permisos de carpetas (F110; U11 BR-U11-13, U9 INF-U9-05). Runbook `grafana-folder-permissions-drift` (revisión de coherencia entre unidades, 2026-10-10) |
 | `Watchdog` | latido | P-U1-07 |
 
 ## 4. Pendiente para Infrastructure Design de U1

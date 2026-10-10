@@ -67,13 +67,13 @@ Cortes: `channel` y `outcome` en todas las métricas de decisión; `model_versio
 | Serie | Etiquetas |
 |---|---|
 | `vectra_product_north_star_decisions` (conteo) | `period` (`day`, `30d`, `month_to_date`, `month`), `month` (`AAAA-MM`, solo con `period="month"`; NFR Requirements de U11, 2026-10-10), `part` (`numerator`, `denominator`), `channel`, `outcome`, `model_version_id` |
-| `vectra_product_north_star_ratio` | `period`, y **una sola** de `channel`, `outcome` o `model_version_id` con su valor, las otras en `all`; o las tres en `all` (total) |
-| `vectra_product_north_star_breakdown` (conteo) | `period`, `kind` (`sustentada`, `cambiada`, `revision_resuelta`), `channel`, `outcome` |
-| `vectra_product_explanation_view_decisions` (conteo) | `period` (`7d`), `part`, `channel` |
-| `vectra_product_explanation_view_ratio` | `period` (`7d`), `channel` (un valor o `all`) |
+| `vectra_product_north_star_ratio` | `period`, `month` (`AAAA-MM`, solo con `period="month"`; pendientes posteriores al cierre, 2026-10-10), y **una sola** de `channel`, `outcome` o `model_version_id` con su valor, las otras en `all`; o las tres en `all` (total) |
+| `vectra_product_north_star_breakdown` (conteo) | `period`, `month` (`AAAA-MM`, solo con `period="month"`; pendientes posteriores al cierre, 2026-10-10), `kind` (`sustentada`, `cambiada`, `revision_resuelta`), `channel`, `outcome` |
+| `vectra_product_explanation_view_decisions` (conteo) | `period` (`7d`), `part`, `channel`; sin `month`, porque solo tiene la ventana de 7 días (pendientes posteriores al cierre, 2026-10-10) |
+| `vectra_product_explanation_view_ratio` | `period` (`7d`), `channel` (un valor o `all`); sin `month` (pendientes posteriores al cierre, 2026-10-10) |
 | `vectra_product_noise_days_below_floor` | — |
-| `vectra_product_sustained_decisions` (conteo) | `period`, `part`, `channel`, `outcome` |
-| `vectra_product_recommendation_sustained_ratio` | `period`, y `channel` u `outcome` con su valor y el otro en `all`; o los dos en `all` |
+| `vectra_product_sustained_decisions` (conteo) | `period`, `month` (`AAAA-MM`, solo con `period="month"`; pendientes posteriores al cierre, 2026-10-10), `part`, `channel`, `outcome` |
+| `vectra_product_recommendation_sustained_ratio` | `period`, `month` (`AAAA-MM`, solo con `period="month"`; pendientes posteriores al cierre, 2026-10-10), y `channel` u `outcome` con su valor y el otro en `all`; o los dos en `all` |
 | `vectra_product_origination_seconds` | `quantile` (`0.5`, `0.8`, `0.95`), `standard` (`true`) |
 | `vectra_product_origination_standard_under_target_ratio` | — |
 | `vectra_product_unattributable_decisions` | `period` |
@@ -88,7 +88,7 @@ Cortes: `channel` y `outcome` en todas las métricas de decisión; `model_versio
 |---|---|
 | `vectra_product_cycle_duration_seconds` (histograma) | `kind` (`incremental`, `full`) |
 | `vectra_product_entries_read_total` (contador) | `kind` (`incremental`, `full`) |
-| `vectra_product_last_full_recompute_timestamp` | — |
+| `vectra_product_last_full_recompute_timestamp` | — (no se emite hasta la primera pasada completa exitosa; nunca 0; pendientes consolidados, 2026-10-10) |
 | `vectra_product_full_pass_in_progress` | — (revisión del NFR Design de U11, 2026-10-10) |
 | `vectra_product_cycles_skipped_total` (contador) | — (revisión del NFR Design de U11, 2026-10-10) |
 | `vectra_circuit_state` (de U0) | `dependency` (`decision-registry`) |

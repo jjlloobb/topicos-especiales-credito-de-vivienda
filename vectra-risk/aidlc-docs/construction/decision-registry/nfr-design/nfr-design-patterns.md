@@ -118,9 +118,9 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 | `RegistryOnDemandCheckFailed` | SEV3 | BR-U3-13b: una fila pasa a `fallida`, del CRO o mensual (`increase(vectra_registry_integrity_checks_failed_total[15m]) > 0`, sin `for`) |
 | `RegistryOnDemandCheckStuck` | SEV3 | BR-U3-13b: una fila `pendiente` con más de 10 min (`vectra_registry_integrity_check_pending_age_seconds > 600`, `for: 5m`): el CronJob no corre |
 | `RegistryFullVerificationOverdue` | SEV3 | BR-U3-13b: la última `full` `terminada` tiene más de 35 días (`vectra_registry_last_full_verification_age_seconds > 3024000`) (segunda revisión del Infrastructure Design de U10, 2026-10-10) |
+| `MonitoringAggregatorStale` | SEV2 | BR-U3-17: `max(vectra_registry_monitoring_lag_seconds) > 1800` durante 5 min, o `absent()` de la serie durante 15 min (segunda revisión del FD de U9, 2026-10-08) |
 
 **Emisor de las métricas de la verificación bajo demanda** (segunda revisión del Infrastructure Design de U10, 2026-10-10): `decision-registry-service` las calcula cada 60 s con el pool `projections` (réplica), junto al gauge del atraso del agregador, leyendo `integrity_checks`: `vectra_registry_integrity_check_pending_age_seconds` (la `pendiente` más antigua, 0 si no hay), `vectra_registry_last_full_verification_age_seconds` y `vectra_registry_integrity_checks_failed_total` (número de filas `fallida`; crece de forma monótona porque las filas no se borran, así que Prometheus lo trata como un contador). Los CronJobs no publican métricas propias de esto: el estado vive en la tabla.
-| `MonitoringAggregatorStale` | SEV2 | BR-U3-17: `max(vectra_registry_monitoring_lag_seconds) > 1800` durante 5 min, o `absent()` de la serie durante 15 min (segunda revisión del FD de U9, 2026-10-08) |
 
 - Toda alerta tiene `runbook_url` (P-U1-10).
 - **Verificación**: `promtool test rules decision-registry/observability/rules/tests/*.yaml` y el test de runbooks de U1.

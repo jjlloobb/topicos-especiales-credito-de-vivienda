@@ -63,7 +63,7 @@ vectra-risk/product-metrics/
   - **Aceptación**: `uv sync --frozen && uv run lint-imports --config product-metrics/.importlinter && make -C product-metrics check` sobre el esqueleto.
 
 - [ ] **Paso 2 — Constantes y parámetros**
-  - `config.py`: ciclo de 5 min, 02:30 UTC + desfase de 0 a 10 min, plazo de 75 min, reintentos de la completa (15 min, 6 veces), timeout de 5 s, página de 1 000, breaker propio (3 fallos seguidos, semiabierto a los 60 s, 1 éxito), ventanas de 35 días y 6 meses.
+  - `config.py`: ciclo de 5 min, 02:30 UTC + desfase de 0 a 10 min, plazo de 75 min, reintentos de la completa (15 min, 6 veces), timeout de 5 s, página de 1 000, parámetros del breaker de `deps.call` en modo `consecutive_failures` de U0 (`consecutive_failures=3`, `open_for=60s`, `close_after=1`; pendientes consolidados, 2026-10-10), ventanas de 35 días y 6 meses.
   - `params.py`: lee el `ConfigMap` de `values-product-metrics-policy.yaml` (F, S, N y targets) y falla al arrancar con un valor fuera de rango.
   - Diseño: BR-U11-09, 11; NFR-U11-04, 09; P-U11-01, 02.
   - **Aceptación**: `uv run pytest product-metrics/tests/unit/test_config.py test_params.py` (valores de la tabla; rangos dentro y fuera; ninguna constante desde variables de entorno).
@@ -78,7 +78,7 @@ vectra-risk/product-metrics/
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest product-metrics/tests/property/test_compute.py tests/property/test_noise.py tests/unit/test_compute_examples.py`: PBT-U11-01, 03, 04, 06 y 07; las pruebas de ejemplo de business-logic-model §3 que no dependen de E/S.
 
 - [ ] **Paso 4 — `state` y `reader`**
-  - `reader`: `GET /v1/entries?projection=metrics&entry_type=human_decision&…&seq_after=…&limit=1000` con `deps.call` y el breaker propio; una página a la vez bajo un `asyncio.Lock` único; nunca avanza `last_seq` más allá de la última página confirmada.
+  - `reader`: `GET /v1/entries?projection=metrics&entry_type=human_decision&…&seq_after=…&limit=1000` con `deps.call` y su breaker en modo `consecutive_failures` (U0 NFR-U0-23 (i); no hay breaker propio en U11; pendientes consolidados, 2026-10-10); una página a la vez bajo un `asyncio.Lock` único; nunca avanza `last_seq` más allá de la última página confirmada.
   - `state`: pasada completa en una sola lectura desde el día 1 del sexto mes cerrado − 1 día, plegando cada página en los contadores por mes y guardando solo las decisiones de 35 días; estado nuevo construido aparte y reemplazo atómico; después, lectura incremental desde el `last_seq` de la pasada.
   - Diseño: BR-U11-11; P-U11-01, 02, 04; NFR-U11-01, 02, 09..12.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest product-metrics/tests/property/test_state_machine.py tests/integration/test_reader.py` (doble de U3):
@@ -102,10 +102,11 @@ vectra-risk/product-metrics/
   - Allowlist de series y etiquetas de domain-entities §5 (producto y operación).
   - Diseño: P-U11-02, 03; INF-U11-01; NFR-U11-07, 08, 40.
   - **Aceptación**: `uv run pytest product-metrics/tests/integration/test_process.py tests/integration/test_collector.py`:
-    - arranque con U3 caído → series de operación sí, de producto no, `/readyz` 503 hasta que el breaker abre y 200 después; al cerrarse el breaker sin instantánea → 503;
+    - arranque con U3 caído → series de operación sí (sin `vectra_product_last_full_recompute_timestamp` hasta la primera pasada completa exitosa; pendientes consolidados, 2026-10-10), de producto no, `/readyz` 503 hasta que el breaker abre y 200 después; al cerrarse el breaker sin instantánea → 503;
     - primera pasada que vence su plazo de 75 min con U3 lento pero sin 3 fallos seguidos (reloj simulado) → `/readyz` 503 (revisión del plan de tareas de U11, 2026-10-10);
     - `SIGTERM` durante una pasada: no toma ciclos nuevos, termina la página en curso en ≤ 10 s, descarta la pasada a medias (el estado vigente queda intacto) y sale con código 0 (revisión del plan de tareas de U11, 2026-10-10);
-    - desfase de la pasada diaria: con relojes y semillas simuladas, el inicio cae entre las 02:30 y las 02:40 UTC y dos réplicas con semillas distintas no empiezan en el mismo minuto salvo con la probabilidad esperada (NFR-U11-04; revisión del plan de tareas de U11, 2026-10-10);
+    - desfase de la pasada diaria: con relojes simulados y semillas fijas, el desfase uniforme cae en [0, 600] s en 10 000 sorteos, el inicio entre las 02:30 y las 02:40 UTC, dos semillas fijas distintas dan desfases distintos y la misma semilla repite la secuencia; sin umbrales estadísticos (NFR-U11-04; revisión del plan de tareas de U11, 2026-10-10; prueba determinista, pendientes posteriores al cierre, 2026-10-10);
+    - etiqueta `month`: las series con `period="month"` (North Star, desglose, sostenida y sus razones) la llevan con `AAAA-MM`; ninguna otra `period` la lleva; las de consulta de explicación no la tienen (pendientes posteriores al cierre, 2026-10-10);
     - reintentos de la pasada completa: con U3 fallando y reloj simulado, 6 reintentos cada 15 min y después ninguno hasta la del día siguiente, con el estado incremental intacto (NFR-U11-09; revisión del plan de tareas de U11, 2026-10-10);
     - un scrape durante el reemplazo → solo valores de un ciclo;
     - un ciclo durante la pasada → omitido y contado;
@@ -148,12 +149,15 @@ vectra-risk/product-metrics/
 
 - [ ] **Paso 12 — Reglas generadas y alertas**
   - `tools/gen_rules.py` genera, desde `vectra_contracts.catalog.FailClosedCause`, la regla `vectra:product_desync_failclosed:rate1h`, y desde la allowlist, las recording rules `:dedup`.
-  - `PrometheusRule` del chart con `vectra:product_complete_response_ratio:1h` y `:1d`, las `:dedup` y las alertas de P-U11-06 (`RuidoExplicacion` con S del archivo; `ProductMetricsStale` y `ProductMetricsFullRecomputeMissing` con `up … unless on (pod)` y sin disparar durante la pasada).
+  - `PrometheusRule` del chart con `vectra:product_complete_response_ratio:1h` y `:1d`, las `:dedup` y las alertas de P-U11-06 (`RuidoExplicacion` con S del archivo; `ProductMetricsStale` y `ProductMetricsFullRecomputeMissing`, cada una en dos reglas: edad con `for: 0` y ausencia con `up … unless on (pod)` y `for` de 30 min y 26 h, las dos sin disparar durante la pasada; pendientes posteriores al cierre, 2026-10-10). `GrafanaFolderPermissionsDrift` no va aquí: es de U1.
   - Diseño: BR-U11-06, 14; P-U11-05, 06; NFR-U11-06, 08, 32.
   - **Aceptación**: `uv run python product-metrics/tools/gen_rules.py --check`; `promtool test rules product-metrics/observability/rules/tests/*.yaml`:
     - cada alerta a los dos lados del umbral;
     - una réplica sin la serie y la otra con ella (las dos con `up = 1`) → `ProductMetricsStale` solo para la primera;
-    - la pasada en curso → no dispara;
+    - la pasada en curso → no dispara ninguna rama;
+    - la rama de edad dispara al superar el umbral sin esperar un `for`; la de ausencia, solo tras su `for`;
+    - la `PrometheusRule` de U11 tiene exactamente cuatro `alertname`;
+    - réplica recién arrancada con U3 caído (`up = 1`, sin `vectra_product_last_full_recompute_timestamp`) → `ProductMetricsFullRecomputeMissing` no dispara al arrancar ni a las 25 h, y dispara por la rama de ausencia a las 26 h; con la serie en 0 dispararía de inmediato, por eso el `Collector` no la emite (pendientes consolidados, 2026-10-10);
     - dos réplicas idénticas → una sola `RuidoExplicacion`;
     - `vectra:product_complete_response_ratio:1h` con 98 y 2 → 0,98.
 
@@ -177,7 +181,7 @@ vectra-risk/product-metrics/
 ### Bloque F — Verificación en kind (con aprobación humana)
 
 - [ ] **Paso 16 — Puerta de aprobación y escenarios en kind**
-  - **Requisito previo**: un PR con los Pasos 1–15 aprobado por un humano, con U1–U3, U7 y U8 instalados en kind y los datos de demostración de U12 (pendiente para U12).
+  - **Requisito previo**: un PR con los Pasos 1–15 aprobado por un humano, con U1–U3, U7 y U8 instalados en kind y los datos de demostración de U12: 2 000 casos `normal` decididos (U12 BR-U12-06 y plan, Paso 6; pendientes consolidados, tercera tanda, 2026-10-10).
   - El operador ejecuta, con evidencia:
     1. la suite de conectividad de U1 con los casos de INF-U11-04, incluido `/readyz` del kubelet;
     2. E1–E8 de P-U11 §3 con las unidades reales;

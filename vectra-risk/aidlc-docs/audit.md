@@ -3221,3 +3221,276 @@ Step-up de MFA sin navegador. La reactivación de RT-2 depende de él. Hay que f
 **Context**: CONSTRUCTION cerrada en los planes de tareas.
 
 ---
+## Pendientes tras el cierre de CONSTRUCTION — Solicitud
+**Timestamp**: 2026-10-10T17:56:06Z
+**User Input**: "realizar estos pendientes
+
+U12 (plan de tareas y diseño)
+deployment-architecture §2 todavía pone el PR de los Jobs como paso 1. Falta prepare. NFR-U12-30 tampoco lista prepare entre las secciones.
+El Job de RT-5 no tiene la regla de frescura (mismo runId y completionTime posterior a started_at). El Paso 8 no la menciona.
+El Paso 13 no aclara qué runId guarda el manifiesto (x04, x06 y RT-5).
+prepare debe negarse a correr si ya existe un manifiesto de esa verificación. Si no, se reinicia started_at a mitad de camino.
+Chequeos de NFR sin paso:
+Cobertura ≥ 85 % en el resto del código (NFR-U12-40).
+Tiempo medido en el informe (NFR-U12-31).
+Solicitudes repetidas en el manifiesto (NFR-U12-11).
+Consultas de Prometheus y Loki guardadas como evidencia (NFR-U12-50).
+k6 está en la imagen, pero el diseño lo quiere en un contenedor aparte de 2 CPU y 2 GiB. El README no dice cómo llegan el kubeconfig y la sesión de Vault al contenedor sin escribirse en disco.
+Las demos US-304, 503, 504 y 505 (§1 y trazabilidad) no aparecen en domain-entities §4. Hay que citar su origen o quitarlas.
+Login con Playwright:
+Keycloak rechaza reusar un código TOTP en la misma ventana de 30 s, así que dos logins seguidos de cumplimiento-1 deben esperar a la ventana siguiente.
+Chromium sin privilegios necesita resolver el sandbox.
+Infrastructure Design de U12 (menores)
+La regla de K16 que rechaza delete y exec debe aplicarla conftest, no disallow-rbac-wildcards.
+Textos viejos “K01–K14” en component-dependency §9.4 y en application-design (SECURITY-06 y encabezado).
+El §4 de registry_app no menciona x06-probe. El §1 del contenido de vectra-app omite los Jobs de prueba.
+U3, Pasos 12, 13 y 15: siguen diciendo “sin/solo con monitoringRebuild.runId”. El Paso 13 debe nombrar F111 en la aceptación.
+platform/rbac/ no está en el árbol de U1.
+El grupo de operadores de K16 no está definido.
+No está claro si el Job de X04 envía un token.
+deployment-architecture no describe el camino estación → gateway (IP, host, CA) ni quién hace commit y abre el PR de evidencia.
+generate.py necesita un tipo de origen externo para F07. Hay que revisar las cuotas de U8 y de vectra-mock.
+Confirmar que la proyección metrics de U3 devuelve case_id y recorded_at, y que FreezeSummary expone el recorded_at del freeze.
+U9 Paso 12 y U3 Paso 12 no nombran el conftest de los Jobs de prueba en la aceptación. U2 Paso 3 no tiene casos nombrados de realm-lint para verification-reader.
+Heredados de otras unidades
+U0
+Falta el breaker de deps.call (3 fallos seguidos, semiabierto a los 60 s, 1 éxito), con test_deps.py y una extensión de PBT-U0-14.
+test_ops_server.py no está en la aceptación del Paso 10, y ops_server.py no está en el árbol del Paso 1.
+U1
+El Paso 3 no nombra F109 ni F110.
+El Paso 6 conserva las cifras de 3 pods de U11 y U9, sin el margen del 30 %.
+Falta un caso nombrado de require-hpa-bounds para product-metrics.
+Falta una nota en el runbook sobre la sincronización de U11 (≈ 2,5 h).
+U2: faltan casos nombrados de realm-lint para product-metrics y para el MFA de operacion.
+U3
+Faltan pruebas de paginación (límite > 1 000 → 422; next_seq_after nulo al final) y seq_after en EntryFilter.
+registry_ondemand no está en el Paso 2 ni en §1.2.
+Falta la prueba first_evaluation en el Paso 8.
+Falta el runbook RegistryOnDemandCheckStuck.
+U8: faltan cases.ever_degraded, received_at y first_evaluation.
+U11
+for de ProductMetricsStale.
+Texto viejo de absent().
+Exclusión del full-pass.
+NFR-U11-04.
+Casos de readiness de NFR-U11-07.
+GrafanaFolderPermissionsDrift frente a las cuatro alertas.
+La etiqueta month."
+**AI Response**: Pendientes aplicados (2026-10-10T18:05:37Z), cada cambio marcado «pendientes posteriores al cierre, 2026-10-10»:
+- U12: `prepare` en deployment-architecture y NFR-U12-30; frescura de RT-5; `runId` del manifiesto; `prepare` rechaza si ya hay manifiesto; pasos para ≥ 85 % de cobertura, tiempo por sección, solicitudes repetidas y consultas guardadas; k6 en su propio contenedor `grafana/k6`; credenciales en el README; demostraciones de US-304 y US-503..505; espera de la siguiente ventana TOTP en Playwright; sandbox de Chromium por perfil seccomp (nunca `--no-sandbox`); camino de la estación (§2b).
+- Inventario y U1: F109, F110, F111 y K16 (con regla `conftest`), textos de K01–K14 y K16, filas `registry_app`, `registry_ondemand` y `vectra-app`, origen externo de F07; Paso 6 con las cifras de U8, U9 y U11 y el margen del 30 %; caso `require-hpa-bounds` de `product-metrics`; nota de sync de ≈ 2,5 h; `rbac/verification-operator/` en el árbol.
+- U2: casos de `realm-lint` para `verification-reader`, `product-metrics` y MFA de `operacion`.
+- U0: modo `consecutive_failures` del breaker (NFR-U0-23 (i), PBT-U0-14, logical-components, Paso 10 con `test_deps.py`); `test_ops_server.py` en la aceptación del Paso 10; `deadline.py`, `process.py` y `ops_server.py` en el árbol; `EntryFilter` y `Page.next_seq_after` en domain-entities §9.6 con su prueba en el Paso 3.
+- U3: `registry_ondemand` y sus grants en el Paso 2 (ya estaba en domain-entities §1.2); pruebas de paginación y de `first_evaluation` en el Paso 8; `runId` independiente de `probes.runId`; F111 y `conftest` de `x06-probe`; `recorded_at` en `monitoring_freezes`; Paso 14 con 15 alertas (14 filas) y los runbooks que faltaban (`registry-full-verification-overdue`, `registry-verification-failed`, `checkpoint-export-failed`, `registry-entry-large`); fila `MonitoringAggregatorStale` devuelta a la tabla de P-U3-09.
+- U8: columna `cases.ever_degraded` (Paso 3); `received_at` y `first_evaluation` en el `ScoringRequest` (Paso 15) con pruebas; Job `rt5-demo-<runId>` (Paso 20 e INF-U8-03), sin TTL, con `conftest`; cuotas de INF-U8-05 recalculadas.
+- U9: `x04-probe` con token y 403 de Linkerd; cuota de 4 pods.
+- U11: `ProductMetricsStale` y `ProductMetricsFullRecomputeMissing` en dos reglas (edad `for: 0`, ausencia `for: 30m` / `26h`), las dos excluyen la pasada, coherente en BR-U11-14, NFR-U11-08, NFR-U11-42 y P-U11-06; textos de `absent()` retirados; `GrafanaFolderPermissionsDrift` marcada como de U1 (U11 tiene cuatro alertas); NFR-U11-04 con prueba determinista; NFR-U11-07 con los casos de readiness; etiqueta `month` en domain-entities §5.
+- `aidlc-state.md`: fila nueva en «Revisiones posteriores a la aprobación».
+**Context**: Pendientes posteriores al cierre de CONSTRUCTION.
+
+---
+
+---
+
+## Consulta de estado tras los pendientes
+**Timestamp**: 2026-10-10T18:15:43Z
+**User Input**: "cual es su estado"
+**AI Response**: Estado informado: INCEPTION completa; CONSTRUCTION cerrada en el plan de tareas de U0–U12 (Code Generation Part 2, Build and Test y OPERATIONS fuera de alcance por instrucción del usuario); lote de pendientes posteriores al cierre aplicado; cambios sin commit en el repositorio.
+**Context**: Consulta de estado; sin cambios a los documentos de diseño.
+
+---
+
+## Pendientes consolidados — Solicitud
+**Timestamp**: 2026-10-10T19:09:46Z
+**User Input**: "pendiente consolidados
+
+U12 (infrastructure-design, deployment-architecture, plan)
+rt5-demo solo en kind. INF-U12-02 acota a kind solo x04-probe y x06-probe. Hay que decir “los tres Jobs” y agregar el conftest de U8 que rechaza probes.runId en staging y producción.
+Formato del runId. Falta fijar AAAAMMDD-HHMM, derivado de started_at, con una prueba. El check de GitOps de U3 lo exige.
+Tres Applications. El parche de prepare toca los values de U9, de U3 (chart-rebuild/) y de U8. Hay que sincronizar tres Applications, y lo mismo vale para el Paso 18 del plan y el README.
+Dónde corre k6. Unificar en que siempre va en su propio contenedor, lanzado por el operador. NFR-U12-01 dice “si la estación no alcanza”, y el diagrama dice siempre. El k6 inspect del Paso 11 necesita k6 en CI.
+port-forward a un Service. K16 no da get sobre services. Agregarlo en vectra-app y vectra-observability, o aclarar que el port-forward va al pod.
+Oráculo de RT-5. auth can-i para tres identidades exige impersonación, que K16 no tiene, e INF-U8-03 solo demuestra una. Usar el 403 del proxy, la alerta y el contador en 0. Las otras dos identidades las cubre X01.
+FreezeRecord.recorded_at. Confirmar que U12 lee el recorded_at de la entrada freeze (el sobre). Si es así, U0 no cambia.
+Redacción del plan. Frase suelta en el Paso 15 (“construida, escaneada, con SBOM y firmada…”).
+Cobertura. El Paso 16 no tiene el comando --cov-fail-under=85.
+Modelo de lógica §2.2. Dice “TOTP desde ESO”, y NFR-U12-04 dice Vault.
+U8 (infrastructure-design y plan)
+ever_degraded sin permiso. Agregar la columna al UPDATE de case_worker en INF-U8-01 y en component-dependency §4. No debe estar en el de case_app. Verificación: el worker la pone en true, case_app recibe error de permisos y el trigger impide volver a false.
+rt5-demo en staging. INF-U8-03 y el Paso 20 del plan dicen “kind y staging”. Debe ser solo kind. El conftest debe rechazar también staging y no solo producción.
+Memoria de vectra-mock. Los limits dicen 749 MiB. Con el proxy de 128 MiB da ≈ 998 MiB (3 × 256 × 1,3). Corregir también en U1 Paso 6.
+U9
+x04-probe en el Infrastructure Design. Falta un bullet en INF-U9-04, otro en §7 y una fila en §6, con el runId, solo kind y el conftest. INF-U12-02 ya describe el Job completo.
+U11
+“Breaker propio”. Aparece en P-U11-01, NFR-U11-09 y los Pasos 2 y 4 del plan. Debe decir que usa deps.call en modo consecutive_failures de U0, con 3 fallos, 60 s y 1 éxito.
+last_full_recompute_timestamp al arrancar. Debe no emitirse hasta la primera pasada exitosa. Si arranca en 0 con U3 caído, ProductMetricsFullRecomputeMissing dispara de inmediato. Agregar un caso de promtool.
+35 o 36 días. BR-U11-11 dice “36 días” en la recomputación diaria y todo lo demás dice 35.
+Cosmético
+E8 aparece antes de E6 en P-U11 §3."
+**AI Response**: Pendientes consolidados aplicados (2026-10-10), cada cambio marcado «pendientes consolidados, 2026-10-10»:
+- U12: «los tres Jobs» (`x04-probe`, `x06-probe`, `rt5-demo`) solo en kind, con `conftest` de U9, U3 y U8 que rechaza `probes.runId` en staging y producción; `runId` `AAAAMMDD-HHMM` de `started_at` en UTC con prueba (Pasos 13 y 18, INF-U12-02); un PR y sync manual de tres Applications (`bias-monitoring`, `decision-registry-rebuild`, `case-management`) en INF-U12-02, deployment-architecture, Pasos 17 (README) y 18; k6 siempre en su contenedor `grafana/k6` (NFR-U12-01, diagrama en texto, Pasos 11, 15 y 16 con `k6 inspect` en CI); `port-forward` siempre a un pod (K16 sin `services`); oráculo de RT-5 = 403 del proxy, `CoreWriteAttempt` y contador en 0, sin `auth can-i` de otras identidades (BR-U12-04, Paso 8); `recorded_at` del `freeze` leído del sobre `RegistryEntry` por `GET /v1/entries`: U0 no cambia (INF-U12-03, U3 domain-entities y Paso 8); frase separada en el Paso 15; `--cov-fail-under=85` en el Paso 16; BLM §2.2 con Vault; filas nuevas en INF-U12 §6.
+- U8: `ever_degraded` en el `UPDATE` de `case_worker` (INF-U8-01 y `component-dependency.md` §4), excluida de `case_app`, con pruebas (worker → éxito, `case_app` → permisos, volver a `false` → trigger `guard_ever_degraded`); `rt5-demo` solo en kind con `conftest` que rechaza staging y producción (INF-U8-03, Paso 20); memoria de `vectra-mock` ≈ 998 MiB de limits (3 × 256 × 1,3) en INF-U8-05 y en U1 Paso 6.
+- U9: Job `x04-probe` en INF-U9-04 (bloque propio), §6 y §7; etiqueta de F27 alineada con el inventario (`vectra.io/workload: bias-monitoring-job`).
+- U11: «breaker propio» reemplazado por el breaker de `deps.call` en modo `consecutive_failures` de U0 (3, 60 s, 1) en NFR-U11-09, P-U11-01, INF-U11 y Pasos 2 y 4; `vectra_product_last_full_recompute_timestamp` no se emite hasta la primera pasada completa exitosa, con caso de `promtool` y prueba de `/metrics`; 35 días en BR-U11-11 y P-U11-01; E6–E8 en orden.
+**Context**: CONSTRUCTION cerrada en los planes; lote de correcciones consolidadas.
+
+---
+
+## Pendientes consolidados (segunda tanda) — Solicitud
+**Timestamp**: 2026-10-10T19:21:00Z
+**User Input**: "Pendientes consolidados
+
+U12 system-verification (plan de tareas)
+Paso 5. Dice «port-forward a decision-registry-service». Debe decir «a un pod de» (la regla es port-forward siempre a un pod, nunca a svc/…).
+Paso 15. Dice que la sección load lanza k6, pero NFR-U12-01 y la arquitectura dicen que lo lanza el operador. Falta definir cómo vuelve el resultado: k6 escribe su resumen en el directorio de evidencia montado, y load imprime el comando exacto y lee ese resumen.
+Paso 8 (oráculo de RT-5). rt5 corre horas después del Job, y CoreWriteAttempt usa una ventana de 5 minutos. Hay que anclar la consulta en el completionTime del Job rt5-demo y agregar una prueba.
+Datos de demostración. No hay una línea que fije su volumen para la prueba de U11 en kind (ver U11, punto 1).
+U8 case-management
+INF-U8-03, línea final. Dice «Solo existe en kind y staging, como el mock». Debe decir que la alerta y el mock existen en kind y staging, y que el Job rt5-demo es solo kind.
+§7. Falta una fila que registre los cambios de ever_degraded (permisos de case_worker) y de rt5-demo solo en kind.
+U9 bias-monitoring
+INF-U9-04, secreto de x04-probe. Debe decir que reutiliza el ExternalSecret del CronJob, sin Secret nuevo, como x06-probe.
+INF-U9-04, red. Debe aclarar si F50 (token de Keycloak) selecciona por vectra.io/workload: bias-monitoring-job. Si no, el Job no obtiene token y la prueba da timeout. Falta un caso de conectividad x04-probe → Keycloak permitido.
+INF-U9-01, cuota. Una línea que diga que el pod transitorio de x04-probe no está en los 4 pods y que lo absorbe el margen del 30 %.
+INF-U9-04, verificación. El bloque del probe no tiene su propia línea de «Verificación».
+Plan de U9, Paso 12. No lo re-subiste; no puedo confirmar que tenga la aceptación del conftest de probes.runId.
+U11 product-metrics
+INF-U11-06 y última fila de §7. Siguen diciendo que los datos de demostración de U12 «no están definidos». Se cierra con el punto 4.
+U3 decision-registry
+Fila metrics de domain-entities §3. No menciona el filtro entry_type, el limit (≤ 1 000) ni next_seq_after, que U11 usa. Basta una línea de referencia al Paso 8 del plan."
+**AI Response**: Segunda tanda aplicada (marcas «pendientes consolidados, segunda tanda, 2026-10-10»):
+- U12 plan: Paso 5, `port-forward` a un pod de `decision-registry-service`; Pasos 11 y 15, k6 lo lanza el operador con el comando que imprime `load`, el resumen va a `evidence/…/load/k6-summary-<runId>.json` del directorio montado y `load` lo lee (ausente o viejo → `no ejecutado`); Paso 8, oráculo de RT-5 anclado en [startTime, completionTime + 15 min] del Job `rt5-demo` con `query_range` (alerta, denegaciones de Linkerd, contador del mock en 0), con pruebas y `no ejecutado` si la retención no cubre; Paso 6, volumen de demostración de 2 000 casos `normal` decididos (BR-U12-06).
+- U8: línea final de INF-U8-03 (alerta y mock en kind y staging, `rt5-demo` solo kind); tres filas en §7 (`ever_degraded`, `rt5-demo`, memoria de `vectra-mock`).
+- U9: `x04-probe` reutiliza el `ExternalSecret` del CronJob; F50 selecciona el CronJob y `x04-probe` por `vectra.io/workload: bias-monitoring-job` (INF-U9-04, `component-dependency.md` F50, plan Paso 12) con caso de conectividad `x04-probe` → Keycloak permitido; línea de cuota en INF-U9-01 (pod transitorio absorbido por el 30 %); bloque «Verificación del probe»; Paso 12 con `conftest` que rechaza `probes.runId` en staging y producción y sus fixtures.
+- U11: INF-U11-06 y fila de §6/§7 cerradas con los 2 000 casos de U12.
+- U3: fila `metrics` de domain-entities §3 con `entry_type`, `seq_after`, `limit` ≤ 1 000 y `next_seq_after`, con referencia a U0 §9.6 y al Paso 8.
+**Context**: CONSTRUCTION cerrada en los planes; segunda tanda de correcciones consolidadas.
+
+---
+
+## Pendientes consolidados (tercera tanda) — Solicitud
+**Timestamp**: 2026-10-10T19:26:53Z
+**User Input**: "Pendientes consolidados
+
+U12 system-verification (plan de tareas)
+Paso 8, oráculo de RT-5. Usa increase(inbound_http_authz_deny_total{…}[…]) ≥ 1. La serie de Linkerd nace en 1 con la primera denegación (INF-U8-03 lo explica), así que increase() da 0 y el oráculo diría falla aunque el 403 ocurrió.
+Cambio propuesto: max_over_time(…[t0, t1+15m]) >= 1, o la resta contra offset con or vector(0) de INF-U8-03.
+Agregar una prueba donde la serie nace en 1.
+U11 product-metrics
+Plan, Paso 16. El requisito previo dice «datos de demostración de U12 (pendiente para U12)». Ya están definidos: 2 000 casos del Paso 6 de U12.
+infrastructure-design, INF-U11-06 y última fila de §7. Siguen diciendo «no definidos» en la versión que vi. La auditoría dice que se corrigió, pero falta que re-subas el archivo para confirmarlo.
+U3 decision-registry
+Plan, Paso 8. Dice «aunque la consulta solo pida 36 días» y U11 ya usa 35.
+domain-entities §3, fila metrics. Falta confirmar que tenga entry_type, seq_after, limit ≤ 1 000 y next_seq_after. La auditoría dice que se aplicó, pero la versión que vi es anterior. Falta que la re-subas.
+U9 bias-monitoring (infrastructure-design)
+INF-U9-01, cifras de la cuota. Las cifras de la línea del pod transitorio (≈ 0,24 CPU y 0,17 GiB; ≈ 1,2 CPU y 0,45 GiB) son el tamaño del margen del 30 %, no el del probe. Recalculé el probe: ≈ 0,20 CPU y 0,11 GiB de requests; ≈ 0,91 CPU y 0,33 GiB de limits. Hay que reformular la frase.
+INF-U9-04, lista de flujos. Dice que F27 sale «solo del CronJob», pero la barrera de red 3 también admite a x04-probe en kind. Agregar «y, en kind, de x04-probe».
+§7, último punto. El pendiente del Job x04-probe en el Paso 12 ya está aplicado y puede marcarse como resuelto."
+**AI Response**: Tercera tanda aplicada (marcas «pendientes consolidados, tercera tanda, 2026-10-10»):
+- U12 plan, Paso 8: RT-5 usa `max_over_time(sum(inbound_http_authz_deny_total{…})[t0, t1 + 15 min]) ≥ 1` en lugar de `increase()`, porque la serie nace en 1; pruebas nuevas: serie que nace en 1 y no crece → `pasa`; serie ausente → `falla`.
+- U11 plan, Paso 16: requisito previo con los 2 000 casos de U12 (BR-U12-06, Paso 6). Confirmado con `grep`: INF-U11-06 (línea 120, fila kind de la tabla) y la fila de §6 ya citan los 2 000 casos; no queda «no definidos» ni «pendiente para U12» en U11.
+- U3: Paso 8 con 35 días; confirmado que la fila `metrics` de domain-entities §3 tiene `entry_type`, `seq_after`, `limit` ≤ 1 000 y `next_seq_after`.
+- U9 INF: frase del pod transitorio separada (probe ≈ 0,20 CPU / 0,11 GiB de requests y ≈ 0,91 CPU / 0,33 GiB de limits, frente al margen ≈ 0,24 / 0,17 y ≈ 1,2 / 0,45); F27 «solo del CronJob y, en kind, de `x04-probe`»; último punto de §7 marcado como resuelto.
+**Context**: Tercera tanda de correcciones consolidadas.
+
+---
+
+## Pendientes abiertos — Solicitud
+**Timestamp**: 2026-10-10T19:33:04Z
+**User Input**: "Pendientes abiertos
+
+Son dos y ninguno bloquea la aprobación.
+
+#    Unidad    Dónde    Qué falta    Gravedad
+1    U12    Plan, Paso 8, oráculo de RT-5    max_over_time(sum(...)[t0, t1 + 15 min]) no es PromQL válido sin subconsulta. Hay que fijar una de estas dos formas: max_over_time(sum(...)[ventana:paso]), o query_range con el máximo calculado en el oráculo. Conviene añadir una prueba contra promtool o un Prometheus real.    Menor, pero el oráculo fallaría al ejecutarse.
+2    U3    domain-entities §1.2, tabla de roles    La fila registry_verifier tiene una celda de menos y su «Usado por» quedó dentro de los permisos. La fila registry_ondemand tiene una celda de más. Su «Usado por» («CLI y CronJob de verificación, restore-drill») parece copiado de registry_verifier, porque restore-drill es de solo lectura.    Cosmético, pero la columna puede dar a entender que restore-drill escribe."
+**AI Response**: Aplicados (marca «pendientes abiertos, 2026-10-10»):
+1. U12 plan, Paso 8: el oráculo de RT-5 usa `/api/v1/query_range` con `step = 15s` y expresiones instantáneas válidas (`ALERTS{…}`, `sum(inbound_http_authz_deny_total{…})`, `sum(vectra_core_write_attempts_total)`); el máximo y la presencia se calculan en Python; retención por `prometheus_tsdb_lowest_timestamp_seconds` ≤ t0. Prueba nueva `tests/integration/test_rt5_promql.py` contra un Prometheus real (Testcontainers) sobre un bloque creado con `promtool tsdb create-blocks-from openmetrics`, incluido el caso de la serie que nace en 1; corre en CI (Paso 16).
+2. U3 domain-entities §1.2: fila `registry_verifier` con su celda «Usado por» restituida (pool `projections`, CLI y CronJobs de verificación y archivo en `-ro`, `restore-drill` de solo lectura); fila `registry_ondemand` sin la celda sobrante, con «Usado por» = solo la CLI de `registry-verify-ondemand`, y la aclaración de que ni la API ni `restore-drill` lo tienen. Las cinco filas tienen 3 celdas.
+**Context**: Dos pendientes menores tras la tercera tanda.
+
+---
+
+## Pendientes abiertos (último) — Solicitud
+**Timestamp**: 2026-10-10T19:36:22Z
+**User Input**: "Pendientes abiertos
+
+Queda uno solo. No bloquea la aprobación.
+
+#    Unidad    Dónde    Qué falta    Gravedad
+1    Transversal (U3 y U10)    component-dependency §4, fila registry_ondemand, columna «Usado por»    Dice «Los CronJobs de verificación (registry-verify-*)». Ese comodín incluye registry-verify-incremental y registry-verify-nightly, que leen con registry_verifier en registry-db-ro (F97). Debe decir «el CronJob registry-verify-ondemand», como en F97, domain-entities §1.2 y el Paso 12 del plan de U3.    Menor, solo redacción."
+**AI Response**: Corregida la columna «Usado por» de la fila `registry_ondemand` en `component-dependency.md` §4: «El CronJob `registry-verify-ondemand`» (los demás `registry-verify-*` leen con `registry_verifier` en `registry-db-ro`, F97). La fila `registry_verifier` (pool `projections`, `registry-verify-*`, `registry-archive`, `restore-drill`) no cambia.
+**Context**: Último pendiente abierto, solo redacción.
+
+---
+
+## Revisión de coherencia entre unidades — Solicitud
+**Timestamp**: 2026-10-10T19:40:52Z
+**User Input**: "revisar si las unidades son coherentes para el proyecto"
+**AI Response**: Revisión transversal, sin cambios a los documentos. Controles que pasan: 89 flujos definidos y todas las referencias F existen; bindings K01–K14 y K16 (K15 retirado a propósito); catálogo de scopes de U0 = scopes de los clientes de U2; clientes de Keycloak referenciados existen en U2; rutas `/v1/…` referenciadas existen en component-methods; eventos de log dentro del catálogo de U0 §8.1; cifras del proxy (P-U1-14) iguales en todas las unidades; 49 historias en el mapa de unidades y en algún plan; nombres de K16 y de `probes.runId` / `monitoringRebuild.runId` consistentes; waves 0–6 coherentes.
+Hallazgos: (1) cuota de `vectra-app`: U3 y U4 no declaran aporte y el de U7 (INF-U7-02) no incluye el proxy ni los pods del rollout; (2) el plan de U7 no tiene tarea ni prueba para copiar `received_at`, `channel`, `attempt` y `first_evaluation` al payload de `recommendation` (sí están en BR-U7 y U0 §5.3), y el Paso 3 de U0 no los prueba; (3) «Depende de» del plan de U12 cita la proyección `monitoring`, retirada; (4) la matriz de unit-of-work-dependency §1 no refleja dependencias que los planes sí declaran; (5) `ServingConfigStale` (NFR-U4-04) no está en P-U4-08 ni en el plan de U4; (6) `GrafanaFolderPermissionsDrift` y el Job de F110 solo aparecen en el plan de U1, no en sus documentos de diseño; (7) casillas genéricas de CONSTRUCTION sin marcar en aidlc-state.md. Se ofrece aplicar las correcciones.
+**Context**: Revisión transversal de U0–U12 tras el cierre de CONSTRUCTION en los planes.
+
+---
+
+## Correcciones de la revisión de coherencia — Solicitud
+**Timestamp**: 2026-10-10T19:45:54Z
+**User Input**: "sí, aplica las correcciones con tu propuesta"
+**AI Response**: Correcciones aplicadas (marca «revisión de coherencia entre unidades, 2026-10-10»):
+1. Cuotas de `vectra-app`: INF-U3-03 con fila de la migración (100m / 128 MiB; 500m / 256 MiB) y aporte ≈ 6,70 CPU / 5,91 GiB de requests y ≈ 29,25 CPU / 13,49 GiB de limits (servicio con `maxSurge` + CronJobs, migración y un rebuild a la vez, con el proxy y el 30 %); INF-U4-01 con aporte ≈ 3,71 CPU / 2,99 GiB y ≈ 16,25 CPU / 6,99 GiB (`model-validation-job` va a `vectra-staging`); INF-U7-02 recalculado a ≈ 6,37 CPU / 4,91 GiB y ≈ 27,3 CPU / 11,38 GiB (14 pods con el proxy); U1 Paso 6 con las tres cifras, los Jobs de prueba de U12 absorbidos por el margen y la línea de diseño completa.
+2. Plan de U7, Paso 11: tarea y prueba para copiar `received_at`, `channel`, `attempt` y `first_evaluation` al payload de `recommendation`; «Depende de» con esos campos de U0. Plan de U0, Paso 3: pruebas de que `ScoringRequest` y el payload los exigen.
+3. Plan de U12: «Depende de» con `monitoring_freezes` (no la `monitoring` retirada), U4 y U6.
+4. `unit-of-work-dependency.md`: matriz con U1 → U0, U3; U4 → U5, U6; U5 → U1, U9; U6 → U0, U4; U7 → U5; U11 → U7, U8; nota de las dependencias en dos sentidos sin ciclo (U5 ↔ U9, U1 → U3, U4 → U5/U6); grafo con U4 → U6, U7 → U11, U8 → U11 (sigue acíclico); orden en texto y tabla de recursos compartidos actualizados.
+5. `ServingConfigStale` agregada a P-U4-08 y al plan de U4 (Paso 9: gauge `vectra_serving_config_age_seconds`, 503 a los 30 s, prueba con la base pausada corregida; Paso de alertas).
+6. Diseño de U1: `GrafanaFolderPermissionsDrift` en logical-components; Job y CronJob `grafana-folder-permissions` (F110) en INF-U1. Hallazgo adicional corregido: la tabla de INF-U1 decía Pushgateway «sin persistencia», contra P-U1-13; ahora dice PVC de 1 GiB con `--persistence.interval=1m`.
+7. `aidlc-state.md`: casillas de CONSTRUCTION marcadas (Build and Test y Operations siguen fuera de alcance) y fila nueva en «Revisiones posteriores a la aprobación».
+**Context**: Aplicar los 7 hallazgos de la revisión de coherencia; cuotas de U3 y U4 dimensionadas con los recursos de sus Infrastructure Design, con el proxy, el `maxSurge` y el 30 %.
+
+---
+
+## Segunda revisión de coherencia entre unidades — Solicitud
+**Timestamp**: 2026-10-10T19:54:53Z
+**User Input**: "revisar si las unidades son coherentes para el proyecto"
+**AI Response**: Segunda pasada, sin cambios a los documentos. Pasan otra vez: flujos, rutas, scopes y clientes, eventos de log; las correcciones de la primera pasada están en su lugar. Controles nuevos que pasan: PriorityClasses (`vectra-critical`, `-high`, `-normal`, `-low`) y namespaces usados existen en U1; las tres exenciones de HPA (bias, `console-spa`, `product-metrics`) coinciden en U1, U9, U10 y U11; cuotas de U10 y U11 iguales en su unidad y en U1 Paso 6; presupuestos de `max_connections` alcanzan; los Pasos citados entre unidades (U1 3, 5, 10, 11; U2 3; U3 12, 13, 15; U4 16; U8 20; U9 12, 16; U11 16) existen con el contenido esperado; `MonitoreoSesgoDetenido` cubre edad y ausencia.
+Hallazgos: (1) `AuthDeniedBurst` está en la tabla de alertas de U1 (logical-components §3, cuyo plan crea «todas las alertas de §3») y en P-U2-09 (cuyo plan también la crea): quedaría dos veces en Prometheus; (2) NFR-U1-12 dice «salvo un Deployment» y lista tres; (3) el catálogo de componentes (`components.md`, `application-design.md`) describe `channel-simulator` como «CLI / Job», cuando ahora corre fuera del clúster en la imagen de U12, y no tiene `case-worker`, que U8 separó como Deployment con identidad propia. Se ofrece aplicar las correcciones.
+**Context**: Segunda pasada transversal tras aplicar las correcciones de la primera.
+
+---
+
+## Correcciones de la segunda revisión de coherencia — Solicitud
+**Timestamp**: 2026-10-10T19:57:33Z
+**User Input**: "sí, aplica las correcciones con tu propuesta"
+**AI Response**: Aplicadas (marca «segunda revisión de coherencia entre unidades, 2026-10-10»):
+1. `AuthDeniedBurst` queda solo en U2 (P-U2-09): U1 logical-components §3 la marca como definida en U2, y el Paso 11 del plan de U1 la excluye de su `PrometheusRule`, con una comprobación de que ningún `alertname` de U1 se repite en las reglas de U2.
+2. NFR-U1-12: «salvo los Deployments con réplicas fijas… (hoy tres)».
+3. Catálogo de componentes: C04 lista sus procesos (`case-service`, `case-worker` con su identidad, cliente y rol, y el CronJob `case-retention`); C14 `channel-simulator` corre fuera del clúster dentro de la imagen de U12 (F07 externo). Tabla de `application-design.md` actualizada. Fila nueva en `aidlc-state.md`.
+**Context**: Tres hallazgos de la segunda revisión de coherencia.
+
+---
+
+## Tercera revisión de coherencia entre unidades — Solicitud
+**Timestamp**: 2026-10-10T20:00:00Z
+**User Input**: "revisar si las unidades son coherentes para el proyecto"
+**AI Response**: Tercera pasada, sin cambios a los documentos. Controles nuevos que pasan: todo identificador NFR, BR, INF, P y PBT citado existe (los huecos dentro de rangos como NFR-U10-01..64 son numeración por bloques, a propósito); métricas consumidas entre unidades existen con las mismas etiquetas (`vectra_recommendations_total{outcome}` con `fail_closed`, `vectra_scoring_failclosed_total{cause}`, `vectra_core_write_attempts_total`, `vectra_circuit_state`); roles de negocio y `operacion` coherentes entre U0, U2 y U10; puertos de Keycloak (8443 interno) iguales en el inventario y en U2.
+Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata al SLI «recomendación usable» (`Recommendation` / total) y nunca nombra su métrica, mientras `services.md`, U7, U8 y US-112 dicen que sale del gauge `vectra_cases_failclosed_persistent` de U8 (casos en `no_disponible`); el plan de U8 solo prueba que el gauge existe, así que U1 construiría otra regla; (2) `unit-of-work.md`, entrada de U8, sigue describiendo a `case-service` como quien arma el vector y llama a scoring, sin `case-worker` (la misma desactualización ya corregida en `components.md`). Se ofrece aplicar las correcciones.
+**Context**: Tercera pasada transversal, con controles distintos de las dos anteriores (identificadores citados entre unidades, métricas, historias dueñas).
+
+---
+
+## Correcciones de la tercera revisión de coherencia — Solicitud
+**Timestamp**: 2026-10-10T20:02:40Z
+**User Input**: "sí, aplica las correcciones con tu propuesta"
+**AI Response**: Aplicadas (marca «tercera revisión de coherencia entre unidades, 2026-10-10»):
+1. `FailClosedPersistente`: P-U1-11 la separa del SLI de recomendación usable (que queda solo como dashboard) y la define como `max(vectra_cases_failclosed_persistent) > 0` con `for: 1m`, sobre el gauge de U8; logical-components §3 con la expresión; plan de U1, Paso 11, con la regla y casos de `promtool` (dos réplicas → una alerta; gauge en 0 → no dispara; razón usable baja con el gauge en 0 → no dispara).
+2. `unit-of-work.md`, entrada de U8: `case-service` sin el armado del vector ni la llamada a scoring; nuevas viñetas de `case-worker` (cola, F104, `derive`, F15, identidad y rol propios) y del CronJob `case-retention`. Fila nueva en `aidlc-state.md`.
+**Context**: Dos hallazgos de la tercera revisión de coherencia.
+
+---
+
+## Consulta de estado tras las revisiones de coherencia
+**Timestamp**: 2026-10-10T20:04:55Z
+**User Input**: "cual es su estado"
+**AI Response**: Estado informado: INCEPTION completa; CONSTRUCTION cerrada en los planes de U0–U12 (Part 2, Build and Test y OPERATIONS fuera de alcance); pendientes consolidados y tres revisiones de coherencia aplicados, sin hallazgos abiertos; cambios sin commit.
+**Context**: Consulta de estado; sin cambios a los documentos de diseño.
+
+---

@@ -31,12 +31,17 @@ y solo lee.
 ## 2. X04 y X06 (Q1)
 
 ### INF-U12-02 — Jobs de prueba de las unidades dueñas
-- **U9** agrega a su chart el Job `x04-probe-<runId>`, con la identidad `bias-monitoring-job`. Llama a `POST /v1/models/{id}/approval` de governance, una ruta distinta de `freeze`, y termina con éxito solo si recibe el 403 de Linkerd.
+- **U9** agrega a su chart el Job `x04-probe-<runId>`, con la identidad `bias-monitoring-job`. Obtiene un token válido de ese cliente y llama a `POST /v1/models/{id}/approval` de governance, una ruta distinta de `freeze`. Termina con éxito solo si recibe el 403 del proxy de Linkerd (cabecera `l5d-proxy-error`, sin el `Problem` de U0); un 403 `forbidden` de governance significaría que Linkerd dejó pasar la llamada, y la prueba falla (pendientes posteriores al cierre, 2026-10-10).
+- **U8** lanza su Job de RT-5 como `rt5-demo-<runId>` con el mismo `probes.runId` (pendientes posteriores al cierre, 2026-10-10), **solo en kind** (pendientes consolidados, 2026-10-10).
 - **U3** agrega a su chart de reconstrucción (`chart-rebuild/`) el Job `x06-probe-<runId>`, con la credencial de `registry_app` del `ExternalSecret` existente (no crea un Secret nuevo). Intenta `UPDATE registry_entries …` y termina con éxito solo si recibe `permission denied`.
-- **Los dos Jobs** (nota 1 de Q1):
-  - se renderizan **solo con los values de kind**; un `conftest` de U9 y de U3 comprueba que no aparecen con los values de staging ni de producción;
+- **Los tres Jobs** (`x04-probe`, `x06-probe` y `rt5-demo`; nota 1 de Q1; el tercero agregado en pendientes consolidados, 2026-10-10):
+  - se renderizan **solo con los values de kind**; un `conftest` de U9, de U3 y de U8 rechaza `probes.runId` en los values de staging y de producción y comprueba que ningún Job de prueba aparece con ellos;
   - llevan `backoffLimit: 0` y el sidecar nativo de Linkerd, y **no** llevan `ttlSecondsAfterFinished` (revisión del Infrastructure Design de U12, 2026-10-10): como los Jobs de reconstrucción de U3, un Job completado queda como está y se **poda** cuando el `runId` cambia (sync con prune). Con un TTL, Kubernetes lo borraría a las 24 h, la Application quedaría `OutOfSync` y el siguiente sync volvería a correr la prueba;
-  - se lanzan con un PR que fija `probes.runId` en los values de kind y un sync manual con prune;
+  - se lanzan con **un** PR que fija el mismo `probes.runId` en los values de kind de **tres Applications** y un sync manual con prune de las tres (pendientes consolidados, 2026-10-10):
+    - `bias-monitoring` (U9, `x04-probe`);
+    - `decision-registry-rebuild` (U3, `chart-rebuild/`, `x06-probe`);
+    - `case-management` (U8, `rt5-demo`);
+  - **formato del `runId`** (pendientes consolidados, 2026-10-10): `AAAAMMDD-HHMM`, derivado de `started_at` en UTC y truncado al minuto (por ejemplo, `started_at = 2026-10-12T14:07:31Z` → `20261012-1407`). Es el formato que exige el check `rebuild-runid-check` del repositorio GitOps (plan de U3, Paso 15). Dos verificaciones en el mismo minuto no pueden coexistir, porque `prepare` exige un directorio de evidencias nuevo;
   - **`probes.runId` es independiente de `monitoringRebuild.runId`** en `chart-rebuild/`: el chart renderiza los Jobs de reconstrucción solo con `monitoringRebuild.runId` y `x06-probe` solo con `probes.runId`. La regla «sin `runId` no hay recursos» pasa a ser «sin **ninguno** de los dos `runId` no hay recursos», y fijar uno no renderiza los recursos del otro.
 - **Red** (revisión del Infrastructure Design de U12, 2026-10-10):
   - **X06**: U1 aplica deny-all, así que `x06-probe` necesita su propio flujo hacia `registry-db-rw`; sin él, la prueba daría timeout en lugar de `permission denied`. Se agrega **F111** (`x06-probe-<runId>` → `registry-db-rw`, 5432, **solo kind**) al inventario y a `flows.yaml`;
@@ -49,13 +54,13 @@ y solo lee.
 
   Si no se cumplen, el elemento sale `no ejecutado`, nunca `pasa`.
 - **Comandos de `kubectl` permitidos** (nota 3 de Q1): NFR-U12-43 permite `get`, `auth can-i`, `logs` y `port-forward`. La prueba estática sigue rechazando `exec`, `apply`, `create`, `delete`, `patch`, `scale`, `edit` y `rollout`.
-- **Verificación**: `conftest` de los dos charts con los tres values; en kind, cada Job termina con éxito y su log contiene el error esperado.
+- **Verificación**: `conftest` de los tres charts con los tres values (`probes.runId` en staging o producción → falla); prueba de `prepare`: el `runId` cumple `^[0-9]{8}-[0-9]{4}$` y es igual al `started_at` truncado; en kind, cada Job termina con éxito y su log contiene el error esperado (pendientes consolidados, 2026-10-10).
 - **Satisface**: AUTONOMIA-01, 02, 03.
 
 ## 3. Acceso a lo interno (Q2)
 
 ### INF-U12-03 — `port-forward`, cliente de lectura y RBAC del operador
-- **Camino**: `kubectl port-forward` a `decision-registry-service`, Prometheus y Loki desde la estación del operador.
+- **Camino**: `kubectl port-forward` a **un pod** de `decision-registry-service`, de Prometheus y de Loki desde la estación del operador. La herramienta elige el pod con `kubectl get pods -l <selector>` (listo y sin `deletionTimestamp`) y usa `kubectl port-forward pod/<nombre>`, nunca `svc/…`: el reenvío a un Service exige `get` sobre `services`, que K16 no da (pendientes consolidados, 2026-10-10). Si el pod desaparece a mitad, la herramienta elige otro y reintenta la lectura.
   - No crea ni modifica recursos y no abre rutas en el gateway: X09 (único ingress) no cambia.
   - El `port-forward` llega al pod sin pasar por el gateway ni por las `NetworkPolicy`, así que solo lo pueden usar operadores con acceso al clúster.
 - **RBAC del operador** (nota 1 de Q2; completado en la revisión del Infrastructure Design de U12, 2026-10-10): `port-forward` exige `create` sobre `pods/portforward`, y INF-U12-05 y NFR-U12-10 leen nodos, `InferenceService` y los digests de las imágenes. El binding **K16** (§6), solo en kind y staging, queda así:
@@ -68,7 +73,7 @@ y solo lee.
   | `pods/log` | `get` | `vectra-app` |
   | `horizontalpodautoscalers` | `get`, `list`, `watch` | `vectra-app`, `vectra-edge` y `vectra-serving` (los HPA de KServe en `RawDeployment`, para BR-U12-08 y la suma de máximos de INF-U12-05; segunda revisión del Infrastructure Design de U12, 2026-10-10) |
   | `inferenceservices.serving.kserve.io` | `get`, `list`, `watch` | `vectra-serving` |
-  | `pods/portforward` | `create` | `vectra-app` (registro) y `vectra-observability` (Prometheus y Loki) |
+  | `pods/portforward` | `create` | `vectra-app` (registro) y `vectra-observability` (Prometheus y Loki), siempre a un pod (sin `services`; pendientes consolidados, 2026-10-10) |
   | `selfsubjectaccessreviews` | `create` | Para `kubectl auth can-i` (el permiso estándar de todo usuario autenticado) |
 
   Un `Role` por namespace más el `ClusterRole` de nodos, sin comodines (`disallow-rbac-wildcards` de U1).
@@ -76,6 +81,7 @@ y solo lee.
   `disallow-rbac-wildcards` de U1 lo cubre, y un `kyverno test` comprueba que el binding no existe en producción.
 - **Cliente de lectura**: `verification-reader` de U2 (`private_key_jwt`), solo en `realm.kind.yaml` y `realm.staging.yaml`, con `registry:read:metrics` (entradas `recommendation` y `human_decision`) y `registry:read:monitoring` (entradas `freeze`). `realm-lint` lo rechaza en producción y comprueba que no tenga ningún otro scope.
 - **RT-1 sin el registro** (nota 2 de Q2): el registro **nunca** guarda `free_text` (BR-U0-95 lo rechaza en todo payload), así que el oráculo de RT-1 de BR-U12-04 no puede leerlo de ahí. El texto vive en `case-db` y el analista lo ve en el detalle del caso (`CaseDetail.application`). RT-1 se verifica **por el BFF con `analista-1`**: el `free_text` del detalle es igual byte a byte al enviado, y la recomendación y la narrativa del detalle son idénticas a las del caso par. No hace falta ningún scope sensible. BR-U12-04 cambia (§6).
+- **Dónde se lee el `recorded_at` del `freeze`** (pendientes consolidados, 2026-10-10): U12 lee la entrada `freeze` por `GET /v1/entries` con `entry_type = freeze` y la proyección `monitoring_freezes` de `verification-reader`. Cada elemento es un `RegistryEntry` y el `recorded_at` es el del **sobre** (U0 §5.3), no un campo de `FreezeRecord`. `GET /v1/monitoring/freezes`, que devuelve `FreezeRecord` (U0 §9.4, con `frozen_at`) a bias, no se usa para RT-2. **U0 no cambia.**
 - **Latencia de RT-2** (nota 3 de Q2): una sola definición, la **más conservadora que se puede calcular**:
   - **inicio** = el **menor** `recorded_at` de las `recommendation` del lote `stratified` (leídas por `verification-reader` y filtradas por los `case_id` del `RunReport`). El cruce real del umbral ocurre entre la primera y la última entrada del lote, así que medir desde la primera nunca subestima;
   - **fin** = el `recorded_at` de la entrada `freeze`;
@@ -128,3 +134,8 @@ y solo lee.
 | U3 BR-U3-17 y plan (Paso 12); U9 plan (Paso 12) | Jobs de prueba sin `ttlSecondsAfterFinished`, podados al cambiar `probes.runId`; en `chart-rebuild/`, los dos `runId` son independientes | revisión del Infrastructure Design de U12, 2026-10-10 |
 | `component-dependency.md` §1 y F07; U1 deployment-architecture, `flows.yaml` y suite de conectividad | `channel-simulator` fuera del clúster: `vectra-mock` solo con `core-banking-mock`; F07 desde fuera por el gateway | Q5, nota 2 |
 | `CODEOWNERS` del monorepo | Equipos `calidad` y `cumplimiento` para `system-verification/evidence/` | Q3 |
+| U8 INF-U8-03 y plan (Paso 20) | Job `rt5-demo-<runId>` solo en kind; `conftest` que rechaza `probes.runId` en staging y producción | pendientes consolidados, 2026-10-10 |
+| U12 FD BR-U12-04 (RT-5) y plan (Paso 8) | Oráculo de RT-5: 403 del proxy en el log del Job, `CoreWriteAttempt` y el contador del mock en 0; sin `auth can-i` de otras identidades (las cubre X01) | pendientes consolidados, 2026-10-10 |
+| U12 NFR-U12-01, deployment-architecture y plan (Pasos 11, 15, 16) | k6 siempre en su propio contenedor `grafana/k6`; `k6 inspect` en CI con ese contenedor | pendientes consolidados, 2026-10-10 |
+| U12 plan (Pasos 13, 17, 18) y deployment-architecture | `runId` `AAAAMMDD-HHMM` de `started_at`; un PR y sync de tres Applications (`bias-monitoring`, `decision-registry-rebuild`, `case-management`) | pendientes consolidados, 2026-10-10 |
+| U12 INF-U12-03 | `port-forward` siempre a un pod (K16 no da `get` sobre `services`); `recorded_at` del `freeze` leído del sobre `RegistryEntry` (U0 sin cambios) | pendientes consolidados, 2026-10-10 |

@@ -44,8 +44,18 @@ en la infraestructura compartida de U1. Los IDs `INF-U3-xx` se referencian en el
 | `registry-aggregator-rebuild-<runId>` (Job normal del chart de la Application aparte `decision-registry-rebuild`, revisión del Infrastructure Design de U9, 2026-10-10; solo con `monitoringRebuild.runId`; `sync-wave` la siguiente al reset; *advisory lock* de la reconstrucción; sin `ttlSecondsAfterFinished`; aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10) | 100m / 256 MiB | 500m / 512 MiB | `activeDeadlineSeconds: 5400`; `backoffLimit: 0`; `aggregator run --until-head`; rol `registry_aggregator`; sidecar nativo de Linkerd | `vectra-high` (séptima revisión del FD de U9, 2026-10-10) |
 | `registry-aggregator-reset-<runId>` (Job normal del chart de la Application aparte `decision-registry-rebuild`, revisión del Infrastructure Design de U9, 2026-10-10; solo con `monitoringRebuild.runId`; `sync-wave` una anterior al rebuild; *advisory lock* de la reconstrucción; sin `ttlSecondsAfterFinished`; aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10) | 100m / 128 MiB | 500m / 256 MiB | `activeDeadlineSeconds: 300`; `backoffLimit: 0`; `aggregator reset` con `registry_migrator` (credencial del Job de migración vía ESO; flujo F108); sidecar nativo | `vectra-normal` (séptima revisión del FD de U9, 2026-10-10) |
 | `registry-aggregator` (cada 5 min) | 100m / 256 MiB | 500m / 512 MiB (inicial: un lote de 5 000 entradas con solo los campos que usa ronda los 10 MB; se mide en el plan y se ajusta el lote o el límite si el uso supera el 70 %) | `activeDeadlineSeconds: 280` (240 s de lotes, BR-U3-17) | `vectra-high` (alimenta el monitoreo de sesgo de U9, criticidad High; segunda revisión del FD de U9, 2026-10-08) |
+| Job de migración (hook de sync) | 100m / 128 MiB | 500m / 256 MiB | `activeDeadlineSeconds: 600` | `vectra-normal` (agregado en revisión de coherencia entre unidades, 2026-10-10) |
 
 - Todos los CronJobs: `concurrencyPolicy: Forbid`, sidecar nativo de Linkerd (P-U1-05), `restartPolicy: Never`, `backoffLimit: 1`.
+- **Aporte a la cuota de `vectra-app`** (NFR-U1-13; regla general de U1 Paso 6; revisión de coherencia entre unidades, 2026-10-10). Peor momento: el servicio en el máximo del HPA más su `maxSurge` (7 pods) y, a la vez, los seis CronJobs, la migración y un Job de reconstrucción (8 pods), cada uno con el proxy de P-U1-14 (100m / 20 MiB de requests y 500m / 128 MiB de limits) y el 30 % de margen:
+
+  | | Requests | Limits |
+  |---|---|---|
+  | Servicio: 7 × (250m + 100m) y 7 × (256 + 20) MiB; limits 7 × (1 + 0,5) CPU y 7 × (512 + 128) MiB | 2,45 CPU / 1 932 MiB | 10,5 CPU / 4 480 MiB |
+  | Jobs: checkpoint, tres verificaciones, archivo, agregador, migración y rebuild, con el proxy | 2,7 CPU / 2 720 MiB | 12 CPU / 6 144 MiB |
+  | **Total + 30 %** | **≈ 6,70 CPU / 5,91 GiB** | **≈ 29,25 CPU / 13,49 GiB** |
+
+  Es una cota superior: los CronJobs rara vez coinciden. El Job transitorio `x06-probe` (solo kind) lo absorbe el margen del 30 %.
 - Un Job que vence su límite → `RegistryVerificationFailed` o `ArchiveExportFailed`; el agregador, por su atraso → `MonitoringAggregatorStale`.
 
 ### INF-U3-04 — Conexiones a `registry-db` (Q5)

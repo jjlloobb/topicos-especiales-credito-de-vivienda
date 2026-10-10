@@ -20,7 +20,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 - **`case-service` pierde `case:recommend` y `governance:read-feature-spec`**. La API ya no llama a scoring y no arma vectores. Conserva `governance:read-serving` para el barrido de BR-U8-10/14.
 - **Rol `case_worker`**:
   - `SELECT` sobre `cases` y `case_identifiers` (para `derive`);
-  - `UPDATE (state, attempts, last_cause, recommendation, recommendation_entry_id, escalation_count, updated_at)` sobre `cases`;
+  - `UPDATE (state, attempts, last_cause, recommendation, recommendation_entry_id, escalation_count, ever_degraded, updated_at)` sobre `cases` (`ever_degraded` agregado en pendientes consolidados, 2026-10-10; el worker la pone en `true` en la misma transacción que la transición a `en_sincronizacion`, `no_disponible` o `modelo_congelado`);
   - `SELECT`, `UPDATE` y `DELETE` sobre `evaluation_jobs`;
   - `INSERT` en `evidence_outbox`, **solo** de la entrada `fail_closed` del escalamiento (BR-U8-09). Un permiso no restringe valores, así que la tabla tiene RLS (revisión 2026-10-08, N1):
     - `ALTER TABLE evidence_outbox ENABLE ROW LEVEL SECURITY`;
@@ -33,7 +33,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
   - sin acceso a `decisions`, `explanation_views`, `intake_keys`, `retention_runs` ni `retention_settings`.
 - **Rol `case_app`** (hallazgo 2 de la revisión):
   - pierde `UPDATE` y `DELETE` sobre `evaluation_jobs`; conserva `SELECT` e `INSERT` (alta, `retry`, descongelamiento y el gauge de la cola);
-  - sobre `cases`, `UPDATE` **solo** de `(state, attempts, model_frozen_after_recommendation, updated_at)`: decisión, `retry` y los barridos de BR-U8-10/14. **No** puede escribir `recommendation`, `recommendation_entry_id`, `last_cause` ni `escalation_count`, que son del worker. Un pod de la API comprometido no puede fabricar una recomendación.
+  - sobre `cases`, `UPDATE` **solo** de `(state, attempts, model_frozen_after_recommendation, updated_at)`: decisión, `retry` y los barridos de BR-U8-10/14. **No** puede escribir `recommendation`, `recommendation_entry_id`, `last_cause`, `escalation_count` ni `ever_degraded`, que son del worker (pendientes consolidados, 2026-10-10: así un pod de la API no puede rehabilitar `first_evaluation`). Un pod de la API comprometido no puede fabricar una recomendación.
 - `guard_vencido` ya rechaza `vencido` de cualquier rol distinto de `case_retention` (P-U8-05), así que cubre a `case_worker` sin cambios.
 - **Transiciones permitidas por rol** (hallazgo 3 de la revisión; precisa BR-U8-12, porque un `CHECK` de PostgreSQL no puede consultar otra tabla):
   - tabla `case_transitions (from_state, to_state, db_role)`, con clave primaria sobre las tres columnas, cargada por la migración;
@@ -57,7 +57,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
   - prueba de migraciones con Testcontainers: `case_worker` intenta leer `decisions`, borrar `case_identifiers` y escribir `vencido` → error; `case_app` intenta `DELETE` sobre `evaluation_jobs` → error;
   - `case_worker` inserta en `evidence_outbox` una entrada `fail_closed` → éxito; con cualquier otro `entry_type` (`human_decision`, `explanation_view`) → error de la política RLS; `case_app` inserta los tres tipos → éxito;
   - `case_worker` repite el `INSERT` con la misma llave dentro de un `SAVEPOINT` → `unique_violation`, se vuelve al `SAVEPOINT` y la transacción del escalamiento confirma;
-  - `case_app` intenta `UPDATE cases SET recommendation = …` y `SET recommendation_entry_id = …` → error de permisos; `INSERT` de un caso en `listo` o con `recommendation` → excepción de `guard_transition`;
+  - `case_app` intenta `UPDATE cases SET recommendation = …`, `SET recommendation_entry_id = …` y `SET ever_degraded = …` → error de permisos; `case_worker` pone `ever_degraded = true` → éxito; `case_worker` (o el dueño) intenta volverla a `false` → excepción del trigger `guard_ever_degraded` (pendientes consolidados, 2026-10-10); `INSERT` de un caso en `listo` o con `recommendation` → excepción de `guard_transition`;
   - para cada fila de `case_transitions`, el rol indicado puede hacer la transición; cualquier otro rol, o un par que no está en la tabla, → excepción; ningún rol de la aplicación puede leer ni escribir `case_transitions`;
   - suite de conectividad de U1 en kind: `case-service` → scoring → denegado; `case-worker` → scoring → permitido; `case-worker` → registro y core → denegados;
   - prueba del realm de U2: el cliente `case-service` no obtiene un token con `case:recommend`; en el realm de producción tampoco con `core:read-credit` ni para la audiencia `core-banking-mock` (INF-U8-02).
@@ -101,13 +101,13 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
   1. la `NetworkPolicy` descarta cualquier origen distinto de `case-service`, sin métrica. Ya lo prueba la suite de conectividad de U1;
   2. Linkerd rechaza un método distinto de `GET` desde `case-service` → `inbound_http_authz_deny_total`. Para eso el `Server` del mock tiene, además de la `HTTPRoute` de `GET /v1/credits/{id}` autorizada, una `HTTPRoute` de captura llamada `core-mock-catch-all` (`/`, cualquier método) **sin** `AuthorizationPolicy`. La alerta filtra por ese nombre (`route_name`). Sin ella, una solicitud que no coincide con ninguna ruta terminaría en 404 sin ruta y no en una denegación medida;
   3. si Linkerd estuviera mal configurado, el mock responde 403 por scope y registra el `WriteAttempt`. La descripción de la alerta distingue las dos series: la segunda indica además una configuración rota.
-- **Demostración de RT-5** (U12): un Job con la ServiceAccount `case-service`, solo en kind y staging, envía `POST /v1/credits/{id}/status`. La evidencia esperada es el 403 del proxy y la alerta.
+- **Demostración de RT-5** (U12): un Job con la ServiceAccount `case-service`, **solo en kind** (antes «kind y staging»; pendientes consolidados, 2026-10-10), envía `POST /v1/credits/{id}/status`. La evidencia esperada es el 403 del proxy y la alerta. El Job se llama `rt5-demo-<runId>` y solo se renderiza cuando los values fijan `probes.runId` (el `runId` de la verificación de U12). No lleva `ttlSecondsAfterFinished`, para no causar OutOfSync; Argo CD lo poda cuando cambia el `runId`. Un `conftest` rechaza `probes.runId` en los values de staging y de producción y comprueba que el Job no aparece con ellos (pendientes posteriores al cierre, 2026-10-10; staging agregado en pendientes consolidados, 2026-10-10).
 - El Job corre en `vectra-app` y su pod lleva la etiqueta `app.kubernetes.io/name: case-service`, que es la que admite la `NetworkPolicy` del mock. Sin ella, la `NetworkPolicy` lo descartaría sin métrica y la demostración no probaría la capa L7 (hallazgo 5 de la revisión).
 - Ese Job de demostración tiene la ServiceAccount `case-service`, pero no tiene su llave de Keycloak: no obtiene tokens.
 - **Verificación**:
   - `promtool test rules` con cada serie por separado. El caso de Linkerd **arranca en 1** (la serie nace con la primera denegación) y debe disparar; una denegación con otro `route_name` no dispara;
   - en kind (operador), la demostración dispara `CoreWriteAttempt` y `vectra_core_write_attempts_total` sigue en 0.
-- Solo existe en kind y staging, como el mock (INF-U8-02).
+- La alerta `CoreWriteAttempt` y el mock existen en kind y staging (INF-U8-02); el Job `rt5-demo` existe **solo en kind** (pendientes consolidados, segunda tanda, 2026-10-10).
 - **Satisface**: NFR-U8-45(b); SECURITY-11, 14; RT-5.
 
 ## 3. Cómputo (Q4, Q5)
@@ -131,9 +131,11 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 
 | Namespace | Concepto | CPU | Memoria |
 |---|---|---|---|
-| `vectra-app` | Requests: 6 × 250m + 6 × 200m + CronJob + migración = 2,9 CPU; 12 × 256 MiB + 2 × 128 MiB = 3 328 MiB | **3,77** con el 30 % | **≈ 4,2 GiB** con el 30 % |
-| `vectra-app` | Limits: 12 × 1 CPU + 2 × 500m = 13 CPU; 12 × 512 MiB + 2 × 256 MiB = 6 656 MiB | **16,9** con el 30 % | **≈ 8,45 GiB** con el 30 % |
-| `vectra-mock` | Requests / limits del mock (2 pods) con el 30 % | 0,13 / 0,65 | 166 / 333 MiB |
+| `vectra-app` | Requests, en el peor momento (HPA al máximo y 1 pod de `maxSurge` por Deployment): 7 × (250m + 100m de proxy) + 7 × (200m + 100m) + CronJob (100m + 100m) + migración (100m + 100m) = 4,95 CPU; 7 × 276 MiB + 7 × 276 MiB + 2 × 148 MiB = 4 160 MiB | **≈ 6,44** con el 30 % | **≈ 5,3 GiB** con el 30 % |
+| `vectra-app` | Limits: 7 × (1 CPU + 500m) + 7 × (1 CPU + 500m) + 2 × (500m + 500m) = 23 CPU; 14 × 640 MiB + 2 × 384 MiB = 9 728 MiB | **≈ 29,9** con el 30 % | **≈ 12,35 GiB** con el 30 % |
+| `vectra-mock` | Requests / limits del mock: 3 pods (2 réplicas + 1 de `maxSurge`) con el proxy y el 30 %: requests 3 × (50m + 100m de proxy) × 1,3 y 3 × (64 + 20) MiB × 1,3; limits 3 × (250m + 500m) × 1,3 y 3 × (128 + 128) MiB × 1,3 | 0,59 / 2,93 | 328 / **≈ 998 MiB** (antes 749, sin el limit de 128 MiB del proxy; pendientes consolidados, 2026-10-10) |
+
+Recalculado en los pendientes posteriores al cierre, 2026-10-10: la versión anterior no contaba el proxy de Linkerd (P-U1-14) ni el pod del rollout, que la regla general de U1 Paso 6 exige. `case-service`, `case-worker` y `core-banking-mock` usan `maxSurge: 1` y `maxUnavailable: 0`. `vectra-mock` ya no tiene `channel-simulator` (U12 corre fuera del clúster).
 
 - U1 compone la `ResourceQuota` de cada namespace con los aportes de las unidades (INF-U7-02).
 - **Verificación**: la prueba del chart de U1: cada cuota ≥ la suma de los aportes declarados.
@@ -226,6 +228,9 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 | U8 business-rules §8; business-logic-model §1 | La fila de INF-U8 cita NFR-U8-45; `case_fsm` y `backoff` también en `case-worker`; `retention` en `case-retention` | Revisión 2026-10-08, N4 y N5 |
 | U1 INF-U1-02, logical-components §1, §3 y §4, P-U1-04, P-U1-09, tech-stack-decisions §1–§4, NFR-U1-27 | `absent()` en `PostgresVolumeUsageHigh` y fila en la tabla de alertas; readiness de `case-worker`; `core-banking-mock` en `vectra-low`; textos de kind, MinIO, Calico y Alloy al día; bindings hasta K14 | Revisión 2026-10-08, 7'-U1 y U1-a..f |
 | U7 INF-U7 §5; nfr-design-patterns §8; logical-components §3; domain-entities §6 | Pendientes de U8 marcados como resueltos; una sola fila para la caché del diccionario | Revisión 2026-10-08, U7-a..d |
+| U8 INF-U8-01, plan (Pasos 3 y 15); `component-dependency.md` §4 | `cases.ever_degraded` en el `UPDATE` por columna de `case_worker`, no en el de `case_app`; trigger `guard_ever_degraded` | pendientes consolidados, 2026-10-10 |
+| U8 INF-U8-03, plan (Paso 20); U12 INF-U12-02 | Job `rt5-demo-<runId>` solo en kind; `conftest` que rechaza `probes.runId` en staging y producción | pendientes consolidados, 2026-10-10 |
+| U8 INF-U8-05; U1 plan (Paso 6) | Limits de memoria de `vectra-mock` ≈ 998 MiB con el proxy | pendientes consolidados, 2026-10-10 |
 
 ## 8. Pendientes
 - **Para U1** (Code Generation, chart): sumar los aportes de INF-U8-05 (y de INF-U7-02) a las cuotas de `vectra-app` y `vectra-mock` (NFR-U1-13; revisión 2026-10-08, U1-g).

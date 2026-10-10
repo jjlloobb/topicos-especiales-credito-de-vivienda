@@ -68,6 +68,12 @@ Además de RT-1..5, X01–X10 y las cuatro demos, el generador reconoce estas ev
 | US-603 (sin escritura al estado de crédito) | `RT-5`, `X01`, `rt-5` |
 | US-604 (egress denegado y logs sin PII) | `X02`, `LOGS-NO-PII` |
 | US-609 (autoscaling con carga simulada) | `LOAD` |
+| US-304 (paquete de contexto; demo 7.4) | `journey-7-4` (paso del paquete), `RT-2` (oráculo del paquete completo) |
+| US-503 (North Star; demo del dashboard) | `dashboard` |
+| US-504 (métrica de ruido con alerta; demo del dashboard) | `dashboard` |
+| US-505 (métricas operativas y de producto; demo del dashboard) | `dashboard` |
+
+Origen de las cuatro filas de demos (pendientes posteriores al cierre, 2026-10-10): `unit-of-work-story-map.md` §1 asigna a U12 «demo 7.4» en US-304 y «demo dashboard» en US-503, 504 y 505. U12 no es dueña de esas historias: el informe las marca como «demostradas», no como «verificadas», y su resultado no reemplaza la verificación de la unidad dueña (U9 y U11).
 
 **Regla del generador** (complementa BR-U12-11): una historia
 - **`pasa`** si y solo si **todas** sus evidencias requeridas salen `pasa`;

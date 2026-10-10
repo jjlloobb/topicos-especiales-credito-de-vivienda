@@ -28,7 +28,7 @@ U11 no tiene almacenamiento persistente ni mensajería: todo se recalcula del re
   - el proceso tiene una instantánea publicada (terminó su primera pasada); **o**
   - el breaker hacia U3 está **abierto o semiabierto** (U3 no responde).
 - **No** basta que la primera pasada haya fallado: un timeout aislado o el plazo de 75 min con U3 lento pero vivo dejarían la réplica lista sin datos, el rollout reemplazaría la segunda réplica y el dashboard quedaría vacío. Solo el breaker abierto cuenta como «U3 no responde».
-- **Breaker propio de U11** hacia U3, porque los umbrales de U7 (≥ 50 % de fallos en 20 llamadas dentro de 30 s) no se alcanzan nunca con lecturas en serie de una página a la vez y 5 s de timeout:
+- **Breaker de U11 hacia U3**: el breaker de `deps.call` en modo `consecutive_failures` de U0 (NFR-U0-23 (i)) con 3 fallos, 60 s y 1 éxito, no una implementación propia (pendientes consolidados, 2026-10-10), porque los umbrales de U7 (≥ 50 % de fallos en 20 llamadas dentro de 30 s) no se alcanzan nunca con lecturas en serie de una página a la vez y 5 s de timeout:
   - se abre con **3 fallos seguidos** (timeout, conexión o 5xx, según U0);
   - pasa a semiabierto a los 60 s;
   - se cierra con 1 éxito.
@@ -111,13 +111,13 @@ y 2,44 GiB (NFR-U11-14; plan de U1, Paso 6).
 | Entorno | Datos | Qué se mide |
 |---|---|---|
 | CI | Doble de U3 con la API `metrics` (paginación por `seq`, filtros) y **10 veces** el volumen de NFR-U3-30 durante 7 meses, con la latencia de página del p95 de U3 | Duración de la pasada (NFR-U11-02), pico de memoria con `tracemalloc` y RSS (NFR-U11-12, 13), ninguna lectura simultánea (P-U11-02) |
-| kind (operador) | Registro real con los datos de la demostración de U12 (volumen × 1) | Alertas, deduplicación, readiness en un rollout, permisos de carpetas con los usuarios de U2 |
+| kind (operador) | Registro real con los datos de la demostración de U12 (2 000 decisiones, BR-U12-06) | Alertas, deduplicación, readiness en un rollout, permisos de carpetas con los usuarios de U2 |
 | staging | Datos sintéticos de U12 | Humo después del sync |
 | producción | Registro real | — |
 
 - Ninguna identidad de prueba gana permiso para escribir en el registro.
 - **Límite de la prueba** (nota de Q5): el doble no reproduce la contención del pool `projections` de U3 (una conexión) con carga real. Esa medición a 10 veces contra U3 queda para Operations (RESILIENCY-14 = C, U0 P-U0-08).
-- La prueba en kind depende de los datos de demostración de U12, que todavía no están definidos (pendiente para U12).
+- La prueba en kind usa los datos de demostración de U12: **2 000** casos `normal` decididos por el conductor (U12 BR-U12-06 y plan, Paso 6), con la lectura del día siguiente (cerrado en pendientes consolidados, segunda tanda, 2026-10-10).
 - **Satisface**: NFR-U11-02, 12, 13; AUTONOMIA-01.
 
 ## 6. Cumplimiento de extensiones (Infrastructure Design U11)
@@ -137,11 +137,11 @@ y 2,44 GiB (NFR-U11-14; plan de U1, Paso 6).
 | Artefacto | Cambio | Origen |
 |---|---|---|
 | U11 NFR-U11-07 | Readiness: lista con instantánea o con el breaker hacia U3 abierto o semiabierto (antes, solo el proceso; acotada en la revisión del Infrastructure Design de U11, 2026-10-10: una pasada fallida ya no basta) | Q1 (ajuste de esta etapa); revisión del Infrastructure Design de U11, 2026-10-10 |
-| U11 NFR-U11-09 y P-U11-01 | Breaker propio hacia U3: 3 fallos seguidos, semiabierto a los 60 s, 1 éxito para cerrar (los umbrales de U7 no se alcanzan con lecturas en serie) | revisión del Infrastructure Design de U11, 2026-10-10 |
+| U11 NFR-U11-09 y P-U11-01 | Breaker hacia U3 (el breaker de `deps.call` en modo `consecutive_failures` de U0 (NFR-U0-23 (i)); pendientes consolidados, 2026-10-10): 3 fallos seguidos, semiabierto a los 60 s, 1 éxito para cerrar (los umbrales de U7 no se alcanzan con lecturas en serie) | revisión del Infrastructure Design de U11, 2026-10-10 |
 | U0 NFR-U0-48, logical-components y plan (Paso 10) | `ops_server` recibe un predicado de readiness opcional (por omisión, solo el proceso); caso nuevo en `test_ops_server.py` | revisión del Infrastructure Design de U11, 2026-10-10 |
 | U1 P-U1-04 | Fila propia de `product-metrics`: readiness con instantánea o breaker hacia U3 abierto (antes en la fila «bias, BFF, métricas → solo su proceso») | revisión del Infrastructure Design de U11, 2026-10-10 |
 | U11 NFR-U11-02 y NFR-U11-13 | Verificación: CI con doble de U3 a 10 veces y kind a 1 vez; la medición a 10 veces contra U3 real queda para Operations | Q5 |
 | U1 NFR-U1-12 | `product-metrics` en la lista de exenciones de HPA, con su justificación | Q1 |
 | U1 plan (Pasos 3 y 10) y suite de conectividad | Casos de INF-U11-04; `folder-permissions.yaml` con la carpeta de operación | Q3, Q4 |
 | U1 plan (Paso 11) | Runbook `grafana-folder-permissions-drift` | Q4 |
-| U12 (pendiente) | Datos de demostración con volumen suficiente para la prueba en kind de U11 | Q5 |
+| U12 BR-U12-06 y plan (Paso 6) | Datos de demostración para la prueba en kind de U11: 2 000 casos `normal` decididos (cerrado en pendientes consolidados, segunda tanda, 2026-10-10) | Q5 |

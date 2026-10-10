@@ -14,9 +14,9 @@ usuario). Los IDs `P-U11-xx` se referencian en el Infrastructure Design y en el 
   - se pliega en los contadores de su mes por `decided_at` si ese mes es uno de los 6 cerrados;
   - y, si su `decided_at` es de los últimos 35 días, también se guarda en el estado de 35 días.
 
-  Así U3 no lee dos veces los últimos 36 días.
+  Así U3 no lee dos veces los últimos 35 días.
 - Una decisión tardía de un mes cerrado que llega por la lectura incremental se refleja en los contadores del mes en la recomputación diaria siguiente, con hasta 24 h de retraso. Es aceptable: el mes cerrado se republica cada día (NFR-U11-11).
-- Timeout de 5 s por página; breaker propio: abre con 3 fallos seguidos, semiabierto a los 60 s, cierra con 1 éxito. Los umbrales de U7 (20 llamadas en 30 s) no se alcanzan con lecturas en serie (revisión del Infrastructure Design de U11, 2026-10-10).
+- Timeout de 5 s por página; el breaker de `deps.call` en modo `consecutive_failures` de U0 (NFR-U0-23 (i)), con `consecutive_failures=3`, `open_for=60s` y `close_after=1`: abre con 3 fallos seguidos, semiabierto a los 60 s, cierra con 1 éxito (pendientes consolidados, 2026-10-10; antes «breaker propio»). Los umbrales de U7 (20 llamadas en 30 s) no se alcanzan con lecturas en serie (revisión del Infrastructure Design de U11, 2026-10-10).
 - **Verificación**: pruebas con un doble de U3: el orden por `seq` se respeta; una página fallida no avanza `last_seq`; la pasada completa asigna bien una entrada de 40 días al contador de su mes y no al estado de 35 días; nunca hay dos páginas en vuelo.
 - **Satisface**: NFR-U11-01, 02, 09, 10; RESILIENCY-10.
 
@@ -43,8 +43,8 @@ sola conexión por réplica. Ahora:
 - `compute` produce un `BusinessMetrics` inmutable, que incluye las series de producto y `last_success`. Un `Collector` personalizado de `prometheus-client` lo lee en cada scrape.
 - Al final de cada ciclo se reemplaza una sola referencia, así que un scrape nunca mezcla dos ciclos.
 - Sin una primera instantánea (arranque con U3 caído), el `Collector` no emite series de producto ni `last_success`.
-- Las **series de operación del ciclo** (NFR-U11-40) no dependen de la instantánea y se publican desde el arranque. Así `ProductMetricsStale`, por la rama de `up`, puede evaluarse con U3 caído (nota de Q3).
-- **Verificación**: `/metrics` recién arrancado con U3 caído → series de operación sí, de producto no; un scrape concurrente con el reemplazo → solo valores de un ciclo.
+- Las **series de operación del ciclo** (NFR-U11-40) no dependen de la instantánea y se publican desde el arranque, **salvo** `vectra_product_last_full_recompute_timestamp`, que no se emite hasta la primera pasada completa exitosa (pendientes consolidados, 2026-10-10): si arrancara en 0 con U3 caído, la rama de edad de `ProductMetricsFullRecomputeMissing` dispararía de inmediato; ausente, la cubre la rama de ausencia a las 26 h. Así `ProductMetricsStale`, por la rama de `up`, puede evaluarse con U3 caído (nota de Q3).
+- **Verificación**: `/metrics` recién arrancado con U3 caído → series de operación sí (sin `vectra_product_last_full_recompute_timestamp`), de producto no (pendientes consolidados, 2026-10-10); un scrape concurrente con el reemplazo → solo valores de un ciclo.
 - **Satisface**: NFR-U11-07, 40.
 
 ### P-U11-04 — Memoria compacta (Q5; NFR-U11-12, 13)
@@ -75,13 +75,16 @@ sola conexión por réplica. Ahora:
 |---|---|---|---|
 | `RuidoExplicacion` | `vectra:product_noise_days_below_floor:dedup >= <S>` (de `values-product-metrics-policy.yaml`) | 0 | SEV3 |
 | `ProductMetricsDegraded` | `vectra:product_metrics_degraded:dedup == 1` | 1 h | SEV3 |
-| `ProductMetricsStale` | `((time() - vectra_product_metrics_last_success_timestamp > 1800) or (up{job="product-metrics"} == 1 unless on (pod) vectra_product_metrics_last_success_timestamp)) unless on (pod) (vectra_product_full_pass_in_progress == 1)` (no dispara mientras una pasada completa avanza; la pasada tiene plazo de 75 min; revisión del NFR Design de U11, 2026-10-10) | 30 min | SEV3 |
-| `ProductMetricsFullRecomputeMissing` | Igual, con `vectra_product_last_full_recompute_timestamp` y 93 600 s | 26 h en la rama de ausencia; 0 en la de edad | SEV3 |
-| `GrafanaFolderPermissionsDrift` | Del Job de U1 (BR-U11-13) | 0 | SEV3 |
+| `ProductMetricsStale` (rama de edad) | `(time() - vectra_product_metrics_last_success_timestamp > 1800) unless on (pod) (vectra_product_full_pass_in_progress == 1)` | 0 (la edad ya mide los 30 min) | SEV3 |
+| `ProductMetricsStale` (rama de ausencia) | `(up{job="product-metrics"} == 1 unless on (pod) vectra_product_metrics_last_success_timestamp) unless on (pod) (vectra_product_full_pass_in_progress == 1)` | 30 min | SEV3 |
+| `ProductMetricsFullRecomputeMissing` (rama de edad) | `(time() - vectra_product_last_full_recompute_timestamp > 93600) unless on (pod) (vectra_product_full_pass_in_progress == 1)` | 0 | SEV3 |
+| `ProductMetricsFullRecomputeMissing` (rama de ausencia) | `(up{job="product-metrics"} == 1 unless on (pod) vectra_product_last_full_recompute_timestamp) unless on (pod) (vectra_product_full_pass_in_progress == 1)` | 26 h | SEV3 |
 
+- Cada alerta por réplica son **dos reglas con el mismo `alertname`**, una por rama, porque un solo `for` no sirve a las dos: la de edad dispara en cuanto la marca supera el umbral (`for: 0`) y la de ausencia espera su `for`. Las dos excluyen la pasada completa en curso en esa réplica (la pasada tiene plazo de 75 min). La pasada en curso deja de excluir al vencer el plazo, porque entonces `vectra_product_full_pass_in_progress` vuelve a 0 (pendientes posteriores al cierre, 2026-10-10; antes, una sola expresión con `or` y un solo `for`, revisión del NFR Design de U11, 2026-10-10).
+- `GrafanaFolderPermissionsDrift` (BR-U11-13) es una alerta de **U1**, emitida por su Job de permisos de carpetas (F110). Se nombra aquí porque protege la carpeta de U11, pero no está en la `PrometheusRule` de U11. U11 tiene **cuatro** alertas: `RuidoExplicacion`, `ProductMetricsDegraded`, `ProductMetricsStale` y `ProductMetricsFullRecomputeMissing` (pendientes posteriores al cierre, 2026-10-10).
 - La `PrometheusRule` es una plantilla del chart que toma S del archivo de parámetros, como U9.
 - Cada regla lleva `severity` y `runbook_url`. Runbooks: `product-noise` (señal de producto, no falla técnica), `product-metrics-degraded`, `product-metrics-stale` y `product-metrics-full-recompute-missing`.
-- **Verificación**: `promtool test rules` para cada alerta a los dos lados del umbral, incluido el caso de una réplica sin la serie y la otra con ella (NFR-U11-08); test de runbooks de U1.
+- **Verificación**: `promtool test rules` para cada alerta a los dos lados del umbral, incluido el caso de una réplica sin la serie y la otra con ella (NFR-U11-08), cada rama por separado y las dos con la pasada en curso (pendientes posteriores al cierre, 2026-10-10); test de runbooks de U1.
 - **Satisface**: NFR-U11-06, 08, 42; RESILIENCY-05, 07, 15.
 
 ## 3. Escenarios de falla (Q6; RESILIENCY-14 = C)
@@ -93,9 +96,9 @@ sola conexión por réplica. Ahora:
 | E3 | Una réplica pierde el token de Keycloak | Solo esa réplica deja de actualizar; `ProductMetricsStale` solo para ella; el dashboard sigue con la otra (`:dedup` por `max`) |
 | E4 | La recomputación completa falla 6 veces | Estado incremental intacto; `ProductMetricsFullRecomputeMissing` a las 26 h |
 | E5 | Un pod muere a mitad de la recomputación | La otra réplica sigue publicando; el pod nuevo hace la pasada completa al arrancar, con los 6 meses |
-| E8 | Ciclo incremental durante la pasada completa | Se omite y se cuenta (`vectra_product_cycles_skipped_total`); al terminar la pasada, una lectura incremental desde su `last_seq`; nunca dos lecturas a U3 a la vez (revisión del NFR Design de U11, 2026-10-10) |
 | E6 | Registro lento (p95 de página > 5 s) | El timeout falla el ciclo; el breaker abre tras 3 fallos seguidos; se conservan los valores; `ProductMetricsStale` a los 30 min sin lectura exitosa; al cerrarse el breaker, la incremental sigue desde `last_seq` (nota de Q6) |
 | E7 | Más del 1 % de entradas excluidas (BR-U11-10) | Se publica igual con `degraded = 1`; `ProductMetricsDegraded` (deduplicada) tras 1 h (nota de Q6) |
+| E8 | Ciclo incremental durante la pasada completa | Se omite y se cuenta (`vectra_product_cycles_skipped_total`); al terminar la pasada, una lectura incremental desde su `last_seq`; nunca dos lecturas a U3 a la vez (revisión del NFR Design de U11, 2026-10-10) |
 
 Se documentan aquí; los que necesitan clúster los ejecuta el operador en kind tras un PR
 aprobado, y la ejecución a escala queda para Operations (U0 P-U0-08). E1, E2, E6 y E7 tienen
@@ -118,7 +121,7 @@ también una prueba con dobles en CI.
 | Artefacto | Cambio | Origen |
 |---|---|---|
 | U3 plan (Paso 8) | `GET /v1/entries` con `projection=metrics` admite `entry_type`, `recorded_from`, `seq_after` y `limit` (≤ 1 000) en orden de `seq`, y devuelve `next_seq_after` | Q1 |
-| U11 FD BR-U11-11 | La recomputación diaria lee los 36 días y los 6 meses en una sola pasada desde el sexto mes; las decisiones tardías de un mes cerrado entran en la recomputación siguiente | Q1 |
+| U11 FD BR-U11-11 | La recomputación diaria lee los 35 días y los 6 meses en una sola pasada desde el sexto mes; las decisiones tardías de un mes cerrado entran en la recomputación siguiente | Q1 |
 | U11 FD business-logic-model (PBT-U11-02) | Cubre recomputaciones completas intercaladas con incrementales y fallos a mitad, y que nunca hay dos lecturas a U3 a la vez | Q2; revisión del NFR Design de U11, 2026-10-10 |
-| U11 FD BR-U11-11 | El arranque hace la misma pasada completa (6 meses), no solo 36 días | revisión del NFR Design de U11, 2026-10-10 |
+| U11 FD BR-U11-11 | El arranque hace la misma pasada completa (6 meses), no solo 35 días (decía 36; pendientes consolidados, 2026-10-10) | revisión del NFR Design de U11, 2026-10-10 |
 | U11 NFR-U11-08 y domain-entities §5 | `ProductMetricsStale` excluye la pasada en curso; series `vectra_product_full_pass_in_progress` y `vectra_product_cycles_skipped_total` | revisión del NFR Design de U11, 2026-10-10 |

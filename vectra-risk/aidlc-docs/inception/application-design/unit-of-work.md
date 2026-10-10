@@ -108,7 +108,9 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
 ### U8 — `case-management`
 - **Propósito**: ciclo de vida del caso y la frontera con el core bancario.
 - **Contenido**:
-  - `case-service`: ingesta, alta manual, armado del `FeatureVector` con el `feature_spec` de la versión activa en cada intento (F104), estados, cola transaccional de reintentos con backoff, escalamiento (métrica `FailClosedPersistente` y lista para el CRO), decisión humana con justificación estructurada, eventos de consulta de la explicación y lectura del estado del crédito;
+  - `case-service`: ingesta, alta manual, estados, encolado de la evaluación, barridos, escalamiento (gauge `vectra_cases_failclosed_persistent`, que alimenta la alerta `FailClosedPersistente` de U1, y lista para el CRO), decisión humana con justificación estructurada, eventos de consulta de la explicación y lectura del estado del crédito;
+  - `case-worker` (Deployment aparte, U8 INF-U8-01): toma la cola transaccional (`SKIP LOCKED`), lee la versión activa y su `feature_spec` (F104), arma el `FeatureVector` con `derive` y llama a scoring (F15), con reintentos y backoff; identidad, cliente de Keycloak y rol `case_worker` propios (tercera revisión de coherencia entre unidades, 2026-10-10);
+  - CronJob `case-retention` (F105);
   - esquema de `case-db`;
   - `core-banking-mock`: `GET` de estado de crédito, y una ruta de escritura que **existe solo para demostrar el bloqueo RT-5**.
 - **Datos propios**: `case-db` (PII), estado de crédito simulado.

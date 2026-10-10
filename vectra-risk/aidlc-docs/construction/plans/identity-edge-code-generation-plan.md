@@ -96,7 +96,12 @@ vectra-risk/identity-edge/
     - en `realm.prod.yaml`: ni `channel-simulator`, ni `case-service` con `core:read-credit` o la audiencia `core-banking-mock` (U8 INF-U8-02; precisado el 2026-10-08);
     - clientes de servicio sin `client_secret` y sin redirect URIs con comodines;
     - claims prohibidos en el access token;
-    - parámetros de §6 de domain-entities y política de contraseñas.
+    - parámetros de §6 de domain-entities y política de contraseñas;
+    - (pendientes posteriores al cierre, 2026-10-10) `verification-reader` y los usuarios sintéticos solo en kind y staging; `product-metrics` y `verification-reader` con exactamente sus scopes; el rol técnico `operacion` con MFA obligatorio y nunca junto a un rol de negocio.
+  - **Casos nombrados nuevos** de `tests/unit/test_realm_lint.py` (pendientes posteriores al cierre, 2026-10-10):
+    - `verification-reader` en `realm.prod.yaml` → error; con un scope distinto de `registry:read:metrics` y `registry:read:monitoring` (por ejemplo `registry:append:case`) → error; en `realm.kind.yaml` con sus dos scopes → válido;
+    - `product-metrics` con un scope además de `registry:read:metrics` → error; con solo ese scope → válido;
+    - un usuario con `operacion` sin la acción requerida de TOTP (MFA no obligatorio) → error; `operacion` junto a `cro` → error; `operacion-1` con TOTP obligatorio → válido.
   - Propiedades PBT-U2-01, 02 y 03, con generadores en `tests/strategies/`.
   - Diseño: BR-U2-01, 09, 15; NFR-U2-40; AUTONOMIA-03. Historia: US-601 (su verificación pide la prueba del realm exportado: MFA por rol y fuerza bruta).
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest identity-edge/tests/property/test_realm_*.py identity-edge/tests/unit/test_realm_lint.py`, con casos nombrados: un usuario con dos roles → error; un cliente con `core:write-credit` → error; un cliente distinto de `bias-monitoring-job` con `governance:freeze` → error; `case-service` con `core:read-credit` en `realm.prod.yaml` → error; el mismo cliente en `realm.staging.yaml` → aceptado.

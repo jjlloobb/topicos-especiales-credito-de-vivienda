@@ -103,6 +103,7 @@ Dos réplicas nunca procesan la misma fila.
 | `CompensationEventPending` | SEV2 | P-U4-02: una compensación `transicion_descartada` pendiente, que nunca se abandona (precisado el 2026-10-06, revisión del FD de U8) |
 | `GovernanceTransitionAbandoned` | SEV2 | P-U4-02 |
 | `ServingConfigConvergenceSlow` | SEV2 | Una réplica con un `etag` distinto al de la base durante más de 5 s (P-U4-01) |
+| `ServingConfigStale` | SEV2 | NFR-U4-04: `vectra_serving_config_age_seconds > 10` durante 1 min en una réplica (la copia no se confirma contra la base; a los 30 s la réplica responde 503). Distinta de `ServingConfigConvergenceSlow`, que mide un `etag` distinto con la base alcanzable (agregada a la tabla en revisión de coherencia entre unidades, 2026-10-10) |
 | `ModelArchivePending` | SEV2 | Versión `activo` o `inactivo` sin `archived_uri` en 48 h (INF-U4-02) |
 | `ValidationTimeout` | SEV3 | P-U4-02, 03 |
 

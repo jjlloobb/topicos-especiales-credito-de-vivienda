@@ -57,11 +57,11 @@
 - [x] Units Generation — aprobado 2026-09-26T16:43:40Z (13 unidades)
 
 ### 🟢 CONSTRUCTION PHASE (por unidad)
-- [ ] Functional Design — EXECUTE
-- [ ] NFR Requirements — EXECUTE
-- [ ] NFR Design — EXECUTE
-- [ ] Infrastructure Design — EXECUTE
-- [ ] Code Generation — EXECUTE Part 1 (Planning) únicamente
+- [x] Functional Design — EXECUTE (U0–U12 aprobadas o SKIP; ver tabla por unidad)
+- [x] NFR Requirements — EXECUTE (U0–U12)
+- [x] NFR Design — EXECUTE (U0–U12 aprobadas o SKIP)
+- [x] Infrastructure Design — EXECUTE (U0–U12 aprobadas o SKIP)
+- [x] Code Generation — EXECUTE Part 1 (Planning) únicamente (planes de U0–U12 aprobados; Part 2 no se ejecuta)
 - [ ] Build and Test — FUERA DE ALCANCE (instrucción del usuario)
 
 ### 🟡 OPERATIONS PHASE
@@ -108,6 +108,10 @@ tabla de cambios de la unidad afectada y en `audit.md`. Las de más impacto:
 | U10 console | FD, NFR | Sus propias etapas posteriores: NFR Requirements y NFR Design (endpoints 28 y 29), Infrastructure Design (step-up, BR-U10-09b a 22) |
 | U11 product-metrics | plan | FD de U12 (verificación en kind al día siguiente; `RuidoExplicacion` por `promtool`) |
 | Inventario (`component-dependency.md`) | Flujos y bindings | F109–F111 y K16 agregados por U10, U11 y U12; `channel-simulator` fuera del clúster |
+| U0, U1, U2, U3, U8, U9, U11, U12 | FD, NFR, NFR Design, Infra y planes | Pendientes posteriores al cierre de CONSTRUCTION (2026-10-10): breaker por fallos seguidos, `EntryFilter` paginado, `registry_ondemand`, `ever_degraded`, `rt5-demo`, alertas de U11 en dos ramas, cierre de los planes de U12 |
+| U0, U1, U3, U4, U7, U12; inventario de unidades | Infra (cuotas), NFR Design (alertas) y planes | Revisión de coherencia entre unidades (2026-10-10): cuotas de U3 y U4 declaradas y U7 recalculada; copia de `received_at`, `channel`, `attempt` y `first_evaluation` en el plan de U7; `ServingConfigStale` en P-U4-08; diseño de U1 con `GrafanaFolderPermissionsDrift`, el Job de F110 y el Pushgateway persistente; matriz de dependencias completa |
+| U1; catálogo de componentes | NFR, NFR Design y plan; `components.md`, `application-design.md` | Segunda revisión de coherencia (2026-10-10): `AuthDeniedBurst` solo en U2; NFR-U1-12 con las tres exenciones; C04 con `case-worker` y C14 fuera del clúster |
+| U1; `unit-of-work.md` | NFR Design y plan | Tercera revisión de coherencia (2026-10-10): `FailClosedPersistente` sobre el gauge de U8; entrada de U8 con `case-worker` |
 
 Antes de Code Generation Part 2 de cualquier unidad, conviene revisar su plan contra su tabla de
 cambios, porque las aprobaciones son anteriores a estas revisiones.

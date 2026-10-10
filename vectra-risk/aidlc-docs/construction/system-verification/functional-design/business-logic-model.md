@@ -63,7 +63,7 @@ para no mezclar sus métricas con las de los escenarios.
 ### 2.2 Conductor de decisiones
 
 ```text
-login OIDC (analista-1 o analista-2, TOTP desde ESO) por el BFF
+login OIDC (analista-1 o analista-2, TOTP leído del Vault con la sesión del operador, NFR-U12-04) por el BFF
 por cada caso listo de la bandeja:
   get_case
   con probabilidad p_view: record_explanation_view

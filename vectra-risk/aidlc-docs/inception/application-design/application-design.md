@@ -4,7 +4,7 @@ Documento de síntesis. El detalle está en:
 - [`components.md`](./components.md): 18 componentes, responsabilidades, criticidad y restricciones.
 - [`component-methods.md`](./component-methods.md): tipos compartidos, contrato de sincronía y firmas, incluida la tabla de endpoints del BFF (rol, MFA y regla de objeto).
 - [`services.md`](./services.md): orquestación de los flujos S1–S9.
-- [`component-dependency.md`](./component-dependency.md): **inventario cerrado** de flujos de red (F01–F111, ampliado en U1, U2, U3 y U4 Infrastructure Design, en U7 y U8 FD y en el FD de U9: F106–F108), acceso a la API de Kubernetes (K01–K14), roles de BD, egress, flujos prohibidos (X01–X10), diagrama y fronteras de confianza.
+- [`component-dependency.md`](./component-dependency.md): **inventario cerrado** de flujos de red (F01–F111, ampliado en U1, U2, U3 y U4 Infrastructure Design, en U7 y U8 FD, en el FD de U9: F106–F108, y en U10, U11 y U12: F109–F111; pendientes posteriores al cierre, 2026-10-10), acceso a la API de Kubernetes (K01–K14 y K16; pendientes posteriores al cierre, 2026-10-10), roles de BD, egress, flujos prohibidos (X01–X10), diagrama y fronteras de confianza.
 
 ---
 
@@ -28,7 +28,7 @@ Documento de síntesis. El detalle está en:
 | C01 | api-gateway | Envoy Gateway | High | — |
 | C02 | console-spa | React + TS | Medium | — |
 | C03 | console-bff | FastAPI | High | — |
-| C04 | case-service | FastAPI | High | `case-db` (PII) |
+| C04 | case-service (API), `case-worker` (evaluación) y CronJob `case-retention` | FastAPI | High | `case-db` (PII) (segunda revisión de coherencia entre unidades, 2026-10-10) |
 | C05 | scoring-service | FastAPI | High | — |
 | C06 | explainability-service | FastAPI | High | — |
 | C07 | model-serving | KServe | High | — |
@@ -38,7 +38,7 @@ Documento de síntesis. El detalle está en:
 | C11 | bias-monitoring-service | FastAPI + CronJob | CronJob High; servicio HTTP Medium (precisado el 2026-10-10 por U9 NFR Requirements) | — (lee el registro) |
 | C12 | decision-registry-service | FastAPI | **Critical** | `registry-db` (append-only) |
 | C13 | product-metrics | Servicio ligero | Medium | — |
-| C14 | channel-simulator | CLI/Job | Low | — |
+| C14 | channel-simulator | Herramienta de U12 fuera del clúster (F07 externo) | Low | — (segunda revisión de coherencia entre unidades, 2026-10-10) |
 | C15 | core-banking-mock | Servicio mock | Low | estado de crédito simulado |
 | C16 | identity | Keycloak | High | realm |
 | C17 | observability-stack | Prometheus/Alertmanager/Grafana/Loki/Tempo/OTel | High (operación) | métricas, logs, trazas |
@@ -109,7 +109,7 @@ Ninguna regla aplicable queda sin evidencia.
 | SECURITY-03 Logging de aplicación | Cumple | Logging estructurado con correlation ID propagado por el BFF (C03) y los servicios; centralizado in-cluster (F61–F63); sin PII (AUTONOMIA-05, US-604) |
 | SECURITY-04 Cabeceras HTTP | Cumple | Asignadas a F02 (api-gateway → console-spa) y a C02; los valores exactos se configuran en NFR Design |
 | SECURITY-05 Validación de entradas | Cumple | Todos los endpoints validan por esquema (preámbulo de `component-methods.md`); límite de payload y rate limit en el gateway (C01); texto libre tratado como dato (C04, FR-ING-04) |
-| SECURITY-06 Mínimo privilegio | Cumple | Scopes por flujo (§2), RBAC de Kubernetes cerrado K01–K14 (§3; K07–K13 agregados en U1 y K14 en U2 Infrastructure Design), roles de BD por servicio sin DDL en runtime y `registry_app` solo INSERT/SELECT (§4); X04, X05, X07 |
+| SECURITY-06 Mínimo privilegio | Cumple | Scopes por flujo (§2), RBAC de Kubernetes cerrado K01–K14 y K16 (§3; K07–K13 agregados en U1, K14 en U2 y K16 en U12 Infrastructure Design; pendientes posteriores al cierre, 2026-10-10), roles de BD por servicio sin DDL en runtime y `registry_app` solo INSERT/SELECT (§4); X04, X05, X07 |
 | SECURITY-07 Red restrictiva | Cumple | Namespaces (§1); deny-by-default con inventario cerrado de flujos (§0, §2); egress cerrado (§5); único ingress (X09) |
 | SECURITY-08 Control de acceso en la aplicación | Cumple | Tabla del BFF con rol, MFA y regla de objeto por endpoint; cada servicio revalida el JWT (Q5=A); JWT validado en el gateway (F03); CORS: la SPA y la API comparten origen detrás del gateway, no se usa wildcard |
 | SECURITY-09 Hardening | Cumple | Consola de administración de Keycloak no expuesta (X10); errores genéricos en el BFF (C03); sin servicios expuestos salvo el gateway (X09); `mark_active` y los endpoints internos fuera del BFF. Credenciales por defecto y versiones de runtime se verifican en Infrastructure Design y en Code Generation |

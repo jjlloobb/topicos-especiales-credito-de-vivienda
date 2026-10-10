@@ -142,7 +142,8 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 
 ### P-U1-11 — SLO con dos indicadores (Q5)
 - **SLI de disponibilidad**: proporción de requests a `POST /v1/recommendations` con una respuesta 200 tipificada (`Recommendation` o `FailClosed`) dentro del timeout. **SLO 99,5 %** mensual en horario operativo.
-- **SLI de recomendación usable**: `Recommendation` / total. Sin SLO; dashboard y alerta `FailClosedPersistente` (SEV2).
+- **SLI de recomendación usable**: `Recommendation` / total. Sin SLO ni alerta: solo dashboard.
+- **`FailClosedPersistente` (SEV2)** no sale de este SLI (tercera revisión de coherencia entre unidades, 2026-10-10): sale del gauge `vectra_cases_failclosed_persistent` de U8 (casos en `no_disponible` tras agotar los reintentos; U8 BR-U8-09, `services.md`, US-112). Expresión: `max(vectra_cases_failclosed_persistent) > 0` con `for: 1m`; `max` porque las réplicas de `case-service` publican el mismo conteo.
 - Alertas de **burn rate en dos ventanas**: rápida (1 h y 5 min, factor 14,4) → SEV2; lenta (6 h y 30 min, factor 6) → SEV3.
 - Reglas de grabación (`recording rules`) en Prometheus sobre las métricas HTTP del middleware de U0.
 - **Verificación**: `promtool test rules` con series sintéticas que disparan cada ventana.

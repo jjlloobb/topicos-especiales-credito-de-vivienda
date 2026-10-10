@@ -109,9 +109,10 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 | Loki | Modo simple escalable, por zona | 90 días (object lock + lifecycle) | MinIO `loki` |
 | Tempo | Modo distribuido mínimo | 7 días | MinIO `tempo` |
 | OTel Collector | Deployment, 2 réplicas | — | — |
-| Pushgateway | 1 réplica, sin persistencia, `vectra-normal` | Hasta el siguiente push | — (F87 y F106 de entrada, F88 de scrape; F106 = CronJob de bias desde `vectra-app`, revisión del FD de U9, 2026-10-08) |
+| Pushgateway | 1 réplica con `--persistence.file` y `--persistence.interval=1m`, `vectra-normal`; `Server` y `HTTPRoute` de Linkerd por identidad y método (P-U1-13; antes «sin persistencia», revisión de coherencia entre unidades, 2026-10-10) | Hasta el siguiente push o el borrado del grupo; sobrevive a un reinicio | PVC de 1 GiB (P-U1-13) — (F87 y F106 de entrada, F88 de scrape; F106 = CronJob de bias desde `vectra-app`, revisión del FD de U9, 2026-10-08) |
 | **Grafana Alloy** | DaemonSet (logs de stdout → Loki) | — | — |
 | Grafana | 2 réplicas, dashboards como código | — | BD SQLite efímera; los dashboards vienen de Git |
+| Job y CronJob `grafana-folder-permissions` | Aplica y compara los permisos de carpetas de `folder-permissions.yaml` por la API de Grafana (F110); `GrafanaFolderPermissionsDrift` si difieren | — | Sin estado; la fuente es Git (agregado en revisión de coherencia entre unidades, 2026-10-10; FD de U11, BR-U11-13) |
 
 ### INF-U1-08 — Relación con el banco (Q9)
 - El stack es **propio** de Vectra y no comparte almacenamiento con el banco.

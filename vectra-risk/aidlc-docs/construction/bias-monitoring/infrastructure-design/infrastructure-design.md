@@ -16,12 +16,14 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 | `bias-monitoring-service` | 100m / 128 MiB | 500m / 256 MiB | 2 fijas, `vectra.io/hpa-exempt` (carga baja, caché de 15 min), PDB `minAvailable: 1`, spread por zona | `vectra-normal` |
 | CronJob de cálculo | 100m / 128 MiB | 500m / 256 MiB | 1 pod por corrida | `vectra-high` |
 
-- **Aporte a la cuota de `vectra-app`**, con el 30 % de margen (NFR-U1-13), para 3 pods (2 réplicas y 1 corrida; `Forbid` impide dos a la vez) (revisión del FD de U10, 2026-10-10, B8):
+- **Aporte a la cuota de `vectra-app`**, con el 30 % de margen ya incluido (NFR-U1-13), para **4 pods en el peor momento**: 2 réplicas del servicio, 1 más durante su rollout (`maxSurge: 1`, `maxUnavailable: 0`) y 1 corrida del CronJob (`Forbid` impide dos a la vez) (revisión del FD de U10, 2026-10-10, B8; el pod del rollout se agregó en los pendientes posteriores al cierre, 2026-10-10, por la regla general de U1 Paso 6):
 
   | | Requests | Limits |
   |---|---|---|
-  | Sin el sidecar | ≈ 0,39 CPU y 0,5 GiB | ≈ 1,95 CPU y 1 GiB |
-  | Con el sidecar de Linkerd (100m / 20 MiB de requests y 500m / 128 MiB de limits por pod, fijados por U1 P-U1-14) | ≈ 0,78 CPU y 0,56 GiB | ≈ 3,9 CPU y 1,46 GiB |
+  | Sin el sidecar | ≈ 0,52 CPU y 0,65 GiB | ≈ 2,6 CPU y 1,3 GiB |
+  | Con el sidecar de Linkerd (100m / 20 MiB de requests y 500m / 128 MiB de limits por pod, fijados por U1 P-U1-14) | ≈ 1,04 CPU y 0,75 GiB | ≈ 5,2 CPU y 1,95 GiB |
+
+  El pod transitorio de `x04-probe` (solo kind, 50m / 64 MiB de requests y 200m / 128 MiB de limits más el proxy) **no** está en los 4 pods: dura segundos y corre una vez por verificación. Con el proxy y el 30 % ocupa ≈ 0,20 CPU y 0,11 GiB de requests y ≈ 0,91 CPU y 0,33 GiB de limits, y cabe en el margen del 30 % de la cuota, que es de ≈ 0,24 CPU y 0,17 GiB de requests y ≈ 1,2 CPU y 0,45 GiB de limits (pendientes consolidados, segunda tanda, 2026-10-10; cifras separadas en pendientes consolidados, tercera tanda, 2026-10-10).
 
   La cuota cuenta los contenedores de init con `restartPolicy: Always` (sidecar nativo), así que U1 suma la fila **con** el sidecar. Los valores del proxy los fija U1 P-U1-14 (revisión del Infrastructure Design de U10, 2026-10-10). U1 lo suma en su chart de cuotas (Paso 6 del plan de U1).
 - Readiness (`/readyz`, 8081) y liveness solo del proceso (NFR-U9-12, P-U1-04).
@@ -88,12 +90,12 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 2. **Código**: el servicio no importa `freeze_client` (import-linter, P-U9-05).
 3. **Red**:
    - en governance, la `AuthorizationPolicy` de Linkerd de la ruta `POST /v1/models/{id}/freeze` admite **solo** la identidad `bias-monitoring-job`;
-   - la `NetworkPolicy` de F27 admite solo los pods con la etiqueta del CronJob (`app.kubernetes.io/component: bias-calculation`).
+   - la `NetworkPolicy` de F27 admite solo los pods con la etiqueta `vectra.io/workload: bias-monitoring-job` (la del CronJob y la de `x04-probe`; alineada con `component-dependency.md` F27, antes `app.kubernetes.io/component: bias-calculation`; pendientes consolidados, 2026-10-10).
 
 **Flujos**, en `flows.yaml` de U1:
 - F14 y F25 llegan al servicio;
 - F26 sale del CronJob y del servicio;
-- F27 sale **solo** del CronJob;
+- F27 sale **solo** del CronJob y, en kind, de `x04-probe` (pendientes consolidados, tercera tanda, 2026-10-10);
 - F50 sale de los dos;
 - F60 es el scrape del servicio;
 - F106 va del CronJob al Pushgateway.
@@ -102,6 +104,16 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 - suite de conectividad de U1: servicio → `freeze` → denegado por Linkerd; CronJob → `freeze` → permitido; servicio → Pushgateway → denegado;
 - prueba del realm de U2;
 - import-linter.
+
+**Job `x04-probe-<runId>`** (X04 de U12; INF-U12-02 lo describe completo; pendientes consolidados, 2026-10-10):
+- se renderiza **solo con los values de kind** y solo cuando fijan `probes.runId` (el `runId` `AAAAMMDD-HHMM` de la verificación de U12); se poda al cambiar el `runId` (sync manual con prune de la Application `bias-monitoring`), sin `ttlSecondsAfterFinished`;
+- usa la `ServiceAccount` `bias-monitoring-job` y la etiqueta `vectra.io/workload: bias-monitoring-job`; **reutiliza el `ExternalSecret` del CronJob** (llave `private_key_jwt` de `bias-monitoring-job`), sin Secret nuevo, como `x06-probe` reutiliza el de `registry_app` (pendientes consolidados, segunda tanda, 2026-10-10); obtiene un token del cliente `bias-monitoring-job` y llama a `POST /v1/models/{id}/approval` de governance; termina con éxito solo con el 403 del proxy de Linkerd (cabecera `l5d-proxy-error`); `backoffLimit: 0` y sidecar nativo;
+- `conftest`: `probes.runId` en los values de staging o de producción → falla, y el Job no aparece con ellos.
+- **Red hacia Keycloak** (pendientes consolidados, segunda tanda, 2026-10-10): la `NetworkPolicy` de F50 para los pods de bias del CronJob selecciona por la misma etiqueta `vectra.io/workload: bias-monitoring-job` (y la del servicio, por `app.kubernetes.io/name: bias-monitoring-service`). Así `x04-probe` llega a Keycloak y obtiene su token; sin eso, el Job daría timeout antes de llamar a governance y no probaría X04.
+- **Verificación del probe** (pendientes consolidados, segunda tanda, 2026-10-10):
+  - `conftest` del chart con los tres values (Paso 12 del plan);
+  - suite de conectividad de U1 en kind: `x04-probe` → Keycloak (F50) **permitido**; `x04-probe` → `POST /v1/models/{id}/approval` → 403 de Linkerd; `x04-probe` → `freeze` → permitido por la red (no lo llama);
+  - en kind, el Job termina con éxito y su log tiene la cabecera `l5d-proxy-error`.
 
 **Satisface**: NFR-U9-30, 34; SECURITY-06, 07, 08; AUTONOMIA-04.
 
@@ -146,8 +158,10 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 | U1 `flows.yaml` y plan de U1 (Pasos 3 y 6) | F27 solo desde los pods del CronJob; aporte de U9 a la cuota de `vectra-app` | Q1, Q4 |
 | Monorepo y repositorio GitOps (`CODEOWNERS`); U4 `branch-protection-check` | `values-monitoring-policy.yaml` asignado al equipo de cumplimiento en los dos repositorios; el check verifica la protección de los dos | Q3; revisión del FD de U10, 2026-10-10, A5 |
 | U10 (pendiente) | Embeber `bias.json`; el lint de frases prohibidas cubre ese JSON | Q5 |
+| U9 chart y plan (Paso 12); U12 INF-U12-02 | Job `x04-probe-<runId>` solo en kind, con `probes.runId` y `conftest`; etiqueta de F27 `vectra.io/workload: bias-monitoring-job` | Infrastructure Design de U12; pendientes consolidados, 2026-10-10 |
 
 ## 7. Pendientes
 - **Para el plan de tareas de U9**: paquete y punto de entrada del CronJob, chart con los dos procesos, `values-monitoring-policy.yaml` y su regla de `conftest`, dashboard y reglas.
 - **Para U10**: embeber el dashboard y aplicarle el lint.
 - **Para U12**: la demostración de RT-2 (volumen por celda y latencia de detección, §8b del FD).
+- ~~**Para el plan de tareas de U9**: el Job `x04-probe-<runId>` y su `conftest` en el Paso 12~~ **Resuelto** (pendientes consolidados, tercera tanda, 2026-10-10): el Paso 12 del plan ya tiene el Job, su `conftest` y los fixtures de staging y producción.

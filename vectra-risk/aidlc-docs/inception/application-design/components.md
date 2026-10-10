@@ -49,6 +49,10 @@ casos.
   - recibir la decisión humana y los eventos de consulta de la explicación, y enviarlos al registro;
   - leer el estado del crédito (solo lectura) del core simulado;
   - eliminar los identificadores al vencer la retención, con un CronJob y un rol propios (F105) (precisado el 2026-10-06).
+- **Procesos** (U8 INF-U8-01, 2026-10-08; agregado al catálogo en segunda revisión de coherencia entre unidades, 2026-10-10):
+  - `case-service`: la API, los barridos, el reconciliador de evidencia y la lectura del core;
+  - `case-worker`: un Deployment aparte que toma la cola de evaluación, lee `serving-config` y `feature_spec`, arma el vector y llama a `scoring-service` (F15). Tiene su propia `ServiceAccount`, su cliente de Keycloak (`case:recommend`, `governance:read-serving`, `governance:read-feature-spec`) y su rol de base `case_worker`; la API ya no llama a scoring;
+  - CronJob `case-retention`, con el rol `case_retention`.
 - **Interfaces**: REST de ingesta (vía gateway) y REST interno para el BFF.
 - **Criticidad**: High.
 - **Restricciones**: FR-ING-04 (el texto libre es dato); AUTONOMIA-03 (solo `GET` hacia el core); SECURITY-05.
@@ -130,8 +134,9 @@ casos.
 - **Responsabilidades**: calcular periódicamente, desde el registro, la North Star, la tasa de consulta de la explicación, la tasa sostenida por el comité y el tiempo de originación, y exponerlas en `/metrics`.
 - **Criticidad**: Medium.
 
-## C14 — `channel-simulator` (CLI / Job)
+## C14 — `channel-simulator` (herramienta de U12, fuera del clúster)
 - **Propósito**: generar solicitudes sintéticas y el conjunto adversarial RT-1..5 contra la API de ingesta.
+- **Dónde corre**: dentro de la imagen `system-verification` de U12, que el operador ejecuta en su estación, fuera del clúster; entra por el gateway como un canal real con el cliente `channel-simulator` (F07, origen externo; solo kind y staging). Ya no es un Job ni vive en `vectra-mock` (Infrastructure Design de U12, 2026-10-10; segunda revisión de coherencia entre unidades, 2026-10-10).
 - **Criticidad**: Low. Es una herramienta de MVP y de pruebas.
 
 ## C15 — `core-banking-mock`

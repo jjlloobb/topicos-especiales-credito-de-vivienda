@@ -119,12 +119,13 @@ vectra-risk/governance/
 
 - [ ] **Paso 9 — `serving-config` en memoria, convergencia y pools**
   - Copia en memoria; `LISTEN serving_config` + sondeo del `etag` cada 1 s; temporizador de medianoche de Bogotá; readiness solo con la copia cargada.
+  - Edad de la copia (NFR-U4-04; revisión de coherencia entre unidades, 2026-10-10): gauge `vectra_serving_config_age_seconds` (segundos desde la última confirmación contra la base); a los 30 s sin confirmar, `GET /v1/serving-config` responde 503.
   - `If-None-Match`/304.
   - Pools `tx` 2, `read` 1, `background` 1 y `listen` 1.
   - Diseño: NFR-U4-04, 05, 06, 10; P-U4-01, 04, 05.
   - **Aceptación**: `uv run pytest governance/tests/integration/test_convergence.py test_pools.py` (Testcontainers con 2 réplicas):
     - `freeze` en A → B sirve el `etag` nuevo en ≤ 1 s, también con la conexión `LISTEN` de B cortada;
-    - con la base pausada, `serving-config` sigue respondiendo;
+    - con la base pausada, `serving-config` sigue respondiendo la última copia durante 29 s y responde 503 a los 30 s; el gauge de edad crece y vuelve a 0 al reanudar la base (revisión de coherencia entre unidades, 2026-10-10);
     - `pg_stat_activity` cuenta 5 conexiones por réplica.
 
 - [ ] **Paso 10 — Endpoints**
@@ -209,7 +210,7 @@ vectra-risk/governance/
   - **Aceptación**: `helm template` + `conftest test governance/chart/`; `conftest test` sobre los values de staging (el `InferenceService` de la versión activa es solo predictor, 1 réplica, `vectra-low`; tercera revisión del FD de U9, 2026-10-10); `uv run python platform/network/generate.py --check && uv run pytest platform/network/tests` (F100–F102 presentes).
 
 - [ ] **Paso 17 — Alertas, runbooks y documentación**
-  - `PrometheusRule` con las alertas de P-U4-08 (incluidas `ServingConfigConvergenceSlow`, `ModelArchivePending` y `CompensationEventPending`, esta última precisado el 2026-10-06, revisión del FD de U8) y sus runbooks, cada una con `runbook_url`.
+  - `PrometheusRule` con las alertas de P-U4-08 (incluidas `ServingConfigStale` (revisión de coherencia entre unidades, 2026-10-10), `ServingConfigConvergenceSlow`, `ModelArchivePending` y `CompensationEventPending`, esta última precisado el 2026-10-06, revisión del FD de U8) y sus runbooks, cada una con `runbook_url`.
   - `docs/slo.md` (governance dentro del SLO, NFR-U4-01).
   - Diseño: NFR-U4-01, 07; P-U4-08; BR-U4-08, 11, 16.
   - **Aceptación**: `promtool test rules governance/observability/rules/tests/*.yaml`; `uv run python platform/tests/test_runbooks.py --root governance`; `test -s governance/docs/slo.md`.

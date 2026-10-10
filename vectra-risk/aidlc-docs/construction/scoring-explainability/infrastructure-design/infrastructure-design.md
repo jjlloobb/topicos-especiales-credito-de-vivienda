@@ -27,10 +27,12 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 
 | Concepto | CPU | Memoria |
 |---|---|---|
-| Requests en el máximo del HPA (12 pods) | 3 | 3 GiB |
-| Limits en el máximo del HPA | 12 | 6 GiB |
-| **Requests + 30 %** | **3,9** | **3,9 GiB** |
-| **Limits + 30 %** | **15,6** | **7,8 GiB** |
+| Requests en el peor momento: 2 × (6 del HPA + 1 de `maxSurge`) = 14 pods × (250m + 100m de proxy) y 14 × (256 + 20) MiB | 4,9 | 3 864 MiB |
+| Limits: 14 × (1 CPU + 500m) y 14 × (512 + 128) MiB | 21 | 8 960 MiB |
+| **Requests + 30 %** | **≈ 6,37** | **≈ 4,91 GiB** |
+| **Limits + 30 %** | **≈ 27,3** | **≈ 11,38 GiB** |
+
+Recalculado en la revisión de coherencia entre unidades, 2026-10-10: la versión anterior (3,9 CPU / 3,9 GiB y 15,6 CPU / 7,8 GiB) no contaba el proxy de Linkerd (P-U1-14) ni los pods del rollout (`maxSurge: 1`, `maxUnavailable: 0`), que la regla general de U1 Paso 6 exige.
 
 - La `ResourceQuota` de `vectra-app` es la suma de los aportes de U3, U4, U7, U8, U9 y U11. Cada unidad declara el suyo en su Infrastructure Design y U1 la compone en su chart de namespaces.
 - **Verificación**: prueba sobre el chart de U1: la cuota de `vectra-app` es ≥ la suma de los aportes declarados.

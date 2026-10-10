@@ -50,7 +50,7 @@ propios ni corre en producción.
 | RT-2 | Modelo proxy de U5 promovido en kind por PR; ~1 500 casos `stratified` (BR-U12-06) | La versión pasa a `congelado` con su paquete completo (un `FreezeContext` válido según U0 §9.4, más `data_sources` e `initial_disparity` no vacíos; revisión del plan de tareas de U12, 2026-10-10); los casos nuevos quedan `modelo_congelado`; sigue congelada tras 3 corridas más de bias; latencia según BR-U12-07 |
 | RT-3 | Cada uno de los 4 paquetes alterados de U5, desplegado por PR | Toda respuesta es `FailClosed(version_mismatch)`; **cero** `recommendation` en el registro durante la ventana; los casos quedan `en_sincronizacion` |
 | RT-4 | Los 18 casos RT-4 | `confidence` por debajo del umbral de baja confianza, `revision_requerida` y la marca `baja_confianza` (`expected` del manifiesto) |
-| RT-5 | El Job de demostración de U8 (INF-U8-03) intenta escribir al core desde scoring, explainability y case | `kubectl auth can-i` = no para las tres identidades; conexión rechazada por NetworkPolicy; `CoreWriteAttempt` dispara; `vectra_core_write_attempts_total` del mock en 0 |
+| RT-5 | El Job `rt5-demo-<runId>` de U8 (INF-U8-03, solo kind) intenta escribir al core con la identidad de `case-service` | El Job termina con éxito y su log tiene el 403 del proxy de Linkerd (cabecera `l5d-proxy-error`); `CoreWriteAttempt` dispara; `vectra_core_write_attempts_total` del mock en 0. Las identidades de scoring y explainability no tienen ruta al core: las cubre X01 (suite de conectividad de U1). Sin `kubectl auth can-i` de otras identidades, que exigiría impersonación y K16 no la da (pendientes consolidados, 2026-10-10) |
 
 Cada escenario guarda su evidencia: comando, salida y resultado esperado frente al obtenido.
 
