@@ -12,12 +12,13 @@ todas las unidades.
 | `validation` | `vectra_contracts` | Validadores de `ApplicationIn`, `DecisionIn`, `PolicyDraft`, `FeatureValue` y del resto de las entradas; `check_business_time` (BR-U0-37), que **no** corre en el pipeline de validación: la llama el registro solo para llaves nuevas (precisado el 2026-10-06, revisión del FD de U8) | BR-U0-20..38, 95 |
 | `labels` | `vectra_contracts` | `derive_monitoring_labels(application, evaluated_at)` | BR-U0-40..43 |
 | `dictionary` | `vectra_contracts` | `covers(dictionary, shap_vector)` | BR-U0-80..81 |
-| `deps` | `vectra_common` | `call` con timeout obligatorio, presupuesto propagado (`x-vectra-deadline`), un cliente por dependencia y circuit breaker; `deadline` lee la cabecera entrante | NFR-U0-23 (sin BR: es una garantía técnica; agregado el 2026-10-06) |
+| `deps` | `vectra_common` | `call` con timeout obligatorio, presupuesto propagado (`x-vectra-deadline`), un cliente por dependencia y circuit breaker, que solo un proceso `process_kind="batch"` puede crear con `breaker="disabled"` (NFR-U0-23 (f)); `deadline` lee la cabecera entrante | NFR-U0-23 (sin BR: es una garantía técnica; agregado el 2026-10-06) |
 | `logging` | `vectra_common` | Logger JSON con allowlist | BR-U0-50..53 |
 | `errors` | `vectra_common` | Handler global y fábrica de `Problem` | BR-U0-60..62 |
 | `authz` | `vectra_common` | Validación de JWT, scopes, roles, MFA y métrica de denegaciones | BR-U0-70..73 |
 | `telemetry` | `vectra_common` | Propagación de `traceparent` y configuración del exportador OTLP (solo destino in-cluster, F61) | BR-U0-62 |
 | `compat` | herramienta de CI | Diferencia de OpenAPI contra la versión publicada | BR-U0-90..92 |
+| `forbidden_phrases` | herramienta de CI (`contracts/tools/forbidden_phrases.py`) | Aplica la lista única `contracts/forbidden-phrases.yaml` a los archivos que recibe (sin mayúsculas ni tildes, con límites de palabra); falla con archivo, línea y frase | BR-U0-94 (revisión del FD de U10, 2026-10-10, B3) |
 
 ## 2. Flujos
 
@@ -97,7 +98,7 @@ derivaciones.
 | PBT-U0-11 | `validation` | Toda `ApplicationIn` generada válida pasa; toda mutación de un campo fuera de rango falla con `validation_error` y la respuesta no contiene el valor mutado | Invariante | Generador de solicitudes válidas + mutadores por regla |
 | PBT-U0-12 | `outcome` | Para todo `float` de KServe: si es finito y está en [0, 1], la cuantización da un `Decimal4` en [0, 1] y es monótona no decreciente; si no, el resultado es `FailClosed(model_output_invalid)` | Invariante | Flotantes arbitrarios, incluidos `NaN`, `±inf`, `-0.0`, subnormales y valores junto a 0 y 1 |
 | PBT-U0-13 | `validation` | Ningún `RegistryEntryIn` ni `FeatureVector` con una clave de identificación de §1.1 o `free_text` pasa la validación (BR-U0-34, 95) | Invariante | Payloads válidos con claves prohibidas inyectadas en cualquier nivel |
-| PBT-U0-14 | `deps` | **Stateful (PBT-06)**: para toda secuencia de llamadas exitosas, fallidas y avances del reloj, el estado del circuit breaker (cerrado, abierto, semiabierto) coincide con un modelo de referencia de la ventana deslizante; en estado abierto **nunca** se emite una llamada saliente; en semiabierto sale una sola llamada de prueba; con `deadline=`, el timeout efectivo nunca supera el presupuesto restante; una respuesta 4xx nunca cuenta como fallo (agregado el 2026-10-06; el 4xx, por U8 NFR Requirements) | Stateful (máquina de estados contra un modelo) | Secuencias de 1 a 200 comandos (`call_ok`, `call_fail` (5xx o conexión), `call_timeout`, `call_4xx`, `tick(Δt)`) con umbrales generados (tamaño de ventana, porcentaje, tiempo abierto) |
+| PBT-U0-14 | `deps` | **Stateful (PBT-06)**: para toda secuencia de llamadas exitosas, fallidas y avances del reloj, el estado del circuit breaker (cerrado, abierto, semiabierto) coincide con un modelo de referencia de la ventana deslizante; en estado abierto **nunca** se emite una llamada saliente; en semiabierto sale una sola llamada de prueba; con `deadline=`, el timeout efectivo nunca supera el presupuesto restante; una respuesta 4xx nunca cuenta como fallo; con `breaker="disabled"` (solo `process_kind="batch"`), toda llamada sale, el estado no cambia y no se emite `vectra_circuit_state` (agregado el 2026-10-06; el 4xx, por U8 NFR Requirements; `disabled`, revisión del FD de U10, 2026-10-10, B4) | Stateful (máquina de estados contra un modelo) | Secuencias de 1 a 200 comandos (`call_ok`, `call_fail` (5xx o conexión), `call_timeout`, `call_4xx`, `tick(Δt)`) con umbrales generados (tamaño de ventana, porcentaje, tiempo abierto) |
 | PBT-U0-15 | `validation` | `check_business_time(entry, now)` acepta ⇔ cada momento de negocio presente (`evaluated_at`, `decided_at`, `viewed_at`, `frozen_at`, `escalated_at`) es ≤ `occurred_at` y ≥ `occurred_at − 7 días`, contra un oráculo; la función es pura (sin reloj implícito) y nunca corre en el pipeline de validación (precisado el 2026-10-06, revisión del FD de U8) | Oráculo (bordes) | Entradas de los tipos con momento de negocio, con desfases alrededor de 0 y de 7 días (± 1 ms) y entradas sin momento de negocio |
 | PBT-U0-16 | `validation` | Para todo payload de `fail_closed`, la validación acepta ⇔ hay exactamente uno de `cause` o `local_cause`, `local_cause` aparece solo con `escalated_at` y `retryable` coincide con BR-U0-04 (con `cause`: `false` ⇔ `model_frozen`; con `local_cause`: `false` ⇔ `scoring_rejected`); contra un oráculo por tabla de verdad (BR-U0-38) (precisado el 2026-10-06, revisión del FD de U8) | Oráculo | Producto de: `cause` presente o ausente (10 valores) × `local_cause` presente o ausente (3 valores) × `escalated_at` presente o ausente × `retryable` |
 
@@ -115,7 +116,9 @@ y U4 (agregado el 2026-10-06: U7 centralizó el circuit breaker en `vectra_commo
 - matriz de `DecisionIn` contra cada `outcome` de la recomendación (BR-U0-35);
 - cuota de un crédito conocido calculada a mano;
 - log con PII real de ejemplo → ausente en la salida;
-- 400, 401, 403, `mfa_required`, 415 y 422 con respuestas exactas.
+- 400, 401, 403, `mfa_required`, 415 y 422 con respuestas exactas;
+- `breaker="disabled"` en un proceso `process_kind="service"` → error al crear el cliente; en `process_kind="batch"` → 10 fallos seguidos no abren nada y la llamada 11 sale (NFR-U0-23 (f));
+- `forbidden_phrases` (BR-U0-94): «Modelo LIBRE DE SESGO» → falla; «Sin sésgo» → falla; «modelo imparcialmente auditado» y «unbiasedness» → pasan, porque el límite de palabra al final de la frase no coincide; «Sin sésgos» → falla (revisión del Infrastructure Design de U10, 2026-10-10); «mide y alerta, no certifica» → pasa; la salida nombra archivo, línea y frase (revisión del FD de U10, 2026-10-10, B3).
 
 ## 4. Cumplimiento de extensiones (Functional Design U0)
 

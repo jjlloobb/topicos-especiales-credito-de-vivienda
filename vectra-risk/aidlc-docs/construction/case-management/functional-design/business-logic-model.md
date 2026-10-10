@@ -13,7 +13,7 @@
 | case-service | `evidence` | Outbox y reconciliador | BR-U8-09, 18, 19 |
 | case-service | `views` | Proyección a `CaseSummary`/`CaseDetail` según el estado | BR-U8-13 |
 | case-retention (precisado el 2026-10-08, INF-U8-01) | `retention` | Job diario de eliminación | BR-U8-20 |
-| case-service | `credit` | Lectura del core con timeout; con `core.enabled = false`, `no_disponible` sin llamar (INF-U8-02) | BR-U8-21 |
+| case-service | `credit` | Lectura del core con timeout; con `core.enabled = false`, `no_integrado` sin llamar (INF-U8-02; precisado el 2026-10-10 por U10 FD, Q3) | BR-U8-21 |
 | core-banking-mock | `api` | `GET` del crédito; escritura siempre rechazada | BR-U8-22 |
 
 `case_fsm`, `backoff`, `validate_decision` y `views` son funciones puras y se prueban
@@ -127,6 +127,9 @@ BFF (analista) -> POST /v1/cases/{id}/explanation-views
 - solicitud válida del simulador → caso `en_evaluacion`; solicitud inválida → 4xx sin caso; un caso adversarial queda con su `test_scenario_id` (US-101);
 - alta manual de un analista → canal `manual` y su `user_id`; `cumplimiento` → 403 con log de autorización (US-102);
 - bandeja con casos en `listo`, `en_sincronizacion`, `no_disponible` y `modelo_congelado`; el `GET` de un caso no listo no trae `score` (US-107);
+- bandeja con `model_frozen_after_recommendation = true` → solo los casos marcados (BR-U8-13; revisión del FD de U10, 2026-10-10, A4);
+- `core.enabled = false` y un doble del core que registra las llamadas → `get_case` de un caso `decidido` con `credit_status = no_integrado`, cero llamadas y el breaker sin fallos (BR-U8-21; revisión del FD de U10, 2026-10-10, B17);
+- core detenido con `core.enabled = true` → `credit_status = no_disponible` y `get_case` responde igual (BR-U8-21);
 - decisión `sigue` → entrada `human_decision` con `user_id`, `model_version_id`, `policy_version_id` y `recommendation_entry_id`; decisión sobre un caso `no_disponible` → 409 sin entrada (US-108);
 - con reloj simulado: recuperación en el intento 3 → `listo`; 6 fallos → `no_disponible`, gauge = 1, alerta `FailClosedPersistente` y una entrada `fail_closed` (US-112);
 - primera consulta de la explicación → una entrada; segunda → 204 sin entrada (US-501);
@@ -146,8 +149,6 @@ BFF (analista) -> POST /v1/cases/{id}/explanation-views
 - decisión abandonada que el registro sí había escrito + decisión nueva → 409 `conflict_state` con `reason = decision_already_recorded`; el caso queda `decidido` con la primera y el registro tiene una sola `human_decision` (BR-U8-18).
 
 ## 5. Cumplimiento de extensiones (Functional Design U8)
-
-Revisada contra el cuerpo de los tres artefactos antes de presentarla.
 
 | Regla | Estado | Evidencia |
 |---|---|---|

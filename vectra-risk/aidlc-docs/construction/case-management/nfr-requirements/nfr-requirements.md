@@ -37,7 +37,7 @@ Los IDs `NFR-U8-xx` se referencian en NFR Design, Infrastructure Design y el pla
 | NFR-U8-22 | **`case-db` sin escritura** (NFR-U1-03 o caída): la ingesta, el alta manual, la decisión y la consulta de la explicación responden **503** y no se crea ni se cambia nada; las lecturas siguen si queda una instancia. El canal reintenta con la misma llave | Prueba de integración con la base en solo lectura (`default_transaction_read_only`) |
 | NFR-U8-23 | **Registro caído**: la decisión responde 503 y queda `pendiente_registro` (BR-U8-18). Scoring también responde `FailClosed(registry_unavailable)`, porque escribe la recomendación de forma síncrona (BR-U0-08): los casos pasan a `en_sincronizacion` y escalan a los 15,5 min. **Las evaluaciones no siguen** | Prueba de integración con un doble del registro caído y otro de scoring que responde `registry_unavailable` |
 | NFR-U8-24 | **governance o scoring caídos**: los casos pasan a `en_sincronizacion` con `serving_config_unavailable` o `scoring_unreachable` y escalan a los 15,5 min (BR-U8-07, 09) | PBT-U8-01 y la prueba de ejemplo de US-112 |
-| NFR-U8-25 | **Core caído**: `get_case` responde con `credit_status = no_disponible` (BR-U8-21) y nunca falla por el core. **Core deshabilitado** (`core.enabled = false`, producción en el MVP): `no_disponible` sin llamar y sin contar para el breaker (precisado el 2026-10-08 por U8 INF-U8-02) | Prueba de integración con el mock detenido; prueba con `core.enabled = false`: cero llamadas al doble y breaker sin fallos registrados |
+| NFR-U8-25 | **Core caído**: `get_case` responde con `credit_status = no_disponible` (BR-U8-21) y nunca falla por el core. **Core deshabilitado** (`core.enabled = false`, producción en el MVP): `no_integrado` (precisado el 2026-10-10 por U10 FD, Q3) sin llamar y sin contar para el breaker (precisado el 2026-10-08 por U8 INF-U8-02) | Prueba de integración con el mock detenido; prueba con `core.enabled = false`: `no_integrado`, cero llamadas al doble y breaker sin fallos registrados |
 | NFR-U8-26 | `core-banking-mock` (solo kind y staging; precisado el 2026-10-08 por INF-U8-02): 2 réplicas y PDB, como cualquier Deployment de Vectra (NFR-U1-04), criticidad **Low**, sin base de datos (datos sembrados desde un archivo de fixtures versionado) | `helm template` + `kyverno test` (sin excepción a `require-spread-and-pdb`) |
 
 ## 4. Resiliencia (Q6; RESILIENCY-10, NFR-RES-11)
@@ -88,8 +88,6 @@ Los IDs `NFR-U8-xx` se referencian en NFR Design, Infrastructure Design y el pla
 - Severidades de `CoreWriteAttempt` (NFR-U8-45), `CaseRetentionMissing` y `CaseRetentionOverdue` (NFR-U8-46; umbral de dos corridas consecutivas ya fijado). La tabla `retention_runs` ya está en domain-entities §1.4 y los permisos en `component-dependency.md`.
 
 ## 8. Cumplimiento de extensiones (NFR Requirements U8)
-
-Revisada contra el cuerpo del documento antes de presentarla.
 
 | Regla | Estado | Evidencia |
 |---|---|---|

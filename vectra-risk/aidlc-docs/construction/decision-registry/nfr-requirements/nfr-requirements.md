@@ -47,7 +47,7 @@ cosas distintas, y el documento no lo decía:
 | NFR-U3-21 | **Expediente**: p95 ≤ 2 s para un caso típico (≤ 20 entradas), incluida la verificación `range` | Misma prueba |
 | NFR-U3-22 | **Verificación incremental** de 15 min de entradas: ≤ 30 s | Benchmark en CI con Testcontainers y 50 entradas/s × 15 min sintéticas |
 | NFR-U3-23 | **Verificación `nightly`**: ≤ 30 min con 10 años de datos simulados (36 M entradas) | Benchmark en kind con datos sintéticos generados (operador) |
-| NFR-U3-24 | **Agregador de monitoreo** (segunda revisión del FD de U9, 2026-10-08): atraso p95 ≤ 10 min en operación normal (corrida cada 5 min), vigilado por `MonitoringAggregatorStale` (SEV2, > 30 min; BR-U3-17); una reconstrucción de los ~181 días que cubre la retención (~1,8 M entradas con el volumen de NFR-U3-30) en ≤ 1 h: el `aggregator reset` solo vacía las tablas, y la reconstrucción la hace el Job a demanda `registry-aggregator-rebuild` con `aggregator run --until-head`; su `activeDeadlineSeconds` de 5400 s (90 min) es un margen sobre el objetivo de 1 h, no el objetivo (tercera revisión del FD de U9; octava revisión del FD de U9, 2026-10-10); la proyección `monitoring_daily` con 12 rangos de hasta 90 días responde con p95 ≤ 200 ms | **CI** (Testcontainers, escalado): 100 000 entradas sintéticas, rendimiento por lote y memoria; se extrapola a 1,8 M. **kind** (operador): reconstrucción completa de ~1,8 M entradas en ≤ 1 h, atraso p95 con la prueba de carga y la latencia de los 12 rangos (quinta revisión del FD de U9, 2026-10-10) |
+| NFR-U3-24 | **Agregador de monitoreo** (segunda revisión del FD de U9, 2026-10-08): atraso p95 ≤ 10 min en operación normal (corrida cada 5 min), vigilado por `MonitoringAggregatorStale` (SEV2, > 30 min; BR-U3-17); una reconstrucción de los ~181 días que cubre la retención (~1,8 M entradas con el volumen de NFR-U3-30) en ≤ 1 h: el `aggregator reset` solo vacía las tablas, y la reconstrucción la hace el Job de reconstrucción con `runId` `registry-aggregator-rebuild` con `aggregator run --until-head`; su `activeDeadlineSeconds` de 5400 s (90 min) es un margen sobre el objetivo de 1 h, no el objetivo (tercera revisión del FD de U9; octava revisión del FD de U9, 2026-10-10); la proyección `monitoring_daily` con 12 rangos de hasta 90 días responde con p95 ≤ 200 ms | **CI** (Testcontainers, escalado): 100 000 entradas sintéticas, rendimiento por lote y memoria; se extrapola a 1,8 M. **kind** (operador): reconstrucción completa de ~1,8 M entradas en ≤ 1 h, atraso p95 con la prueba de carga y la latencia de los 12 rangos (quinta revisión del FD de U9, 2026-10-10) |
 
 ## 4. Escalabilidad y almacenamiento (Q3, Q4)
 
@@ -66,8 +66,8 @@ cosas distintas, y el documento no lo decía:
 |---|---|---|---|
 | NFR-U3-40 | **La llave de checkpoints nunca sale de la bóveda**: la firma la hace el motor de la bóveda (Vault Transit en kind; la bóveda o el HSM del banco en prod) | Q5, SECURITY-12, 13 | Prueba de que ningún Secret ni variable del pod contiene la llave privada; la firma se verifica con la llave pública |
 | NFR-U3-41 | Un **egress** nuevo del registro hacia la bóveda del banco en producción (y un flujo in-cluster hacia Vault en kind). Sin datos de solicitantes: solo el digest a firmar | Q5, AUTONOMIA-05 | Flujo en `flows.yaml`; prueba de que la solicitud a la bóveda solo contiene `{checkpoint_seq, checkpoint_hash, recorded_at}` |
-| NFR-U3-42 | Roles de base de mínimo privilegio (`registry_app`, `registry_verifier`, `registry_migrator` y `registry_aggregator`, este con lectura de `registry_entries` y escritura solo sobre las tablas derivadas; segunda revisión del FD de U9, 2026-10-08; `registry_migrator` lo usan el Job de migración y el Job a demanda `registry-aggregator-reset` del runbook; octava revisión del FD de U9, 2026-10-10) con contraseñas desde ESO y TLS `verify-full` | SECURITY-06, 01 | Prueba SQL de permisos (US-401) |
-| NFR-U3-43 | El verificador con MFA bajo demanda: una sola verificación `full` a la vez (las solicitudes concurrentes reciben `409 conflict_state`) | SECURITY-11 | Prueba de integración |
+| NFR-U3-42 | Roles de base de mínimo privilegio (`registry_app`, `registry_verifier`, `registry_migrator` y `registry_aggregator`, este con lectura de `registry_entries` y escritura solo sobre las tablas derivadas; segunda revisión del FD de U9, 2026-10-08; `registry_migrator` lo usan el Job de migración y el Job de reconstrucción con `runId` `registry-aggregator-reset` del runbook; octava revisión del FD de U9, 2026-10-10) con contraseñas desde ESO y TLS `verify-full` | SECURITY-06, 01 | Prueba SQL de permisos (US-401) |
+| NFR-U3-43 | El verificador con MFA bajo demanda: una sola verificación activa a la vez, de cualquier modo; una solicitud con otra activa recibe **200** con el `check_id` de la activa (`already_active = true`), sin crear otra (BR-U3-13b; antes decía 409; segunda revisión del Infrastructure Design de U10, 2026-10-10) | SECURITY-11 | Prueba de integración |
 
 ## 6. Pruebas (Q6, PBT-09)
 
@@ -78,8 +78,6 @@ cosas distintas, y el documento no lo decía:
 | NFR-U3-52 | Cobertura de ramas ≥ 95 % y **100 %** en `chain`, `verify` y `append`; mutation testing en `chain` y `verify` (como U0) | `pytest --cov --cov-branch` + `mutmut` |
 
 ## 7. Cumplimiento de extensiones (NFR Requirements U3)
-
-Revisada contra el cuerpo del documento antes de presentarla.
 
 | Regla | Estado | Evidencia |
 |---|---|---|

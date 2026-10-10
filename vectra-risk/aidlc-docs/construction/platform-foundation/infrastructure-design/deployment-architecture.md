@@ -75,7 +75,7 @@ instancias; la zona con 2 instancias varía por cluster.
 | `vectra-staging` | general | InferenceServices de staging, model-validation-job (U4, U6) |
 | `vectra-data` | data | PostgreSQL ×4 (CloudNativePG), MinIO |
 | `vectra-identity` | general | Keycloak (U2) |
-| `vectra-mock` | general | core-banking-mock, channel-simulator (U12); solo en kind y staging (`coreMock.enabled = false` en producción; precisado el 2026-10-08 por U8 INF-U8-02) |
+| `vectra-mock` | general | core-banking-mock (el `channel-simulator` de U12 corre fuera del clúster, Infrastructure Design de U12, 2026-10-10); solo en kind y staging (`coreMock.enabled = false` en producción; precisado el 2026-10-08 por U8 INF-U8-02) |
 | `vectra-observability` | general | Prometheus, Alertmanager, Loki, Tempo, OTel Collector, Alloy, Grafana |
 | `vectra-restore-drill` | data | CronJob `restore-drill` y cluster efímero |
 | `argocd` | general | Argo CD |
@@ -89,11 +89,11 @@ instancias; la zona con 2 instancias varía por cluster.
 | — | Suite de conformidad del CNI (INF-U1-04) | La suite pasa en el clúster de destino |
 | 0 | CRDs y operadores: CloudNativePG, cert-manager, ESO, Kyverno, CRDs de Linkerd, KServe, Argo CD; CRDs de Gateway API y controlador de Envoy Gateway (U2) | `kubectl get crd` lista los CRDs esperados |
 | 1 | Políticas de Kyverno, plano de control de Linkerd + CNI, PriorityClasses, namespaces, NetworkPolicies y políticas de Linkerd generadas | `kyverno test` y `linkerd check` en verde |
-| 2 | Clusters de PostgreSQL, MinIO, Vault (kind) | Clusters en `Cluster in healthy state`; buckets creados con object lock |
-| 3 | Keycloak | Realm importado (U2) |
+| 2 | Clusters de PostgreSQL, MinIO, Vault (kind); Valkey + Sentinel del rate limit (U2) | Clusters en `Cluster in healthy state`; buckets creados con object lock; Sentinel responde la primaria |
+| 3 | Keycloak; `Gateway`, rutas, políticas y servicio de rate limit (U2) | Realm importado (U2); `egctl x status` sin errores (revisión del Infrastructure Design de U10, 2026-10-10) |
 | 4 | Observabilidad | `Watchdog` recibido en el canal |
 | 5 | Servicios de Vectra, `restore-drill`, CronJob de bias (U9, F106 al Pushgateway) y `registry-aggregator` (U3, F107) | Readiness en verde (P-U1-04) |
-| 6 | InferenceServices | `READY=True` |
+| 6 | InferenceServices; Application `decision-registry-rebuild` de U3 (Jobs de reconstrucción, solo con `runId`; segunda revisión del Infrastructure Design de U10, 2026-10-10) | `READY=True`; sin `runId`, la Application no tiene recursos |
 
 Cada wave entra por un sync manual aprobado (AUTONOMIA-01). En kind, el runbook ejecuta
 la misma secuencia con evidencia (`argocd app diff`) adjunta al PR.
@@ -107,4 +107,4 @@ la misma secuencia con evidencia (`argocd app diff`) adjunta al PR.
 | MinIO degradado (1 de 4 pods) | Borrar un pod de MinIO | Lecturas y escrituras siguen (erasure coding) |
 | Keycloak sin JWKS | NetworkPolicy temporal que corta F50 | 503 tras vencer la cache (U0, P-U0-06) |
 
-Se documentan aquí y se ejecutan en Operations.
+Se documentan aquí. Los que necesitan clúster (zona y restore) los ejecuta el operador en kind tras un PR aprobado (Pasos 19 y 20 del plan de U1); la ejecución a escala y en el entorno del banco queda para Operations (revisión del Infrastructure Design de U10, 2026-10-10).

@@ -16,7 +16,7 @@ plan de tareas.
 1. TelemetryMiddleware     traceparent -> correlation_id (BR-U0-62)
 2. AuthnMiddleware         JWT + JWKS (BR-U0-70)
 3. AuthzDependency         require(scopes, roles, mfa) por ruta (BR-U0-71, 72)
-4. BodyGuard               content-type, JSON válido, tamaño <= 32 KiB (BR-U0-21, 31)
+4. BodyGuard               content-type, JSON válido, tamaño <= max_body_bytes de la ruta (32 KiB por omisión; BR-U0-21, 31)
 5. Pydantic strict         validación de esquema (BR-U0-20..38)
 6. handler del servicio
 7. ProblemHandler          VectraError -> Problem; resto -> internal_error (BR-U0-60)
@@ -95,7 +95,7 @@ validar token(kid):
 - **Satisface**: NFR-U0-23; RESILIENCY-10 (timeouts y circuit breaking); NFR-RES-11.
 
 ### P-U0-08 — Enfoque de pruebas de resiliencia del proyecto (Q10 = C, RESILIENCY-14)
-- **Decisión del proyecto**: la ejecución se difiere a Operations. Cada unidad con runtime documenta sus escenarios en su NFR Design o Infrastructure Design.
+- **Decisión del proyecto**: cada unidad con runtime documenta sus escenarios en su NFR Design o Infrastructure Design. Los que necesitan un clúster los ejecuta un operador en kind después de un PR aprobado (AUTONOMIA-01), con la evidencia adjunta (por ejemplo, el simulacro de zona y el restore de U1). La ejecución a escala y en el entorno del banco se difiere a Operations (revisión del Infrastructure Design de U10, 2026-10-10: alinea con U1).
 - Escenarios mínimos ya identificados, con su unidad dueña:
 
 | Escenario | Resultado esperado | Unidad |

@@ -56,9 +56,9 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
 
 ### U3 — `decision-registry`
 - **Propósito**: el registro append-only encadenado, que es el único componente Critical.
-- **Contenido**: `decision-registry-service` (append serializado con hash encadenado, confirmación tras réplica síncrona, consultas filtradas por rol y scope, expediente, `verify_chain` como API, CLI y CronJob); esquema y migraciones de `registry-db`; roles `registry_app` (solo `INSERT`/`SELECT`), `registry_migrator` y `registry_aggregator`; CronJob `registry-aggregator` (y los Jobs a demanda `registry-aggregator-rebuild` y `registry-aggregator-reset` del runbook `monitoring-rebuild`) con las tablas derivadas de monitoreo y las proyecciones `monitoring_daily` y `monitoring_freezes` para U9 (BR-U3-17; revisión del FD de U9, 2026-10-08).
+- **Contenido**: `decision-registry-service` (append serializado con hash encadenado, confirmación tras réplica síncrona, consultas filtradas por rol y scope, expediente, `verify_chain` como API, CLI y CronJob); esquema y migraciones de `registry-db`; roles `registry_app` (solo `INSERT`/`SELECT`), `registry_migrator` y `registry_aggregator`; CronJob `registry-aggregator` (y los Jobs de reconstrucción con `runId` `registry-aggregator-rebuild` y `registry-aggregator-reset` del runbook `monitoring-rebuild`) con las tablas derivadas de monitoreo y las proyecciones `monitoring_daily` y `monitoring_freezes` para U9 (BR-U3-17; revisión del FD de U9, 2026-10-08).
 - **Datos propios**: `registry-db`.
-- **Flujos**: F42, F44 (migración), F96, F97, F98 (solo kind), F107 (`registry-aggregator` y el Job a demanda `registry-aggregator-rebuild`, U9 FD, 2026-10-08), F108 (Job a demanda `registry-aggregator-reset`; octava revisión del FD de U9, 2026-10-10); egress F77, F78, F79, F99; destino de F13, F16, F21, F23, F24, F26 y F28; X06 (ver U3 Infrastructure Design).
+- **Flujos**: F42, F44 (migración), F96, F97, F98 (solo kind), F107 (`registry-aggregator` y el Job de reconstrucción con `runId` `registry-aggregator-rebuild`, U9 FD, 2026-10-08), F108 (Job de reconstrucción con `runId` `registry-aggregator-reset`; octava revisión del FD de U9, 2026-10-10); egress F77, F78, F79, F99; destino de F13, F16, F21, F23, F24, F26 y F28; X06 (ver U3 Infrastructure Design).
 - **Criticidad**: **Critical**.
 - **Historias (dueña)**: US-401, US-402, US-403, US-404.
 
@@ -127,7 +127,12 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
 ### U10 — `console`
 - **Propósito**: la experiencia de las cuatro personas que operan el sistema.
 - **Contenido**:
-  - `console-bff`: 27 endpoints (corregido en la sexta revisión del FD de U9, 2026-10-10: 1 de sesión, 10 de casos, 7 de modelos, 3 de políticas, 3 de fuentes y 3 de vigilancia) con rol, MFA y regla de objeto (tabla de `component-methods.md`), propagación del token y errores genéricos;
+  - `console-bff`: **29 endpoints** con rol, MFA y regla de objeto (tabla de `component-methods.md` C03), propagación del token y errores genéricos:
+    - sesión, 2: `get_me` y `report_client_error`;
+    - casos, 11: incluidos `run_integrity_check` y `get_integrity_check`;
+    - modelos, 7; políticas, 3; fuentes, 3; vigilancia, 3.
+
+    Historia del conteo: 27 en la sexta revisión del FD de U9; 28 con `report_client_error` (NFR Requirements de U10, Q12); 29 con `get_integrity_check` (NFR Design de U10, Q3) (revisión del Infrastructure Design de U10, 2026-10-10: lista en lugar de paréntesis anidados);
   - `console-spa`: bandeja, detalle, decisión con factores, aprobaciones, congelados, dashboards embebidos de Grafana, i18n en español y **lint de frases prohibidas** ("sin sesgo" y similares).
 - **Datos propios**: ninguno.
 - **Flujos**: F02 y F03 (destino), F10–F14.

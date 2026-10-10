@@ -91,8 +91,6 @@ explainability: registro F23 (proyección explanation, entrada seq = recommendat
 
 ## 4. Cumplimiento de extensiones (Functional Design U7)
 
-Revisada contra el cuerpo de los tres artefactos antes de presentarla.
-
 | Regla | Estado | Evidencia |
 |---|---|---|
 | AUTONOMIA-03 | Cumple | BR-U7-02 (sin cliente ni permiso hacia el core) |

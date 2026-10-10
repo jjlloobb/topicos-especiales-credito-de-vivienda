@@ -16,7 +16,14 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 | `bias-monitoring-service` | 100m / 128 MiB | 500m / 256 MiB | 2 fijas, `vectra.io/hpa-exempt` (carga baja, caché de 15 min), PDB `minAvailable: 1`, spread por zona | `vectra-normal` |
 | CronJob de cálculo | 100m / 128 MiB | 500m / 256 MiB | 1 pod por corrida | `vectra-high` |
 
-- **Aporte a la cuota de `vectra-app`**, con el 30 % de margen (NFR-U1-13): requests ≈ 0,39 CPU y 0,5 GiB; limits ≈ 1,95 CPU y 1 GiB. U1 lo suma en su chart de cuotas (Paso 6 del plan de U1).
+- **Aporte a la cuota de `vectra-app`**, con el 30 % de margen (NFR-U1-13), para 3 pods (2 réplicas y 1 corrida; `Forbid` impide dos a la vez) (revisión del FD de U10, 2026-10-10, B8):
+
+  | | Requests | Limits |
+  |---|---|---|
+  | Sin el sidecar | ≈ 0,39 CPU y 0,5 GiB | ≈ 1,95 CPU y 1 GiB |
+  | Con el sidecar de Linkerd (100m / 20 MiB de requests y 500m / 128 MiB de limits por pod, fijados por U1 P-U1-14) | ≈ 0,78 CPU y 0,56 GiB | ≈ 3,9 CPU y 1,46 GiB |
+
+  La cuota cuenta los contenedores de init con `restartPolicy: Always` (sidecar nativo), así que U1 suma la fila **con** el sidecar. Los valores del proxy los fija U1 P-U1-14 (revisión del Infrastructure Design de U10, 2026-10-10). U1 lo suma en su chart de cuotas (Paso 6 del plan de U1).
 - Readiness (`/readyz`, 8081) y liveness solo del proceso (NFR-U9-12, P-U1-04).
 - **Verificación**:
   - `helm template` + `conftest`: requests y limits presentes; servicio con 2 réplicas, PDB, spread y la anotación de exención; `priorityClassName` por proceso;
@@ -49,13 +56,14 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
   | `schedule` | el de INF-U9-02 |
   | `stale_after` (W) | 1 h |
 
-- **Revisión obligatoria de cumplimiento**: `CODEOWNERS` del repositorio GitOps asigna ese archivo al equipo de cumplimiento, y la protección de rama exige la aprobación de los *code owners*. `branch-protection-check` de U4 ya verifica que esa regla esté activa.
+- **Revisión obligatoria de cumplimiento** (revisión del FD de U10, 2026-10-10, A5): el archivo vive en el **monorepo** (`vectra-risk/bias-monitoring/chart/`), donde se edita, y llega a `vectra-risk-gitops` con el chart. Por eso hay una línea de `CODEOWNERS` en **los dos** repositorios: en el monorepo (`bias-monitoring/chart/values-monitoring-policy.yaml`, donde se aprueba el cambio) y en GitOps (la copia que despliega Argo CD). La protección de `main` exige la aprobación de los *code owners* en los dos. `branch-protection-check` de U4 verifica ambos repositorios (antes, solo GitOps). La misma regla cubre `contracts/forbidden-phrases.yaml` de U0 (BR-U0-94).
 - **Rangos válidos**, con una regla de `conftest`:
   - umbral entre 1 y 20 pp;
   - `n_min` ≥ 30;
   - ventana entre 7 y 90 días;
   - W ≥ 30 min;
-  - **horario** (revisión del Infrastructure Design de U9, 2026-10-10): una lista de minutos con un intervalo fijo de **5 a 15 min** entre corridas (por ejemplo `2,17,32,47 * * * *`), con un desfase de 1 a 4 min respecto de los múltiplos de 5 (el agregador de U3), y **W ≥ 4 × el intervalo**, para que una sola corrida fallida no dispare la alerta. Un horario fuera de ese rango obliga además a revisar NFR-U9-01.
+  - **horario** (revisión del Infrastructure Design de U9, 2026-10-10): una lista de minutos con un intervalo fijo de **5, 10 o 15 min** entre corridas (por ejemplo `2,17,32,47 * * * *`), con un desfase de 1 a 4 min respecto de los múltiplos de 5 (el agregador de U3), y **W ≥ 4 × el intervalo**, para que una sola corrida fallida no dispare la alerta. El intervalo debe ser múltiplo de 5 y dividir 60: con 6 o 12 min el desfase respecto del agregador cambia de una corrida a otra (revisión del FD de U10, 2026-10-10, A6). Un horario fuera de ese rango obliga además a revisar NFR-U9-01;
+  - **plazo**: `activeDeadlineSeconds` ≤ el intervalo en segundos (hoy 600 s con 15 min; con 5 min, el plazo debe bajar a ≤ 300 s, que sigue cubriendo el peor caso de ≈ 186 s de P-U9-02) (revisión del FD de U10, 2026-10-10, A6).
 - **Constantes del código** (no values, como INF-U8-07): timeouts y reintentos (P-U9-02), caché del dashboard (P-U9-03), razón de inválidas (1 %) y atraso máximo del agregador (30 min).
 - **Values por entorno**: URLs y audiencias de las dependencias, endpoint de telemetría, URL del Pushgateway y nivel de log.
 - **Verificación**:
@@ -106,16 +114,17 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
   - paneles de disparidad por atributo y banda, de las agregadas del modelo y de las decisiones humanas (separadas), del tamaño de celda y del estado de las corridas;
   - la leyenda «mide y alerta, no certifica» como texto fijo en el panel principal;
   - las celdas insuficientes solo muestran su tamaño, y la serie `sin_bandas` respeta la etiqueta `partial` (BR-U9-06, 20);
-  - el lint de frases prohibidas de U10 también se aplica al JSON;
-  - U10 lo embebe. Las ventanas de 90 días siguen saliendo de la API (BR-U9-18), porque Prometheus guarda 30 días.
+  - el lint de frases prohibidas (lista única de U0, BR-U0-94; precisado el 2026-10-10 por U10 FD, Q8) también se aplica al JSON;
+  - U10 lo embebe. Las ventanas de 90 días siguen saliendo de la API (BR-U9-18), porque Prometheus guarda 30 días;
+  - **organización y permisos de Grafana** (segunda revisión del Infrastructure Design de U10, 2026-10-10): una sola organización `Vectra`; `bias.json` va aprovisionado (solo lectura, sin edición desde la UI) en la carpeta `Vectra / Sesgo`, con permiso `View` **solo** para los equipos `cumplimiento` y `cro` (mapeados desde los roles del token de Keycloak, U2). Ningún otro equipo ve la carpeta; el iframe de U10 usa la sesión OIDC de Grafana del mismo usuario, así que un `analista` ve «sin acceso» también dentro del iframe. Los permisos los aplica el Job `grafana-folder-permissions` de U1, que quita la herencia de los roles de organización (`ingeniero_riesgo` es `Viewer` y `operacion` es `Editor`, y sin quitarla verían la carpeta); se prueba con `ingeniero-1` y `operacion-1` → 403 (FD de U11, 2026-10-10).
+- **Permisos en el Pushgateway** (U1 P-U1-13; segunda revisión del Infrastructure Design de U10, 2026-10-10): `bias-monitoring-job` puede `PUT` y `DELETE` solo en `/metrics/job/bias-monitoring/**` (grupos `run`, `success` y `freeze-<v>`) y `GET /api/v1/metrics` para listar los grupos antes de borrar los de versiones que ya no se evalúan (BR-U9-20). El `GET` devuelve también los grupos de otros jobs; el CronJob filtra por `job="bias-monitoring"` y nunca toca otros. `bias-monitoring-service` no tiene acceso al Pushgateway.
 - **Verificación**:
   - `promtool test rules` (P-U9-06), generado con el `stale_after` del archivo de parámetros, y el test de runbooks de U1;
-  - prueba sobre el JSON: la leyenda está, no hay frases prohibidas y ninguna consulta muestra tasas de celdas insuficientes (las consultas filtran por tamaño ≥ `n_min`).
+  - prueba sobre el JSON: la leyenda está, no hay frases prohibidas y ninguna consulta muestra tasas de celdas insuficientes (las consultas filtran por tamaño ≥ `n_min`);
+  - prueba del aprovisionamiento: la carpeta `Vectra / Sesgo` solo da `View` a `cumplimiento` y `cro`; en kind, un usuario `analista` recibe 403 en el dashboard.
 - **Satisface**: NFR-U9-40, 41; RESILIENCY-05, 07, 15; FR-BIA-08.
 
 ## 5. Cumplimiento de extensiones (Infrastructure Design U9)
-
-Revisada contra el cuerpo del documento antes de presentarla.
 
 | Regla | Estado | Evidencia |
 |---|---|---|
@@ -135,7 +144,7 @@ Revisada contra el cuerpo del documento antes de presentarla.
 |---|---|---|
 | U4 (`AuthorizationPolicy` de Linkerd de la ruta `freeze`; INF-U4-04 y plan de U4, Paso 16) | La ruta `POST /v1/models/{id}/freeze` admite solo la identidad `bias-monitoring-job` | Q4 |
 | U1 `flows.yaml` y plan de U1 (Pasos 3 y 6) | F27 solo desde los pods del CronJob; aporte de U9 a la cuota de `vectra-app` | Q1, Q4 |
-| Repositorio GitOps (`CODEOWNERS`) | `values-monitoring-policy.yaml` asignado al equipo de cumplimiento | Q3 |
+| Monorepo y repositorio GitOps (`CODEOWNERS`); U4 `branch-protection-check` | `values-monitoring-policy.yaml` asignado al equipo de cumplimiento en los dos repositorios; el check verifica la protección de los dos | Q3; revisión del FD de U10, 2026-10-10, A5 |
 | U10 (pendiente) | Embeber `bias.json`; el lint de frases prohibidas cubre ese JSON | Q5 |
 
 ## 7. Pendientes

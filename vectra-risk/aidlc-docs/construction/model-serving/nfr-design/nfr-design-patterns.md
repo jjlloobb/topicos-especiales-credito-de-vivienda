@@ -73,8 +73,6 @@ ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 
 ## 4. Cumplimiento de extensiones (NFR Design U6)
 
-Revisada contra el cuerpo del documento antes de presentarla.
-
 | Regla | Estado | Evidencia |
 |---|---|---|
 | AUTONOMIA-01 | Cumple | P-U6-02 (cada cambio de versión entra por PR + sync manual) |

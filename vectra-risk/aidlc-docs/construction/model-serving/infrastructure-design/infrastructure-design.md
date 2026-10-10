@@ -23,6 +23,8 @@ la infraestructura compartida de U1. Los IDs `INF-U6-xx` se referencian en el pl
 ## 2. Ciclo de vida de los `InferenceService` (Q2)
 
 ### INF-U6-02 — Réplicas del inactivo y secuencia de PRs
+
+(Precisado en la segunda revisión del Infrastructure Design de U10, 2026-10-10: el PR de post-activación agrega al `InferenceService` del inactivo la etiqueta `vectra.io/serving-state: inactivo` y la anotación `vectra.io/hpa-exempt`, que `require-hpa-bounds` de U1 exige para admitir 1 réplica en `vectra-serving`; el rollback las quita al restaurar los mínimos.)
 Todos los cambios entran por PR + sync manual (AUTONOMIA-01). La baja del inactivo **no** va
 en el PR de promoción: ese sync ocurre antes de `mark_active`, con la versión anterior todavía
 activa, y la dejaría con 1 réplica por debajo del mínimo de 2 (NFR-U1-04). Por eso son tres PR,
@@ -63,8 +65,6 @@ Registrados en `audit.md` (2026-10-03):
 | U6 NFR Design P-U6-02 | Secuencia con el PR post-activación y la restauración de mínimos en el rollback |
 
 ## 5. Cumplimiento de extensiones (Infrastructure Design U6)
-
-Revisada contra el cuerpo del documento antes de presentarla.
 
 | Regla | Estado | Evidencia |
 |---|---|---|

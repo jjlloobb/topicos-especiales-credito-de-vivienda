@@ -8,13 +8,14 @@ es de U0 (BR-U0-20..38, 95); aquí se fija lo propio del registro.
 ## 1. Append-only (US-401)
 
 **BR-U3-01 — Solo `INSERT` y `SELECT`.** El rol `registry_app` no tiene `UPDATE`,
-`DELETE` ni `TRUNCATE` (X06). Un intento falla con `permission denied`.
+`DELETE` ni `TRUNCATE` (X06) sobre `registry_entries`. Un intento falla con `permission denied`.
+La única tabla que `registry_app` escribe fuera de la cadena es `integrity_checks` (solo `INSERT` de una solicitud), que es el estado de una operación y no evidencia (revisión del Infrastructure Design de U10, 2026-10-10).
 
 **BR-U3-02 — Segunda barrera.** Un trigger `BEFORE UPDATE OR DELETE OR TRUNCATE` sobre
 `registry_entries` lanza una excepción para cualquier rol. Un superusuario puede
 deshabilitarlo; esa manipulación la detectan los checkpoints (BR-U3-08).
 El trigger y la regla de solo-anexar aplican a `registry_entries` y a la cadena, **no** a las
-tablas derivadas del agregador (BR-U3-17), que se reconstruyen desde la cadena (precisado el 2026-10-08 por U9 FD).
+tablas derivadas del agregador (BR-U3-17), que se reconstruyen desde la cadena (precisado el 2026-10-08 por U9 FD), ni a `integrity_checks` (BR-U3-13b), que guarda el estado de las verificaciones (revisión del Infrastructure Design de U10, 2026-10-10).
 
 **BR-U3-03 — Escritores autorizados.** Solo las identidades con `registry:append:case`,
 `registry:append:scoring` o `registry:append:governance` pueden escribir, y cada una solo
@@ -36,7 +37,7 @@ responde `403 forbidden`.
 ## 2. Escritura (Q4, Q5, Q9, Q10)
 
 **BR-U3-04 — Serialización.** Cada append ocurre en una transacción con
-`pg_advisory_xact_lock(<llave fija>)`:
+`pg_advisory_xact_lock(<llave del append>)` (llaves declaradas en domain-entities §6; distinta de la de la reconstrucción de BR-U3-17; revisión del Infrastructure Design de U10, 2026-10-10):
 0. buscar la `idempotency_key` (BR-U3-06): si existe, devolver el ack original o 409 sin escribir; si es nueva, comprobar la ventana de `occurred_at` (BR-U3-05) y `check_business_time` (BR-U0-37), y responder 422 si falla alguna (precisado el 2026-10-06, revisión del FD de U8);
 1. leer la cabeza (`seq`, `hash`, `recorded_at`);
 2. fijar `recorded_at` (BR-U3-05);
@@ -77,8 +78,7 @@ la métrica `vectra_registry_entry_size_bytes` por encima del umbral de alerta.
 
 ## 3. Cadena y checkpoints (Q1, Q2, Q3)
 
-**BR-U3-08 — Checkpoints.** Cada hora, y al terminar cada verificación completa, el
-registro:
+**BR-U3-08 — Checkpoints.** Cada hora el CronJob `registry-checkpoint` (la única identidad que firma, P-U3-08) hace lo siguiente. Una verificación completa no firma: el checkpoint siguiente cubre la cabeza que verificó (revisión del Infrastructure Design de U10, 2026-10-10; antes decía «y al terminar cada verificación completa»):
 1. pide a la bóveda que firme `JCS({checkpoint_seq, checkpoint_hash, recorded_at})` con la llave Ed25519 (motor de firma de la bóveda; la llave **nunca** sale de ella, U3 NFR Q5). Si la bóveda no responde, el checkpoint se atrasa y se alerta `CheckpointMissing`; los appends siguen;
 2. agrega una entrada `checkpoint` a la cadena;
 3. copia el checkpoint al bucket WORM.
@@ -104,8 +104,7 @@ génesis.
 |---|---|---|
 | `incremental` | Cada 15 min (CronJob) | El último checkpoint verificado |
 | `nightly` | Cada noche (CronJob) | Cadena de checkpoints completa (firmas y enlaces) + re-hash de las entradas de los últimos 7 días + re-hash de una muestra aleatoria del 1 % de los segmentos más antiguos (entre checkpoints), distinta cada noche |
-| `full` | Cada mes (CronJob, fuera del horario operativo, prioridad baja), bajo demanda (`cro` con MFA, API) y en `restore-drill` | `seq = 0`, re-hash de todo |
-
+| `full` | Cada mes (la encola `registry-verify-ondemand` cuando la última tiene más de 30 días; prioridad baja), bajo demanda (`cro` con MFA, API) y en `restore-drill` (segunda revisión del Infrastructure Design de U10, 2026-10-10) | `seq = 0`, re-hash de todo |
 | `range` | Para el expediente (BR-U3-14) | Checkpoint anterior → checkpoint posterior o cabeza |
 
 Precisado el 2026-10-03 por U3 NFR Requirements Q4: el re-hash completo nocturno no escala
@@ -126,6 +125,26 @@ El informe da el **primer** `seq` inconsistente y su motivo.
 `exit 1`. `error` → `exit 2` y alerta `RegistryVerificationFailed` (SEV2). El registro
 sigue aceptando appends (para no perder evidencia), pero todo expediente posterior muestra
 «integridad NO verificada» hasta que una verificación completa vuelva a dar `integra`.
+
+**BR-U3-13b — Verificación bajo demanda, asíncrona** (NFR Design de U10, 2026-10-10, Q3; rediseñada en la revisión del Infrastructure Design de U10, 2026-10-10: la API no puede firmar ni leer el bucket WORM, P-U3-08, así que no puede cumplir los pasos 5 y 6 de BR-U3-12). La API **registra la solicitud** y un CronJob con la identidad de verificación la ejecuta:
+- `POST /v1/integrity-checks` (`cro` con MFA, vía el BFF) recibe un `IntegrityCheckRequest` de U0 (`mode: full | range`, y para `range`, `from_seq` y `to_seq`):
+  - si no hay ninguna verificación activa (`pendiente` o `en_curso`), crea la fila en `integrity_checks` con `status = pendiente` y responde **202** con `IntegrityCheckRef`;
+  - si ya hay una activa, de cualquier modo, **no** crea otra y responde **200** con el `IntegrityCheckRef` de la activa y `already_active = true`. Así el llamador conoce el `check_id` en curso sin un 409 (el `Problem` de U0 no admite campos extra);
+- **`registry-verify-ondemand`** (CronJob cada minuto, `Forbid`, `activeDeadlineSeconds: 21600`, identidad `registry-verify` de P-U3-08, que lee la llave pública y el bucket de checkpoints):
+  1. **barrido**: marca como `fallida` con `reason = interrumpida` toda fila `en_curso` con `heartbeat_at` de hace más de 2 min (el pod anterior murió). Corre en **cada** corrida, no solo al arrancar un pod, así que una fila huérfana libera el cupo en ≤ 3 min;
+  2. **toma** la fila `pendiente` más antigua con `UPDATE … SET status = 'en_curso' … WHERE status = 'pendiente'` (`FOR UPDATE SKIP LOCKED`);
+  3. **verifica** con BR-U3-12 completa (pasos 1 a 6), en la réplica `-ro`, en tramos de ≤ 10 000 entradas, cada uno en su propia transacción corta (ver «Lectura en el standby»); actualiza `progress` y `heartbeat_at` cada tramo y al menos cada 30 s;
+  4. **termina**: `terminada` con el `IntegrityReport` si `result` es `integra` o `inconsistente` (un `inconsistente` dispara `RegistryChainBroken`, SEV1, igual que los demás CronJobs); toda `fallida`, del CRO o mensual, dispara `RegistryOnDemandCheckFailed`, SEV3 (segunda revisión del Infrastructure Design de U10, 2026-10-10); `fallida` con `reason = error_de_ejecucion` y el informe parcial si `result = error`; `fallida` con `reason = plazo_vencido` si vence `activeDeadlineSeconds` (lo marca el barrido siguiente, porque el latido se detiene).
+- **Relación de estados**: `terminada` ⇔ hay `report` y `report.result ∈ {integra, inconsistente}`; `fallida` ⇔ hay `reason ∈ {interrumpida, error_de_ejecucion, plazo_vencido}`; `pendiente` y `en_curso` no tienen ni `report` ni `reason`. U0 lo valida (§9.6).
+- **La `full` mensual** (segunda revisión del Infrastructure Design de U10, 2026-10-10): ya no hay un CronJob propio. En cada corrida, `registry-verify-ondemand`, después del barrido y si no hay ninguna verificación activa, comprueba la última `full` `terminada`: si tiene más de 30 días (o no hay ninguna), encola una con `requested_by = cron` y la ejecuta en esa misma corrida. Si hay una activa (por ejemplo, un `range` del CRO), la `full` se encola en la primera corrida libre, así que nunca se pierde: a lo sumo se atrasa lo que dure la activa. Una `full` sin terminar a los 35 días dispara `RegistryFullVerificationOverdue` (SEV3). Así toda `full` deja su fila.
+- **`last_full_verification`** (§4.1 de domain-entities) = la fila más reciente con `mode = full` y `status = terminada`, sea del CRO o de la mensual. El expediente la lee de `integrity_checks`.
+- **Checkpoint tras una `full`** (BR-U3-08): la verificación no firma. El checkpoint siguiente de `registry-checkpoint` (≤ 1 h) cubre la cabeza verificada.
+- `GET /v1/integrity-checks/{id}` (`cro`) devuelve `IntegrityCheckStatus`.
+- **Lectura en el standby** (revisión del Infrastructure Design de U10, 2026-10-10): con `synchronous_commit = remote_apply` (BR-U3-04), una consulta larga en un standby síncrono podría retrasar el *replay* y con él los appends. Por eso:
+  - toda lectura larga en la réplica, de verificación **y de archivo** (`registry-archive`, P-U3-07; segunda revisión del Infrastructure Design de U10, 2026-10-10), va en tramos cortos (≤ 10 000 entradas por consulta, por `seq`), cada uno en su transacción;
+  - `registry-db` tiene `hot_standby_feedback = on` y `max_standby_streaming_delay = 2s`, así que un conflicto de recuperación cancela el tramo en ≤ 2 s en lugar de frenar el *replay*. El tramo se reintenta hasta 3 veces;
+  - con 3 instancias y `minSyncReplicas = 1`, `maxSyncReplicas = 2` (U1), el commit espera a **una** de las dos réplicas, así que un standby demorado no frena los appends mientras el otro esté sano;
+  - **a confirmar en kind** (Paso 18): un append con una verificación `full` en curso y una creación de partición simultánea mantiene el p99 ≤ 200 ms.
 
 ## 5. Lectura (Q6, Q7; US-403, FR-REG-04)
 
@@ -152,7 +171,7 @@ servicio o de sistema, son:
 - `model_event` `validacion_fallida` por vencimiento del plazo: `{kind: system, id: governance-service}`;
 - `model_event` `transicion_descartada` (compensación de U4 BR-U4-17): `{kind: system, id: governance-service}` (precisado el 2026-10-06, revisión del FD de U8).
 
-Cuando el evento es una firma con MFA, el actor lleva `acr` y `auth_time` (BR-U0-72).
+Toda entrada con actor de usuario (`kind = user`) lleva `acr` y `auth_time`, sea o no una firma con MFA: también `human_decision` y `explanation_view` (U0 §5.1; segunda revisión del Infrastructure Design de U10, 2026-10-10). La validación de U0 rechaza la entrada si faltan.
 Precisado el 2026-10-03 al revisar los cambios de U4: la versión anterior solo exceptuaba
 `freeze` y dejaba sin cubrir los eventos del Job de validación.
 
@@ -180,16 +199,18 @@ Precisado el 2026-10-03 al revisar los cambios de U4: la versión anterior solo 
   - **Por qué 181 días**: el momento de negocio de una entrada nunca es posterior a su `occurred_at` (BR-U0-37), y `occurred_at` supera a `recorded_at` a lo sumo en 5 min (BR-U3-05); el día extra cubre esos 5 min y el corte por fecha UTC. Una entrada registrada antes del corte tiene su día fuera de los 180 días de retención.
   - **El CronJob no se suspende**: sigue corriendo y sus lotes se intercalan con los del Job, porque los dos toman la marca con `FOR UPDATE` y ninguno cuenta dos veces. Solo suma throughput.
   - Las tablas son derivadas y `verify_chain` no las toca; el append no cambia.
-- **Exclusión mutua** (aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10, hallazgo 2): `aggregator reset` y `aggregator run --until-head` toman al empezar un *advisory lock* de PostgreSQL con una llave fija de la reconstrucción (`pg_try_advisory_lock`) y lo sostienen hasta terminar; si ya está tomado, terminan con error sin tocar nada. Así nunca corren dos reconstrucciones a la vez ni un reset durante un rebuild, que haría retroceder la marca de agua. El CronJob del agregador no toma ese lock: lo serializa el `FOR UPDATE` de la marca.
+- **Exclusión mutua** (aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10, hallazgo 2): `aggregator reset` y `aggregator run --until-head` toman al empezar un *advisory lock* de PostgreSQL con la llave de la reconstrucción (`pg_try_advisory_lock(0x56520002)`, distinta de la del append; domain-entities §6; revisión del Infrastructure Design de U10, 2026-10-10) y lo sostienen hasta terminar; si ya está tomado, terminan con error sin tocar nada. Así nunca corren dos reconstrucciones a la vez ni un reset durante un rebuild, que haría retroceder la marca de agua. El CronJob del agregador no toma ese lock: lo serializa el `FOR UPDATE` de la marca.
 - **Lanzamiento del runbook `monitoring-rebuild`** (aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10; reemplaza los dos diseños anteriores, hooks de sync y K15):
   - los Jobs viven en una **Application de Argo CD aparte**, `decision-registry-rebuild` (chart propio en `decision-registry/chart-rebuild/`, mismos namespace y roles), y no en la del registro: así un sync largo del rebuild nunca bloquea un sync o un rollback de `decision-registry-service`, que es Critical (revisión del Infrastructure Design de U9, 2026-10-10);
-  - ese chart renderiza los dos Jobs como **recursos normales** (no hooks) **solo** cuando el value `monitoringRebuild.runId` está fijado: `registry-aggregator-reset-<runId>` en una `sync-wave` y `registry-aggregator-rebuild-<runId>` en la siguiente. Argo CD espera a que el reset termine (`Healthy`) antes de aplicar el rebuild;
+  - ese chart renderiza los dos Jobs como **recursos normales** (no hooks) **solo** cuando el value `monitoringRebuild.runId` está fijado (el Job `x06-probe` de U12, solo en kind, depende de otro value, `probes.runId`, independiente de este; sin ninguno de los dos, el chart no tiene recursos; revisión del Infrastructure Design de U12, 2026-10-10): `registry-aggregator-reset-<runId>` en una `sync-wave` y `registry-aggregator-rebuild-<runId>` en la siguiente. Argo CD espera a que el reset termine (`Healthy`) antes de aplicar el rebuild;
   - el runbook es un **PR** que fija un `runId` nuevo y un **sync manual con prune** aprobado (AUTONOMIA-01); el prune retira los Jobs del `runId` anterior. **Formato del `runId`**: `AAAAMMDD-HHMM` (UTC) del momento del PR. Un check de CI del repositorio GitOps rechaza un `runId` que ya figure en `rebuild-history.yaml`, y el mismo PR lo agrega ahí (revisión del Infrastructure Design de U9, 2026-10-10). Los crea Argo CD (K04) con el pod spec revisado en el PR: nadie puede cambiar imagen, comando ni volúmenes, y no hay binding nuevo ni excepción a AUTONOMIA-01;
   - un Job completado **no** se vuelve a ejecutar en un sync posterior, porque el recurso existe y no cambió. Si el PR que quita el `runId` se olvida, no pasa nada; el siguiente `runId` reemplaza al anterior y el sync poda los Jobs viejos. Por eso no llevan `ttlSecondsAfterFinished`: si Kubernetes los borrara, Argo CD los recrearía y la reconstrucción volvería a correr;
   - **a verificar en kind** (Paso 18): si la versión de Argo CD que se fije espera la salud de la última `sync-wave`, el sync queda en curso hasta que termine el rebuild (≤ 90 min); es aceptable porque ese sync no lleva otros cambios de U3;
   - **si el rebuild supera 1 h** (revisión del Infrastructure Design de U9, 2026-10-10): no hace falta relanzarlo. El CronJob del agregador nunca se suspende y sigue avanzando desde la marca de agua, así que, si el Job vence a los 90 min o falla, el CronJob completa la reconstrucción a su ritmo (unas 12 corridas por hora). El runbook vigila el atraso: si baja, se espera; si no baja durante 2 h, se escala a SEV1 y se investiga (por ejemplo, una entrada que hace fallar el lote) antes de un `runId` nuevo;
   - **un Job fallido no pasa desapercibido**: tras el reset, el atraso del agregador es de ~181 días y `MonitoringAggregatorStale` salta; el runbook la silencia durante 2 h, y si el rebuild falla o no termina, el atraso no baja y la alerta vuelve al vencer el silencio. Un Job que no obtiene el *advisory lock* también falla y deja la alerta activa.
   - **`MonitoreoSesgoDetenido` es esperada** durante la reconstrucción (revisión del plan de tareas de U9, 2026-10-10): mientras el agregador esté atrasado, las corridas de U9 fallan por atraso (BR-U9-10) y la alerta salta a W. El runbook la silencia junto con `MonitoringAggregatorStale`, con el mismo vencimiento de 2 h (y la de SEV1 a 2W también), y anota en el silencio el `runId`. Si al vencer el silencio el atraso no bajó, las dos vuelven.
+  - **Antes de dar por esperada `MonitoreoSesgoDetenido`** (revisión del FD de U10, 2026-10-10, B12), el runbook comprueba `vectra_bias_last_run_failure{reason}`: el silencio solo es válido mientras el motivo de las corridas fallidas sea `agregador_atrasado`. Con cualquier otro motivo (`lectura`, `token`, `freeze`, `libreria`, `invalidas`), el operador quita el silencio de `MonitoreoSesgoDetenido` y sigue su runbook, porque la falla no la causa la reconstrucción. El silencio de Alertmanager se crea con el matcher de la alerta y no puede filtrar por el motivo, así que esta comprobación es un paso del runbook, repetido cada 30 min mientras dure el silencio.
+- **Credencial de `registry_migrator` para el reset** (revisión del FD de U10, 2026-10-10, B11): el `ExternalSecret` del Job de reset vive en `chart-rebuild/` y se renderiza **solo con `runId`**, en una `sync-wave` anterior al reset (Argo CD espera a que esté `Healthy`, es decir, a que ESO haya creado el Secret). Al quitar el `runId` o cambiarlo, el sync con prune lo retira, y ESO borra el Secret (`creationPolicy: Owner`). Fuera de una reconstrucción, la credencial de `registry_migrator` existe solo para el Job de migración del chart principal.
 
 ## 6. Alertas
 
@@ -225,3 +246,8 @@ Precisado el 2026-10-03 al revisar los cambios de U4: la versión anterior solo 
 | U3 (esta unidad), revisión del NFR Requirements de U9, 2026-10-10 (segunda) | ~~Lanzamiento con CronJobs suspendidos y `kubectl create job --from` por un operador (K15, `restrict-manual-jobs`), TTL de 7 días, sin suspender el CronJob; falla visible por `MonitoringAggregatorStale`; BR-U3-11 y BR-U3-17 reorganizados~~ **Reemplazado** (salvo la reorganización de BR-U3-11 y 17) | NFR Requirements de U9 |
 | U3 (esta unidad), aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10 | Jobs normales en Git con `runId` y `sync-wave`, creados por Argo CD tras un PR y un sync manual; *advisory lock* de la reconstrucción; sin K15 ni `restrict-manual-jobs` | NFR Requirements de U9 |
 | U3 (esta unidad), revisión del Infrastructure Design de U9, 2026-10-10 | Application aparte `decision-registry-rebuild`; `runId` con fecha, historial y check de CI; sync con prune; contingencia si el rebuild supera 1 h | Infrastructure Design de U9 |
+| U3 (esta unidad), revisión del plan de tareas de U9, 2026-10-10 | Chart de los Jobs en `decision-registry/chart-rebuild/` (estructura y Paso 12 del plan); el runbook `monitoring-rebuild` silencia también `MonitoreoSesgoDetenido` con el mismo vencimiento | Plan de tareas de U9 |
+| U3 (esta unidad), segunda revisión del Infrastructure Design de U10, 2026-10-10 | Rol `registry_ondemand` aparte (la API comparte `registry_verifier`, que queda de solo lectura); `registry_app` sin `UPDATE`; la `full` mensual la encola `registry-verify-ondemand` (sin CronJob propio) y `RegistryFullVerificationOverdue`; `fallida` mensual SEV3; emisor de las métricas; archivo en tramos; readiness por quórum; F97, F98, F99 e INF-U3-04 | Segunda revisión del Infrastructure Design de U10 |
+| U3 (esta unidad), revisión del Infrastructure Design de U10, 2026-10-10 | BR-U3-13b rediseñada: la API registra la solicitud (202 o 200 con la activa) y el CronJob `registry-verify-ondemand` la ejecuta con la identidad de verificación; barrido de filas huérfanas en cada corrida; relación de estados; la `full` mensual pasa por la misma tabla y define `last_full_verification`; BR-U3-01, 02, 04 y 08 precisados; lectura en tramos cortos en el standby | Revisión del Infrastructure Design de U10 |
+| U3 (esta unidad), NFR Design de U10, 2026-10-10, Q3 | BR-U3-13b: verificación bajo demanda asíncrona (202, `GET /v1/integrity-checks/{id}`, tabla `integrity_checks`, tarea en segundo plano, `fallida` por interrupción); permisos de `registry_app` sobre esa tabla | NFR Design de U10 |
+| U3 (esta unidad), revisión del FD de U10, 2026-10-10 | Fila `range` dentro de la tabla de BR-U3-11; `ExternalSecret` de `registry_migrator` solo con `runId`; comprobación del motivo de falla de U9 antes de dar por esperada la alerta; Application de reconstrucción en la wave 6 y check del `runId` en el CI del repositorio GitOps | B10–B12 |

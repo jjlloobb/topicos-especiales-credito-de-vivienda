@@ -69,7 +69,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 - Se despliega **solo en kind y staging**. El value `coreMock.enabled` es `false` en los values de producción, y una regla de `conftest` lo verifica.
 - **Core deshabilitado en producción para el MVP** (aclaración del hallazgo 1, respuesta A):
   - value `core.enabled` de `case-service`: `true` en kind y staging, **`false` en producción**; una regla de `conftest` sobre los values de producción lo verifica, junto con `coreMock.enabled = false`;
-  - con `core.enabled = false`, `get_case` responde `credit_status = no_disponible` **sin llamar** a nada y **sin contar para el circuit breaker**: es una configuración, no una falla (BR-U8-21, NFR-U8-25, 31). La consola lo muestra como «estado de crédito no integrado» (pendiente para U10);
+  - con `core.enabled = false`, `get_case` responde `credit_status = no_integrado` (precisado el 2026-10-10 por U10 FD, Q3) **sin llamar** a nada y **sin contar para el circuit breaker**: es una configuración, no una falla (BR-U8-21, NFR-U8-25, 31). La consola lo muestra como «estado de crédito no integrado» (U10 BR-U10-07);
   - en producción no existe F17 ni X01, y `CoreWriteAttempt` no se despliega (no hay mock ni proxy que la alimente);
   - el cliente `case-service` del realm de producción no tiene `core:read-credit` ni la audiencia `core-banking-mock` (U2 domain-entities §2.2);
   - la integración con el core real queda **pendiente para Operations** (§8): flujo de egress propio en §5 de `component-dependency.md`, revisión de seguridad y un equivalente de X01 fuera de la malla (por ejemplo, un egress gateway que solo admita `GET`).
@@ -78,7 +78,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 - **Verificación**:
   - `conftest` sobre los values de producción: `coreMock.enabled = false` y `core.enabled = false`;
   - prueba de ejemplo: un token sin `core:read-credit` → 403;
-  - prueba de integración con `core.enabled = false` y un core doble que registra las llamadas: `get_case` de un caso `decidido` → `credit_status = no_disponible`, cero llamadas al doble y el breaker del core sigue cerrado sin registrar fallos;
+  - prueba de integración con `core.enabled = false` y un core doble que registra las llamadas: `get_case` de un caso `decidido` → `credit_status = no_integrado`, cero llamadas al doble y el breaker del core sigue cerrado sin registrar fallos;
   - suite de conectividad: el mock alcanza el JWKS de Keycloak y nada más.
 - **Satisface**: NFR-U8-25, 26, 31, 43; SECURITY-08; AUTONOMIA-03.
 
@@ -186,8 +186,6 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 
 ## 6. Cumplimiento de extensiones (Infrastructure Design U8)
 
-Revisada contra el cuerpo del documento antes de presentarla.
-
 | Regla | Estado | Evidencia |
 |---|---|---|
 | RESILIENCY-01 / 02 | Cumple | INF-U8-04 (`vectra-high`; RPO y RTO de `case-db` heredados de U1) |
@@ -221,7 +219,7 @@ Revisada contra el cuerpo del documento antes de presentarla.
 | U7 P-U7-02, P-U7-03, §8; business-rules §6; domain-entities §6 | `case-worker` como cliente de scoring; filas de U8 resueltas; caché del diccionario LRU de 4 versiones | Revisión, hallazgos 13 a 15 |
 | U8 business-rules BR-U8-22 y §8 | Evidencia de RT-5 en el proxy; filas de los cambios | Q3 |
 | U1 deployment-architecture (`vectra-mock`) | El mock solo existe en kind y staging | Q2 |
-| U8 BR-U8-21, BR-U8-22, NFR-U8-25, 31, 43; P-U8-06; deployment-architecture; `component-dependency.md` F17, X01, §5 y §7 | Core deshabilitado en producción (`core.enabled = false`): `no_disponible` sin llamar y sin contar para el breaker; F17, X01 y `CoreWriteAttempt` solo en kind y staging; nota en §5 | Aclaración Q1 = A; revisión 2026-10-08, hallazgo 1 |
+| U8 BR-U8-21, BR-U8-22, NFR-U8-25, 31, 43; P-U8-06; deployment-architecture; `component-dependency.md` F17, X01, §5 y §7 | Core deshabilitado en producción (`core.enabled = false`): `no_disponible` (**superado** por U10 FD, Q3: el valor es `no_integrado`; revisión del FD de U10, 2026-10-10, B16) sin llamar y sin contar para el breaker; F17, X01 y `CoreWriteAttempt` solo en kind y staging; nota en §5 | Aclaración Q1 = A; revisión 2026-10-08, hallazgo 1 |
 | U2 domain-entities §2.2 | El cliente `case-service` del realm de producción no tiene `core:read-credit` ni la audiencia `core-banking-mock`; prueba del realm | Revisión 2026-10-08, U2-a |
 | U8 logical-components §1; `component-dependency.md` §4 | RLS en `evidence_outbox`: `case_worker` solo inserta `fail_closed` | Revisión 2026-10-08, N1 |
 | U8 INF-U8-08, §8 | Se retira `CaseDbVolumeFilling`; se cita `PostgresVolumeUsageHigh` de U1 | Revisión 2026-10-08, hallazgo 7' |
@@ -232,6 +230,6 @@ Revisada contra el cuerpo del documento antes de presentarla.
 ## 8. Pendientes
 - **Para U1** (Code Generation, chart): sumar los aportes de INF-U8-05 (y de INF-U7-02) a las cuotas de `vectra-app` y `vectra-mock` (NFR-U1-13; revisión 2026-10-08, U1-g).
 - **Para Operations**: integración con el core real del banco (INF-U8-02): contrato del API **[VERIFICAR]**, flujo de egress en §5 de `component-dependency.md` (host, puerto y TLS), revisión de seguridad, equivalente de X01 fuera de la malla (egress gateway que solo admita `GET /v1/credits/{id}`), `CoreWriteAttempt` alimentado por ese gateway y el scope `core:read-credit` en el realm de producción.
-- **Para U10**: mostrar `credit_status = no_disponible` con `core.enabled = false` como «estado de crédito no integrado».
+- **Para U10** (resuelto el 2026-10-10 por U10 FD, Q3): case-service devuelve `credit_status = no_integrado` con `core.enabled = false` y la consola lo muestra como «estado de crédito no integrado» (BR-U10-07).
 - **Para U12**: Job de demostración de RT-5 (INF-U8-03) y medición del tamaño por caso (INF-U8-08).
 - **Para el plan de tareas de U8**: CLI `case-retention` (ya pendiente del FD), migración con los cuatro roles y la fila de `retention_settings`, `PrometheusRule` con todas las alertas de P-U8 e INF-U8.

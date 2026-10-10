@@ -5,7 +5,7 @@
 - **Project Type**: Greenfield
 - **Start Date**: 2026-09-26T13:02:25Z
 - **Current Phase**: CONSTRUCTION
-- **Current Stage**: CONSTRUCTION - U10 console - Functional Design
+- **Current Stage**: CONSTRUCTION - todas las unidades cerradas en el plan de tareas
 - **Requirements Depth**: Comprehensive (sistema regulado, alto riesgo, múltiples stakeholders)
 
 ## Workspace State
@@ -69,8 +69,8 @@
 
 ## Current Status
 - **Lifecycle Phase**: CONSTRUCTION
-- **Current Stage**: U10 console — Functional Design
-- **Next Stage**: U10 console — NFR Requirements
+- **Current Stage**: CONSTRUCTION cerrada en los planes de tareas de U0–U12
+- **Next Stage**: ninguna dentro del alcance actual (Code Generation Part 2, Build and Test y OPERATIONS fuera de alcance)
 
 ## Per-Unit Progress (CONSTRUCTION)
 | Unidad | FD | NFR Req | NFR Design | Infra Design | Plan de tareas |
@@ -85,6 +85,29 @@
 | U7 scoring-explainability | aprobado 2026-10-03T16:01:21Z | aprobado 2026-10-03T16:10:17Z | aprobado 2026-10-03T16:31:50Z | aprobado 2026-10-03T16:39:39Z | aprobado 2026-10-03T16:45:48Z |
 | U8 case-management | aprobado 2026-10-06T22:28:34Z | aprobado 2026-10-08T02:01:51Z | aprobado 2026-10-08T02:30:25Z | aprobado 2026-10-08T03:55:19Z | aprobado 2026-10-08T04:15:32Z |
 | U9 bias-monitoring | aprobado 2026-10-10T10:14:20Z | aprobado 2026-10-10T10:57:22Z | aprobado 2026-10-10T11:06:54Z | aprobado 2026-10-10T11:22:07Z | aprobado 2026-10-10T11:31:14Z |
-| U10 console | EN CURSO | pendiente | pendiente | pendiente | pendiente |
-| U11 product-metrics | pendiente | pendiente | pendiente | pendiente | pendiente |
-| U12 system-verification | pendiente | pendiente | SKIP | pendiente | pendiente |
+| U10 console | aprobado 2026-10-10T12:21:18Z | aprobado 2026-10-10T12:36:04Z | aprobado 2026-10-10T12:47:00Z | aprobado 2026-10-10T15:15:03Z | aprobado 2026-10-10T15:19:16Z |
+| U11 product-metrics | aprobado 2026-10-10T15:40:21Z | aprobado 2026-10-10T15:54:45Z | aprobado 2026-10-10T16:05:31Z | aprobado 2026-10-10T16:18:58Z | aprobado 2026-10-10T16:22:22Z |
+| U12 system-verification | aprobado 2026-10-10T16:33:18Z | aprobado 2026-10-10T16:42:08Z | SKIP | aprobado 2026-10-10T16:59:00Z | aprobado 2026-10-10T17:05:37Z |
+
+
+### Revisiones posteriores a la aprobación (segunda revisión del Infrastructure Design de U10, 2026-10-10)
+Las fechas de la tabla son las de la **aprobación original** de cada etapa. Varias unidades ya
+aprobadas se modificaron después, por las revisiones de unidades posteriores; cada cambio está en la
+tabla de cambios de la unidad afectada y en `audit.md`. Las de más impacto:
+
+| Unidad | Etapas tocadas después de aprobarse | Por qué revisión |
+|---|---|---|
+| U0 contracts | FD, NFR, NFR Design, plan | FD, NFR, NFR Design e Infrastructure Design de U9 y U10 |
+| U1 platform-foundation | NFR, NFR Design, Infra, plan | FD a plan de U9; Infrastructure Design de U10; FD a Infra de U11; Infrastructure Design de U12 (K16, F07) |
+| U2 identity-edge | FD, Infra, plan | FD de U9; FD, NFR, Infra de U10; NFR de U11; Infrastructure Design de U12 (`verification-reader`) |
+| U3 decision-registry | FD, NFR, NFR Design, Infra, plan | FD a plan de U9; NFR Design e Infra de U10 (verificación bajo demanda); FD y NFR Design de U11 (proyección `metrics`); Infrastructure Design de U12 (`x06-probe`, F111) |
+| U4 governance | FD, NFR, Infra, plan | FD de U9; Infrastructure Design de U10 |
+| U6 model-serving | Infra | Infrastructure Design de U10 |
+| U8 case-management | FD, NFR, Infra, plan | FD e Infrastructure Design de U10 |
+| U9 bias-monitoring | FD, NFR, NFR Design, Infra, plan | FD, NFR e Infrastructure Design de U10; FD de U11 (permisos de carpeta); Infrastructure Design de U12 (`x04-probe`) |
+| U10 console | FD, NFR | Sus propias etapas posteriores: NFR Requirements y NFR Design (endpoints 28 y 29), Infrastructure Design (step-up, BR-U10-09b a 22) |
+| U11 product-metrics | plan | FD de U12 (verificación en kind al día siguiente; `RuidoExplicacion` por `promtool`) |
+| Inventario (`component-dependency.md`) | Flujos y bindings | F109–F111 y K16 agregados por U10, U11 y U12; `channel-simulator` fuera del clúster |
+
+Antes de Code Generation Part 2 de cualquier unidad, conviene revisar su plan contra su tabla de
+cambios, porque las aprobaciones son anteriores a estas revisiones.

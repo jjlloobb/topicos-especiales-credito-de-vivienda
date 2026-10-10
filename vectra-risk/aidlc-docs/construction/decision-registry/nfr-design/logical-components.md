@@ -10,14 +10,14 @@
 | `registry-checkpoint` | CronJob (cada hora) | Firma, encadena y exporta checkpoints | P-U3-03 | `vectra-high` |
 | `registry-verify-incremental` | CronJob (cada 15 min) | Verificación `incremental` en la réplica | P-U3-05 | `vectra-normal` |
 | `registry-verify-nightly` | CronJob (cada noche) | Verificación `nightly` en la réplica | P-U3-05 | `vectra-normal` |
-| `registry-verify-full` | CronJob (mensual, domingo 02:00) | Verificación `full` en la réplica | P-U3-05 | `vectra-low` |
+| `registry-verify-ondemand` | CronJob (cada minuto, `Forbid`, 21 600 s) | Barrido de filas huérfanas, encolado de la `full` mensual si la última tiene más de 30 días, y ejecución de la verificación `pendiente` en la réplica, con firmas y bucket WORM (segunda revisión del Infrastructure Design de U10, 2026-10-10: reemplaza a `registry-verify-full`) | BR-U3-13b | `vectra-low` |
 | `registry-archive` | CronJob (mensual) | Export de 10 años con verificación | P-U3-07 | `vectra-low` |
-| `registry-aggregator-rebuild` | Job a demanda (runbook `monitoring-rebuild`) | `aggregator run --until-head` tras un reset (F107; octava revisión del FD de U9, 2026-10-10) | BR-U3-17 | `vectra-high` |
-| `registry-aggregator-reset` | Job a demanda (runbook `monitoring-rebuild`) | `aggregator reset` con `registry_migrator` (F108; octava revisión del FD de U9, 2026-10-10) | BR-U3-17 | `vectra-normal` |
+| `registry-aggregator-rebuild-<runId>` | Job de la Application `decision-registry-rebuild`, solo con `runId` (runbook `monitoring-rebuild`) | `aggregator run --until-head` tras un reset (F107; octava revisión del FD de U9, 2026-10-10) | BR-U3-17 | `vectra-high` |
+| `registry-aggregator-reset-<runId>` | Job de la Application `decision-registry-rebuild`, solo con `runId` (runbook `monitoring-rebuild`) | `aggregator reset` con `registry_migrator` (F108; octava revisión del FD de U9, 2026-10-10) | BR-U3-17 | `vectra-normal` |
 | `registry-aggregator` | CronJob (cada 5 min) | Tablas derivadas de monitoreo para U9 (BR-U3-17; segunda revisión del FD de U9, 2026-10-08) | BR-U3-17 | `vectra-high` |
 | Job de migración | Job (hook de sync) | DDL y particiones (F44) | P-U3-06 | `vectra-normal` |
 | `vectra-registry` (CLI) | Binario del paquete | `verify`, `checkpoint`, `archive`, `aggregator run` (`--until-head` en el runbook) y `aggregator reset`; la usan los CronJobs, el runbook `monitoring-rebuild` y `restore-drill` (sexta revisión del FD de U9, 2026-10-10) | BR-U3-11, 17 | — |
-| `registry-db` | Cluster de CloudNativePG (U1) | Primaria + 2 réplicas; servicios `-rw` y `-ro` | NFR-U3-10 | `vectra-critical` |
+| `registry-db` | Cluster de CloudNativePG (U1) | Primaria + 2 réplicas; servicios `-rw` y `-ro`; tablas `registry_entries`, derivadas de monitoreo e `integrity_checks` (revisión del Infrastructure Design de U10, 2026-10-10); `hot_standby_feedback = on`, `max_standby_streaming_delay = 2s` | NFR-U3-10 | `vectra-critical` |
 | Bucket `vectra-registry-checkpoints` | WORM | Copia de los checkpoints | BR-U3-08 | — |
 | Bucket `vectra-registry-archive` | WORM, 10 años | Archivo mensual | P-U3-07 | — |
 | Bóveda (Transit) | Externa a U3 | Firma Ed25519 | P-U3-03, 07 | — |
@@ -36,7 +36,7 @@ flowchart LR
         verify["registry-verify jobs"]
         archive["registry-archive"]
         agg["registry-aggregator"]
-        rebuild["Jobs a demanda rebuild y reset"]
+        rebuild["Jobs con runId: rebuild y reset"]
     end
     rw["registry-db rw primaria"]
     ro["registry-db ro replica"]
@@ -71,7 +71,7 @@ registry-checkpoint (cada hora) -> registry-db -rw (append) ; bóveda (firma) ; 
 registry-verify-* (15 min / noche / mes) -> registry-db -ro ; bucket vectra-registry-checkpoints (comparación)
 registry-archive (mes) -> registry-db -ro ; bóveda (firma del manifiesto) ; bucket vectra-registry-archive (10 años)
 registry-aggregator (5 min) -> registry-db -rw (lee entradas, escribe tablas derivadas; F107)
-registry-aggregator-rebuild / -reset (a demanda, runbook monitoring-rebuild) -> registry-db -rw (F107 / F108)
+registry-aggregator-rebuild / -reset (Jobs con runId de la Application decision-registry-rebuild) -> registry-db -rw (F107 / F108)
 readiness del servicio -> registry-db -rw con registry_health (standby síncrono presente)
 ```
 

@@ -35,9 +35,13 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01); las demás co
 | `POST /v1/monitoring/daily:query` (F26) | 5 s | — | 5 s por solicitud |
 | `POST /v1/models/{id}/freeze` (F27) | 3 s | 3, a 1, 2 y 4 s | 19 s por versión |
 | Push al Pushgateway (F106), dos grupos | 5 s cada uno | — | 10 s |
+| Grupos `freeze-<v>` (F106): lectura, `PUT` y `DELETE` | 5 s cada uno | — | ≈ 100 s (revisión del FD de U10, 2026-10-10, A6) |
 
-- **Peor caso de una corrida**: 3 versiones que congelan y fallan, y 2 solicitudes de rangos. Suma 4 + 3 + 10 + 57 + 10 s, unos 1,5 min, por debajo de los 10 min de `activeDeadlineSeconds`.
-- **CronJob sin circuit breaker**: es un proceso de pocas llamadas que termina en cada corrida, así que un breaker no acumula estadística. Usa `deps.call` con `breaker="disabled"`, que U0 admite solo con `process_kind="batch"` (NFR-U0-23(c), P-U0-07). El timeout sigue siendo obligatorio.
+- **Peor caso de una corrida** (revisión del FD de U10, 2026-10-10, A6): 3 versiones que congelan y fallan y 2 solicitudes de rangos, más los grupos `freeze-<v>`:
+  - token 4 s + `freezes` 3 s + rangos 10 s + cálculo ≤ 2 s + `freeze` 57 s + grupos `run` y `success` 10 s = 86 s;
+  - grupos por versión: una lectura de los grupos del Pushgateway (`GET /api/v1/metrics`, 5 s), un `PUT` o `DELETE` por versión evaluada (3 × 5 s) y hasta 16 `DELETE` de versiones que ya no se evalúan (16 × 5 s), unos 100 s. Si quedan más de 16, se borran en las corridas siguientes;
+  - total ≈ 186 s, unos 3 min, por debajo de `activeDeadlineSeconds` (600 s) y del intervalo mínimo admitido con ese plazo (INF-U9-03).
+- **CronJob sin circuit breaker**: es un proceso de pocas llamadas que termina en cada corrida, así que un breaker no acumula estadística. Usa `deps.call` con `breaker="disabled"`, que U0 admite solo con `process_kind="batch"` (NFR-U0-23 (f), P-U0-07). El timeout sigue siendo obligatorio.
 - **Servicio HTTP con breaker** hacia el registro (F26), con los umbrales de U7: ≥ 50 % de fallos en 20 llamadas dentro de 30 s, y semiabierto a los 10 s. Con el circuito abierto, el dashboard responde 503 sin datos parciales.
 - Fallo del breaker: timeout, error de conexión o 5xx; un 4xx no cuenta (NFR-U8-32, U0).
 - **Verificación**:
@@ -100,12 +104,12 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01); las demás co
 | `MonitoreoSesgoDetenido` | `time() - max(vectra_bias_last_success_timestamp) > <2W>` | 5 min | SEV1 |
 | `MonitoreoSesgoDetenido` | `absent(vectra_bias_last_success_timestamp)` | `<W>` | SEV2 |
 | `BiasFreezeFailed` | `max by (model_version_id) (vectra_bias_freeze_failed) == 1` | 0 | SEV1 |
-| `DisparidadDecisionHumana` | `max by (model_version_id) (vectra_bias_rule_met{population="humana"}) == 1` | 30 min (dos corridas seguidas) | SEV2 |
+| `DisparidadDecisionHumana` | `max by (model_version_id) (vectra_bias_rule_met{population="humana"}) == 1` | `<2 × intervalo>`: dos corridas seguidas; la plantilla lo calcula del intervalo del horario de `values-monitoring-policy.yaml` (hoy 15 min → 30 min; con 5 min serían 10 min). Antes estaba fijo en 30 min y dejaba de equivaler a dos corridas si cambiaba el horario (revisión del Infrastructure Design de U10, 2026-10-10) | SEV2 |
 | `BiasInvalidEntries` | `max(vectra_bias_invalid_entries) > 0` | 0 | SEV2 |
 
 - **W viene de `stale_after`** (revisión del Infrastructure Design de U9, 2026-10-10): la `PrometheusRule` es una plantilla del chart que toma `stale_after` de `values-monitoring-policy.yaml` (aprobado por cumplimiento, INF-U9-03) y genera `<W>` y `<2W>` en segundos; con el valor actual, 3600 y 7200. Nunca hay un número escrito a mano. La prueba de `promtool` se genera con el mismo value y comprueba los dos lados de W y de 2W.
-- `BiasFreezeFailed` lee los grupos por versión del `freeze` fallido (P-U9-01), que persisten hasta un `freeze` exitoso.
-- Las métricas del grupo `run` conservan el valor de la última corrida hasta la siguiente (unos 15 min). Por eso un `for: 30m` equivale a dos corridas seguidas.
+- `BiasFreezeFailed` lee los grupos por versión del `freeze` fallido (P-U9-01). Un grupo se borra con un `freeze` posterior exitoso o con 409, o en una corrida completa en la que la versión ya no cumple la regla o ya no se evalúa (BR-U9-20). Una corrida que falla antes del cálculo no lo toca (revisión del FD de U10, 2026-10-10, B7).
+- Las métricas del grupo `run` conservan el valor de la última corrida hasta la siguiente (un intervalo). Por eso un `for` de 2 × el intervalo equivale a dos corridas seguidas (revisión del Infrastructure Design de U10, 2026-10-10).
 - Cada regla lleva `severity` y `runbook_url` (P-U1-10). El runbook de `BiasInvalidEntries` explica cómo silenciar una entrada conocida hasta que salga de la ventana (§8b del FD).
 - **Verificación**: `helm template` de la `PrometheusRule` con `stale_after` = 1 h y = 2 h, y `promtool test rules` generado para cada valor; `promtool test rules` de cada alerta con series sintéticas a los dos lados del umbral; un caso de `BiasFreezeFailed` con una corrida siguiente que falla antes del cálculo (la alerta sigue) y otro con un `freeze` exitoso (se apaga); con un caso sin serie para `MonitoreoSesgoDetenido` y un caso de una sola corrida para `DisparidadDecisionHumana` (no dispara); el test de runbooks de U1.
 - **Satisface**: NFR-U9-40; RESILIENCY-05, 07, 15; SECURITY-14.
@@ -129,8 +133,6 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01); las demás co
 
 ## 6. Cumplimiento de extensiones (NFR Design U9)
 
-Revisada contra el cuerpo del documento antes de presentarla.
-
 | Regla | Estado | Evidencia |
 |---|---|---|
 | RESILIENCY-05 / 07 / 15 | Cumple | P-U9-06 |
@@ -146,5 +148,7 @@ Revisada contra el cuerpo del documento antes de presentarla.
 
 | Artefacto | Cambio | Origen |
 |---|---|---|
-| U0 NFR-U0-23 (c), P-U0-07 y plan de U0 (Paso 10) | Modo `breaker="disabled"`, solo con `process_kind="batch"`; un servicio HTTP que lo intente falla al crear el cliente | Q1 |
+| U0 NFR-U0-23 (f), P-U0-07 y plan de U0 (Paso 10) | Modo `breaker="disabled"`, solo con `process_kind="batch"`; un servicio HTTP que lo intente falla al crear el cliente | Q1 |
 | U9 FD BR-U9-12 (precisión) | Con varias versiones, se intentan todas las que cumplan la regla; la corrida falla al final si alguna falló (P-U9-01) | Q4 |
+| U0 §9.4 (`DisparityView`, `FreezeContext`) | Llevan los cinco parámetros de BR-U9-13 (`window_days`, `schedule`, `stale_after_s` además de `threshold_pp` y `n_min`) | revisión del FD de U10, 2026-10-10, A7 |
+| U9 P-U9-01, 02, 06 y plan de tareas | Grupos `freeze-<v>` con su lectura y borrado acotado; peor caso ≈ 186 s; borrado del grupo en una corrida completa | revisión del plan de tareas de U9, 2026-10-10, y revisión del FD de U10, 2026-10-10, A6 y B7 |

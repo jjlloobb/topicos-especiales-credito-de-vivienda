@@ -37,7 +37,7 @@ implementa BR-U3-05/06 y BR-U0-37 y se valida con las pruebas de append de U3 (N
 Las pruebas de kind usan las unidades reales.
 
 **Fuera de este plan** (registrado en los diseños): la presentación en la consola de
-`credit_status = no_disponible`, de `vencido`, de `decision_already_recorded` y de
+`credit_status` (`no_disponible` y `no_integrado`), de `vencido`, de `decision_already_recorded` y de
 `model_frozen_after_recommendation` (U10); el Job de demostración de RT-5 y la medición del
 tamaño por caso (U12); la integración con el core real del banco (Operations, INF-U8 §8).
 
@@ -184,7 +184,8 @@ vectra-risk/case-management/
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest case-management/tests/property/test_evidence.py tests/integration/test_decision.py tests/integration/test_explanation_views.py tests/doubles/test_registry_double.py`:
     - PBT-U8-07 contra el doble del registro;
     - el doble del registro pasa las pruebas de ejemplo de append de U3 (plan de U3, Paso 7) (NFR-U8-53);
-    - decisión `sigue` → entrada `human_decision` con `user_id`, `model_version_id`, `policy_version_id` y `recommendation_entry_id`; decisión sobre un caso `no_disponible` → 409 sin entrada (US-108);
+    - `first_evaluation` (revisión del FD de U11, 2026-10-10): caso nuevo → `true` en el intento 1 y `false` en el 2; caso que pasó por `modelo_congelado` y se descongeló (`attempts = 0`, intento 1) → `false`; caso reintentado por el CRO desde `no_disponible` → `false`;
+    - decisión `sigue` → entrada `human_decision` con `user_id`, `model_version_id`, `policy_version_id` y `recommendation_entry_id`, y con `actor.acr` y `actor.auth_time` del token aunque la decisión no pida MFA (BR-U8-18; segunda revisión del Infrastructure Design de U10, 2026-10-10); decisión sobre un caso `no_disponible` → 409 sin entrada (US-108);
     - primera consulta → una entrada; segunda → 204 sin entrada (US-501);
     - evidencia pendiente 24 h → `abandonada`, y el caso acepta otra decisión;
     - decisión abandonada que el registro sí había escrito + decisión nueva → 409 `decision_already_recorded`; la nueva queda `abandonada`, el caso queda `decidido` con la primera y el registro tiene una sola `human_decision`;
@@ -206,15 +207,15 @@ vectra-risk/case-management/
 
 - [ ] **Paso 12 — `credit`: lectura del core**
   - `GET /v1/credits/{case_id}` (F17) solo para casos `decidido`, timeout 500 ms, sin caché; 404 → `sin_credito`; error o timeout → `no_disponible`.
-  - Con `core.enabled = false`: `no_disponible` sin crear el cliente, sin llamar y sin registrar nada en el breaker (INF-U8-02).
+  - Con `core.enabled = false`: `no_integrado` (precisado el 2026-10-10 por U10 FD, Q3) sin crear el cliente, sin llamar y sin registrar nada en el breaker (INF-U8-02).
   - Diseño: BR-U8-21; INF-U8-02; P-U8-09; NFR-U8-25, 31.
   - **Aceptación**: `uv run pytest case-management/tests/integration/test_credit.py`:
     - mock detenido → `get_case` responde con `credit_status = no_disponible` dentro de su p99 (E6 de P-U8-09);
-    - `core.enabled = false` y un doble que registra las llamadas → `no_disponible`, cero llamadas y breaker sin fallos registrados;
+    - `core.enabled = false` y un doble que registra las llamadas → `no_integrado`, cero llamadas y breaker sin fallos registrados;
     - 404 → `sin_credito`.
 
 - [ ] **Paso 13 — API, arranque y apagado de `case-service`**
-  - `create_app` de U0 con las rutas de F04 y F10 (`list_cases`, `get_case`, `create_case`, `record_decision`, `record_explanation_view`, `retry_case`, `list_persistent_failures`); scopes y audiencias de U2; `list_cases` excluye `vencido` salvo con `state=vencido`.
+  - `create_app` de U0 con las rutas de F04 y F10 (`list_cases`, `get_case`, `get_case_identifiers` (`cro` y `cumplimiento`; revisión del Infrastructure Design de U10, 2026-10-10), `create_case`, `record_decision`, `record_explanation_view`, `retry_case`, `list_persistent_failures`); scopes y audiencias de U2; `list_cases` excluye `vencido` salvo con `state=vencido`.
   - Logs `case.viewed` y `case.retry_requested` con la allowlist de U0 §8; `authz.denied` y `vectra_authz_denied_total` en cada 401/403.
   - Readiness (`/readyz`, 8081) solo con `case-db`; liveness solo del proceso.
   - Apagado: `preStop` de 5 s en el chart, uvicorn con `timeout_graceful_shutdown = 10`; al recibir `SIGTERM`, barridos y reconciliador dejan de tomar trabajo y terminan el lote.
@@ -222,7 +223,9 @@ vectra-risk/case-management/
   - Diseño: BR-U8-13, 13b; P-U8-03, 06; INF-U8-04, 06; NFR-U8-21, 22, 42, 45. Historias: US-107, US-108.
   - **Aceptación**: `uv run pytest case-management/tests/integration/test_app.py tests/integration/test_degradation.py tests/integration/test_service_shutdown.py`:
     - bandeja con casos en `listo`, `en_sincronizacion`, `no_disponible` y `modelo_congelado`; el `GET` de un caso no listo no trae `score` (US-107);
+    - `model_frozen_after_recommendation=true` en la consulta → solo los casos marcados; `false` → solo los no marcados (BR-U8-13; revisión del FD de U10, 2026-10-10, A4);
     - detalle para `analista` → sin `sex` ni `socioeconomic_stratum` y con el log `case.viewed`;
+    - `get_case_identifiers` para `cumplimiento` → solo `identifiers` y `anonymized`, sin solicitud ni recomendación; para `analista` → 403; caso anonimizado → `anonymized = true` sin `identifiers` (revisión del Infrastructure Design de U10, 2026-10-10);
     - una fila de P-U8-03 por prueba: `case-db` en `default_transaction_read_only` → 503 sin efecto y `Ready`; governance, scoring, registro o core caídos → `Ready`;
     - `GET /metrics` recién iniciado muestra cada combinación de los contadores en 0; ninguna etiqueta fuera de la allowlist;
     - PBT-U0-07 en modo strict sobre `case.viewed` y `case.retry_requested`;
@@ -380,8 +383,6 @@ vectra-risk/case-management/
 ---
 
 ## 3. Trazabilidad
-
-Generada con un script a partir de las líneas «Diseño» e «Historia(s)» de cada paso, y revisada antes de presentarla.
 
 | Historia | Pasos |
 |---|---|

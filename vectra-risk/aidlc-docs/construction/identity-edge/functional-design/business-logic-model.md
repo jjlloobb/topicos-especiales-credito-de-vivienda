@@ -34,8 +34,11 @@ SPA -> POST /api/console/models/{id}/approval
   gateway: JWT válido (BR-U2-11) -> BFF
   BFF/servicio (U0): rol cro ✓; acr = mfa ✓; now - auth_time <= 900 s ?
      no -> 403 mfa_required
-           SPA: authorize?prompt=login&max_age=0&acr_values=mfa -> TOTP -> token nuevo
-           SPA reintenta la acción
+           SPA (revisión del Infrastructure Design de U10, 2026-10-10; U10 BR-U10-06): diálogo «Verificar identidad» -> su clic abre una ventana emergente
+             -> authorize?prompt=login&max_age=0&acr_values=mfa&redirect_uri=/stepup-callback -> TOTP
+             -> /stepup-callback: postMessage({code, state}, mismo origen) y cierra
+           ventana principal: valida origen y state, canjea el código (PKCE), token nuevo en memoria
+           SPA reintenta la acción una vez, con el cuerpo intacto
      sí -> acción; la entrada del registro guarda actor.acr y actor.auth_time
 ```
 
@@ -67,7 +70,7 @@ request
 | PBT-U2-02 | `realm-lint` / mapeo LDAP | Para toda asignación de grupos LDAP, el usuario obtiene un rol ⇔ pertenece exactamente a un grupo mapeado; con dos o más, no obtiene ninguno | Oráculo | Conjuntos de grupos mapeados y no mapeados |
 | PBT-U2-03 | `realm-lint` | Para todo cliente del realm generado: ningún scope fuera del catálogo de U0 pasa, `core:write-credit` no pasa nunca, y `governance:freeze` solo pasa en el cliente `bias-monitoring-job` (tercera revisión del FD de U9, 2026-10-10) | Invariante | Clientes con scopes arbitrarios del catálogo y fuera de él |
 | PBT-U2-04 | `route-gen` | Para todo path generado, el gateway lo enruta ⇔ coincide con una entrada de `routes.yaml`; todo path bajo `/auth/admin` o del realm `master` da 404 | Invariante | Paths aleatorios, prefijos de las rutas válidas, codificaciones (`%2F`, `..`, mayúsculas) |
-| PBT-U2-05 | `route-gen` | Para toda ruta generada, el perfil de cabeceras aplicado es el de su fila, y solo `/grafana/**` permite `frame-ancestors 'self'` | Invariante | Rutas de la tabla y paths dentro de cada una |
+| PBT-U2-05 | `route-gen` | Para toda ruta generada, el perfil de cabeceras aplicado es el de su fila, y solo `/grafana/**` y `/auth/**` permiten `frame-ancestors 'self'`; toda ruta lleva `Cross-Origin-Opener-Policy: same-origin` (revisión del Infrastructure Design de U10, 2026-10-10) | Invariante | Rutas de la tabla y paths dentro de cada una |
 | PBT-U2-06 | `route-gen` | `generate(routes.yaml)` es determinista: dos ejecuciones producen manifiestos idénticos | Idempotencia | Tablas de rutas con orden de entradas permutado |
 | PBT-U2-07 | `stepup` (U0 `authz`) | Para todo `acr` y `auth_time` generados: la acción con MFA se permite ⇔ `acr = mfa` ∧ `now − auth_time ≤ 900` | Oráculo | `acr` ∈ {`pwd`, `mfa`, ausente, otro}; `auth_time` alrededor del borde (899, 900, 901 s) y en el futuro |
 

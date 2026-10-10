@@ -59,7 +59,7 @@ vectra-risk/bias-monitoring/
 
 - [ ] **Paso 1 — Esqueleto de `bias-monitoring/`**
   - Directorios de §1; `pyproject.toml` con dos miembros del workspace: `vectra_disparity` (sin dependencias de runtime fuera de la biblioteca estándar) y `vectra_bias` (depende de `vectra_contracts`, `vectra_common` y `vectra_disparity`).
-  - Dependencias de desarrollo: Fairlearn, pandas y numpy, solo para pruebas y la simulación.
+  - Dependencias de desarrollo directas: Fairlearn, pandas y numpy, solo para pruebas y la simulación; scipy y scikit-learn llegan como transitivas de Fairlearn. Herramientas de prueba: pytest, pytest-cov (coverage.py), Hypothesis y mutmut (revisión del FD de U10, 2026-10-10, B9).
   - Contratos de import-linter:
     - `vectra_disparity` no importa nada fuera de la biblioteca estándar;
     - `freeze_rule`, `context` y `window` no hacen E/S;
@@ -78,7 +78,7 @@ vectra-risk/bias-monitoring/
     - el **horario** solo lo usa el chart, en el `schedule` del CronJob, y **W** solo lo usa la `PrometheusRule`.
   - Diseño: INF-U9-03; P-U9-02, 03; NFR-U9-03.
   - **Aceptación**: `uv run pytest bias-monitoring/tests/unit/test_config.py`:
-    - el peor caso de una corrida (3 versiones que fallan, P-U9-02) < `activeDeadlineSeconds` (600 s);
+    - el peor caso de una corrida (3 versiones que fallan, 2 solicitudes de rangos, lectura de grupos, 3 `PUT`/`DELETE` de grupos `freeze-<v>` y 16 `DELETE` de versiones que ya no se evalúan; ≈ 186 s, P-U9-02) < `activeDeadlineSeconds` (600 s) (revisión del FD de U10, 2026-10-10, A6);
     - ninguna constante se lee de variables de entorno;
     - un archivo de parámetros con valores fuera de rango → error al arrancar.
 
@@ -143,7 +143,7 @@ vectra-risk/bias-monitoring/
   - `freeze_client`: solo `POST /v1/models/{id}/freeze`, con 3 reintentos (1, 2 y 4 s) y timeout de 3 s.
   - `publish`:
     - grupos `run` y `success` del Pushgateway, con `PUT`;
-    - grupo `freeze-<model_version_id>`, que se crea al fallar el `freeze` y se borra con un `freeze` exitoso o 409, o en una corrida **completa** en la que la versión ya no cumple la regla o ya no se evalúa (BR-U9-20; revisión del plan de tareas de U9, 2026-10-10);
+    - grupo `freeze-<model_version_id>`, que se crea al fallar el `freeze` y se borra con un `freeze` exitoso o 409, o en una corrida **completa** en la que la versión ya no cumple la regla o ya no se evalúa (BR-U9-20; revisión del plan de tareas de U9, 2026-10-10); los grupos de versiones que ya no se evalúan se encuentran con `GET /api/v1/metrics` del Pushgateway y se borran hasta 16 por corrida (revisión del FD de U10, 2026-10-10, A6);
     - sin tasas de celdas insuficientes.
   - Diseño: BR-U9-07, 12, 20; P-U9-01, 02, 05; NFR-U9-03, 22.
   - **Aceptación**: `uv run pytest bias-monitoring/tests/integration/test_clients.py tests/integration/test_publish.py` (dobles de U3, U4 y del Pushgateway):
@@ -152,7 +152,8 @@ vectra-risk/bias-monitoring/
     - `freeze` con 503 persistente → 4 intentos;
     - el grupo `freeze-<v>` persiste tras una corrida que falla antes del cálculo; se borra con un `freeze` exitoso, con un 409, y en una corrida completa en la que `v` ya no cumple la regla o ya no se evalúa;
     - una corrida fallida no borra `last_success`;
-    - una versión que deja de evaluarse desaparece del grupo `run`.
+    - una versión que deja de evaluarse desaparece del grupo `run`;
+    - 20 grupos `freeze-<v>` de versiones que ya no se evalúan → la corrida borra 16 y la siguiente, los 4 restantes; cada operación corta a los 5 s.
 
 - [ ] **Paso 8 — `run`: la corrida completa**
   - Orden de P-U9-01:
@@ -165,7 +166,7 @@ vectra-risk/bias-monitoring/
   - Decisiones humanas y tasa de apartamiento (BR-U9-14).
   - Diseño: BR-U9-08..14, 20; P-U9-01, 07; NFR-U9-01, 20, 21. Historias: US-302, US-303, US-308.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest bias-monitoring/tests/property/test_run_machine.py tests/integration/test_run.py`:
-    - PBT-U9-05 (stateful, con reactivaciones, Keycloak sin token y dos versiones con un `freeze` que falla solo en una);
+    - PBT-U9-05 (stateful, con reactivaciones, Keycloak sin token y dos versiones con un `freeze` que falla solo en una), incluido el invariante del ciclo de vida de los grupos `freeze-<v>` contra un doble del Pushgateway que registra `PUT` y `DELETE` (revisión del Infrastructure Design de U10, 2026-10-10);
     - RT-2: conteos de la variante proxy → `freeze` con el atributo disparador; modelo base → sin `freeze` (US-303);
     - humana alta y modelo bajo → `rule_met{population="humana"}` = 1 y ninguna llamada a `freeze` (US-302);
     - tras el `freeze`, una medición de 1 pp → ninguna llamada (US-303);
@@ -192,7 +193,12 @@ vectra-risk/bias-monitoring/
   - Diseño: BR-U9-17, 18, 19; P-U9-03, 05; NFR-U9-02, 12, 32, 33. Historias: US-304, US-306, US-307.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest bias-monitoring/tests/property/test_compare.py tests/integration/test_app.py tests/integration/test_cache.py`:
     - PBT-U9-07;
-    - toda respuesta lleva `disclaimer` y ningún texto contiene una frase de la lista de U10 (US-307);
+    - toda respuesta lleva `disclaimer` y ningún texto pasa `contracts/tools/forbidden_phrases.py` con la lista única de U0 (BR-U0-94; US-307; revisión del FD de U10, 2026-10-10, B6);
+    - con un `ConfigMap` de parámetros de prueba (umbral 7 pp, `n_min` 40, ventana 20 días, otro horario, W 2 h), `GET /v1/disparity` y el paquete de `GET /v1/freezes/{id}` informan esos cinco valores, no los de producción (BR-U9-13; revisión del FD de U10, 2026-10-10, A7);
+    - al arrancar `uvicorn vectra_bias.app:app`, `vectra_bias.freeze_client` no está en `sys.modules`: la imagen es una sola (P-U9-05), así que se comprueba en el proceso además de import-linter (A7);
+    - registro caído al arrancar → los pods quedan `Ready` y la consulta da 503 (NFR-U9-12; A7);
+    - `GET /metrics` en 8081 expone las series HTTP y de la caché esperadas, sin etiquetas fuera de la allowlist (NFR-U9-41; A7);
+    - una consulta servida desde la caché también emite `disparity.viewed` con el `principal_subject` del que consulta (NFR-U9-32; A7);
     - 10 consultas concurrentes con la misma llave → una sola lectura del registro; un error no queda en la caché;
     - paquete válido contra el esquema de U0 (US-304);
     - `compare_source` con un grupo fuera del catálogo → 422 (US-306);
@@ -204,7 +210,8 @@ vectra-risk/bias-monitoring/
   - Cobertura de ramas **100 %** en `freeze_rule`, `context` y `window`, y ≥ 95 % en el resto; `mutmut` en `freeze_rule`; PBT-U9-01..08 con el perfil `ci`.
   - Resumen en `aidlc-docs/construction/bias-monitoring/code/services.md`.
   - Diseño: NFR-U9-50, 51, 52.
-  - **Aceptación**: `uv run pytest bias-monitoring/tests --cov=vectra_bias --cov-branch --cov-fail-under=95` con el umbral por módulo; `uv run mutmut run --paths-to-mutate bias-monitoring/src/vectra_bias/freeze_rule.py`.
+  - Herramienta de cobertura: pytest-cov (coverage.py) con `--cov-branch`; el umbral por módulo lo comprueba `coverage report --include` para cada módulo al 100 % (revisión del FD de U10, 2026-10-10, B9).
+  - **Aceptación**: `uv run pytest bias-monitoring/tests --cov=vectra_bias --cov-branch --cov-fail-under=95` y `uv run coverage report --include='*/freeze_rule.py,*/context.py,*/window.py' --fail-under=100`; `uv run mutmut run --paths-to-mutate bias-monitoring/src/vectra_bias/freeze_rule.py`.
 
 ### Bloque E — Despliegue y operación
 
@@ -212,7 +219,7 @@ vectra-risk/bias-monitoring/
   - Una imagen con los dos puntos de entrada (`python -m vectra_bias.run` y `uvicorn vectra_bias.app:app`); base Python oficial pinneada por digest, `runAsNonRoot` y `readOnlyRootFilesystem`; sin numpy, scipy, pandas ni Fairlearn en la imagen.
   - Construida, escaneada, con SBOM y firmada por `supply-chain.yml` de U1.
   - Diseño: P-U9-05; NFR-U9-54.
-  - **Aceptación**: `hadolint bias-monitoring/Dockerfile`; prueba sobre el SBOM: ninguna de las cuatro dependencias de desarrollo en la imagen.
+  - **Aceptación**: `hadolint bias-monitoring/Dockerfile`; prueba sobre el SBOM: ni las tres dependencias de desarrollo directas (Fairlearn, pandas, numpy) ni sus transitivas scipy y scikit-learn en la imagen (revisión del FD de U10, 2026-10-10, B9).
 
 - [ ] **Paso 12 — Chart, parámetros, cuota y flujos**
   - **Servicio**:
@@ -223,12 +230,13 @@ vectra-risk/bias-monitoring/
     - anotación explícita del sidecar nativo;
     - `ServiceAccount` `bias-monitoring-job` y su `ExternalSecret`.
   - **`values-monitoring-policy.yaml`**:
-    - línea de `CODEOWNERS` para el equipo de cumplimiento en el repositorio GitOps;
-    - regla de `conftest` con los rangos de INF-U9-03, incluido el horario y W ≥ 4 × el intervalo.
+    - línea de `CODEOWNERS` para el equipo de cumplimiento en el **monorepo** (`bias-monitoring/chart/values-monitoring-policy.yaml`) y en el repositorio GitOps (revisión del FD de U10, 2026-10-10, A5);
+    - regla de `conftest` con los rangos de INF-U9-03: horario con intervalo de 5, 10 o 15 min y desfase de 1 a 4 min, W ≥ 4 × el intervalo y `activeDeadlineSeconds` ≤ el intervalo en segundos (A6).
+  - **Job `x04-probe-<runId>`** (U12 INF-U12-02; Infrastructure Design de U12, 2026-10-10): solo con los values de kind y `probes.runId`; identidad `bias-monitoring-job`; llama a `POST /v1/models/{id}/approval` de governance y termina con éxito solo con el 403 de Linkerd; `backoffLimit: 0`, sidecar nativo, **sin** `ttlSecondsAfterFinished` (se poda al cambiar `probes.runId`, con un sync con prune); sus pods llevan la etiqueta `vectra.io/workload: bias-monitoring-job` y la `ServiceAccount` `bias-monitoring-job`, para que la `NetworkPolicy` de F27 los deje pasar y el rechazo sea el 403 de Linkerd. `conftest`: no aparece con los values de staging ni de producción; los pods del CronJob y de `x04-probe` llevan la etiqueta (revisión del Infrastructure Design de U12, 2026-10-10).
   - Aporte de U9 a la cuota de `vectra-app` en `platform/policies/quotas/` de U1 (INF-U9-01).
   - **Flujos** en `platform/network/flows.yaml`: F14, F25, F26, F27 (solo desde los pods del CronJob), F50, F60 y F106. La `AuthorizationPolicy` de `freeze` en governance la entrega U4 (Paso 16 de su plan).
   - Diseño: INF-U9-01..04; NFR-U9-10, 11, 13, 30, 34; BR-U9-13.
-  - **Aceptación**: `helm template` con cada values + `kubeconform` + `conftest test bias-monitoring/policies/conftest/` (réplicas, exención, PDB, spread, PriorityClass, horario, plazos, `backoffLimit`, anotación del sidecar, rangos de los parámetros dentro y fuera); `kyverno test` de U1 con la exención; `conftest test platform/policies/quotas/`; `uv run python platform/network/generate.py --check`; `CODEOWNERS` contiene la línea del archivo.
+  - **Aceptación**: `helm template` con cada values + `kubeconform` + `conftest test bias-monitoring/policies/conftest/` (réplicas, exención, PDB, spread, PriorityClass, horario, plazos, `backoffLimit`, anotación del sidecar, rangos de los parámetros dentro y fuera); `kyverno test` de U1 con la exención; `conftest test platform/policies/quotas/`; `uv run python platform/network/generate.py --check`; `CODEOWNERS` del monorepo contiene la línea del archivo; fixtures de `conftest` con intervalos de 6 y 12 min → fallan, y con 5 min y `activeDeadlineSeconds: 600` → falla.
 
 - [ ] **Paso 13 — Alertas, runbooks y dashboard**
   - `PrometheusRule` como plantilla del chart con las alertas de P-U9-06; los umbrales de `MonitoreoSesgoDetenido` salen de `stale_after` (W y 2W).
@@ -236,9 +244,9 @@ vectra-risk/bias-monitoring/
   - Dashboard `observability/dashboards/bias.json` con la leyenda fija «mide y alerta, no certifica» (INF-U9-05).
   - Diseño: BR-U9-21, 22; P-U9-06; INF-U9-05; NFR-U9-40, 41. Historias: US-307, US-308.
   - **Aceptación**:
-    - `helm template` con `stale_after` = 1 h y = 2 h + `promtool test rules` generado para cada valor (los dos lados de W y 2W, la serie ausente, una sola corrida de `DisparidadDecisionHumana` sin disparar, `BiasFreezeFailed` que sigue tras una corrida fallida y se apaga con un `freeze` exitoso);
+    - `helm template` con `stale_after` = 1 h y = 2 h, y con horarios de 15 y 5 min (el `for` de `DisparidadDecisionHumana` = 30 y 10 min; revisión del Infrastructure Design de U10, 2026-10-10), + `promtool test rules` generado para cada valor (los dos lados de W y 2W, la serie ausente, una sola corrida de `DisparidadDecisionHumana` sin disparar, `BiasFreezeFailed` que sigue tras una corrida fallida y se apaga con un `freeze` exitoso);
     - `uv run python platform/tests/test_runbooks.py --root bias-monitoring`;
-    - prueba sobre `bias.json`: leyenda presente, sin frases prohibidas y sin consultas que muestren tasas de celdas insuficientes.
+    - prueba sobre `bias.json`: leyenda presente, sin frases prohibidas (`contracts/tools/forbidden_phrases.py`, BR-U0-94; precisado el 2026-10-10 por U10 FD, Q8) y sin consultas que muestren tasas de celdas insuficientes.
 
 - [ ] **Paso 14 — Applications, especificación de carga y trazabilidad**
   - Application en la wave 5 (servicio y CronJob) por entorno y sin auto-sync.
@@ -252,12 +260,14 @@ vectra-risk/bias-monitoring/
     - `uv sync --frozen`, ruff, mypy e import-linter;
     - pruebas con el perfil `ci` y la semilla impresa, guardando `.hypothesis/` como artefacto;
     - cobertura con los umbrales por módulo;
-    - `helm template`, `conftest`, `promtool` y `kyverno test` de los Pasos 12 y 13.
+    - `helm template`, `conftest`, `promtool` y `kyverno test` de los Pasos 12 y 13;
+    - `forbidden_phrases.py` sobre los textos de la API y `bias.json`.
   - **Regla de rutas**: si el PR toca `disparity/src/vectra_disparity/stats.py`, `disparity.py` o `src/vectra_bias/freeze_rule.py`, corre además `mutmut` y la simulación estadística (`-m simulation`).
   - **Workflow nocturno** (`schedule`): simulación y `mutmut` completos sobre `main`; si falla, abre un issue.
   - Reutiliza los workflows de U1 (`tests.yml`, `supply-chain.yml`, `policies.yml`).
   - Diseño: NFR-U9-50, 51, 52, 53.
-  - **Aceptación**: `actionlint .github/workflows/bias-monitoring.yml`; una prueba sobre el YAML: la regla de rutas lista los tres archivos y el disparador `schedule` existe.
+  - **AUTONOMIA-01**: el workflow no tiene pasos `kubectl`, `helm install`/`upgrade` ni `terraform apply`; `forbidden-steps.yml` de U1 lo cubre.
+  - **Aceptación**: `actionlint .github/workflows/bias-monitoring.yml`; `! grep -E "kubectl|helm (install|upgrade)|terraform apply" .github/workflows/bias-monitoring.yml` (revisión del FD de U10, 2026-10-10, B9); una prueba sobre el YAML: la regla de rutas lista los tres archivos y el disparador `schedule` existe.
 
 ### Bloque F — Verificación en kind (con aprobación humana)
 
@@ -284,8 +294,6 @@ vectra-risk/bias-monitoring/
 ---
 
 ## 3. Trazabilidad
-
-Generada con un script a partir de las líneas «Diseño» e «Historia(s)» de cada paso, y revisada antes de presentarla.
 
 | Historia | Pasos |
 |---|---|

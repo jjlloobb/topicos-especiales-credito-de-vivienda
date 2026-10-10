@@ -145,8 +145,6 @@ vectra-risk/model-serving/
 
 ## 3. Trazabilidad
 
-Verificada con un script contra las líneas «Diseño» e «Historia(s)» de cada paso antes de presentarla.
-
 | Historia | Pasos |
 |---|---|
 | US-106 (contribución por `confidence`) | 3 |

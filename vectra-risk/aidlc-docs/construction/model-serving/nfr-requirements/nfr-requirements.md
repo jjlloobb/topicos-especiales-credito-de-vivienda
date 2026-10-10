@@ -51,8 +51,6 @@ Los IDs `NFR-U6-xx` se referencian en NFR Design, Infrastructure Design y el pla
 
 ## 6. Cumplimiento de extensiones (NFR Requirements U6)
 
-Revisada contra el cuerpo del documento antes de presentarla.
-
 | Regla | Estado | Evidencia |
 |---|---|---|
 | AUTONOMIA-05 | Cumple | NFR-U6-31 (sin egress) |

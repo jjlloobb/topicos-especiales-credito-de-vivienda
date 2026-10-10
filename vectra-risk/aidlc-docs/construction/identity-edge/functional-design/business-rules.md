@@ -26,8 +26,11 @@ método. Para estos roles, el flujo de login exige el segundo factor siempre, as
 token tiene `acr = mfa`.
 
 **BR-U2-04 — Step-up para firmar.** Un endpoint con `mfa_required` exige `acr = mfa` **y**
-`auth_time` de ≤ 900 s (BR-U0-72). La SPA, al recibir `mfa_required`, inicia un nuevo
-Authorization Code con `prompt=login`, `max_age=0` y `acr_values=mfa`, y reintenta la acción.
+`auth_time` de ≤ 900 s (BR-U0-72). El step-up es el de U10 BR-U10-06 (revisión del Infrastructure Design de U10, 2026-10-10): un
+Authorization Code con PKCE, `prompt=login`, `max_age=0` y `acr_values=mfa`, en una **ventana
+emergente** abierta por un clic del usuario, con `redirect_uri = /stepup-callback`; esa página
+devuelve `code` y `state` a la ventana principal por `postMessage` al mismo origen. La ventana
+principal canjea el código y reintenta la acción una vez, sin recargar.
 La entrada del registro guarda el `acr` y el `auth_time` de la firma.
 
 ## 3. Fuerza bruta (Q4; US-601)
@@ -73,7 +76,10 @@ todo (BR-U0-70..72): el gateway es la primera capa, no la única.
 
 **BR-U2-13 — Cabeceras por perfil.** Cada ruta aplica su perfil (domain-entities §4.1).
 Ninguna respuesta de la SPA ni de la API permite ser embebida (`frame-ancestors 'none'`).
-Solo `/grafana/**` permite el mismo origen.
+Solo dos perfiles admiten el mismo origen: `grafana` (el iframe del dashboard, U10 BR-U10-16) y
+`auth` (el iframe de la comprobación silenciosa de sesión de Keycloak) (revisión del Infrastructure Design de U10, 2026-10-10; antes decía que solo
+`/grafana/**`). Todos los perfiles envían `Cross-Origin-Opener-Policy: same-origin`, que conserva
+`window.opener` entre páginas del mismo origen, como necesita el step-up (revisión del Infrastructure Design de U10, 2026-10-10). Los perfiles `spa` y `api` exigen Trusted Types con `trusted-types 'none'` (NFR Requirements de U10, 2026-10-10, Q7).
 
 **BR-U2-14 — Errores del gateway.** Las respuestas de error que genera el propio gateway
 (401, 403, 404, 413, 429, 503) son `Problem` genéricos con `correlation_id` y sin detalles
@@ -89,7 +95,9 @@ de enrutamiento ni de versión del proxy. Se ocultan las cabeceras `server` y `x
 
 **BR-U2-15 — Mapeo LDAP.** En producción, el rol sale de la tabla `group-role-map`.
 Cambiar esa tabla es un cambio de realm (PR + sync manual). Un usuario LDAP sin grupo
-mapeado puede autenticarse, pero no tiene rol: el BFF le responde 403 en todo.
+mapeado puede autenticarse, pero no tiene rol: el **gateway** le responde 403 en
+`/api/console/**`, que exige un rol de negocio (domain-entities §4), y el BFF también lo
+rechazaría (defensa en profundidad; revisión del Infrastructure Design de U10, 2026-10-10).
 
 ## 7. Eventos (Q12)
 
@@ -116,3 +124,8 @@ correlación con los logs de los servicios se hace por `userId` = `sub` =
 | U0 plan de tareas, Paso 11 | Pruebas de los bordes de 900 s y de la audiencia múltiple | Q3, Q7 |
 | U2 (esta unidad), por U8 INF-U8-01 y 02 | Cliente nuevo `case-worker` (`case:recommend`, `governance:read-serving`, `governance:read-feature-spec`); `case-service` sin esos scopes y, en el realm de producción, sin `core:read-credit` ni la audiencia `core-banking-mock` (domain-entities §2.2) | U8 Infrastructure Design, 2026-10-08 |
 | U2 (esta unidad), por el FD de U9 | Cliente nuevo `bias-monitoring-job` (`governance:freeze`, `registry:read:monitoring`); `bias-monitoring-service` solo con `registry:read:monitoring`; `realm-lint` y PBT-U2-03: `governance:freeze` solo en `bias-monitoring-job` (domain-entities §2.2) | FD de U9, 2026-10-08; tercera revisión del FD de U9, 2026-10-10 |
+| U2 (esta unidad), revisión del Infrastructure Design de U10, 2026-10-10 | BR-U2-04 y business-logic-model §2.2 con el step-up en ventana emergente; BR-U2-13 y PBT-U2-05 con `auth` además de `grafana`; COOP `same-origin` en todos los perfiles; rutas `/callback` y `/stepup-callback` de la SPA; afinidad por cookie en `/`; usuarios de prueba con nombres en domain-entities §3; BR-U2-15 con el 403 en el gateway; límite de `/auth/**` por IP adecuado a un NAT | Revisión del Infrastructure Design de U10 |
+| U2 (esta unidad), por el Infrastructure Design de U10 | ~~Usuarios de prueba por rol con TOTP solo en `realm.kind.yaml`; `realm-lint` los rechaza en staging y producción~~ **Superada** por la fila de la revisión del Infrastructure Design de U10: dos usuarios nombrados por rol en kind **y** staging (domain-entities §3); `realm-lint` rechaza usuarios locales en producción salvo `break-glass` | Infrastructure Design de U10, 2026-10-10, Q6 |
+| U2 (esta unidad), segunda revisión del Infrastructure Design de U10, 2026-10-10 | Rol técnico `operacion` (Grafana: operación y silencios por F109); equipos de Grafana `cumplimiento` y `cro` para la carpeta `Vectra / Sesgo` de U9; frase sobrante de BR-U2-13 quitada | Segunda revisión del Infrastructure Design de U10 |
+| U2 (esta unidad), por el NFR Requirements de U10 | CSP de los perfiles `spa` y `api` con `require-trusted-types-for 'script'; trusted-types 'none'` (BR-U2-13, domain-entities §4.1) | NFR Requirements de U10, 2026-10-10, Q7 |
+| U2 (esta unidad), por el FD de U10 | `vectra-console` registra además el redirect URI exacto `/stepup-callback` (step-up en ventana emergente, BR-U10-06) | Revisión del FD de U10, 2026-10-10, A1 |

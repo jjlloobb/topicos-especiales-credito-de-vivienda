@@ -39,8 +39,9 @@ Objeto JCS con: `seq`, `entry_type`, `idempotency_key`, `actor`, `occurred_at`,
 
 | Rol | Permisos | Usado por |
 |---|---|---|
-| `registry_app` | `INSERT`, `SELECT` sobre `registry_entries`; `SELECT` sobre la vista de cabeza; **sin** `UPDATE`, `DELETE` ni `TRUNCATE` | decision-registry-service (F42) |
-| `registry_verifier` | Solo `SELECT` (incluido `SELECT` explícito sobre `monitoring_daily`, `monitoring_entry_totals`, `monitoring_invalid` y `monitoring_watermark`; **no** sobre `monitoring_case_index`; segunda revisión del FD de U9, 2026-10-08) | CLI y CronJob de verificación, `restore-drill` |
+| `registry_app` | `INSERT`, `SELECT` sobre `registry_entries`; `SELECT` sobre la vista de cabeza; **sin** `UPDATE`, `DELETE` ni `TRUNCATE`; sobre `integrity_checks`, solo `INSERT` (la solicitud) y `SELECT` (BR-U3-13b; segunda revisión del Infrastructure Design de U10, 2026-10-10) | decision-registry-service (F42) |
+| `registry_verifier` | Solo `SELECT` (incluido `SELECT` explícito sobre `monitoring_daily`, `monitoring_entry_totals`, `monitoring_invalid` y `monitoring_watermark`; **no** sobre `monitoring_case_index`; segunda revisión del FD de U9, 2026-10-08) y `SELECT` sobre `integrity_checks`. **No** escribe en ninguna tabla: lo usa también el pool `projections` de la API (segunda revisión del Infrastructure Design de U10, 2026-10-10) |
+| `registry_ondemand` | `SELECT` sobre `integrity_checks` y `registry_entries`; `INSERT` (la `full` mensual que se encola sola) y `UPDATE` por columna (`status`, `started_at`, `finished_at`, `heartbeat_at`, `progress_*`, `report`, `reason`) sobre `integrity_checks`; nada más (segunda revisión del Infrastructure Design de U10, 2026-10-10) | Solo los CronJobs de verificación, para escribir el estado en la primaria; la API **no** lo tiene | CLI y CronJob de verificación, `restore-drill` |
 | `registry_health` | `pg_monitor` (solo estadísticas; sin acceso a `registry_entries`) | Readiness del servicio: comprueba que haya un standby síncrono (agregado por U3 NFR Design Q1, P-U3-01) |
 | `registry_migrator` | DDL | Job de migración (F44), solo en un sync aprobado |
 | `registry_aggregator` | `SELECT` sobre `registry_entries`; `SELECT`, `INSERT`, `UPDATE` y `DELETE` **solo** sobre las cinco tablas derivadas de §1.3; sin `TRUNCATE` | `registry-aggregator` (F107; BR-U3-17, precisado el 2026-10-08 por U9 FD) |
@@ -86,7 +87,7 @@ Ninguna está bajo el trigger de solo-anexar: se reconstruyen desde la cadena. R
 | `full` | `cro`, `cumplimiento` (BFF) | Todas | Todos, incluido `canonical` |
 | `explanation` | explainability (`registry:read:explanation`) | Una `recommendation` por `seq`, filtrada por `case_id` (BR-U7-13) | `seq`, `case_id`, `model_version_id`, `payload.explanation` |
 | ~~`monitoring`~~ **retirada** (sin consumidor desde el FD de U9) | — | `recommendation`, `human_decision` | `recommendation`: `case_id`, `model_version_id`, `policy_version_id`, `score`, `confidence`, `outcome`, `reasons`, `monitoring_labels`, `evaluated_at`, `recorded_at`, `seq`. `human_decision`: `case_id`, `decision`, `final_outcome`, `recommendation_entry_id`, `decided_at`, `recorded_at` |
-| `metrics` | product-metrics (`registry:read:metrics`) | `recommendation`, `human_decision`, `explanation_view` | `entry_type`, `case_id`, `outcome`, `decision`, `final_outcome`, `used_factors`, `explanation_viewed_before`, `actor_role`, `recorded_at`, `seq`, `recommendation_entry_id`, `evaluated_at`, `decided_at`, `viewed_at` |
+| `metrics` | product-metrics (`registry:read:metrics`) | `recommendation`, `human_decision`, `explanation_view` | `entry_type`, `case_id`, `outcome`, `decision`, `final_outcome`, `used_factors`, `explanation_viewed_before`, `actor_role`, `recorded_at`, `seq`, `recommendation_entry_id`, `evaluated_at`, `decided_at`, `viewed_at`; en `recommendation`, además `model_version_id`, `channel`, `received_at` y `attempt`; en `recommendation`, también `first_evaluation`; en `human_decision`, además `recommendation: {seq, outcome, model_version_id, evaluated_at, received_at, channel, attempt, first_evaluation} \| null`, resuelta **en el servidor** por `recommendation_entry_id` (`null` si no existe o no es una `recommendation`), como `delivery_status` (U11 BR-U11-01; FD de U11, 2026-10-10). Filtros: rango de `recorded_at` y `seq >` (lectura incremental de U11) |
 | `monitoring_daily` | bias (`registry:read:monitoring`) | Conteos de la tabla derivada (BR-U3-17), no entradas | U9 domain-entities §1.2: por cada rango pedido (hasta 12), la **suma en el servidor** de los conteos marginales por (población, versión, atributo, grupo, banda, resultado, decisión), sin el día ni la combinación de etiquetas, (segunda revisión del FD de U9, 2026-10-08); `versions` con `first_day` y `last_day` por versión y población; `totals` por rango (`range_id`, `total_entries`, `invalid_entries`); servida por `POST /v1/monitoring/daily:query` (rangos con `from_day ≤ to_day`, si no → 422; séptima revisión del FD de U9, 2026-10-10); `unattributable_invalid`, un **solo** valor por solicitud sobre el `unattributable_range` pedido (0 si no se pidió) (las filas `'-'`: decisiones sin recomendación atribuible; quinta revisión del FD de U9, valor único en la sexta revisión del FD de U9, 2026-10-10); hasta 100 `invalid_seqs`; `watermark_seq` y `lag_seconds` (precisado el 2026-10-08 por U9 FD; alineado con U0 §9.4 `MonitoringWindow` en la tercera revisión del FD de U9, 2026-10-10) |
 | `monitoring_freezes` | bias (`registry:read:monitoring`) | `freeze` y `frozen_resolution` | `freeze`: `seq`, `freeze_id`, `model_version_id`, `frozen_at`, `context_package`; `frozen_resolution`: `seq`, `model_version_id`, `action`, `recorded_at` (la reactivación tiene efecto al confirmarse, BR-U4-17; revisión del FD de U9, 2026-10-08, H1) (precisado el 2026-10-08 por U9 FD) |
 
@@ -105,19 +106,39 @@ Ninguna está bajo el trigger de solo-anexar: se reconstruyen desde la cadena. R
 | `case_id` | — |
 | `entries` | Todas las entradas del caso en orden de `seq`, con `canonical` en base64 (la narrativa se reproduce byte a byte) y sus campos decodificados. Cada `recommendation` lleva `delivery_status` (`entregada` \| `no_entregada` \| `pendiente_de_decision`), calculado al leer y nunca guardado (BR-U3-14) (precisado el 2026-10-03 por U7 NFR Design Q3) |
 | `integrity` | `IntegrityStatus` del tramo (§4.2) |
-| `last_full_verification` | Resultado y fecha de la última verificación completa |
+| `last_full_verification` | `{check_id, finished_at, result: integra \| inconsistente} \| null`: la fila más reciente de `integrity_checks` con `mode = full` y `status = terminada` (§5.0; revisión del Infrastructure Design de U10, 2026-10-10) |
 
 ### 4.2 `IntegrityStatus`
 `status` (`verified` \| `not_verified`), `from_checkpoint_seq`, `to_checkpoint_seq` (o
 `head`), `entries_checked`, `first_inconsistent_seq?`, `reason?` (`hash` \| `link` \|
 `checkpoint_signature` \| `checkpoint_mismatch` \| `seq_gap` \| `column_mismatch`).
 
+La forma de `RegistryDossier` e `IntegrityStatus` vive en U0 §9.6 (BR-U0-93; revisión del FD de U10, 2026-10-10, B1).
+
 ### 4.3 `Dossier` del BFF
 `RegistryDossier` más los identificadores directos del caso traídos de case-service, solo
-para `cro` y `cumplimiento`. El registro **no** llama a case-service ni recibe
+para `cro` y `cumplimiento`; es `ConsoleDossier` de U0 §9.5 (revisión del FD de U10, 2026-10-10). El registro **no** llama a case-service ni recibe
 identificadores (sin flujo hacia datos de identificación).
 
 ## 5. Informe del verificador (Q8)
+
+### 5.0 Tabla `integrity_checks` (BR-U3-13b; NFR Design de U10, Q3; rediseñada en la revisión del Infrastructure Design de U10, 2026-10-10)
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `check_id` | `uuid` | Llave |
+| `mode` | `full` \| `range` | — |
+| `from_seq`, `to_seq` | `bigint?` | Solo en `range` |
+| `requested_by` | `text` | `sub` del CRO, o `cron` para la `full` mensual |
+| `requested_at`, `started_at?`, `finished_at?`, `heartbeat_at?` | `timestamptz` | — |
+| `status` | `pendiente` \| `en_curso` \| `terminada` \| `fallida` | Máquina de estados de business-logic-model §2.6 |
+| `progress_checked`, `progress_total` | `bigint` | `progress_checked ≤ progress_total` (`CHECK`) |
+| `report` | `jsonb?` | `IntegrityReport`; obligatorio en `terminada` (`CHECK`) |
+| `reason` | `interrumpida` \| `error_de_ejecucion` \| `plazo_vencido` \| `null` | Obligatorio en `fallida` y prohibido en los demás (`CHECK`) |
+
+- Índice único parcial sobre una expresión constante con `status IN ('pendiente', 'en_curso')`: una sola verificación activa, de cualquier modo.
+- **Permisos** (segunda revisión del Infrastructure Design de U10, 2026-10-10): `registry_app` solo `INSERT` (la solicitud) y `SELECT`; `registry_verifier` solo `SELECT` (lo comparte la API); `registry_ondemand` (solo los CronJobs de verificación) `INSERT` y `UPDATE` por columna. Nadie tiene `DELETE` ni `TRUNCATE`.
+- No es evidencia (BR-U3-01, 02): es el estado de una operación. Define `last_full_verification` (§4.1).
 
 ### `IntegrityReport`
 `mode` (`incremental` \| `nightly` \| `full` \| `range`), `from_seq`, `to_seq`, `entries_checked`,
@@ -134,7 +155,10 @@ identificadores (sin flujo hacia datos de identificación).
 
 | Parámetro | Valor | Regla |
 |---|---|---|
-| Intervalo de checkpoint | 1 h (y al terminar cada verificación completa) | BR-U3-08 |
+| Intervalo de checkpoint | 1 h; una verificación completa no firma (el checkpoint siguiente la cubre; revisión del Infrastructure Design de U10, 2026-10-10) | BR-U3-08 |
+| Verificación bajo demanda | `registry-verify-ondemand` cada minuto; barrido de filas `en_curso` con latido de más de 2 min; tramos de ≤ 10 000 entradas | BR-U3-13b |
+| Llaves de *advisory lock* | Append: `pg_advisory_xact_lock(1448214529)` (`0x56520001`); reconstrucción del agregador: `pg_try_advisory_lock(1448214530)` (`0x56520002`). Constantes en `vectra_registry.locks`; una prueba verifica que son distintas (revisión del Infrastructure Design de U10, 2026-10-10) | BR-U3-04, 17 |
+| Lectura en el standby | `hot_standby_feedback = on`, `max_standby_streaming_delay = 2s`; un tramo cancelado se reintenta hasta 3 veces | BR-U3-13b |
 | Verificación incremental | Cada 15 min | BR-U3-11 |
 | Verificación `nightly` | Cada noche | BR-U3-11 |
 | Verificación `full` | Cada mes, bajo demanda y en `restore-drill` | BR-U3-11 |

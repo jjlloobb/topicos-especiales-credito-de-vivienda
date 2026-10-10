@@ -49,7 +49,7 @@ B) **Patrón *token handler***: el BFF guarda los tokens del lado del servidor y
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]: A
 
 ## Question 2 — La acción que pide MFA a mitad de un formulario (Business Logic; BR-U2-04)
 El step-up redirige a Keycloak. Una aprobación, una resolución de congelado o una
@@ -66,7 +66,7 @@ B) Hacer el step-up **antes** de abrir cualquier formulario de aprobación (al e
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]: A
 
 ## Question 3 — «Estado de crédito no integrado» (Domain Model; pendiente de U8 INF-U8-02)
 
@@ -82,7 +82,7 @@ B) Mantener `no_disponible` para los dos y mostrar un solo texto («Estado de cr
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]: A
 
 ## Question 4 — Cuándo se registra la consulta de la explicación (Business Rules; US-501, BR-U8-19)
 Esta consulta alimenta `explanation_viewed_before` de la decisión y la North Star de U11.
@@ -99,7 +99,7 @@ B) Registrar la consulta al cargar el detalle del caso, con la explicación visi
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]: A
 
 ## Question 5 — Formulario de decisión (Frontend; US-108, US-502, BR-U8-16)
 
@@ -118,7 +118,7 @@ B) Igual que A, sin el diálogo de confirmación
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]: A
 
 ## Question 6 — Bandeja y actualización de casos (Frontend; US-107, NFR-PER-01)
 Un caso pasa de `en_evaluacion` a `listo` en p95 ≤ 5 s (NFR-U8-02).
@@ -135,7 +135,7 @@ B) Sin refresco automático: un botón «Actualizar»
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]: A
 
 ## Question 7 — Mensajes de error y avisos (Error Handling; SECURITY-15, US-611)
 El BFF devuelve errores genéricos (`Problem` de U0 con `code` y, a veces, `reason`).
@@ -153,7 +153,7 @@ B) Mostrar el `title` del `Problem` tal como llega
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]: A
 
 ## Question 8 — Lint de frases prohibidas (Business Rules; FR-BIA-08, US-307)
 Lo usan U4 (informe), U9 (API y `bias.json`) y U10 (textos de la consola).
@@ -170,7 +170,7 @@ B) Una lista por unidad
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]: A
 
 ## Question 9 — Vistas por rol y navegación (Frontend; FR-UI-07)
 
@@ -188,7 +188,7 @@ B) Una sola vista con todas las secciones, deshabilitadas según el rol
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]: A
 
 ## Question 10 — Resolución de un congelamiento y decisión de una fuente (Frontend; US-304, US-305, US-306)
 
@@ -203,7 +203,7 @@ B) Igual que A, sin el aviso del periodo ciego al reactivar
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]: A
 
 ## Question 11 — Composición del expediente (Integration; US-403, U3 FD Q7)
 
@@ -219,7 +219,7 @@ B) Si case-service no responde, 503 para todo el expediente
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]: A
 
 ## Question 12 — Prueba de US-602 (matriz rol × endpoint) (Business Rules; US-602)
 
@@ -235,18 +235,18 @@ B) Pruebas escritas a mano solo para los endpoints con MFA
 
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]: A
 
 ---
 
 ## Parte B — Checklist de ejecución
 
-- [ ] Leer y validar las respuestas; preguntas de aclaración si alguna es ambigua
-- [ ] `business-rules.md` (BR-U10-xx): controles del BFF por endpoint, composición, errores, tokens, step-up, lint
-- [ ] `domain-entities.md`: vistas y modelos de la SPA, catálogo de mensajes, configuración
-- [ ] `business-logic-model.md`: flujos (login, step-up, decisión, consulta de la explicación, congelamiento, fuente, expediente) y propiedades (PBT-U10-xx)
-- [ ] `frontend-components.md`: jerarquía de componentes, props y estado, flujos de interacción, validación de formularios y endpoints que usa cada componente
-- [ ] Cambios a otras unidades registrados (U0, U8 según Q3; U0 según Q8)
-- [ ] Tabla de cumplimiento de extensiones
-- [ ] Validar el contenido (Mermaid y texto alternativo) antes de crear los archivos
-- [ ] Registrar en `audit.md` y actualizar `aidlc-state.md`
+- [x] Leer y validar las respuestas; preguntas de aclaración si alguna es ambigua
+- [x] `business-rules.md` (BR-U10-xx): controles del BFF por endpoint, composición, errores, tokens, step-up, lint
+- [x] `domain-entities.md`: vistas y modelos de la SPA, catálogo de mensajes, configuración
+- [x] `business-logic-model.md`: flujos (login, step-up, decisión, consulta de la explicación, congelamiento, fuente, expediente) y propiedades (PBT-U10-xx)
+- [x] `frontend-components.md`: jerarquía de componentes, props y estado, flujos de interacción, validación de formularios y endpoints que usa cada componente
+- [x] Cambios a otras unidades registrados (U0, U8 según Q3; U0 según Q8)
+- [x] Tabla de cumplimiento de extensiones
+- [x] Validar el contenido (Mermaid y texto alternativo) antes de crear los archivos
+- [x] Registrar en `audit.md` y actualizar `aidlc-state.md`

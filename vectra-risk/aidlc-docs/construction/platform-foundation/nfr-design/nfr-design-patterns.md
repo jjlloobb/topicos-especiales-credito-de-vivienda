@@ -9,7 +9,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 ## 1. Seguridad
 
 ### P-U1-01 — Red generada desde un inventario de flujos (Q1)
-- `platform/network/flows.yaml` es la única fuente de los flujos permitidos. Refleja las tablas de `component-dependency.md` (hoy F01–F108: los flujos de INCEPTION, los que agregó el Infrastructure Design de U1 y los de las unidades siguientes; precisado el 2026-10-08). La prueba de completitud extrae los IDs del Markdown, sin un rango fijo.
+- `platform/network/flows.yaml` es la única fuente de los flujos permitidos. Refleja las tablas de `component-dependency.md` (hoy F01–F111: los flujos de INCEPTION, los que agregó el Infrastructure Design de U1 y los de las unidades siguientes; precisado el 2026-10-08). La prueba de completitud extrae los IDs del Markdown, sin un rango fijo.
 - Cada entrada tiene `id`, `from` (namespace + ServiceAccount), `to` (namespace + ServiceAccount + puerto), `protocol` y `justification`.
 - `platform/network/generate.py` produce, para cada namespace de Vectra:
   - la NetworkPolicy `deny-all` de ingress y egress;
@@ -48,7 +48,8 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 | case-worker (U8 INF-U8-01, agregado el 2026-10-08) | `case-db` |
 | governance-service | `governance-db` |
 | decision-registry-service | `registry-db` (incluida la escritura posible: réplica síncrona disponible) |
-| scoring-service, explainability-service, bias, BFF, métricas | ninguna dependencia externa (solo su proceso) |
+| scoring-service, explainability-service, bias, BFF | ninguna dependencia externa (solo su proceso) |
+| product-metrics (U11 INF-U11-01; revisión del Infrastructure Design de U11, 2026-10-10) | su instantánea de métricas **o** el breaker hacia el registro abierto o semiabierto: con el registro sano, una réplica nueva no queda lista sin datos (así un rollout no vacía el dashboard); con el registro caído, queda lista y no bloquea el despliegue. Su `Service` publica las direcciones no listas, porque solo lo consume Prometheus |
 
 - **Fuera de la readiness**: governance/`serving-config`, KServe, explainability y el registro, vistos desde scoring o case. Su caída la maneja el fail-closed (`serving_config_unavailable`, `explainer_unavailable`, `registry_unavailable`, BR-U0-02), que es observable y queda en el registro y en las métricas. **Criterio**: una dependencia entra en la readiness solo si su caída **no** tiene una causa tipificada de fail-closed.
 - Resultados de los checks cacheados 5 s; probes de arranque para KServe y Keycloak.
@@ -64,7 +65,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 - `CronJob restore-drill` (semanal) en el namespace aislado `vectra-restore-drill`, cuyas NetworkPolicies solo permiten leer del almacenamiento de backups (F75, con una credencial de solo lectura limitada a los backups y WAL de `registry-db` y `case-db` y a los checkpoints; precisado el 2026-10-06, revisión del FD de U8) y empujar métricas al Pushgateway (F87):
   1. crea un `Cluster` efímero de CloudNativePG desde el último backup base + WAL;
   2. corre `verify_chain` (CLI de U3) sobre la copia de `registry-db`;
-  2b. crea un segundo `Cluster` efímero desde el último backup de `case-db`, ejecuta `case-retention` (CLI de U8, BR-U8-20) y cuenta las filas de `case_identifiers` con la retención vencida, que deben ser **0** (precisado el 2026-10-06, revisión del FD de U8);
+  2b. crea un segundo `Cluster` efímero desde el último backup de `case-db`, ejecuta `case-retention` (CLI de U8, BR-U8-20) **conectado con el rol real `case_retention`** (no con un superusuario, para que el simulacro pruebe también sus permisos; revisión del Infrastructure Design de U10, 2026-10-10) y cuenta las filas de `case_identifiers` con la retención vencida, que deben ser **0** (precisado el 2026-10-06, revisión del FD de U8);
   3. empuja al Pushgateway `vectra_restore_drill_success` (0/1), `vectra_restore_drill_duration_seconds`, el LSN alcanzado y `vectra_restore_drill_retention_violations`; Prometheus las lee por F88;
   4. destruye los clusters efímeros.
 - Alertas: `RestoreDrillFailed` (SEV1), `RestoreDrillMissing` (SEV1 si `push_time_seconds` de una corrida exitosa tiene más de 8 días) y `RestoreDrillRetentionViolation` (SEV2 si `vectra_restore_drill_retention_violations` > 0: una restauración devolvería identificadores vencidos; BR-U8-20), todas con `runbook_url` (precisado el 2026-10-06, revisión del FD de U8).
@@ -104,7 +105,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 ## 3. Escalabilidad y rendimiento
 
 ### P-U1-08 — Conexiones directas con pools acotados (Q7)
-- Sin PgBouncer. Cada réplica abre como máximo 5 conexiones a su base.
+- Sin PgBouncer. Cada réplica abre como máximo 5 conexiones a su base. Sin excepciones: la verificación de integridad bajo demanda de U3 corre en un CronJob propio (`registry-verify-ondemand`), no en el servicio (revisión del Infrastructure Design de U10, 2026-10-10; reemplaza la excepción de la conexión `integrity`).
 - `max_connections = (réplicas máximas del HPA × 5) + 20 %` de margen + conexiones del operador y de los backups. Se calcula en Infrastructure Design con los máximos de NFR-U1-12.
 - Alerta si las conexiones superan el 80 % de `max_connections`.
 - **Verificación**: prueba de carga (NFR-U1-11) sin errores `too many connections`; regla de alerta probada con `promtool`.
@@ -114,8 +115,8 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 | PriorityClass | Valor | Cargas | Preemptible |
 |---|---|---|---|
 | `vectra-critical` | 1 000 000 | PostgreSQL, decision-registry-service, Linkerd, Kyverno, CloudNativePG | No |
-| `vectra-high` | 100 000 | scoring, explainability, case, governance, Keycloak, gateway, KServe, CronJob de cálculo de bias (U9: alimenta el congelamiento y `MonitoreoSesgoDetenido`) y `registry-aggregator` (U3) (tercera revisión del FD de U9, 2026-10-10), y el Job a demanda `registry-aggregator-rebuild` de U3 (revisión del NFR Requirements de U9, 2026-10-10) | No |
-| `vectra-normal` | 10 000 | BFF, servicio HTTP de bias (U9 NFR-U9-10), product-metrics, observabilidad, Job a demanda `registry-aggregator-reset` de U3 (revisión del NFR Requirements de U9, 2026-10-10) | No |
+| `vectra-high` | 100 000 | scoring, explainability, case, governance, `console-bff` (criticidad High; NFR Requirements de U10, 2026-10-10, Q4), Keycloak, gateway, KServe, CronJob de cálculo de bias (U9: alimenta el congelamiento y `MonitoreoSesgoDetenido`) y `registry-aggregator` (U3) (tercera revisión del FD de U9, 2026-10-10), y el Job de reconstrucción `registry-aggregator-rebuild-<runId>` de U3, de la Application `decision-registry-rebuild` (revisión del NFR Requirements de U9, 2026-10-10; revisión del FD de U10, 2026-10-10, B13) | No |
+| `vectra-normal` | 10 000 | `console-spa` (estática, Medium; el BFF pasó a `vectra-high`, NFR Requirements de U10, 2026-10-10, Q4), servicio HTTP de bias (U9 NFR-U9-10), product-metrics, observabilidad, Job de reconstrucción `registry-aggregator-reset-<runId>` de U3, de la Application `decision-registry-rebuild` (revisión del NFR Requirements de U9, 2026-10-10; revisión del FD de U10, 2026-10-10, B13) | No |
 | `vectra-low` | 100 | channel-simulator, `core-banking-mock` (solo kind y staging, U8 INF-U8-02), jobs batch (incluido `case-retention`), `restore-drill`, `InferenceService` de staging (U6), incluido el predictor de la versión activa para `source_comparison` (U4 INF-U4-05; quinta revisión del FD de U9, 2026-10-10) | Sí |
 
 - Una política de Kyverno exige `priorityClassName` en todo Pod de Vectra.
@@ -134,6 +135,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 
 - Alertmanager enruta por la etiqueta `severity` a F72. Toda regla tiene `severity` y `runbook_url`.
 - Plantilla de runbook en `platform/runbooks/_template.md`: síntoma, impacto, diagnóstico, mitigación, escalamiento y verificación.
+- **Silencios** (revisión del Infrastructure Design de U10, 2026-10-10): un operador los crea desde la UI de Grafana (equipo `operacion`, OIDC) hacia Alertmanager por **F109**, con autor y comentario obligatorios (el runbook pide el `runId` o el ticket) y vencimiento ≤ 4 h. Nadie crea silencios con `amtool` ni por `kubectl port-forward`. Alertmanager registra cada silencio en su log, que va a Loki.
 - **COE** obligatorio en 5 días hábiles para SEV1 y SEV2. Plantilla en `platform/runbooks/coe-template.md`, con acciones de seguimiento en issues etiquetados `coe-action`.
 - **Verificación**: un test verifica que cada regla tiene `severity` válida y un `runbook_url` que apunta a un archivo existente (US-610).
 - **Satisface**: RESILIENCY-15; NFR-RES-15; NFR-U1-32.
@@ -146,6 +148,27 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 - **Verificación**: `promtool test rules` con series sintéticas que disparan cada ventana.
 - **Satisface**: RESILIENCY-02, 05; NFR-RES-02.
 
+### P-U1-13 — Pushgateway con persistencia y autorización (revisión del Infrastructure Design de U10, 2026-10-10)
+- **Persistencia**: 1 réplica (el Pushgateway no admite HA) con `--persistence.file` en un PVC de 1 GiB y `--persistence.interval=1m`. Un reinicio conserva los grupos, en particular `freeze-<v>` de U9 (si se perdiera, `BiasFreezeFailed` se apagaría sin que la versión se haya congelado) y `success` (si se perdiera, saltaría `MonitoreoSesgoDetenido` sin motivo).
+- **Autorización** (Linkerd `Server` en 9091 con `HTTPRoute` por método y ruta):
+
+  | Identidad | Permitido |
+  |---|---|
+  | `bias-monitoring-job` (U9, F106) | `PUT` y `DELETE` en `/metrics/job/bias-monitoring/**`; `GET /api/v1/metrics` |
+  | `restore-drill` (F87) | `PUT` en `/metrics/job/restore-drill/**` |
+  | Prometheus (F88) | `GET /metrics` |
+  | Cualquier otra | Denegado (403 de Linkerd) |
+
+  Un cliente nunca escribe ni borra el grupo de otro. `--web.enable-admin-api` queda apagado (sin borrado masivo).
+- **Verificación**: suite de conectividad (cada fila permitida y bloqueada, incluido un `DELETE` de `restore-drill` sobre un grupo de bias → 403); prueba en kind: reiniciar el pod del Pushgateway con un grupo `freeze-<v>` → el grupo sigue y `BiasFreezeFailed` no se apaga.
+- **Satisface**: SECURITY-06, 07; RESILIENCY-05.
+
+### P-U1-14 — Namespaces mallados y recursos del proxy (revisión del Infrastructure Design de U10, 2026-10-10)
+- **Mallados** (`vectra.io/mesh: enabled` y `linkerd.io/inject: enabled`, chart `platform/namespaces`): `vectra-edge` (data plane de Envoy, rate limit, Valkey y la SPA), `vectra-app`, `vectra-serving`, `vectra-staging`, `vectra-data`, `vectra-identity`, `vectra-mock`, `vectra-observability` y `vectra-restore-drill`. Si la versión de Envoy Gateway obliga a dejar el data plane en `envoy-gateway-system`, ese namespace también se malla.
+- **Sin malla**: los namespaces de sistema (`kube-system`, `linkerd`, `linkerd-cni`, `kyverno`, `cnpg-system`, `cert-manager`, `external-secrets`).
+- **Recursos del proxy** (`proxy.resources` del plano de control de Linkerd, global): requests 100m / 20 MiB; limits 500m / 128 MiB. Cada unidad suma el proxy a su aporte de cuota (NFR-U1-13): ya no es un supuesto (U9 INF-U9-01, U10 INF-U10-01).
+- **Verificación**: prueba del chart de namespaces (la lista mallada exacta); `kyverno test` de `add-native-sidecar-to-jobs` con un Job en `vectra-edge` y otro en `vectra-observability`; `linkerd check --proxy` en kind; `conftest` sobre los values del plano de control (los recursos del proxy).
+
 ## 5. Estructura GitOps
 
 ### P-U1-12 — App-of-apps por entorno con sync waves (Q10)
@@ -154,13 +177,13 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 
 | Wave | Contenido |
 |---|---|
-| 0 | CRDs y operadores (CloudNativePG, cert-manager, ESO, Kyverno, Linkerd CRDs) |
+| 0 | CRDs y operadores (CloudNativePG, cert-manager, ESO, Kyverno, Linkerd CRDs, KServe, Argo CD, Gateway API y controlador de Envoy Gateway) |
 | 1 | Políticas de Kyverno y plano de control de Linkerd; PriorityClasses; namespaces y NetworkPolicies |
-| 2 | Datos: clusters de PostgreSQL, MinIO (kind) |
-| 3 | Identidad: Keycloak |
+| 2 | Datos: clusters de PostgreSQL, MinIO (kind); Valkey + Sentinel del rate limit (U2) |
+| 3 | Identidad: Keycloak; `Gateway`, rutas, políticas y servicio de rate limit (U2) (el controlador de Envoy Gateway y los CRDs de Gateway API van en la wave 0; revisión del Infrastructure Design de U10, 2026-10-10) |
 | 4 | Observabilidad |
 | 5 | Servicios de Vectra |
-| 6 | InferenceServices |
+| 6 | InferenceServices; Application `decision-registry-rebuild` de U3 (Jobs de reconstrucción, solo con `runId`; revisión del FD de U10, 2026-10-10, B11 y B13) |
 
 - Toda `Application` sin `syncPolicy.automated` (NFR-U1-43). El aprobador sincroniza la raíz en orden.
 - **Verificación**: test de política sobre los manifiestos de las Applications (sin auto-sync, con anotación de wave); `argocd app diff` en kind adjunto al PR.
@@ -177,7 +200,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 | RESILIENCY-09 | Cumple | P-U1-08, 09 |
 | RESILIENCY-10 | N/A en U1 | De los servicios |
 | RESILIENCY-11 / 12 / 13 | Cumple | P-U1-05 |
-| RESILIENCY-14 | Cumple | Decisión del proyecto = C; escenarios de NFR-U1-03 y 07 y P-U1-05 |
+| RESILIENCY-14 | Cumple | Decisión del proyecto = C; escenarios de NFR-U1-03 y 07 y P-U1-05; los que necesitan clúster los ejecuta el operador en kind tras un PR aprobado (Pasos 19 y 20 del plan), y la ejecución a escala, en Operations (U0 P-U0-08; revisión del Infrastructure Design de U10, 2026-10-10) |
 | RESILIENCY-15 | Cumple | P-U1-10 |
 | SECURITY-01 | Cumple | P-U1-03 |
 | SECURITY-06 / 07 / 08 | Cumple | P-U1-01, 02 |

@@ -2,7 +2,7 @@
 
 Vista de staging. Producción es igual **sin** el namespace `vectra-mock` y **sin** F17 ni
 F50 del mock: con `core.enabled = false`, `case-service` no llama al core y responde
-`credit_status = no_disponible` (INF-U8-02, aclaración Q1 = A). kind usa 2 réplicas fijas y
+`credit_status = no_integrado` (INF-U8-02, aclaración Q1 = A; precisado el 2026-10-10 por U10 FD, Q3). kind usa 2 réplicas fijas y
 también incluye el mock.
 
 ---

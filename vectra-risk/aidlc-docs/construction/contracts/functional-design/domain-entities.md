@@ -72,10 +72,10 @@ Representación JSON (R5, BR-U0-15):
 
 ### 1.2 `CaseRef`, `CaseSummary` y `CaseDetail`
 - `CaseRef`: `case_id` (UUID), `state`.
-- `CaseFilter`: `state?: list[estado]` (por defecto, todos menos `vencido`; `vencido` solo con el filtro explícito, BR-U8-13), `channel?`, `created_from?`, `created_to?`, `page`, `page_size` (≤ 100) (precisado el 2026-10-06, revisión del FD de U8).
+- `CaseFilter`: `state?: list[estado]` (por defecto, todos menos `vencido`; `vencido` solo con el filtro explícito, BR-U8-13), `channel?`, `created_from?`, `created_to?`, `model_frozen_after_recommendation?: bool`, `page`, `page_size` (≤ 100) (precisado el 2026-10-06, revisión del FD de U8; `model_frozen_after_recommendation` por la revisión del FD de U10, 2026-10-10, A4). No tiene búsqueda por texto: ningún campo lleva datos del solicitante, para que el filtro pueda ir en la URL (U10 BR-U10-10).
 - `PersistentFailure`: `case_id`, `channel`, `created_at`, `attempts`, `last_cause`, `since` (entrada a `no_disponible`); lo devuelve `list_persistent_failures` (precisado el 2026-10-06, revisión del FD de U8).
 - `CaseSummary`: `case_id`, `state`, `channel`, `created_at`, `outcome?`, `applicant_display` (nombre completo + los últimos 4 dígitos del documento; vacío si el caso está anonimizado) (precisado el 2026-10-06, revisión R1 del FD de U8). **Sin score** salvo en estado `listo` o `decidido`.
-- `CaseDetail`: resumen, más `application` (la `ApplicationIn` **sin** el grupo de identificación de §1.1 y **sin** `sex` ni `socioeconomic_stratum`, que son solo de monitoreo), `identifiers?` (el grupo de identificación de §1.1: nombre, documento, fecha de nacimiento, contacto, dirección y municipio; **ausente** si el caso está anonimizado; precisado el 2026-10-06, revisión del FD de U8; precisado el 2026-10-06, revisión R1 del FD de U8), `recommendation?`, `credit_status?` y `decision?`, `model_frozen_after_recommendation`, `anonymized`, `attempts` y `last_cause` (precisado el 2026-10-06 por U8 FD Q2 y Q7); detalle en U8 domain-entities §4.
+- `CaseDetail`: resumen, más `application` (la `ApplicationIn` **sin** el grupo de identificación de §1.1 y **sin** `sex` ni `socioeconomic_stratum`, que son solo de monitoreo), `identifiers?` (el grupo de identificación de §1.1: nombre, documento, fecha de nacimiento, contacto, dirección y municipio; **ausente** si el caso está anonimizado; precisado el 2026-10-06, revisión del FD de U8; precisado el 2026-10-06, revisión R1 del FD de U8), `recommendation?`, `credit_status?` (`CreditStatus`: `en_estudio \| aprobado \| desembolsado \| rechazado \| cancelado \| sin_credito \| no_disponible \| no_integrado`; `no_disponible` = core caído o lento, `no_integrado` = `core.enabled = false`; precisado el 2026-10-10 por U10 FD, Q3) y `decision?`, `model_frozen_after_recommendation`, `anonymized`, `attempts` y `last_cause` (precisado el 2026-10-06 por U8 FD Q2 y Q7); detalle en U8 domain-entities §4.
 - Estados del caso: `en_evaluacion`, `listo`, `en_sincronizacion`, `no_disponible`, `modelo_congelado`, `decidido` y `vencido` (terminal: la retención venció sin decisión; agregado el 2026-10-06 por U8 FD). Las transiciones se detallan en el Functional Design de U8.
 
 ## 2. Features y etiquetas derivadas
@@ -161,17 +161,24 @@ Solo se construye con la fábrica `build_outcome` (business-rules §1).
 | `occurred_at` | timestamp |
 
 Catálogo cerrado de `cause` (10 valores; amplía los 7 de `component-methods.md`, R6). El
-orden de precedencia está en BR-U0-02:
-- `model_output_invalid`
-- `version_mismatch`
-- `explainer_unavailable`
-- `explainer_error`
-- `timeout`
-- `factuality_failed`
-- `feature_dictionary_incomplete`
-- `registry_unavailable`
-- `model_frozen`
-- `serving_config_unavailable`
+orden de precedencia está en BR-U0-02. Cada causa lleva una `category` (revisión del FD de U11, 2026-10-10; U11 genera desde
+aquí su regla de fail-closed por desincronía, BR-U11-06):
+
+| Causa | `category` |
+|---|---|
+| `model_output_invalid` | `calidad` |
+| `version_mismatch` | `desincronia` |
+| `explainer_unavailable` | `dependencia` |
+| `explainer_error` | `calidad` |
+| `timeout` | `dependencia` |
+| `factuality_failed` | `calidad` |
+| `feature_dictionary_incomplete` | `desincronia` |
+| `registry_unavailable` | `dependencia` |
+| `model_frozen` | `congelamiento` |
+| `serving_config_unavailable` | `dependencia` |
+
+`vectra_contracts.catalog` expone `FailClosedCause.category` y el conjunto
+`FAIL_CLOSED_CAUSES_BY_CATEGORY`; una causa nueva sin categoría no compila.
 
 `status = modelo_congelado` solo con `cause = model_frozen`; todas las demás causas usan
 `en_sincronizacion`.
@@ -226,7 +233,7 @@ Lo produce U5, lo registra U4 junto con la versión y lo consume U7.
 ### 5.1 `RegistryEntryIn` (campos comunes)
 `entry_type`, `case_id?`, `model_version_id?`, `policy_version_id?`, `actor`
 (`{kind: user|service|system, id, role, acr?, auth_time?}`; `acr` y `auth_time` son
-obligatorios cuando `kind = user` y la acción exige MFA, BR-U0-72), `occurred_at` (momento del **intento** de escritura; el del hecho de negocio va en el payload cuando la escritura puede llegar tarde, BR-U3-05; precisado el 2026-10-06),
+obligatorios **siempre** que `kind = user`, exija o no MFA la acción (BR-U0-72; antes solo con MFA; segunda revisión del Infrastructure Design de U10, 2026-10-10): así la decisión del analista, que no pide step-up (U10 BR-U10-09b), deja su nivel de autenticación como evidencia; prohibidos con `kind = service` o `system`), `occurred_at` (momento del **intento** de escritura; el del hecho de negocio va en el payload cuando la escritura puede llegar tarde, BR-U3-05; precisado el 2026-10-06),
 `correlation_id`, `idempotency_key` (UUID que genera el cliente; el **mismo** en cada
 reintento de la misma escritura; agregado por U3 FD Q5) y `payload` (según el tipo).
 
@@ -234,7 +241,7 @@ reintento de la misma escritura; agregado por U3 FD Q5) y `payload` (según el t
 
 | `entry_type` | Payload |
 |---|---|
-| `recommendation` | `score`, `confidence`, `outcome`, `reasons`, `feature_vector` (sin identificadores), `feature_vector_hash`, `evaluated_at`, `monitoring_labels`, `explanation` (completa, tal como se mostrará). Se construye solo desde `Ready` (BR-U0-08) |
+| `recommendation` | `score`, `confidence`, `outcome`, `reasons`, `feature_vector` (sin identificadores), `feature_vector_hash`, `evaluated_at`, `monitoring_labels`, `explanation` (completa, tal como se mostrará), `received_at` (el `created_at` del caso, de la `ScoringRequest`), `channel` (de `policy_inputs`) y `attempt` (los tres agregados por el FD de U11, 2026-10-10, Q3 y Q8, para el tiempo de originación y los cortes de U11), y `first_evaluation` (de la `ScoringRequest`; revisión del FD de U11, 2026-10-10). Se construye solo desde `Ready` (BR-U0-08) |
 | `fail_closed` | `cause?` y `local_cause?`, **exactamente uno**: `cause` (catálogo de U0) en las entradas de scoring y en un escalamiento cuyo último intento terminó en `FailClosed`; `local_cause` (`serving_config_unavailable` \| `scoring_unreachable` \| `scoring_rejected`) en un escalamiento cuyo último intento no terminó con un `RecommendResult`. `retryable` (según BR-U0-04 con `cause`; con `local_cause`, `false` solo para `scoring_rejected`), `attempt`, `escalated_at?` (su presencia marca la entrada de escalamiento, BR-U8-09). `local_cause` y `escalated_at` **solo los escribe case-service** (`registry:append:case`); una entrada de scoring nunca los lleva (U3 BR-U3-03). Validación: BR-U0-38 (precisado el 2026-10-06, revisión del FD de U8) |
 | `human_decision` | `decision` (`sigue` \| `se_aparta` \| `resuelve_revision`), `final_outcome`, `used_factors: list[feature_id]` o `["ninguno"]`, `justification` (`str(max=2000)`), `explanation_viewed_before` (`bool`), `decided_at` (agregado el 2026-10-06), `recommendation_entry_id` (`registry_entry_id` de la recomendación entregada al caso; lo llena case-service desde el caso, no viene en `DecisionIn`) (precisado el 2026-10-03 por U7 NFR Design Q3) |
 | `explanation_view` | `viewed_at`, `recommendation_entry_id` (la recomendación consultada; lo llena case-service desde el caso, BR-U8-19) (precisado el 2026-10-06, revisión del FD de U8) |
@@ -271,6 +278,8 @@ expediente desde case-service solo para `cro` y `cumplimiento` (U3 FD Q7).
 | `version_mismatch` (con `conflict_state`) | U7: el explicador devolvió otra versión |
 | `feature_dictionary_incomplete` (con `unprocessable_explanation`) | U7: el diccionario no cubre un factor |
 | `factuality_failed` (con `unprocessable_explanation`) | U7: la narrativa no pasó la validación |
+| `no_active_version` (con `conflict_state`) | U4 BR-U4-13: no hay versión `activo` para comparar una fuente (agregado el 2026-10-10 por U10 FD, Q7) |
+| `active_version_frozen` (con `conflict_state`) | U4 BR-U4-13: la versión servible está `congelado` (agregado el 2026-10-10 por U10 FD, Q7) |
 
 Catálogo cerrado de `code`:
 
@@ -289,6 +298,7 @@ Catálogo cerrado de `code`:
 | `dependency_unavailable` | 503 |
 | `internal_error` | 500 |
 | `unprocessable_explanation` | 422 (solo entre explainability y scoring; siempre con `reason`, U7) (precisado el 2026-10-06, revisión del FD de U8) |
+| `deadline_exceeded` | 504 (`x-vectra-deadline` ya vencido al llegar, NFR-U0-23 (b); antes se nombraba el 504 sin un `code`; revisión del Infrastructure Design de U10, 2026-10-10) |
 
 No existe un `code` `fail_closed`: el fail-closed viaja como `FailClosed` en una respuesta
 200 (R2, §3.5).
@@ -303,8 +313,13 @@ En `validation_error` se permite un campo adicional `invalid_params: [{name, rea
 
 ### 7.1b `RouteContract` (forma; patrón P-U0-12)
 `service`, `method`, `path`, `request_model`, `response_model`, `scopes`, `roles`, `mfa`,
-`mfa_max_age` (900 s), `port` (8080) y `read_only: bool` (por omisión `false`; `true` solo en un
-`POST` de consulta sin efectos con scopes de lectura, BR-U0-71) (revisión del NFR Requirements de U9, 2026-10-10).
+`mfa_max_age` (900 s), `port` (8080), `read_only: bool` (por omisión `false`; `true` solo en un
+`POST` de consulta sin efectos con scopes de lectura, BR-U0-71) (revisión del NFR Requirements de U9, 2026-10-10) y
+`max_body_bytes` (por omisión 32 KiB; revisión del Infrastructure Design de U10, 2026-10-10). El BodyGuard del pipeline (P-U0-01, paso 4) usa
+el de la ruta. Rutas con un valor mayor: `POST /v1/entries` del registro, 80 KiB (el `canonical`
+puede llegar a 64 KiB y el registro responde su propio 413 por BR-U3-07); `POST /v1/models/{id}/freeze`
+de governance, 64 KiB (lleva el paquete de contexto de ≤ 48 KiB, U9 BR-U9-15). El registro de
+contratos rechaza al arrancar un valor > 128 KiB y lo publica en la matriz de rutas.
 
 ### 7.2 Catálogo de scopes de servicio (fuente para el realm de U2)
 
@@ -325,8 +340,8 @@ En `validation_error` se permite un campo adicional `invalid_params: [{name, rea
 | `registry:read:explanation` | explainability-service |
 | `registry:read:monitoring` | `bias-monitoring-service` y `bias-monitoring-job` (revisión del FD de U9, 2026-10-08) |
 | `registry:read:metrics` | product-metrics |
-| `intake:submit` | cliente `channel` (simulador y canales) |
-| `core:read-credit` | case-service (`GET /v1/credits/{id}` de core-banking-mock, F17) |
+| `intake:submit` | cliente `channel` (canales del banco) y, solo en kind y staging, `channel-simulator` (U2 BR-U2-11; revisión del Infrastructure Design de U10, 2026-10-10) |
+| `core:read-credit` | case-service (`GET /v1/credits/{id}` de core-banking-mock, F17), **solo** en kind y staging: el realm de producción no lo tiene (`core.enabled = false`, U8 INF-U8-02; revisión del Infrastructure Design de U10, 2026-10-10) |
 | `core:write-credit` | **ninguna identidad**. Lo exige `POST /v1/credits/{id}/status` para que RT-5 falle con 403 aunque una NetworkPolicy estuviera mal (AUTONOMIA-03). U2 no crea ningún cliente con este scope |
 
 Los roles de usuario (`analista`, `ingeniero_riesgo`, `cro`, `cumplimiento`) se
@@ -340,11 +355,12 @@ Solo pueden aparecer estos campos:
 - `case_id`, `model_version_id`, `policy_version_id`, `entry_type`;
 - `status`, `http_method`, `route_template` (nunca la URL con parámetros), `duration_ms`;
 - `error_code`, `fail_closed_cause`, `attempt`, `principal_kind`, `principal_role`;
+- `app_version`: la versión SemVer de la SPA en `console.client_error` (NFR Requirements de U10, 2026-10-10, Q12);
 - `principal_subject`: el `sub` opaco del token (UUID de Keycloak), nunca el username ni el email. Permite alertar por fallos repetidos del mismo sujeto (SECURITY-14).
 
 Cualquier otro campo se descarta antes de emitir el registro.
 
-### 8.1 Catálogo de eventos (`event`, BR-U0-51; revisión del NFR Requirements de U9, 2026-10-10 (segunda))
+### 8.1 Catálogo de eventos (`event`, BR-U0-51; segunda revisión del NFR Requirements de U9, 2026-10-10)
 El campo `event` toma valores de un `Enum` de `vectra_contracts.log_events`. Cada unidad
 agrega los suyos en su FD y aquí se listan; un evento fuera del catálogo no compila.
 
@@ -356,6 +372,12 @@ agrega los suyos en su FD y aquí se listan; un evento fuera del catálogo no co
 | `case.viewed`, `case.retry_requested` | U8 (BR-U8-11, 13b) | `case_id`, `principal_subject`, `principal_role` |
 | `evaluation.result_discarded` | U8 (BR-U8-08) | `case_id`, `attempt` |
 | `disparity.viewed`, `freeze_context.viewed` | U9 (BR-U9-18, 19; NFR-U9-32) | `principal_subject`, `principal_role`, `model_version_id` |
+| `console.client_error` | U10 (NFR-U10-34) | `error_code` (catálogo cerrado de errores del navegador), `route_template` (la ruta de la SPA, sin parámetros), `app_version`, `principal_subject`, `principal_role` (NFR Requirements de U10, 2026-10-10, Q12) |
+
+Unidades sin eventos propios (revisión del FD de U10, 2026-10-10, B5): U2 no emite `LogRecord` (sus registros son el
+access log de Envoy y los `KeycloakEvent` de U2 domain-entities §5). U3, U4 y U6 solo emiten `authz.denied` y el log de petición común (`event` vacío, con
+`route_template`, `status` y `duration_ms`). Si una unidad agrega un evento, lo registra en
+esta tabla en su FD.
 
 ## 9. Tipos de las APIs (R4)
 
@@ -366,7 +388,7 @@ reglas de política, autorización por objeto) lo detalla la unidad dueña.
 
 | Tipo | Campos |
 |---|---|
-| `ScoringRequest` | `case_id`, `features: FeatureVector`, `monitoring_labels: MonitoringLabels`, `policy_inputs: PolicyInputs`, `attempt: int ≥ 1`, `model_version_id` (la versión cuyo `feature_spec` armó el vector; si difiere de `serving-config`, `version_mismatch`, BR-U0-02) (precisado el 2026-10-06 por U8 FD Q1) |
+| `ScoringRequest` | `case_id`, `features: FeatureVector`, `monitoring_labels: MonitoringLabels`, `policy_inputs: PolicyInputs`, `attempt: int ≥ 1`, `model_version_id` (la versión cuyo `feature_spec` armó el vector; si difiere de `serving-config`, `version_mismatch`, BR-U0-02) (precisado el 2026-10-06 por U8 FD Q1); `received_at` (el `created_at` del caso en case-service; lo copia scoring al payload de `recommendation`; FD de U11, 2026-10-10); `first_evaluation: bool` (`true` solo si el caso nunca pasó por `en_sincronizacion`, `no_disponible` ni `modelo_congelado` y `attempt = 1`; lo calcula U8; revisión del FD de U11, 2026-10-10) |
 | `PolicyInputs` | `property_value: COP`, `proposed_rate_ea: Decimal4`, `channel`; datos de la solicitud que la política necesita y que no son features (VIS, usura, reglas por canal) |
 | `ExplainRequest` | `case_id`, `model_version_id`, `features: FeatureVector`, `prediction_score: Decimal4` |
 | `ApplicantSummaryRequest` | `case_id`, `recommendation_entry_id` (lo pone el BFF desde el caso; BR-U7-13) (precisado el 2026-10-03 por U7 NFR Design Q3) |
@@ -378,6 +400,7 @@ reglas de política, autorización por objeto) lo detalla la unidad dueña.
 |---|---|
 | `DecisionIn` | `decision: sigue \| se_aparta \| resuelve_revision` (S4, BR-U0-35), `final_outcome: favorable \| desfavorable`, `used_factors: list[feature_id]` (1..20) o exactamente `["ninguno"]`, `justification: str(max=2000)` |
 | `DecisionRef` | `case_id`, `registry_entry_id`, `recorded_at` |
+| `CaseIdentifiers` | `case_id`, `identifiers?` (el grupo de identificación de §1.1), `anonymized: bool`; `anonymized = true` ⇒ sin `identifiers` (revisión del Infrastructure Design de U10, 2026-10-10) |
 
 El usuario y su rol salen del token, nunca del cuerpo. `explanation_viewed_before` lo
 calcula case-service a partir de las entradas `explanation_view`.
@@ -404,10 +427,10 @@ La semántica de cada campo está en U9 domain-entities; aquí vive el tipo (BR-
 | `FreezeRecord` | `freeze_id`, `model_version_id`, `frozen_at`, `context_package: FreezeContext` (+ `data_sources`, `initial_disparity`), `resolution?: {action, recorded_at}` |
 | `CountTable` | `attribute`, `cells: list[{group, band, favorable: int ≥ 0, total: int ≥ favorable}]` |
 | `CellResult`, `BandResult`, `AttributeResult`, `DisparityResult` | Como U9 domain-entities §2.2–§2.5; las tasas y diferencias son `Decimal4`; una celda insuficiente no lleva `rate`; `AttributeResult` lleva `population_difference_partial: bool` (precisado el 2026-10-10 por U9 NFR Requirements) |
-| `FreezeContext` | `model_version_id`, `computed_at`, `threshold_pp`, `n_min`, `library_version`, `window_start`, `before: DisparityResult \| "sin_datos"`, `after`, `last_7_days`, `trigger_attribute`, `implicated`, `affected_volume`, `truncated: bool`; JCS ≤ 48 KiB |
+| `FreezeContext` | `model_version_id`, `computed_at`, `threshold_pp`, `n_min`, `window_days`, `schedule`, `stale_after_s` (los cinco de U9 BR-U9-13; revisión del FD de U10, 2026-10-10, A7), `library_version`, `window_start`, `before: DisparityResult \| "sin_datos"`, `after`, `last_7_days`, `trigger_attribute`, `implicated`, `affected_volume`, `truncated: bool`; JCS ≤ 48 KiB |
 | `CompareSourceRequest` | `source_id`, `pre: list[CountTable]`, `post: list[CountTable]` (los cuatro atributos en cada una, sin repetir) |
 | `PrePostReport` | `source_id`, `pre: DisparityResult`, `post: DisparityResult`, `delta`, `threshold_pp`, `n_min`, `truncated: bool`, `disclaimer`; JCS ≤ 48 KiB (tercera revisión del FD de U9, 2026-10-10) |
-| `DisparityView` | `model_version_id`, `window`, `computed_at`, `model: DisparityResult`, `human: DisparityResult`, `threshold_pp`, `n_min`, `invalid_entries`, `disclaimer` |
+| `DisparityView` | `model_version_id`, `window`, `computed_at`, `model: DisparityResult`, `human: DisparityResult`, `threshold_pp`, `n_min`, `window_days`, `schedule`, `stale_after_s` (los cinco de U9 BR-U9-13; revisión del FD de U10, 2026-10-10, A7), `invalid_entries`, `disclaimer` |
 | `FreezeSummary` | `freeze_id`, `model_version_id`, `frozen_at`, `trigger_attribute`, `model_aggregate`, `resolution?` |
 
 **Validación de estructura de §9.4** (cuarta revisión del FD de U9, 2026-10-10). U0 valida, con `model_validator` y pruebas de
@@ -416,3 +439,35 @@ ejemplo en el Paso 3 de su plan: `MonitoringQuery.ranges` de 1 a 12 (13 → erro
 atributos, sin repetir. La **escalera de tamaño** (48 KiB de `FreezeContext` y `PrePostReport`;
 60 y 64 KiB del evento `freeze`) no es validación de estructura: la aplican U9 (BR-U9-15, 17)
 y U4 (BR-U4-15), y la prueban sus planes.
+
+
+### 9.5 Consola (dueña: U10; agregada en la revisión del FD de U10, 2026-10-10, B1)
+
+| Tipo | Campos |
+|---|---|
+| `SessionInfo` | `role: analista \| ingeniero_riesgo \| cro \| cumplimiento`, `mfa: bool` (`acr = mfa`), `auth_time`, `locale: es-CO`. Sale solo de los claims del token |
+| `ConsoleDossier` | `dossier: RegistryDossier` (§9.6), `identifiers?` (el grupo de identificación de §1.1), `identifiers_unavailable: bool`, `anonymized: bool`. Lo compone el BFF (U10 BR-U10-03) |
+| `ClientErrorReport` | `error_code: render_error \| chunk_load_failed \| unhandled_rejection \| api_contract_mismatch \| stepup_failed \| csp_violation`, `route_template: str(max=200)`, `app_version` (SemVer), `correlation_id?`. Sin mensajes, trazas, URL completa ni datos de formularios; `extra="forbid"` (U10 NFR-U10-34; NFR Requirements de U10, 2026-10-10, Q12) |
+
+### 9.6 Registro (dueña: U3; agregada en la revisión del FD de U10, 2026-10-10, B1)
+
+La semántica está en U3 domain-entities §4; aquí vive el tipo (BR-U0-93).
+
+| Tipo | Campos |
+|---|---|
+| `RegistryDossier` | `case_id`, `entries: list[DossierEntry]` (en orden de `seq`), `integrity: IntegrityStatus`, `last_full_verification: LastFullVerification \| null` |
+| `DossierEntry` | `seq`, `entry_type`, `canonical` (base64), los campos decodificados del `RegistryEntry` (§5.3), y en una `recommendation`, `delivery_status: entregada \| no_entregada \| pendiente_de_decision` (calculado al leer, U3 BR-U3-14) (revisión del Infrastructure Design de U10, 2026-10-10) |
+| `LastFullVerification` | `check_id`, `finished_at`, `result: integra \| inconsistente` (la `full` `terminada` más reciente, U3 BR-U3-13b) (revisión del Infrastructure Design de U10, 2026-10-10) |
+| `IntegrityCheckRequest` | `mode: full \| range`, `from_seq?`, `to_seq?` (obligatorios en `range` y prohibidos en `full`) (revisión del Infrastructure Design de U10, 2026-10-10) |
+| `IntegrityCheckRef` | `check_id`, `mode: full \| range`, `requested_at`, `already_active: bool` (`true` si ya había una activa y se devuelve esa; NFR Design de U10, Q3; precisado en la revisión del Infrastructure Design de U10, 2026-10-10) |
+| `IntegrityCheckStatus` | `check_id`, `mode`, `status: pendiente \| en_curso \| terminada \| fallida`, `progress: {checked, total}`, `report?: IntegrityReport`, `reason?: interrumpida \| error_de_ejecucion \| plazo_vencido`, `requested_at`, `started_at?`, `finished_at?` (NFR Design de U10, Q3; precisado en la revisión del Infrastructure Design de U10, 2026-10-10) |
+| `IntegrityReport` | `mode: incremental \| nightly \| full \| range`, `from_seq`, `to_seq`, `entries_checked`, `checkpoints_checked`, `result: integra \| inconsistente \| error`, `first_inconsistent_seq?`, `reason?: hash \| link \| checkpoint_signature \| checkpoint_mismatch \| seq_gap \| column_mismatch`, `started_at`, `finished_at` (antes solo en U3 domain-entities §5; revisión del Infrastructure Design de U10, 2026-10-10) |
+| `IntegrityStatus` | `status: verified \| not_verified`, `from_checkpoint_seq: int`, `to_checkpoint_seq: int \| "head"`, `entries_checked`, `first_inconsistent_seq?`, `reason?: hash \| link \| checkpoint_signature \| checkpoint_mismatch \| seq_gap \| column_mismatch` |
+
+**Validación de estructura de §9.5 y §9.6** (revisión del Infrastructure Design de U10, 2026-10-10), con `model_validator` y pruebas de ejemplo en el Paso 3 del plan:
+- `IntegrityCheckStatus`: `terminada` ⇔ `report` presente con `result ∈ {integra, inconsistente}`; `fallida` ⇔ `reason` presente; `pendiente` y `en_curso` sin `report` ni `reason`; `progress.checked ≤ progress.total`;
+- `IntegrityCheckRequest`: `range` ⇔ `from_seq` y `to_seq` presentes, con `from_seq ≤ to_seq`;
+- `IntegrityReport`: `inconsistente` ⇔ `first_inconsistent_seq` y `reason` presentes;
+- `IntegrityStatus`: `not_verified` ⇔ `reason` presente (y `first_inconsistent_seq` presente salvo cuando el motivo es la falta de una verificación);
+- `ConsoleDossier`: `anonymized = true` ⇒ sin `identifiers`; `identifiers_unavailable = true` ⇒ sin `identifiers`;
+- `ClientErrorReport`: campos extra → error.

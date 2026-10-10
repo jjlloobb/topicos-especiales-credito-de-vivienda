@@ -21,6 +21,7 @@ documento define cómo los guarda y los usa case-service.
 | `application` | JSON | `ApplicationIn` **sin** el grupo de identificación de U0 §1.1, que vive en `case_identifiers` (§1.2) |
 | `test_scenario_id` | `str?` | Solo fuera de producción y solo si `azp = channel-simulator` (BR-U8-03). Nunca sale hacia scoring ni hacia el registro |
 | `escalation_count` | `int` | Escalamientos del caso; es el `ciclo` de la llave de `fail_closed` (BR-U8-09) (precisado el 2026-10-06) |
+| `ever_degraded` | `bool`, `false` por omisión | `true` desde la primera entrada a `en_sincronizacion`, `no_disponible` o `modelo_congelado`; nunca vuelve a `false`. Calcula `first_evaluation` (BR-U8-06; revisión del FD de U11, 2026-10-10) |
 | `attempts` | `int` | Intentos de evaluación del ciclo actual (se reinicia a 0 en `retry` y al descongelar) |
 | `last_cause` | causa de U0, o una causa local: `serving_config_unavailable` (falló la lectura de `serving-config` o del `feature_spec`), `scoring_unreachable` (timeout, conexión o 5xx) o `scoring_rejected` (4xx no reintentable) | La última del ciclo; la entrada de escalamiento la lleva como `local_cause` cuando es local (BR-U8-08, 09) (precisado el 2026-10-06, revisión del FD de U8) |
 | `recommendation` | JSON `Recommendation?` | La recibida de scoring, completa (con `Explanation`). Solo en `listo` y `decidido` |
@@ -99,7 +100,7 @@ Los identificadores salen en `get_case` hacia el BFF, para el detalle del analis
 | Entidad | Campos |
 |---|---|
 | `Credit` | `case_id` (referencia externa), `status` (`en_estudio \| aprobado \| desembolsado \| rechazado \| cancelado`), `updated_at`. Datos sembrados por fixtures de prueba |
-| `CreditStatus` (lo que ve case-service) | `status` del core, o `no_disponible` si el core no respondió a tiempo **o si `core.enabled = false`** (producción en el MVP, sin llamar; precisado el 2026-10-08 por INF-U8-02), o `sin_credito` si no existe (BR-U8-21) |
+| `CreditStatus` (lo que ve case-service) | `status` del core; `no_disponible` si el core no respondió a tiempo; `no_integrado` si `core.enabled = false`, que es el valor de producción en el MVP y no llama al core; `sin_credito` si el crédito no existe (BR-U8-21). Precisado el 2026-10-08 por INF-U8-02 y el 2026-10-10 por U10 FD, Q3 (`no_integrado`) |
 | `WriteAttempt` | `at`, `source_identity`, `outcome = rechazado` (403 por scope). Solo para la evidencia de RT-5 (BR-U8-22) |
 
 ## 6. Errores

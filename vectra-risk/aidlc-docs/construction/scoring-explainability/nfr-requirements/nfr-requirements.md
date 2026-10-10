@@ -53,8 +53,6 @@ Los IDs `NFR-U7-xx` se referencian en NFR Design, Infrastructure Design y el pla
 
 ## 6. Cumplimiento de extensiones (NFR Requirements U7)
 
-Revisada contra el cuerpo del documento antes de presentarla.
-
 | Regla | Estado | Evidencia |
 |---|---|---|
 | RESILIENCY-01 / 02 | Cumple | NFR-U7-01 (latencia de la ruta crítica dentro del SLO de U1) |

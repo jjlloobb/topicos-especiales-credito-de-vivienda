@@ -10,8 +10,9 @@
 | `verify` | Recorrer un rango y devolver `IntegrityReport` (función pura sobre un iterador de filas + checkpoints) | BR-U3-11..13 |
 | `projections` | Proyectar entradas según el consumidor | BR-U3-15 |
 | `dossier` | Entradas del caso + verificación `range` | BR-U3-14 |
-| `cli` | `vectra-registry verify --mode full|nightly|incremental|range` con códigos 0/1/2; `checkpoint`; `archive`; `aggregator run` (el comando del CronJob `registry-aggregator`; con `--until-head`, el Job a demanda del runbook) y `aggregator reset` (quinta revisión del FD de U9, 2026-10-10) | BR-U3-11, 13, 17 |
+| `cli` | `vectra-registry verify --mode full|nightly|incremental|range` con códigos 0/1/2; `checkpoint`; `archive`; `aggregator run` (el comando del CronJob `registry-aggregator`; con `--until-head`, el Job de reconstrucción con `runId` del runbook) y `aggregator reset` (quinta revisión del FD de U9, 2026-10-10) | BR-U3-11, 13, 17 |
 | `aggregator` | Conteos de monitoreo por `seq` con marca de agua, una recomendación por caso, inválidas (precisado el 2026-10-08 por U9 FD) | BR-U3-17 |
+| `ondemand` | Solicitud (API: `INSERT` en `integrity_checks`), y en el CronJob `registry-verify-ondemand`: barrido de filas huérfanas, toma de la pendiente, verificación en tramos con latido, cierre con `terminada` o `fallida`. La lógica de transición es una función pura `next_status(row, event) -> row` (revisión del Infrastructure Design de U10, 2026-10-10) | BR-U3-13b |
 
 `chain` y `verify` no tienen E/S: reciben datos y devuelven resultados. Así se prueban
 con propiedades y se reutilizan en el servicio, la CLI y `restore-drill`.
@@ -107,6 +108,37 @@ registry-aggregator (CronJob cada 5 min, rol registry_aggregator)
   TX aparte: borrar filas con day de más de 180 días; en monitoring_case_index, por evaluated_at
 ```
 
+### 2.6 Verificación bajo demanda (BR-U3-13b; revisión del Infrastructure Design de U10, 2026-10-10)
+
+```mermaid
+stateDiagram-v2
+    [*] --> pendiente: POST sin otra activa (202)
+    pendiente --> en_curso: el CronJob la toma
+    en_curso --> terminada: result integra o inconsistente
+    en_curso --> fallida: result error (error_de_ejecucion)
+    en_curso --> fallida: latido de mas de 2 min (interrumpida o plazo_vencido)
+    terminada --> [*]
+    fallida --> [*]
+```
+
+#### Alternativa en texto
+
+```text
+POST /v1/integrity-checks (cro, MFA)
+  ¿hay una activa (pendiente | en_curso)? sí -> 200 con su IntegrityCheckRef y already_active = true
+                                          no -> INSERT pendiente -> 202
+registry-verify-ondemand (cada minuto, Forbid)
+  1. barrido: en_curso con heartbeat_at < now − 2 min -> fallida
+       (plazo_vencido si started_at < now − activeDeadlineSeconds; si no, interrumpida)
+  2. tomar la pendiente más antigua (FOR UPDATE SKIP LOCKED) -> en_curso, started_at, heartbeat_at
+  3. por tramos de ≤ 10 000 entradas en la réplica (TX corta cada uno; reintento ≤ 3 si se cancela):
+       verify (BR-U3-12, pasos 1–6) -> progress, heartbeat_at
+  4. result integra | inconsistente -> terminada + report   (inconsistente -> RegistryChainBroken)
+     result error                   -> fallida (error_de_ejecucion) + report parcial
+  0. (antes del paso 2) sin ninguna activa y con la última full terminada de hace más de 30 días -> INSERT full pendiente
+     (requested_by = cron) y se ejecuta en esta corrida; con una activa, se encola en la primera corrida libre (segunda revisión del Infrastructure Design de U10, 2026-10-10)
+```
+
 ## 3. Propiedades testeables (PBT-01)
 
 | ID | Componente | Propiedad | Categoría | Generadores (PBT-07) |
@@ -142,6 +174,12 @@ registry-aggregator (CronJob cada 5 min, rol registry_aggregator)
 - purga: filas con `day` de 181 días → borradas en la corrida; de 179 días → intactas; en `monitoring_case_index`, por `evaluated_at` (segunda revisión del FD de U9, 2026-10-08);
 - `monitoring_daily` con 12 rangos de hasta 90 días de 3 versiones → como máximo unas 7 200 filas (12 rangos × hasta 594 filas), servidas dentro del tiempo límite de 2 s del pool `projections`; una consulta de `explanation` concurrente no espera más de su límite (segunda revisión del FD de U9, 2026-10-08);
 - `registry_verifier` lee `monitoring_daily` → éxito; lee `monitoring_case_index` → `permission denied` (segunda revisión del FD de U9, 2026-10-08).
+- verificación bajo demanda (revisión del Infrastructure Design de U10, 2026-10-10): `POST` sin otra activa → 202 y fila `pendiente`; con otra activa (de cualquier modo) → 200 con su `check_id` y `already_active = true`, sin fila nueva;
+- `registry-verify-ondemand` toma la pendiente, la verifica con firmas y bucket WORM (pasos 5 y 6 de BR-U3-12) y la deja `terminada` con `result = integra`; un tramo alterado → `terminada` con `inconsistente` y `RegistryChainBroken`;
+- matar el pod del CronJob a mitad → la corrida siguiente la marca `fallida` con `interrumpida` en ≤ 3 min y el cupo queda libre; una solicitud nueva → 202;
+- `next_status`: todo par (estado, evento) fuera del diagrama §2.6 → error; `terminada` sin `report` o `fallida` sin `reason` → el `CHECK` de la tabla lo rechaza;
+- la `full` mensual con una verificación del CRO en curso → espera y corre en la corrida siguiente; `last_full_verification` del expediente es la `full` `terminada` más reciente, del CRO o de la mensual;
+- un tramo cancelado por un conflicto de recuperación (simulado) → se reintenta y la verificación termina igual.
 
 ## 4. Cumplimiento de extensiones (Functional Design U3)
 

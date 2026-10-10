@@ -247,8 +247,6 @@ Se documentan aquí y se ejecutan en Operations.
 
 ## 5. Cumplimiento de extensiones (NFR Design U8)
 
-Revisada contra el cuerpo del documento antes de presentarla.
-
 | Regla | Estado | Evidencia |
 |---|---|---|
 | RESILIENCY-01 / 02 | Cumple | P-U8-10 (criticidad High, `vectra-high`); RPO y RTO de `case-db` heredados de U1 |

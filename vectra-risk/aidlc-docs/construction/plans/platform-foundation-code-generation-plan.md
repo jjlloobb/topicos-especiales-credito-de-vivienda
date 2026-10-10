@@ -23,7 +23,7 @@
 - NFR Requirements: `construction/platform-foundation/nfr-requirements/` (NFR-U1-01..44).
 - NFR Design: `construction/platform-foundation/nfr-design/` (P-U1-01..12).
 - Infrastructure Design: `construction/platform-foundation/infrastructure-design/` (INF-U1-01..10).
-- Inventario: `inception/application-design/component-dependency.md` (F01–F108, K01–K14, X01–X10; precisado el 2026-10-08: el inventario creció con los Infrastructure Design de U2, U3, U4, U7 y U8).
+- Inventario: `inception/application-design/component-dependency.md` (F01–F111, K01–K14 y K16, X01–X10; precisado el 2026-10-08: el inventario creció con los Infrastructure Design de U2, U3, U4, U7 y U8).
 
 ### Cómo se cumple AUTONOMIA-01 en este plan
 
@@ -85,8 +85,8 @@ vectra-risk-gitops/
 ### Bloque B — Red y malla
 
 - [ ] **Paso 3 — Inventario de flujos y generador**
-  - `network/flows.yaml` con **todos** los flujos de `component-dependency.md` (F01–F108, incluidos F90–F105 de U2, U3, U4 y U8, F106 del CronJob de bias de U9 hacia el Pushgateway, F107 de `registry-aggregator` y F108 del Job de reset de U3; F09 con `enabled: false`; quinta revisión del FD de U9, 2026-10-10), cada uno con origen, destino (namespace + ServiceAccount), puerto, dirección e ID; `network/forbidden.yaml` con X01–X10.
-  - `network/generate.py`: deny-all por namespace, un allow por flujo, DNS como única excepción común, `Server` + `AuthorizationPolicy` de Linkerd y la suite de conectividad (un caso permitido y uno bloqueado por flujo; X01–X10 como casos bloqueados).
+  - `network/flows.yaml` con **todos** los flujos de `component-dependency.md` (F01–F111, incluidos F90–F105 de U2, U3, U4 y U8, F106 del CronJob de bias de U9 hacia el Pushgateway, F107 de `registry-aggregator` y F108 del Job de reset de U3; F09 con `enabled: false`; quinta revisión del FD de U9, 2026-10-10), cada uno con origen, destino (namespace + ServiceAccount), puerto, dirección e ID; `network/forbidden.yaml` con X01–X10. **F27** (`POST /v1/models/{id}/freeze`) tiene como origen **solo** el ServiceAccount `bias-monitoring-job` de los pods del CronJob de U9, no el servicio HTTP `bias-monitoring-service` (INF-U9-04; revisión del FD de U10, 2026-10-10, B13).
+  - `network/generate.py`: deny-all por namespace, un allow por flujo, DNS como única excepción común, `Server` + `AuthorizationPolicy` de Linkerd y la suite de conectividad (un caso permitido y uno bloqueado por flujo; X01–X10 como casos bloqueados; para F27, el permitido sale del pod del CronJob y el bloqueado, de `bias-monitoring-service`; revisión del FD de U10, 2026-10-10, B13; bloqueados de U10: `console-spa` → cualquier servicio de `vectra-app`, `console-bff` → `vectra-data` y `console-bff` → `vectra-serving`, INF-U10-04, Infrastructure Design de U10, 2026-10-10; de U12: F07 desde fuera del clúster por el gateway (sin `channel-simulator` en `vectra-mock`), F111 (`x06-probe` → `registry-db-rw`) solo en kind, el selector de F27 por `vectra.io/workload: bias-monitoring-job` que admite los pods de `x04-probe` (prueba de `generate.py`), y el binding K16 solo en kind y staging (revisión del Infrastructure Design de U12, 2026-10-10), Infrastructure Design de U12, 2026-10-10; de U11: `product-metrics` → `case-service` y `governance-service` bloqueados, un pod que no es Prometheus → 8081 de `product-metrics` bloqueado, y `/readyz` del kubelet → 200 con el `Server` de Linkerd aplicado, INF-U11-04, Infrastructure Design de U11, 2026-10-10).
   - Diseño: NFR-U1-20; P-U1-01, P-U1-02; INF-U1-06. Historia: US-604.
   - **Aceptación**:
     - `python platform/network/generate.py --check` (los manifiestos versionados coinciden con los generados);
@@ -106,21 +106,28 @@ vectra-risk-gitops/
     - `disallow-latest`;
     - `require-run-as-non-root`, `disallow-privileged`, `disallow-host-path`, `require-ro-rootfs`;
     - `require-resources`, `require-priority-class`, `require-spread-and-pdb`, `require-hpa-bounds` (admite un Deployment sin HPA solo con la anotación `vectra.io/hpa-exempt` no vacía, `replicas ≥ 2` y PDB; NFR-U1-12; precisado el 2026-10-10 por U9 NFR Requirements);
-    - `restrict-loadbalancer` (solo el api-gateway), `disallow-plain-secrets`, `disallow-argocd-auto-sync`;
+    - `restrict-loadbalancer` (solo el api-gateway), `disallow-plain-secrets`, `disallow-argocd-auto-sync` (cubre también la Application `decision-registry-rebuild` de U3);
+    - no hay `restrict-manual-jobs`: se descartó con K15. Los Jobs de reconstrucción de U3 los crea Argo CD desde la Application `decision-registry-rebuild` tras un PR y un sync manual (revisión del FD de U10, 2026-10-10, B13);
     - `require-criticality-label`, `disallow-rbac-wildcards`;
     - `add-native-sidecar-to-jobs` (**mutación**, P-U1-05): agrega la anotación del sidecar nativo de Linkerd al pod template de todo Job o CronJob de un namespace con la etiqueta `vectra.io/mesh: enabled`, incluidos los que crea CloudNativePG, y nunca rechaza. Selecciona por esa etiqueta porque Kyverno solo ve etiquetas, y la anotación `linkerd.io/inject: enabled` no lo es (cuarta y séptima revisión del FD de U9; redacción en la octava revisión del FD de U9, 2026-10-10).
-  - **Chart `platform/namespaces`** (octava revisión del FD de U9, 2026-10-10): crea cada namespace de Vectra con la etiqueta de PSA `restricted`, la etiqueta `vectra.io/mesh: enabled` y la anotación `linkerd.io/inject: enabled` en los mallados (siempre las dos juntas), y la anotación del sidecar nativo; los values listan qué namespaces están mallados.
+  - **Chart `platform/namespaces`** (octava revisión del FD de U9, 2026-10-10): crea cada namespace de Vectra con la etiqueta de PSA `restricted`, la etiqueta `vectra.io/mesh: enabled` y la anotación `linkerd.io/inject: enabled` en los mallados (siempre las dos juntas), y la anotación del sidecar nativo; los values listan qué namespaces están mallados: exactamente los de P-U1-14 (revisión del Infrastructure Design de U10, 2026-10-10).
   - Etiquetas de PSA `restricted` por namespace. Kyverno en HA con `failurePolicy: Fail` y exclusiones de `kube-system`, `kyverno` y `linkerd`.
   - Diseño: NFR-U1-01, 04, 12, 25, 27, 43; P-U1-05, 06, 09; INF-U1-05, 09. Historias: US-605, US-606, US-607.
   - **Aceptación**: `kyverno test platform/policies/`, con un caso que pasa y uno que falla por política. Casos nombrados (revisión del NFR Requirements de U9, 2026-10-10):
     - `require-hpa-bounds`: Deployment sin HPA y sin `vectra.io/hpa-exempt` → rechazado; con la anotación, 2 réplicas y PDB → admitido; con la anotación y 1 réplica → rechazado;
     - `add-native-sidecar-to-jobs`: CronJob de `vectra-app` sin la anotación → admitido con la anotación agregada; Job `join` de CloudNativePG en `vectra-data` (con `ownerReference` a un `Cluster`) → admitido con la anotación, nunca rechazado; Job hook de `keycloak-config-cli` y CronJob `realm-drift` en `vectra-identity`, y un Job en `vectra-mock` → admitidos con la anotación; Job en un namespace sin la etiqueta `vectra.io/mesh` → sin cambios;
-    - chart de namespaces: todo namespace con la anotación `linkerd.io/inject: enabled` tiene la etiqueta `vectra.io/mesh: enabled`, y viceversa.
+    - **binding K16** (U12 INF-U12-03; revisión del Infrastructure Design de U12, 2026-10-10): `platform/rbac/verification-operator/` con el `ClusterRole` de `nodes` y un `Role` por namespace según la tabla de INF-U12-03, renderizado **solo** con los values de kind y staging; `conftest` sobre el render de producción → sin K16; `kyverno test` de `disallow-rbac-wildcards` con K16 → admitido; un fixture de K16 con `delete` o `exec` → rechazado;
+    - chart de namespaces: todo namespace con la anotación `linkerd.io/inject: enabled` tiene la etiqueta `vectra.io/mesh: enabled`, y viceversa; la lista mallada es exactamente la de P-U1-14;
+    - `add-native-sidecar-to-jobs`: un Job en `vectra-edge` y otro en `vectra-observability` → admitidos con la anotación (revisión del Infrastructure Design de U10, 2026-10-10);
+    - `require-hpa-bounds`: `console-spa` con la exención, 2 réplicas y PDB → admitido; un `InferenceService` de `vectra-staging` con 1 réplica → admitido (fuera del alcance); uno de `vectra-serving` con 1 réplica → rechazado; uno de `vectra-serving` con 1 réplica, `vectra.io/serving-state: inactivo` y `vectra.io/hpa-exempt` → admitido; el mismo con `serving-state: activo` → rechazado (segunda revisión del Infrastructure Design de U10, 2026-10-10).
 
 - [ ] **Paso 6 — PriorityClasses, cuotas y límites**
-  - Las 4 PriorityClasses de P-U1-09; `ResourceQuota` y `LimitRange` por namespace (máximo del HPA + 30 %).
-  - La cuota de `vectra-app` y la de `vectra-mock` suman los aportes declarados por las unidades: INF-U7-02 (U7), INF-U8-05 (U8) e INF-U9-01 (U9: requests ≈ 0,39 CPU / 0,5 GiB y limits ≈ 1,95 CPU / 1 GiB, con margen), y los de U3, U4 y U11 cuando existan (precisado el 2026-10-08, revisión del Infrastructure Design de U8).
-  - La cuota de `vectra-app` suma también los Jobs a demanda de U3, `registry-aggregator-rebuild` y `registry-aggregator-reset` (INF-U3-03), mientras corren (revisión del NFR Requirements de U9, 2026-10-10).
+  - Las 4 PriorityClasses de P-U1-09; `ResourceQuota` y `LimitRange` por namespace (máximo del HPA + 30 %), **con el proxy de Linkerd** de P-U1-14 en cada pod mallado (revisión del Infrastructure Design de U10, 2026-10-10).
+  - `console-spa` (U10) es el segundo Deployment con `vectra.io/hpa-exempt` (2 réplicas fijas, NFR-U10-12).
+  - **Pushgateway** (P-U1-13): 1 réplica con PVC de persistencia y `--persistence.interval=1m`; `Server` y `HTTPRoute` de Linkerd por identidad y método.
+  - La cuota de `vectra-app` y la de `vectra-mock` suman los aportes declarados por las unidades: INF-U7-02 (U7), INF-U8-05 (U8) e INF-U9-01 (U9, con margen y con el sidecar; ver la viñeta siguiente), los de U3 y U4 cuando existan, y el de U11 (NFR-U11-14: 3 pods en el peor momento con el proxy; requests ≈ 0,78 CPU / 1,05 GiB y limits ≈ 3,9 CPU / 2,44 GiB; NFR Requirements de U11, 2026-10-10) (precisado el 2026-10-08, revisión del Infrastructure Design de U8).
+  - La cuota de `vectra-app` suma también los Jobs de reconstrucción de U3, `registry-aggregator-rebuild-<runId>` y `registry-aggregator-reset-<runId>`, de la Application aparte `decision-registry-rebuild` (INF-U3-03), mientras corren (revisión del NFR Requirements de U9, 2026-10-10; revisión del FD de U10, 2026-10-10, B13). El aporte de U9 se suma **con** el sidecar de Linkerd (INF-U9-01: requests ≈ 0,78 CPU / 0,56 GiB y limits ≈ 3,9 CPU / 1,46 GiB), porque la cuota cuenta el sidecar nativo; los recursos del proxy son los de P-U1-14, que coinciden con los usados en INF-U9-01 e INF-U10-01 (revisión del FD de U10, B8, y del Infrastructure Design de U10, 2026-10-10).
+  - La cuota de `vectra-app` suma el BFF de U10 y la de `vectra-edge`, la SPA de U10, con el sidecar (INF-U10-01, con los pods del rollout: requests ≈ 3,19 CPU / 2,4 GiB y 0,78 CPU / 0,26 GiB; limits ≈ 13,7 CPU / 5,7 GiB y 3,64 CPU / 0,97 GiB; segunda revisión del Infrastructure Design de U10, 2026-10-10). Regla general: cada unidad dimensiona su aporte con los pods del peor momento, incluido el `maxSurge` de su rollout.
   - La cuota de `vectra-staging` suma los `InferenceService` de staging de U6 y el predictor de la versión activa de U4 INF-U4-05 durante una `source_comparison` (quinta revisión del FD de U9, 2026-10-10).
   - Diseño: NFR-U1-13; P-U1-09; INF-U7-02; INF-U8-05; INF-U4-05.
   - **Aceptación**: `conftest test platform/policies/quotas/` (todo namespace de Vectra tiene cuota y límites); `kyverno test` del caso «Pod sin `priorityClassName` → rechazado».
@@ -154,18 +161,20 @@ vectra-risk-gitops/
 
 - [ ] **Paso 10 — Stack de observabilidad**
   - Prometheus (2 réplicas, 30 días), Alertmanager (3 réplicas, receptor F72 por `severity`, `Watchdog` cada 5 min), Loki (MinIO, `retention_enabled: false`, retención por lock y lifecycle), Tempo (7 días), OTel Collector, Grafana Alloy, Pushgateway (F87, F88 y F106; alerta `PushgatewayDown`) y Grafana.
+  - **Permisos de carpetas de Grafana** (FD de U11, 2026-10-10, U11 BR-U11-13 y U9 INF-U9-05): `platform/observability/grafana/folder-permissions.yaml` (carpetas `Vectra / Sesgo` → equipos `cro` y `cumplimiento`; `Vectra / Producto` → `cro`, `cumplimiento` e `ingeniero_riesgo`; carpeta de operación → `operacion` con `Edit` (Infrastructure Design de U11, 2026-10-10)), aplicado por el Job idempotente `grafana-folder-permissions` (hook `PostSync` de la Application de observabilidad, F110) que quita los permisos de rol de esas carpetas y deja solo los de equipo; CronJob horario en modo comprobación que publica `vectra_grafana_folder_permissions_drift` (alerta `GrafanaFolderPermissionsDrift`, SEV3). Token de una cuenta de servicio de Grafana por ESO.
   - Diseño: NFR-U1-30, 31, 34; INF-U1-07, 08; P-U1-07. Historia: US-610.
-  - **Aceptación**: `helm template` + `conftest test platform/observability/` (retenciones, sin remote-write, receptor F72 configurado, Loki sin compactor de borrado).
+  - **Aceptación**: `helm template` + `conftest test platform/observability/` (retenciones, sin remote-write, receptor F72 configurado, Loki sin compactor de borrado); `uv run pytest platform/tests/test_grafana_folder_permissions.py` con un Grafana de Testcontainers (carpeta con permisos de rol → el Job los quita; segunda corrida → sin cambios; comprobación con deriva → métrica 1); en kind (Paso 19), los usuarios de U2: `ingeniero-1` → `Vectra / Producto` 200 y `Vectra / Sesgo` 403, `operacion-1` y `analista-1` → 403 en las dos, `cro-1` y `cumplimiento-1` → 200 en las dos (FD de U11, 2026-10-10).
 
 - [ ] **Paso 11 — Reglas, SLO y runbooks**
   - `PrometheusRule` con todas las alertas de `logical-components.md` §3, las reglas de grabación del SLO y los burn rates (P-U1-11).
   - Runbook por alerta con la plantilla de P-U1-10; `coe-template.md`.
+  - Incluye `GrafanaFolderPermissionsDrift` (Job y CronJob de permisos de carpetas, Paso 10) con su runbook `grafana-folder-permissions-drift`, que explica cómo reaplicar el Job con un sync de la Application de observabilidad (Infrastructure Design de U11, 2026-10-10).
   - Diseño: NFR-U1-32; P-U1-10, 11. Historia: US-610.
   - `PostgresVolumeUsageHigh` con una regla de ausencia por `Cluster`, de la forma `(count(...) or vector(0)) < 6` según INF-U1-02, y no un `absent()` común a los cuatro (precisado el 2026-10-08, revisión del Infrastructure Design de U8).
   - **Aceptación**: `promtool test rules platform/observability/rules/tests/*.yaml` (cada alerta se dispara con series sintéticas; el caso de `PostgresVolumeUsageHigh` quita las series de un solo `Cluster`, `case-db`, con los otros tres reportando, y debe disparar) y `python platform/tests/test_runbooks.py` (toda regla tiene `severity` válida y un `runbook_url` hacia un archivo existente).
 
 - [ ] **Paso 12 — Dashboards como código**
-  - Dashboards de seguridad, resiliencia, operación y SLO en JSON.
+  - Dashboards de seguridad, resiliencia, operación y SLO en JSON. La carpeta de operación (equipo `operacion`) incluye el panel de operación de U11 (NFR-U11-41: ciclo, entradas leídas, recomputación diaria y breaker hacia U3; NFR Requirements de U11, 2026-10-10).
   - Diseño: NFR-U1-33.
   - **Aceptación**: `python platform/tests/test_dashboards.py` (JSON válido, fuentes de datos por UID, sin consultas a métricas inexistentes en las reglas).
 
@@ -194,7 +203,7 @@ vectra-risk-gitops/
 - [ ] **Paso 16 — Lint y render de todos los charts**
   - `helm lint` de todos los charts y snapshots de `helm template` por entorno, versionados para revisarlos en el PR.
   - Historia: US-605.
-  - **Aceptación**: `make -C platform render && git diff --exit-code platform/rendered/`; `conftest test platform/rendered/prod/` (topologySpread por zona y PDB en todos los Deployments, como exige US-605; y la anotación del sidecar nativo **explícita** en el pod template de cada Job y CronJob renderizado, incluidos los Jobs de reconstrucción de U3, que se renderizan con `--set monitoringRebuild.runId=test` en una variante del render (aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10), para que la mutación de Kyverno nunca cambie un recurso de Git; sexta revisión del FD de U9, 2026-10-10).
+  - **Aceptación**: `make -C platform render && git diff --exit-code platform/rendered/`; `conftest test platform/rendered/prod/` (topologySpread por zona y PDB en todos los Deployments, como exige US-605; y la anotación del sidecar nativo **explícita** en el pod template de cada Job y CronJob renderizado, incluidos los Jobs de reconstrucción de U3, que se renderizan desde `decision-registry/chart-rebuild/` (Application aparte `decision-registry-rebuild`, wave 6; revisión del FD de U10, 2026-10-10, B13) con `--set monitoringRebuild.runId=test` en una variante del render (aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10), para que la mutación de Kyverno nunca cambie un recurso de Git; sexta revisión del FD de U9, 2026-10-10).
 
 ### Bloque H — CI
 

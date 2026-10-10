@@ -11,7 +11,7 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 ### P-U3-01 — Readiness con réplica síncrona (Q1)
 - El rol `registry_health` (`pg_monitor`, sin acceso a `registry_entries`) ejecuta:
   - `SELECT 1`;
-  - `SELECT count(*) FROM pg_stat_replication WHERE sync_state = 'sync'` ≥ 1.
+  - `SELECT count(*) FROM pg_stat_replication WHERE state = 'streaming' AND sync_state IN ('sync', 'quorum')` ≥ 1. Con `minSyncReplicas = 1` y `maxSyncReplicas = 2`, CloudNativePG configura `ANY 1 (…)` y PostgreSQL informa `quorum`, no `sync`; contar solo `sync` dejaría el servicio fuera de balanceo con las dos réplicas sanas (segunda revisión del Infrastructure Design de U10, 2026-10-10).
 - Resultado cacheado 5 s (P-U1-04).
 - Sin standby síncrono → readiness falla → el pod sale del balanceo → los llamadores reciben error de conexión o 503 y lo tratan como `registry_unavailable` (fail-closed, BR-U0-02) de inmediato.
 - Liveness: solo el proceso.
@@ -46,7 +46,7 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 | Pool | Conexiones | Servidor | Rol | Uso | Timeout de espera |
 |---|---|---|---|---|---|
 | `append` | 2 | Primaria | `registry_app` | Appends | 500 ms |
-| `dossier` | 1 | Primaria | `registry_app` (solo `SELECT`) | Expediente | 2 s |
+| `dossier` | 1 | Primaria | `registry_app` (`SELECT`, y el `INSERT` de una solicitud de verificación en `integrity_checks`) | Expediente; registro de una solicitud de verificación (BR-U3-13b; revisión del Infrastructure Design de U10, 2026-10-10) | 2 s |
 | `projections` | 1 | Réplica `-ro` | `registry_verifier` | Proyecciones (incluida `monitoring_daily`, agregada en el servidor, y el gauge del atraso del agregador cada 60 s; segunda revisión del FD de U9, 2026-10-08) | 2 s |
 | `health` | 1 | Primaria | `registry_health` | Readiness (P-U3-01) | 1 s |
 
@@ -76,7 +76,7 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 
 ### P-U3-07 — Archivo de 10 años (Q5)
 - Job mensual `registry-archive` (prioridad `vectra-low`):
-  1. lee de la réplica las entradas del mes anterior;
+  1. lee de la réplica las entradas del mes anterior **en tramos** de ≤ 10 000 entradas por `seq`, cada uno en su transacción corta, y escribe el archivo de forma incremental; un tramo cancelado por un conflicto de recuperación (`max_standby_streaming_delay = 2s`, BR-U3-13b) se reintenta hasta 3 veces (segunda revisión del Infrastructure Design de U10, 2026-10-10);
   2. escribe `registry-{yyyy-mm}.ndjson.zst`, con una línea por entrada (`seq`, `prev_hash`, `hash`, `canonical` en base64);
   3. arma el manifiesto `{from_seq, to_seq, head_hash, checkpoints, sha256, contract_versions}` y lo firma con la bóveda;
   4. sube los dos al bucket WORM de 10 años, los **vuelve a descargar** y ejecuta `vectra-registry verify --source archive` (sin base de datos);
@@ -91,7 +91,7 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 |---|---|---|---|
 | Servicio (API) | `registry_app` (pools `append` y `dossier`), `registry_verifier` (pool `projections` en la réplica), `registry_health` (pool `health`) | Ninguno | Ninguno |
 | `registry-checkpoint` | `registry_app` | Firma (Transit) | Escritura en `registry-checkpoints` |
-| `registry-verify` (CronJobs) | `registry_verifier` | Lectura de la llave pública | Lectura de `registry-checkpoints` |
+| `registry-verify` (CronJobs, incluido `registry-verify-ondemand`) | `registry_verifier` en la réplica `-ro` (lectura) y `registry_ondemand` en la primaria `-rw` (solo el estado en `integrity_checks`; segunda revisión del Infrastructure Design de U10, 2026-10-10) | Lectura de la llave pública | Lectura de `registry-checkpoints` |
 | `registry-archive` | `registry_verifier` | Firma (Transit) | Escritura en `registry-archive` |
 | `registry-aggregator` | `registry_aggregator` (BR-U3-17; segunda revisión del FD de U9, 2026-10-08) | Ninguno | Ninguno |
 
@@ -115,14 +115,17 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 | `RegistryVolumeFillForecast` | SEV3 | NFR-U3-32 |
 | `RegistryGrowthAboveForecast` | SEV3 | NFR-U3-34 |
 | `RegistryEntryLarge` | SEV3 | BR-U3-07 |
+| `RegistryOnDemandCheckFailed` | SEV3 | BR-U3-13b: una fila pasa a `fallida`, del CRO o mensual (`increase(vectra_registry_integrity_checks_failed_total[15m]) > 0`, sin `for`) |
+| `RegistryOnDemandCheckStuck` | SEV3 | BR-U3-13b: una fila `pendiente` con más de 10 min (`vectra_registry_integrity_check_pending_age_seconds > 600`, `for: 5m`): el CronJob no corre |
+| `RegistryFullVerificationOverdue` | SEV3 | BR-U3-13b: la última `full` `terminada` tiene más de 35 días (`vectra_registry_last_full_verification_age_seconds > 3024000`) (segunda revisión del Infrastructure Design de U10, 2026-10-10) |
+
+**Emisor de las métricas de la verificación bajo demanda** (segunda revisión del Infrastructure Design de U10, 2026-10-10): `decision-registry-service` las calcula cada 60 s con el pool `projections` (réplica), junto al gauge del atraso del agregador, leyendo `integrity_checks`: `vectra_registry_integrity_check_pending_age_seconds` (la `pendiente` más antigua, 0 si no hay), `vectra_registry_last_full_verification_age_seconds` y `vectra_registry_integrity_checks_failed_total` (número de filas `fallida`; crece de forma monótona porque las filas no se borran, así que Prometheus lo trata como un contador). Los CronJobs no publican métricas propias de esto: el estado vive en la tabla.
 | `MonitoringAggregatorStale` | SEV2 | BR-U3-17: `max(vectra_registry_monitoring_lag_seconds) > 1800` durante 5 min, o `absent()` de la serie durante 15 min (segunda revisión del FD de U9, 2026-10-08) |
 
 - Toda alerta tiene `runbook_url` (P-U1-10).
 - **Verificación**: `promtool test rules decision-registry/observability/rules/tests/*.yaml` y el test de runbooks de U1.
 
 ## 5. Cumplimiento de extensiones (NFR Design U3)
-
-Revisada contra el cuerpo del documento antes de presentarla.
 
 | Regla | Estado | Evidencia |
 |---|---|---|

@@ -74,8 +74,12 @@ vectra-risk/identity-edge/
     - fuerza bruta (BR-U2-05), vidas de tokens y sesiones con rotación de refresh (BR-U2-06), sesiones persistentes y política de contraseñas (NFR-U2-24);
     - eventos de login y de administración sin username ni email (BR-U2-16).
   - Clientes de domain-entities §2:
-    - `vectra-console` y `promotion-tool` (PKCE S256, redirect URIs exactas);
+    - `vectra-console` y `promotion-tool` (PKCE S256, redirect URIs exactas; `vectra-console` con la de login y `/stepup-callback`, U10 BR-U10-06, revisión del FD de U10, 2026-10-10);
+    - rol técnico `operacion` y el mapper de Grafana a roles y equipos (`cro`, `cumplimiento`, `operacion`; domain-entities §1.1 y §2.1); `realm-lint` rechaza `operacion` junto a un rol de negocio; usuarios `operacion-1` y `operacion-2` en kind y staging (segunda revisión del Infrastructure Design de U10, 2026-10-10);
     - `grafana` y los 10 de servicio con `private_key_jwt` (incluidos `case-worker`, agregado el 2026-10-08 por U8 INF-U8-01, y `bias-monitoring-job`, revisión del FD de U9, 2026-10-08); solo `bias-monitoring-job` tiene `governance:freeze`;
+    - usuarios sintéticos de domain-entities §3 (`analista-1` y `-2`, `ingeniero-1` y `-2`, `cro-1` y `-2`, `cumplimiento-1` y `-2`), un rol cada uno, con contraseña y TOTP desde ESO, en `realm.kind.yaml` y `realm.staging.yaml`; `realm-lint` falla si `realm.prod.yaml` tiene algún usuario local distinto de `break-glass`, con un caso de prueba que agrega `cro-1` al realm de producción (revisión del Infrastructure Design de U10, 2026-10-10);
+    - `verification-reader` (`private_key_jwt`) con **solo** `registry:read:metrics` y `registry:read:monitoring`, únicamente en `realm.kind.yaml` y `realm.staging.yaml`; `realm-lint` falla si aparece en `realm.prod.yaml` o con otro scope (Infrastructure Design de U12, 2026-10-10);
+    - `product-metrics` (`private_key_jwt`) con **solo** `registry:read:metrics`; `realm-lint` falla si tiene otro scope (NFR-U11-20; NFR Requirements de U11, 2026-10-10);
     - `channel-simulator` (`private_key_jwt`, `intake:submit`, audiencia `case-service`) solo en `realm.kind.yaml` y `realm.staging.yaml`; `realm-lint` falla si aparece en `realm.prod.yaml` (precisado el 2026-10-06, revisión del FD de U8);
     - `case-service` con `core:read-credit` y la audiencia `core-banking-mock` solo en `realm.kind.yaml` y `realm.staging.yaml`; `realm-lint` falla si aparecen en `realm.prod.yaml`, y una prueba sobre el realm de producción comprueba que `case-service` no obtiene un token con ese scope ni con esa audiencia (precisado el 2026-10-08 por U8 INF-U8-02, core deshabilitado en producción);
     - mapper de audiencias y mapper `roles`;
@@ -130,7 +134,8 @@ vectra-risk/identity-edge/
     - **SecurityPolicy**: JWT con JWKS por la URL interna, refresco cada 5 min, claims requeridos por ruta y copia de `sub`/`azp` a cabeceras internas;
     - **BackendTrafficPolicy**: descriptores de rate limit, timeouts, reintentos solo idempotentes y outlier detection;
     - **ClientTrafficPolicy**: tamaño máximo por ruta y confianza en `X-Forwarded-For` de 1 salto o PROXY protocol;
-    - perfiles de cabeceras;
+    - perfiles de cabeceras, con `Cross-Origin-Opener-Policy: same-origin` en todos (revisión del Infrastructure Design de U10, 2026-10-10);
+    - afinidad por cookie `vectra-spa-route` en la ruta `/` (BackendTrafficPolicy con `consistentHash` de tipo `Cookie`; revisión del Infrastructure Design de U10, 2026-10-10);
     - respuestas de error `Problem`;
     - eliminación de `server`, `x-envoy-*` y de las cabeceras internas entrantes y salientes.
   - Propiedades PBT-U2-04, 05 y 06.
@@ -180,10 +185,10 @@ vectra-risk/identity-edge/
 - [ ] **Paso 13 — Especificación de las pruebas de extremo a extremo**
   - Playwright + `httpx` + `pyotp` + `axe-core`:
     - aprobador sin TOTP → no obtiene token;
-    - step-up: firma con `auth_time` > 900 s → `mfa_required` → re-autenticación → éxito;
+    - step-up en ventana emergente (revisión del Infrastructure Design de U10, 2026-10-10): firma con `auth_time` > 900 s → `mfa_required` → diálogo → clic → ventana con `acr_values=mfa` → TOTP → `/stepup-callback` envía `code` y `state` por `postMessage` → la ventana principal reintenta con el mismo cuerpo → éxito, sin recarga; un `postMessage` de otro origen → ignorado; la ventana conserva `window.opener` con `Cross-Origin-Opener-Policy: same-origin`;
     - 5 fallos → bloqueo, con el evento con `userId` y sin `username`;
     - refresh reusado → sesión revocada;
-    - cabeceras (CSP, HSTS, `nosniff`, `DENY`, `Referrer-Policy`);
+    - cabeceras (CSP, HSTS, `nosniff`, `DENY`, `Referrer-Policy`); la CSP de `spa` y `api` incluye `require-trusted-types-for 'script'` y `trusted-types 'none'` (NFR Requirements de U10, 2026-10-10, Q7);
     - 429 con `Retry-After`; `/auth/admin` → 404;
     - token de otro servicio → 401;
     - `X-Forwarded-For` falso no cambia la IP registrada;

@@ -41,8 +41,6 @@ Los IDs `NFR-U5-xx` se referencian en el plan de tareas.
 
 ## 5. Cumplimiento de extensiones (NFR Requirements U5)
 
-Revisada contra el cuerpo del documento antes de presentarla.
-
 | Regla | Estado | Evidencia |
 |---|---|---|
 | AUTONOMIA-01 | Cumple | NFR-U5-01, 03 (el CI no toca el clúster; una persona sube los artefactos) |

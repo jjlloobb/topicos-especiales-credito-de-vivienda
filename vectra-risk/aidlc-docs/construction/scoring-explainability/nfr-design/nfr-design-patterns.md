@@ -185,8 +185,6 @@ en CI.
 
 ## 6. Cumplimiento de extensiones (NFR Design U7)
 
-Revisada contra el cuerpo del documento antes de presentarla.
-
 | Regla | Estado | Evidencia |
 |---|---|---|
 | AUTONOMIA-01 | Cumple | P-U7-06, 07, 09: lo que se verifica en kind lo ejecuta el operador después de un PR aprobado |
@@ -230,4 +228,4 @@ Las mismas filas están en la tabla de cambios a otras unidades de U7 (`function
 - ~~Si U8 permite reevaluar un caso con decisión pendiente, revisar `delivery_status` (P-U7-03).~~ Resuelto: U8 no reevalúa un caso `listo`; solo pasa a `decidido` o `vencido` (BR-U8-12, `guard_transition` de INF-U8-01), y un congelamiento posterior solo lo marca (BR-U8-14).
 
 ## 9. Pendiente para U9 `bias-monitoring` y U11 `product-metrics`
-- Contar solo las `recommendation` entregadas: las que referencia una `human_decision` por `recommendation_entry_id` (proyecciones `monitoring` y `metrics`, P-U7-03). **U9 resuelto el 2026-10-08 por U9 FD**: el agregador de U3 cuenta una por caso, la referenciada o, sin decisión, la más reciente (BR-U9-07, BR-U3-17), como aproximación aceptada. Sigue pendiente para U11.
+- Contar solo las `recommendation` entregadas: las que referencia una `human_decision` por `recommendation_entry_id` (proyecciones `monitoring` y `metrics`, P-U7-03). **U9 resuelto el 2026-10-08 por U9 FD**: el agregador de U3 cuenta una por caso, la referenciada o, sin decisión, la más reciente (BR-U9-07, BR-U3-17), como aproximación aceptada. **U11 resuelto** por BR-U11-01 (FD de U11, 2026-10-10): cuenta cada decisión con la recomendación que referencia, resuelta por U3 en la proyección `metrics`.

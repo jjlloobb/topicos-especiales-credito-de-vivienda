@@ -58,6 +58,7 @@ Grafana (F06), con login OIDC y permisos por equipo.
 | Operación | Endpoint | Roles | MFA | Objeto | Destino |
 |---|---|---|---|---|---|
 | `get_me() -> SessionInfo` | `GET /api/console/me` | todos | — | propio | ninguno (claims del JWT): roles, estado de MFA, locale |
+| `report_client_error(e: ClientErrorReport) -> 204` | `POST /api/console/client-errors` | todos | — | propio (sin objeto) | ninguno: el BFF emite el evento `console.client_error` y la métrica `vectra_console_client_errors_total{error_code}` (U10 NFR-U10-34; NFR Requirements de U10, 2026-10-10, Q12) |
 
 ### Casos (E1, E4, E5)
 
@@ -71,8 +72,9 @@ Grafana (F06), con login OIDC y permisos por equipo.
 | `create_applicant_summary(case_id) -> ApplicantSummary` | `POST /api/console/cases/{id}/applicant-summary` | analista, cro | — | caso `decidido` con explicación sincronizada | explainability `applicant_summary` |
 | `list_persistent_failures() -> list[PersistentFailure]` | `GET /api/console/cases/failures` | cro | — | — | case `list_persistent_failures` (tipo precisado el 2026-10-06) |
 | `retry_case(case_id) -> CaseRef` | `POST /api/console/cases/{id}/retry` | cro | no (acción técnica, sin efecto sobre el crédito; queda en el log `case.retry_requested`) | el caso está `no_disponible` y no anonimizado (si no, 409) | case `retry_case` (agregado por U8 FD Q2) |
-| `get_dossier(case_id) -> Dossier` | `GET /api/console/cases/{id}/dossier` | cro, cumplimiento | — | el caso existe | registry `get_case_dossier` + case `get_case` (identificadores directos); el BFF compone, el registro no toca identificadores (U3 FD Q7) |
-| `run_integrity_check() -> IntegrityReport` | `POST /api/console/integrity-checks` | cro | sí | — | registry `verify_chain` |
+| `get_dossier(case_id) -> Dossier` | `GET /api/console/cases/{id}/dossier` | cro, cumplimiento | — | el caso existe | registry `get_case_dossier` + case `get_case_identifiers` (identificadores directos; `get_case` no sirve para `cumplimiento`; revisión del Infrastructure Design de U10, 2026-10-10); el BFF compone, el registro no toca identificadores (U3 FD Q7) |
+| `run_integrity_check(req: IntegrityCheckRequest) -> IntegrityCheckRef` | `POST /api/console/integrity-checks` | cro | sí | — | registry `verify_chain`: registra la solicitud (202, o 200 con la activa); la ejecuta el CronJob `registry-verify-ondemand` (U3 BR-U3-13b; revisión del Infrastructure Design de U10, 2026-10-10) |
+| `get_integrity_check(check_id) -> IntegrityCheckStatus` | `GET /api/console/integrity-checks/{id}` | cro | — | la verificación existe | registry `get_integrity_check` (NFR Design de U10, 2026-10-10, Q3) |
 
 ### Modelos (E2, E3)
 
@@ -125,6 +127,7 @@ rol × endpoint de US-602 se genera desde esta tabla.
 | `create_manual_application(app: ApplicationIn, user) -> CaseRef` | `POST /v1/cases` | ídem, canal "manual" | BFF (analista) |
 | `list_cases(filter: CaseFilter, user) -> Page[CaseSummary]` | `GET /v1/cases` | filtros (U0 §1.2) → bandeja (sin score en casos no listos; `vencido` solo con el filtro explícito) | BFF |
 | `get_case(case_id, user) -> CaseDetail` | `GET /v1/cases/{id}` | → detalle (+ estado de crédito en lectura) | BFF |
+| `get_case_identifiers(case_id, user) -> CaseIdentifiers` | `GET /v1/cases/{id}/identifiers` | → solo identificadores y `anonymized` (`cro`, `cumplimiento`) | BFF (`get_dossier`; revisión del Infrastructure Design de U10, 2026-10-10) |
 | `record_explanation_view(case_id, user) -> None` | `POST /v1/cases/{id}/explanation-views` | → evento al registro | BFF |
 | `record_decision(case_id, d: DecisionIn, user) -> DecisionRef` | `POST /v1/cases/{id}/decision` | sigue / se aparta / resuelve_revision + factores + texto → registro (BR-U0-35) | BFF (analista) |
 | `list_persistent_failures(user) -> list[PersistentFailure]` | `GET /v1/cases/failures` | → casos `no_disponible` (tipo precisado el 2026-10-06) | BFF (CRO) |
@@ -223,7 +226,8 @@ def disparity_by_band(counts: CountTable, attribute: str, n_min: int) -> Attribu
 | `monitoring_daily(q: MonitoringQuery) -> MonitoringWindow` | `POST /v1/monitoring/daily:query` (solo lectura e idempotente; la consulta va en el cuerpo porque son hasta 12 rangos; sexta revisión del FD de U9, 2026-10-10) | bias (servicio y CronJob, `registry:read:monitoring`; U3 BR-U3-17; quinta revisión del FD de U9, 2026-10-10) |
 | `monitoring_freezes() -> list[FreezeRecord]` | `GET /v1/monitoring/freezes` | bias (`registry:read:monitoring`) |
 | `get_case_dossier(case_id, principal) -> Dossier` | `GET /v1/dossiers/{case_id}` | BFF (cro, cumplimiento) |
-| `verify_chain(from_seq=None) -> IntegrityReport` | `POST /v1/integrity-checks` + CLI/Job | BFF (cro), CronJob |
+| `verify_chain(req: IntegrityCheckRequest) -> IntegrityCheckRef` (API: registra; 202 o 200 con la activa) / `IntegrityReport` (CLI y CronJobs) | `POST /v1/integrity-checks` + CLI/CronJob `registry-verify-ondemand` | BFF (cro), CronJobs (revisión del Infrastructure Design de U10, 2026-10-10) |
+| `get_integrity_check(check_id) -> IntegrityCheckStatus` | `GET /v1/integrity-checks/{id}` | BFF (cro) (NFR Design de U10, 2026-10-10, Q3) |
 
 Tipos de entrada (`entry_type`): `recommendation`, `fail_closed`, `human_decision`,
 `explanation_view`, `model_event`, `policy_event`, `data_source_event`, `freeze`,

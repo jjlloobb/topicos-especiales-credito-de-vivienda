@@ -18,10 +18,11 @@ exactas no se fijan aquí: quedan pinneadas en `uv.lock` y `package-lock.json` (
 | Logging | `structlog` con un procesador de allowlist; salida JSON a stdout; `logging` estándar redirigido | BR-U0-50..53 | Q11 |
 | Telemetría | OpenTelemetry SDK + exportador OTLP/gRPC hacia el Collector in-cluster (F61); propagador W3C `traceparent` | BR-U0-62, AUTONOMIA-05 | INCEPTION |
 | Integración web | Middleware y dependencias de FastAPI (Starlette) | Stack de los servicios | INCEPTION |
-| Cliente HTTP | `httpx` (async), usado **solo** dentro de `vectra_common.deps` (timeout obligatorio, presupuesto propagado, un cliente por dependencia, circuit breaker); import-linter lo prohíbe fuera de `deps` | NFR-U0-23; lo usan U3, U4, U7 y U8 | U7 NFR Req Q4 (agregado el 2026-10-06; ya estaba pinneado en el plan de tareas) |
+| Cliente HTTP | `httpx` (async), usado **solo** dentro de `vectra_common.deps` (timeout obligatorio, presupuesto propagado, un cliente por dependencia, circuit breaker; `breaker="disabled"` solo en procesos batch, NFR-U0-23 (f), revisión del FD de U10, 2026-10-10); import-linter lo prohíbe fuera de `deps` | NFR-U0-23; lo usan U3, U4, U7 y U8 | U7 NFR Req Q4 (agregado el 2026-10-06; ya estaba pinneado en el plan de tareas) |
 | Métricas | `prometheus-client`, expuesto en el puerto 8081 que fija `create_app`; incluye la métrica de denegaciones (BR-U0-73) y `vectra_circuit_state` | BR-U0-73, NFR-U0-23 | INCEPTION (agregado el 2026-10-06; ya estaba pinneado en el plan de tareas) |
 | JSON canónico | Implementación de RFC 8785 (JCS) para `feature_vector_hash` | BR del FD (N5) | FD |
 | Datos DANE | Snapshot DIVIPOLA versionado como archivo de datos del paquete, con checksum | Sin egress en runtime | Q10 |
+| Frases prohibidas | `contracts/forbidden-phrases.yaml` (frases literales) y `contracts/tools/forbidden_phrases.py` (normalización Unicode NFD sin tildes, minúsculas, `regex` con `\b` al principio y al final) | BR-U0-94 | FD de U10 Q8; revisión del Infrastructure Design de U10, 2026-10-10 |
 
 ## 2. TypeScript (`contracts/ts`)
 

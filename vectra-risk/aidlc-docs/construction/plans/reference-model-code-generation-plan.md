@@ -134,8 +134,6 @@ vectra-risk/reference-model/
 
 ## 3. Trazabilidad
 
-Verificada con un script contra las líneas «Diseño» e «Historia(s)» de cada paso antes de presentarla.
-
 | Historia | Pasos |
 |---|---|
 | US-106 | 4, 7 |

@@ -112,8 +112,6 @@ sin conteos a las 2 h -> ValidationRun timeout ; la fuente sigue en_evaluacion ;
 
 ## 4. Cumplimiento de extensiones (Functional Design U4)
 
-Revisada contra el cuerpo de los tres artefactos antes de presentarla.
-
 | Regla | Estado | Evidencia |
 |---|---|---|
 | AUTONOMIA-01 | Cumple | BR-U4-09 (promoción por PR, sin sync ni apply) |

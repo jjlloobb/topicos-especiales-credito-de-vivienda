@@ -87,8 +87,6 @@ cada servicio que escribe evidencia.
 
 ## 6. Cumplimiento de extensiones (Infrastructure Design U7)
 
-Revisada contra el cuerpo del documento antes de presentarla.
-
 | Regla | Estado | Evidencia |
 |---|---|---|
 | AUTONOMIA-01 | Cumple | Las verificaciones en kind (INF-U7-03, 05) las ejecuta el operador después de un PR aprobado |

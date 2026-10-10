@@ -15,7 +15,7 @@ U7 los **aplica**.
 4. política (BR-U7-04..07);
 5. `POST /v1/explanations`;
 6. `check_preconditions`;
-7. append de la entrada `recommendation` (o `fail_closed`);
+7. append de la entrada `recommendation` (o `fail_closed`); el payload de `recommendation` copia `received_at`, `policy_inputs.channel`, `attempt` y `first_evaluation` de la `ScoringRequest` (U0 §5.2; para U11 BR-U11-05 y 08; FD de U11, 2026-10-10);
 8. `build_outcome`;
 9. respuesta 200 con `RecommendResult`.
 

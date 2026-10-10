@@ -47,7 +47,9 @@ con el backoff normal; la versión nueva ya será visible para los dos.
 - `monitoring_labels`;
 - `policy_inputs` (`property_value`, `proposed_rate_ea`, `channel`);
 - `attempt` (el número del intento);
-- `model_version_id`.
+- `model_version_id`;
+- `received_at` = `cases.created_at`, el mismo en todos los intentos (U11 BR-U11-05; FD de U11, 2026-10-10);
+- `first_evaluation` = `not cases.ever_degraded and attempt = 1`. `cases.ever_degraded` pasa a `true` (y nunca vuelve a `false`) en la primera entrada a `en_sincronizacion`, `no_disponible` o `modelo_congelado`; así un caso descongelado (BR-U8-10) o reintentado por el CRO (BR-U8-11), que vuelve a `attempt = 1`, no cuenta como evaluación limpia en el tiempo de originación de U11 (revisión del FD de U11, 2026-10-10).
 
 Nunca lleva identificadores directos, `free_text` ni `test_scenario_id` (BR-U0-34, RT-1).
 
@@ -121,7 +123,7 @@ Las entradas de cada intento las escribe scoring (BR-U7-16), solo cuando scoring
 - Una transición que no está en la tabla se rechaza en la capa de dominio y también en la base, con el trigger `guard_transition` sobre la tabla `case_transitions` (par de estados y rol). Un `CHECK` de PostgreSQL no puede consultar otra tabla (precisado el 2026-10-08 por U8 INF-U8-01).
 
 **BR-U8-13 — Visibilidad (US-107).** `list_cases` excluye los casos `vencido` por defecto;
-se ven solo con el filtro explícito `state=vencido` (precisado el 2026-10-06). En los estados distintos de `listo` y `decidido`,
+se ven solo con el filtro explícito `state=vencido` (precisado el 2026-10-06). `CaseFilter.model_frozen_after_recommendation = true` devuelve solo los casos con esa marca, y `false` solo los que no la tienen; ausente no filtra (revisión del FD de U10, 2026-10-10, A4). En los estados distintos de `listo` y `decidido`,
 `CaseSummary` y `CaseDetail` no llevan `score`, `outcome`, `recommendation` ni
 `explanation`. Un caso `en_sincronizacion` o `no_disponible` muestra `attempts` y
 `last_cause`.
@@ -132,6 +134,7 @@ se ven solo con el filtro explícito `state=vencido` (precisado el 2026-10-06). 
 - **Riesgo aceptado y documentado**: la fecha de nacimiento (edad) y la dirección, el departamento y el municipio (región) quedan visibles, porque hacen falta para identificar a la persona y ubicar el inmueble. La disparidad de las decisiones humanas por edad y región la vigila U9 (S4 paso 5).
 - Cada `get_case` emite el log `case.viewed` (`principal_subject`, `principal_role` y `case_id`, campos de la allowlist de U0 §8; precisado el 2026-10-08 por U8 NFR Design), sin datos del solicitante.
 - Un caso anonimizado (BR-U8-20) se muestra sin identificadores (precisado el 2026-10-06, revisión R1 del FD de U8).
+- **Identificadores para el expediente** (revisión del Infrastructure Design de U10, 2026-10-10): `get_case_identifiers` (`GET /v1/cases/{id}/identifiers`, roles `cro` y `cumplimiento`) devuelve **solo** `CaseIdentifiers` (`identifiers?` y `anonymized`), sin solicitud, recomendación ni decisión. Existe porque `cumplimiento` no tiene acceso a `get_case` (la bandeja es de `analista` y `cro`), y el BFF lo usa únicamente en `get_dossier` (U10 BR-U10-03). Emite `case.viewed` como `get_case`.
 
 **BR-U8-14 — Congelamiento después de la recomendación (Q2).**
 - El barrido de BR-U8-10 también marca `model_frozen_after_recommendation = true` en los casos `listo` cuya `recommendation.model_version_id` coincide con la versión que `serving-config` reporta `congelado`.
@@ -161,7 +164,7 @@ afirma algo que el registro no respalda (puede subestimar, nunca sobrestimar) (p
 2. Hacer el append de `human_decision`:
    - `payload`: `DecisionIn`, más `explanation_viewed_before`, `decided_at` y `recommendation_entry_id = cases.recommendation_entry_id`;
    - `occurred_at` = el momento de **cada** intento (BR-U3-05). El outbox conserva el `correlation_id` original y el payload tal como se construyó, así que la comparación de BR-U3-06 coincide aunque el reintento corra en otra traza o después de un despliegue (precisado el 2026-10-06, revisión del FD de U8). El hecho de negocio queda en `decided_at`, así que un reintento tardío del reconciliador no se rechaza por la ventana de ±5 min (precisado el 2026-10-06);
-   - sobre: `model_version_id` y `policy_version_id` de la recomendación y `actor` del token (US-108).
+   - sobre: `model_version_id` y `policy_version_id` de la recomendación y `actor` del token (US-108), con `kind = user`, `id`, `role`, `acr` y `auth_time` del token; la decisión no exige MFA reciente (U10 BR-U10-09b), pero su nivel de autenticación queda como evidencia (U0 §5.1; segunda revisión del Infrastructure Design de U10, 2026-10-10). El outbox guarda el actor tal como se construyó, así que un reintento lleva los mismos valores;
 3. Con el ack, en una transacción: evidencia y decisión `confirmada` y caso `decidido`. Se responde `DecisionRef`.
 4. Sin ack (503 o timeout del registro): se responde `503` y la decisión sigue pendiente.
 
@@ -216,7 +219,7 @@ usan el mismo outbox y el mismo reconciliador; solo las decisiones cambian el es
 **BR-U8-21 — Lectura del estado de crédito.**
 - `get_case` consulta `GET /v1/credits/{case_id}` (F17) solo para casos `decidido`, con timeout de 500 ms y sin caché.
 - 404 → `sin_credito`; error o timeout → `no_disponible`. La respuesta de `get_case` nunca falla por el core.
-- **Core deshabilitado** (`core.enabled = false`, el valor de producción en el MVP; precisado el 2026-10-08 por U8 INF-U8-02, aclaración Q1 = A): `get_case` responde `credit_status = no_disponible` **sin llamar** al core y **sin contar para el circuit breaker**, porque es una configuración y no una falla. F17 y X01 existen solo en kind y staging, con el mock. La integración con el core real queda pendiente para Operations.
+- **Core deshabilitado** (`core.enabled = false`, el valor de producción en el MVP; precisado el 2026-10-08 por U8 INF-U8-02, aclaración Q1 = A): `get_case` responde `credit_status = no_integrado` (precisado el 2026-10-10 por U10 FD, Q3) **sin llamar** al core y **sin contar para el circuit breaker**, porque es una configuración y no una falla. F17 y X01 existen solo en kind y staging, con el mock. La integración con el core real queda pendiente para Operations.
 
 **BR-U8-22 — Escritura imposible (RT-5).**
 - case-service no tiene ningún cliente ni método de escritura hacia el core.
@@ -287,7 +290,7 @@ plan vigente y de las precisiones de la revisión de este FD.
 | U4 BR-U4-17, alertas de §9, P-U4-02 y su tabla de alertas, PBT-U4-07, plan Pasos 8 y 17 | Las compensaciones `transicion_descartada` nunca se abandonan; alerta `CompensationEventPending` (SEV2) con su `runbook_url` en la `PrometheusRule` del Paso 17 | Revisión 2026-10-06 |
 | U7 PBT-U7-07 y flujo §2.1; U3 plan Paso 7 | Congelado con versión distinta → `model_frozen` (también en el flujo); el flujo usa el UUID v4 de la solicitud; descripción del Paso 7 al día (campos de negocio, ventana y `check_business_time` solo para llaves nuevas, forma del payload por scope); prueba del 403 simétrico, incluido `local_cause` | Revisión 2026-10-06 |
 | U3 business-logic-model §2.1 y PBT-U3-01; BR-U3-04 | El flujo muestra la forma del payload de `fail_closed` por scope y `check_business_time` tras la ventana, solo para llaves nuevas; PBT-U3-01 con la misma llave y un momento de negocio de más de 7 días → ack original; BR-U3-04 empieza con la búsqueda de idempotencia y las comprobaciones de llave nueva | Revisión 2026-10-06 |
-| **Pendiente para U11** (U9 resuelto el 2026-10-08 por U9 FD, BR-U9-07) | Medir con `evaluated_at`, `decided_at` y `viewed_at`, no con `recorded_at` | Revisión 2026-10-06 |
+| ~~**Pendiente para U11**~~ **Resuelto** por U11 BR-U11-02 (FD de U11, 2026-10-10) (U9 resuelto el 2026-10-08 por U9 FD, BR-U9-07) | Medir con `evaluated_at`, `decided_at` y `viewed_at`, no con `recorded_at` | Revisión 2026-10-06 |
 | U0 plan de tareas, Paso 3 | Pruebas de ejemplo de BR-U0-37 | Revisión 2026-10-06 |
 | U0 NFR Requirements, FD y NFR Design; U7 NFR Requirements, NFR Design y FD | NFR-U0-23 y PBT-U0-14 (respaldo de `vectra_common.deps`); `deps` y `deadline` en NFR-U0-40/41; filas RESILIENCY-10 y PBT-06; httpx y prometheus-client en el stack; módulo `deps` y componente `deadline`; referencias desde NFR-U7-11/43 y las filas PBT-06 de U7 | Q11 |
 | U4 business-rules (reconciliador y `freeze`) | `occurred_at` nuevo en cada intento; `frozen_at` en el payload | Revisión 2026-10-06 |
@@ -306,6 +309,9 @@ plan vigente y de las precisiones de la revisión de este FD.
 | U8 BR-U8-07, 08, 09; domain-entities §2.1; business-logic-model §3.1 y PBT-U8-01; NFR-U8-11; P-U8-01; INF-U8-01 | Cada toma incrementa `evaluation_jobs.attempt` y lo copia a `cases.attempts` (también la retoma tras un arrendamiento vencido; el paso a 7 escala); la guarda compara con el número de esa toma. `case_worker` inserta `fail_closed` sin `RETURNING` ni `ON CONFLICT`, con `SAVEPOINT` y `unique_violation` como éxito | U8 plan de tareas, revisión 2026-10-08 |
 | U8 domain-entities §2.1 y §3.1; BR-U8-07, BR-U8-18; P-U8-01; business-logic-model §3.1 y PBT-U8-01 | Índice único parcial de `evidence_outbox` por `idempotency_key` (`state <> 'abandonada'`); orden del conflicto tras un abandono (la nueva a `abandonada` antes de confirmar la anterior); `CHECK (attempt BETWEEN 0 AND 6)` y la toma decide con el valor leído: con 6, escala sin incrementar | U8 plan de tareas, segunda revisión 2026-10-08 |
 | U8 BR-U8-12; `component-dependency.md` §4 | Transiciones con trigger `guard_transition` sobre `case_transitions` (par de estados y rol), no un `CHECK`; `UPDATE` por columna de `case_app` | U8 Infrastructure Design, revisión 2026-10-08 |
-| U8 BR-U8-21, BR-U8-22, NFR-U8-25, 31; P-U8-06; `component-dependency.md` F17, X01, §5; U2 realm de producción | Core deshabilitado en producción: `no_disponible` sin llamar y sin contar para el breaker; F17, X01 y `CoreWriteAttempt` solo en kind y staging; sin `core:read-credit` en el realm de producción | U8 Infrastructure Design, aclaración Q1 = A, 2026-10-08 |
+| U8 BR-U8-21, BR-U8-22, NFR-U8-25, 31; P-U8-06; `component-dependency.md` F17, X01, §5; U2 realm de producción | Core deshabilitado en producción: `no_disponible` sin llamar y sin contar para el breaker (**superado** por la fila de U10 FD, Q3: el valor es `no_integrado`; revisión del FD de U10, 2026-10-10, B16); F17, X01 y `CoreWriteAttempt` solo en kind y staging; sin `core:read-credit` en el realm de producción | U8 Infrastructure Design, aclaración Q1 = A, 2026-10-08 |
 | **Pendiente para Operations** | Integración con el core real: contrato **[VERIFICAR]**, egress en §5, revisión de seguridad, equivalente de X01 fuera de la malla y `CoreWriteAttempt` del gateway (INF-U8 §8) | U8 Infrastructure Design, aclaración Q1 = A, 2026-10-08 |
 | `component-dependency.md` §4 | RLS en `evidence_outbox`: `case_worker` solo inserta `fail_closed` (INF-U8-01) | U8 Infrastructure Design, revisión 2026-10-08 |
+| U8 BR-U8-13b, C04, plan (Paso 13); U0 §9.2 (`CaseIdentifiers`) | `get_case_identifiers` para el expediente, con `cro` y `cumplimiento` | revisión del Infrastructure Design de U10, 2026-10-10 |
+| U0 §1.2 `CaseFilter`; U8 BR-U8-13 y plan (Paso 13) | Filtro `model_frozen_after_recommendation?`; sin búsqueda por texto | revisión del FD de U10, 2026-10-10, A4 |
+| U8 BR-U8-21, NFR-U8-25, domain-entities §5, business-logic-model, INF-U8-02, deployment-architecture, plan de tareas (Paso 12); U0 `CreditStatus` | Con `core.enabled = false`, `credit_status = no_integrado` (antes `no_disponible`, que queda solo para el core caído o lento) | U10 FD, Q3, 2026-10-10 |

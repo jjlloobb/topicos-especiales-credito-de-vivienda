@@ -119,7 +119,7 @@ viven en U7 y U4, no aquí.
 | ID | Regla | Error |
 |---|---|---|
 | BR-U0-20 | Todos los campos obligatorios presentes; tipos y enumeraciones válidos | `validation_error` |
-| BR-U0-21 | Longitudes máximas de §1.1 de domain-entities; payload total ≤ 32 KiB | `validation_error` / `payload_too_large` |
+| BR-U0-21 | Longitudes máximas de §1.1 de domain-entities; payload total ≤ el `max_body_bytes` de la ruta (32 KiB por omisión, §7.1b; revisión del Infrastructure Design de U10, 2026-10-10) | `validation_error` / `payload_too_large` |
 | BR-U0-22 | `document_number`: CC entre 5 y 10 dígitos; CE, PA y PPT alfanumérico de 5 a 15 caracteres | `validation_error` |
 | BR-U0-23 | `email` con formato RFC 5322 simplificado; `phone` en E.164 o nacional de 10 dígitos | `validation_error` |
 | BR-U0-24 | Edad a la fecha de evaluación entre 18 y 120 años | `validation_error` |
@@ -135,7 +135,7 @@ viven en U7 y U4, no aquí.
 | BR-U0-33 | `PolicyDraft`: `cutoff` y `low_confidence_threshold` en [0, 1]; en cada `normative`, `effective_to`, si existe, es posterior a `effective_from`, y las vigencias de la lista no se solapan (U4 FD Q4); `channel_rules` sin canales repetidos | `validation_error` |
 | BR-U0-34 | `FeatureValue`: el `value` concuerda con su `type`; las claves de `features` no incluyen campos de identificación de §1.1 ni `free_text` | `validation_error` |
 | BR-U0-36 | `DecisionIn.justification`: en `se_aparta` y `resuelve_revision` es obligatoria, de 20 a 2000 caracteres después de quitar los espacios del inicio y del final; en `sigue` puede estar vacía (precisado el 2026-10-06 por U8 FD Q5) | `validation_error` |
-| BR-U0-37 | Momentos de negocio de una entrada del registro (`evaluated_at`, `decided_at`, `viewed_at`, `frozen_at`, `escalated_at`): cada uno ≤ `occurred_at` y `occurred_at − *_at ≤ 7 días`. Acota la evidencia que llega tarde por un outbox o un reconciliador; 7 días cubre el evento `freeze` de U4, que no se abandona (precisado el 2026-10-06). No es parte de la validación de esquema genérica: la aplica el registro solo a llaves nuevas, después de la búsqueda de idempotencia (BR-U3-05) (precisado el 2026-10-06, revisión del FD de U8). Función pura `vectra_contracts.validation.check_business_time(entry, now) -> None | ValidationError`; la llama decision-registry dentro del append, después de la búsqueda de idempotencia y solo si la llave es nueva (U3 BR-U3-05, plan de U3, Paso 7) (precisado el 2026-10-06, revisión del FD de U8) | `validation_error` |
+| BR-U0-37 | Momentos de negocio de una entrada del registro (`evaluated_at`, `decided_at`, `viewed_at`, `frozen_at`, `escalated_at`): cada uno ≤ `occurred_at` y `occurred_at − *_at ≤ 7 días`. **`received_at` del payload de `recommendation` no es un momento de negocio de la entrada** (es la llegada del caso) y queda fuera de esta cota: un caso que estuvo congelado o no disponible más de 7 días tiene un `received_at` viejo y su `recommendation` no se rechaza (revisión del FD de U11, 2026-10-10). Acota la evidencia que llega tarde por un outbox o un reconciliador; 7 días cubre el evento `freeze` de U4, que no se abandona (precisado el 2026-10-06). No es parte de la validación de esquema genérica: es la función pura `vectra_contracts.validation.check_business_time(entry, now) -> None | ValidationError`, que decision-registry llama dentro del append, después de la búsqueda de idempotencia y solo si la llave es nueva (U3 BR-U3-05, plan de U3, Paso 7) (precisado el 2026-10-06, revisión del FD de U8; redacción unificada en la revisión del FD de U10, 2026-10-10) | `validation_error` |
 | BR-U0-38 | Payload de `fail_closed`: **exactamente uno** de `cause` o `local_cause`; `local_cause` solo junto con `escalated_at`; `retryable` coherente con BR-U0-04 (con `cause`: `false` ⇔ `model_frozen`; con `local_cause`: `false` ⇔ `scoring_rejected`). Que solo case-service pueda escribir `local_cause` y `escalated_at` lo impone el registro por scope (U3 BR-U3-03) (precisado el 2026-10-06, revisión del FD de U8) | `validation_error` |
 
 ## 4. Derivación de `MonitoringLabels` (Q3=A)
@@ -215,8 +215,8 @@ este middleware (`component-dependency.md` §puertos).
 
 **BR-U0-72 — MFA y step-up.** Si un endpoint declara `mfa_required`, el principal necesita
 `acr == "mfa"` **y** `now − auth_time ≤ mfa_max_age` (por defecto 900 s; precisado el
-2026-10-03 por U2 FD Q3). Si no se cumple cualquiera de las dos, responde `mfa_required` y
-la SPA re-autentica con `prompt=login` y `max_age=0`. Las entradas del registro que firma
+2026-10-03 por U2 FD Q3). Si no se cumple cualquiera de las dos, responde 403 `mfa_required`; el step-up lo
+hace la SPA según U10 BR-U10-06 (U0 no repite el mecanismo; revisión del Infrastructure Design de U10, 2026-10-10). Las entradas del registro que firma
 un usuario en esos endpoints guardan su `acr` y su `auth_time` (domain-entities §5.1).
 
 **BR-U0-73 — Registro de fallos.** Cada 401 o 403 emite un log con
@@ -249,6 +249,20 @@ publicada. Si detecta un cambio incompatible sin subir la versión mayor, el bui
 **BR-U0-93 — Fuente autoritativa (R6).** Si un tipo de U0 difiere de `component-methods.md`,
 manda U0. Las unidades dueñas detallan el comportamiento, pero no redefinen la forma de un
 tipo: si necesitan cambiarla, el cambio se hace en U0 con su versión.
+
+## 9b. Frases prohibidas (FR-BIA-08; precisado el 2026-10-10 por U10 FD, Q8)
+
+**BR-U0-94 — Lista única.** `contracts/forbidden-phrases.yaml` es la única lista de frases
+prohibidas. Solo contiene **frases literales**, cada una escrita en todas sus variantes, para que un
+lint pueda verificarla sin interpretar el contexto (revisión del Infrastructure Design de U10, 2026-10-10):
+- español: «sin sesgo», «sin sesgos», «libre de sesgo», «libre de sesgos», «libre de discriminación», «no discrimina», «no discriminatorio», «certifica la equidad», «garantiza la equidad», «modelo imparcial», «sistema imparcial», «decisión imparcial»;
+- inglés: «bias-free», «bias free», «unbiased», «fair model», «fairness guaranteed».
+
+La comparación ignora mayúsculas y tildes y usa límites de palabra al principio y al final de la
+frase. `contracts/tools/forbidden_phrases.py` la aplica a los archivos que se le pasen. La usan
+U4 (plantillas del informe de validación), **U7** (plantillas de la narrativa y del resumen para el
+solicitante), U9 (textos de la API y `bias.json`) y U10 (catálogos i18n y `console.json`).
+Cambiar la lista exige la aprobación de cumplimiento (`CODEOWNERS` del monorepo).
 
 ## 10. Datos del registro (R7)
 

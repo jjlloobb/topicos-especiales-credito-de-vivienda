@@ -286,8 +286,6 @@ vectra-risk/scoring-explainability/
 
 ## 3. Trazabilidad
 
-Verificada con un script contra las líneas «Diseño» e «Historia(s)» de cada paso antes de presentarla.
-
 | Historia | Pasos |
 |---|---|
 | US-103 | 3, 11, 12 |

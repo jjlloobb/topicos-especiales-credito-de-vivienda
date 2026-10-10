@@ -2593,3 +2593,631 @@ U3, runbook monitoring-rebuild: durante el rebuild salta MonitoreoSesgoDetenido 
 **Context**: CONSTRUCTION - U10 - Functional Design, esperando respuestas.
 
 ---
+## U10 Functional Design — Respuestas
+**Timestamp**: 2026-10-10T11:38:00Z
+**User Input**: "ya respondí"
+**AI Response**: Respuestas leídas: Q1–Q12 = A, sin ambigüedades. No hacen falta preguntas de aclaración.
+**Context**: CONSTRUCTION - U10 - Functional Design, generación de artefactos.
+
+---
+## U10 Functional Design — Artefactos y cambios a otras unidades
+**Timestamp**: 2026-10-10T11:40:04Z
+**User Input**: (sin entrada nueva; continúa tras "ya respondí")
+**AI Response**: Creados en `construction/console/functional-design/`: `business-rules.md` (BR-U10-01..19), `domain-entities.md`, `business-logic-model.md` (flujos, PBT-U10-01..06, pruebas de ejemplo, cumplimiento de extensiones) y `frontend-components.md`. Cambios a otras unidades: Q3, `credit_status = no_integrado` con `core.enabled = false` (U0 `CaseDetail`/`CreditStatus`; U8 BR-U8-21, NFR-U8-25, domain-entities §5, business-logic-model, INF-U8-02, deployment-architecture, plan Paso 12 y tabla de cambios de U8); Q7, `reason` `no_active_version` y `active_version_frozen` agregados al catálogo cerrado de U0 §6 (U4 BR-U4-13 ya los usaba); Q8, lista única `contracts/forbidden-phrases.yaml` (U0 BR-U0-94, plan de U0 Paso 3 con herramienta y CODEOWNERS), referenciada desde U4 BR-U4-07 y su plan, U9 business-rules §6, INF-U9-05 y su plan. Checklist del plan marcado.
+**Context**: CONSTRUCTION - U10 - Functional Design, esperando aprobación.
+
+---
+## U10 Functional Design — Request Changes: hallazgos abiertos (10 oct, 06:45)
+**Timestamp**: 2026-10-10T11:46:42Z
+**User Input**: "Hallazgos abiertos (10 oct, 06:45)
+
+A. Decisiones o errores de lógica (corregir antes de aprobar)
+#    Unidad    Hallazgo
+A1    U10    Step-up MFA: la redirección a Keycloak recarga la SPA y borra la memoria, así que el cuerpo del formulario nunca sobrevive. BR-U10-06, flujo 2.2, PBT-U10-05 y su prueba de ejemplo. Salida: step-up en ventana emergente (window.open + postMessage), o aceptar que el usuario siempre re-confirma y decirlo en la regla
+A2    U10    Roles por vista: BR-U10-12 y frontend-components no coinciden. El frontend da a cumplimiento Modelos y Políticas, y a cro Fuentes de datos. Hay que fijarlo contra la columna «Roles» de C03
+A3    U10 / U0    Búsqueda en la bandeja: BR-U10-10 busca por applicant_display (lleva el nombre), pero domain-entities de U10 dice que los filtros viven en la URL sin datos del solicitante
+A4    U0    CaseFilter no tiene model_frozen_after_recommendation? ni q? (filtros de BR-U10-10)
+A5    U9    values-monitoring-policy.yaml vive en el monorepo, pero el CODEOWNERS está en GitOps; la revisión de cumplimiento puede no aplicarse
+A6    U9    Peor caso de la corrida (Paso 2): no cuenta los pushes y borrados de los grupos freeze-<v> (≈ 100 s). Regla conftest: activeDeadlineSeconds ≤ intervalo, y los intervalos de 6 y 12 min rompen el desfase
+A7    U9    Faltan pruebas en el Paso 9: imagen sin módulo de freeze, respuestas con umbral/n_min/W, readiness con el registro caído, series de /metrics, disparity.viewed en cache hit
+B. Consistencia entre documentos
+
+U0
+
+B1. Faltan los tipos propios del BFF en §9 (SessionInfo, Dossier de la consola); falta confirmar dónde viven RegistryDossier e IntegrityStatus.
+B2. Plan de U0, Paso 3: no recoge CreditStatus, los dos reason nuevos (no_active_version, active_version_frozen) ni la prueba de «un mensaje por cada code y reason».
+B3. Modelo de lógica: sin fila del módulo forbidden_phrases ni sus pruebas de ejemplo.
+B4. breaker=\"disabled\" falta en logical-components, el modelo de lógica, PBT-U0-14 y tech-stack.
+B5. BR-U0-37 repite una frase. El §8.1 no tiene eventos de U2, U3, U4 ni U6.
+
+U9
+
+B6. Paso 9 del plan: «ninguna frase de la lista de U10» debe citar forbidden_phrases.py y la lista de U0, como ya hace el Paso 13.
+B7. P-U9-06: viñeta «persisten hasta un freeze exitoso» desactualizada. «(c)» debe ser «(f)» en P-U9-02 y en NDP §7. Falta la fila de U0 §9.4 en NDP §7 y la de revisión del plan en BR-U9 §9 y NDP §7.
+B8. deployment-architecture y F106 no mencionan los grupos por versión ni que success se publica solo si la corrida fue completa. Falta documentar el solapamiento con el lote del agregador (≤ 240 s) y la cuota con y sin el sidecar de Linkerd.
+B9. Paso 1 dice tres dependencias de desarrollo y el Paso 11 dice cuatro (con scipy). El Paso 10 no nombra la herramienta de cobertura. Al Paso 15 le falta el grep prohibido de kubectl, helm install y terraform apply.
+
+U3
+
+B10. BR-U3-11: la fila range quedó fuera de la tabla. BR-U3 §7 sin fila de revisión del plan. INF-U3 §6 con fecha 2026-10-03 y sin filas de la Application aparte ni de los Jobs.
+B11. Paso 15 sin wave 6 ni dónde se hace la comprobación del runId. Paso 12: el conftest debe nombrar chart-rebuild/. Falta decidir si el ExternalSecret de registry_migrator va siempre o solo con runId.
+B12. Runbook monitoring-rebuild: comprobar vectra_bias_last_run_failure{reason} antes de dar por esperada la alerta silenciada. Paréntesis sobrante en la fila 75 de deployment-architecture.
+
+U1 y U4
+
+B13. U1: el Paso 3 y la suite de conectividad no dicen que F27 es solo desde el CronJob. Los Pasos 5, 6 y 16 deben citar la Application aparte. NFR-U1-25/27/43, P-U1-09 y P-U1-12 conservan el residuo de K15.
+B14. U4: INF-U4 §4 desactualizado (fecha 2026-10-03; sin F27 ni INF-U4-05; dice «F01–F102»).
+
+U8
+
+B15. domain-entities §5: paréntesis anidado y repetido en la fila CreditStatus.
+B16. Las filas históricas de BR-U8 §8 y de INF-U8 §7 siguen diciendo «no_disponible sin llamar»; anotarlas como superadas por la Q3.
+B17. El modelo de lógica no tiene la prueba de ejemplo «core.enabled = false → no_integrado, cero llamadas».
+
+U10
+
+B18. ManualApplicationForm cita BR-U10-06 (step-up), pero el alta manual no pide MFA.
+B19. BR-U10-19 trata mfa_required como una respuesta aparte de 403; en U0 es un 403 con ese code.
+C. Redacción
+C1. La nota «Revisada contra el cuerpo… antes de presentarla» sigue en NDP §6 y INF-U9 §5 (U9), en el plan de U9 §3, INF-U4 §5, el plan de U3 §3, INF-U3 §7, y ahora también en el modelo de lógica de U10 y de U8, INF-U8 §6 y NFR-U8 §8.
+C2. U0: BR-U0-37 repite una frase.
+C3. U0: disabled falta además en BR-U0-71… (ver B4).
+D. Pendientes de otras unidades, sin cambios
+U2: plan, Pasos 2 y 14; flows.yaml; INF-U7-02; NFR-U1-13.
+U10 (heredados): applicant_display, filtro vencido, avisos decision_already_recorded y model_frozen_after_recommendation, escape de free_text, leyenda y lint FR-BIA-08, embeber bias.json. Casi todos ya resueltos por el FD de U10; falta contrastarlos con el código.
+U11: medir con evaluated_at, decided_at y viewed_at, solo recomendaciones entregadas.
+U8 / U12: demo RT-5 y case-db; RT-2 con 36 celdas ≥ 30 casos, solo región y estrato.
+[VERIFICAR] con cumplimiento: retención de 10 y 2 años, riesgo residual de respaldos a 12 meses, Ley 1581, NFR-U8-47.
+38 de 958 archivos sin copiar."
+**AI Response**: Aplicados. A1: step-up en ventana emergente del mismo origen (`window.open` + `postMessage` desde `/stepup-callback`, validación de origen, ventana y `state`, reintento único con el cuerpo en memoria; si la ventana se bloquea o cierra, no hay reintento y el formulario queda intacto); nada en `sessionStorage`; BR-U10-06, flujo 2.2 con el reintento terminal, PBT-U10-05, pruebas de ejemplo y domain-entities; U2 registra el redirect URI `/stepup-callback`. A2: BR-U10-12 y frontend-components rehechos desde la columna «Roles» de C03 (`cro` solo ve la lista de congelamientos; `cumplimiento` modelos y políticas en lectura; `cro` fuentes en lectura; resumen para el solicitante agregado). A3/A4: sin búsqueda por nombre (solo «Ir al caso» por `case_id`); `CaseFilter.model_frozen_after_recommendation?` en U0, BR-U8-13, U8 BLM y plan Paso 13. A5: CODEOWNERS de `values-monitoring-policy.yaml` en el monorepo y en GitOps; `branch-protection-check` de U4 verifica los dos repositorios con `require_code_owner_reviews`. A6: peor caso con lectura de grupos, PUT/DELETE por versión y hasta 16 DELETE por corrida (≈ 184 s); intervalos admitidos 5, 10 o 15 min y `activeDeadlineSeconds` ≤ intervalo (INF-U9-03, P-U9-02, BR-U9-20, plan Pasos 2, 7 y 12). A7: pruebas del Paso 9 (los cinco parámetros en las respuestas, `freeze_client` fuera de `sys.modules`, readiness con el registro caído, `/metrics`, `disparity.viewed` con caché); `window_days`, `schedule` y `stale_after_s` en `DisparityView` y `FreezeContext` (U0 §9.4 y U9 domain-entities). B1: U0 §9.5 (`SessionInfo`, `ConsoleDossier`) y §9.6 (`RegistryDossier`, `IntegrityStatus`, dueña U3). B2: plan de U0 Paso 3 (`ProblemReason`, `CreditStatus`, `CaseFilter`, tipos del BFF) y Paso 16 (arreglos constantes para la prueba de U10). B3: módulo `forbidden_phrases` y sus ejemplos en el BLM de U0. B4: `breaker="disabled"` en BLM, PBT-U0-14, logical-components y tech-stack (BR-U0-71 es de autorización y no aplica). B5/C2: BR-U0-37 sin la frase repetida; §8.1 aclara que U2, U3, U4, U6 y U10 no tienen eventos propios. B6–B9: U9 Paso 9 cita `forbidden_phrases.py`; P-U9-06 actualizado, «(f)» en P-U9-02 y NDP §7, filas de U0 §9.4 y de la revisión del plan en NDP §7 y BR-U9 §9; deployment-architecture con los grupos, el solapamiento con el agregador y la cuota; F106 con los grupos; cuota con y sin sidecar (supuesto del proxy pendiente de U1); dependencias de desarrollo directas y transitivas, pytest-cov, grep prohibido en el Paso 15. B10–B12: fila `range` dentro de la tabla de BR-U3-11; filas de BR-U3 §7 e INF-U3 §6; wave 6 y workflow del `runId` en el repositorio GitOps; `conftest` sobre `chart-rebuild/`; `ExternalSecret` de `registry_migrator` solo con `runId`; comprobación de `vectra_bias_last_run_failure{reason}` en el runbook; paréntesis corregido. B13: U1 F27 solo desde el CronJob (Paso 3 y suite), Application aparte en Pasos 5, 6 y 16 y en P-U1-12 (wave 6), residuos de K15 en NFR-U1-25, 27, 43 y P-U1-09. B14: INF-U4 §4 con fecha, rango vigente, INF-U4-05, F27 y el check. B15–B17: fila `CreditStatus` reescrita; filas históricas marcadas como superadas por Q3; pruebas de ejemplo de `no_integrado` y del core caído en el BLM de U8. B18: alta manual sin MFA. B19: `mfa_required` como 403 con ese `code`. C1: notas «Revisada/Verificada/Generada … antes de presentarla» quitadas de todos los artefactos (30 archivos). D: sin cambios.
+**Context**: CONSTRUCTION - U10 - Functional Design, Request Changes aplicados; esperando aprobación.
+
+---
+## U10 Functional Design — Aprobación
+**Timestamp**: 2026-10-10T12:21:18Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: Functional Design de U10 aprobado. Inicia NFR Requirements de U10.
+**Context**: CONSTRUCTION - U10 - Functional Design aprobado.
+
+---
+## U10 NFR Requirements — Plan y preguntas
+**Timestamp**: 2026-10-10T12:24:00Z
+**User Input**: (sin entrada nueva; continúa tras "Continue to Next Stage")
+**AI Response**: Creado `construction/plans/console-nfr-requirements-plan.md` con 14 preguntas: latencia del BFF (Q1), rendimiento de la SPA (Q2), escalado del BFF (Q3), criticidad y PriorityClass del BFF (Q4), degradación por destino (Q5), inactividad y cierre de sesión (Q6), CSP estricta, librerías y Trusted Types (Q7), navegadores (Q8), verificación WCAG 2.1 AA (Q9), stack del BFF (Q10), stack de la SPA (Q11), errores del navegador (Q12), cadena de suministro de npm e imagen estática (Q13), pruebas y umbrales (Q14).
+**Context**: CONSTRUCTION - U10 - NFR Requirements, esperando respuestas.
+
+---
+## U10 NFR Requirements — Respuestas y artefactos
+**Timestamp**: 2026-10-10T12:25:16Z
+**User Input**: "ya respondi"
+**AI Response**: Respuestas Q1–Q14 = A, sin ambigüedades. Creados `construction/console/nfr-requirements/nfr-requirements.md` (NFR-U10-01..64) y `tech-stack-decisions.md`. Cambios a otras unidades: U1 P-U1-09 (`console-bff` en `vectra-high`, `console-spa` en `vectra-normal`; Q4); U2 domain-entities §4.1, BR-U2-13, tabla de cambios y plan (CSP con `require-trusted-types-for 'script'; trusted-types 'none'`; Q7); `component-methods.md` C03 y `unit-of-work.md` (endpoint 28 `report_client_error`); U10 BR-U10-01, 19 y business-logic-model (28 endpoints); U0 §8 (`app_version` en la allowlist), §8.1 (evento `console.client_error`) y §9.5 (`ClientErrorReport`) (Q12). Checklist del plan marcado.
+**Context**: CONSTRUCTION - U10 - NFR Requirements, esperando aprobación.
+
+---
+## U10 NFR Requirements — Aprobación
+**Timestamp**: 2026-10-10T12:36:04Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: NFR Requirements de U10 aprobado. Inicia NFR Design de U10.
+**Context**: CONSTRUCTION - U10 - NFR Requirements aprobado.
+
+---
+## U10 NFR Design — Plan y preguntas
+**Timestamp**: 2026-10-10T12:40:00Z
+**User Input**: (sin entrada nueva; continúa tras "Continue to Next Stage")
+**AI Response**: Creado `construction/plans/console-nfr-design-plan.md` con 7 preguntas: timeouts y conexiones por destino (Q1), objetivo de `get_dossier` incompatible con NFR-U3-21 (Q2), verificación de integridad asíncrona (Q3), alertas del BFF (Q4), sesgo de versión en un despliegue (Q5), perfiles de carga y de red (Q6), caché en el BFF para `get_disparity` (Q7).
+**Context**: CONSTRUCTION - U10 - NFR Design, esperando respuestas.
+
+---
+## U10 NFR Design — Respuestas y artefactos
+**Timestamp**: 2026-10-10T12:38:36Z
+**User Input**: "ya respondí"
+**AI Response**: Respuestas Q1–Q7 = A, sin ambigüedades. Creados `construction/console/nfr-design/nfr-design-patterns.md` (P-U10-01..11, escenarios E1–E7) y `logical-components.md`. Cambios a otras unidades: NFR-U10-02 corregido (`get_dossier` ≤ registro 2 s + 30 ms; Q2); U3 BR-U3-13b, domain-entities §1.2 y §5.0 (tabla `integrity_checks`, permisos de `registry_app`), tabla de cambios y plan Paso 8 (verificación asíncrona: 202, `GET /v1/integrity-checks/{id}`, tarea en segundo plano, `fallida` por interrupción; Q3); `component-methods.md` C03 y registro, `component-dependency.md` F13, `unit-of-work.md` (29 endpoints); U10 BR-U10-01, 19, business-logic-model y frontend-components; U0 §9.6 (`IntegrityCheckRef`, `IntegrityCheckStatus`). Pendiente para U8 y U4: confirmar 120 y 60 conexiones desde 6 réplicas del BFF. Checklist marcado.
+**Context**: CONSTRUCTION - U10 - NFR Design, esperando aprobación.
+
+---
+## U10 NFR Design — Aprobación
+**Timestamp**: 2026-10-10T12:47:00Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: NFR Design de U10 aprobado. Inicia Infrastructure Design de U10.
+**Context**: CONSTRUCTION - U10 - NFR Design aprobado.
+
+---
+## U10 Infrastructure Design — Plan y preguntas
+**Timestamp**: 2026-10-10T12:50:00Z
+**User Input**: (sin entrada nueva; continúa tras "Continue to Next Stage")
+**AI Response**: Creado `construction/plans/console-infrastructure-design-plan.md` con 6 preguntas: recursos y cuotas (Q1), recursos de la versión anterior en la imagen de la SPA (Q2), malla y políticas de red (Q3), configuración por entorno (Q4), dashboard y runbooks (Q5), entornos y pruebas de extremo a extremo (Q6). Almacenamiento y mensajería sin preguntas, con la justificación en el plan.
+**Context**: CONSTRUCTION - U10 - Infrastructure Design, esperando respuestas.
+
+---
+## U10 Infrastructure Design — Respuestas y artefactos
+**Timestamp**: 2026-10-10T12:49:09Z
+**User Input**: "ya respondi"
+**AI Response**: Respuestas Q1–Q6 = A, sin ambigüedades. Creados `construction/console/infrastructure-design/infrastructure-design.md` (INF-U10-01..06) y `deployment-architecture.md`. Cambios a otras unidades: U1 plan Paso 6 (aporte de U10 a las cuotas de `vectra-app` y `vectra-edge`), Paso 3 (casos bloqueados SPA → `vectra-app`, BFF → `vectra-data` y `vectra-serving`), P-U1-08 (única excepción: la conexión `integrity` de U3); U2 plan y tabla de cambios (usuarios de prueba por rol con TOTP solo en kind, `realm-lint`); U3 P-U3-04 (conexión `integrity` 0 o 1 en la réplica), BR-U3-13b, domain-entities y plan Paso 8 (una sola verificación en curso de cualquier modo; estado por el pool `dossier`); U10 P-U10-05 alineado. Checklist marcado.
+**Context**: CONSTRUCTION - U10 - Infrastructure Design, esperando aprobación.
+
+---
+## U10 Infrastructure Design — Request Changes: hallazgos abiertos (10 oct 2026, 07:57)
+**Timestamp**: 2026-10-10T12:59:34Z
+**User Input**: "Hallazgos abiertos (10 oct 2026, 07:57)
+
+U10 console
+
+Infrastructure Design
+
+⚠ Ventana del rolling update de la SPA: un pod viejo no tiene los recursos de N.
+⚠ Rollback y saltos de release: la imagen N−1 no trae los recursos de N, y un salto de N−1 a N+1 rompe las pestañas abiertas.
+⚠ BFF en kind sin HPA: le falta vectra.io/hpa-exempt, y require-hpa-bounds lo rechaza.
+⚠ Confirmar que vectra-edge y el data plane del gateway están en la malla. U1 no los lista.
+La ruta de los archivos no coincide entre el plan y el documento (console/spa/… frente a console-spa/…).
+P-U10-06 pone el digest previo en el values del chart, e INF-U10-02 lo pone en previous-image.txt.
+P-U10-04 remite al «§6» y debe ser el «§7».
+El fallback a index.html no se acota a rutas sin extensión.
+config.json por subPath no se actualiza en caliente. Hace falta una anotación con el checksum para reiniciar los pods.
+
+NFR Design
+
+ConsoleClientErrorsSpike usa increase > 0 con for: 15m, así que un solo chunk_load_failed nunca dispara.
+La codificación de vectra_circuit_state (== 2) no está definida.
+Inactividad por pestaña y logout por BroadcastChannel; scroll y wheel.
+get_disparity frente al p95 de governance (el p95 de governance es un supuesto).
+Timeout de 3 s de la decisión frente a los 2,5 s del registro.
+La lista de pools pendientes omite U3, U7 y U9.
+Faltan pod-deletion-cost y el escenario E7 en el Paso 18.
+Menores: tipo «R» en F13, «28.º», redacción de RESILIENCY-14, estructura de unit-of-work, BR-U10-18 repite la lista y NFR-U10-40 remite a BR-U10-05.
+
+Functional Design y Requirements
+
+Popup de step-up: el diálogo de frontend-components §4 frente a BR-U10-06 y §2.2, y la activación del usuario.
+NFR-U10-52 no dice «<1 s».
+get_case para cumplimiento en el expediente: ¿403 o caso caído?
+BR-U10-19 no incluye auth_time vencido.
+El FD no absorbe los componentes del NFR: diálogo de inactividad a los 25/30 min, reporter, aviso de versión, módulo client_errors y parámetros de configuración.
+NFR-U1-12 y el Paso 6 de U1 (hpa-exempt para console-spa) y el Paso 7 de U2.
+U3 decision-registry
+⚠ La API no tiene permisos de bóveda ni de bucket (P-U3-08). La verificación completa o range por API no puede validar firmas ni comparar con el WORM (BR-U3-12, pasos 5 y 6).
+⚠ Una fila en_curso huérfana bloquea el único cupo hasta que algún pod reinicie, porque el barrido es solo al arrancar. El bloqueo ahora es de cualquier modo.
+⚠ Checkpoint tras cada full (BR-U3-08) frente a BR-U3-13b: la API no puede firmar.
+P-U3-04 dice que el pool dossier es «solo SELECT», pero ahora escribe integrity_checks.
+El business-logic-model no tiene el flujo asíncrono, el módulo, las pruebas de ejemplo ni la máquina de estados.
+logical-components no muestra la tabla integrity_checks ni el pool integrity.
+El 409 no informa el check_id en curso, y no hay consulta de la verificación actual.
+Falta una alerta para el pool dossier, que ahora comparte el latido, y para una verificación fallida.
+last_full_verification no tiene tipo ni lugar de escritura (la full mensual del CronJob es de solo lectura).
+BR-U3-01 y BR-U3-02 no mencionan la excepción de integrity_checks.
+terminada / error / fallida: falta precisar la relación.
+Las claves de los advisory locks de BR-U3-04 y BR-U3-17 no se declaran distintas.
+Por confirmar: lectura larga en el standby síncrono con remote_apply (conflicto de recuperación o replay retrasado).
+Plan de U3: el Paso 2 no incluye integrity_checks ni sus permisos, el Paso 7 no menciona el pool integrity, y el Paso 18 no tiene la prueba de matar el pod a mitad de verificación. También falta INF-U3-03 (fila de reset), P-U3-08 y P-U3-04, que no vi completos.
+U0
+⚠ max_body_bytes falta en RouteContract, y el BodyGuard de 32 KiB choca con las entradas de 64 KiB.
+⚠ IntegrityReport no está en U0 (solo en U3) y no hay IntegrityCheckRequest. run_integrity_check no tiene argumento mode.
+Faltan reglas de estructura para los §9.5 y §9.6: terminada ⇔ informe, fallida ⇔ motivo, progress.checked ≤ total y not_verified ⇔ motivo y primer seq.
+IntegrityStatus (to_checkpoint_seq (o head)), last_full_verification y los valores de delivery_status no tienen tipo.
+BR-U0-94 no se puede verificar con lint (no es una lista única), U7 falta en la lista de usuarios y la prueba «sesgos sin medir» no prueba el límite de palabra.
+forbidden_phrases falta en el inventario, el tech-stack y el NFR (INF-U10-05 ya lo usa).
+Falta definir dónde se declara process_kind; «504» no está en el catálogo; BR-U0-72 duplica el step-up.
+Catálogo de scopes: intake:submit con channel/channel-simulator, y core:read-credit «solo kind y staging».
+«(segunda)» con paréntesis anidados; P-U0-08 frente a RESILIENCY-14 de U1; plan de U0, Pasos 3 (pruebas §9.6) y 10.
+U2 identity-edge
+⚠ BR-U2-13 y PBT-U2-05 dicen que solo /grafana/** permite frame-ancestors 'self', pero el perfil auth también lo permite.
+⚠ BR-U2-04 y el §2.2 describen una redirección completa, no el popup, /stepup-callback ni postMessage. Tampoco hay prueba del popup en el Paso 13.
+Los usuarios de prueba de kind figuran solo en el §8 de las reglas. Faltan en el §3 de domain-entities, con nombres, y la prueba de realm-lint que los rechaza en staging y producción. Además, un usuario por rol no permite probar aprobador ≠ proponente.
+/stepup-callback y el callback del login no están en la tabla de rutas cerradas del gateway. Cross-Origin-Opener-Policy en /auth/** por confirmar.
+El §4 dice «cualquier rol» en el gateway y BR-U2-15 dice 403 en el BFF para un usuario sin rol.
+El límite de 10 req/min por IP en /auth/** detrás de un NAT bancario.
+analista sin MFA toma decisiones: ¿lo confirma el negocio?
+U1 platform-foundation
+⚠ Pushgateway sin persistencia ni autenticación (F106 GET/DELETE necesita una política que lo controle).
+Namespaces mallados: la lista omite vectra-observability, vectra-serving y vectra-edge. Los casos de prueba del Paso 5 tampoco incluyen vectra-edge.
+NFR-U1-13 y P-U1-09 (cuotas) no consideran proxy.resources; falta KServe vectra-normal inactivo y minReplicas ≥ 2 frente a staging con 1 réplica.
+NFR-U1-12 nombra solo a bias-monitoring-service como hpa-exempt.
+Flujo de silencios de Alertmanager; el paso 2b de P-U1-05 con el rol real case_retention.
+Las waves de Envoy Gateway y Valkey; la redacción «se ejecutan en Operations».
+U4–U9 y D
+U4: NFR-U4-31, 22 y 10; la anotación del Job de validación de governance.
+U5: pendientes de las revisiones anteriores.
+U6: staging solo con predictor; InferenceServiceNotReady.
+U7: lint, etiquetas y escenarios.
+U8: concurrencia frente a la capacidad del explainer; F104.
+U9: logical-components desactualizado, for: 30m y la propiedad de borrado en Pushgateway.
+U11, U12 y [VERIFICAR]: pendientes de las revisiones anteriores."
+**AI Response**: Aplicados los hallazgos concretos. U3: verificación bajo demanda rediseñada (la API solo registra la solicitud: 202, o 200 con la activa y `already_active`; la ejecuta el CronJob `registry-verify-ondemand` con la identidad de verificación, que valida firmas y el bucket WORM; barrido de huérfanas en cada corrida; relación de estados; la `full` mensual pasa por la misma tabla y define `last_full_verification`; lectura del standby en tramos cortos con `hot_standby_feedback` y `max_standby_streaming_delay = 2s`; llaves de advisory lock declaradas y distintas; BR-U3-01, 02, 04, 08 precisados; tabla `integrity_checks` con CHECK y permisos; BLM §2.6 con máquina de estados, módulo y pruebas; P-U3-04 (pool `dossier` con el INSERT), P-U3-08, P-U3-09 (dos alertas), logical-components, INF-U3-03 y plan Pasos 2, 8, 12, 14, 18); se quitó la conexión `integrity` y la excepción de P-U1-08. U10: afinidad por cookie para el rollout; «versión anterior» = digest en producción, rollback como release nuevo; HPA 2/2 en kind; malla de `vectra-edge`; rutas `console/spa/`; fallback solo sin extensión; ConfigMap sin subPath con checksum; alertas (`ConsoleChunkOrCspError` sin `for`); codificación del circuito; inactividad de la sesión compartida y con `wheel`/`scroll`; governance p95 declarado por U4 (NFR-U4-13); timeouts de escritura 4 s; pools pendientes de U3, U7 y U9; E7; ventana emergente abierta en un clic (botón «Verificar y confirmar» o diálogo); NFR-U10-52 < 1 s; `get_case_identifiers` para el expediente de `cumplimiento` (403 ≠ caída); BR-U10-19 con `auth_time` vencido; BR-U10-20..22 (inactividad, versión, errores) y parámetros; menores (F13 R/W, «28.º», RESILIENCY-14, unit-of-work, BR-U10-18, NFR-U10-40). U0: `max_body_bytes` en `RouteContract` (80 KiB para el append, 64 KiB para `freeze`); `IntegrityCheckRequest`, `IntegrityReport`, `DossierEntry`, `LastFullVerification`, `CaseIdentifiers` y reglas de estructura de §9.5/9.6; `deadline_exceeded` 504; `process_kind` y codificación del circuito en NFR-U0-23; BR-U0-94 con frases literales y U7; `forbidden_phrases` en logical-components, tech-stack y NFR-U0-47; BR-U0-72 sin repetir el step-up; scopes `intake:submit` y `core:read-credit`; P-U0-08 alineado con U1; plan Pasos 3 y 10. U2: step-up en ventana emergente en BR-U2-04, BLM §2.2 y Paso 13; `auth` y `grafana` con `frame-ancestors 'self'`; COOP `same-origin`; rutas `/callback` y `/stepup-callback`; afinidad por cookie; dos usuarios nombrados por rol en kind y staging; 403 en el gateway sin rol; `/auth/**` a 600 req/min por IP (NAT). U1: P-U1-13 (Pushgateway con persistencia y autorización por identidad y método), P-U1-14 (namespaces mallados y `proxy.resources`), NFR-U1-12 y 13, silencios por F109 (nuevo), waves de Envoy Gateway y Valkey, `case_retention` real en 2b, redacción de RESILIENCY-14. U4: NFR-U4-13 y anotación del Job de validación. U8: `get_case_identifiers`. U9: logical-components, presupuesto ≈ 186 s, `for` de `DisparidadDecisionHumana` = 2 × intervalo, invariante del ciclo de vida de `freeze-<v>`. Preguntas en `construction/plans/console-infrastructure-design-review-questions.md`: MFA del analista para decidir (Q1) y hallazgos sin detalle de U4–U8, U11, U12 y [VERIFICAR] (Q2).
+**Context**: CONSTRUCTION - U10 - Infrastructure Design, Request Changes aplicados; esperando respuestas a 2 preguntas.
+
+---
+## U10 Infrastructure Design — Respuestas a la revisión
+**Timestamp**: 2026-10-10T13:20:00Z
+**User Input**: "ya respondí"
+**AI Response**: Q1 = A: `record_decision` sigue sin step-up; registrado como BR-U10-09b con [VERIFICAR] con cumplimiento y el comité. Q2 = B: hallazgos sin detalle diferidos y registrados en `construction/console/infrastructure-design/infrastructure-design.md` §8 — U4 («NFR-U4-31, 22 y 10»), U5 (pendientes anteriores), U6 («staging solo con predictor; InferenceServiceNotReady»), U7 («lint, etiquetas y escenarios»), U8 («concurrencia frente a la capacidad del explainer; F104»), U1 («KServe vectra-normal inactivo»), U11, U12 y [VERIFICAR].
+**Context**: CONSTRUCTION - U10 - Infrastructure Design, esperando aprobación.
+
+---
+## U10 Infrastructure Design — Request Changes: hallazgos abiertos (segunda revisión)
+**Timestamp**: 2026-10-10T14:55:33Z
+**User Input**: "Hallazgos abiertos
+
+U10 console (bloquean el Infrastructure Design)
+#    Hallazgo    Dónde
+1    Falta comprobar al promover que el digest «anterior» coincide con el de producción. Guardarlo en una etiqueta de la imagen y reconstruir si difiere.    INF-U10-02
+2    signinPopup con InMemoryWebStorage contradice el flujo manual de BR-U10-06. Especificar popup manual con la API de bajo nivel o validar con una prueba de concepto.    P-U10-07, logical-components, tech-stack
+3    BR-U10-09b dice que human_decision guarda acr y auth_time, pero U3 BR-U3-16 y U8 BR-U8-18 no lo exigen. Escribirlo en BR-U8-18 y confirmar que el Actor de U0 lo admite.    BR-U8-18, U0
+U10 (no bloquean)
+#    Hallazgo
+4    Cuota frente a maxSurge: 100% de la SPA (4 pods) y al rollout del BFF (8 pods). Confirmar el margen del namespace.
+5    Timeouts y límites de conexión: constantes del código o ConfigMap.
+6    Filas históricas desactualizadas: P-U10-05 §7, NFR-U10 §8 y already_active en frontend-components.
+U3 decision-registry
+La API comparte el rol registry_verifier.
+registry_app aparece con UPDATE en domain-entities §1.2.
+NFR-U3-43: el 409 queda obsoleto.
+La full mensual se omite si hay una verificación activa. Falta decidir qué pasa entonces.
+Una full mensual fallida debería ser SEV3.
+Faltan los emisores de métricas.
+El archivado no va en chunks y choca con max_standby_streaming_delay de 2 s.
+El readiness usa sync_state y no el quórum.
+F97, F98, F99 e INF-U3-04.
+U4 governance
+NFR-U4-04 necesita fijar la edad máxima de la copia en memoria de la configuración.
+Una versión inactiva con 1 réplica choca con NFR-U1-12.
+U9 bias-monitoring
+Permisos GET y DELETE del Pushgateway.
+La organización de Grafana para bias.json.
+El margen de RT-2 es ≈ 28 min frente a 30.
+U2 identity-edge
+Queda una frase sobrante en BR-U2-13.
+La fila de BR-U2 §8 quedó desactualizada.
+Falta el rol operacion en Grafana.
+U1 platform-foundation
+La wave 6 del deployment-architecture omite decision-registry-rebuild.
+Las aprobaciones de aidlc-state son anteriores a las revisiones."
+**AI Response**: Aplicados. U10: (1) etiqueta OCI `vectra.io/previous-digest` y check `spa-previous-digest-check` obligatorio en el PR de promoción (reconstruir si difiere); (2) step-up con la API de bajo nivel `OidcClient` (sin `signinPopup`) en P-U10-07, logical-components y tech-stack, con prueba de concepto obligatoria; (3) `acr` y `auth_time` obligatorios en todo actor de usuario (U0 §5.1, BR-U3-16, BR-U8-18 y plan de U8 y U0); (4) cuota con los pods del rollout (BFF 7 con `maxSurge: 1`, SPA 4), también en el plan de U1; (5) timeouts y conexiones como constantes del código; (6) filas históricas marcadas como superadas, NFR-U10 §8 resuelto, `already_active` en frontend-components. Corrección propia: BR-U10-09b y la pregunta Q1 decían que el login del analista exige TOTP; U2 §1.1 dice que para `analista` el MFA es opcional, así que una decisión puede quedar con `acr = pwd` (corregido y señalado al usuario). U3: rol `registry_ondemand` aparte y `registry_verifier` de solo lectura; `registry_app` sin `UPDATE`; NFR-U3-43 con 200 y `already_active`; la `full` mensual la encola `registry-verify-ondemand` (se elimina `registry-verify-full`) y `RegistryFullVerificationOverdue` (SEV3); toda `fallida` SEV3; métricas emitidas por el servicio desde `integrity_checks`; archivo en tramos; readiness con `sync_state IN ('sync','quorum')`; F97, F98, F99 e INF-U3-04. U4: NFR-U4-04 con edad máxima de 30 s (503 después) y `ServingConfigStale`; BR-U4-14 ≤ 35 s con una réplica aislada; inactivo con 1 réplica admitido por etiqueta y anotación (NFR-U1-12, U1 plan, U6 INF-U6-02). U9: carpeta `Vectra / Sesgo` solo para `cumplimiento` y `cro`; permisos `PUT`/`DELETE`/`GET` en el Pushgateway; margen de RT-2 ≈ 28 min documentado con la acción si se supera. U2: frase sobrante de BR-U2-13; fila de §8 superada; rol técnico `operacion` y equipos de Grafana. U1: wave 6 con `decision-registry-rebuild`. `aidlc-state.md`: sección de revisiones posteriores a la aprobación.
+**Context**: CONSTRUCTION - U10 - Infrastructure Design, esperando aprobación.
+
+---
+## U10 Infrastructure Design — Condiciones antes de aprobar
+**Timestamp**: 2026-10-10T15:12:42Z
+**User Input**: "Condiciones antes de aprobar
+
+INF-U10-05 dice «cinco alertas» y P-U10-10 tiene seis. A ConsoleChunkOrCspError le falta un runbook_url. Puede apuntar a console-client-errors-spike.
+Los contadores vectra_console_client_errors_total deben iniciar en 0 para los seis error_code. Si no, increase() no ve el primer error y la alerta con for: 0 no dispara.
+La imagen de la SPA que se reconstruye por el check del digest debe volver a pasar por staging. Ahora INF-U10-03 y INF-U10-02 se contradicen en eso.
+Hay que decir cómo se omite la etapa previous en el primer release.
+Hay que decidir si los parámetros de sesión, versión y reporter de domain-entities §4 van en config.json o son constantes.
+En INF §8, «NFR-U4-10» y «KServe inactivo» ya están resueltos. Hay que quitarlos.
+
+Los puntos 3 y 4 son los más importantes. El 1 y el 2 son rápidos de aplicar."
+**AI Response**: Aplicadas las seis. (1) INF-U10-05 con seis alertas; runbooks de cada alerta en P-U10-10, con `ConsoleChunkOrCspError` → `console-client-errors-spike` (sección para `csp_violation`). (2) Las seis series de `vectra_console_client_errors_total` se crean en 0 al arrancar (P-U10-09, NFR-U10-34), con prueba de `/metrics` y de `promtool` 0 → 1. (3) Una imagen reconstruida es una imagen nueva: vuelve a staging antes de producción; `spa-previous-digest-check` también falla si el digest no figura en el historial de staging (INF-U10-02 y 03 alineados). (4) Primer release: `ARG PREVIOUS_IMAGE` con valor por omisión `no-previous` (etapa `FROM scratch` del mismo Dockerfile con manifiesto vacío), etiqueta `vectra.io/previous-digest = none`, aceptada por el check solo si producción no tiene digest. (5) `config.json` solo con lo que cambia por entorno (OIDC y el `uid` de `bias.json`); los tiempos y límites son constantes de `console/spa/src/config/constants.ts`, con prueba de `IDLE_LOGOUT_SECONDS` contra `ssoSessionIdleTimeout` de los realms (domain-entities §4, INF-U10-03). (6) INF §8: U4 queda con «NFR-U4-31 y 22»; fila de U1 «KServe inactivo» quitada.
+**Context**: CONSTRUCTION - U10 - Infrastructure Design, esperando aprobación.
+
+---
+## U10 Infrastructure Design — Aprobación
+**Timestamp**: 2026-10-10T15:15:03Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: Infrastructure Design de U10 aprobado. Inicia Code Generation Part 1 (plan de tareas) de U10.
+**Context**: CONSTRUCTION - U10 - Infrastructure Design aprobado.
+
+---
+## U10 Code Generation Part 1 — Plan de tareas
+**Timestamp**: 2026-10-10T15:25:00Z
+**User Input**: (sin entrada nueva; continúa tras "Continue to Next Stage")
+**AI Response**: Creado `construction/plans/console-code-generation-plan.md` con 24 pasos en 8 bloques: estructura y constantes (1–2), lógica pura del BFF (3–4), API del BFF con la matriz rol × endpoint (5–8), repositorio N/A (9), SPA con la prueba de concepto del step-up como puerta (10–16), despliegue y operación con la imagen de dos versiones, el check del digest anterior y el release a staging (17–21), escenarios en kind por el operador (22), documentación y cierre (23–24). Trazabilidad de historias, diseño y PBT-U10-01..06, y tabla de cumplimiento. Esperando aprobación del plan.
+**Context**: CONSTRUCTION - U10 - Code Generation Part 1, esperando aprobación.
+
+---
+## U10 Code Generation Part 1 — Aprobación
+**Timestamp**: 2026-10-10T15:19:16Z
+**User Input**: "Approve Plan"
+**AI Response**: Plan de tareas de U10 aprobado. U10 queda cerrada (Code Generation Part 2 y Build and Test fuera de alcance). Siguiente: U11 product-metrics — Functional Design.
+**Context**: CONSTRUCTION - U10 cerrada; inicia U11 Functional Design.
+
+---
+## U11 Functional Design — Plan y preguntas
+**Timestamp**: 2026-10-10T15:30:00Z
+**User Input**: (sin entrada nueva; continúa tras "Approve Plan" de U10)
+**AI Response**: Creado `construction/plans/product-metrics-functional-design-plan.md` con 11 preguntas: qué cuenta en la North Star (Q1), «sostenidas por el comité» sin registro del comité (Q2), tiempo de originación (Q3), % con score y explicación y fail-closed desde métricas de U7 (Q4), métrica de ruido y `RuidoExplicacion` (Q5), cálculo periódico sin estado (Q6), recomendación entregada y momentos de negocio (Q7), cortes sin datos por persona (Q8), targets (Q9), acceso al dashboard (Q10), calidad de datos (Q11). Hallazgos señalados: FR-MET-05 sin entidad de comité y FR-MET-03 sin `fail_closed` en la proyección `metrics`.
+**Context**: CONSTRUCTION - U11 - Functional Design, esperando respuestas.
+
+---
+## U11 Functional Design — Respuestas y artefactos
+**Timestamp**: 2026-10-10T15:22:54Z
+**User Input**: "ya respondí"
+**AI Response**: Respuestas: Q1–Q5 y Q7–Q11 = A (notas en Q3, Q5, Q8 y Q10); Q6 = X: "A, con dos ajustes. (1) Lectura incremental por `seq` en cada ciclo de 5 min y una recomputación completa de 35 días una vez al día, para no repetir 288 lecturas completas al día por réplica sobre el pool `projections` de U3. (2) Las `recommendation` se leen por `evaluated_at` con un margen mayor que el de las decisiones, o el registro resuelve `recommendation_entry_id`; si no, una decisión sobre una recomendación vieja saldría como «no atribuible»." Se eligió que el registro resuelva la referencia en el servidor. Creados `construction/product-metrics/functional-design/business-rules.md` (BR-U11-01..14), `domain-entities.md` y `business-logic-model.md` (PBT-U11-01..06, pruebas de ejemplo, cumplimiento). Cambios: U0 §5.2 (`received_at`, `channel`, `attempt` en `recommendation`) y §9.1 (`received_at` en `ScoringRequest`); U7 (copia los campos); U8 BR-U8-06 (`received_at`); U3 proyección `metrics` (campos nuevos, recomendación resuelta en el servidor, filtros) y plan Paso 8; U1 plan Paso 10 (Job `grafana-folder-permissions` y comprobación de deriva) y F110 nuevo (rangos F01–F110); U9 INF-U9-05 (mismo Job, prueba con `ingeniero-1` y `operacion-1`); pendientes de U8 y U7 para U11 marcados como resueltos. Checklist marcado.
+**Context**: CONSTRUCTION - U11 - Functional Design, esperando aprobación.
+
+---
+## U11 Functional Design — Condiciones para aprobar
+**Timestamp**: 2026-10-10T15:34:56Z
+**User Input**: "Condiciones para aprobar
+
+Cortes no agregables. vectra_product_north_star_ratio y vectra_product_recommendation_sustained_ratio se publican solo como razón por channel, outcome y model_version_id. Falta publicar numerador y denominador, o una serie all.
+Significado de day y month. BR-U11-08 no define day (¿ayer completo o el día en curso?), ni month (¿mes calendario cerrado o en curso?).
+Tipos de entrada. El estado en memoria guarda solo decisions, y compute no usa MetricsExplanationView. Tampoco usa final_outcome, actor_role ni case_id, y no hay serie con actor_role. Hay que definir su uso o eliminarlos de domain-entities §1.
+Regla de completitud (BR-U11-06). La lista de causas de desincronía va «por nombre» sin una prueba contra el catálogo de causas de U0. Si U0 cambia, la regla se desfasa en silencio.
+Tolerancia de decided_at > recorded_at. BR-U11-10 excluye esas entradas sin margen. Define un margen de tolerancia, o justifica por qué BR-U0-37 garantiza que no ocurre.
+Cota de 7 días de BR-U0-37 para received_at. U0 §5.2/BR-U0-37 y el Paso 7 del plan de U3 deben excluir received_at de esa cota. Un caso congelado o no disponible más de 7 días haría rechazar la recommendation.
+Casos de originación estándar (BR-U11-05). attempt = 1 no excluye los casos descongelados o reintentados que ya fallaron, porque BR-U8-10 y BR-U8-11 reinician attempts. Añade first_evaluation al payload de recommendation, o acepta el sesgo y déjalo escrito."
+**AI Response**: Aplicadas las siete. (1) Conteos `numerator`/`denominator` con todos los cortes y razones solo totales (`all`) o por un corte; el dashboard divide sumas; PBT-U11-07. (2) Periodos en días UTC completos sin el día en curso: `day` = ayer, `30d` hasta ayer, `month_to_date` hasta ayer, `month` = mes anterior cerrado. (3) U11 lee solo `human_decision` con la recomendación resuelta; tabla de campos con su uso; `actor_role` valida (`analista`); fuera `case_id`, `final_outcome`, `MetricsRecommendation` y `MetricsExplanationView` como entradas. (4) `FailClosedCause.category` en U0 (`desincronia` = `version_mismatch`, `feature_dictionary_incomplete`); la regla se genera con `gen_rules.py` y CI corre `--check`. (5) Margen de 5 min, justificado por BR-U0-37 + la ventana de ±5 min de BR-U3-05. (6) `received_at` fuera de la cota de 7 días de BR-U0-37, con pruebas en el plan de U0 (Paso 3) y de U3 (Paso 7). (7) `first_evaluation` en `ScoringRequest` y en el payload de `recommendation` (U0, U7, U3); U8 lo calcula con `cases.ever_degraded` (nuevo), con pruebas en su plan.
+**Context**: CONSTRUCTION - U11 - Functional Design, esperando aprobación.
+
+---
+## U11 Functional Design — Corrección de texto
+**Timestamp**: 2026-10-10T15:40:00Z
+**User Input**: "Antes de aprobar, corrige una cosa, que es solo de texto. En business-rules §7, las filas de U7 (copia al payload), de U8 (envío a scoring) y de U3 (proyección y Paso 8) deben nombrar first_evaluation. Hoy solo lo nombran las filas de U0 y la de U8 que lo calcula. U3 domain-entities ya lo tiene, así que en U3 solo falta el Paso 8 del plan."
+**AI Response**: Corregido: las filas de U7, U8 (envío) y U3 de business-rules §7 nombran `first_evaluation` (en la de U3, también dentro del objeto `recommendation` resuelto), y el Paso 8 del plan de U3 lo incluye en la proyección `metrics`.
+**Context**: CONSTRUCTION - U11 - Functional Design, esperando aprobación.
+
+---
+## U11 Functional Design — Aprobación
+**Timestamp**: 2026-10-10T15:40:21Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: Functional Design de U11 aprobado. Inicia NFR Requirements de U11.
+**Context**: CONSTRUCTION - U11 - Functional Design aprobado.
+
+---
+## U11 NFR Requirements — Plan y preguntas
+**Timestamp**: 2026-10-10T15:45:00Z
+**User Input**: (sin entrada nueva; continúa tras "Continue to Next Stage")
+**AI Response**: Creado `construction/plans/product-metrics-nfr-requirements-plan.md` con 9 preguntas: tiempos del ciclo (Q1), réplicas y series duplicadas (Q2), historia más allá de los 30 días de Prometheus para el target «al mes 6» (Q3), resiliencia ante el registro (Q4), recursos (Q5), seguridad (Q6), stack sin FastAPI (Q7), pruebas (Q8), observabilidad del servicio (Q9).
+**Context**: CONSTRUCTION - U11 - NFR Requirements, esperando respuestas.
+
+---
+## U11 NFR Requirements — Respuestas y artefactos
+**Timestamp**: 2026-10-10T15:43:32Z
+**User Input**: "ya respondí"
+**AI Response**: Respuestas Q1–Q9 = A, con notas (presupuesto de la lectura completa con los 6 meses y desfase aleatorio; deduplicación también en alertas y alertas de réplica por réplica; meses republicados y plegados en contadores; sin series al arrancar sin datos y `absent()`; cuota con el proxy; sin flujo nuevo; `ops_server` en U0; recomputación del arranque cuenta y panel en la carpeta de operación). Creados `construction/product-metrics/nfr-requirements/nfr-requirements.md` (NFR-U11-01..42) y `tech-stack-decisions.md`. Cambios: U11 FD BR-U11-08, 11 y 14 y domain-entities §5; U0 NFR-U0-48, logical-components y plan Paso 10 (`vectra_common.ops_server`); U1 plan Pasos 6 (cuota de U11) y 12 (panel de operación); U2 plan (cliente `product-metrics` con un solo scope). Checklist marcado.
+**Context**: CONSTRUCTION - U11 - NFR Requirements, esperando aprobación.
+
+---
+## U11 NFR Requirements — Correcciones antes de NFR Design
+**Timestamp**: 2026-10-10T15:52:36Z
+**User Input**: "Antes de pasar a NFR Design, corrige estos dos puntos
+
+absent() por réplica (NFR-U11-08 y BR-U11-14). absent(x) solo dispara si no existe ninguna serie. Con 2 réplicas, si una deja de publicar y la otra no, ProductMetricsStale y ProductMetricsFullRecomputeMissing no se activan. La condición debe comparar contra up{job=\"product-metrics\"}, por ejemplo con unless on(pod). Agrega un promtool test para «una réplica ausente y otra presente».
+Allowlist de series (NFR-U11-40 y domain-entities §5). vectra_product_cycle_duration_seconds{kind}, vectra_product_entries_read_total{kind} y vectra_product_last_full_recompute_timestamp no están en la tabla de §5. La prueba «exactamente las de esta tabla» fallaría. Agrégalas, o aclara que la allowlist de producto no incluye las métricas del ciclo."
+**AI Response**: Corregidos. (1) `ProductMetricsStale` y `ProductMetricsFullRecomputeMissing` comparan con `up{job="product-metrics"} == 1 unless on (pod) <serie>` en lugar de `absent()`, con `promtool test rules` para una réplica sin la serie y la otra con ella (dispara solo para la primera), las dos sin la serie y las dos con la serie (NFR-U11-08, BR-U11-14). (2) Las series del ciclo (`vectra_product_cycle_duration_seconds{kind}`, `vectra_product_entries_read_total{kind}`, `vectra_product_last_full_recompute_timestamp`) y `vectra_circuit_state{dependency="decision-registry"}` entran en la allowlist de domain-entities §5 en una tabla de operación; la prueba usa las dos tablas más las series estándar de U0 (NFR-U11-40).
+**Context**: CONSTRUCTION - U11 - NFR Requirements, esperando aprobación.
+
+---
+## U11 NFR Requirements — Aprobación
+**Timestamp**: 2026-10-10T15:54:45Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: NFR Requirements de U11 aprobado. Inicia NFR Design de U11.
+**Context**: CONSTRUCTION - U11 - NFR Requirements aprobado.
+
+---
+## U11 NFR Design — Plan y preguntas
+**Timestamp**: 2026-10-10T15:56:00Z
+**User Input**: (sin entrada nueva; continúa tras "Continue to Next Stage")
+**AI Response**: Creado `construction/plans/product-metrics-nfr-design-plan.md` con 6 preguntas: paginación y filtros de lectura (Q1), recomputación diaria sin estados mezclados (Q2), publicación coherente con un `Collector` sobre una instantánea (Q3), deduplicación con recording rules `:dedup` (Q4), estructuras en memoria (Q5), escenarios de falla E1–E5 (Q6).
+**Context**: CONSTRUCTION - U11 - NFR Design, esperando respuestas.
+
+---
+## U11 NFR Design — Respuestas y artefactos
+**Timestamp**: 2026-10-10T15:56:42Z
+**User Input**: "ya respondí"
+**AI Response**: Respuestas Q1–Q6 = A, con notas (una sola pasada para 36 días y 6 meses; deduplicación por `seq` y reemplazo conjunto de estado, contadores y `last_seq`; series de operación fuera de la instantánea; `:dedup` también para las razones; memoria con códigos enteros y `__slots__`, la prueba decide; E6 y E7). Creados `construction/product-metrics/nfr-design/nfr-design-patterns.md` (P-U11-01..06, E1–E7) y `logical-components.md`. Cambios: U3 plan Paso 8 (paginación por clave en `metrics`); U11 FD BR-U11-11 (una sola pasada) y PBT-U11-02 (recomputaciones intercaladas). Checklist marcado.
+**Context**: CONSTRUCTION - U11 - NFR Design, esperando aprobación.
+
+---
+## U11 NFR Design — Condiciones para aprobar
+**Timestamp**: 2026-10-10T16:02:39Z
+**User Input**: "condiciones para aprobar
+
+Condiciones
+
+El arranque debe leer los 6 meses. BR-U11-11 dice que al arrancar se leen 36 días, mientras que P-U11-01 y logical-components hablan de la pasada completa. Si el arranque lee solo 36 días, después de un despliegue el dashboard queda sin los 6 meses hasta 24 h. Aclara que el arranque hace la misma pasada de ≈ 193 días y corrige el primer punto de BR-U11-11.
+Las lecturas a U3 deben ir en serie. P-U11-02 deja correr los incrementales mientras la pasada completa lee, lo que contradice NFR-U11-01 («nunca en paralelo») y satura el pool projections de U3, que tiene una sola conexión. Corrígelo con un candado en el reader y, al terminar la pasada, una lectura incremental desde su last_seq en lugar de reaplicar entradas. La opción A que elegí en la Q2 tenía ese defecto."
+**AI Response**: Corregidos. (1) BR-U11-11: el arranque hace la misma pasada completa que la diaria (desde el día 1 del sexto mes cerrado − 1 día, ~184 a ~215 días según el día del mes); P-U11-01 y business-logic-model alineados. (2) P-U11-02 reescrito: candado único en el `reader` para toda lectura a U3; un ciclo incremental con el candado tomado se omite y se cuenta (`vectra_product_cycles_skipped_total`); al terminar la pasada, reemplazo del estado y una lectura incremental desde su `last_seq`, sin reaplicar entradas. Agregado: plazo de 75 min para la pasada y `vectra_product_full_pass_in_progress`, que `ProductMetricsStale` excluye, porque con 10 veces el volumen la pasada puede durar hasta 60 min y la alerta de 30 min dispararía sin falla; escenario E8; PBT-U11-02 verifica que nunca hay dos lecturas a U3 a la vez. NFR-U11-08, domain-entities §5 y logical-components actualizados.
+**Context**: CONSTRUCTION - U11 - NFR Design, esperando aprobación.
+
+---
+## U11 NFR Design — Aprobación
+**Timestamp**: 2026-10-10T16:05:31Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: NFR Design de U11 aprobado. Inicia Infrastructure Design de U11.
+**Context**: CONSTRUCTION - U11 - NFR Design aprobado.
+
+---
+## U11 Infrastructure Design — Plan y preguntas
+**Timestamp**: 2026-10-10T16:07:00Z
+**User Input**: (sin entrada nueva; continúa tras "Continue to Next Stage")
+**AI Response**: Creado `construction/plans/product-metrics-infrastructure-design-plan.md` con 6 preguntas: exención de HPA y sondas (Q1), archivo de parámetros (Q2), red sin puerto de API (Q3), reglas, dashboards y runbooks (Q4), entornos y prueba de volumen sin identidad de escritura (Q5), credencial del cliente de Keycloak (Q6). Almacenamiento y mensajería sin preguntas, con la justificación en el plan.
+**Context**: CONSTRUCTION - U11 - Infrastructure Design, esperando respuestas.
+
+---
+## U11 Infrastructure Design — Respuestas y artefactos
+**Timestamp**: 2026-10-10T16:07:51Z
+**User Input**: "ya respondí"
+**AI Response**: Respuestas Q1–Q6 = A, con notas. Creados `construction/product-metrics/infrastructure-design/infrastructure-design.md` (INF-U11-01..06) y `deployment-architecture.md`. Ajuste propio a la nota de Q1: la mitigación «sincronizar una réplica a la vez» no se puede hacer con un sync de Argo CD (aplica el `Deployment` entero) y pausar el rollout exigiría `kubectl rollout pause` (AUTONOMIA-01). Se reemplaza por una readiness lista con instantánea o con U3 sin responder, con `progressDeadlineSeconds: 4800`: el rollout espera solo y con U3 caído no se bloquea (NFR-U11-07 actualizado). Otros cambios: NFR-U11-02 y 13 (verificación en CI a 10 veces con doble y kind a 1 vez; la medición contra U3 real a 10 veces queda para Operations); U1 NFR-U1-12 (exención de `product-metrics`), plan Paso 3 (casos de conectividad de U11), Paso 10 (carpeta de operación en `folder-permissions.yaml`) y Paso 11 (runbook `grafana-folder-permissions-drift`); pendiente para U12 (datos de demostración con volumen). Checklist marcado.
+**Context**: CONSTRUCTION - U11 - Infrastructure Design, esperando aprobación.
+
+---
+## U11 Infrastructure Design — Condiciones para aprobar
+**Timestamp**: 2026-10-10T16:14:16Z
+**User Input**: "Condiciones para aprobar
+
+Condiciones
+
+Readiness demasiado amplia (INF-U11-01 y NFR-U11-07). Hoy dice que /readyz es 200 si «la primera pasada falló por U3». Un timeout o el plazo de 75 min con U3 lento pero vivo también cuentan como fallo, y la réplica quedaría lista sin datos. Entonces el rollout reemplazaría la segunda réplica y el dashboard quedaría vacío. Limítala a «el breaker hacia U3 está abierto» y define qué pasa cuando el breaker se cierra sin instantánea (vuelve a 503).
+Cambio a U0 sin registrar. NFR-U0-48 dice que ops_server usa las mismas sondas que create_app, pero /readyz de U11 depende de la instantánea y del breaker. Registra que ops_server recibe un predicado de readiness, con un caso nuevo en test_ops_server.py.
+Cambio a U1 sin registrar. La fila «bias, BFF, métricas → solo su proceso» de P-U1-04 contradice la nueva readiness de product-metrics. Cambia esa fila y regístralo en el §7 del Infrastructure Design de U11."
+**AI Response**: Aplicadas. (1) `/readyz` = instantánea publicada o breaker hacia U3 abierto o semiabierto; una pasada fallida o vencida ya no basta; con el breaker cerrado y sin instantánea vuelve a 503 (INF-U11-01, NFR-U11-07, deployment-architecture). Agregado: breaker propio de U11 (3 fallos seguidos, semiabierto a los 60 s, 1 éxito para cerrar), porque los umbrales de U7 no se alcanzan con lecturas en serie (NFR-U11-09, P-U11-01, E6); semiabierto cuenta como abierto para no oscilar; `publishNotReadyAddresses: true` para que Prometheus siga viendo una réplica no lista. (2) U0 NFR-U0-48, logical-components y plan Paso 10: predicado de readiness opcional en `ops_server`, con casos en `test_ops_server.py`. (3) U1 P-U1-04: fila propia de `product-metrics`. Los tres cambios en el §7 del Infrastructure Design de U11.
+**Context**: CONSTRUCTION - U11 - Infrastructure Design, esperando aprobación.
+
+---
+## U11 Infrastructure Design — Aprobación
+**Timestamp**: 2026-10-10T16:18:58Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: Infrastructure Design de U11 aprobado. Inicia Code Generation Part 1 (plan de tareas) de U11.
+**Context**: CONSTRUCTION - U11 - Infrastructure Design aprobado.
+
+---
+## U11 Code Generation Part 1 — Plan de tareas
+**Timestamp**: 2026-10-10T16:18:58Z
+**User Input**: (sin entrada nueva; continúa tras "Continue to Next Stage")
+**AI Response**: Creado `construction/plans/product-metrics-code-generation-plan.md` con 18 pasos en 7 bloques: estructura y parámetros (1–2), lógica pura y estado con PBT-U11-01..07 (3–5), proceso y publicación con el predicado de readiness y la prueba de volumen a 10 veces con el doble de U3 (6–8), repositorio y frontend N/A (9), despliegue y operación con reglas generadas, `:dedup`, alertas por réplica, dashboards y runbooks (10–15), escenarios en kind por el operador (16), documentación y cierre (17–18). Trazabilidad de US-503..505, diseño y propiedades; tabla de cumplimiento. Esperando aprobación del plan.
+**Context**: CONSTRUCTION - U11 - Code Generation Part 1, esperando aprobación.
+
+---
+## U11 Code Generation Part 1 — Ajustes al plan
+**Timestamp**: 2026-10-10T16:21:09Z
+**User Input**: "Ajustes en el plan de U11
+
+Paso 11: agrega las sondas del Deployment (livenessProbe sobre /healthz y readinessProbe sobre /readyz, ambas en 8081) y una verificación en conftest de que existen. Agrega también el Server y la AuthorizationPolicy de Linkerd (solo Prometheus y las sondas del kubelet).
+Paso 6, aceptación: agrega pruebas de:
+SIGTERM: no toma ciclos nuevos, termina la página en curso en ≤ 10 s y descarta la pasada a medias;
+el desfase de 0 a 10 min de la pasada diaria (NFR-U11-04);
+los 6 reintentos de la pasada completa cada 15 min, con reloj simulado (NFR-U11-09).
+Paso 6, readiness: agrega el caso «primera pasada vencida con U3 lento y sin 3 fallos seguidos → 503»."
+**AI Response**: Aplicados. Paso 11: `livenessProbe` (`/healthz`) y `readinessProbe` (`/readyz`) en 8081, `Server` y `AuthorizationPolicy` de Linkerd solo para Prometheus con las sondas del kubelet por la autorización automática, y su verificación en `conftest`. Paso 6: pruebas de `SIGTERM` (sin ciclos nuevos, página en curso ≤ 10 s, pasada a medias descartada), del desfase de 0 a 10 min, de los 6 reintentos cada 15 min con reloj simulado y del caso de readiness «primera pasada vencida con U3 lento y sin 3 fallos seguidos → 503».
+**Context**: CONSTRUCTION - U11 - Code Generation Part 1, esperando aprobación.
+
+---
+## U11 Code Generation Part 1 — Aprobación
+**Timestamp**: 2026-10-10T16:22:22Z
+**User Input**: "Approve Plan"
+**AI Response**: Plan de tareas de U11 aprobado. U11 queda cerrada (Code Generation Part 2 y Build and Test fuera de alcance). Siguiente: U12 system-verification — Functional Design.
+**Context**: CONSTRUCTION - U11 cerrada; inicia U12 Functional Design.
+
+---
+## U12 Functional Design — Plan y preguntas
+**Timestamp**: 2026-10-10T16:23:52Z
+**User Input**: (sin entrada nueva; continúa tras "Approve Plan" de U11)
+**AI Response**: Creado `construction/plans/system-verification-functional-design-plan.md` con 10 preguntas: qué envía el simulador (Q1), verificación de cada RT con oráculo (Q2), X01–X10 sobre la suite de U1 más pruebas de comportamiento (Q3), carga combinada de US-609 (Q4), conductor de decisiones para kind y staging (Q5), volúmenes de demostración (Q6), latencia de RT-2 con 5 corridas (Q7), guiones de las demos con verificación (Q8), dónde corre cada cosa (Q9), informe generado desde las evidencias (Q10). Hallazgo: las demos de U11 y la disparidad humana de U9 necesitan `human_decision`, que el simulador no crea.
+**Context**: CONSTRUCTION - U12 - Functional Design, esperando respuestas.
+
+---
+## U12 Functional Design — Respuestas y artefactos
+**Timestamp**: 2026-10-10T16:28:12Z
+**User Input**: "ya respondí"
+**AI Response**: Respuestas Q1–Q10 = A, con notas en Q1, Q5, Q6 y Q7. Comprobaciones: U5 trae `train`/`validation`/`test` y el manifiesto adversarial (pares RT-1, 18 casos RT-4, 4 paquetes RT-3), sin una población `rt2_proxy`: la variante proxy es un modelo, así que RT-2 usa una muestra estratificada de `test` (sin cambio a U5); `analista-1` y `analista-2` ya existen en U2 §3; BR-U8-15 no exige asignación y la consulta de la explicación no exige MFA (C03). Corregido respecto de la pregunta Q2: RT-4 son los 18 casos de U5, no 200. Creados `construction/system-verification/functional-design/business-rules.md` (BR-U12-01..11), `domain-entities.md` y `business-logic-model.md` (orden de la verificación, conductor, PBT-U12-01..04, pruebas de ejemplo, cumplimiento). Cambio a U11: el plan (Paso 16) verifica en kind el día siguiente a las decisiones y deja `RuidoExplicacion` para `promtool` y el reloj simulado. Checklist marcado.
+**Context**: CONSTRUCTION - U12 - Functional Design, esperando aprobación.
+
+---
+## U12 Functional Design — Condición para aprobar
+**Timestamp**: 2026-10-10T16:30:56Z
+**User Input**: "Condicion para aprobarCondición. El informe tiene una fila por historia (US-101, 106, 109, 111, 303, 305, 603, 604 y 609). Ningún documento dice qué RT, X o demo cubre cada una. Sin esa tabla, el generador del informe no puede decidir cuándo una historia pasa. Agrega en domain-entities.md §4 un mapa historia → evidencias."
+**AI Response**: Agregado en domain-entities §4.1 (identificadores de evidencia nuevos: `SIM-NORMAL`, `RT2-LATENCY`, `LOGS-NO-PII`, `LOAD`, `CASE-SIZE`) y §4.2 (mapa historia → evidencias para las 9 historias, con la regla: pasa si todas pasan, falla si alguna falla, si no `no ejecutado`; vive en `story-map.yaml` y el generador falla ante una historia sin fila o una evidencia desconocida). Para US-604 hacía falta una evidencia de logs sin PII que no existía: BR-U12-12 (consulta de Loki por los identificadores `SYN-` y los nombres de U5, 0 resultados). BR-U12-13 con la regla; PBT-U12-02, pruebas de ejemplo y el orden de la verificación actualizados.
+**Context**: CONSTRUCTION - U12 - Functional Design, esperando aprobación.
+
+---
+## U12 Functional Design — Aprobación
+**Timestamp**: 2026-10-10T16:33:18Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: Functional Design de U12 aprobado. Inicia NFR Requirements de U12 (NFR Design: SKIP según `aidlc-state.md`).
+**Context**: CONSTRUCTION - U12 - Functional Design aprobado.
+
+---
+## U12 NFR Requirements — Plan y preguntas
+**Timestamp**: 2026-10-10T16:35:00Z
+**User Input**: (sin entrada nueva; continúa tras "Continue to Next Stage")
+**AI Response**: Creado `construction/plans/system-verification-nfr-requirements-plan.md` con 9 preguntas: desde dónde corren las herramientas (Q1), barreras contra el entorno equivocado (Q2), credenciales solo en memoria (Q3), reproducibilidad (Q4), integridad de las evidencias (Q5), duración y ejecución por secciones (Q6), stack (Q7), calidad del código de U12 (Q8), trazabilidad de una corrida (Q9).
+**Context**: CONSTRUCTION - U12 - NFR Requirements, esperando respuestas.
+
+---
+## U12 NFR Requirements — Respuestas y artefactos
+**Timestamp**: 2026-10-10T16:35:44Z
+**User Input**: "ya respondí"
+**AI Response**: Respuestas Q1–Q9 = A, con notas (identidad de lectura a definir en el Infrastructure Design; tamaño de `test` y celdas insuficientes en la evidencia, con `rt2` que se niega; límite del manifiesto y protección por `CODEOWNERS`; esperas de PRs fuera del presupuesto; `decisions` dentro de un día UTC). Creados `construction/system-verification/nfr-requirements/nfr-requirements.md` (NFR-U12-01..50) y `tech-stack-decisions.md`. Pendientes para el Infrastructure Design: identidad de lectura (posible cambio a U2), imagen y contenedor de k6, `CODEOWNERS` de las evidencias. Checklist marcado.
+**Context**: CONSTRUCTION - U12 - NFR Requirements, esperando aprobación.
+
+---
+## U12 NFR Requirements — Condición para aprobar
+**Timestamp**: 2026-10-10T16:39:10Z
+**User Input**: "condiciones para aprobar
+
+Condición. Agrega a los pendientes del Infrastructure Design (§8 de nfr-requirements.md) dos puntos que hoy chocan con el diseño de «fuera del clúster y solo lectura»:
+
+X04 y X06:
+X04 exige llamar a governance con la identidad de bias-monitoring-job.
+X06 exige un UPDATE con registry_app en la base.
+Ninguna de las dos cosas se puede hacer desde fuera del clúster con solo get y auth can-i (NFR-U12-43).
+El Infrastructure Design debe decidir el mecanismo. Puede ser un Job de demostración de U1 o U4 que U12 solo lee, como el Job de RT-5 de U8, o permitir kubectl exec en NFR-U12-43 con su justificación.
+Acceso desde fuera: el gateway solo expone /api/intake/** y /api/console/**. El registro, Prometheus y Loki son internos. NFR-U12-02 define la identidad de lectura, pero no el camino de acceso, que puede ser port-forward o una ruta publicada.
+
+Nota. BR-U12-03 dice «TOTP desde ESO» y NFR-U12-04 dice «Vault con la sesión del operador». Unifica la redacción. No bloquea."
+**AI Response**: Agregados a nfr-requirements §8 los dos pendientes: el mecanismo de X04 y X06 (Job de demostración de la unidad dueña que U12 solo lee, o `kubectl exec` con justificación) y el camino de acceso a registro, Prometheus y Loki (port-forward o ruta publicada, con su efecto en X09). Unificada la redacción: BR-U12-03 y NFR-U12-04 dicen que las credenciales se leen del Vault de kind o la bóveda de staging con la sesión del operador, en las mismas rutas que usa ESO, y que la herramienta no usa ESO.
+**Context**: CONSTRUCTION - U12 - NFR Requirements, esperando aprobación.
+
+---
+## U12 NFR Requirements — Aprobación
+**Timestamp**: 2026-10-10T16:42:08Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: NFR Requirements de U12 aprobado. NFR Design: SKIP. Inicia Infrastructure Design de U12.
+**Context**: CONSTRUCTION - U12 - NFR Requirements aprobado.
+
+---
+## U12 Infrastructure Design — Plan y preguntas
+**Timestamp**: 2026-10-10T16:42:08Z
+**User Input**: (sin entrada nueva; continúa tras "Continue to Next Stage")
+**AI Response**: Creado `construction/plans/system-verification-infrastructure-design-plan.md` con 5 preguntas: mecanismo de X04 y X06 con Jobs de prueba de U9 y U3 que U12 solo lee (Q1), camino de acceso a registro, Prometheus y Loki con `port-forward` y un cliente `verification-reader` solo en kind y staging, con la medición de la latencia de RT-2 (Q2), evidencias en el monorepo por PR (Q3), capacidad de kind para la carga (Q4), imagen y entornos (Q5).
+**Context**: CONSTRUCTION - U12 - Infrastructure Design, esperando respuestas.
+
+---
+## U12 Infrastructure Design — Corrección del plan
+**Timestamp**: 2026-10-10T16:44:00Z
+**User Input**: (sin entrada nueva)
+**AI Response**: Al revisar U1 se corrigió el plan: kind tiene 4 workers (no 6) en Q4, y se agregó un hallazgo: el inventario y U1 ubican `channel-simulator` dentro del clúster (`vectra-mock`), lo que contradice NFR-U12-01; el Infrastructure Design registrará el cambio de `vectra-mock` y del origen de F07.
+**Context**: CONSTRUCTION - U12 - Infrastructure Design, esperando respuestas.
+
+---
+## U12 Infrastructure Design — Respuestas y artefactos
+**Timestamp**: 2026-10-10T16:46:37Z
+**User Input**: "ya respondí"
+**AI Response**: Respuestas Q1–Q5 = A, con notas. Creados `construction/system-verification/infrastructure-design/infrastructure-design.md` (INF-U12-01..05) y `deployment-architecture.md`. Correcciones al FD aprobado de U12 encontradas por las notas: (1) el registro no guarda `free_text` (BR-U0-95), así que RT-1 se verifica por el BFF con `analista-1` y no hace falta un scope sensible (BR-U12-04); (2) el inicio de la latencia de RT-2 pasa a ser el menor `recorded_at` del lote, la única definición conservadora (BR-U12-07, `Rt2Measurement`, PBT-U12-04). Otros cambios: BR-U12-05 (X04 y X06 desde Jobs de prueba); NFR-U12-43 (`logs` y `port-forward`); planes de U9 (`x04-probe`) y U3 (`x06-probe`) solo en kind; U2 (`verification-reader` solo en kind y staging); binding K16 en el inventario y en NFR-U1-27; `channel-simulator` fuera del clúster en el inventario (§1, F07) y en U1 (deployment-architecture, plan Paso 3); equipos `calidad` y `cumplimiento` en `CODEOWNERS`. Checklist marcado.
+**Context**: CONSTRUCTION - U12 - Infrastructure Design, esperando aprobación.
+
+---
+## U12 Infrastructure Design — Correcciones antes de aprobar
+**Timestamp**: 2026-10-10T16:53:23Z
+**User Input**: "Corregir antes de aprobar
+
+Flujo de red de X06. El Job x06-probe necesita un flujo propio hacia registry-db-rw, porque U1 aplica deny-all. Sin él, X06 daría timeout en vez de permission denied. Se registra como flujo nuevo en component-dependency.md, flows.yaml y los Pasos 3 de U1 y 13 de U3. Para X04, hay que confirmar que el selector de F27 admite los pods de ese Job.
+K16 completo. INF-U12-05 y NFR-U12-10 leen nodos, InferenceService y digests, pero K16 solo da get sobre pods, jobs y hpa. Faltan nodes (con un ClusterRole) y inferenceservices, además de los namespaces de cada lectura. En U1, además, ningún paso crea el binding K16 ni lo prueba con kyverno test.
+Jobs de prueba y Argo CD. Quita ttlSecondsAfterFinished de x04-probe y x06-probe, igual que en los Jobs de reconstrucción: sin TTL y con poda al cambiar el runId. Con TTL, a las 24 h la Application queda OutOfSync y el siguiente sync repite el Job. Además hay que aclarar que probes.runId no choca con “sin runId no hay recursos” en chart-rebuild/."
+**AI Response**: Corregidos. (1) Flujo F111 (`x06-probe` → `registry-db-rw`, solo kind) en el inventario, `flows.yaml` (Paso 3 de U1) y el Paso 13 de U3; rango F01–F111. F27 selecciona por la etiqueta `vectra.io/workload: bias-monitoring-job`, que llevan también los pods de `x04-probe` (con la misma `ServiceAccount`), así que el rechazo es el 403 de Linkerd; prueba de `generate.py`. (2) K16 completo: `ClusterRole` para `nodes`, `Role` por namespace para `pods` (seis namespaces, digests), `jobs` y `pods/log` en `vectra-app`, HPA en `vectra-app` y `vectra-edge`, `inferenceservices` en `vectra-serving`, `pods/portforward` en `vectra-app` y `vectra-observability`; creado en el Paso 5 de U1 (`platform/rbac/verification-operator/`, solo kind y staging) con `conftest` sobre el render de producción y `kyverno test`. (3) `x04-probe` y `x06-probe` sin `ttlSecondsAfterFinished`, podados al cambiar `probes.runId`; en `chart-rebuild/`, `probes.runId` y `monitoringRebuild.runId` son independientes («sin ninguno de los dos no hay recursos»), con su `conftest`; BR-U3-17 y los planes de U3 y U9 actualizados.
+**Context**: CONSTRUCTION - U12 - Infrastructure Design, esperando aprobación.
+
+---
+## U12 Infrastructure Design — Cambios para el plan de tareas
+**Timestamp**: 2026-10-10T16:56:36Z
+**User Input**: "ambios para el plan de tareas de U12:
+
+K16 sin los HPA de vectra-serving. Falta el permiso get, list y watch sobre horizontalpodautoscalers en ese namespace. Sin él, BR-U12-08 no puede leer los HPA de KServe en RawDeployment, ni INF-U12-05 sumar sus máximos.
+Evidencia vieja de X04 y X06. Sin TTL, un Job completado se queda en el clúster. El oráculo de U12 debe comprobar que el runId coincide con el del manifiesto y que completionTime es posterior al inicio de la verificación."
+**AI Response**: Aplicados en el Infrastructure Design (INF-U12-02 y 03), el inventario (K16) y el FD (BR-U12-05 y pruebas de ejemplo): K16 con `get`, `list` y `watch` sobre `horizontalpodautoscalers` en `vectra-serving`; el oráculo de X04 y X06 acepta un Job solo si su `runId` es el del manifiesto y su `completionTime` es posterior al inicio de la verificación, y si no lo marca `no ejecutado`. Se trasladan al plan de tareas cuando se apruebe el Infrastructure Design (el mensaje no lo aprobó de forma explícita).
+**Context**: CONSTRUCTION - U12 - Infrastructure Design, esperando aprobación.
+
+---
+## U12 Infrastructure Design — Aprobación
+**Timestamp**: 2026-10-10T16:59:00Z
+**User Input**: "Continue to Next Stage"
+**AI Response**: Infrastructure Design de U12 aprobado. Inicia Code Generation Part 1 (plan de tareas) de U12, con los dos cambios del mensaje anterior (HPA de `vectra-serving` en K16 y evidencia vieja de los Jobs de prueba) incluidos en los Pasos 9 y 11.
+**Context**: CONSTRUCTION - U12 - Infrastructure Design aprobado.
+
+---
+## U12 Code Generation Part 1 — Plan de tareas
+**Timestamp**: 2026-10-10T16:59:20Z
+**User Input**: (sin entrada nueva; continúa tras "Continue to Next Stage")
+**AI Response**: Creado `construction/plans/system-verification-code-generation-plan.md` con 19 pasos en 8 bloques: estructura y barreras (1–2), lógica pura con PBT-U12-01, 02, 04 (3–4), clientes, simulador y conductor con PBT-U12-03 (5–6), escenarios RT, X y mediciones con oráculos probados contra respuestas incorrectas y la carga (7–11), demos, CLI por secciones, manifiesto y `CODEOWNERS` (12–13), N/A, imagen, CI y documentación (14–17), primera verificación completa en kind por el operador (18), cierre (19). Esperando aprobación del plan.
+**Context**: CONSTRUCTION - U12 - Code Generation Part 1, esperando aprobación.
+
+---
+## U12 Code Generation Part 1 — Correcciones antes de aprobar
+**Timestamp**: 2026-10-10T17:02:10Z
+**User Input**: "Corregir antes de aprobar
+
+Frescura de X04 y X06 (bloqueante). El Paso 18 exige que los Jobs de prueba ya estén sincronizados antes de empezar. El Paso 9 exige que su completionTime sea posterior al started_at del manifiesto. Con ese orden, los Jobs siempre terminan antes y X04 y X06 salen siempre no ejecutado. La salida es una sección prepare previa al PR de los Jobs, que fije el runId y el started_at. Afecta los Pasos 9, 13 y 18.
+RT-2 sin el paquete completo. BR-U12-04 y el Paso 16 de U9 piden verificar data_sources e initial_disparity en el freeze. El Paso 8 no lo comprueba. Falta el oráculo y su prueba con un paquete incompleto → falla.
+Step-up de MFA sin navegador. La reactivación de RT-2 depende de él. Hay que fijar en el Paso 5 cómo un cliente sin navegador completa el flujo de code y state del BFF."
+**AI Response**: Corregidos. (1) Sección `prepare` (Paso 13) que fija `runId` y `started_at` y produce el parche de values para el PR de los Jobs de prueba; las demás secciones se niegan sin ella; Paso 9 compara con ese `started_at`; Paso 18 con el orden `prepare` → PR y sync de los Jobs → `network` y siguientes; orden de business-logic-model §2.1 actualizado. (2) Oráculo del paquete completo de RT-2 en el Paso 8 (`FreezeContext` válido según U0 §9.4 más `data_sources` e `initial_disparity` no vacíos, leídos por `monitoring_freezes`), con prueba de un paquete incompleto → `falla`; BR-U12-04 precisado. (3) Paso 5: el BFF no hace el flujo OIDC; la herramienta actúa como el cliente `vectra-console` con PKCE, llena el formulario de Keycloak con Playwright y Chromium sin interfaz (contraseña y TOTP de `pyotp`), intercepta el `redirect_uri` antes de cargar la SPA, valida `state`, canjea el `code` y valida `nonce` y `acr`; prueba contra un Keycloak de Testcontainers; Playwright agregado al stack de U12.
+**Context**: CONSTRUCTION - U12 - Code Generation Part 1, esperando aprobación.
+
+---
+## U12 Code Generation Part 1 — Aprobación
+**Timestamp**: 2026-10-10T17:05:37Z
+**User Input**: "Approve Plan"
+**AI Response**: Plan de tareas de U12 aprobado. U12 queda cerrada. Con esto, todas las unidades (U0–U12) están cerradas en su plan de tareas aprobado; Code Generation Part 2, Build and Test y OPERATIONS quedan fuera del alcance actual, según la instrucción del usuario registrada en `aidlc-state.md`.
+**Context**: CONSTRUCTION cerrada en los planes de tareas.
+
+---

@@ -77,7 +77,7 @@ cachear sin límite (agregado por U8 FD Q1).
 **BR-U4-07 — Qué bloquea.** Solo `sync_check.passed = false` lleva a `validacion_fallida`.
 AUC y disparidad inicial se informan con sus umbrales y **no** bloquean: decide el CRO.
 El informe incluye el `disclaimer` y nunca usa «sin sesgo», «libre de discriminación» ni
-equivalentes (FR-BIA-08). Una prueba busca esas expresiones en las plantillas.
+equivalentes (FR-BIA-08). Una prueba aplica a las plantillas la lista única de U0 (`contracts/forbidden-phrases.yaml`, BR-U0-94; precisado el 2026-10-10 por U10 FD, Q8).
 
 ## 3. Promoción (Q2; US-204, US-208)
 
@@ -143,7 +143,9 @@ existe en `governance-db` (scoring lee por la API, F18).
 `If-None-Match`. Las lecturas de case-service se suman a las de scoring; el NFR de U8 debe verificarlas contra NFR-U4-10/11 y el script k6 de U4 (precisado el 2026-10-06, revisión del FD de U8). Un congelamiento tiene efecto en **≤ 6 s**: hasta 1 s de convergencia entre
 las réplicas de governance (NFR-U4-05) más los 5 s de caché. Es un límite aceptado y medido
 (precisado el 2026-10-03 por U4 NFR Requirements, NFR-U4-06; antes decía ≤ 5 s sin contar
-la convergencia entre réplicas).
+la convergencia entre réplicas). Si una réplica de governance queda aislada de la base, el
+límite es ≤ 35 s: sirve su copia como máximo 30 s sin confirmarla y después responde 503
+(NFR-U4-04; segunda revisión del Infrastructure Design de U10, 2026-10-10).
 
 **BR-U4-15 — Congelar es inmediato.** `freeze` aplica el estado `congelado` y recalcula
 `serving-config` **en la misma transacción**, antes de escribir el evento en el registro

@@ -173,16 +173,17 @@ vectra-risk/governance/
   - AUC-ROC (con `auc_target` y `auc_meets_target`), disparidad inicial con la librería de U9 (`counts_from_records` + `disparity_by_band`; doble mientras no exista), prueba de sincronía predictor ↔ explicador, informe con el `disclaimer` y envío por F32.
   - Modo `source_comparison` (BR-U4-13): puntúa el dataset con la versión activa y con la candidata y envía por F32 **solo** tablas de conteo por atributo, nunca filas (precisado el 2026-10-08 por U9 FD).
   - Imagen con las librerías de inferencia, `runAsNonRoot`, `readOnlyRootFilesystem`, sin token de Kubernetes.
-  - Diseño: BR-U4-07; NFR-U4-12, 23; P-U4-03. Historia: US-202.
+  - La plantilla del Job que governance crea en `vectra-staging` (K01) lleva **explícita** la anotación del sidecar nativo de Linkerd (`config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"`), como todo Job de un namespace mallado (U1 P-U1-05). Así el Job termina cuando termina su contenedor, aunque la mutación de Kyverno no se aplicara (revisión del Infrastructure Design de U10, 2026-10-10). Aceptación adicional: prueba sobre la plantilla generada (la anotación está) y, en kind, un Job de validación termina `Complete` con el proxy detenido.
+  - Diseño: BR-U4-07; NFR-U4-12, 23; P-U4-03; U1 P-U1-05. Historia: US-202.
   - **Aceptación**: `uv run pytest governance/tests/unit/test_validation_job.py`:
     - con un modelo ONNX de fixture y un explicador que no produce vectores → `sync_check.passed = false`;
-    - las plantillas del informe no contienen «sin sesgo», «libre de discriminación» ni equivalentes (FR-BIA-08);
+    - las plantillas del informe pasan `contracts/tools/forbidden_phrases.py` con la lista única de U0 (FR-BIA-08, BR-U0-94; precisado el 2026-10-10 por U10 FD, Q8);
     - modo `source_comparison`: la salida solo tiene tablas de conteo (ninguna clave por registro) y la suma de cada tabla es el tamaño del dataset.
 
 - [ ] **Paso 14 — Scripts de CI**
   - `no-unfreeze-paths`: falla si hay escrituras `congelado → activo` fuera del handler de cumplimiento.
   - `promotion-pr-check` en el repositorio GitOps: un commit, mismo `model_version_id` y evidencia adjunta.
-  - `branch-protection-check`: verifica la protección de `main` en `vectra-risk-gitops` con `gh api`.
+  - `branch-protection-check`: verifica con `gh api` la protección de `main` en `vectra-risk-gitops` **y en el monorepo `vectra-risk`**, incluida la aprobación obligatoria de los *code owners* (`require_code_owner_reviews`), que sostiene la revisión de cumplimiento de `values-monitoring-policy.yaml` de U9 y `contracts/forbidden-phrases.yaml` de U0 (revisión del FD de U10, 2026-10-10, A5).
   - `sbom-check`: la imagen del servicio no contiene ONNX Runtime, `xgboost` ni `lightgbm`.
   - Diseño: BR-U4-03, 09; NFR-U4-21, 22, 24. Historias: US-204, US-305.
   - **Aceptación**: `uv run pytest governance/tests/unit/test_ci_scripts.py` (cada script falla con un fixture que lo viola y pasa con uno correcto).
@@ -255,8 +256,6 @@ vectra-risk/governance/
 ---
 
 ## 3. Trazabilidad
-
-Verificada con un script contra las líneas «Diseño» e «Historia(s)» de cada paso antes de presentarla.
 
 | Historia | Pasos |
 |---|---|

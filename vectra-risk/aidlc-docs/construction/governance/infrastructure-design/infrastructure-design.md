@@ -66,20 +66,21 @@ Los demás flujos del servicio ya existían (F11, F18, F24, F25, F27, F30–F32,
 
 ## 4. Cambios aplicados a otros artefactos
 
-Registrados en `audit.md` (2026-10-03):
+Registrados en `audit.md` (desde el 2026-10-03; filas posteriores con su fecha):
 
 | Artefacto | Cambio |
 |---|---|
 | `component-dependency.md` §2.4 | F101, F102 |
 | `component-dependency.md` §5 | F100 |
 | `component-dependency.md` §4 (roles de base) | `gov_archiver` |
-| `component-dependency.md` §7 y §9; `unit-of-work.md` U4; `application-design.md` | Rangos F01–F102; egress F70–F79, F99, F100 |
+| `component-dependency.md` §7 y §9; `unit-of-work.md` U4; `application-design.md` | Rangos F01–F102; egress F70–F79, F99, F100 (registro histórico del 2026-10-03; el rango vigente es F01–F108) |
 | U4 FD `domain-entities.md` §1.1 | Campos `archived_uri` y `archived_at` en `ModelVersion` |
 | U4 NFR Design P-U4-08 | Alerta `ModelArchivePending` |
+| INF-U4-05; values de staging de U6; U1 cuota de `vectra-staging` | Predictor de la versión activa en KServe de staging para `source_comparison` (segunda revisión del FD de U9, 2026-10-08) |
+| INF-U4-04 (F27); `AuthorizationPolicy` de la ruta `freeze`; plan de U4 (Paso 16) | `POST /v1/models/{id}/freeze` solo para la identidad `bias-monitoring-job` (U9 Infrastructure Design Q4, 2026-10-10) |
+| Plan de U4 (Paso 14, `branch-protection-check`) | Verifica la protección de `main` en los dos repositorios, con la aprobación de los *code owners* (revisión del FD de U10, 2026-10-10, A5) |
 
 ## 5. Cumplimiento de extensiones (Infrastructure Design U4)
-
-Revisada contra el cuerpo del documento antes de presentarla.
 
 | Regla | Estado | Evidencia |
 |---|---|---|

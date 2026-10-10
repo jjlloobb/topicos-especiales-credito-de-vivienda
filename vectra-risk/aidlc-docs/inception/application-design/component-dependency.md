@@ -38,13 +38,13 @@ un número de puerto, pero no la existencia ni la dirección de un flujo.
 | Namespace | Contenido |
 |---|---|
 | `vectra-edge` | api-gateway (data plane de Envoy), servicio de rate limit, Valkey + Sentinel, console-spa (estáticos) |
-| `vectra-app` | console-bff, case-service, case-worker, CronJob `case-retention`, scoring-service, explainability-service, governance-service, bias-monitoring-service y su CronJob de cálculo, decision-registry-service y sus CronJobs (`registry-checkpoint`, `registry-verify-*`, `registry-archive` y `registry-aggregator`) y Jobs a demanda (`registry-aggregator-rebuild`, `registry-aggregator-reset`; octava revisión del FD de U9, 2026-10-10), el CronJob `model-archive` de governance, product-metrics (sexta revisión del FD de U9, 2026-10-10); Jobs de migración de U3, U4 y U8 (hooks de sync de Argo CD) (case-worker, case-retention y migraciones agregados el 2026-10-08, U8 INF-U8-01, 04) |
+| `vectra-app` | console-bff, case-service, case-worker, CronJob `case-retention`, scoring-service, explainability-service, governance-service, bias-monitoring-service y su CronJob de cálculo, decision-registry-service y sus CronJobs (`registry-checkpoint`, `registry-verify-*`, `registry-archive` y `registry-aggregator`) y Jobs de reconstrucción con `runId` (`registry-aggregator-rebuild`, `registry-aggregator-reset`; octava revisión del FD de U9, 2026-10-10), el CronJob `model-archive` de governance, product-metrics (sexta revisión del FD de U9, 2026-10-10); Jobs de migración de U3, U4 y U8 (hooks de sync de Argo CD) (case-worker, case-retention y migraciones agregados el 2026-10-08, U8 INF-U8-01, 04) |
 | `vectra-serving` | InferenceServices de producción (predictor + explainer) |
 | `vectra-staging` | InferenceServices de staging, model-validation-job |
 | `vectra-data` | PostgreSQL (`case-db`, `governance-db`, `registry-db`, `keycloak-db`) con CloudNativePG; MinIO (model-store, Loki, Tempo) |
 | `vectra-restore-drill` | CronJob `restore-drill` y cluster efímero de PostgreSQL (U1, P-U1-05) |
 | `vectra-identity` | Keycloak, `keycloak-config-cli` (hook de sync), `realm-drift` (CronJob), exportador de antigüedad de llaves |
-| `vectra-mock` | core-banking-mock, channel-simulator; solo en kind y staging (U1 deployment-architecture, U8 INF-U8-02) |
+| `vectra-mock` | core-banking-mock; solo en kind y staging (U1 deployment-architecture, U8 INF-U8-02). `channel-simulator` ya no corre aquí: es una sección de la imagen de U12 que el operador ejecuta fuera del clúster (Infrastructure Design de U12, 2026-10-10) |
 | `vectra-observability` | Prometheus, Alertmanager, Grafana, Loki, Tempo, OpenTelemetry Collector, agente de logs |
 | `argocd` | Argo CD |
 | `kserve` | controlador de KServe |
@@ -71,7 +71,7 @@ Tipo: **S** = llamada síncrona request/response · **R** = lectura · **A** = a
 | F04 | api-gateway | case-service | 8080 | S | `/api/intake/**` (solo ingesta) | JWT de cliente `channel`; ruta limitada a `POST /v1/intake/applications` |
 | F05 | api-gateway | Keycloak | 8443 | S | `/auth/**`: login OIDC del navegador | Solo endpoints públicos del realm; consola admin **no** expuesta |
 | F06 | api-gateway | Grafana | 3000 | S | `/grafana/**`: dashboards embebidos en la SPA | Grafana con login OIDC contra Keycloak y roles por equipo |
-| F07 | channel-simulator | api-gateway | 443 | S | Solicitudes sintéticas y adversariales | Mismo camino que un canal real (F04) |
+| F07 | channel-simulator (imagen de U12 en la estación del operador, **fuera** del clúster; Infrastructure Design de U12, 2026-10-10) | api-gateway | 443 | S | Solicitudes sintéticas y adversariales | Mismo camino que un canal real (F04); cliente `channel-simulator` solo en kind y staging |
 | F08 | promotion-tool (humano, fuera del clúster) | api-gateway → governance-service | 443 → 8080 | R/W | **Solo** `GET /v1/models?state=aprobado` y `POST /v1/models/{id}/activation` (ruta `/api/promotion/**`) | Token del usuario `ingeniero_riesgo` con MFA + scope `governance:promotion`; ninguna otra ruta de governance expuesta por el gateway |
 | F09 | Prometheus del banco (opcional, **deshabilitado por defecto**) | api-gateway → Prometheus `/federate` | 443 → 9090 | R | Métricas agregadas que el banco **lee** (INF-U1-08) | Usuario de solo lectura; sin PII en las métricas; Vectra no hace remote-write |
 
@@ -82,7 +82,7 @@ Tipo: **S** = llamada síncrona request/response · **R** = lectura · **A** = a
 | F10 | console-bff | case-service | 8080 | S | Bandeja, detalle, alta manual, decisión, consultas de explicación, fallos persistentes | Token del usuario propagado |
 | F11 | console-bff | governance-service | 8080 | S/W | Modelos (incluida la versión servible para `get_disparity`, `GET /v1/models?state=activo,congelado`; sexta revisión del FD de U9, 2026-10-10), políticas, fuentes, aprobaciones, resolución de congelados | Token del usuario; MFA verificado por claim |
 | F12 | console-bff | explainability-service | 8080 | S | Solo `POST /v1/applicant-summaries` | Rol cro o analista |
-| F13 | console-bff | decision-registry-service | 8080 | R | Expediente, verificación de integridad | Rol cro o cumplimiento |
+| F13 | console-bff | decision-registry-service | 8080 | R/W | Expediente (lectura); registro de una solicitud de verificación de integridad (escritura de una fila en `integrity_checks`) y su estado (lectura); la verificación la ejecuta el CronJob `registry-verify-ondemand` (NFR Design de U10, Q3; revisión del Infrastructure Design de U10, 2026-10-10) | Rol cro o cumplimiento |
 | F14 | console-bff | bias-monitoring-service | 8080 | R | Dashboard de disparidad, paquetes de congelamiento | Rol cumplimiento o cro |
 | F15 | case-worker | scoring-service | 8080 | S | `POST /v1/recommendations` | Identidad de servicio `case-worker` (antes `case-service`; la evaluación corre en el Deployment `case-worker`, U8 INF-U8-01, 2026-10-08) |
 | F16 | case-service | decision-registry-service | 8080 | A | Decisión humana, consulta de explicación, fail-closed | Scope `registry:append:case` |
@@ -98,7 +98,7 @@ Tipo: **S** = llamada síncrona request/response · **R** = lectura · **A** = a
 | F24 | governance-service | decision-registry-service | 8080 | A | Eventos de modelo, política, fuente, congelamiento y resolución | Scope `registry:append:governance` |
 | F25 | governance-service | bias-monitoring-service | 8080 | S | `compare_source` (antes/después) con **tablas de conteo por atributo** de la versión activa y de la candidata, nunca filas (U9 FD, 2026-10-08) | Scope `bias:compare` |
 | F26 | bias-monitoring-service y su CronJob | decision-registry-service | 8080 | R | `POST /v1/monitoring/daily:query` (conteos marginales por atributo **sumados por rango** en el servidor, hasta 12 rangos; nunca filas) y `GET /v1/monitoring/freezes` (U9 FD, 2026-10-08; revisión del NFR Requirements de U9, 2026-10-10 (segunda)) | Scope `registry:read:monitoring` |
-| F27 | CronJob de bias-monitoring (cliente y ServiceAccount `bias-monitoring-job`; la `NetworkPolicy` y la `AuthorizationPolicy` de Linkerd admiten solo esa identidad; el servicio HTTP no congela; precisado el 2026-10-10 por U9 Infrastructure Design Q4) | governance-service | 8080 | W | **Solo** `POST /v1/models/{id}/freeze` (lo llama el CronJob de cálculo, U9 FD, 2026-10-08) | Scope `governance:freeze` (AUTONOMIA-04) |
+| F27 | CronJob de bias-monitoring (cliente y ServiceAccount `bias-monitoring-job`; la `NetworkPolicy` selecciona la etiqueta de pod `vectra.io/workload: bias-monitoring-job`, que también lleva el Job `x04-probe` de U12 en kind, y la `AuthorizationPolicy` de Linkerd admite solo esa identidad (revisión del Infrastructure Design de U12, 2026-10-10); el servicio HTTP no congela; precisado el 2026-10-10 por U9 Infrastructure Design Q4) | governance-service | 8080 | W | **Solo** `POST /v1/models/{id}/freeze` (lo llama el CronJob de cálculo, U9 FD, 2026-10-08) | Scope `governance:freeze` (AUTONOMIA-04) |
 | F28 | product-metrics | decision-registry-service | 8080 | R | Agregados para métricas de negocio | Scope `registry:read:metrics` |
 
 ### 2.3 Staging
@@ -123,9 +123,12 @@ Tipo: **S** = llamada síncrona request/response · **R** = lectura · **A** = a
 | F46 | Pods de KServe (storage initializer), prod y staging | model-store | 9000 | R | Descarga de artefactos de la versión |
 | F47 | governance-service | model-store | 9000 | R | Verificar el checksum de artefactos registrados |
 | F96 | decision-registry-service | `registry-db-ro` (réplica) | 5432 | R | Proyecciones (pool `projections`, INF-U3-04) |
-| F97 | `registry-checkpoint` → `registry-db-rw`; `registry-verify-*` y `registry-archive` → `registry-db-ro` | `registry-db` | 5432 | A / R | Checkpoint; verificación y archivo (U3) |
+| F97 | `registry-checkpoint` → `registry-db-rw`; `registry-verify-*` y `registry-archive` → `registry-db-ro`; `registry-verify-ondemand` → `registry-db-rw` (solo `integrity_checks`, rol `registry_ondemand`; segunda revisión del Infrastructure Design de U10, 2026-10-10) | `registry-db` | 5432 | A / R / W | Checkpoint; verificación y archivo; estado de la verificación bajo demanda (U3) |
 | F107 | CronJob `registry-aggregator` y Job `registry-aggregator-rebuild-<runId>` (Application `decision-registry-rebuild`; lo crea Argo CD, K04, tras un PR y un sync manual con prune; aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10) | `registry-db-rw` | 5432 | R / W | Lee `registry_entries` y escribe solo las tablas derivadas de monitoreo (rol `registry_aggregator`, U3 BR-U3-17; U9 FD, 2026-10-08; rebuild en la octava revisión del FD de U9, 2026-10-10) |
 | F108 | Job `registry-aggregator-reset-<runId>` (runbook `monitoring-rebuild`; Application `decision-registry-rebuild`; lo crea Argo CD, K04, tras un PR y un sync manual con prune; aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10) | `registry-db-rw` | 5432 | W | `aggregator reset`: vacía las tablas derivadas y fija la marca de agua (rol `registry_migrator`; no es F44, que es solo del Job de migración del sync; octava revisión del FD de U9, 2026-10-10) |
+| F109 | Grafana (`vectra-observability`) | Alertmanager (`vectra-observability`) | 9093 | W | Silencios creados por un operador desde la UI de Grafana (equipo `operacion`), con autor y comentario obligatorios y vencimiento ≤ 4 h; lectura de silencios y alertas; solo el rol de Grafana `operacion` (OIDC) (revisión del Infrastructure Design de U10, 2026-10-10) |
+| F110 | Job `grafana-folder-permissions` y su CronJob de comprobación (`vectra-observability`) | Grafana (`vectra-observability`) | 3000 | W / R | Aplicar y comprobar los permisos de las carpetas `Vectra / Sesgo` y `Vectra / Producto` por la API de Grafana, con una cuenta de servicio de Grafana cuyo token llega por ESO; solo el Job (escritura) y el CronJob (lectura) (FD de U11, 2026-10-10) |
+| F111 | Job `x06-probe-<runId>` (`vectra-app`; Application `decision-registry-rebuild`; **solo kind**, con `probes.runId`) | `registry-db-rw` (`vectra-data`) | 5432 | W | Intenta un `UPDATE` con `registry_app` para que U12 verifique X06 (`permission denied`) (revisión del Infrastructure Design de U12, 2026-10-10) |
 | F101 | `model-archive` (U4) | MinIO, bucket `model-store` | 9000 | R | Leer artefactos y explicadores para archivarlos |
 | F102 | `model-archive` (U4) | `governance-db` | 5432 | W | Registrar `archived_uri`/`archived_at` (rol `gov_archiver`, permiso por columna) |
 
@@ -161,10 +164,10 @@ Ningún componente de observabilidad exporta fuera del clúster, salvo la notifi
 | F84 | API server de Kubernetes | Proxy-injector de Linkerd | 8443 | O | Inyección del proxy en la admisión |
 | F85 | API server de Kubernetes | Admission controller de Kyverno | 9443 | O | Validación y mutación en la admisión (`failurePolicy: Fail`) |
 | F86 | ESO (`external-secrets`) | Vault (`vault`, **solo kind**) | 8200 | R | Lectura de secretos de desarrollo |
-| F98 | `registry-checkpoint`, `registry-archive` | Vault (`vault`, **solo kind**) | 8200 | S | Firma Transit de checkpoints y manifiestos (U3) |
+| F98 | `registry-checkpoint`, `registry-archive`; `registry-verify-*` (solo lectura de la llave pública, `transit/keys`; segunda revisión del Infrastructure Design de U10, 2026-10-10) | Vault (`vault`, **solo kind**) | 8200 | S / R | Firma Transit de checkpoints y manifiestos; lectura de la llave pública para verificar (U3) |
 | F87 | `restore-drill` (`vectra-restore-drill`) | Pushgateway (`vectra-observability`) | 9091 | O | Push de `vectra_restore_drill_success`, duración y LSN alcanzado (P-U1-05) |
 | F88 | Prometheus | Pushgateway | 9091 | O | Scrape de las métricas empujadas por jobs batch (`honor_labels: true`) |
-| F106 | CronJob de bias-monitoring (`vectra-app`) | Pushgateway (`vectra-observability`) | 9091 | O | Push de las métricas de cada corrida: `vectra_bias_last_success_timestamp`, disparidades y tamaños de celda, **sin tasas de celdas con muestra insuficiente** (U9 BR-U9-20; U9 FD, 2026-10-08) |
+| F106 | CronJob de bias-monitoring (`vectra-app`) | Pushgateway (`vectra-observability`) | 9091 | O | Push de las métricas de cada corrida: `vectra_bias_last_success_timestamp`, disparidades y tamaños de celda, **sin tasas de celdas con muestra insuficiente** (U9 BR-U9-20; U9 FD, 2026-10-08). Grupos `run` (siempre), `success` (solo si la corrida fue completa) y `freeze-<model_version_id>` (`PUT` si el `freeze` falló; `DELETE` al resolverse); lectura de los grupos con `GET /api/v1/metrics` (revisión del FD de U10, 2026-10-10, B8) |
 
 ### 2.8 Borde e identidad internos (agregado en U2 Infrastructure Design)
 
@@ -200,6 +203,7 @@ Role ni RoleBinding.
 | K12 | `restore-drill` | `vectra-restore-drill` | `create`, `get`, `delete` sobre `clusters.postgresql.cnpg.io`; `get` sobre `pods/log` | Crear y destruir el cluster efímero del simulacro |
 | K13 | Grafana Alloy | todo el clúster | `get`, `list`, `watch` sobre `pods`, `namespaces`, `nodes` | Descubrir contenedores y leer sus logs del nodo |
 | K14 | Controlador de Envoy Gateway | `vectra-edge` y `envoy-gateway-system` | Lectura de recursos de Gateway API y de Envoy Gateway; gestión de los Deployments, Services y ConfigMaps del data plane | Reconciliar el gateway (INF-U2-02) |
+| K16 | Operador de verificación (rol `vectra-verification-operator`; **solo** kind y staging) | `ClusterRole` para `nodes`; `Role` en `vectra-app`, `vectra-edge`, `vectra-serving`, `vectra-identity`, `vectra-data` y `vectra-observability` | `get`, `list` sobre `nodes`; `get`, `list`, `watch` sobre `pods` (estado y digests), `jobs` (`vectra-app`), `horizontalpodautoscalers` (`vectra-app`, `vectra-edge`, `vectra-serving`) e `inferenceservices` (`vectra-serving`); `get` sobre `pods/log` (`vectra-app`); `create` sobre `pods/portforward` (`vectra-app`, `vectra-observability`) | Lectura y `port-forward` de U12 (INF-U12-03; Infrastructure Design de U12 y su revisión del Infrastructure Design de U12, 2026-10-10). K15 se descartó antes y no se reutiliza |
 
 **Explícitamente sin acceso a la API de Kubernetes:** scoring-service,
 explainability-service, bias-monitoring-service, case-service, case-worker,
@@ -224,8 +228,8 @@ componentes (AUTONOMIA-03, AUTONOMIA-04, Q7=A).
 | `registry-db` | `registry_app` | **Solo** `INSERT` y `SELECT`; `UPDATE`/`DELETE`/`TRUNCATE` **revocados** | decision-registry-service y el CronJob `registry-checkpoint` (revisión del NFR Requirements de U9, 2026-10-10 (segunda)) |
 | `registry-db` | `registry_verifier` | Solo `SELECT` (`registry_entries`, vista de cabeza y las tablas derivadas salvo `monitoring_case_index`) | Pool `projections` del servicio, CronJobs `registry-verify-*` y `registry-archive`, `restore-drill` (revisión del NFR Requirements de U9, 2026-10-10 (segunda)) |
 | `registry-db` | `registry_health` | `pg_monitor`; sin acceso a `registry_entries` | Readiness del servicio (P-U3-01) (revisión del NFR Requirements de U9, 2026-10-10 (segunda)) |
-| `registry-db` | `registry_migrator` | DDL; en runtime solo lo usan el Job de migración (F44) y el Job `registry-aggregator-reset-<runId>` del runbook `monitoring-rebuild` (F108; lo crea Argo CD), que vacía las tablas derivadas (`aggregator reset`, U3 BR-U3-17) | Job de migración (F44); Job a demanda `registry-aggregator-reset` (F108) (octava revisión del FD de U9, 2026-10-10) |
-| `registry-db` | `registry_aggregator` | `SELECT` sobre `registry_entries`; escritura solo sobre las tablas derivadas de monitoreo (U3 domain-entities §1.3); sin `TRUNCATE` (revisión del FD de U9, 2026-10-08) | CronJob `registry-aggregator` y Job a demanda `registry-aggregator-rebuild` (F107) (octava revisión del FD de U9, 2026-10-10) |
+| `registry-db` | `registry_migrator` | DDL; en runtime solo lo usan el Job de migración (F44) y el Job `registry-aggregator-reset-<runId>` del runbook `monitoring-rebuild` (F108; lo crea Argo CD), que vacía las tablas derivadas (`aggregator reset`, U3 BR-U3-17) | Job de migración (F44); Job de reconstrucción con `runId` `registry-aggregator-reset` (F108) (octava revisión del FD de U9, 2026-10-10) |
+| `registry-db` | `registry_aggregator` | `SELECT` sobre `registry_entries`; escritura solo sobre las tablas derivadas de monitoreo (U3 domain-entities §1.3); sin `TRUNCATE` (revisión del FD de U9, 2026-10-08) | CronJob `registry-aggregator` y Job de reconstrucción con `runId` `registry-aggregator-rebuild` (F107) (octava revisión del FD de U9, 2026-10-10) |
 | `keycloak-db` | `keycloak` | Propietario de su esquema | Keycloak |
 | todas | `backup` | Replicación y archivado de WAL | Operador de PostgreSQL (F45, F70) |
 
@@ -248,7 +252,7 @@ product-metrics **no** tienen rol de base de datos: leen por API (F26, F28).
 | F77 | `registry-checkpoint` | S3 del banco fuera del sitio, bucket `vectra-registry-checkpoints` (WORM COMPLIANCE) | 443 | Checkpoints firmados; sin datos de solicitantes | INF-U3-01 |
 | F78 | `registry-archive` | S3 del banco fuera del sitio, bucket `vectra-registry-archive` (WORM COMPLIANCE, 10 años) | 443 | Segmentos de la cadena: **datos seudonimizados, cifrados** | NFR-U3-04, INF-U3-01; precedente de F70 |
 | F79 | `registry-verify-*` | S3 del banco fuera del sitio, bucket `vectra-registry-checkpoints` | 443 | Solo lectura de checkpoints | INF-U3-01 |
-| F99 | `registry-checkpoint`, `registry-archive` (staging y prod) | Bóveda del banco (API Transit) | 443 | Solo el digest a firmar | NFR-U3-41, INF-U3-02 |
+| F99 | `registry-checkpoint`, `registry-archive`; `registry-verify-*` (lectura de la llave pública) (staging y prod) | Bóveda del banco (API Transit) | 443 | El digest a firmar; la llave pública, en lectura (segunda revisión del Infrastructure Design de U10, 2026-10-10) | NFR-U3-41, INF-U3-02 |
 | F100 | `model-archive` (U4) | S3 del banco fuera del sitio, bucket `vectra-model-archive` (WORM COMPLIANCE, 10 años) | 443 | Artefactos de modelo y explicadores; sin datos de solicitantes | NFR-U4-31, INF-U4-02 |
 
 **Core bancario real**: no hay flujo de egress hacia él. En el MVP, `case-service` tiene el

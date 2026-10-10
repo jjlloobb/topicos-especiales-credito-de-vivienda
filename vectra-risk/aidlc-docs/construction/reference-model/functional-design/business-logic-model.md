@@ -50,8 +50,6 @@ generator.yaml (versión + semilla)
 
 ## 4. Cumplimiento de extensiones (Functional Design U5)
 
-Revisada contra el cuerpo de los tres artefactos antes de presentarla.
-
 | Regla | Estado | Evidencia |
 |---|---|---|
 | SECURITY-11 | Cumple | BR-U5-16..18: el módulo `adversarial` construye los casos de abuso deliberados, cada uno con su resultado esperado en `adversarial/manifest.json`: inyección en `free_text` (RT-1, 20 pares), paquetes desincronizados (RT-3, 4 artefactos) y entradas fuera de dominio (RT-4, 18 casos). Es la categoría de evidencia que Application Design asignó a SECURITY-11 («RT-1..5»). U5 **construye** los casos; las pruebas que los ejecutan contra el sistema son de U12 |

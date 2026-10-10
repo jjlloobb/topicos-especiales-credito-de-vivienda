@@ -19,7 +19,8 @@ compartidos ni bases de datos nuevas.
 | `authn` + `jwks_cache` | `vectra_common` | Middleware + cache | P-U0-06 | Cache en memoria por proceso |
 | `authz` (`require`) | `vectra_common` | Dependencia de FastAPI | P-U0-02 | — |
 | `errors` (`VectraError`, `ProblemHandler`) | `vectra_common` | Jerarquía + handler | P-U0-05 | — |
-| `deps` (`call`) | `vectra_common` | Helper HTTP: timeout obligatorio, presupuesto propagado, un cliente `httpx` por dependencia con límite de conexiones y circuit breaker | P-U0-07; NFR-U0-23; PBT-U0-14 | **Estado por proceso**: un circuit breaker por dependencia (ventana deslizante) (precisado el 2026-10-06) |
+| `ops_server` | `vectra_common` | Servidor de 8081 (`/metrics`, `/healthz`, `/readyz`) sin rutas de negocio, para procesos `service` sin `create_app` (U11); predicado de readiness opcional (revisión del Infrastructure Design de U11, 2026-10-10) | NFR-U0-48 | — (NFR Requirements de U11, 2026-10-10) |
+| `deps` (`call`) | `vectra_common` | Helper HTTP: timeout obligatorio, presupuesto propagado, un cliente `httpx` por dependencia con límite de conexiones y circuit breaker | P-U0-07; NFR-U0-23; PBT-U0-14 | **Estado por proceso**: un circuit breaker por dependencia (ventana deslizante) (precisado el 2026-10-06); `breaker="disabled"` solo con `process_kind="batch"`, sin estado (NFR-U0-23 (f); revisión del FD de U10, 2026-10-10, B4) |
 | `deadline` | `vectra_common` | Lectura de `x-vectra-deadline` entrante | P-U0-07; NFR-U0-23 | — (precisado el 2026-10-06) |
 | `logging` (`allowlist_filter`) | `vectra_common` | Procesador de structlog | P-U0-04 | — |
 | `telemetry` (OTel + `SpanAllowlist`) | `vectra_common` | Configuración + procesador | P-U0-11 | Exportador OTLP hacia el Collector in-cluster |
@@ -28,6 +29,7 @@ compartidos ni bases de datos nuevas.
 | `strategies` | `contracts/tests` | Generadores Hypothesis | NFR-U0-44 | Solo en pruebas |
 | `codegen` (specs, realm, matriz) | herramienta de CI | Script | P-U0-12 | Solo en CI |
 | `compat` (`oasdiff`) | herramienta de CI | Binario | NFR-U0-33 | Solo en CI |
+| `forbidden_phrases` (`contracts/tools/forbidden_phrases.py` + `contracts/forbidden-phrases.yaml`) | herramienta de CI | Python | BR-U0-94; NFR-U0-47 | Solo en CI; la usan U4, U7, U9 y U10 (revisión del Infrastructure Design de U10, 2026-10-10) |
 | `bench` | herramienta de CI | `pytest-benchmark` | P-U0-09 | Solo en CI |
 
 ## 2. Métricas que emite U0 (dentro de cada servicio)

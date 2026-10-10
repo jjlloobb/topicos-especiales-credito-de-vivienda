@@ -15,7 +15,7 @@ Los IDs `NFR-U4-xx` se referencian en NFR Design, Infrastructure Design y el pla
 | NFR-U4-01 | **Governance es dependencia del SLO de la ruta de recomendación** (99,5 %, U1): si no responde, scoring falla cerrado en todas las evaluaciones | Documentado en `docs/slo.md`; el SLO de U1 (P-U1-11) incluye `ServingConfigUnavailable` |
 | NFR-U4-02 | **Nunca configuración vencida**: scoring no usa una `serving-config` de más de 5 s (BR-U4-14). No hay modo «última conocida» | Prueba de U7 (definida aquí como requisito): governance caído 6 s → scoring responde `serving_config_unavailable` |
 | NFR-U4-03 | ≥ 2 réplicas repartidas por zona, PDB y HPA; readiness = `governance-db` (P-U1-04) | `helm template` + `conftest` |
-| NFR-U4-04 | `GET /v1/serving-config` se sirve desde una **copia en memoria** de cada réplica, recalculada en cada transición confirmada; no consulta la base en cada request | Prueba de integración: con la base pausada, `serving-config` sigue respondiendo la última copia confirmada |
+| NFR-U4-04 | `GET /v1/serving-config` se sirve desde una **copia en memoria** de cada réplica, recalculada en cada transición confirmada; no consulta la base en cada request. **Edad máxima de la copia** (segunda revisión del Infrastructure Design de U10, 2026-10-10): cada réplica confirma su copia contra la base al menos cada 1 s (el mecanismo de NFR-U4-05); si no logra confirmarla durante **30 s** (base pausada o réplica aislada), deja de servirla y responde 503, y scoring y case-service lo tratan como `serving_config_unavailable` (fail-closed, BR-U0-02). Así una réplica aislada nunca sirve `activo` más de 30 s después de un congelamiento que no vio: en ese caso el efecto del congelamiento llega en ≤ 35 s (30 s + 5 s de caché), y en operación normal en ≤ 6 s (BR-U4-14). La métrica `vectra_serving_config_age_seconds` alimenta la alerta `ServingConfigStale` (SEV2, > 10 s durante 1 min) | Prueba de integración: con la base pausada, `serving-config` sigue respondiendo la última copia durante 29 s y responde 503 a los 31 s; al volver la base, responde con la copia nueva |
 | NFR-U4-05 | **Convergencia entre réplicas ≤ 1 s**: cuando una réplica confirma una transición, las demás actualizan su copia en ≤ 1 s (el mecanismo lo fija NFR Design) | Prueba con 2 réplicas y Testcontainers: `freeze` en la réplica A → la réplica B sirve el `etag` nuevo en ≤ 1 s |
 | NFR-U4-06 | **Límite de propagación del congelamiento: ≤ 6 s** (1 s de convergencia + 5 s de caché de scoring). **Precisa BR-U4-14**, que decía ≤ 5 s sin contar la convergencia entre réplicas | Prueba de extremo a extremo en kind: `freeze` → la primera `FailClosed(model_frozen)` en ≤ 6 s |
 | NFR-U4-07 | Alerta `ServingConfigUnavailable` (SEV1) si más del 1 % de las lecturas de `serving-config` falla durante 5 min | `promtool test rules` |
@@ -27,6 +27,7 @@ Los IDs `NFR-U4-xx` se referencian en NFR Design, Infrastructure Design y el pla
 | NFR-U4-10 | `GET /v1/serving-config`: p95 ≤ 20 ms, incluido el 304, con **12 clientes** consultando cada 5 s: 6 réplicas de scoring y 6 de `case-worker` (U8), más una lectura de `GET /v1/models/{id}/feature-spec` por cliente de U8 al cambiar de versión (precisado el 2026-10-06 por U8 NFR Requirements, NFR-U8-15) | Prueba de carga k6 en kind (operador) |
 | NFR-U4-11 | Transiciones con firma: p95 ≤ 500 ms, incluido el append al registro | Misma prueba |
 | NFR-U4-12 | `model-validation-job`: ≤ 30 min con el dataset de validación de U5 en modo `validacion`, y ≤ 60 min en modo `source_comparison` (dos modelos sobre el mismo dataset), los dos con el límite de 2 CPU / 4 GiB y el plazo de corte de 2 h (BR-U4-05; segunda revisión del FD de U9, 2026-10-08) | Ejecución en kind con el modelo de referencia y su variante en los dos modos (operador) |
+| NFR-U4-13 | **Lecturas desde el BFF** (`GET /v1/models`, `/v1/models/{id}`, `/v1/policies`, `/v1/data-sources`): p95 ≤ 300 ms con 200 usuarios de consola (perfil de U10 P-U10-11). Antes era un supuesto de U10 (revisión del Infrastructure Design de U10, 2026-10-10) | Prueba de carga de U10 en kind (operador) |
 
 ## 3. Seguridad
 
@@ -54,8 +55,6 @@ Los IDs `NFR-U4-xx` se referencian en NFR Design, Infrastructure Design y el pla
 | NFR-U4-41 | Cobertura de ramas ≥ 95 % y **100 %** en `model_fsm`, `policy` y `evidence`; mutation testing en `model_fsm` | `pytest --cov --cov-branch` + `mutmut` |
 
 ## 6. Cumplimiento de extensiones (NFR Requirements U4)
-
-Revisada contra el cuerpo del documento antes de presentarla.
 
 | Regla | Estado | Evidencia |
 |---|---|---|

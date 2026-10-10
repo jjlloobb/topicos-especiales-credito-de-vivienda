@@ -65,7 +65,9 @@ bias-monitoring-service
 
 CronJob (cada corrida)
   arranque -> token (F50) -> lectura (F26) -> cálculo -> freeze si corresponde (F27)
-           -> push de los grupos run y success (F106)
+           -> push de los grupos (F106): run siempre; success solo si la corrida fue completa;
+              freeze-<v> con PUT si el freeze de v falló, DELETE si v se congeló, dio 409,
+              ya no cumple la regla o ya no se evalúa (lectura previa de los grupos; ≤ 16 DELETE)
            -> el contenedor termina -> el sidecar nativo termina -> Job completo o fallido
 ```
 
@@ -85,3 +87,19 @@ CronJob (cada corrida)
 - El dashboard `bias.json` va como `ConfigMap` de dashboards de Grafana (U1).
 - `Application` de Argo CD en la wave 5, con sync manual (AUTONOMIA-01).
 - `NetworkPolicy` y `AuthorizationPolicy` vienen de U1 y U2, con los flujos de INF-U9-04.
+
+## 4. Solapamiento con el agregador de U3 (revisión del FD de U10, 2026-10-10, B8)
+
+```text
+minuto  0      2              4   5      7
+agreg.  |--- lotes hasta la cabeza o 240 s ---|   |--- ...
+bias           |--- lectura (F26) ... cálculo ... freeze ... push ---|
+```
+
+- El agregador empieza en los múltiplos de 5 y puede iterar hasta 240 s, así que la corrida de bias (minuto 2, 17, 32 y 47) puede leer mientras el agregador sigue.
+- Es seguro: cada lote de U3 suma, resta y avanza la marca de agua en **una** transacción (BR-U3-17), y cada solicitud a `daily:query` responde con su `watermark_seq`. Los 4 rangos de una versión van siempre en la misma solicitud, así que cada versión se mide con una sola marca de agua. El atraso de la corrida usa la menor `watermark_seq` de sus solicitudes.
+- Un lote que se confirma entre dos solicitudes solo cambia los datos de las versiones de la segunda solicitud. Ninguna versión mezcla dos marcas de agua.
+
+## 5. Cuota
+
+La tabla con y sin el sidecar de Linkerd está en INF-U9-01.

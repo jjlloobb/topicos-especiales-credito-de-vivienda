@@ -116,7 +116,7 @@ el log de la corrida (sin datos del solicitante).
 | Campo | Notas |
 |---|---|
 | `model_version_id`, `computed_at` | — |
-| `threshold_pp`, `n_min`, `library_version` | Los parámetros de BR-U9-13 |
+| `threshold_pp`, `n_min`, `window_days`, `schedule`, `stale_after_s`, `library_version` | Los cinco parámetros de BR-U9-13 y la versión de la librería (los tres nuevos, revisión del FD de U10, 2026-10-10, A7) |
 | `before` | `DisparityResult` de hoy − 36 a hoy − 7 (días UTC), o `sin_datos` |
 | `after` | `DisparityResult` de hoy − 29 a hoy |
 | `last_7_days` | `DisparityResult` de hoy − 6 a hoy |
@@ -135,7 +135,7 @@ Solo agregados: una celda insuficiente lleva solo su tamaño. Governance agrega
 
 ### 3.3 `DisparityView` (F14, BR-U9-18)
 `model_version_id`, `window`, `computed_at`, `model: DisparityResult`, `human:
-DisparityResult`, `threshold_pp`, `n_min`, `invalid_entries`, `disclaimer` («mide y alerta,
+DisparityResult`, `threshold_pp`, `n_min`, `window_days`, `schedule`, `stale_after_s`, `invalid_entries`, `disclaimer` («mide y alerta,
 no certifica»).
 
 ### 3.4 `FreezeSummary`

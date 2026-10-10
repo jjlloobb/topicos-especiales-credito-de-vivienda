@@ -111,8 +111,6 @@ Dos réplicas nunca procesan la misma fila.
 
 ## 5. Cumplimiento de extensiones (NFR Design U4)
 
-Revisada contra el cuerpo del documento antes de presentarla.
-
 | Regla | Estado | Evidencia |
 |---|---|---|
 | RESILIENCY-05 / 07 / 15 | Cumple | P-U4-08 |
