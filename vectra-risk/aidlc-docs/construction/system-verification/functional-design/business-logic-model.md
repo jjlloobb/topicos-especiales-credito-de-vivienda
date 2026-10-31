@@ -28,8 +28,8 @@ flowchart TD
     size["Medicion del tamano por caso con los primeros 1000"]
     rt14["RT-1 y RT-4"]
     rt5["RT-5 con el Job de U8"]
-    rt3["RT-3: cada paquete alterado por PR, verificar y revertir"]
-    rt2["RT-2: modelo proxy por PR, stratified 1500, 5 corridas"]
+    rt3["RT-3: cada paquete hasta su barrera y explicador en 0, verificar y revertir"]
+    rt2["RT-2: 5 versiones del proxy por PR, stratified 1500 por corrida"]
     load["Carga: linea base 5/s y perfil 20/s"]
     pii["Consulta de Loki: LOGS-NO-PII"]
     next["Dia siguiente: verificacion de U11"]
@@ -48,9 +48,10 @@ flowchart TD
 4. tamaño por caso con los primeros 1 000
 5. RT-1 (pares) y RT-4 (18 casos)
 6. RT-5 (Job de U8)
-7. RT-3: por cada paquete alterado: PR -> sync -> verificar -> PR de reversión -> sync
-8. RT-2: PR del modelo proxy -> sync -> stratified (~1 500) -> esperar el freeze -> medir
-        -> reactivar (cumplimiento) -> repetir hasta 5 corridas -> PR de vuelta al modelo de referencia
+7. RT-3: a, c, d: registrar (422) -> PR -> no listos -> reversión; b: registrar -> validar -> promover si pasa -> verificar -> reversión;
+        explicador en 0 por PR (solo kind) -> FailClosed(explainer_unavailable) -> reversión
+8. RT-2: por cada una de las 5 versiones del proxy: PR -> sync -> stratified (~1 500) -> esperar el freeze -> medir
+        -> reactivar (cumplimiento) -> comprobar que no se recongela; al final, PR de vuelta al modelo de referencia
 9. carga: línea base a 5/s, después 20/s + 200 usuarios
 9b. consulta de Loki de LOGS-NO-PII sobre todo el periodo
 10. día D + 1: verificación de U11 (métricas del día anterior)

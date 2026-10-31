@@ -51,7 +51,7 @@ Representación JSON (R5, BR-U0-15):
 | | `phone` | `str(max=20)` | PII |
 | | `email` | `str(max=254)` | PII |
 | | `address` | `str(max=300)` | PII |
-| | `department_code` | código DANE del departamento (2 dígitos) | quasi-identificador |
+| | `department_code` | código DANE del departamento (2 dígitos) | quasi-identificador. **No** es parte del grupo de identificación: se queda en `application` porque `derive` lo usa para la región (U8; cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | | `municipality_code` | código DANE del municipio (5 dígitos) | quasi-identificador |
 | Ingresos | `monthly_income` | `COP` | financiero sensible |
 | | `other_income` | `COP` | financiero sensible |
@@ -74,7 +74,7 @@ Representación JSON (R5, BR-U0-15):
 - `CaseRef`: `case_id` (UUID), `state`.
 - `CaseFilter`: `state?: list[estado]` (por defecto, todos menos `vencido`; `vencido` solo con el filtro explícito, BR-U8-13), `channel?`, `created_from?`, `created_to?`, `model_frozen_after_recommendation?: bool`, `page`, `page_size` (≤ 100) (precisado el 2026-10-06, revisión del FD de U8; `model_frozen_after_recommendation` por la revisión del FD de U10, 2026-10-10, A4). No tiene búsqueda por texto: ningún campo lleva datos del solicitante, para que el filtro pueda ir en la URL (U10 BR-U10-10).
 - `PersistentFailure`: `case_id`, `channel`, `created_at`, `attempts`, `last_cause`, `since` (entrada a `no_disponible`); lo devuelve `list_persistent_failures` (precisado el 2026-10-06, revisión del FD de U8).
-- `CaseSummary`: `case_id`, `state`, `channel`, `created_at`, `outcome?`, `applicant_display` (nombre completo + los últimos 4 dígitos del documento; vacío si el caso está anonimizado) (precisado el 2026-10-06, revisión R1 del FD de U8). **Sin score** salvo en estado `listo` o `decidido`.
+- `CaseSummary`: `case_id`, `state`, `channel`, `created_at`, `outcome?`, `score?`, `applicant_display` (nombre completo + los últimos 4 dígitos del documento; vacío si el caso está anonimizado) (precisado el 2026-10-06, revisión R1 del FD de U8). **Sin score** salvo en estado `listo` o `decidido`.
 - `CaseDetail`: resumen, más `application` (la `ApplicationIn` **sin** el grupo de identificación de §1.1 y **sin** `sex` ni `socioeconomic_stratum`, que son solo de monitoreo), `identifiers?` (el grupo de identificación de §1.1: nombre, documento, fecha de nacimiento, contacto, dirección y municipio; **ausente** si el caso está anonimizado; precisado el 2026-10-06, revisión del FD de U8; precisado el 2026-10-06, revisión R1 del FD de U8), `recommendation?`, `credit_status?` (`CreditStatus`: `en_estudio \| aprobado \| desembolsado \| rechazado \| cancelado \| sin_credito \| no_disponible \| no_integrado`; `no_disponible` = core caído o lento, `no_integrado` = `core.enabled = false`; precisado el 2026-10-10 por U10 FD, Q3) y `decision?`, `model_frozen_after_recommendation`, `anonymized`, `attempts` y `last_cause` (precisado el 2026-10-06 por U8 FD Q2 y Q7); detalle en U8 domain-entities §4.
 - Estados del caso: `en_evaluacion`, `listo`, `en_sincronizacion`, `no_disponible`, `modelo_congelado`, `decidido` y `vencido` (terminal: la retención venció sin decisión; agregado el 2026-10-06 por U8 FD). Las transiciones se detallan en el Functional Design de U8.
 
@@ -247,7 +247,7 @@ reintento de la misma escritura; agregado por U3 FD Q5) y `payload` (según el t
 | `explanation_view` | `viewed_at`, `recommendation_entry_id` (la recomendación consultada; lo llena case-service desde el caso, BR-U8-19) (precisado el 2026-10-06, revisión del FD de U8) |
 | `model_event` | `event` (`registrado`, `validacion_iniciada`, `informe_validacion`, `validacion_fallida`, `aprobado`, `rechazado`, `activado`, `inactivado`, `retirado`, `transicion_descartada`; los dos primeros agregados por U4 FD Q1 y el último precisado el 2026-10-06, revisión del FD de U8: compensa una transición descartada por un `freeze`, BR-U4-17), `details` |
 | `policy_event` | `event` (`propuesta`, `activada`, `rechazada`, `historica`), `policy_version_id`. Aprobar y activar son el mismo acto (U4 FD Q4): `activada` lleva como actor al CRO aprobador; `historica` la escribe la misma acción para la política que deja de estar activa (corregido el 2026-10-03: antes tenía `aprobada` y `activada` por separado y no tenía `historica`) |
-| `data_source_event` | `event` (`propuesta`, `evaluacion_iniciada`, `aprobada`, `rechazada`), `pre_post_report?` (el `PrePostReport` de §9.4 en `aprobada` y `rechazada`, ≤ 48 KiB con la regla de recorte de U9 BR-U9-17; antes `pre_post_report_ref`, que no apuntaba a nada; segunda revisión del FD de U9, 2026-10-08). `evaluacion_iniciada` corresponde a la transición `propuesta → en_evaluacion` de U4 (agregado el 2026-10-03, porque BR-U4-17 exige evento por transición) |
+| `data_source_event` | `event` (`propuesta`, `evaluacion_iniciada`, `aprobada`, `rechazada`), `source_id` (`ds_id`; cuarta revisión de coherencia entre unidades, 2026-10-31), `pre_post_report?` (el `PrePostReport` de §9.4 en `aprobada` y `rechazada`, ≤ 48 KiB con la regla de recorte de U9 BR-U9-17; antes `pre_post_report_ref`, que no apuntaba a nada; segunda revisión del FD de U9, 2026-10-08). `evaluacion_iniciada` corresponde a la transición `propuesta → en_evaluacion` de U4 (agregado el 2026-10-03, porque BR-U4-17 exige evento por transición) |
 | `freeze` | `freeze_id`, `frozen_at` (cuándo se aplicó el congelamiento, que es inmediato aunque el evento se escriba después, BR-U4-15; agregado el 2026-10-06), `context_package` (métricas agregadas, sin PII): el tipo `FreezeContext` de §9.4 (semántica en U9 domain-entities §3.1) más `data_sources: list[ds_id \| DataSource]` e `initial_disparity` (formato de §9.4 `AttributeResult` por atributo), que agrega governance (precisado el 2026-10-08 por U9 FD). **Tamaño** (BR-U0-93: la forma vive aquí; tercera revisión del FD de U9, 2026-10-10): la entrada canónica ≤ 64 KiB (BR-U3-07); `FreezeContext` ≤ 48 KiB; si la entrada supera 60 KiB, `initial_disparity` lleva solo sus agregadas; si aún supera 64 KiB, `data_sources` lleva solo ids |
 | `frozen_resolution` | `action` (`reactivar` \| `descartar` \| `investigar`), `justification` |
 | `genesis` | `schema_version`, `contract_version`, `checkpoint_key_fingerprint`. Solo la escribe el propio registro, una vez (`seq = 0`; U3 FD Q3) |
@@ -355,6 +355,7 @@ Solo pueden aparecer estos campos:
 - `case_id`, `model_version_id`, `policy_version_id`, `entry_type`;
 - `status`, `http_method`, `route_template` (nunca la URL con parámetros), `duration_ms`;
 - `error_code`, `fail_closed_cause`, `attempt`, `principal_kind`, `principal_role`;
+- `seq`, `recommendation_entry_id`, `window_from`, `window_to`: referencias técnicas sin datos del solicitante, para los eventos de U9 y U11 (cuarta revisión de coherencia entre unidades, 2026-10-31);
 - `app_version`: la versión SemVer de la SPA en `console.client_error` (NFR Requirements de U10, 2026-10-10, Q12);
 - `principal_subject`: el `sub` opaco del token (UUID de Keycloak), nunca el username ni el email. Permite alertar por fallos repetidos del mismo sujeto (SECURITY-14).
 
@@ -390,7 +391,7 @@ reglas de política, autorización por objeto) lo detalla la unidad dueña.
 |---|---|
 | `ScoringRequest` | `case_id`, `features: FeatureVector`, `monitoring_labels: MonitoringLabels`, `policy_inputs: PolicyInputs`, `attempt: int ≥ 1`, `model_version_id` (la versión cuyo `feature_spec` armó el vector; si difiere de `serving-config`, `version_mismatch`, BR-U0-02) (precisado el 2026-10-06 por U8 FD Q1); `received_at` (el `created_at` del caso en case-service; lo copia scoring al payload de `recommendation`; FD de U11, 2026-10-10); `first_evaluation: bool` (`true` solo si el caso nunca pasó por `en_sincronizacion`, `no_disponible` ni `modelo_congelado` y `attempt = 1`; lo calcula U8; revisión del FD de U11, 2026-10-10) |
 | `PolicyInputs` | `property_value: COP`, `proposed_rate_ea: Decimal4`, `channel`; datos de la solicitud que la política necesita y que no son features (VIS, usura, reglas por canal) |
-| `ExplainRequest` | `case_id`, `model_version_id`, `features: FeatureVector`, `prediction_score: Decimal4` |
+| `ExplainRequest` | `case_id`, `model_version_id`, `inference_service` (`isvc-<8 hex>`, el de `ServingConfig`, que scoring copia; se valida el formato; cuarta revisión de coherencia entre unidades, 2026-10-31), `features: FeatureVector`, `prediction_score: Decimal4` |
 | `ApplicantSummaryRequest` | `case_id`, `recommendation_entry_id` (lo pone el BFF desde el caso; BR-U7-13) (precisado el 2026-10-03 por U7 NFR Design Q3) |
 | `ApplicantSummary` | `case_id`, `factors: list[{label_es, direction: aumenta \| reduce}]` (solo entradas con `applicant_safe = true`), `posthoc_notice`, `generated_at`. **Sin** valores SHAP, `score` ni `model_version_id` (US-110) |
 
@@ -413,6 +414,7 @@ calcula case-service a partir de las entradas `explanation_view`.
 | `PolicyDraft` | `cutoff: Decimal4` en [0, 1], `low_confidence_threshold: Decimal4` en [0, 1], `channel_rules: list[{channel, cutoff?: Decimal4}]`, `normative: list[NormativeParams]` (vigencias sin solaparse; se pueden cargar vigencias futuras, U4 FD Q4) |
 | `NormativeParams` | `vis_max_property_value: COP`, `usury_cap_ea: Decimal4`, `effective_from: date`, `effective_to: date?`, `source_ref: str(max=300)`. Los valores concretos son **[VERIFICAR]** contra la fuente oficial (FR-POL-02) |
 | `PolicyVersion` | `PolicyDraft`, más `policy_version_id`, `state: propuesta \| activa \| rechazada \| historica` (aprobar = activar de inmediato; la anterior pasa a `historica`, U4 FD Q4), `proposed_by`, `approved_by?` (distinto de `proposed_by`, U4 FD Q3), `created_at` |
+| `ModelRegistration`, `ModelVersion`, `ModelVersionDetail`, `ValidationRun`, `ValidationReport`, `DataSource` | Los campos públicos de U4 domain-entities §1 y §2. El tipo vive aquí y U4 documenta su semántica, como en §9.4 (BR-U0-93; cuarta revisión de coherencia entre unidades, 2026-10-31) |
 
 ### 9.4 Monitoreo de sesgo (dueña: U9; agregada en la revisión del FD de U9, 2026-10-08)
 

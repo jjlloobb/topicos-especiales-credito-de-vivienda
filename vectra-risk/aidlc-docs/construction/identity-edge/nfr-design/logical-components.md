@@ -62,7 +62,7 @@ Envoy:
   -> servicio de rate limit -> Valkey + Sentinel   (claves: sub, azp, IP; fail-closed solo en /auth/**)
   -> Keycloak (rutas /auth/** y JWKS por URL interna, refresco cada 5 min)
   -> SPA, console-bff, case-service (intake), governance (promoción), Grafana, Prometheus (F09 opcional)
-Envoy Gateway controller (envoy-gateway-system) -> configura Envoy por xDS, F95 (si cae, Envoy sigue con la última configuración)
+Envoy -> Envoy Gateway controller (envoy-gateway-system), xDS, F95 (si cae, Envoy sigue con la última configuración)
 Keycloak -> keycloak-db (sesiones persistentes, jdbc-ping)
 keycloak-config-cli (hook de sync manual) -> API de administración de Keycloak (interna)
 realm-drift (CronJob) -> exporta el realm -> compara con Git -> RealmDrift

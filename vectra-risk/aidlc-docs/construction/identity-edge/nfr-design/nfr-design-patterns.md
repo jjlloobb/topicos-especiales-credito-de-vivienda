@@ -28,7 +28,7 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 
 | Ruta | Timeout | Reintentos |
 |---|---|---|
-| `/api/console/**` | 15 s | Solo `GET`/`HEAD`: 1 reintento ante `connect-failure` o `503`, presupuesto del 20 % |
+| `/api/console/**` | 15 s | Solo `GET`/`HEAD`: 1 reintento ante `connect-failure`, presupuesto del 20 %. Sin reintento ante `503`: el BFF ya agotó su presupuesto y superaría los 10 s de la SPA (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | `/api/intake/**` | 5 s | **Ninguno** (solo `POST`) |
 | `/api/promotion/**` | 10 s | Solo el `GET`; el `POST` de activación **nunca** |
 | `/auth/**` | 10 s | Solo `GET`/`HEAD` |
@@ -100,7 +100,7 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 | `RateLimitBackendDown` | SEV2 | Servicio de rate limit o Valkey sin respuesta (con `/auth/**` en fail-closed) |
 | `AuthDeniedBurst` | SEV2 | Eventos de Keycloak + 401/403 de U0 |
 | `BreakGlassLogin` | SEV1 | Evento de login del usuario `break-glass` |
-| `RealmDrift` | SEV2 | CronJob de comparación del realm |
+| `RealmDrift` | SEV2 | `vectra_realm_drift > 0`, que el CronJob de comparación empuja al Pushgateway (F112; cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | `RoleConflict` | SEV2 | Evento de la federación LDAP |
 | `SigningKeyAgeHigh` | SEV3 | Exportador de antigüedad de llaves |
 | `LdapUnavailable` | SEV2 | Fallos de conexión de la federación LDAP (solo prod; agregado en INF-U2-07) |

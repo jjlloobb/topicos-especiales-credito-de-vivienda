@@ -60,7 +60,7 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 - `incremental`, `nightly`, `full` y el export del archivo leen del servicio `-ro` de CloudNativePG con `registry_verifier`.
 - Cada informe declara hasta qué `seq` verificó (`to_seq`, la cabeza que ve la réplica).
 - El expediente (verificación `range`) usa la primaria para incluir las entradas recién escritas.
-- `full` mensual: CronJob fuera del horario operativo (domingo 02:00), prioridad `vectra-low`.
+- `full` mensual: la encola y ejecuta `registry-verify-ondemand`, sin CronJob propio ni horario fijo (BR-U3-13b); lee del servicio `-ro` y corre con `vectra-low`, así que no carga la primaria (cuarta revisión de coherencia entre unidades, 2026-10-31).
 - **Verificación**: prueba de integración que verifica en el standby con retraso y comprueba que `to_seq` corresponde a la cabeza del standby.
 - **Satisface**: NFR-U3-22, 23, 33.
 

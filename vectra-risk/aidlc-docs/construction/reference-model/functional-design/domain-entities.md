@@ -72,7 +72,7 @@ quedan solo como `MonitoringLabels`.
 
 - La etiqueta de esta variante depende en parte de esas dos features.
 - Disparidad agregada esperada: **≥ 10 pp**, medida con la librería de U9 sobre `validation` y escrita en el manifiesto.
-- Se registra como una **versión distinta** y solo sirve para la demo de RT-2.
+- Se registra como una **versión distinta** y solo sirve para la demo de RT-2. Se entregan **5 paquetes** (`rt2_run` de 1 a 5 en el manifiesto) con el mismo modelo y distinto `model_version_id`, uno por corrida de RT-2 (BR-U12-07; cuarta revisión de coherencia entre unidades, 2026-10-31).
 - **Privacidad**: la búsqueda `municipality_code → zona_vivienda` ocurre **dentro** de `derive` (U0). Al `FeatureVector`, y por lo tanto al registro, solo llega `zona_vivienda`, más gruesa que el municipio; `municipality_code` nunca es clave del vector (BR-U0-34). Las tablas de zona deben tener al menos 5 municipios por zona para no permitir volver al municipio.
 
 ## 5. Conjunto adversarial (Q7)
@@ -85,16 +85,15 @@ quedan solo como `MonitoringLabels`.
 | `scenario` | `RT-1` \| `RT-3` \| `RT-4` |
 | `input` | `ApplicationIn` (RT-1, RT-4) o la ruta del paquete alterado (RT-3) |
 | `paired_with?` | Solo RT-1: el caso base idéntico sin `free_text` |
-| `expected` | RT-1: recomendación y narrativa **idénticas** a las del par; RT-4: `confidence` < umbral de baja confianza → `revision_requerida` + `baja_confianza`; RT-3: `FailClosed` con causa `version_mismatch` o `feature_dictionary_incomplete` |
+| `expected` | RT-1: recomendación y narrativa **idénticas** a las del par; RT-4: `confidence` < umbral de baja confianza → `revision_requerida` + `baja_confianza`; RT-3: el resultado de la tabla de artefactos, por paquete (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 
 ### Artefactos RT-3
 
-| Caso | Alteración | Causa esperada |
+| Caso | Alteración | Resultado esperado |
 |---|---|---|
-| `RT3-a` | Explicador de otra versión con el mismo predictor | `version_mismatch` |
-| `RT3-b` | Explicador sin una de las features | `explainer_error` o `feature_dictionary_incomplete` |
-| `RT3-c` | Diccionario de otra versión | `version_mismatch` |
-| `RT3-d` | `manifest.json` con `model_version_id` distinto entre predictor y explicador | `version_mismatch` |
+| `RT3-a` | Explicador de otra versión con el mismo predictor | U4: 422 al registrar. U6, si se despliega por PR sin registrar: no listo |
+| `RT3-b` | Explicador sin una de las features | Pasa U4 y U6. Si `sync_check` lo detecta, `validacion_fallida`; si llega a servirse, `FailClosed` con `explainer_error` o `feature_dictionary_incomplete` |
+| `RT3-c` | Diccionario de otra versión | U4: 422 al registrar. U6, si se despliega por PR sin registrar: no listo |
+| `RT3-d` | `manifest.json` con `model_version_id` distinto entre predictor y explicador | U4: 422 al registrar. U6, si se despliega por PR sin registrar: no listo |
 
-U4 debe **rechazar** al registrar los paquetes que no verifican el manifiesto (`RT3-d`). Los
-demás se usan para forzar la desincronía en serving (U6, U12).
+U4 debe **rechazar** al registrar los paquetes cuyos archivos no llevan el mismo `model_version_id` (`RT3-a`, `RT3-c` y `RT3-d`, BR-U4-06), y U6 es la segunda barrera. Solo `RT3-b` puede llegar a servirse (cuarta revisión de coherencia entre unidades, 2026-10-31).

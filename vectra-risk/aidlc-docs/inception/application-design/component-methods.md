@@ -83,10 +83,11 @@ Grafana (F06), con login OIDC y permisos por equipo.
 | `list_models(filter) -> Page[ModelVersion]` | `GET /api/console/models` | ingeniero_riesgo, cro, cumplimiento | — | — | governance |
 | `get_model(mv_id) -> ModelVersionDetail` | `GET /api/console/models/{id}` | ingeniero_riesgo, cro, cumplimiento | — | incluye el informe de validación | governance |
 | `register_model(m) -> ModelVersion` | `POST /api/console/models` | ingeniero_riesgo | sí | — | governance `register_model` |
-| `start_validation(mv_id) -> ValidationRun` | `POST /api/console/models/{id}/validations` | ingeniero_riesgo | sí | estado `registrado` | governance `start_validation` |
+| `start_validation(mv_id) -> ValidationRun` | `POST /api/console/models/{id}/validations` | ingeniero_riesgo | sí | estado `registrado` o `validacion_fallida` (reintento, BR-U4-01; cuarta revisión de coherencia entre unidades, 2026-10-31) | governance `start_validation` |
 | `start_source_comparison(ds_id, candidate_version_id) -> ValidationRun` | `POST /api/console/data-sources/{id}/comparisons` | ingeniero_riesgo | sí | fuente `en_evaluacion`; candidata con `source_candidate_for`; existe una versión `activo` (U4 BR-U4-13, segunda revisión del FD de U9, 2026-10-08) | governance `start_source_comparison` |
 | `approve_model(mv_id, decision)` | `POST /api/console/models/{id}/approval` | cro | sí | estado `lista_para_aprobacion` | governance `approve_model` |
 | `resolve_frozen(mv_id, action, justification)` | `POST /api/console/models/{id}/frozen-resolution` | **cumplimiento** | sí | estado `congelado` | governance `resolve_frozen` |
+| `retire_model(mv_id) -> ModelVersion` | `POST /api/console/models/{id}/retirement` | cro | sí | estado `inactivo`, `rechazado` o `validacion_fallida` (BR-U4-01; cuarta revisión de coherencia entre unidades, 2026-10-31) | governance `retire_model` |
 
 `mark_active` **no** se expone en el BFF. Solo lo usa `promotion-tool` después de un
 sync manual aprobado (flujo S3).
@@ -113,7 +114,7 @@ sync manual aprobado (flujo S3).
 |---|---|---|---|---|---|
 | `get_disparity(filter) -> DisparityView` | `GET /api/console/disparity` | cumplimiento, cro | — | — | governance `list_models(state=activo,congelado)` (F11, la versión servible) y después bias `get_dashboard` con esa versión (U9 BR-U9-18; quinta revisión del FD de U9, 2026-10-10) |
 | `list_freezes() -> list[FreezeSummary]` | `GET /api/console/freezes` | cumplimiento, cro | — | — | bias |
-| `get_freeze(freeze_id) -> FreezeContext` | `GET /api/console/freezes/{id}` | cumplimiento | — | el congelamiento existe | bias `get_context_package` |
+| `get_freeze(freeze_id) -> FreezeRecord` | `GET /api/console/freezes/{id}` | cumplimiento | — | el congelamiento existe | bias `get_context_package` |
 
 **Cobertura:** cada acción de usuario de las historias de E1–E5 tiene un endpoint en
 esta tabla, salvo la visualización de métricas, que se hace en Grafana (F06). La matriz
@@ -176,6 +177,7 @@ En el MVP solo existe `TemplateNarrativeGenerator`. Un futuro `InClusterLLMNarra
 | `submit_source_counts(run_id, pre, post)` | `PUT /v1/validation-runs/{run_id}/source-counts` | model-validation-job (`governance:validation-report`) |
 | `submit_validation_report(mv_id, r: ValidationReport)` | `PUT /v1/models/{id}/validation-report` | model-validation-job (identidad de servicio) |
 | `approve_model(mv_id, decision, user)` | `POST /v1/models/{id}/approval` | BFF (cro, con MFA) |
+| `retire_model(mv_id, user) -> ModelVersion` | `POST /v1/models/{id}/retirement` | BFF (cro, con MFA; cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | `list_models(filter) -> Page[ModelVersion]` | `GET /v1/models?state=…` (filtro por uno o varios estados; `state=activo,congelado` da la versión servible) | BFF (ingeniero_riesgo, cro, cumplimiento; para `get_disparity` del BFF, cro y cumplimiento) (sexta revisión del FD de U9, 2026-10-10) |
 | `list_promotable() -> list[ModelVersion]` | `GET /v1/models?state=aprobado` | promotion-tool |
 | `mark_active(mv_id, evidence)` | `POST /v1/models/{id}/activation` | promotion-tool tras sync aprobado (ingeniero_riesgo) |

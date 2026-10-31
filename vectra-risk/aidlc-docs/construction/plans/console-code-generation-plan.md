@@ -85,7 +85,7 @@ vectra-risk/console/
 ### Bloque B — Lógica pura del BFF
 
 - [ ] **Paso 3 — `object_rules` y `errors`**
-  - `object_rules`: una función pura por endpoint con regla de objeto de C03 (`record_decision` ⇔ `listo`; `retry_case` ⇔ `no_disponible` y no anonimizado; `approve_model` ⇔ `lista_para_aprobacion`; `resolve_frozen` ⇔ `congelado`; `decide_data_source` ⇔ `en_evaluacion` con informe; `start_validation` ⇔ `registrado`; `approve_policy` ⇔ `propuesta`; etc.).
+  - `object_rules`: una función pura por endpoint con regla de objeto de C03 (`record_decision` ⇔ `listo`; `retry_case` ⇔ `no_disponible` y no anonimizado; `approve_model` ⇔ `lista_para_aprobacion`; `resolve_frozen` ⇔ `congelado`; `decide_data_source` ⇔ `en_evaluacion` con informe; `start_validation` ⇔ `registrado` o `validacion_fallida`; `retire_model` ⇔ `inactivo`, `rechazado` o `validacion_fallida` (cuarta revisión de coherencia entre unidades, 2026-10-31); `approve_policy` ⇔ `propuesta`; etc.).
   - `errors`: traducción de cualquier respuesta de error de un destino al `Problem` de U0 (mismo `code`, o `internal_error`), sin `detail`; un 403 o 404 de un destino se propaga como tal.
   - Diseño: BR-U10-01, 03, 04; P-U10-01, 03. Historias: US-602, US-611.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest console/bff/tests/property/test_object_rules.py tests/property/test_errors.py`: PBT-U10-02 y PBT-U10-03.

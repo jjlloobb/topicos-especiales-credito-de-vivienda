@@ -19,7 +19,7 @@ en la infraestructura compartida de U1. Los IDs `INF-U3-xx` se referencian en el
 - Sobreviven a la pérdida del sitio: después de un restore, la verificación vuelve a comparar la cadena con los checkpoints externos.
 - El archivo contiene **datos seudonimizados**. Sigue el precedente de F70: destino dentro de la infraestructura del banco y cifrado (AUTONOMIA-05).
 - **[VERIFICAR]** con el área de almacenamiento del banco que su S3 soporta object lock en modo `COMPLIANCE`. Es irreversible: el banco paga 10 años de almacenamiento.
-- En kind, los dos buckets viven en MinIO (U1) con object lock, porque no hay un sitio externo que simular.
+- En kind, los dos buckets viven en MinIO (U1) con object lock, porque no hay un sitio externo que simular; se llega por F118, no por F77–F79 (cuarta revisión de coherencia entre unidades, 2026-10-31).
 
 ## 2. Firma (Q3)
 
@@ -79,7 +79,7 @@ en la infraestructura compartida de U1. Los IDs `INF-U3-xx` se referencian en el
 ### INF-U3-05
 - Cluster de CloudNativePG de U1 (INF-U1-02): 3 instancias, 100 Gi + 20 Gi de WAL, expansible; particiones por migración (P-U3-06).
 - Servicios: `registry-db-rw` (primaria) y `registry-db-ro` (réplicas).
-- Roles gestionados por la migración inicial: `registry_app`, `registry_verifier` (con `SELECT` sobre las tablas derivadas salvo `monitoring_case_index`), `registry_health` (con `pg_monitor`), `registry_migrator` y `registry_aggregator` (segunda revisión del FD de U9, 2026-10-08). Contraseñas desde ESO; TLS `verify-full`.
+- Roles gestionados de CloudNativePG (U1, INF-U1-02); la migración inicial, con `registry_migrator`, solo da los grants (cuarta revisión de coherencia entre unidades, 2026-10-31): `registry_app`, `registry_ondemand`, `registry_verifier` (con `SELECT` sobre las tablas derivadas salvo `monitoring_case_index`), `registry_health` (con `pg_monitor`), `registry_migrator` y `registry_aggregator` (segunda revisión del FD de U9, 2026-10-08). Contraseñas desde ESO; TLS `verify-full`.
 
 ## 5. Red
 

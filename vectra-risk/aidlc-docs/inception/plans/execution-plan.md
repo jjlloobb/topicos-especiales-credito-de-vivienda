@@ -135,24 +135,24 @@ Application Design y Units Generation son **obligatorias** en este plan: sin ell
 - [x] Reverse Engineering (SKIPPED: greenfield)
 - [x] Requirements Analysis (COMPLETED)
 - [x] User Stories (COMPLETED)
-- [x] Execution Plan (IN PROGRESS)
-- [ ] Application Design — **EXECUTE (OBLIGATORIA, no omitible)**
+- [x] Execution Plan (COMPLETED)
+- [x] Application Design — **EXECUTE (OBLIGATORIA, no omitible)**
   - **Por qué es obligatoria**: define los componentes que se reparten en unidades; sin ella no se pueden generar las unidades de trabajo, que son el entregable de este trabajo.
   - **Rationale adicional**: todos los componentes son nuevos. Hay que definir responsabilidades, métodos y contratos, en especial scoring ↔ explicación ↔ registro para el fail-closed. También hay que definir el contrato reemplazable de la narrativa (FR-EXP-06), las dependencias entre servicios y la clasificación de criticidad (RESILIENCY-01).
-- [ ] Units Generation — **EXECUTE (OBLIGATORIA, no omitible)**
+- [x] Units Generation — **EXECUTE (OBLIGATORIA, no omitible)**
   - **Por qué es obligatoria**: produce las unidades de trabajo, que son el entregable de este trabajo. Cada plan de tareas de CONSTRUCTION se hace sobre una unidad definida aquí.
   - **Rationale adicional**: hay varios servicios, una SPA, plataforma e IaC. Hace falta descomponer el sistema en unidades con dependencias y asignarles las 49 historias.
 
 ### 🟢 CONSTRUCTION PHASE (por unidad)
-- [ ] Functional Design — **EXECUTE**
+- [x] Functional Design — **EXECUTE**
   - **Rationale**: la lógica de negocio es compleja: máquina de estados del modelo, fail-closed, disparidad por bandas, reglas VIS/usura, cadena de hashes y cálculo de la North Star. PBT-01 exige identificar propiedades aquí. También hay que resolver la decisión abierta de NFR-RES-11 / US-308. Puede omitirse en unidades sin lógica de negocio (p. ej. plataforma pura), con justificación.
-- [ ] NFR Requirements — **EXECUTE**
+- [x] NFR Requirements — **EXECUTE**
   - **Rationale**: faltan fijar la latencia objetivo, validar el SLA [INTERNO], definir el intervalo de archivado WAL, seleccionar frameworks PBT (PBT-09) y elegir el stack concreto por unidad.
-- [ ] NFR Design — **EXECUTE**
+- [x] NFR Design — **EXECUTE**
   - **Rationale**: hay que diseñar patrones de circuit breaker, timeouts, reintentos con backoff, logging sin PII y tracing dentro del clúster. Aquí va la pregunta obligatoria de RESILIENCY-14.
-- [ ] Infrastructure Design — **EXECUTE**
+- [x] Infrastructure Design — **EXECUTE**
   - **Rationale**: hay que diseñar KServe, NetworkPolicies, RBAC, PostgreSQL con réplica síncrona, backups y WAL fuera del sitio, Argo CD con sync manual, HPA, Keycloak y el stack de observabilidad. Todo se entrega como manifiestos o charts vía PR (AUTONOMIA-01).
-- [ ] Code Generation — **EXECUTE, solo Part 1 (Planning)**
+- [x] Code Generation — **EXECUTE, solo Part 1 (Planning)**
   - **Rationale**: el usuario pidió detenerse en el plan de tareas de cada unidad. Cada plan lleva tareas con criterio de aceptación ejecutable (AUTONOMIA-02) y pasos de PBT y de ejemplo (PBT-10).
 - [ ] Build and Test — **FUERA DE ALCANCE**
   - **Rationale**: es instrucción explícita del usuario ("No escribas código"). Los comandos de build y prueba quedan especificados dentro de los planes de tareas.

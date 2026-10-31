@@ -28,7 +28,7 @@ App
 |       |   `-- GoToCase                  (por case_id; sin búsqueda por nombre)
 |       |-- CaseDetail                    analista, cro
 |       |   |-- RecommendationSummary     (outcome, score, marcas)
-|       |   |-- ExplanationPanel          (abre -> record_explanation_view)
+|       |   |-- ExplanationPanel          (abre -> record_explanation_view, solo analista)
 |       |   |-- ApplicationView           (sin etiquetas de monitoreo; free_text como texto)
 |       |   |-- CreditStatusBadge
 |       |   |-- ApplicantSummaryButton    analista, cro (caso decidido)

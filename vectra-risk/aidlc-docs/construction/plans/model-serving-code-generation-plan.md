@@ -125,7 +125,7 @@ vectra-risk/model-serving/
   - El operador ejecuta, con evidencia:
     1. promoción de M1 a M2 con tráfico continuo (los cuatro PR) → 0 respuestas `version_mismatch`;
     2. rollback a M1 → el activo nunca baja de 2 réplicas;
-    3. artefactos RT-3 en staging → los componentes no quedan listos;
+    3. artefactos RT-3 (a), (c) y (d) en staging → los componentes no quedan listos; (b) sí queda listo (cuarta revisión de coherencia entre unidades, 2026-10-31);
     4. saturación → 503 inmediatos y `ServingSaturation`;
     5. drenado de una zona → el activo sigue sirviendo;
     6. prueba de carga a 20 solicitudes/s (cuando exista U12) → sin superar los máximos y con p95 dentro del objetivo.

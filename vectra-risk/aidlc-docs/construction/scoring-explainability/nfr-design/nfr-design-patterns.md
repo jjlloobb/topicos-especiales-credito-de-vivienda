@@ -16,7 +16,7 @@ en CI.
 - **Hacia explainability**:
   - scoring envía la cabecera `x-vectra-deadline` con un instante absoluto en RFC 3339 con milisegundos: `min(ahora + 800 ms, pre_deadline)`.
   - explainability corta todo su trabajo en `min(deadline − 50 ms, llegada + 700 ms)` y, si ese instante llega, responde 504. scoring lo trata como `timeout`.
-  - Una cabecera ausente, mal formada o en el pasado se trata como «sin presupuesto externo» y aplica solo el tope de 700 ms. La llamada F12 (resumen al solicitante) no la envía.
+  - Una cabecera ausente o mal formada se trata como «sin presupuesto externo» y aplica solo el tope de 700 ms; una en el pasado da 504 inmediato (NFR-U0-23; cuarta revisión de coherencia entre unidades, 2026-10-31). La llamada F12 (resumen al solicitante) no la envía.
   - El tope propio de 700 ms acota el efecto de un desfase de reloj entre nodos (sincronizados por NTP en U1).
 - **En explainability, en paralelo**:
   - con la caché del diccionario fría, la consulta del diccionario (F103) y `:explain` (F22) se lanzan a la vez con `asyncio.TaskGroup`;

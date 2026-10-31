@@ -3510,3 +3510,43 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Correcciones de registro tras la verificación de estado; sin cambios de diseño.
 
 ---
+
+## Cuarta revisión de coherencia entre unidades — Solicitud
+**Timestamp**: 2026-10-31T16:55:05Z
+**User Input**: "verificar inconsistencias entre todas las unidades"
+**AI Response**: Revisión en curso; resultado al terminar.
+**Context**: Revisión transversal de U0–U12.
+
+---
+
+## Cuarta revisión de coherencia entre unidades — Resultado
+**Timestamp**: 2026-10-31T17:04:50Z
+**User Input**: (sin entrada nueva; cierre de la solicitud "verificar inconsistencias entre todas las unidades")
+**AI Response**: Revisión de cuatro ángulos (contratos de datos, parámetros operativos, identidad/red/despliegue, semántica de negocio), con citas de los hallazgos graves comprobadas contra los documentos. Hallazgos informados al usuario; no se modificó ningún documento de diseño ni plan.
+**Context**: Revisión de solo lectura; correcciones pendientes de la decisión del usuario.
+
+---
+
+## Correcciones de la cuarta revisión de coherencia — Solicitud
+**Timestamp**: 2026-10-31T17:11:06Z
+**User Input**: "aplica las recomendaciones"
+**AI Response**: Correcciones en curso; resultado al terminar.
+**Context**: Aplicar las tres decisiones recomendadas (RT-2, RT-3, roles de base) y las correcciones de los hallazgos de la cuarta revisión.
+
+---
+
+## Correcciones de la cuarta revisión de coherencia — Resultado
+**Timestamp**: 2026-10-31T17:19:18Z
+**User Input**: (sin entrada nueva; cierre de la solicitud "aplica las recomendaciones")
+**AI Response**: Aplicadas en 46 documentos (marca «cuarta revisión de coherencia entre unidades, 2026-10-31»). RT-3: resultado por paquete y explicador en 0 solo en kind como evidencia en runtime. Roles de base: gestionados de CloudNativePG en U1, grants en las migraciones. **Desviación de lo aprobado en RT-2**: se recomendó simular fechas UTC, pero `evaluated_at` y `recorded_at` usan el reloj real, así que simular no sirve; se aplicó una versión distinta del proxy por corrida, sin relajar BR-U9-08. Otras decisiones tomadas al aplicar: Grafana en 1 réplica con PVC; BR-U0-35 queda en 409; `data_sources` puede ir vacía en RT-2; sin reintento del borde ante 503. Sin commit.
+**Context**: Solo cambios a documentos; las aprobaciones de etapa son anteriores a estos cambios. Quedan sin resolver los puntos dudosos de la revisión.
+
+---
+
+## Preguntas de seguimiento tras la cuarta revisión de coherencia — Solicitud
+**Timestamp**: 2026-10-31T17:38:31Z
+**User Input**: "genera preguntas de seguimiento para resolver lo que sigue abierto"
+**AI Response**: Archivo de preguntas `construction/plans/cross-unit-review4-followup-questions.md`; pendiente de las respuestas del usuario.
+**Context**: Puntos abiertos de la cuarta revisión; sin cambios de diseño.
+
+---

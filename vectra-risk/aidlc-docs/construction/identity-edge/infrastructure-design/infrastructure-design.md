@@ -32,7 +32,7 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 
 - **Si la versión pinneada no permite desplegar el data plane en `vectra-edge`**, queda en `envoy-gateway-system`; `flows.yaml` se ajusta y la decisión se registra en `audit.md`. Se verifica en el plan de tareas.
 - El Service del data plane es el **único** `LoadBalancer` del clúster (INF-U1-05), con `externalTrafficPolicy: Local` o PROXY protocol v2 (NFR-U2-23).
-- La comunicación controlador → Envoy (xDS) es el flujo nuevo F95.
+- La comunicación xDS es el flujo nuevo F95: Envoy se conecta al controlador (cuarta revisión de coherencia entre unidades, 2026-10-31).
 
 ### INF-U2-03 — Servicio de rate limit
 - `envoyproxy/ratelimit` en `vectra-edge`: 2 réplicas repartidas por zona, PDB.

@@ -54,7 +54,7 @@ Envoy -> servicio de rate limit (gRPC 8083, 2 réplicas) -> Valkey primaria (Sen
 Valkey réplica (otra zona) -> replica desde la primaria; 3 Sentinel repartidos por zona
 Envoy -> Keycloak (2..4, por zona, vectra-identity) -> keycloak-db (CloudNativePG, U1)
 Keycloak -> LDAP del banco (LDAPS 636, solo prod, F73)
-Controlador de Envoy Gateway (envoy-gateway-system, 2 réplicas) -> Envoy (xDS 18000)
+Envoy -> Controlador de Envoy Gateway (envoy-gateway-system, 2 réplicas; xDS 18000)
 ```
 
 ## 2. Orden de instalación (waves de U1)

@@ -53,7 +53,7 @@ vectra-risk/case-management/
 |   |-- intake.py  evidence.py  sweeps.py  credit.py  db_gauges.py  api.py  app.py   # case-service
 |   |-- governance_client.py  job_queue.py  evaluation.py  worker.py                # case-worker
 |   `-- retention.py                                                   # CLI de case-retention
-|-- migrations/          # Alembic: tablas, roles, permisos por columna, triggers, RLS, filas fijas
+|-- migrations/          # Alembic: tablas, grants, permisos por columna, triggers, RLS, filas fijas
 |-- core_banking_mock/   src/core_banking_mock/ {app, auth, metrics}.py  fixtures/credits.json
 |-- chart/               templates/  values-{prod,staging,kind}.yaml
 |-- policies/            conftest/
@@ -103,7 +103,7 @@ vectra-risk/case-management/
     - el índice único parcial de `decisions` por `case_id` (`state` `pendiente_registro` o `confirmada`);
     - el índice único parcial de `evidence_outbox`: `UNIQUE (idempotency_key) WHERE state <> 'abandonada'` (domain-entities §3.1);
     - la columna `cases.ever_degraded boolean NOT NULL DEFAULT false` (FD de U11; pendientes posteriores al cierre, 2026-10-10), que solo el worker escribe (`case_worker`, en su `UPDATE` por columna; `case_app` no la tiene), y un trigger `guard_ever_degraded` que impide volverla a `false`; prueba de migraciones: el worker la pone en `true` → éxito, `case_app` → error de permisos, volver a `false` → excepción del trigger (pendientes consolidados, 2026-10-10).
-  - Roles `case_app`, `case_worker`, `case_retention` y `case_migrator`, con los permisos por tabla y por columna de `logical-components.md` §1 (INF-U8-01): `UPDATE` por columna de `case_app` y `case_worker` sobre `cases`; `SELECT` por columna de `case_retention`.
+  - Grants de `case_app`, `case_worker`, `case_retention` y `case_migrator` (los roles los crea U1; cuarta revisión de coherencia entre unidades, 2026-10-31), con los permisos por tabla y por columna de `logical-components.md` §1 (INF-U8-01): `UPDATE` por columna de `case_app` y `case_worker` sobre `cases`; `SELECT` por columna de `case_retention`.
   - Tabla `case_transitions (from_state, to_state, db_role)` con las filas de INF-U8-01 y trigger `guard_transition` (`BEFORE INSERT OR UPDATE OF state`, `SECURITY DEFINER`, dueño `case_migrator`, `SET search_path = pg_catalog, public`, compara con `session_user`).
   - Trigger `guard_vencido` (`SECURITY INVOKER`) y tabla `retention_settings` de una fila, escrita con `INSERT … ON CONFLICT (id) DO UPDATE` desde los values, sin tocar `created_at` (P-U8-05).
   - RLS en `evidence_outbox`: `worker_fail_closed_only` (`FOR INSERT TO case_worker WITH CHECK (entry_type = 'fail_closed')`) y `app_all` para `case_app` (INF-U8-01).

@@ -89,7 +89,7 @@ worker: toma evaluation_jobs (FOR UPDATE SKIP LOCKED, locked_until = ahora + 30 
 
 ```text
 BFF (analista) -> POST /v1/cases/{id}/decision (DecisionIn)
-  validate_decision(DecisionIn, recommendation) -> 422 | ok        (BR-U8-16, BR-U0-35, BR-U0-36)
+  validate_decision(DecisionIn, recommendation) -> 422 (BR-U8-16, BR-U0-36) | 409 conflict_state (BR-U0-35) | ok
   ¿caso listo y sin otra decisión? no -> 409   (vencido, anonimizado sin decisión, también 409)
   tx: decisions(pendiente_registro) + evidence_outbox(human_decision, UUIDv5(case_id, "human_decision"))
   append F16 -> ack:    tx: confirmada + caso decidido -> 200 DecisionRef

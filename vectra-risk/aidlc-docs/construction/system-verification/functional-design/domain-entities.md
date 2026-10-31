@@ -50,7 +50,7 @@ Además de RT-1..5, X01–X10 y las cuatro demos, el generador reconoce estas ev
 | Id | Qué prueba | Regla |
 |---|---|---|
 | `SIM-NORMAL` | La corrida `normal` del simulador: `accepted = sent`, un caso por solicitud aceptada y cada caso llega a `listo` o a un estado de fail-closed documentado | BR-U12-02 |
-| `RT2-LATENCY` | Las 5 corridas de latencia de RT-2, con su máximo ≤ 30 min | BR-U12-07 |
+| `RT2-LATENCY` | Las 5 corridas de latencia de RT-2, una por versión del proxy, con su máximo ≤ 30 min | BR-U12-07 |
 | `LOGS-NO-PII` | Durante las corridas, Loki no contiene ningún identificador ni nombre de las solicitudes enviadas (prefijo `SYN-` y el catálogo ficticio de U5) | BR-U12-12 |
 | `LOAD` | La prueba de carga con su línea base | BR-U12-08 |
 | `CASE-SIZE` | La medición del tamaño por caso | BR-U12-06 |

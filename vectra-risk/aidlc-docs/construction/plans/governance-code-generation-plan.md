@@ -16,7 +16,7 @@
 | Historias (dueña) | US-201, US-202, US-203, US-204, US-205, US-206, US-208, US-305 |
 | Historias (participa) | US-306 (dueña U9): ciclo de la fuente, versión candidata y modo `source_comparison` (quinta revisión del FD de U9, 2026-10-10) |
 | Ubicación | `vectra-risk/governance/` (servicio, `promotion-tool`, `model-validation-job`) y Applications en `vectra-risk-gitops` |
-| Datos propios | `governance-db` (esquema, triggers, roles) y el bucket `vectra-model-archive` |
+| Datos propios | `governance-db` (esquema, triggers, grants) y el bucket `vectra-model-archive` |
 | Depende de | U0 (tipos y `create_app`), U1 (plataforma, K01, model-store), U2 (roles, MFA, step-up, cliente `promotion-tool`), U3 (append con idempotencia), U9 (librería de disparidad y `compare_source`; se usa un doble hasta que exista), U5/U6 (modelo de referencia y KServe de staging para la validación real) |
 | Lo consumen | scoring (`serving-config`), BFF (consola), bias (`freeze`), U12 (verificación) |
 
@@ -38,7 +38,7 @@ vectra-risk/governance/
 |-- src/vectra_governance/
 |   |-- model_fsm.py  policy.py  serving_config.py  registration.py   # puros
 |   |-- evidence.py  background.py  convergence.py  pools.py  api.py  k8s_jobs.py
-|-- migrations/                  # Alembic: tablas, índice parcial, triggers, roles, NOTIFY
+|-- migrations/                  # Alembic: tablas, índice parcial, triggers, grants, NOTIFY
 |-- promotion_tool/              # CLI: PKCE loopback, gh, gitsign
 |-- validation_job/              # AUC, disparidad, sincronía, informe
 |-- archive_job/                 # model-archive
@@ -67,7 +67,7 @@ vectra-risk/governance/
   - Triggers `guard_unfreeze` y `guard_freeze` (P-U4-06).
   - `validation_runs.mode` (`validacion` por omisión en las filas existentes), `source_id`, `baseline_version_id`; `model_versions.source_candidate_for`; `data_sources.pre_post_report` (segunda revisión del FD de U9, 2026-10-08).
   - `NOTIFY serving_config` al confirmar.
-  - Roles `gov_app`, `gov_migrator` y `gov_archiver` (permiso por columna); sin `DELETE` en tablas de historia.
+  - Grants de `gov_app`, `gov_migrator` y `gov_archiver` (permiso por columna); los roles los crea U1 (cuarta revisión de coherencia entre unidades, 2026-10-31); sin `DELETE` en tablas de historia.
   - Diseño: BR-U4-02, 03; NFR-U4-30; P-U4-01, 06; INF-U4-03. Historia: US-305.
   - **Aceptación**: `uv run pytest governance/tests/integration/test_migrations.py` (Testcontainers):
     - una transición `descartada` con `n = 5` → otra inserción con `n = 5` en la misma entidad viola el índice (el `n` sigue reservado); una `abandonada` con `n = 5` → se puede insertar otra con `n = 5` (precisado el 2026-10-06, revisión del FD de U8);

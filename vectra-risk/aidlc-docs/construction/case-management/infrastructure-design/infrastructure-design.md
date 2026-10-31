@@ -51,7 +51,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 
   La transición `en_evaluacion` → `en_sincronizacion` → `no_disponible` de la tabla de BR-U8-12 queda cubierta: `no_disponible` solo se alcanza desde un estado de evaluación y por el worker.
 - **Flujos**: F15 pasa a tener origen `case-worker`; F104 y F40 suman `case-worker` como origen. La `NetworkPolicy` y la `AuthorizationPolicy` de scoring admiten solo `case-worker`, y las de governance admiten `case-service` (solo `serving-config`) y `case-worker`.
-- Credenciales: la llave privada de cada cliente de Keycloak (`private_key_jwt`) llega por un `ExternalSecret` (U2). La contraseña de cada rol de base es un `Secret` de los roles gestionados de CloudNativePG (U1).
+- Credenciales: la llave privada de cada cliente de Keycloak (`private_key_jwt`) llega por un `ExternalSecret` (U2). La contraseña de cada rol de base llega por un `ExternalSecret` en `vectra-app`, con la misma ruta de la bóveda que el rol gestionado de CloudNativePG (U1, INF-U1-02; cuarta revisión de coherencia entre unidades, 2026-10-31).
 - **Satisface**: SECURITY-06, 08; AUTONOMIA-03; NFR-U8-41, 45.
 - **Verificación**:
   - prueba de migraciones con Testcontainers: `case_worker` intenta leer `decisions`, borrar `case_identifiers` y escribir `vencido` → error; `case_app` intenta `DELETE` sobre `evaluation_jobs` → error;
@@ -237,4 +237,4 @@ Recalculado en los pendientes posteriores al cierre, 2026-10-10: la versión ant
 - **Para Operations**: integración con el core real del banco (INF-U8-02): contrato del API **[VERIFICAR]**, flujo de egress en §5 de `component-dependency.md` (host, puerto y TLS), revisión de seguridad, equivalente de X01 fuera de la malla (egress gateway que solo admita `GET /v1/credits/{id}`), `CoreWriteAttempt` alimentado por ese gateway y el scope `core:read-credit` en el realm de producción.
 - **Para U10** (resuelto el 2026-10-10 por U10 FD, Q3): case-service devuelve `credit_status = no_integrado` con `core.enabled = false` y la consola lo muestra como «estado de crédito no integrado» (BR-U10-07).
 - **Para U12**: Job de demostración de RT-5 (INF-U8-03) y medición del tamaño por caso (INF-U8-08).
-- **Para el plan de tareas de U8**: CLI `case-retention` (ya pendiente del FD), migración con los cuatro roles y la fila de `retention_settings`, `PrometheusRule` con todas las alertas de P-U8 e INF-U8.
+- **Para el plan de tareas de U8**: CLI `case-retention` (ya pendiente del FD), migración con los grants de los cuatro roles y la fila de `retention_settings`, `PrometheusRule` con todas las alertas de P-U8 e INF-U8.

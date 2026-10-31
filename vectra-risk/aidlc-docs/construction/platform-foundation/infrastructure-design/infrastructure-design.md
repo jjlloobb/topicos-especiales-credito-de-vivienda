@@ -58,6 +58,8 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
   - **Por qué `count < 6`**: cada `Cluster` tiene 3 instancias con un volumen de datos y uno de WAL (INF-U1-02), así que se esperan 6 PVC. El `or vector(0)` cubre el caso sin ninguna serie, que `count()` no devuelve. Si cambia el número de instancias, cambia el 6 (el chart lo calcula de `instances × 2`). Los 15 min absorben la recreación de un PVC durante un failover.
   - `promtool test rules`: 79 % no dispara; 81 % → SEV3; 91 % → SEV2; con los cuatro `Cluster` reportando, **se quitan las series de `case-db`** y a los 15 min dispara la regla de `case-db` (SEV2) y ninguna otra; quitar una sola de las 6 series de `case-db` también dispara; con las 6 series presentes no dispara.
 
+**Roles de base de datos** (cuarta revisión de coherencia entre unidades, 2026-10-31). U1 declara en `managed.roles` de cada `Cluster` todos los roles de `component-dependency.md` §4. Cada contraseña sale de la bóveda: un `ExternalSecret` en `vectra-data` para CloudNativePG y otro, con la misma ruta, en el namespace de cada consumidor, porque un `Secret` no se monta desde otro namespace. Las migraciones de U3, U4 y U8 se conectan con su `*_migrator`, crean los objetos y dan los grants; no crean roles.
+
 ### INF-U1-03 — Almacenamiento de objetos (Q4)
 
 | Uso | Dónde | Bucket | Protección |
@@ -66,8 +68,9 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 | model-store | **MinIO in-cluster** (`vectra-data`) | `model-store`, `validation-datasets` | Versionado; credenciales de solo lectura para KServe y validación |
 | Logs | MinIO in-cluster | `loki` | Object lock de 90 días; retención por lifecycle (NFR-U1-30) |
 | Trazas | MinIO in-cluster | `tempo` | Lifecycle de 7 días |
+| Archivo WORM de U3 y U4 (**solo kind**) | MinIO in-cluster (F118) | `vectra-registry-checkpoints`, `vectra-registry-archive`, `vectra-model-archive` | Object lock; en staging y prod son del S3 del banco (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 
-- **MinIO distribuido**: 4 pods en el pool `data` (2 por zona) con erasure coding y un volumen por pod (200 Gi inicial). En kind, 4 pods sobre los 4 workers, con volúmenes `local-path`.
+- **MinIO distribuido**: 4 pods en el pool `data` (2 por zona) con erasure coding y un volumen por pod (200 Gi inicial). En kind, 4 pods sobre los 4 workers, con volúmenes `local-path`. Tráfico entre pods por F115 (cuarta revisión de coherencia entre unidades, 2026-10-31).
 - **Consecuencia**: no aparece ningún egress nuevo para observabilidad ni para KServe. El único destino S3 externo sigue siendo el de backups (F70).
 - La pérdida de MinIO (sitio) afecta logs, trazas y el model-store. Los modelos se reconstruyen desde el pipeline del banco y los logs aceptan RPO en horas (§8.4 de requirements). MinIO **no** guarda datos de solicitantes salvo los logs, que no tienen PII (U0, P-U0-04).
 
@@ -91,9 +94,9 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 | `linkerd-cni` | DaemonSet de CNI | Solo red del host (sin tráfico de pod) |
 | `kyverno` | Admission, background y reports controllers | deny-all + F85, F76 |
 | `external-secrets` | ESO | deny-all + F86 (kind) / F74 (prod) |
-| `vectra-restore-drill` | CronJob y cluster efímero | deny-all + F75 (egress a backups fuera del sitio) + F87 (egress al Pushgateway, 9091) + F80 (ingress desde el operador CloudNativePG hacia el cluster efímero) |
+| `vectra-restore-drill` | CronJob y cluster efímero | deny-all + F75 (egress a backups fuera del sitio) + F87 (egress al Pushgateway, 9091) + F80 (ingress desde el operador CloudNativePG hacia el cluster efímero) + F83 (plano de control de Linkerd) + F114 (5432 del cluster efímero) + F98 en kind o F99 en staging y prod (llave pública) + F118 (solo kind) + egress a la API de K12 (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | `vault` (solo kind) | Vault dev | deny-all + F86 |
-| `envoy-gateway-system` | Controlador de Envoy Gateway (U2, INF-U2-02; binding K14) | deny-all + F95 (agregado el 2026-10-08) |
+| `envoy-gateway-system` | Controlador de Envoy Gateway (U2, INF-U2-02; binding K14) | deny-all + F95 (agregado el 2026-10-08; ingress desde Envoy, cuarta revisión de coherencia entre unidades, 2026-10-31) |
 
 - MinIO se despliega en `vectra-data` (Q7), junto a PostgreSQL.
 - Los flujos de cada namespace se declaran en `flows.yaml` y se generan como los demás (P-U1-01).
@@ -105,13 +108,13 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 | Componente | Despliegue | Retención | Almacenamiento |
 |---|---|---|---|
 | Prometheus | 2 réplicas (HA), por zona | 30 días | PVC 100 Gi por réplica |
-| Alertmanager | 3 réplicas en cluster | — | — |
+| Alertmanager | 3 réplicas en cluster (gossip, F116) | — | — |
 | Loki | Modo simple escalable, por zona | 90 días (object lock + lifecycle) | MinIO `loki` |
 | Tempo | Modo distribuido mínimo | 7 días | MinIO `tempo` |
 | OTel Collector | Deployment, 2 réplicas | — | — |
 | Pushgateway | 1 réplica con `--persistence.file` y `--persistence.interval=1m`, `vectra-normal`; `Server` y `HTTPRoute` de Linkerd por identidad y método (P-U1-13; antes «sin persistencia», revisión de coherencia entre unidades, 2026-10-10) | Hasta el siguiente push o el borrado del grupo; sobrevive a un reinicio | PVC de 1 GiB (P-U1-13) — (F87 y F106 de entrada, F88 de scrape; F106 = CronJob de bias desde `vectra-app`, revisión del FD de U9, 2026-10-08) |
 | **Grafana Alloy** | DaemonSet (logs de stdout → Loki) | — | — |
-| Grafana | 2 réplicas, dashboards como código | — | BD SQLite efímera; los dashboards vienen de Git |
+| Grafana | 1 réplica con `Recreate`, dashboards como código | — | SQLite en un PVC de 1 GiB: los permisos de carpeta y la cuenta de servicio se guardan en la base y no se reconstruyen de Git, así que no puede ser efímera ni repartirse entre réplicas sin base compartida (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | Job y CronJob `grafana-folder-permissions` | Aplica y compara los permisos de carpetas de `folder-permissions.yaml` por la API de Grafana (F110); `GrafanaFolderPermissionsDrift` si difieren | — | Sin estado; la fuente es Git (agregado en revisión de coherencia entre unidades, 2026-10-10; FD de U11, BR-U11-13) |
 
 ### INF-U1-08 — Relación con el banco (Q9)

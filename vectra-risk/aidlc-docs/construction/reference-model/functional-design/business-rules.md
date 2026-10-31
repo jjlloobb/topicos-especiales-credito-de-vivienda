@@ -80,7 +80,7 @@ debe quedar por encima. Si no, la entrega falla.
 **≥ 10 pp** (el doble del umbral de U9) sobre `validation`, medida con la librería de U9.
 Si no la produce, la entrega de la variante falla.
 
-**BR-U5-15 — Uso restringido.** La variante proxy se registra como una versión distinta,
+**BR-U5-15 — Uso restringido.** La variante proxy se registra como 5 versiones distintas, una por corrida de RT-2 (cuarta revisión de coherencia entre unidades, 2026-10-31),
 con la etiqueta `purpose = rt2-demo` en el manifiesto, y solo se usa en kind y staging para
 la demostración. El municipio nunca llega al `FeatureVector`: la búsqueda ocurre en `derive`
 y solo sale `zona_vivienda`, con al menos 5 municipios por zona (BR-U0-34).

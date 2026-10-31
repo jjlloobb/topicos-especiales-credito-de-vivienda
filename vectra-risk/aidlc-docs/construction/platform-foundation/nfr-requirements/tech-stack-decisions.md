@@ -44,7 +44,7 @@ GitOps (imágenes por digest, NFR-U1-25).
 | Logs | Loki + **Grafana Alloy** (DaemonSet; elegido en el Infrastructure Design de U1) | 90 días, con object lock |
 | Trazas | Tempo + OpenTelemetry Collector | 7 días |
 | Dashboards | Grafana, con dashboards como código | — |
-| Pushgateway | Prometheus Pushgateway, 1 réplica sin persistencia, para jobs batch (`restore-drill` F87, CronJob de bias F106); alerta `PushgatewayDown` (tercera revisión del FD de U9, 2026-10-10) | Hasta el siguiente push |
+| Pushgateway | Prometheus Pushgateway, 1 réplica con persistencia (P-U1-13; cuarta revisión de coherencia entre unidades, 2026-10-31), para jobs batch (`restore-drill` F87, CronJob de bias F106, `realm-drift` F112, permisos de Grafana F113); alerta `PushgatewayDown` (tercera revisión del FD de U9, 2026-10-10) | Hasta el siguiente push |
 | Pruebas de reglas | `promtool test rules` | — |
 
 ## 5. CI (GitHub Actions)

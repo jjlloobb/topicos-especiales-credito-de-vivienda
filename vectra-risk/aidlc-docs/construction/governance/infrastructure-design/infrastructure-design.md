@@ -41,7 +41,7 @@ infraestructura compartida de U1. Los IDs `INF-U4-xx` se referencian en el plan 
 - El servicio de la API **no** hace este egress (AUTONOMIA-05 aplicado por identidad, como en U3).
 - Alerta `ModelArchivePending` (SEV2) si una versión `activo` o `inactivo` pasa 48 h sin `archived_uri`.
 - **[VERIFICAR]** con el área de almacenamiento del banco que su S3 soporta `COMPLIANCE` (pendiente también desde U3).
-- En kind, el bucket vive en MinIO con object lock.
+- En kind, el bucket vive en MinIO con object lock y se llega por F118, no por F100 (cuarta revisión de coherencia entre unidades, 2026-10-31).
 
 ### INF-U4-03 — Rol `gov_archiver`
 Permisos en `governance-db`: `SELECT` sobre `model_versions` y `transitions` (tabla única de transiciones, precisada el 2026-10-06), y

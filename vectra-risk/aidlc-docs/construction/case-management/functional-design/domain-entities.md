@@ -108,8 +108,9 @@ Los identificadores salen en `get_case` hacia el BFF, para el detalle del analis
 | Situación | Respuesta |
 |---|---|
 | Validación de `ApplicationIn` o `DecisionIn` | 422 `validation_error` (BR-U0-30, sin valores) |
+| `DecisionIn` incoherente con la recomendación (BR-U0-35) | 409 `conflict_state` (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | Misma `Idempotency-Key` con otro cuerpo | 409 `conflict_state` |
-| `X-Test-Scenario` en producción | 400 `validation_error` |
+| `X-Test-Scenario` en producción | 422 `validation_error` |
 | Decisión sobre un caso que no está `listo` (incluido `vencido`), segunda decisión o decisión pendiente | 409 `conflict_state` |
 | Consulta de la explicación sobre un caso que no está `listo` ni `decidido` (incluido `vencido`) | 409 `conflict_state` |
 | `retry` sobre un caso que no está `no_disponible` (incluido `vencido`) | 409 `conflict_state` |

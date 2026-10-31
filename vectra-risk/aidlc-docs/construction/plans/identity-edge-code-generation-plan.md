@@ -125,7 +125,7 @@ vectra-risk/identity-edge/
   - **Aceptación**: `helm template` + `conftest test identity-edge/keycloak/` (réplicas, HPA, spread, PDB, `start --optimized`, `hostname-admin` interno, sin Secret plano, hook de sync presente).
 
 - [ ] **Paso 6 — `realm-drift` y exportador de antigüedad de llaves**
-  - CronJob diario que exporta el realm, lo normaliza (sin secretos, IDs internos ni timestamps) y lo compara con Git; emite `RealmDrift`.
+  - CronJob diario que exporta el realm, lo normaliza (sin secretos, IDs internos ni timestamps) y lo compara con Git; empuja `vectra_realm_drift` al Pushgateway (F112), de donde sale `RealmDrift` (cuarta revisión de coherencia entre unidades, 2026-10-31).
   - Exportador que publica la antigüedad de la llave de firma activa (`SigningKeyAgeHigh`).
   - Diseño: BR-U2-12; P-U2-05.
   - **Aceptación**: `uv run pytest identity-edge/tests/unit/test_realm_diff.py` y una propiedad: `normalize(normalize(x)) == normalize(x)`, y dos exportaciones que solo difieren en secretos o timestamps no generan diferencias.
@@ -171,7 +171,7 @@ vectra-risk/identity-edge/
 ### Bloque D — Plataforma: red, observabilidad y GitOps
 
 - [ ] **Paso 10 — Flujos y RBAC**
-  - Agregar a `platform/network/flows.yaml` de U1: F05, F43, F50, F73 (solo prod), F90–F95 y el scrape de Keycloak (9000), Envoy, rate limit y el exportador de Valkey. Agregar el RBAC K14 y el de `realm-drift`.
+  - Agregar a `platform/network/flows.yaml` de U1: F05, F43, F50, F73 (solo prod), F90–F95, F112, F117 y el scrape de Keycloak (9000), Envoy, rate limit y el exportador de Valkey. Agregar el RBAC K14. `realm-drift` no tiene binding: usa F94, no la API de Kubernetes (cuarta revisión de coherencia entre unidades, 2026-10-31).
   - Diseño: INF-U2-02..04; P-U1-01.
   - **Aceptación**: `uv run python platform/network/generate.py --check` y `uv run pytest platform/network/tests` (los IDs F90–F95 y K14 de `component-dependency.md` están en `flows.yaml`).
 

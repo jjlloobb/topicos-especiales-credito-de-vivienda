@@ -159,7 +159,7 @@ vectra-risk/product-metrics/
     - la `PrometheusRule` de U11 tiene exactamente cuatro `alertname`;
     - réplica recién arrancada con U3 caído (`up = 1`, sin `vectra_product_last_full_recompute_timestamp`) → `ProductMetricsFullRecomputeMissing` no dispara al arrancar ni a las 25 h, y dispara por la rama de ausencia a las 26 h; con la serie en 0 dispararía de inmediato, por eso el `Collector` no la emite (pendientes consolidados, 2026-10-10);
     - dos réplicas idénticas → una sola `RuidoExplicacion`;
-    - `vectra:product_complete_response_ratio:1h` con 98 y 2 → 0,98.
+    - `vectra:product_complete_response_ratio:1h` con 98 repartidos entre `favorable`, `desfavorable` y `revision_requerida` y 2 `fail_closed` → 0,98 (cuarta revisión de coherencia entre unidades, 2026-10-31).
 
 - [ ] **Paso 13 — Dashboards y runbooks**
   - `product.json` (carpeta `Vectra / Producto`): North Star con desglose, tasa de consulta con el piso y los días bajo el piso, sostenida con la nota de aproximación, originación con el target, respuesta completa y fail-closed, no atribuibles, excluidas y degradado; solo series `:dedup`; targets como líneas.

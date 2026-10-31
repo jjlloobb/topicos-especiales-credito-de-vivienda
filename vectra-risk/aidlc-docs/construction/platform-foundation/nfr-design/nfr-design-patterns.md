@@ -9,12 +9,13 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 ## 1. Seguridad
 
 ### P-U1-01 — Red generada desde un inventario de flujos (Q1)
-- `platform/network/flows.yaml` es la única fuente de los flujos permitidos. Refleja las tablas de `component-dependency.md` (hoy F01–F111: los flujos de INCEPTION, los que agregó el Infrastructure Design de U1 y los de las unidades siguientes; precisado el 2026-10-08). La prueba de completitud extrae los IDs del Markdown, sin un rango fijo.
+- `platform/network/flows.yaml` es la única fuente de los flujos permitidos. Refleja las tablas de `component-dependency.md` (hoy F01–F118: los flujos de INCEPTION, los que agregó el Infrastructure Design de U1 y los de las unidades siguientes; precisado el 2026-10-08). La prueba de completitud extrae los IDs del Markdown, sin un rango fijo.
 - Cada entrada tiene `id`, `from` (namespace + ServiceAccount), `to` (namespace + ServiceAccount + puerto), `protocol` y `justification`.
 - `platform/network/generate.py` produce, para cada namespace de Vectra:
   - la NetworkPolicy `deny-all` de ingress y egress;
   - una NetworkPolicy `allow-<flow-id>` por flujo;
   - el DNS hacia `kube-dns` como única excepción común;
+  - una NetworkPolicy `allow-k8s-api-<K-id>` por cada binding K cuyo sujeto corre en un pod, limitada a ese ServiceAccount; K09 y K16 no la llevan (cuarta revisión de coherencia entre unidades, 2026-10-31);
   - los recursos `Server` y `AuthorizationPolicy` de Linkerd (P-U1-02);
   - las pruebas de conectividad: por flujo, un caso permitido y otro bloqueado.
 - **Verificación**: `python platform/network/generate.py --check` (CI falla si los manifiestos versionados difieren de los generados) y la suite de conectividad en kind.
@@ -24,6 +25,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 - Anotación `config.linkerd.io/default-inbound-policy: deny` en todos los namespaces de Vectra.
 - Por cada flujo de `flows.yaml`: un `Server` (puerto del destino) y una `AuthorizationPolicy` con `MeshTLSAuthentication` que admite solo la identidad (ServiceAccount) de origen.
 - Excepciones explícitas, también en el inventario: probes del kubelet y scrape de Prometheus al puerto 8081.
+- **Orígenes sin malla** (cuarta revisión de coherencia entre unidades, 2026-10-31): F80 sale de `cnpg-system`, que no tiene identidad mTLS. Las instancias de PostgreSQL llevan `config.linkerd.io/skip-inbound-ports: "8000"`, y el `Server` de 5432 admite además una `NetworkAuthentication` con el rango de pods de `cnpg-system`; la NetworkPolicy de F80 sigue limitando el origen. Se verifica con una conmutación por error en kind y con un pod de otro namespace, que queda bloqueado.
 - **Verificación**: prueba en kind desde un pod de otra ServiceAccount del mismo namespace → 403 de Linkerd; `linkerd viz authz` muestra la política por flujo.
 - **Satisface**: NFR-U1-21; SECURITY-08 (defensa en profundidad), SECURITY-06.
 
@@ -157,6 +159,8 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
   |---|---|
   | `bias-monitoring-job` (U9, F106) | `PUT` y `DELETE` en `/metrics/job/bias-monitoring/**`; `GET /api/v1/metrics` |
   | `restore-drill` (F87) | `PUT` en `/metrics/job/restore-drill/**` |
+  | `realm-drift` (U2, F112) | `PUT` en `/metrics/job/realm-drift/**` (cuarta revisión de coherencia entre unidades, 2026-10-31) |
+  | CronJob de `grafana-folder-permissions` (F113) | `PUT` en `/metrics/job/grafana-folder-permissions/**` (cuarta revisión de coherencia entre unidades, 2026-10-31) |
   | Prometheus (F88) | `GET /metrics` |
   | Cualquier otra | Denegado (403 de Linkerd) |
 

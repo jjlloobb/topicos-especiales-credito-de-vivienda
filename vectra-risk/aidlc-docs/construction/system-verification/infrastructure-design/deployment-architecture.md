@@ -71,7 +71,7 @@ Nada de U12 corre ni se despliega dentro del clúster.
 
 | Tramo | kind | staging |
 |---|---|---|
-| Gateway | El host `vectra.kind.local`, resuelto en la estación a la IP del puerto 443 que kind publica en el host (`extraPortMappings` del clúster de U1) | El host público de staging del gateway |
+| Gateway | El host `vectra.localtest.me` de U2 (INF-U2-01; cuarta revisión de coherencia entre unidades, 2026-10-31), que resuelve a la dirección local donde kind publica el puerto 443 (`extraPortMappings` del clúster de U1) | El host público de staging del gateway |
 | CA | La CA interna de cert-manager de U1 (borde): el operador exporta su certificado raíz del clúster de kind y la imagen lo recibe como archivo de solo lectura | La CA del banco que firma el certificado del gateway de staging |
 | API de Kubernetes | El kubeconfig de kind del operador | El kubeconfig de staging del operador, con su grupo `vectra-verification-operators` (K16) |
 | `port-forward` | Por la API de Kubernetes (K16) | Igual |

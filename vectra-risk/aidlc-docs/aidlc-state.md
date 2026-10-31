@@ -10,9 +10,9 @@
 
 ## Workspace State
 - **Existing Code**: No
-- **Programming Languages**: Ninguno (solo documentos Markdown en `entradas/`)
+- **Programming Languages**: Ninguno (solo documentos Markdown en `entradas/` y `aidlc-docs/`)
 - **Build System**: Ninguno
-- **Project Structure**: Empty
+- **Project Structure**: Solo documentación (`entradas/`, `aidlc-docs/`, `.aidlc-rule-details/`, `AGENTS.md`); sin código de aplicación
 - **Reverse Engineering Needed**: No
 - **Workspace Root**: /home/jjlloobb/IT/PUJ/MINSC/GitHub/topicos-especiales-credito-de-vivienda/vectra-risk
 
@@ -112,6 +112,7 @@ tabla de cambios de la unidad afectada y en `audit.md`. Las de más impacto:
 | U0, U1, U3, U4, U7, U12; inventario de unidades | Infra (cuotas), NFR Design (alertas) y planes | Revisión de coherencia entre unidades (2026-10-10): cuotas de U3 y U4 declaradas y U7 recalculada; copia de `received_at`, `channel`, `attempt` y `first_evaluation` en el plan de U7; `ServingConfigStale` en P-U4-08; diseño de U1 con `GrafanaFolderPermissionsDrift`, el Job de F110 y el Pushgateway persistente; matriz de dependencias completa |
 | U1; catálogo de componentes | NFR, NFR Design y plan; `components.md`, `application-design.md` | Segunda revisión de coherencia (2026-10-10): `AuthDeniedBurst` solo en U2; NFR-U1-12 con las tres exenciones; C04 con `case-worker` y C14 fuera del clúster |
 | U1; `unit-of-work.md` | NFR Design y plan | Tercera revisión de coherencia (2026-10-10): `FailClosedPersistente` sobre el gauge de U8; entrada de U8 con `case-worker` |
+| U0–U12; inventario de flujos y de métodos | FD, NFR, NFR Design, Infra y planes | Cuarta revisión de coherencia (2026-10-31): flujos F112–F118 y egress a la API de Kubernetes por binding K; `restore-drill`; roles de base en CloudNativePG (U1); oráculos de RT-2 (5 versiones del proxy) y RT-3 (por paquete); `inference_service` en `ExplainRequest`; tipos de gobierno en U0; xDS, CRDs, Grafana, buckets de kind, cuota de `vectra-serving` |
 
 Antes de Code Generation Part 2 de cualquier unidad, conviene revisar su plan contra su tabla de
 cambios, porque las aprobaciones son anteriores a estas revisiones.

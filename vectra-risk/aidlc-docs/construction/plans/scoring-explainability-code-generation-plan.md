@@ -138,7 +138,7 @@ vectra-risk/scoring-explainability/
   - `explain`:
     - lee `x-vectra-deadline` con `vectra_common.deadline`;
     - corte en `min(deadline − 50 ms, llegada + 700 ms)`;
-    - diccionario (F103) y `:explain` (F22) en paralelo con `asyncio.TaskGroup`, cancelando el otro si uno falla;
+    - diccionario (F103) y `:explain` (F22, al `inference_service` de `ExplainRequest`, que scoring copia de `serving-config`; cuarta revisión de coherencia entre unidades, 2026-10-31) en paralelo con `asyncio.TaskGroup`, cancelando el otro si uno falla;
     - verificación de versión, cobertura del diccionario, narrativa y factualidad;
     - errores tipificados: 409 `version_mismatch`, 422 `feature_dictionary_incomplete`/`factuality_failed`, 504 `timeout`, 503 `unavailable`, 500 `error`;
     - un cliente por dependencia (P-U7-04).

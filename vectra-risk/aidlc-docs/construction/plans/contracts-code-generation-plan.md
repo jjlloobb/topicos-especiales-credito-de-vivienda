@@ -116,6 +116,7 @@ vectra-risk/
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest contracts/tests/property -m "not common"`; cada falla imprime la semilla.
 
 - [ ] **Paso 7 — Pruebas de ejemplo obligatorias de la lógica (PBT-10)**
+  - Pruebas de los tipos de §9.3 agregados (`ModelRegistration`, `ModelVersion`, `ModelVersionDetail`, `ValidationRun`, `ValidationReport`, `DataSource`), de `ExplainRequest.inference_service` (formato `isvc-<8 hex>`), de `data_source_event.source_id` y de `CaseSummary.score?` (cuarta revisión de coherencia entre unidades, 2026-10-31).
   - Tabla de verdad nombrada de `build_outcome` (una por causa y por par de causas que prueba la precedencia), cuota de un crédito calculado a mano, hash JCS de un vector conocido, matriz de `DecisionIn` contra cada `outcome` (BR-U0-35), contexto decimal global alterado sin efecto (P-U0-10), `PolicyDraft` con vigencias normativas solapadas → `validation_error` (BR-U0-33) (agregado al revisar los cambios de U4). La prueba de `normative_current` nulo pasa a U7: produce `revision_requerida` con `parametro_normativo_no_vigente`, no un fail-closed (U7 FD Q1).
   - **Aceptación**: `uv run pytest contracts/tests/examples -m logic`.
 
