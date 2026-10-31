@@ -9,7 +9,7 @@ escenarios, informes de corrida y evidencias versionadas en el PR.
 
 | Tipo | Campos |
 |---|---|
-| `SimulatorScenario` | `name` (`normal`, `stratified`, `rt1`, `rt4`), `volume`, `rate` (≤ 30/s), `seed`, `strata?` (para `stratified`: `min_per_cell = 30`, atributos `region` y `estrato`) |
+| `SimulatorScenario` | `name` (`normal`, `stratified`, `rt1`, `rt4`), `volume`, `rate` (≤ 30/s), `seed`, `strata?` (para `stratified`: `min_per_cell = 30`, celda de U9: atributo, grupo y banda, con los cuatro atributos) |
 | `DecisionMix` | `p_view` (probabilidad de abrir la explicación), `p_sigue`, `p_se_aparta`, `p_resuelve_revision` (solo con `revision_requerida`), `p_factors` (marcar factores frente a «Ninguno»), `seed` |
 | `LoadProfile` | `intake_rate` (20/s), `console_users` (200, perfil de U10), `duration` (30 min), `baseline_rate` (5/s), `scale` (1 o 0,5) |
 

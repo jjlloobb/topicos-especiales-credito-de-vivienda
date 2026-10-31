@@ -4,7 +4,7 @@
 
 | Proceso | Módulo | Responsabilidad | Reglas |
 |---|---|---|---|
-| BFF | `routes` | Los 29 endpoints (incluidos `report_client_error`, NFR-U10-34, y `get_integrity_check`, P-U10-05) como `RouteContract` de U0, con rol, MFA y objeto | BR-U10-01 |
+| BFF | `routes` | Los 30 endpoints (incluidos `report_client_error`, NFR-U10-34, `get_integrity_check`, P-U10-05, y `retire_model`) como `RouteContract` de U0, con rol, MFA y objeto | BR-U10-01 |
 | BFF | `object_rules` | Reglas de objeto por endpoint (funciones puras sobre el estado que devuelve el servicio de destino) | BR-U10-01 |
 | BFF | `compose` | `get_disparity` y `get_dossier` | BR-U10-03 |
 | BFF | `errors` | Traducción de errores de los servicios al `Problem` de U0 | BR-U10-04 |
@@ -113,7 +113,7 @@ SPA: vista con IntegrityStatus; PDF generado en el navegador desde la respuesta
 
 | ID | Componente | Propiedad | Categoría | Generadores (PBT-07) |
 |---|---|---|---|---|
-| PBT-U10-01 | BFF `routes` | Para todo endpoint, todo rol y todo estado de token (válido, expirado, otra audiencia, sin rol, `acr = pwd`, `auth_time` vencido), la respuesta es la de la matriz de C03 (2xx, 401, 403 o `mfa_required`) y cada 401/403 emite `authz.denied` | Oráculo | Producto de los 29 endpoints × roles × estados de token |
+| PBT-U10-01 | BFF `routes` | Para todo endpoint, todo rol y todo estado de token (válido, expirado, otra audiencia, sin rol, `acr = pwd`, `auth_time` vencido), la respuesta es la de la matriz de C03 (2xx, 401, 403 o `mfa_required`) y cada 401/403 emite `authz.denied` | Oráculo | Producto de los 30 endpoints × roles × estados de token |
 | PBT-U10-02 | BFF `object_rules` | Para todo estado del objeto generado, la regla acepta ⇔ la columna «Objeto» de C03 lo permite (por ejemplo, `record_decision` ⇔ caso `listo`; `retry_case` ⇔ `no_disponible` y no anonimizado) | Oráculo | Estados de caso, modelo, política y fuente |
 | PBT-U10-03 | BFF `errors` | Para todo error de un servicio de destino, la respuesta del BFF es un `Problem` válido de U0 sin `detail` ni campos extra, con el mismo `code` o `internal_error` | Invariante | Respuestas de error generadas (códigos, cuerpos arbitrarios, cuerpos malformados) |
 | PBT-U10-04 | SPA validación de decisión | La validación del cliente acepta ⇔ acepta `validate_decision` de U8 (mismo oráculo de PBT-U8-03) | Oráculo | Los generadores de PBT-U8-03 |

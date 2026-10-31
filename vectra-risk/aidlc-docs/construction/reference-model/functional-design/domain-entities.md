@@ -94,7 +94,7 @@ quedan solo como `MonitoringLabels`.
 |---|---|---|
 | `RT3-a` | Explicador de otra versión con el mismo predictor | U4: 422 al registrar. U6, si se despliega por PR sin registrar: no listo |
 | `RT3-b` | Explicador sin una de las features | Pasa U4 y U6. Si `sync_check` lo detecta, `validacion_fallida`; si llega a servirse, `FailClosed` con `explainer_error` o `feature_dictionary_incomplete` |
-| `RT3-c` | Diccionario de otra versión | U4: 422 al registrar. U6, si se despliega por PR sin registrar: no listo |
+| `RT3-c` | Diccionario de otra versión | U4: 422 al registrar. U6 no lee el diccionario, así que no es barrera para este caso (quinta revisión de coherencia entre unidades, 2026-10-31) |
 | `RT3-d` | `manifest.json` con `model_version_id` distinto entre predictor y explicador | U4: 422 al registrar. U6, si se despliega por PR sin registrar: no listo |
 
-U4 debe **rechazar** al registrar los paquetes cuyos archivos no llevan el mismo `model_version_id` (`RT3-a`, `RT3-c` y `RT3-d`, BR-U4-06), y U6 es la segunda barrera. Solo `RT3-b` puede llegar a servirse (cuarta revisión de coherencia entre unidades, 2026-10-31).
+U4 debe **rechazar** al registrar los paquetes cuyos archivos no llevan el mismo `model_version_id` (`RT3-a`, `RT3-c` y `RT3-d`, BR-U4-06), y U6 es la segunda barrera para `RT3-a` y `RT3-d`. Solo `RT3-b` puede llegar a servirse (cuarta revisión de coherencia entre unidades, 2026-10-31).

@@ -39,7 +39,7 @@ ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
   - comprueban que el `model_version_id` coincide con la anotación.
 - Si algo no coincide → no listo + `ModelPackageIntegrityFailed`.
 - `startupProbe` con margen para la descarga y la verificación; readiness = paquete verificado (P-U1-04).
-- **Verificación**: artefactos RT-3 (a), (c) y (d) de U5 en staging o kind → el componente no queda listo; (b) lleva versiones coherentes y sí queda listo; un byte alterado → no queda listo (cuarta revisión de coherencia entre unidades, 2026-10-31).
+- **Verificación**: artefactos RT-3 (a) y (d) de U5 en staging o kind → el componente no queda listo; (b) lleva versiones coherentes y sí queda listo; (c) altera el diccionario, que U6 no usa (quinta revisión de coherencia entre unidades, 2026-10-31); un byte alterado → no queda listo (cuarta revisión de coherencia entre unidades, 2026-10-31).
 - **Satisface**: NFR-U6-03, 40; SECURITY-11, 13.
 
 ## 2. Escalado y aislamiento

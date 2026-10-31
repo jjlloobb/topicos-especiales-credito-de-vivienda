@@ -240,7 +240,7 @@ Trazabilidad: sección del PRD de origen.
 | RT-2 | Variables proxy discriminatorias sin variable protegida declarada | `bias-monitoring-service` detecta disparidad > umbral y **congela**; permanece congelado tras reintentos |
 | RT-3 | Desincronía forzada de versión scoring ↔ explicación | Respuesta "no disponible, reintentando"; **cero** scores entregados como decisión |
 | RT-4 | Adversarial examples sobre modelo tabular | La confianza reportada no se infla; entradas fuera de dominio se marcan baja confianza |
-| RT-5 | Intento de escritura a estado de crédito desde scoring/explainability | Denegado por RBAC **y** por NetworkPolicy (`kubectl auth can-i` = no; conexión rechazada) |
+| RT-5 | Intento de escritura a estado de crédito desde scoring/explainability | Denegado en dos capas: scoring y explainability no tienen ruta de red al core (X01), y ninguna identidad tiene `core:write-credit`, así que el proxy responde 403 al intento (Job `rt5-demo`). Sin `kubectl auth can-i`: esos servicios no tienen acceso a la API de Kubernetes (quinta revisión de coherencia entre unidades, 2026-10-31) |
 
 ---
 

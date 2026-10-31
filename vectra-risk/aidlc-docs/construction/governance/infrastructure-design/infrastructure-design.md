@@ -13,7 +13,7 @@ infraestructura compartida de U1. Los IDs `INF-U4-xx` se referencian en el plan 
 |---|---|---|---|---|
 | `governance-service` | 250m / 256 MiB | 1 CPU / 512 MiB | HPA de 2 a 6 por CPU al 70 %; spread por zona; PDB `minAvailable: 1` | `vectra-high` |
 | Job de migración | 100m / 128 MiB | 500m / 256 MiB | `activeDeadlineSeconds: 600` | `vectra-normal` |
-| `model-validation-job` | (NFR-U4-23) | 2 CPU / 4 GiB | `activeDeadlineSeconds: 7200` | `vectra-low` |
+| `model-validation-job` | 500m / 1 GiB (quinta revisión de coherencia entre unidades, 2026-10-31) | 2 CPU / 4 GiB | `activeDeadlineSeconds: 7200` | `vectra-low` |
 | `model-archive` (CronJob diario) | 100m / 256 MiB | 500m / 512 MiB | `activeDeadlineSeconds: 3600`; `concurrencyPolicy: Forbid`; sidecar nativo de Linkerd | `vectra-low` |
 
 - **Aporte a la cuota de `vectra-app`** (NFR-U1-13; revisión de coherencia entre unidades, 2026-10-10). Peor momento: el servicio en el máximo del HPA más su `maxSurge` (7 pods), la migración y `model-archive`, con el proxy de P-U1-14 y el 30 %:
@@ -24,7 +24,7 @@ infraestructura compartida de U1. Los IDs `INF-U4-xx` se referencian en el plan 
   | Migración y `model-archive`, con el proxy | 0,4 CPU / 424 MiB | 2 CPU / 1 024 MiB |
   | **Total + 30 %** | **≈ 3,71 CPU / 2,99 GiB** | **≈ 16,25 CPU / 6,99 GiB** |
 
-  `model-validation-job` corre en `vectra-staging` y entra en esa cuota (INF-U4-05), no en esta.
+  `model-validation-job` corre en `vectra-staging` y entra en esa cuota (INF-U4-05), no en esta. Su `ServiceAccount` y su `ExternalSecret` viven en ese namespace y los entrega el chart de U4 (quinta revisión de coherencia entre unidades, 2026-10-31).
 - La imagen del servicio incluye `tzdata` para `America/Bogota` (P-U4-05).
 - `governance-db` (INF-U1-02, `max_connections` 50): 6 réplicas × 5 (P-U4-04) + migración + `model-archive` + operador ≈ 37.
 

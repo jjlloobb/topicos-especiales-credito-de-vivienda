@@ -33,7 +33,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 - La jerarquía de Linkerd la gestiona cert-manager:
   - trust anchor de 1 año, con alerta 30 días antes y rotación por runbook con dos anchors en paralelo;
   - issuer intermedio rotado automáticamente cada 48 h.
-- Los certificados del borde (Envoy Gateway) y de PostgreSQL duran 90 días y se renuevan a los 60.
+- Los certificados del borde (Envoy Gateway), de PostgreSQL y de Keycloak (8443; quinta revisión de coherencia entre unidades, 2026-10-31) duran 90 días y se renuevan a los 60.
 - Alerta `CertificateExpiringSoon`: SEV2 a menos de 7 días, SEV1 a menos de 24 h.
 - **Verificación**: `cmctl status certificate` en kind; prueba de rotación del issuer sin cortes (`linkerd check --proxy`).
 - **Satisface**: NFR-U1-21, 22; SECURITY-01.
@@ -64,7 +64,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 - **Satisface**: NFR-RES-07 (precisado); RESILIENCY-06; NFR-U1-32.
 
 ### P-U1-05 — Simulacro de restore semanal (Q6)
-- `CronJob restore-drill` (semanal) en el namespace aislado `vectra-restore-drill`, cuyas NetworkPolicies solo permiten leer del almacenamiento de backups (F75, con una credencial de solo lectura limitada a los backups y WAL de `registry-db` y `case-db` y a los checkpoints; precisado el 2026-10-06, revisión del FD de U8) y empujar métricas al Pushgateway (F87):
+- `CronJob restore-drill` (semanal) en el namespace aislado `vectra-restore-drill`, cuyas NetworkPolicies permiten solo los flujos de INF-U1-06 (quinta revisión de coherencia entre unidades, 2026-10-31); entre ellos, leer del almacenamiento de backups (F75, con una credencial de solo lectura limitada a los backups y WAL de `registry-db` y `case-db` y a los checkpoints; precisado el 2026-10-06, revisión del FD de U8) y empujar métricas al Pushgateway (F87):
   1. crea un `Cluster` efímero de CloudNativePG desde el último backup base + WAL;
   2. corre `verify_chain` (CLI de U3) sobre la copia de `registry-db`;
   2b. crea un segundo `Cluster` efímero desde el último backup de `case-db`, ejecuta `case-retention` (CLI de U8, BR-U8-20) **conectado con el rol real `case_retention`** (no con un superusuario, para que el simulacro pruebe también sus permisos; revisión del Infrastructure Design de U10, 2026-10-10) y cuenta las filas de `case_identifiers` con la retención vencida, que deben ser **0** (precisado el 2026-10-06, revisión del FD de U8);

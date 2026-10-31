@@ -4,7 +4,7 @@
 
 | Componente | Proceso | Responsabilidad | Patrones | Estado |
 |---|---|---|---|---|
-| `routes` | `console-bff` | Los 29 `RouteContract` de C03 con rol, MFA y regla de objeto | P-U10-01 | — |
+| `routes` | `console-bff` | Los 30 `RouteContract` de C03 con rol, MFA y regla de objeto | P-U10-01 | — |
 | `object_rules` | `console-bff` | Funciones puras de autorización por objeto | P-U10-01 | — |
 | `compose` | `console-bff` | `get_dossier` (en paralelo) y `get_disparity` (en serie, sin caché) | P-U10-02 | — |
 | `clients` | `console-bff` | Un cliente de `deps.call` por destino con timeout, presupuesto, límite de conexiones y circuit breaker | P-U10-03, 04 | **Por proceso**: 5 circuit breakers |

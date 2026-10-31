@@ -119,10 +119,11 @@ vectra-risk/identity-edge/
     - `hostname` y `hostname-admin`, `proxy-headers=xforwarded`;
     - puerto de gestión 9000;
     - recursos de INF-U2-06 y prioridad `vectra-high`;
-    - Secrets por `ExternalSecret`.
+    - Secrets por `ExternalSecret`;
+    - `Certificate` `keycloak-tls` para 8443 y `BackendTLSPolicy` de F05 con el certificado de la CA (INF-U2-05b; quinta revisión de coherencia entre unidades, 2026-10-31).
   - `keycloak-config-cli` como Job hook del sync.
   - Diseño: NFR-U2-01, 02, 23, 26; P-U2-04; INF-U2-01, 05, 06. Historia: US-601.
-  - **Aceptación**: `helm template` + `conftest test identity-edge/keycloak/` (réplicas, HPA, spread, PDB, `start --optimized`, `hostname-admin` interno, sin Secret plano, hook de sync presente).
+  - **Aceptación**: `helm template` + `conftest test identity-edge/keycloak/` (réplicas, HPA, spread, PDB, `start --optimized`, `hostname-admin` interno, sin Secret plano, hook de sync presente, `keycloak-tls` y `BackendTLSPolicy` presentes).
 
 - [ ] **Paso 6 — `realm-drift` y exportador de antigüedad de llaves**
   - CronJob diario que exporta el realm, lo normaliza (sin secretos, IDs internos ni timestamps) y lo compara con Git; empuja `vectra_realm_drift` al Pushgateway (F112), de donde sale `RealmDrift` (cuarta revisión de coherencia entre unidades, 2026-10-31).
@@ -163,7 +164,7 @@ vectra-risk/identity-edge/
     - `test -s identity-edge/docs/adr-envoy-gateway.md`.
 
 - [ ] **Paso 9 — Servicio de rate limit y Valkey**
-  - `envoyproxy/ratelimit` (2 réplicas, gRPC en 8083, métricas en 8081) con la configuración de descriptores generada por `route-gen`.
+  - `envoyproxy/ratelimit` (HPA de 2 a 4, quinta revisión de coherencia entre unidades, 2026-10-31; gRPC en 8083, métricas en 8081) con la configuración de descriptores generada por `route-gen`.
   - Chart propio de Valkey 8: 2 nodos en zonas distintas, 3 Sentinel, sin persistencia, ACL `ratelimit` desde ESO, usuario `default` deshabilitado, `maxmemory 128mb`, `volatile-ttl`, prioridad `vectra-high`.
   - Diseño: NFR-U2-20, 27, 30; P-U2-04, 06; INF-U2-03, 04. Historia: US-611 (exceso de solicitudes → 429).
   - **Aceptación**: `helm template` + `conftest test identity-edge/ratelimit/ identity-edge/charts/valkey/` (puertos 8083/8081, sin RDB/AOF, ACL presente, `default` deshabilitado, spread por zona); `uv run pytest identity-edge/tests/unit/test_ratelimit_config.py` (los descriptores coinciden con `routes.yaml`).

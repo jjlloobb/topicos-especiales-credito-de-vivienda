@@ -108,7 +108,7 @@ case-retention (cada corrida)
 | `PodDisruptionBudget` | `minAvailable: 1` | `minAvailable: 1` | — | `minAvailable: 1` |
 | `ServiceAccount` | `case-service` | `case-worker` | `case-retention` | `core-banking-mock` |
 | `ExternalSecret` (llave del cliente de Keycloak) | Sí | Sí | — | — |
-| `Secret` del rol de base (CloudNativePG) | `case_app` | `case_worker` | `case_retention` | — |
+| `ExternalSecret` de la contraseña del rol de base (INF-U1-02) | `case_app` | `case_worker` | `case_retention` | — |
 | `ServiceMonitor` | 8081 | 8081 | — | 8081 |
 | Linkerd `Server`, `HTTPRoute`, `AuthorizationPolicy` | U2 | U2 | — | `GET /v1/credits/{id}` solo desde `case-service`, más la ruta de captura sin autorización (INF-U8-03) |
 

@@ -79,6 +79,7 @@ validar token(kid):
 - El cache es en memoria y por proceso; no hay cache compartido.
 - El límite de 1 refresco cada 30 s hace de circuit breaker: protege a Keycloak de ráfagas de `kid` falsos.
 - Métrica `vectra_jwks_refresh_total{result=ok|error|throttled}`.
+- **Confianza** (quinta revisión de coherencia entre unidades, 2026-10-31): `authn` y `deps` verifican el TLS de Keycloak con el archivo que indica `VECTRA_CA_BUNDLE`, que cada servicio recibe por `ExternalSecret`. Si falta el archivo, el servicio no arranca: nunca se desactiva la verificación.
 - **Verificación**: prueba con un servidor JWKS falso que cuenta las llamadas (100 requests concurrentes → 1 llamada); prueba con el JWKS caído y la cache vencida → 503 (NFR-U0-11, 12).
 - **Satisface**: NFR-U0-11, 12; RESILIENCY-10 (timeout explícito y fail-fast).
 

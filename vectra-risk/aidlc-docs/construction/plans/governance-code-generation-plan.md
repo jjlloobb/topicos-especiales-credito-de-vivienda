@@ -130,6 +130,7 @@ vectra-risk/governance/
 
 - [ ] **Paso 10 — Endpoints**
   - Modelos: registrar, lanzar validación (Job en `vectra-staging` por K01, con TTL, `activeDeadlineSeconds` y `backoffLimit: 0`), recibir el informe (F32), aprobar o rechazar, `mark_active`, retirar.
+  - Registro: los paquetes RT-3 (a), (c) y (d) de U5 → 422 sin crear la versión; (b) → aceptado (BR-U4-06; doble de los paquetes hasta que exista U5; quinta revisión de coherencia entre unidades, 2026-10-31).
   - `freeze` (solo `governance:freeze`).
   - `GET /v1/models/{id}/feature-dictionary` (solo `governance:read-dictionary`; BR-U4-18, agregado por U7 FD Q4).
   - `GET /v1/models/{id}/feature-spec` (solo `governance:read-feature-spec`; BR-U4-19, agregado por U8 FD Q1). Prueba: otra identidad → 403; el contenido es byte a byte el `feature_spec.json` verificado.
@@ -171,6 +172,7 @@ vectra-risk/governance/
     - `! grep -rE "argocd app sync|kubectl apply|helm (install|upgrade)" governance/promotion_tool/`.
 
 - [ ] **Paso 13 — `model-validation-job`**
+  - En `vectra-staging` (quinta revisión de coherencia entre unidades, 2026-10-31): `ServiceAccount` `model-validation-job` y `ExternalSecret` con la llave `private_key_jwt` de su cliente de Keycloak (F32, F50) y la credencial de solo lectura de `validation-datasets` (F31). El Job las monta y sigue sin token de Kubernetes. Recursos de INF-U4-01.
   - AUC-ROC (con `auc_target` y `auc_meets_target`), disparidad inicial con la librería de U9 (`counts_from_records` + `disparity_by_band`; doble mientras no exista), prueba de sincronía predictor ↔ explicador, informe con el `disclaimer` y envío por F32.
   - Modo `source_comparison` (BR-U4-13): puntúa el dataset con la versión activa y con la candidata y envía por F32 **solo** tablas de conteo por atributo, nunca filas (precisado el 2026-10-08 por U9 FD).
   - Imagen con las librerías de inferencia, `runAsNonRoot`, `readOnlyRootFilesystem`, sin token de Kubernetes.

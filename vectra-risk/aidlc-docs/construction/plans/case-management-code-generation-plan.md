@@ -166,7 +166,7 @@ vectra-risk/case-management/
     - `Idempotency-Key` obligatoria, con alcance `client_id` (ingesta) o `user_id` (alta manual); misma llave y mismo `body_sha256` → el mismo `case_id`; otro cuerpo → 409;
     - identificadores en `case_identifiers` y el resto en `cases.application`;
     - caso en `en_evaluacion`, llave y trabajo de evaluación en **una** transacción;
-    - `X-Test-Scenario` solo con `azp = channel-simulator` y `allow_test_scenarios = true`; en producción → 400; se guarda como `test_scenario_id` y no sale a scoring, al registro ni a los logs de negocio.
+    - `X-Test-Scenario` solo con `azp = channel-simulator` y `allow_test_scenarios = true`; en producción → 422; se guarda como `test_scenario_id` y no sale a scoring, al registro ni a los logs de negocio.
   - Diseño: BR-U8-01, 02, 03, 04; NFR-U8-01, 44. Historias: US-101, US-102, US-109.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest case-management/tests/property/test_intake.py tests/integration/test_intake.py` (Testcontainers):
     - PBT-U8-06;
@@ -174,7 +174,7 @@ vectra-risk/case-management/
     - alta manual de un analista → canal `manual` y su `user_id`; `cumplimiento` → 403 con `authz.denied` (US-102);
     - `free_text` con `'; DROP TABLE cases; --` y `<script>` → guardado byte a byte y sin escape (US-109);
     - alta manual repetida con la misma `Idempotency-Key` → el mismo caso;
-    - `X-Test-Scenario` con `allow_test_scenarios = false` → 400.
+    - `X-Test-Scenario` con `allow_test_scenarios = false` → 422.
 
 - [ ] **Paso 10 — `evidence`: decisión, consulta de la explicación y reconciliador**
   - Decisión (`POST /v1/cases/{id}/decision`, solo `analista`): BR-U8-15 (caso `listo` y sin otra decisión), `validate_decision`, `explanation_viewed_before` solo con evidencia `confirmada` (BR-U8-17), evidencia en dos fases con `UUIDv5(case_id, "human_decision")` y el payload de BR-U8-18; 503 sin ack; conflicto tras un abandono → reenvío de la abandonada y `409 conflict_state` con `reason = decision_already_recorded`.
@@ -311,12 +311,12 @@ vectra-risk/case-management/
   - **Aceptación**: `hadolint case-management/Dockerfile case-management/core_banking_mock/Dockerfile`; prueba sobre el SBOM: ninguna librería de circuit breaking.
 
 - [ ] **Paso 20 — Chart, values, cuotas y flujos**
-  - `case-service` y `case-worker`: `Deployment`, `Service`, `HorizontalPodAutoscaler` (2–6, CPU 70 %, estabilización 60/300 s), `PodDisruptionBudget`, `ServiceAccount` propia, `ExternalSecret` (llave `private_key_jwt`), `Secret` del rol de CloudNativePG y `ServiceMonitor`; recursos y probes de INF-U8-04; spread por zona; `vectra-high`; sidecar nativo de Linkerd.
+  - `case-service` y `case-worker`: `Deployment`, `Service`, `HorizontalPodAutoscaler` (2–6, CPU 70 %, estabilización 60/300 s), `PodDisruptionBudget`, `ServiceAccount` propia, `ExternalSecret` (llave `private_key_jwt` y contraseña del rol de base, INF-U1-02) y `ServiceMonitor`; recursos y probes de INF-U8-04; spread por zona; `vectra-high`; sidecar nativo de Linkerd.
     - `case-service`: `preStop.sleep` de 5 s y `terminationGracePeriodSeconds: 20`;
     - `case-worker`: `terminationGracePeriodSeconds: 30`.
   - `case-retention`: `CronJob` (`schedule` y `timeZone` desde los values, `Forbid`, `startingDeadlineSeconds: 3600`, `activeDeadlineSeconds: 7200`, `backoffLimit: 2`), `vectra-low`, sidecar nativo.
   - Job de migración como hook de sync (F44), con `case_migrator`, `vectra-low` y la fila de `retention_settings` desde los values.
-  - `core-banking-mock` solo con `coreMock.enabled = true`: 2 réplicas, PDB, `vectra-low`, namespace `vectra-mock`; `Server`, `HTTPRoute` de `GET /v1/credits/{id}` autorizada solo para `case-service` y `HTTPRoute` `core-mock-catch-all` sin `AuthorizationPolicy` (INF-U8-03).
+  - `core-banking-mock` solo con `coreMock.enabled = true`: 2 réplicas, `vectra.io/hpa-exempt` con su justificación (quinta revisión de coherencia entre unidades, 2026-10-31), PDB, `vectra-low`, namespace `vectra-mock`; `Server`, `HTTPRoute` de `GET /v1/credits/{id}` autorizada solo para `case-service` y `HTTPRoute` `core-mock-catch-all` sin `AuthorizationPolicy` (INF-U8-03).
   - **Job `rt5-demo-<runId>`** (U12; pendientes posteriores al cierre, 2026-10-10): solo con los values de kind y con `probes.runId` (pendientes consolidados, 2026-10-10: ya no en staging), con la `ServiceAccount` `case-service`; envía `POST /v1/credits/{id}/status` al mock y deja en su log el 403 del proxy (INF-U8-03); `backoffLimit: 0`, sidecar nativo, **sin** `ttlSecondsAfterFinished` (se poda al cambiar `probes.runId`). `conftest`: `probes.runId` en los values de staging o de producción → falla; el Job no aparece con ellos ni sin `probes.runId` (pendientes consolidados, 2026-10-10); el selector del `Service` de `case-service` no coincide con las etiquetas del Job (seguimiento de la cuarta revisión de coherencia, 2026-10-31).
   - Values de producción: `core.enabled = false`, `coreMock.enabled = false`, `allowTestScenarios = false`.
   - Aporte de U8 a las cuotas de `vectra-app` y `vectra-mock` en `platform/policies/quotas/` de U1 (INF-U8-05).

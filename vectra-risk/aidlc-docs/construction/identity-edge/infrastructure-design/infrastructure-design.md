@@ -35,7 +35,7 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 - La comunicación xDS es el flujo nuevo F95: Envoy se conecta al controlador (cuarta revisión de coherencia entre unidades, 2026-10-31).
 
 ### INF-U2-03 — Servicio de rate limit
-- `envoyproxy/ratelimit` en `vectra-edge`: 2 réplicas repartidas por zona, PDB.
+- `envoyproxy/ratelimit` en `vectra-edge`: HPA de 2 a 4 por CPU, repartido por zona, PDB. Sin HPA ni exención, `require-hpa-bounds` lo rechazaría (quinta revisión de coherencia entre unidades, 2026-10-31).
 - **gRPC en el puerto 8083.** Se cambia el 8081 por defecto, que en Vectra está reservado para health y métricas (convención de U0). Métricas y health en 8081.
 - Configuración de descriptores generada por `route-gen` desde `routes.yaml` (P-U2-06).
 
@@ -48,6 +48,10 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 - ACL: usuario `ratelimit` con permisos mínimos (`+@read +@write +@connection -@dangerous`) y contraseña desde ESO. Usuario `default` deshabilitado.
 - `maxmemory 128mb`, política `volatile-ttl` (todas las claves de rate limit tienen TTL).
 - Prioridad `vectra-high`; NetworkPolicy que solo admite al servicio de rate limit, a la réplica y a los Sentinel (F91–F93).
+
+### INF-U2-05b — Certificado interno de Keycloak (quinta revisión de coherencia entre unidades, 2026-10-31)
+- `Certificate` `keycloak-tls` en `vectra-identity`, con SAN `keycloak.vectra-identity.svc`, emitido por la CA de INF-U2-01 de cada entorno; 90 días, se renueva a los 60 (P-U1-03).
+- El certificado público de esa CA está en la bóveda. Los clientes lo reciben por `ExternalSecret`: el gateway (`BackendTLSPolicy` de F05), los servicios de F50, `keycloak-config-cli` y `realm-drift` (F94).
 
 ### INF-U2-05 — `keycloak-db`
 Sin cambios: el cluster de CloudNativePG de U1 (INF-U1-02: 10 Gi + 5 Gi, `max_connections` 100). Keycloak usa un pool máximo de 20 conexiones por pod.

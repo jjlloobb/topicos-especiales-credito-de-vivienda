@@ -61,7 +61,7 @@ vectra-risk/model-serving/
   - `package_loader`: lee `manifest.json`, verifica el SHA-256 de cada archivo usado y que el `model_version_id` coincida con la anotación; si falla, no marca listo y emite `ModelPackageIntegrityFailed`.
   - `concurrency`: semáforo por pod; por encima del límite responde 503 inmediato y cuenta `vectra_serving_rejected_total{component}`.
   - Diseño: NFR-U6-03, 40; P-U6-03, 05. Historia: US-111.
-  - **Aceptación**: `uv run pytest model-serving/tests/unit/test_package_loader.py test_concurrency.py`, con los artefactos RT-3 de U5 como fixtures: (d) → no listo; un byte alterado → no listo; la solicitud N+1 con N en curso → 503 sin espera.
+  - **Aceptación**: `uv run pytest model-serving/tests/unit/test_package_loader.py test_concurrency.py`, con los artefactos RT-3 de U5 como fixtures: (a) → explicador no listo; (d) → no listo (quinta revisión de coherencia entre unidades, 2026-10-31); un byte alterado → no listo; la solicitud N+1 con N en curso → 503 sin espera.
 
 - [ ] **Paso 3 — Predictor**
   - `:predict` (protocolo v1 de KServe): arma el vector con `feature_spec.json`, predice con XGBoost y calcula `confidence` con `envelope.confidence` de U5.
@@ -96,6 +96,7 @@ vectra-risk/model-serving/
     - el activo con mínimo 2 réplicas.
 
 - [ ] **Paso 7 — Integración con `promotion-tool`**
+  - `ExternalSecret` de la credencial de solo lectura del model-store para el storage initializer (F46), en `vectra-serving` y `vectra-staging` (quinta revisión de coherencia entre unidades, 2026-10-31).
   - Esquema de values que consume `promotion-tool` (U4, Paso 12) para los cuatro PR: promoción, post-activación, rollback y retiro.
   - Diseño: INF-U6-02; P-U6-02. Historia: US-204.
   - **Aceptación**: `uv run pytest model-serving/tests/unit/test_promotion_renders.py`. Para cada uno de los cuatro tipos de PR, el render con `promotion-tool` produce el cambio esperado y nunca deja el activo con menos de 2 réplicas.
@@ -125,7 +126,7 @@ vectra-risk/model-serving/
   - El operador ejecuta, con evidencia:
     1. promoción de M1 a M2 con tráfico continuo (los cuatro PR) → 0 respuestas `version_mismatch`;
     2. rollback a M1 → el activo nunca baja de 2 réplicas;
-    3. artefactos RT-3 (a), (c) y (d) en staging → los componentes no quedan listos; (b) sí queda listo (cuarta revisión de coherencia entre unidades, 2026-10-31);
+    3. artefactos RT-3 (a) y (d) en staging → los componentes no quedan listos; (b) sí queda listo (cuarta revisión de coherencia entre unidades, 2026-10-31);
     4. saturación → 503 inmediatos y `ServingSaturation`;
     5. drenado de una zona → el activo sigue sirviendo;
     6. prueba de carga a 20 solicitudes/s (cuando exista U12) → sin superar los máximos y con p95 dentro del objetivo.

@@ -44,7 +44,7 @@ flowchart LR
 
     browser --> lb
     lb --> envoy
-    egctl --> envoy
+    envoy --> egctl
     envoy --> rl
     rl --> valkey
     envoy --> kc

@@ -12,7 +12,7 @@
 
 | Aspecto | Valor |
 |---|---|
-| Unidad | U10 `console`: `console-bff` (FastAPI, 29 endpoints de C03, sin estado) y `console-spa` (React + TypeScript, estática) |
+| Unidad | U10 `console`: `console-bff` (FastAPI, 30 endpoints de C03, sin estado) y `console-spa` (React + TypeScript, estática) |
 | Historias (dueña) | US-602 |
 | Contribuye a | US-102, 104, 106, 107, 108, 109, 110, 112, 201, 203, 205, 206, 304, 305, 306, 307, 402, 403, 501, 502, 609, 611 (`unit-of-work-story-map.md`) |
 | Ubicación | `vectra-risk/console/` (`bff/`, `spa/`, `chart/`) y Applications en `vectra-risk-gitops` |
@@ -99,7 +99,7 @@ vectra-risk/console/
 ### Bloque C — Capa de API del BFF
 
 - [ ] **Paso 5 — Rutas, clientes y composición**
-  - `routes.py`: los **29** `RouteContract` de C03 con `required_roles`, `mfa` (900 s) y `object_rule` explícita (una ruta sin ella no arranca); `max_body_bytes` por omisión.
+  - `routes.py`: los **30** `RouteContract` de C03 con `required_roles`, `mfa` (900 s) y `object_rule` explícita (una ruta sin ella no arranca); `max_body_bytes` por omisión.
   - `clients.py`: un cliente de `deps.call` por destino (case, governance, registry, explainability, bias) con timeout, presupuesto (`x-vectra-deadline` = entrada + 9 s), límite de conexiones y circuit breaker con los umbrales de U7; sin reintentos.
   - `compose.py`: `get_dossier` con `asyncio.TaskGroup` (registry `get_case_dossier` + case `get_case_identifiers`; registro caído → 503 y se cancela la otra; case caído → `identifiers_unavailable`; 403 o 404 de case → ese error); `get_disparity` (governance `list_models(state=activo,congelado)` y después bias, sin caché).
   - `run_integrity_check(req)` y `get_integrity_check(id)` de paso a U3, con `already_active` en la respuesta.
@@ -119,7 +119,7 @@ vectra-risk/console/
   - **Aceptación**: `uv run pytest console/bff/tests/integration/test_client_errors.py tests/integration/test_metrics.py`: un cuerpo con un campo extra o con un mensaje libre → 422; `GET /metrics` recién iniciado muestra las seis series en 0; PBT-U0-07 en modo strict sobre `console.client_error`.
 
 - [ ] **Paso 7 — Matriz rol × endpoint y pruebas de ejemplo de la API**
-  - Matriz generada desde el registro de rutas (BR-U10-19): 29 endpoints × (4 roles, sin rol de negocio, expirado, otra audiencia, `acr = pwd`, `auth_time` vencido), comparando status y `code`; un caso negativo por regla de objeto; `authz.denied` con `principal_subject` en cada 401/403. Se publica como `role-endpoint-matrix.md` y se compara con C03.
+  - Matriz generada desde el registro de rutas (BR-U10-19): 30 endpoints × (4 roles, sin rol de negocio, expirado, otra audiencia, `acr = pwd`, `auth_time` vencido), comparando status y `code`; un caso negativo por regla de objeto; `authz.denied` con `principal_subject` en cada 401/403. Se publica como `role-endpoint-matrix.md` y se compara con C03.
   - Pruebas de ejemplo del FD (business-logic-model §3): analista → aprobación de modelo → 403; JWT expirado, de otra audiencia o mal firmado → 401; aprobador sin MFA reciente → 403 `mfa_required`; `decision_already_recorded` → 409 con el `reason`; expediente de `cumplimiento`.
   - Diseño: BR-U10-19; PBT-U10-01; NFR-U10-46. Historias: US-602, US-611.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest console/bff/tests/property/test_role_matrix.py tests/integration/test_api_examples.py`; `uv run python console/bff/tools/role_matrix.py --check` (la matriz generada coincide con C03 y con `role-endpoint-matrix.md` versionado).

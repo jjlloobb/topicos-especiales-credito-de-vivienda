@@ -13,10 +13,10 @@ desde su chart y su Infrastructure Design; no la redefine. Fuente:
 | Namespace con deny-all y PriorityClass | El chart declara `namespace` y `priorityClassName` | Todas las que despliegan |
 | Flujos de red | Cada unidad agrega sus flujos a `platform/network/flows.yaml` por PR; el generador produce NetworkPolicies y políticas de Linkerd | U2–U12 |
 | mTLS (Linkerd) | Anotación de inyección en el namespace; identidad = ServiceAccount | U2–U12 |
-| Cluster de PostgreSQL | Un `Cluster` de CloudNativePG por base; la unidad dueña provee el esquema, las migraciones (F44) y los roles (§4 de `component-dependency.md`) | U3 (`registry-db`), U4 (`governance-db`), U8 (`case-db`), U2 (`keycloak-db`) |
+| Cluster de PostgreSQL | Un `Cluster` de CloudNativePG por base; la unidad dueña provee el esquema, las migraciones (F44) y los grants; U1 crea los roles (§4 de `component-dependency.md`, INF-U1-02) | U3 (`registry-db`), U4 (`governance-db`), U8 (`case-db`), U2 (`keycloak-db`) |
 | Buckets de MinIO | Credenciales por ESO; un bucket por propósito | U4/U6 (`model-store`), U4 (`validation-datasets`) |
 | Secretos | `ExternalSecret` en el chart de la unidad | Todas |
-| Certificados | `Certificate` de cert-manager (borde y PostgreSQL) | U2 (gateway), U3/U4/U8 (TLS a PostgreSQL) |
+| Certificados | `Certificate` de cert-manager (borde, PostgreSQL y Keycloak, quinta revisión de coherencia entre unidades, 2026-10-31). El certificado público de la CA está en la bóveda y cada cliente de Keycloak lo recibe por su `ExternalSecret` | U2 (gateway y Keycloak), U3/U4/U8 (TLS a PostgreSQL), todos los clientes de F05, F50 y F94 (CA) |
 | Métricas | Endpoint `/metrics` en el puerto 8081 (U0); `ServiceMonitor` en el chart | Todas |
 | Trazas y logs | OTLP al Collector (U0); stdout JSON recogido por Alloy | Todas |
 | Alertas y runbooks | `PrometheusRule` con `severity` y `runbook_url` hacia `platform/runbooks/` | Todas |

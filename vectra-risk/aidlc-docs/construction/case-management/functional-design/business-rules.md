@@ -22,7 +22,7 @@ U8 las **aplica**.
 
 **BR-U8-03 — Escenarios adversariales (Q9; US-101).**
 - `X-Test-Scenario` (sin el prefijo `x-vectra-`, que el gateway reserva a las cabeceras internas y elimina; U2 P-U2-06 precisado) solo se acepta si el cliente es el simulador (`azp = channel-simulator`, un cliente de U2 que solo existe fuera de producción) **y** el despliegue tiene `allow_test_scenarios = true`. Ese valor es `false` en producción, fijado en los values y verificado por política.
-- En producción la cabecera → 400.
+- En producción la cabecera → 422 `validation_error`.
 - Se guarda como `test_scenario_id` y nunca se envía a scoring, al registro ni a los logs de negocio.
 
 **BR-U8-04 — Alta manual.** Solo `analista` (US-102; otro rol → 403 y log `authz.denied`).

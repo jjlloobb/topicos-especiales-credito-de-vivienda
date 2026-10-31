@@ -28,7 +28,7 @@ flowchart TD
     size["Medicion del tamano por caso con los primeros 1000"]
     rt14["RT-1 y RT-4"]
     rt5["RT-5 con el Job de U8"]
-    rt3["RT-3: cada paquete hasta su barrera y explicador en 0, verificar y revertir"]
+    rt3["RT-3: cada paquete hasta su barrera y F22 deshabilitado, verificar y revertir"]
     rt2["RT-2: 5 versiones del proxy por PR, stratified 1500 por corrida"]
     load["Carga: linea base 5/s y perfil 20/s"]
     pii["Consulta de Loki: LOGS-NO-PII"]
@@ -48,10 +48,12 @@ flowchart TD
 4. tamaño por caso con los primeros 1 000
 5. RT-1 (pares) y RT-4 (18 casos)
 6. RT-5 (Job de U8)
-7. RT-3: a, c, d: registrar (422) -> PR -> no listos -> reversión; b: registrar -> validar -> promover si pasa -> verificar -> reversión;
-        explicador en 0 por PR (solo kind) -> FailClosed(explainer_unavailable) -> reversión
-8. RT-2: por cada una de las 5 versiones del proxy: PR -> sync -> stratified (~1 500) -> esperar el freeze -> medir
-        -> reactivar (cumplimiento) -> comprobar que no se recongela; al final, PR de vuelta al modelo de referencia
+7. RT-3: a, c, d: registrar (422); a, d: PR sin registrar -> no listos -> reversión;
+        b: registrar -> validar -> si pasa: aprobar -> PR -> sync -> mark_active -> verificar -> rollback;
+        F22 deshabilitado por PR (solo kind) -> FailClosed(timeout o explainer_unavailable) -> reversión
+7b. rt2-setup: registrar, validar y aprobar las 5 versiones del proxy
+8. RT-2: por cada versión: PR -> sync -> mark_active (operador, F08) -> PR post-activación -> stratified (~1 500) -> esperar el freeze -> medir
+        -> reactivar (cumplimiento) -> comprobar que no se recongela; al final, rollback al modelo de referencia (PR, sync, mark_active)
 9. carga: línea base a 5/s, después 20/s + 200 usuarios
 9b. consulta de Loki de LOGS-NO-PII sobre todo el periodo
 10. día D + 1: verificación de U11 (métricas del día anterior)
@@ -78,7 +80,7 @@ por cada caso listo de la bandeja:
 
 | ID | Componente | Propiedad | Categoría | Generadores (PBT-07) |
 |---|---|---|---|---|
-| PBT-U12-01 | `sampler` | Para toda población y todo `min_per_cell` alcanzable, la muestra tiene ≥ `min_per_cell` casos en cada celda de `region` y `estrato` con datos suficientes, no repite filas y es determinista con la semilla; si una celda no alcanza, lo informa y no la rellena | Invariante | Poblaciones con distribuciones de celdas generadas, incluidas celdas pequeñas |
+| PBT-U12-01 | `sampler` | Para toda población y todo `min_per_cell` alcanzable, la muestra tiene ≥ `min_per_cell` casos en cada celda de U9 (atributo, grupo y banda) con datos suficientes, no repite filas y es determinista con la semilla; si una celda no alcanza, lo informa y no la rellena | Invariante | Poblaciones con distribuciones de celdas generadas, incluidas celdas pequeñas |
 | PBT-U12-02 | `report` | Para todo conjunto de evidencias, un elemento sin evidencia sale `no ejecutado`, uno con `expected ≠ obtained` sale `falla` aunque su `result` diga `pasa`, y ningún elemento sale `pasa` sin una evidencia que lo respalde; una historia sale `pasa` solo si pasan todas las evidencias de su fila del mapa (domain-entities §4.2), `falla` si alguna falla y `no ejecutado` en otro caso (revisión del FD de U12, 2026-10-10) | Invariante | Conjuntos de evidencias con faltantes, contradicciones y duplicados |
 | PBT-U12-03 | `driver` (mezcla) | Para toda `DecisionMix`, las decisiones generadas cumplen BR-U0-35 y 36 y BR-U8-16 (opciones según el `outcome`, justificación en rango, factores ⊆ `shap_vector` o exactamente `["ninguno"]`); con N grande, las proporciones convergen a las de la mezcla | Oráculo / estadística | Mezclas y casos generados con todos los `outcome` |
 | PBT-U12-04 | `rt2_latency` | La latencia es `freeze.recorded_at − min(recorded_at de las recommendation del lote)`, nunca menor que la medida desde cualquier otra entrada del lote, y una corrida con latencia > 1 800 s sale `passed = false` (Infrastructure Design de U12, 2026-10-10) | Oráculo | Lotes de entradas y un `freeze` con tiempos generados |

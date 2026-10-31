@@ -8,7 +8,7 @@ regla de acceso vive en el BFF y se vuelve a validar en el servicio de destino.
 
 ## 1. BFF (US-602, SECURITY-08)
 
-**BR-U10-01 — Tres controles por endpoint, en orden.** Para cada uno de los 29 endpoints de
+**BR-U10-01 — Tres controles por endpoint, en orden.** Para cada uno de los 30 endpoints de
 `component-methods.md` C03:
 1. **función**: el rol del token está en la columna «Roles»; si no → 403 `forbidden`;
 2. **MFA**: si la columna lo pide, `acr = mfa` y `auth_time` ≤ 900 s (BR-U0-72); si no → 403 `mfa_required`;
@@ -149,7 +149,7 @@ sus cambios son las de U0 BR-U0-94, que no se repiten aquí (revisión del Infra
 
 **BR-U10-19 — Matriz rol × endpoint.**
 - Se genera desde el registro de contratos de U0 (`RouteContract`).
-- Para cada uno de los 29 endpoints (27 del FD, `report_client_error` del NFR Requirements de U10, Q12, y `get_integrity_check` del NFR Design de U10, Q3), prueba los 4 roles, un token sin rol de negocio, uno expirado, uno con otra audiencia, uno con `acr = pwd` y uno con `acr = mfa` pero `auth_time` de hace más de 900 s (revisión del Infrastructure Design de U10, 2026-10-10). Según las columnas «Roles» y «MFA», espera 2xx, 401 (`unauthenticated`), 403 con `code = forbidden` o 403 con `code = mfa_required`. `mfa_required` es un 403 de U0 §6, no un estado aparte; la prueba compara el status y el `code` (revisión del FD de U10, 2026-10-10), B19.
+- Para cada uno de los 30 endpoints (27 del FD, `report_client_error` del NFR Requirements de U10, Q12, `get_integrity_check` del NFR Design de U10, Q3, y `retire_model` de la cuarta revisión de coherencia), prueba los 4 roles, un token sin rol de negocio, uno expirado, uno con otra audiencia, uno con `acr = pwd` y uno con `acr = mfa` pero `auth_time` de hace más de 900 s (revisión del Infrastructure Design de U10, 2026-10-10). Según las columnas «Roles» y «MFA», espera 2xx, 401 (`unauthenticated`), 403 con `code = forbidden` o 403 con `code = mfa_required`. `mfa_required` es un 403 de U0 §6, no un estado aparte; la prueba compara el status y el `code` (revisión del FD de U10, 2026-10-10), B19.
 - Las rutas de la SPA por rol (BR-U10-12) se comparan con la misma columna «Roles».
 - Para cada endpoint con regla de objeto, agrega al menos un caso negativo.
 - Cada 401 o 403 deja `authz.denied` con `principal_subject`.

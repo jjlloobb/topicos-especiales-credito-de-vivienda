@@ -3566,3 +3566,43 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Solo cambios a documentos; las extensiones y `entradas/` no se tocaron.
 
 ---
+
+## Quinta revisión de coherencia (dirigida) — Resultado
+**Timestamp**: 2026-10-31T17:54:47Z
+**User Input**: (sin entrada nueva; P18 = A de `cross-unit-review4-followup-questions.md`)
+**AI Response**: Revisión de solo lectura con tres ángulos (cambios del 2026-10-31, áreas sin revisar, planes e historias). Hallazgos informados al usuario; no se modificó ningún documento de diseño. P19 sigue pendiente.
+**Context**: Varios hallazgos provienen de las correcciones de la cuarta revisión.
+
+---
+
+## Correcciones de la quinta revisión — Solicitud
+**Timestamp**: 2026-10-31T17:56:52Z
+**User Input**: "1"
+**AI Response**: En respuesta a «¿Hago los pasos 1 y 2?»: solo el paso 1, corregir los errores de las correcciones anteriores y los bloqueantes. Correcciones en curso; el archivo de preguntas del paso 2 no se genera.
+**Context**: Quinta revisión de coherencia.
+
+---
+
+## Correcciones de la quinta revisión — Resultado
+**Timestamp**: 2026-10-31T18:00:32Z
+**User Input**: (sin entrada nueva; cierre de la solicitud "1")
+**AI Response**: Aplicadas en 37 documentos (marca «quinta revisión de coherencia entre unidades, 2026-10-31»): errores de las correcciones anteriores y los bloqueantes de rate limit, credenciales de `vectra-staging` y certificado de Keycloak. Decisiones tomadas al aplicar: F22 deshabilitado por PR en lugar del explicador en 0; RT3-c detenido solo por U4; `mark_active` a cargo del operador; HPA de 2 a 4 en el rate limit y exención para `core-banking-mock`; requests de 500m / 1 GiB en `model-validation-job`; CA pública por `ExternalSecret` y `VECTRA_CA_BUNDLE`. No se generó el archivo de preguntas. Sin commit.
+**Context**: Paso 1 de la propuesta de la quinta revisión. Siguen abiertas las demás altas y medias. P19 sigue pendiente.
+
+---
+
+## Cierre del paso 1 de la quinta revisión
+**Timestamp**: 2026-10-31T18:16:33Z
+**User Input**: "continue"
+**AI Response**: Corregidos los últimos conteos de 29 endpoints (`unit-of-work.md` y, si aplicaba, el BLM de U10). Paso 1 terminado, sin commit.
+**Context**: Quinta revisión de coherencia.
+
+---
+
+## Commit y preguntas de la quinta revisión — Solicitud
+**Timestamp**: 2026-10-31T18:20:29Z
+**User Input**: "sí, haz el commit y genera las preguntas"
+**AI Response**: Commit de las correcciones de la quinta revisión; archivo `construction/plans/cross-unit-review5-followup-questions.md` con los puntos abiertos, pendiente de las respuestas.
+**Context**: Paso 2 de la propuesta de la quinta revisión.
+
+---

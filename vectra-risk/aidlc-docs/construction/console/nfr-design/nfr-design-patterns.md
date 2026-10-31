@@ -8,7 +8,7 @@ referencian en el Infrastructure Design y en el plan de tareas.
 ## 1. Autorización y composición
 
 ### P-U10-01 — Tres controles por ruta en el registro de contratos (BR-U10-01; NFR-U10-46)
-- Cada uno de los **29** endpoints de C03 es un `RouteContract` de U0 con `required_roles`, `mfa_max_age` (900 s cuando la columna «MFA» lo pide) y una `object_rule`.
+- Cada uno de los **30** endpoints de C03 es un `RouteContract` de U0 con `required_roles`, `mfa_max_age` (900 s cuando la columna «MFA» lo pide) y una `object_rule`.
 - El orden fijo es el middleware de U0 (rol → MFA) y después la regla de objeto. La regla de objeto es una función pura que recibe el estado que devolvió el destino, por ejemplo el caso, y responde aceptar, 403 o 409.
 - Cuando la regla depende del estado del objeto, el BFF lee el objeto y aplica la regla antes de reenviar la acción. Por ejemplo, `record_decision` lee el caso y exige `listo`. El destino vuelve a validar igual (defensa en profundidad), así que una carrera entre la lectura y la acción la resuelve el destino con su 409.
 - Un `RouteContract` sin `object_rule` explícita (`None` declarado) no arranca: deny by default, como BR-U0-71.

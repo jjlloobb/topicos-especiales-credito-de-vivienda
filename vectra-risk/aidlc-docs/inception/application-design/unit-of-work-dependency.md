@@ -125,7 +125,7 @@ Holgura: U5/U6 pueden adelantarse tras U0/U1; U9 y U11 se pueden reordenar
 | OpenAPI y tipos (`vectra_contracts`) | U0 | Todas | Versionado semántico; un cambio incompatible exige una nueva versión mayor y un PR que actualice a los consumidores |
 | `vectra_common` (logger sin PII, authz, errores) | U0 | Todos los servicios Python | Ningún servicio implementa su propio logger ni su validación de JWT |
 | Catálogo de scopes | U0 | U2 (realm), servicios (middleware) | U2 genera los clientes de Keycloak a partir del catálogo |
-| Clústeres PostgreSQL | U1 | U2, U3, U4, U8 | U1 provee la instancia; cada unidad es dueña de su esquema, migraciones y roles de aplicación |
+| Clústeres PostgreSQL | U1 | U2, U3, U4, U8 | U1 provee la instancia y crea los roles (INF-U1-02); cada unidad es dueña de su esquema, migraciones y grants |
 | Stack de observabilidad | U1 | Todas | Cada unidad versiona sus propias alertas, dashboards y runbooks junto a su chart |
 | Librería de disparidad | U9 | U4 (validation-job), U5 (informe del modelo) | Hasta que U9 exista, el validation-job de U4 y U5 se planifican contra la interfaz de U0, con un doble |
 | Datasets y artefactos de referencia | U5 | U4, U6, U7 (fixtures), U9, U12 | Versionados; se referencian por hash |

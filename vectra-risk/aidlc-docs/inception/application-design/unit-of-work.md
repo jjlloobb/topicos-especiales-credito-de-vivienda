@@ -40,7 +40,7 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
   - workflows reutilizables de GitHub Actions: pruebas con semilla de PBT, escaneo de dependencias e imágenes, SBOM, evidencia `helm template` y `kubectl diff`, y **verificación de pasos prohibidos** (`apply`/`install`/`sync`);
   - runbooks de restore y failover de zona.
 - **Datos propios**: la infraestructura de las bases de datos (los esquemas pertenecen a cada unidad).
-- **Flujos**: F45, F60–F67, F70–F72, F74–F76, F80–F88 (F09 opcional); K02–K13 (ver U1 Infrastructure Design).
+- **Flujos**: F45, F60–F67, F70–F72, F74–F76, F80–F88 (F09 opcional), F113–F116, F118; K02–K13 (ver U1 Infrastructure Design).
 - **Criticidad**: High. Todo depende de ella.
 - **Historias (dueña)**: US-604 (base de red y egress), US-605, US-606, US-607, US-608, US-610.
 
@@ -50,7 +50,7 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
   - **realm de Keycloak como código**: roles, MFA obligatorio para `ingeniero_riesgo`, `cro` y `cumplimiento`, protección contra fuerza bruta, clientes (SPA, Grafana e identidades de servicio con los scopes de U0) y consola de administración no expuesta;
   - **Envoy Gateway**: rutas F01–F07, validación de JWT, rate limiting, límite de payload, access log y cabeceras de seguridad de la SPA.
 - **Datos propios**: el realm (en `keycloak-db`).
-- **Flujos**: F01–F09 (F09 opcional), F43, F50 (destino), F73 (solo prod), F90–F95; K14; X09, X10 (ver U2 Infrastructure Design).
+- **Flujos**: F01–F09 (F09 opcional), F43, F50 (destino), F73 (solo prod), F90–F95, F112, F117; K14; X09, X10 (ver U2 Infrastructure Design).
 - **Criticidad**: High.
 - **Historias (dueña)**: US-601, US-611.
 
@@ -129,7 +129,7 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
 ### U10 — `console`
 - **Propósito**: la experiencia de las cuatro personas que operan el sistema.
 - **Contenido**:
-  - `console-bff`: **29 endpoints** con rol, MFA y regla de objeto (tabla de `component-methods.md` C03), propagación del token y errores genéricos:
+  - `console-bff`: **30 endpoints** con rol, MFA y regla de objeto (tabla de `component-methods.md` C03), propagación del token y errores genéricos:
     - sesión, 2: `get_me` y `report_client_error`;
     - casos, 11: incluidos `run_integrity_check` y `get_integrity_check`;
     - modelos, 7; políticas, 3; fuentes, 3; vigilancia, 3.

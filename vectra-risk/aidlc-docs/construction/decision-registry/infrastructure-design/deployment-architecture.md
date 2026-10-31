@@ -58,7 +58,7 @@ Fuera del sitio: S3 del banco (WORM COMPLIANCE, 10 años) ; bóveda del banco (T
 | Wave | Componente de U3 | Requisito previo verificable |
 |---|---|---|
 | 2 | `registry-db` (U1) | `Cluster in healthy state` con standby síncrono |
-| 5 | Job de migración (hook): esquema, particiones, roles y génesis | `SELECT seq, entry_type FROM registry_entries WHERE seq = 0` → `genesis` |
+| 5 | Job de migración (hook): esquema, particiones, grants y génesis | `SELECT seq, entry_type FROM registry_entries WHERE seq = 0` → `genesis` |
 | 5 | `decision-registry-service` y CronJobs | `/readyz` = 200; un `vectra-registry verify --mode full` manual → `exit 0` |
 | 6 | Application aparte `decision-registry-rebuild` (vacía salvo durante una reconstrucción con `runId`) | `argocd app get decision-registry-rebuild` → `Synced`; un sync o rollback de `decision-registry` no la espera (revisión del Infrastructure Design de U9, 2026-10-10) |
 
