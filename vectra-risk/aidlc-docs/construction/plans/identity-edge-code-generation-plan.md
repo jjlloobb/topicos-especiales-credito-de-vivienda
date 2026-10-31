@@ -47,7 +47,7 @@ vectra-risk/identity-edge/
 |   `-- values/                    # Envoy Gateway, EnvoyProxy, Gateway, certificado
 |-- ratelimit/                     # values del servicio y configuración generada
 |-- charts/valkey/                 # chart propio mínimo (Valkey + Sentinel)
-|-- jobs/                          # realm-drift, exportador de antigüedad de llaves
+|-- jobs/                          # realm-drift, signing-key-age
 |-- observability/                 # PrometheusRule, ServiceMonitor, tests de reglas
 |-- runbooks/
 |-- tools/                         # realm_lint.py, route_gen.py, realm_diff.py
@@ -125,7 +125,7 @@ vectra-risk/identity-edge/
   - Diseño: NFR-U2-01, 02, 23, 26; P-U2-04; INF-U2-01, 05, 06. Historia: US-601.
   - **Aceptación**: `helm template` + `conftest test identity-edge/keycloak/` (réplicas, HPA, spread, PDB, `start --optimized`, `hostname-admin` interno, sin Secret plano, hook de sync presente, `keycloak-tls` y `BackendTLSPolicy` presentes).
 
-- [ ] **Paso 6 — `realm-drift` y exportador de antigüedad de llaves**
+- [ ] **Paso 6 — `realm-drift` y `signing-key-age`**
   - CronJob diario que exporta el realm, lo normaliza (sin secretos, IDs internos ni timestamps) y lo compara con Git; empuja `vectra_realm_drift` al Pushgateway (F112), de donde sale `RealmDrift` (cuarta revisión de coherencia entre unidades, 2026-10-31).
   - CronJob horario `signing-key-age`: lee por F94 la llave de firma activa y empuja su antigüedad al Pushgateway (F112) para `SigningKeyAgeHigh`. Sin Deployment ni scrape (seguimiento de la quinta revisión de coherencia, 2026-10-31).
   - Diseño: BR-U2-12; P-U2-05.

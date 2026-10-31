@@ -9,7 +9,7 @@
 | `driver` | Login por el BFF y decisiones según `DecisionMix` | BR-U12-03 |
 | `scenarios` | Un escenario por RT y por X de comportamiento, con su oráculo | BR-U12-04, 05 |
 | `rt2_latency` | Medición de la latencia desde las entradas del registro | BR-U12-07 |
-| `load` | Orquesta los scripts k6 de U7, U8 y U10 y la línea base | BR-U12-08 |
+| `load` | Orquesta los scripts k6 de U8 y U10 y la línea base | BR-U12-08 |
 | `demos` | Guiones y `verify.sh` | BR-U12-09 |
 | `report` | Función pura: `VerificationReport` desde las `Evidence` | BR-U12-11 |
 
