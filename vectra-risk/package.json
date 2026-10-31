@@ -1,0 +1,11 @@
+{
+  "name": "vectra-risk",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "contracts/ts"
+  ],
+  "overrides": {
+    "minimatch": "11.0.3"
+  }
+}

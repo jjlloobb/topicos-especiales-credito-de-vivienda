@@ -1,0 +1,88 @@
+# CI de U0 `contracts` (Paso 21). Sin pasos que toquen un cluster (AUTONOMIA-01).
+name: contracts
+on:
+  pull_request:
+    paths:
+      - "vectra-risk/contracts/**"
+      - "vectra-risk/pyproject.toml"
+      - "vectra-risk/uv.lock"
+      - "vectra-risk/package-lock.json"
+      - ".github/workflows/contracts.yml"
+  schedule:
+    - cron: "0 4 * * *"
+permissions:
+  contents: read
+defaults:
+  run:
+    working-directory: vectra-risk
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@c7f87aa956e4c323abf06d5dec078e358f6b4d04 # v6.0.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - run: uv sync --frozen
+      - run: npm ci
+      - run: uv run ruff check contracts
+      - run: uv run mypy --strict contracts/python
+      - run: uv run lint-imports --config contracts/.importlinter
+      - name: Pruebas con el perfil ci y cobertura
+        run: HYPOTHESIS_PROFILE=ci uv run pytest contracts/tests --cov --cov-branch --cov-fail-under=95
+      - run: uv run python contracts/tools/coverage_gate.py
+      - run: uv run python contracts/tools/traceability.py --all
+      - name: Benchmark con umbral
+        run: |
+          uv run pytest contracts/tests/bench -m benchmark --benchmark-json=benchmark.json
+          uv run python contracts/tools/bench_gate.py benchmark.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: evidencia
+          path: |
+            vectra-risk/benchmark.json
+            vectra-risk/.hypothesis/
+          include-hidden-files: true
+      - name: Specs sin diff
+        run: |
+          make -C contracts openapi
+          git diff --exit-code contracts/openapi/
+      - name: Compatibilidad contra la ultima etiqueta
+        run: |
+          base_tag="$(git tag --list 'contracts-v*' --sort=-v:refname | head -n 1)"
+          if [ -z "$base_tag" ]; then
+            echo "Sin etiqueta contracts-v*: se omite"
+            exit 0
+          fi
+          curl -fsSL https://raw.githubusercontent.com/oasdiff/oasdiff/main/install.sh | sh
+          mkdir -p /tmp/base
+          git archive "$base_tag" vectra-risk/contracts/openapi | tar -x -C /tmp/base
+          head_version="$(uv run python -c 'import vectra_contracts; print(vectra_contracts.__version__)')"
+          for spec in contracts/openapi/*.yaml; do
+            uv run python contracts/tools/version_gate.py \
+              --base "/tmp/base/vectra-risk/$spec" --head "$spec" \
+              --base-version "${base_tag#contracts-v}" --head-version "$head_version"
+          done
+      - name: Mutacion (NFR-U0-41)
+        run: uv run python contracts/tools/mutation.py
+      - run: npm run -w contracts/ts typecheck
+      - run: npm run -w contracts/ts lint
+      - run: npm run -w contracts/ts test
+      - name: Auditoria de dependencias (hasta tener los workflows de U1)
+        run: |
+          uv export --frozen --no-emit-workspace --no-hashes -o /tmp/requirements.txt
+          uvx --from pip-audit==2.9.0 pip-audit -r /tmp/requirements.txt
+          npm audit --audit-level=high
+  nightly:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@c7f87aa956e4c323abf06d5dec078e358f6b4d04 # v6.0.0
+      - run: uv sync --frozen
+      - run: HYPOTHESIS_PROFILE=nightly uv run pytest contracts/tests/property
+      - run: uv run python contracts/tools/mutation.py

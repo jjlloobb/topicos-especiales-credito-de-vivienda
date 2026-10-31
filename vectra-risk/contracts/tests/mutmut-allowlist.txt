@@ -1,0 +1,2 @@
+# Mutantes sobrevivientes justificados (NFR-U0-41): patron  # justificacion
+# Vacia: hoy no hay ninguno.

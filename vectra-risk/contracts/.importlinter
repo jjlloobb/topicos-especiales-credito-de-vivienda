@@ -1,0 +1,54 @@
+[importlinter]
+root_packages =
+    vectra_contracts
+    vectra_common
+include_external_packages = True
+
+[importlinter:contract:contracts-puros]
+name = vectra_contracts no importa vectra_common, web, red, os ni aleatoriedad
+type = forbidden
+source_modules =
+    vectra_contracts
+forbidden_modules =
+    vectra_common
+    fastapi
+    httpx
+    os
+    random
+allow_indirect_imports = True
+
+[importlinter:contract:token-privado]
+name = solo outcome importa outcome._internal
+type = forbidden
+source_modules =
+    vectra_contracts.catalog
+    vectra_contracts.canonical
+    vectra_contracts.dictionary
+    vectra_contracts.finance
+    vectra_contracts.labels
+    vectra_contracts.validation
+    vectra_contracts.models
+    vectra_contracts.routes
+    vectra_common
+forbidden_modules =
+    vectra_contracts.outcome._internal
+allow_indirect_imports = True
+
+[importlinter:contract:httpx-solo-en-deps]
+name = solo vectra_common.deps importa httpx
+type = forbidden
+source_modules =
+    vectra_common.app_factory
+    vectra_common.authn
+    vectra_common.authz
+    vectra_common.deadline
+    vectra_common.errors
+    vectra_common.jwks_cache
+    vectra_common.logging
+    vectra_common.metrics
+    vectra_common.ops_server
+    vectra_common.process
+    vectra_common.telemetry
+forbidden_modules =
+    httpx
+allow_indirect_imports = True

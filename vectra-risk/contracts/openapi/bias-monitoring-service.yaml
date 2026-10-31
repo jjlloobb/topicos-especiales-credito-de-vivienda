@@ -1,0 +1,829 @@
+components:
+  schemas:
+    AttributeResult:
+      additionalProperties: false
+      properties:
+        aggregate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Aggregate
+        aggregate_ci_95:
+          anyOf:
+          - items:
+              pattern: ^-?\d+\.\d{4}$
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: Aggregate Ci 95
+        attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Attribute
+          type: string
+        bands:
+          items:
+            $ref: '#/components/schemas/BandResult'
+          title: Bands
+          type: array
+        cells:
+          items:
+            $ref: '#/components/schemas/CellResult'
+          title: Cells
+          type: array
+        population_difference:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Population Difference
+        population_difference_partial:
+          title: Population Difference Partial
+          type: boolean
+      required:
+      - attribute
+      - cells
+      - bands
+      - population_difference_partial
+      title: AttributeResult
+      type: object
+    BandResult:
+      additionalProperties: false
+      properties:
+        band:
+          enum:
+          - lt_20
+          - '20_30'
+          - gt_30
+          title: Band
+          type: string
+        ci_95:
+          anyOf:
+          - items:
+              pattern: ^-?\d+\.\d{4}$
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: Ci 95
+        difference:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Difference
+        extreme_pair:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: Extreme Pair
+        n_band:
+          minimum: 0
+          title: N Band
+          type: integer
+      required:
+      - band
+      - n_band
+      title: BandResult
+      type: object
+    CellResult:
+      additionalProperties: false
+      properties:
+        band:
+          enum:
+          - lt_20
+          - '20_30'
+          - gt_30
+          title: Band
+          type: string
+        group:
+          title: Group
+          type: string
+        n:
+          minimum: 0
+          title: N
+          type: integer
+        rate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Rate
+        status:
+          enum:
+          - suficiente
+          - muestra_insuficiente
+          title: Status
+          type: string
+      required:
+      - group
+      - band
+      - n
+      - status
+      title: CellResult
+      type: object
+    CompareSourceRequest:
+      additionalProperties: false
+      properties:
+        post:
+          items:
+            $ref: '#/components/schemas/CountTable'
+          title: Post
+          type: array
+        pre:
+          items:
+            $ref: '#/components/schemas/CountTable'
+          title: Pre
+          type: array
+        source_id:
+          title: Source Id
+          type: string
+      required:
+      - source_id
+      - pre
+      - post
+      title: CompareSourceRequest
+      type: object
+    CountCell:
+      additionalProperties: false
+      properties:
+        band:
+          enum:
+          - lt_20
+          - '20_30'
+          - gt_30
+          title: Band
+          type: string
+        favorable:
+          minimum: 0
+          title: Favorable
+          type: integer
+        group:
+          title: Group
+          type: string
+        total:
+          minimum: 0
+          title: Total
+          type: integer
+      required:
+      - group
+      - band
+      - favorable
+      - total
+      title: CountCell
+      type: object
+    CountTable:
+      additionalProperties: false
+      properties:
+        attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Attribute
+          type: string
+        cells:
+          items:
+            $ref: '#/components/schemas/CountCell'
+          title: Cells
+          type: array
+      required:
+      - attribute
+      - cells
+      title: CountTable
+      type: object
+    DayRange:
+      additionalProperties: false
+      properties:
+        from_day:
+          format: date
+          title: From Day
+          type: string
+        to_day:
+          format: date
+          title: To Day
+          type: string
+      required:
+      - from_day
+      - to_day
+      title: DayRange
+      type: object
+    DepartureRate:
+      additionalProperties: false
+      properties:
+        band:
+          enum:
+          - lt_20
+          - '20_30'
+          - gt_30
+          title: Band
+          type: string
+        group:
+          title: Group
+          type: string
+        rate:
+          pattern: ^-?\d+\.\d{4}$
+          title: Rate
+          type: string
+      required:
+      - group
+      - band
+      - rate
+      title: DepartureRate
+      type: object
+    DisparityResult:
+      additionalProperties: false
+      properties:
+        attributes:
+          items:
+            $ref: '#/components/schemas/AttributeResult'
+          title: Attributes
+          type: array
+        departure_rates:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/DepartureRate'
+            type: array
+          - type: 'null'
+          default: null
+          title: Departure Rates
+        model_aggregate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Model Aggregate
+        model_version_id:
+          title: Model Version Id
+          type: string
+        population:
+          enum:
+          - modelo
+          - humana
+          title: Population
+          type: string
+        trigger_attribute:
+          anyOf:
+          - enum:
+            - sexo
+            - rango_edad
+            - region
+            - estrato
+            type: string
+          - type: 'null'
+          default: null
+          title: Trigger Attribute
+        window_from:
+          format: date
+          title: Window From
+          type: string
+        window_to:
+          format: date
+          title: Window To
+          type: string
+      required:
+      - population
+      - model_version_id
+      - window_from
+      - window_to
+      - attributes
+      title: DisparityResult
+      type: object
+    DisparityView:
+      additionalProperties: false
+      properties:
+        computed_at:
+          format: date-time
+          title: Computed At
+          type: string
+        disclaimer:
+          title: Disclaimer
+          type: string
+        human:
+          $ref: '#/components/schemas/DisparityResult'
+        invalid_entries:
+          title: Invalid Entries
+          type: integer
+        model:
+          $ref: '#/components/schemas/DisparityResult'
+        model_version_id:
+          title: Model Version Id
+          type: string
+        n_min:
+          title: N Min
+          type: integer
+        schedule:
+          title: Schedule
+          type: string
+        stale_after_s:
+          title: Stale After S
+          type: integer
+        threshold_pp:
+          pattern: ^-?\d+\.\d{4}$
+          title: Threshold Pp
+          type: string
+        window:
+          $ref: '#/components/schemas/DayRange'
+        window_days:
+          title: Window Days
+          type: integer
+      required:
+      - model_version_id
+      - window
+      - computed_at
+      - model
+      - human
+      - threshold_pp
+      - n_min
+      - window_days
+      - schedule
+      - stale_after_s
+      - invalid_entries
+      - disclaimer
+      title: DisparityView
+      type: object
+    FreezeContextPackage:
+      additionalProperties: false
+      description: '`FreezeContext` mas lo que agrega governance (BR-U9-16).'
+      properties:
+        affected_volume:
+          title: Affected Volume
+          type: integer
+        after:
+          $ref: '#/components/schemas/DisparityResult'
+        before:
+          anyOf:
+          - $ref: '#/components/schemas/DisparityResult'
+          - const: sin_datos
+            type: string
+          title: Before
+        computed_at:
+          format: date-time
+          title: Computed At
+          type: string
+        data_sources:
+          items:
+            $ref: '#/components/schemas/JsonValue'
+          title: Data Sources
+          type: array
+        implicated:
+          items:
+            $ref: '#/components/schemas/JsonValue'
+          title: Implicated
+          type: array
+        initial_disparity:
+          $ref: '#/components/schemas/InitialDisparity'
+        last_7_days:
+          anyOf:
+          - $ref: '#/components/schemas/DisparityResult'
+          - const: sin_datos
+            type: string
+          title: Last 7 Days
+        library_version:
+          title: Library Version
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        n_min:
+          title: N Min
+          type: integer
+        schedule:
+          title: Schedule
+          type: string
+        stale_after_s:
+          title: Stale After S
+          type: integer
+        threshold_pp:
+          pattern: ^-?\d+\.\d{4}$
+          title: Threshold Pp
+          type: string
+        trigger_attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Trigger Attribute
+          type: string
+        truncated:
+          title: Truncated
+          type: boolean
+        window_days:
+          title: Window Days
+          type: integer
+        window_start:
+          format: date
+          title: Window Start
+          type: string
+      required:
+      - model_version_id
+      - computed_at
+      - threshold_pp
+      - n_min
+      - window_days
+      - schedule
+      - stale_after_s
+      - library_version
+      - window_start
+      - before
+      - after
+      - last_7_days
+      - trigger_attribute
+      - implicated
+      - affected_volume
+      - truncated
+      - data_sources
+      - initial_disparity
+      title: FreezeContextPackage
+      type: object
+    FreezeRecord:
+      additionalProperties: false
+      properties:
+        context_package:
+          $ref: '#/components/schemas/FreezeContextPackage'
+        freeze_id:
+          title: Freeze Id
+          type: string
+        frozen_at:
+          format: date-time
+          title: Frozen At
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        resolutions:
+          items:
+            $ref: '#/components/schemas/Resolution'
+          title: Resolutions
+          type: array
+      required:
+      - freeze_id
+      - model_version_id
+      - frozen_at
+      - context_package
+      - resolutions
+      title: FreezeRecord
+      type: object
+    FreezeSummary:
+      additionalProperties: false
+      properties:
+        freeze_id:
+          title: Freeze Id
+          type: string
+        frozen_at:
+          format: date-time
+          title: Frozen At
+          type: string
+        model_aggregate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Model Aggregate
+        model_version_id:
+          title: Model Version Id
+          type: string
+        resolution:
+          anyOf:
+          - $ref: '#/components/schemas/Resolution'
+          - type: 'null'
+          default: null
+        trigger_attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Trigger Attribute
+          type: string
+      required:
+      - freeze_id
+      - model_version_id
+      - frozen_at
+      - trigger_attribute
+      title: FreezeSummary
+      type: object
+    InitialDisparity:
+      additionalProperties: false
+      properties:
+        attributes:
+          items:
+            $ref: '#/components/schemas/AttributeResult'
+          title: Attributes
+          type: array
+        model_aggregate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Model Aggregate
+        n_min:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: N Min
+        rule_met:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          title: Rule Met
+        threshold_pp:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Threshold Pp
+        trigger_attribute:
+          anyOf:
+          - enum:
+            - sexo
+            - rango_edad
+            - region
+            - estrato
+            type: string
+          - type: 'null'
+          default: null
+          title: Trigger Attribute
+      required:
+      - attributes
+      title: InitialDisparity
+      type: object
+    InvalidParam:
+      additionalProperties: false
+      properties:
+        name:
+          title: Name
+          type: string
+        reason_code:
+          title: Reason Code
+          type: string
+      required:
+      - name
+      - reason_code
+      title: InvalidParam
+      type: object
+    JsonValue: {}
+    PrePostReport:
+      additionalProperties: false
+      properties:
+        delta:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Delta
+        disclaimer:
+          title: Disclaimer
+          type: string
+        n_min:
+          title: N Min
+          type: integer
+        post:
+          $ref: '#/components/schemas/DisparityResult'
+        pre:
+          $ref: '#/components/schemas/DisparityResult'
+        source_id:
+          title: Source Id
+          type: string
+        threshold_pp:
+          pattern: ^-?\d+\.\d{4}$
+          title: Threshold Pp
+          type: string
+        truncated:
+          title: Truncated
+          type: boolean
+      required:
+      - source_id
+      - pre
+      - post
+      - threshold_pp
+      - n_min
+      - truncated
+      - disclaimer
+      title: PrePostReport
+      type: object
+    Problem:
+      additionalProperties: false
+      description: RFC 9457; campos cerrados (BR-U0-61) y `reason` de su catalogo
+        (§6).
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        correlation_id:
+          title: Correlation Id
+          type: string
+        invalid_params:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/InvalidParam'
+            type: array
+          - type: 'null'
+          default: null
+          title: Invalid Params
+        reason:
+          anyOf:
+          - $ref: '#/components/schemas/ProblemReason'
+          - type: 'null'
+          default: null
+        status:
+          title: Status
+          type: integer
+        title:
+          title: Title
+          type: string
+        type:
+          title: Type
+          type: string
+      required:
+      - type
+      - title
+      - status
+      - code
+      - correlation_id
+      title: Problem
+      type: object
+    ProblemCode:
+      enum:
+      - malformed_request
+      - unsupported_media_type
+      - validation_error
+      - unauthenticated
+      - forbidden
+      - mfa_required
+      - not_found
+      - conflict_state
+      - payload_too_large
+      - rate_limited
+      - dependency_unavailable
+      - internal_error
+      - unprocessable_explanation
+      - deadline_exceeded
+      title: ProblemCode
+      type: string
+    ProblemReason:
+      enum:
+      - decision_already_recorded
+      - transition_pending
+      - version_mismatch
+      - feature_dictionary_incomplete
+      - factuality_failed
+      - no_active_version
+      - active_version_frozen
+      title: ProblemReason
+      type: string
+    Resolution:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+          - reactivar
+          - descartar
+          - investigar
+          title: Action
+          type: string
+        recorded_at:
+          format: date-time
+          title: Recorded At
+          type: string
+      required:
+      - action
+      - recorded_at
+      title: Resolution
+      type: object
+    RootModel_list_FreezeSummary__:
+      items:
+        $ref: '#/components/schemas/FreezeSummary'
+      title: RootModel[list[FreezeSummary]]
+      type: array
+info:
+  title: bias-monitoring-service
+  version: 0.1.0
+openapi: 3.1.0
+paths:
+  /v1/disparity:
+    get:
+      operationId: get_v1_disparity
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisparityView'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      - cumplimiento
+      x-vectra-scopes: []
+  /v1/freezes:
+    get:
+      operationId: get_v1_freezes
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RootModel_list_FreezeSummary__'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      - cumplimiento
+      x-vectra-scopes: []
+  /v1/freezes/{id}:
+    get:
+      operationId: get_v1_freezes_id
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FreezeRecord'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cumplimiento
+      x-vectra-scopes: []
+  /v1/source-comparisons:
+    post:
+      operationId: post_v1_source-comparisons
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompareSourceRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrePostReport'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 65536
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles: []
+      x-vectra-scopes:
+      - bias:compare

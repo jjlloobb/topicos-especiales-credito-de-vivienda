@@ -9,10 +9,10 @@
 - **Requirements Depth**: Comprehensive (sistema regulado, alto riesgo, múltiples stakeholders)
 
 ## Workspace State
-- **Existing Code**: No
-- **Programming Languages**: Ninguno (solo documentos Markdown en `entradas/` y `aidlc-docs/`)
-- **Build System**: Ninguno
-- **Project Structure**: Solo documentación (`entradas/`, `aidlc-docs/`, `.aidlc-rule-details/`, `AGENTS.md`); sin código de aplicación
+- **Existing Code**: Sí, U0 en `contracts/` (2026-10-31)
+- **Programming Languages**: Python 3.12 y TypeScript (U0)
+- **Build System**: uv, npm y Make (`contracts/`)
+- **Project Structure**: Monorepo multi-unidad: `contracts/` (U0); documentación en `aidlc-docs/`
 - **Reverse Engineering Needed**: No
 - **Workspace Root**: /home/jjlloobb/IT/PUJ/MINSC/GitHub/topicos-especiales-credito-de-vivienda/vectra-risk
 
@@ -71,7 +71,7 @@
 ## Current Status
 - **Lifecycle Phase**: CONSTRUCTION
 - **Current Stage**: CONSTRUCTION cerrada en los planes de tareas de U0–U12
-- **Next Stage**: aprobación del conjunto de cambios desde el 2026-10-31 (P18); después, Code Generation Part 2 de U0 y U1, revisando primero cada plan contra su tabla de cambios
+- **Next Stage**: Code Generation Part 2 de U1, revisando primero su plan contra su tabla de cambios (U0 aprobada el 2026-10-31)
 
 ## Per-Unit Progress (CONSTRUCTION)
 | Unidad | FD | NFR Req | NFR Design | Infra Design | Plan de tareas |

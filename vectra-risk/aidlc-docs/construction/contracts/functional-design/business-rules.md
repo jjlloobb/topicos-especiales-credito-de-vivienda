@@ -206,7 +206,7 @@ devuelve en la cabecera `traceparent` y en el campo `correlation_id` de `Problem
 
 **BR-U0-71 — Scopes y roles.** Un endpoint declara `required_scopes`, `required_roles` o
 ambos. Se autoriza **si y solo si** `required_scopes ⊆ principal.scopes` **y**
-`required_roles ∩ principal.roles ≠ ∅` (un conjunto no declarado no restringe). Un
+`required_roles ∩ principal.roles ≠ ∅` (un conjunto no declarado no restringe). Una ruta que usan varias identidades con scopes distintos declara `any_scopes`, y exige además `any_scopes ∩ principal.scopes ≠ ∅`: con solo `required_scopes`, `POST /v1/entries` no autorizaría a ningún escritor (U3 BR-U3-03; Code Generation de U0, 2026-10-31). Un
 endpoint que no declara ninguno de los dos se rechaza al arrancar el servicio (deny by
 default). No se usan comodines. Esta regla aplica al puerto de la API (8080). Los health
 checks y `/metrics` viven en el puerto 8081, no exponen rutas de negocio y no pasan por

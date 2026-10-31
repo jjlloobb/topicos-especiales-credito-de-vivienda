@@ -313,7 +313,7 @@ En `validation_error` se permite un campo adicional `invalid_params: [{name, rea
 
 ### 7.1b `RouteContract` (forma; patrón P-U0-12)
 `service`, `method`, `path`, `request_model`, `response_model`, `scopes`, `roles`, `mfa`,
-`mfa_max_age` (900 s), `port` (8080), `read_only: bool` (por omisión `false`; `true` solo en un
+`any_scopes` (autoriza con al menos uno; para rutas que varias identidades usan con scopes distintos, como `POST /v1/entries`; Code Generation de U0, 2026-10-31), `mfa_max_age` (900 s), `port` (8080), `read_only: bool` (por omisión `false`; `true` solo en un
 `POST` de consulta sin efectos con scopes de lectura, BR-U0-71) (revisión del NFR Requirements de U9, 2026-10-10) y
 `max_body_bytes` (por omisión 32 KiB; revisión del Infrastructure Design de U10, 2026-10-10). El BodyGuard del pipeline (P-U0-01, paso 4) usa
 el de la ruta. Rutas con un valor mayor: `POST /v1/entries` del registro, 80 KiB (el `canonical`
@@ -358,6 +358,7 @@ Solo pueden aparecer estos campos:
 - `seq`, `recommendation_entry_id`, `window_from`, `window_to`: referencias técnicas sin datos del solicitante, para los eventos de U9 y U11 (cuarta revisión de coherencia entre unidades, 2026-10-31);
 - `app_version`: la versión SemVer de la SPA en `console.client_error` (NFR Requirements de U10, 2026-10-10, Q12);
 - `principal_subject`: el `sub` opaco del token (UUID de Keycloak), nunca el username ni el email. Permite alertar por fallos repetidos del mismo sujeto (SECURITY-14).
+- `exception_type`: el nombre de la clase de una excepción, sin mensaje ni traza; BR-U0-52 lo exige y no estaba en esta lista (Code Generation de U0, 2026-10-31).
 
 Cualquier otro campo se descarta antes de emitir el registro.
 

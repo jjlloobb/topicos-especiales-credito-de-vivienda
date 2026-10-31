@@ -1,0 +1,502 @@
+components:
+  schemas:
+    CategoryFeature:
+      additionalProperties: false
+      properties:
+        type:
+          const: category
+          default: category
+          title: Type
+          type: string
+        value:
+          maxLength: 60
+          title: Value
+          type: string
+      required:
+      - value
+      title: CategoryFeature
+      type: object
+    DecimalFeature:
+      additionalProperties: false
+      properties:
+        type:
+          const: decimal
+          default: decimal
+          title: Type
+          type: string
+        value:
+          pattern: ^-?\d+(\.\d+)?$
+          title: Value
+          type: string
+      required:
+      - value
+      title: DecimalFeature
+      type: object
+    Explanation:
+      additionalProperties: false
+      properties:
+        base_value:
+          pattern: ^-?\d+(\.\d+)?$
+          title: Base Value
+          type: string
+        factuality_check:
+          const: passed
+          title: Factuality Check
+          type: string
+        feature_dictionary_version:
+          title: Feature Dictionary Version
+          type: string
+        method:
+          const: shap
+          title: Method
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        narrative:
+          maxLength: 4000
+          title: Narrative
+          type: string
+        narrative_generator:
+          title: Narrative Generator
+          type: string
+        posthoc_notice:
+          title: Posthoc Notice
+          type: string
+        shap_vector:
+          items:
+            $ref: '#/components/schemas/FeatureContribution'
+          title: Shap Vector
+          type: array
+      required:
+      - model_version_id
+      - method
+      - shap_vector
+      - base_value
+      - narrative
+      - narrative_generator
+      - feature_dictionary_version
+      - posthoc_notice
+      - factuality_check
+      title: Explanation
+      type: object
+    FailClosed:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        cause:
+          $ref: '#/components/schemas/FailClosedCause'
+        kind:
+          const: fail_closed
+          default: fail_closed
+          title: Kind
+          type: string
+        occurred_at:
+          format: date-time
+          title: Occurred At
+          type: string
+        retryable:
+          title: Retryable
+          type: boolean
+        status:
+          enum:
+          - en_sincronizacion
+          - modelo_congelado
+          title: Status
+          type: string
+      required:
+      - case_id
+      - status
+      - cause
+      - retryable
+      - occurred_at
+      title: FailClosed
+      type: object
+    FailClosedCause:
+      description: En el orden de precedencia de BR-U0-02 (BR-U0-03).
+      enum:
+      - model_frozen
+      - serving_config_unavailable
+      - model_output_invalid
+      - timeout
+      - explainer_unavailable
+      - explainer_error
+      - version_mismatch
+      - feature_dictionary_incomplete
+      - factuality_failed
+      - registry_unavailable
+      title: FailClosedCause
+      type: string
+    FeatureContribution:
+      additionalProperties: false
+      properties:
+        contribution:
+          pattern: ^-?\d+(\.\d+)?$
+          title: Contribution
+          type: string
+        feature_id:
+          title: Feature Id
+          type: string
+        value:
+          discriminator:
+            mapping:
+              category: '#/components/schemas/CategoryFeature'
+              decimal: '#/components/schemas/DecimalFeature'
+              int: '#/components/schemas/IntFeature'
+            propertyName: type
+          oneOf:
+          - $ref: '#/components/schemas/DecimalFeature'
+          - $ref: '#/components/schemas/IntFeature'
+          - $ref: '#/components/schemas/CategoryFeature'
+          title: Value
+      required:
+      - feature_id
+      - value
+      - contribution
+      title: FeatureContribution
+      type: object
+    FeatureVector:
+      additionalProperties: false
+      properties:
+        features:
+          additionalProperties:
+            discriminator:
+              mapping:
+                category: '#/components/schemas/CategoryFeature'
+                decimal: '#/components/schemas/DecimalFeature'
+                int: '#/components/schemas/IntFeature'
+              propertyName: type
+            oneOf:
+            - $ref: '#/components/schemas/DecimalFeature'
+            - $ref: '#/components/schemas/IntFeature'
+            - $ref: '#/components/schemas/CategoryFeature'
+          title: Features
+          type: object
+      required:
+      - features
+      title: FeatureVector
+      type: object
+    IntFeature:
+      additionalProperties: false
+      properties:
+        type:
+          const: int
+          default: int
+          title: Type
+          type: string
+        value:
+          title: Value
+          type: integer
+      required:
+      - value
+      title: IntFeature
+      type: object
+    InvalidParam:
+      additionalProperties: false
+      properties:
+        name:
+          title: Name
+          type: string
+        reason_code:
+          title: Reason Code
+          type: string
+      required:
+      - name
+      - reason_code
+      title: InvalidParam
+      type: object
+    MonitoringLabels:
+      additionalProperties: false
+      properties:
+        banda_capacidad_pago:
+          enum:
+          - lt_20
+          - '20_30'
+          - gt_30
+          title: Banda Capacidad Pago
+          type: string
+        estrato:
+          enum:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - no_informado
+          title: Estrato
+          type: string
+        rango_edad:
+          enum:
+          - 18-25
+          - 26-35
+          - 36-45
+          - 46-55
+          - 56-65
+          - 66+
+          title: Rango Edad
+          type: string
+        region:
+          enum:
+          - andina
+          - caribe
+          - pacifica
+          - orinoquia
+          - amazonia
+          - insular
+          title: Region
+          type: string
+        sexo:
+          enum:
+          - F
+          - M
+          - no_informado
+          title: Sexo
+          type: string
+      required:
+      - sexo
+      - rango_edad
+      - region
+      - estrato
+      - banda_capacidad_pago
+      title: MonitoringLabels
+      type: object
+    PolicyInputs:
+      additionalProperties: false
+      properties:
+        channel:
+          maxLength: 40
+          title: Channel
+          type: string
+        property_value:
+          maximum: 1000000000000
+          minimum: 0
+          title: Property Value
+          type: integer
+        proposed_rate_ea:
+          pattern: ^-?\d+\.\d{4}$
+          title: Proposed Rate Ea
+          type: string
+      required:
+      - property_value
+      - proposed_rate_ea
+      - channel
+      title: PolicyInputs
+      type: object
+    Problem:
+      additionalProperties: false
+      description: RFC 9457; campos cerrados (BR-U0-61) y `reason` de su catalogo
+        (§6).
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        correlation_id:
+          title: Correlation Id
+          type: string
+        invalid_params:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/InvalidParam'
+            type: array
+          - type: 'null'
+          default: null
+          title: Invalid Params
+        reason:
+          anyOf:
+          - $ref: '#/components/schemas/ProblemReason'
+          - type: 'null'
+          default: null
+        status:
+          title: Status
+          type: integer
+        title:
+          title: Title
+          type: string
+        type:
+          title: Type
+          type: string
+      required:
+      - type
+      - title
+      - status
+      - code
+      - correlation_id
+      title: Problem
+      type: object
+    ProblemCode:
+      enum:
+      - malformed_request
+      - unsupported_media_type
+      - validation_error
+      - unauthenticated
+      - forbidden
+      - mfa_required
+      - not_found
+      - conflict_state
+      - payload_too_large
+      - rate_limited
+      - dependency_unavailable
+      - internal_error
+      - unprocessable_explanation
+      - deadline_exceeded
+      title: ProblemCode
+      type: string
+    ProblemReason:
+      enum:
+      - decision_already_recorded
+      - transition_pending
+      - version_mismatch
+      - feature_dictionary_incomplete
+      - factuality_failed
+      - no_active_version
+      - active_version_frozen
+      title: ProblemReason
+      type: string
+    RecommendResult:
+      description: Cuerpo de la respuesta 200 de `POST /v1/recommendations` (BR-U0-06).
+      discriminator:
+        mapping:
+          fail_closed: '#/components/schemas/FailClosed'
+          recommendation: '#/components/schemas/Recommendation'
+        propertyName: kind
+      oneOf:
+      - $ref: '#/components/schemas/Recommendation'
+      - $ref: '#/components/schemas/FailClosed'
+      title: RecommendResult
+    Recommendation:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        confidence:
+          pattern: ^-?\d+\.\d{4}$
+          title: Confidence
+          type: string
+        evaluated_at:
+          format: date-time
+          title: Evaluated At
+          type: string
+        explanation:
+          $ref: '#/components/schemas/Explanation'
+        feature_vector_hash:
+          pattern: ^[0-9a-f]{64}$
+          title: Feature Vector Hash
+          type: string
+        kind:
+          const: recommendation
+          default: recommendation
+          title: Kind
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        outcome:
+          title: Outcome
+          type: string
+        policy_version_id:
+          title: Policy Version Id
+          type: string
+        reasons:
+          items:
+            type: string
+          title: Reasons
+          type: array
+        registry_entry_id:
+          minLength: 1
+          title: Registry Entry Id
+          type: string
+        score:
+          pattern: ^-?\d+\.\d{4}$
+          title: Score
+          type: string
+      required:
+      - case_id
+      - score
+      - confidence
+      - outcome
+      - reasons
+      - model_version_id
+      - policy_version_id
+      - explanation
+      - registry_entry_id
+      - evaluated_at
+      - feature_vector_hash
+      title: Recommendation
+      type: object
+    ScoringRequest:
+      additionalProperties: false
+      properties:
+        attempt:
+          minimum: 1
+          title: Attempt
+          type: integer
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        features:
+          $ref: '#/components/schemas/FeatureVector'
+        first_evaluation:
+          title: First Evaluation
+          type: boolean
+        model_version_id:
+          title: Model Version Id
+          type: string
+        monitoring_labels:
+          $ref: '#/components/schemas/MonitoringLabels'
+        policy_inputs:
+          $ref: '#/components/schemas/PolicyInputs'
+        received_at:
+          format: date-time
+          title: Received At
+          type: string
+      required:
+      - case_id
+      - features
+      - monitoring_labels
+      - policy_inputs
+      - attempt
+      - model_version_id
+      - received_at
+      - first_evaluation
+      title: ScoringRequest
+      type: object
+info:
+  title: scoring-service
+  version: 0.1.0
+openapi: 3.1.0
+paths:
+  /v1/recommendations:
+    post:
+      operationId: post_v1_recommendations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScoringRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendResult'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles: []
+      x-vectra-scopes:
+      - case:recommend

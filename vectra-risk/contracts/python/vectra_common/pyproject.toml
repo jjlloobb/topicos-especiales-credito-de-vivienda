@@ -1,0 +1,25 @@
+[project]
+name = "vectra-common"
+version = "0.1.0"
+description = "Middleware comun de los servicios de Vectra Risk (U0)"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "vectra-contracts",
+  "fastapi==0.162.0",
+  "pyjwt[crypto]==2.15.1",
+  "structlog==26.1.0",
+  "opentelemetry-sdk==1.45.2",
+  "opentelemetry-exporter-otlp-proto-grpc==1.45.2",
+  "prometheus-client==0.26.0",
+  "httpx==0.28.1",
+]
+
+[tool.uv.sources]
+vectra-contracts = { workspace = true }
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vectra_common"]

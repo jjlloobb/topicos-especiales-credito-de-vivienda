@@ -3629,3 +3629,56 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Puerta de aprobación; pendiente de la respuesta del usuario.
 
 ---
+
+## Aprobación del conjunto de cambios (P18) e inicio de U0
+**Timestamp**: 2026-10-31T19:16:21Z
+**User Input**: "sí, apruebo, empieza con U0"
+**AI Response**: Aprobación registrada de los cambios a U0–U12 desde d1816ca hasta a1015ba. Inicio de Code Generation Part 2 de U0, tras revisar su plan contra su tabla de cambios.
+**Context**: P18 de cross-unit-review5-followup-questions.md; P17 levanta la restricción solo para U0 y U1.
+
+---
+
+## Code Generation Part 2 de U0 — Resultado
+**Timestamp**: 2026-10-31T19:55:48Z
+**AI Response**: Pasos 1–24 ejecutados en `contracts/`; sin commit. Se presenta la revisión requerida. Desviaciones en §5 del plan: `any_scopes`, `exception_type`, herramienta de mutación, ubicación del workflow, `CODEOWNERS` con marcador. Versiones fijadas actualizadas tras `pip-audit` y `npm audit`.
+**Context**: Pendiente de la aprobación del usuario antes de pasar a U1.
+
+---
+
+## Code Generation Part 2 de U0 — Verificación final
+**Timestamp**: 2026-10-31T20:02:16Z
+**AI Response**: `make -C contracts check` en 0: 362 pruebas con perfil `ci`, cobertura 97,47 % y 100 % en módulos críticos, trazabilidad de 56 reglas, benchmarks bajo sus umbrales y cliente TS. Mutación con mutmut 3.8.1: 1 sobreviviente justificado. `pip-audit` sin hallazgos; `npm audit` con 8 moderadas en herramientas de desarrollo. `actionlint` en 0; el workflow no se ha ejecutado en GitHub y `oasdiff` no se ejecutó localmente. Sin commit.
+**Context**: Revisión requerida del usuario.
+
+---
+
+## Correcciones tras la revisión de U0 — Solicitud
+**Timestamp**: 2026-10-31T20:08:34Z
+**User Input**: "primero resuelve los problemas que encontraron las pruebas y lo que debo revisar"
+**AI Response**: En curso; resultado al terminar.
+**Context**: Revisión de Code Generation Part 2 de U0.
+
+---
+
+## Correcciones tras la revisión de U0 — Resultado
+**Timestamp**: 2026-10-31T20:12:41Z
+**User Input**: (sin entrada nueva; cierre de "primero resuelve los problemas que encontraron las pruebas y lo que debo revisar")
+**AI Response**: Los cinco problemas ya estaban corregidos; se agregó la prueba que faltaba de la herramienta de mutación. Eliminadas las 17 marcas `pragma: no mutate` y la lista de mutantes justificados, con pruebas y cambios de diseño en el breaker. `any_scopes` y `exception_type` documentados en P-U0-12, P-U0-05 y el plan de U3. `CODEOWNERS` con `@jjlloobb` hasta que exista un equipo de cumplimiento. `minimatch` forzado a 11.0.3: `npm audit` sin hallazgos. Mutación agregada a cada PR. Sin commit.
+**Context**: Sigue pendiente la aprobación de U0 antes de U1.
+
+---
+
+## Verificación final tras las correcciones de U0
+**Timestamp**: 2026-10-31T20:13:58Z
+**AI Response**: Mutación aprobada sin líneas excluidas ni mutantes justificados; pruebas con perfil `ci` en verde. Pendiente la aprobación de U0.
+**Context**: Revisión de Code Generation Part 2 de U0.
+
+---
+
+## Aprobación de U0 e inicio de U1
+**Timestamp**: 2026-10-31T20:17:51Z
+**User Input**: "sí, apruebo U0, haz el commit y continúa con U1"
+**AI Response**: Code Generation Part 2 de U0 aprobado; commit en `docs/audit-status-check`. Inicio de la revisión del plan de U1.
+**Context**: P17 de cross-unit-review5-followup-questions.md.
+
+---

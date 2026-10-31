@@ -57,7 +57,7 @@ plan de tareas.
 
 ### P-U0-05 — Jerarquía cerrada de errores (Q6)
 - `VectraError(code)` tiene una subclase por `code` del catálogo (`ValidationFailed`, `Unauthenticated`, `Forbidden`, `MfaRequired`, `NotFound`, `ConflictState`, `PayloadTooLarge`, `RateLimited`, `DependencyUnavailable`, `MalformedRequest`, `UnsupportedMediaType`).
-- El `ProblemHandler` traduce **solo** `VectraError`; cualquier otra excepción se convierte en `internal_error`, con un log de tipo y `error_code`, sin `str(exc)` (BR-U0-52).
+- El `ProblemHandler` traduce **solo** `VectraError`; cualquier otra excepción se convierte en `internal_error`, con un log de tipo (`exception_type`) y `error_code`, sin `str(exc)` (BR-U0-52).
 - Las excepciones de dependencias se envuelven en el punto de llamada con el helper `vectra_common.deps.call(...)`, que aplica el timeout y convierte `httpx.TimeoutException` y los errores de conexión en `DependencyUnavailable`.
 - **Verificación**: PBT-U0-08; prueba de que una excepción de terceros que llega al handler da `internal_error`.
 - **Satisface**: SECURITY-15; NFR-U0-12; BR-U0-60, 61.
@@ -135,7 +135,7 @@ validar token(kid):
 ## 4. Patrón de contratos
 
 ### P-U0-12 — Registro de contratos de rutas (Q7)
-- `vectra_contracts.routes` declara, por servicio, cada ruta como dato: `RouteContract(service, method, path, request_model, response_model, scopes, roles, mfa, mfa_max_age=900, port=8080, read_only=False)`. `read_only=True` marca un `POST` de consulta sin efectos (hoy, `POST /v1/monitoring/daily:query` de U3): `create_app` lo admite con un scope de lectura como `registry:read:monitoring` y sin `Idempotency-Key`; un `POST` sin `read_only` con solo scopes de lectura falla al arrancar (séptima revisión del FD de U9, 2026-10-10).
+- `vectra_contracts.routes` declara, por servicio, cada ruta como dato: `RouteContract(service, method, path, request_model, response_model, scopes, any_scopes, roles, mfa, mfa_max_age=900, port=8080, read_only=False, max_body_bytes=32 KiB)`; `any_scopes` autoriza con al menos uno, para rutas que varias identidades usan con scopes distintos (BR-U0-71; Code Generation de U0, 2026-10-31). `read_only=True` marca un `POST` de consulta sin efectos (hoy, `POST /v1/monitoring/daily:query` de U3): `create_app` lo admite con un scope de lectura como `registry:read:monitoring` y sin `Idempotency-Key`; un `POST` sin `read_only` con solo scopes de lectura falla al arrancar (séptima revisión del FD de U9, 2026-10-10).
 - Del registro se generan:
   - las specs `contracts/openapi/{service}.yaml` (NFR-U0-30);
   - el catálogo de scopes y clientes para el realm de U2;

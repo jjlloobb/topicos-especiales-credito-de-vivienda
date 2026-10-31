@@ -1,0 +1,299 @@
+components:
+  schemas:
+    ApplicantFactor:
+      additionalProperties: false
+      properties:
+        direction:
+          enum:
+          - aumenta
+          - reduce
+          title: Direction
+          type: string
+        label_es:
+          title: Label Es
+          type: string
+      required:
+      - label_es
+      - direction
+      title: ApplicantFactor
+      type: object
+    ApplicantSummary:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        factors:
+          items:
+            $ref: '#/components/schemas/ApplicantFactor'
+          title: Factors
+          type: array
+        generated_at:
+          format: date-time
+          title: Generated At
+          type: string
+        posthoc_notice:
+          title: Posthoc Notice
+          type: string
+      required:
+      - case_id
+      - factors
+      - posthoc_notice
+      - generated_at
+      title: ApplicantSummary
+      type: object
+    ApplicantSummaryRequest:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        recommendation_entry_id:
+          title: Recommendation Entry Id
+          type: string
+      required:
+      - case_id
+      - recommendation_entry_id
+      title: ApplicantSummaryRequest
+      type: object
+    CategoryFeature:
+      additionalProperties: false
+      properties:
+        type:
+          const: category
+          default: category
+          title: Type
+          type: string
+        value:
+          maxLength: 60
+          title: Value
+          type: string
+      required:
+      - value
+      title: CategoryFeature
+      type: object
+    DecimalFeature:
+      additionalProperties: false
+      properties:
+        type:
+          const: decimal
+          default: decimal
+          title: Type
+          type: string
+        value:
+          pattern: ^-?\d+(\.\d+)?$
+          title: Value
+          type: string
+      required:
+      - value
+      title: DecimalFeature
+      type: object
+    ExplainRequest:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        features:
+          $ref: '#/components/schemas/FeatureVector'
+        inference_service:
+          pattern: ^isvc-[0-9a-f]{8}$
+          title: Inference Service
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        prediction_score:
+          pattern: ^-?\d+\.\d{4}$
+          title: Prediction Score
+          type: string
+      required:
+      - case_id
+      - model_version_id
+      - inference_service
+      - features
+      - prediction_score
+      title: ExplainRequest
+      type: object
+    FeatureVector:
+      additionalProperties: false
+      properties:
+        features:
+          additionalProperties:
+            discriminator:
+              mapping:
+                category: '#/components/schemas/CategoryFeature'
+                decimal: '#/components/schemas/DecimalFeature'
+                int: '#/components/schemas/IntFeature'
+              propertyName: type
+            oneOf:
+            - $ref: '#/components/schemas/DecimalFeature'
+            - $ref: '#/components/schemas/IntFeature'
+            - $ref: '#/components/schemas/CategoryFeature'
+          title: Features
+          type: object
+      required:
+      - features
+      title: FeatureVector
+      type: object
+    IntFeature:
+      additionalProperties: false
+      properties:
+        type:
+          const: int
+          default: int
+          title: Type
+          type: string
+        value:
+          title: Value
+          type: integer
+      required:
+      - value
+      title: IntFeature
+      type: object
+    InvalidParam:
+      additionalProperties: false
+      properties:
+        name:
+          title: Name
+          type: string
+        reason_code:
+          title: Reason Code
+          type: string
+      required:
+      - name
+      - reason_code
+      title: InvalidParam
+      type: object
+    Problem:
+      additionalProperties: false
+      description: RFC 9457; campos cerrados (BR-U0-61) y `reason` de su catalogo
+        (§6).
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        correlation_id:
+          title: Correlation Id
+          type: string
+        invalid_params:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/InvalidParam'
+            type: array
+          - type: 'null'
+          default: null
+          title: Invalid Params
+        reason:
+          anyOf:
+          - $ref: '#/components/schemas/ProblemReason'
+          - type: 'null'
+          default: null
+        status:
+          title: Status
+          type: integer
+        title:
+          title: Title
+          type: string
+        type:
+          title: Type
+          type: string
+      required:
+      - type
+      - title
+      - status
+      - code
+      - correlation_id
+      title: Problem
+      type: object
+    ProblemCode:
+      enum:
+      - malformed_request
+      - unsupported_media_type
+      - validation_error
+      - unauthenticated
+      - forbidden
+      - mfa_required
+      - not_found
+      - conflict_state
+      - payload_too_large
+      - rate_limited
+      - dependency_unavailable
+      - internal_error
+      - unprocessable_explanation
+      - deadline_exceeded
+      title: ProblemCode
+      type: string
+    ProblemReason:
+      enum:
+      - decision_already_recorded
+      - transition_pending
+      - version_mismatch
+      - feature_dictionary_incomplete
+      - factuality_failed
+      - no_active_version
+      - active_version_frozen
+      title: ProblemReason
+      type: string
+info:
+  title: explainability-service
+  version: 0.1.0
+openapi: 3.1.0
+paths:
+  /v1/applicant-summaries:
+    post:
+      operationId: post_v1_applicant-summaries
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicantSummaryRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicantSummary'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      - cro
+      x-vectra-scopes: []
+  /v1/explanations:
+    post:
+      operationId: post_v1_explanations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExplainRequest'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles: []
+      x-vectra-scopes:
+      - scoring:explain

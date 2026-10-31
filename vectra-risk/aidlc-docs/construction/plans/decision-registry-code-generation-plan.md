@@ -147,7 +147,7 @@ vectra-risk/decision-registry/
 
 - [ ] **Paso 9 — Readiness y contratos de rutas**
   - Readiness con `registry_health` (standby síncrono, cache de 5 s).
-  - Las rutas de U3 se registran como `RouteContract` en el registro de contratos de U0, con scopes, roles y MFA.
+  - Las rutas de U3 se registran como `RouteContract` en el registro de contratos de U0, con scopes, roles y MFA. `POST /v1/entries` y `GET /v1/entries` usan `any_scopes`; el handler sigue comprobando qué tipo de entrada o proyección permite cada scope (BR-U3-03, BR-U3-14; Code Generation de U0, 2026-10-31).
   - Diseño: P-U3-01; NFR-U3-11; P-U0-12.
   - **Aceptación**: `uv run pytest decision-registry/tests/integration/test_health.py` (standby detenido → `/readyz` 503 en ≤ 5 s); `make -C contracts openapi && git diff --exit-code contracts/openapi/` incluye las rutas de U3.
 

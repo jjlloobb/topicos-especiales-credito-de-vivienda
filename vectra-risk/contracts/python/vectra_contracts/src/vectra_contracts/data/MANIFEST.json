@@ -1,0 +1,14 @@
+{
+  "divipola.csv": {
+    "sha256": "8ff93b72cf689296223a8383ad46212d6d72ec5806964ec89119984c08732933",
+    "source": "DANE, DIVIPOLA, datos.gov.co (dataset gdxc-w37w)",
+    "retrieved_on": "2026-10-31",
+    "cutoff_date": "[VERIFICAR] fecha de corte vigente con el DANE",
+    "rows": 1122
+  },
+  "regions.csv": {
+    "sha256": "7f69df2651678137673b36dec29b78c62567eb1a167dc7118b0ce01f65ce3b99",
+    "source": "BR-U0-41; [VERIFICAR] convencion con el area de riesgo del cliente piloto",
+    "rows": 33
+  }
+}
