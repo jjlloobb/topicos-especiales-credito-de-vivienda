@@ -40,7 +40,7 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
   - workflows reutilizables de GitHub Actions: pruebas con semilla de PBT, escaneo de dependencias e imágenes, SBOM, evidencia `helm template` y `kubectl diff`, y **verificación de pasos prohibidos** (`apply`/`install`/`sync`);
   - runbooks de restore y failover de zona.
 - **Datos propios**: la infraestructura de las bases de datos (los esquemas pertenecen a cada unidad).
-- **Flujos**: F45, F60–F67, F70–F72, F74–F76, F80–F88 (F09 opcional), F113–F116, F118; K02–K13 (ver U1 Infrastructure Design).
+- **Flujos**: F45, F60–F67, F70–F72, F74–F76, F80–F88 (F09 opcional), F113–F116, F118–F121; K02–K13 (ver U1 Infrastructure Design).
 - **Criticidad**: High. Todo depende de ella.
 - **Historias (dueña)**: US-604 (base de red y egress), US-605, US-606, US-607, US-608, US-610.
 

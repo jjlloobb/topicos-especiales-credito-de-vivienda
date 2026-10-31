@@ -57,6 +57,7 @@ flowchart TD
 9. carga: línea base a 5/s, después 20/s + 200 usuarios
 9b. consulta de Loki de LOGS-NO-PII sobre todo el periodo
 10. día D + 1: verificación de U11 (métricas del día anterior)
+10b. resilience: restore-drill, restore del sitio y readiness (el operador provoca las caídas)
 11. generar verification-report.md
 ```
 

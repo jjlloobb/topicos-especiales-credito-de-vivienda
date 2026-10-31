@@ -27,7 +27,7 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 | kind | control-plane | 1 | — | — | — |
 | kind | workers | 4 (2 en `zone-a`, 2 en `zone-b`) | — | — | Todo |
 | prod/staging | `general` | ≥ 4 por zona (antes ≥ 3; se ajusta con la prueba de carga de U12; seguimiento de la cuarta revisión de coherencia, 2026-10-31) | 8 vCPU / 32 GiB (inicial) | — | Servicios, KServe, observabilidad, controladores |
-| prod/staging | `data` | ≥ 2 por zona | 4 vCPU / 16 GiB (inicial) | `vectra.io/pool=data:NoSchedule` | PostgreSQL y MinIO |
+| prod/staging | `data` | ≥ 2 por zona | 8 vCPU / 32 GiB (inicial; antes 4 vCPU / 16 GiB; seguimiento de la quinta revisión de coherencia, 2026-10-31) | `vectra.io/pool=data:NoSchedule` | PostgreSQL y MinIO |
 
 - Los tamaños son iniciales y se ajustan con la prueba de carga (NFR-U1-11) y las cuotas (NFR-U1-13).
 - Etiqueta `topology.kubernetes.io/zone` en todos los nodos; en kind se asigna en la configuración del clúster.
@@ -58,6 +58,16 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
   - **Por qué `count < 6`**: cada `Cluster` tiene 3 instancias con un volumen de datos y uno de WAL (INF-U1-02), así que se esperan 6 PVC. El `or vector(0)` cubre el caso sin ninguna serie, que `count()` no devuelve. Si cambia el número de instancias, cambia el 6 (el chart lo calcula de `instances × 2`). Los 15 min absorben la recreación de un PVC durante un failover.
   - `promtool test rules`: 79 % no dispara; 81 % → SEV3; 91 % → SEV2; con los cuatro `Cluster` reportando, **se quitan las series de `case-db`** y a los 15 min dispara la regla de `case-db` (SEV2) y ninguna otra; quitar una sola de las 6 series de `case-db` también dispara; con las 6 series presentes no dispara.
 
+**Recursos iniciales del pool `data`** (seguimiento de la quinta revisión de coherencia, 2026-10-31), que se ajustan con la prueba de carga:
+
+| Componente | Pods | Requests por pod | Limits por pod |
+|---|---|---|---|
+| `registry-db`, `case-db` | 3 + 3 | 1 CPU / 4 GiB | 2 CPU / 8 GiB |
+| `governance-db`, `keycloak-db` | 3 + 3 | 500m / 2 GiB | 1 CPU / 4 GiB |
+| MinIO | 4 | 1 CPU / 4 GiB | 2 CPU / 8 GiB |
+
+Con el proxy (P-U1-14), 16 pods suman requests de 14,6 CPU / 52,3 GiB y limits de 34 CPU / 106 GiB. La cuota de `vectra-data`, con el 30 %, es ≈ 18,98 CPU / 68 GiB de requests y ≈ 44,2 CPU / 137,8 GiB de limits. Con una zona caída quedan 10 pods (2 instancias por cluster y 2 de MinIO) con ≈ 9 CPU / 32,2 GiB de requests, frente a los 16 vCPU / 64 GiB de esa zona.
+
 **Roles de base de datos** (cuarta revisión de coherencia entre unidades, 2026-10-31). U1 declara en `managed.roles` de cada `Cluster` todos los roles de `component-dependency.md` §4. Cada contraseña sale de la bóveda: un `ExternalSecret` en `vectra-data` para CloudNativePG y otro, con la misma ruta, en el namespace de cada consumidor, porque un `Secret` no se monta desde otro namespace. Las migraciones de U3, U4 y U8 se conectan con su `*_migrator`, crean los objetos y dan los grants; no crean roles.
 
 ### INF-U1-03 — Almacenamiento de objetos (Q4)
@@ -71,6 +81,7 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 | Archivo WORM de U3 y U4 (**solo kind**) | MinIO in-cluster (F118) | `vectra-registry-checkpoints`, `vectra-registry-archive`, `vectra-model-archive` | Object lock; en staging y prod son del S3 del banco (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 
 - **MinIO distribuido**: 4 pods en el pool `data` (2 por zona) con erasure coding y un volumen por pod (200 Gi inicial). En kind, 4 pods sobre los 4 workers, con volúmenes `local-path`. Tráfico entre pods por F115 (cuarta revisión de coherencia entre unidades, 2026-10-31).
+- **Con una zona caída** (seguimiento de la quinta revisión de coherencia, 2026-10-31): con 2 de 4 pods, MinIO se puede leer pero pierde el quórum de escritura. Decisión del MVP: se acepta. Se detienen las escrituras de logs, trazas y artefactos hasta que vuelva la zona, y los modelos ya desplegados siguen sirviéndose. Alerta `MinioWriteQuorumLost`. Se comprueba en el simulacro de zona.
 - **Consecuencia**: no aparece ningún egress nuevo para observabilidad ni para KServe. El único destino S3 externo sigue siendo el de backups (F70).
 - La pérdida de MinIO (sitio) afecta logs, trazas y el model-store. Los modelos se reconstruyen desde el pipeline del banco y los logs aceptan RPO en horas (§8.4 de requirements). MinIO **no** guarda datos de solicitantes salvo los logs, que no tienen PII (U0, P-U0-04).
 

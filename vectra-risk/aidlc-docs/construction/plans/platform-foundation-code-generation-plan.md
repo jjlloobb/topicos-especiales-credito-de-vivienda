@@ -16,14 +16,14 @@
 | Historias (dueña) | US-604 (base de red y egress), US-605, US-606, US-607, US-608, US-610 |
 | Ubicación | `vectra-risk/platform/` (monorepo) y el repositorio `vectra-risk-gitops` |
 | Datos propios | La infraestructura de las bases; los esquemas son de cada unidad |
-| Depende de | U0 (puerto 8081, métricas y logs del middleware; `verify_chain` llega con U3) |
+| Depende de | U0 (puerto 8081, métricas y logs del middleware; `verify_chain` llega con U3 y la CLI `case-retention` con U8) |
 | Lo consumen | Todas las unidades que despliegan (`construction/shared-infrastructure.md`) |
 
 **Diseño de entrada:**
 - NFR Requirements: `construction/platform-foundation/nfr-requirements/` (NFR-U1-01..44).
 - NFR Design: `construction/platform-foundation/nfr-design/` (P-U1-01..12).
 - Infrastructure Design: `construction/platform-foundation/infrastructure-design/` (INF-U1-01..10).
-- Inventario: `inception/application-design/component-dependency.md` (F01–F118, K01–K14 y K16, X01–X10; precisado el 2026-10-08: el inventario creció con los Infrastructure Design de U2, U3, U4, U7 y U8).
+- Inventario: `inception/application-design/component-dependency.md` (F01–F121, K01–K14 y K16–K19, X01–X10; precisado el 2026-10-08: el inventario creció con los Infrastructure Design de U2, U3, U4, U7 y U8).
 
 ### Cómo se cumple AUTONOMIA-01 en este plan
 
@@ -86,7 +86,7 @@ vectra-risk-gitops/
 ### Bloque B — Red y malla
 
 - [ ] **Paso 3 — Inventario de flujos y generador**
-  - `network/flows.yaml` con **todos** los flujos de `component-dependency.md` (F01–F118, incluidos F112–F118 de la cuarta revisión de coherencia entre unidades, 2026-10-31; F90–F105 de U2, U3, U4 y U8, F106 del CronJob de bias de U9 hacia el Pushgateway, F107 de `registry-aggregator` y F108 del Job de reset de U3; F109 (Grafana → Alertmanager, silencios), F110 (Job y CronJob de permisos de carpetas de Grafana) y F111 (`x06-probe`, solo kind) (pendientes posteriores al cierre, 2026-10-10); F09 con `enabled: false`; F22 admite `enabled: false` **solo en kind**, para el PR de RT-3, y una prueba lo rechaza en staging y producción (quinta revisión de coherencia entre unidades, 2026-10-31); quinta revisión del FD de U9, 2026-10-10), cada uno con origen, destino (namespace + ServiceAccount), puerto, dirección e ID; `network/forbidden.yaml` con X01–X10. **F27** (`POST /v1/models/{id}/freeze`) tiene como origen **solo** el ServiceAccount `bias-monitoring-job` de los pods del CronJob de U9, no el servicio HTTP `bias-monitoring-service` (INF-U9-04; revisión del FD de U10, 2026-10-10, B13).
+  - `network/flows.yaml` con **todos** los flujos de `component-dependency.md` (F01–F121, incluidos F119–F121 del seguimiento de la quinta revisión, y F112–F118 de la cuarta revisión de coherencia entre unidades, 2026-10-31; F90–F105 de U2, U3, U4 y U8, F106 del CronJob de bias de U9 hacia el Pushgateway, F107 de `registry-aggregator` y F108 del Job de reset de U3; F109 (Grafana → Alertmanager, silencios), F110 (Job y CronJob de permisos de carpetas de Grafana) y F111 (`x06-probe`, solo kind) (pendientes posteriores al cierre, 2026-10-10); F09 con `enabled: false`; F22 admite `enabled: false` **solo en kind**, para el PR de RT-3, y una prueba lo rechaza en staging y producción (quinta revisión de coherencia entre unidades, 2026-10-31); quinta revisión del FD de U9, 2026-10-10), cada uno con origen, destino (namespace + ServiceAccount), puerto, `target_port` si difiere (seguimiento de la quinta revisión de coherencia, 2026-10-31), dirección e ID; `network/forbidden.yaml` con X01–X10. **F27** (`POST /v1/models/{id}/freeze`) tiene como origen **solo** el ServiceAccount `bias-monitoring-job` de los pods del CronJob de U9, no el servicio HTTP `bias-monitoring-service` (INF-U9-04; revisión del FD de U10, 2026-10-10, B13).
   - `flows.yaml` admite un origen **externo** (`origin: external`, fuera del clúster) para los flujos que entran por el gateway desde fuera, como F01 y F07 (el simulador de U12 desde la estación del operador): `generate.py` no crea `NetworkPolicy` de salida para ese origen, solo la de entrada del gateway, y la suite de conectividad prueba F07 desde fuera (pendientes posteriores al cierre, 2026-10-10).
   - `network/generate.py`: deny-all por namespace, un allow por flujo, DNS como única excepción común, un egress a la API de Kubernetes por cada binding K con pod (sin K09 ni K16; cuarta revisión de coherencia entre unidades, 2026-10-31), `Server` + `AuthorizationPolicy` de Linkerd y la suite de conectividad (un caso permitido y uno bloqueado por flujo; X01–X10 como casos bloqueados; para F27, el permitido sale del pod del CronJob y el bloqueado, de `bias-monitoring-service`; revisión del FD de U10, 2026-10-10, B13; bloqueados de U10: `console-spa` → cualquier servicio de `vectra-app`, `console-bff` → `vectra-data` y `console-bff` → `vectra-serving`, INF-U10-04, Infrastructure Design de U10, 2026-10-10; de U12: F07 desde fuera del clúster por el gateway (sin `channel-simulator` en `vectra-mock`), F111 (`x06-probe` → `registry-db-rw`) solo en kind, el selector de F27 por `vectra.io/workload: bias-monitoring-job` que admite los pods de `x04-probe` (prueba de `generate.py`), y el binding K16 solo en kind y staging (revisión del Infrastructure Design de U12, 2026-10-10), Infrastructure Design de U12, 2026-10-10; de U11: `product-metrics` → `case-service` y `governance-service` bloqueados, un pod que no es Prometheus → 8081 de `product-metrics` bloqueado, y `/readyz` del kubelet → 200 con el `Server` de Linkerd aplicado, INF-U11-04, Infrastructure Design de U11, 2026-10-10).
   - Diseño: NFR-U1-20; P-U1-01, P-U1-02; INF-U1-06. Historia: US-604.
@@ -107,7 +107,7 @@ vectra-risk-gitops/
     - `verify-images`: firma Cosign y registro permitido por entorno;
     - `disallow-latest`;
     - `require-run-as-non-root`, `disallow-privileged`, `disallow-host-path`, `require-ro-rootfs`;
-    - `require-resources`, `require-priority-class`, `require-spread-and-pdb`, `require-hpa-bounds` (admite un Deployment sin HPA solo con la anotación `vectra.io/hpa-exempt` no vacía, `replicas ≥ 2` y PDB; NFR-U1-12; precisado el 2026-10-10 por U9 NFR Requirements);
+    - `require-resources`, `require-priority-class`, `require-spread-and-pdb`, `require-hpa-bounds` (admite un Deployment sin HPA solo con la anotación `vectra.io/hpa-exempt` no vacía, `replicas ≥ 2` y PDB; NFR-U1-12; precisado el 2026-10-10 por U9 NFR Requirements). Alcance de `require-spread-and-pdb` y `require-hpa-bounds`: `vectra-app`, `vectra-edge`, `vectra-identity`, `vectra-serving` y `vectra-mock`; `vectra-observability` queda fuera (seguimiento de la quinta revisión de coherencia, 2026-10-31);
     - `restrict-loadbalancer` (solo el api-gateway), `disallow-plain-secrets`, `disallow-argocd-auto-sync` (cubre también la Application `decision-registry-rebuild` de U3);
     - no hay `restrict-manual-jobs`: se descartó con K15. Los Jobs de reconstrucción de U3 los crea Argo CD desde la Application `decision-registry-rebuild` tras un PR y un sync manual (revisión del FD de U10, 2026-10-10, B13);
     - `require-criticality-label`, `disallow-rbac-wildcards`;
@@ -116,6 +116,7 @@ vectra-risk-gitops/
   - Etiquetas de PSA `restricted` por namespace. Kyverno en HA con `failurePolicy: Fail` y exclusiones de `kube-system`, `kyverno` y `linkerd`.
   - Diseño: NFR-U1-01, 04, 12, 25, 27, 43; P-U1-05, 06, 09; INF-U1-05, 09. Historias: US-605, US-606, US-607.
   - **Aceptación**: `kyverno test platform/policies/`, con un caso que pasa y uno que falla por política. Casos nombrados (revisión del NFR Requirements de U9, 2026-10-10):
+    - Grafana y Pushgateway con 1 réplica en `vectra-observability` → admitidos, y el mismo Deployment en `vectra-app` → rechazado (seguimiento de la quinta revisión de coherencia, 2026-10-31);
     - `require-hpa-bounds`: Deployment sin HPA y sin `vectra.io/hpa-exempt` → rechazado; con la anotación, 2 réplicas y PDB → admitido; con la anotación y 1 réplica → rechazado;
     - `add-native-sidecar-to-jobs`: CronJob de `vectra-app` sin la anotación → admitido con la anotación agregada; Job `join` de CloudNativePG en `vectra-data` (con `ownerReference` a un `Cluster`) → admitido con la anotación, nunca rechazado; Job hook de `keycloak-config-cli` y CronJob `realm-drift` en `vectra-identity`, y un Job en `vectra-mock` → admitidos con la anotación; Job en un namespace sin la etiqueta `vectra.io/mesh` → sin cambios;
     - **binding K16** (U12 INF-U12-03; revisión del Infrastructure Design de U12, 2026-10-10): `platform/rbac/verification-operator/` con el `ClusterRole` de `nodes` y un `Role` por namespace según la tabla de INF-U12-03, renderizado **solo** con los values de kind y staging; `conftest` sobre el render de producción → sin K16; `kyverno test` de `disallow-rbac-wildcards` con K16 → admitido (no tiene comodines); la regla `verification-operator-verbs` de **`conftest`** (no `disallow-rbac-wildcards`, que solo mira comodines) rechaza un K16 con cualquier verbo fuera de `get`, `list`, `watch` y `create` sobre `pods/portforward` o `selfsubjectaccessreviews`, con fixtures que agregan `delete` o `pods/exec` → rechazados (pendientes posteriores al cierre, 2026-10-10);
@@ -134,6 +135,8 @@ vectra-risk-gitops/
   - La cuota de `vectra-app` suma el BFF de U10 y la de `vectra-edge`, la SPA de U10, con el sidecar (INF-U10-01, con los pods del rollout: requests ≈ 3,19 CPU / 2,4 GiB y 0,78 CPU / 0,26 GiB; limits ≈ 13,7 CPU / 5,7 GiB y 3,64 CPU / 0,97 GiB; segunda revisión del Infrastructure Design de U10, 2026-10-10). Regla general: cada unidad dimensiona su aporte con los pods del peor momento, incluido el `maxSurge` de su rollout.
   - La cuota de `vectra-staging` suma un `model-validation-job` (500m / 1 GiB de requests y 2 CPU / 4 GiB de limits, más el proxy; quinta revisión de coherencia entre unidades, 2026-10-31), los `InferenceService` de staging de U6 y el predictor de la versión activa de U4 INF-U4-05 durante una `source_comparison` (quinta revisión del FD de U9, 2026-10-10).
   - La cuota de `vectra-serving` usa el aporte de U6 (INF-U6-01): requests ≈ 17,16 CPU / 14,86 GiB y limits ≈ 59,8 CPU / 32,2 GiB, con el proxy y el 30 %. Caben en el pool `general`, con su mínimo de 4 nodos por zona (INF-U1-01; cuarta revisión de coherencia entre unidades, 2026-10-31).
+  - La cuota de `vectra-data` usa los recursos de INF-U1-02: requests ≈ 18,98 CPU / 68 GiB y limits ≈ 44,2 CPU / 137,8 GiB, con el proxy y el 30 % (seguimiento de la quinta revisión de coherencia, 2026-10-31).
+  - La cuota de `vectra-edge` suma el aporte de U2: requests ≈ 5,72 CPU / 3,64 GiB y limits ≈ 25,35 CPU / 9,18 GiB; con la SPA, ≈ 6,5 CPU / 3,9 GiB y ≈ 28,99 CPU / 10,15 GiB. La de `vectra-identity`: requests ≈ 4,68 CPU / 7,68 GiB y limits ≈ 20,15 CPU / 16,25 GiB (INF-U2-06; seguimiento de la quinta revisión de coherencia, 2026-10-31).
   - Los Jobs de prueba de U12 en kind (`x04-probe`, `x06-probe`, `rt5-demo`) no tienen aporte propio: los absorbe el margen del 30 % (revisión de coherencia entre unidades, 2026-10-10).
   - Diseño: NFR-U1-13; P-U1-09; INF-U3-03; INF-U4-01; INF-U7-02; INF-U8-05; INF-U9-01; INF-U10-01; INF-U4-05; NFR-U11-14; INF-U6-01.
   - **Aceptación**: `conftest test platform/policies/quotas/` (todo namespace de Vectra tiene cuota y límites); `kyverno test` del caso «Pod sin `priorityClassName` → rechazado».
@@ -143,17 +146,18 @@ vectra-risk-gitops/
 - [ ] **Paso 7 — CloudNativePG y los 4 clusters**
   - Operador (2 réplicas). Por cluster:
     - 3 instancias, anti-afinidad obligatoria por nodo y reparto preferido por zona;
-    - `minSyncReplicas: 1`, `maxSyncReplicas: 2`;
+    - `minSyncReplicas: 1`, `maxSyncReplicas: 2`; `syncReplicaElectionConstraint` por `topology.kubernetes.io/zone`, para que la síncrona esté en otra zona (US-605; seguimiento de la quinta revisión de coherencia, 2026-10-31);
     - `walStorage` y tamaños de INF-U1-02;
     - `max_connections` inicial;
     - TLS con certificados de cert-manager;
     - toleration del pool `data`;
+    - recursos del pool `data` de INF-U1-02;
     - `PriorityClass` `vectra-critical`.
     - `managed.roles` con los roles de `component-dependency.md` §4 y su `passwordSecret`, con un `ExternalSecret` en `vectra-data` y otro en el namespace de cada consumidor (INF-U1-02; cuarta revisión de coherencia entre unidades, 2026-10-31);
     - `skip-inbound-ports: "8000"` en las instancias y el `Server` de 5432 con `NetworkAuthentication` para F80 (P-U1-02; cuarta revisión de coherencia entre unidades, 2026-10-31).
   - Backups con Barman Cloud hacia el S3 fuera del sitio (F70): `archive_timeout: 60s`, `ScheduledBackup` diario, `retentionPolicy: 30d`, backup mensual con prefijo `monthly/` (lifecycle de 12 meses en el bucket) y object lock en los buckets de `registry-db`.
   - Diseño: NFR-U1-02, 05, 06, 23 (backups cifrados del lado del servidor); INF-U1-02, 03; P-U1-08. Historias: US-605, US-608.
-  - **Aceptación**: `helm template` + `conftest test platform/data/` (3 instancias, sync, `archive_timeout = 60s`, retención de 30 días, WAL separado, `sslmode` exigido, toleration y prioridad; cada rol de §4 en `managed.roles`, con una prueba que los extrae del Markdown; cuarta revisión de coherencia entre unidades, 2026-10-31). En kind (Paso 19): conmutación por error con NetworkPolicy y políticas de Linkerd aplicadas.
+  - **Aceptación**: `helm template` + `conftest test platform/data/` (3 instancias, sync, `archive_timeout = 60s`, retención de 30 días, WAL separado, `sslmode` exigido, toleration y prioridad; `syncReplicaElectionConstraint` por zona; cada rol de §4 en `managed.roles`, con una prueba que los extrae del Markdown; cuarta revisión de coherencia entre unidades, 2026-10-31). En kind (Paso 19): conmutación por error con NetworkPolicy y políticas de Linkerd aplicadas.
 
 - [ ] **Paso 8 — MinIO**
   - Modo distribuido con 4 pods en el pool `data` (2 por zona); buckets `model-store`, `validation-datasets`, `loki` (versionado + object lock de 90 días) y `tempo` (lifecycle de 7 días); usuarios de solo lectura para KServe y validación. **Solo en kind**: `vectra-registry-checkpoints`, `vectra-registry-archive` y `vectra-model-archive` con object lock (F118). Tráfico entre pods por F115 (cuarta revisión de coherencia entre unidades, 2026-10-31).
@@ -220,10 +224,10 @@ vectra-risk-gitops/
 ### Bloque H — CI
 
 - [ ] **Paso 17 — Workflows reutilizables**
-  - `tests.yml` (con la semilla de PBT registrada), `supply-chain.yml` (Trivy, Syft, Cosign; falla con hallazgos críticos o altos sin excepción vigente), `evidence.yml` (`helm template` y `kubectl diff` como artefactos del PR), `forbidden-steps.yml` (falla si aparecen `kubectl apply`, `helm install`/`upgrade`, `terraform apply` o `argocd app sync`) y `policies.yml` (`kyverno test`, `promtool`, `conftest`, `actionlint`). Input `runner` parametrizado.
+  - `tests.yml` (con la semilla de PBT registrada), `supply-chain.yml` (Trivy, Syft, Cosign; falla con hallazgos críticos o altos sin excepción vigente), `evidence.yml` (`helm template` y `kubectl diff` contra un kind efímero del propio workflow, como artefactos del PR; seguimiento de la quinta revisión de coherencia, 2026-10-31), `forbidden-steps.yml` (falla si aparecen `kubectl apply`, `helm install`/`upgrade`, `terraform apply` o `argocd app sync`) y `policies.yml` (`kyverno test`, `promtool`, `conftest`, `actionlint`). Input `runner` parametrizado.
   - El workflow de U0 (`contracts.yml`) reemplaza su job provisional `pip-audit`/`npm audit` por `supply-chain.yml`.
   - Diseño: NFR-U1-26, 40..42. Historia: US-606.
-  - **Aceptación**: `actionlint .github/workflows/*.yml`; `python platform/tests/test_forbidden_steps.py` (un workflow de fixture con `kubectl apply` hace fallar `forbidden-steps`); `grep -L "secrets.KUBECONFIG" .github/workflows/*.yml` devuelve todos los archivos.
+  - **Aceptación**: `actionlint .github/workflows/*.yml`; `python platform/tests/test_forbidden_steps.py` (un workflow de fixture con `kubectl apply` hace fallar `forbidden-steps`, y un Dockerfile de fixture con `latest` hace fallar el CI, US-606; seguimiento de la quinta revisión de coherencia, 2026-10-31); `grep -L "secrets.KUBECONFIG" .github/workflows/*.yml` devuelve todos los archivos.
 
 - [ ] **Paso 18 — Resumen del código de U1**
   - `aidlc-docs/construction/platform-foundation/code/README.md`: componente → archivos → verificación → NFR/P/INF.
@@ -242,16 +246,17 @@ vectra-risk-gitops/
     2. el rechazo de un Pod con `latest` y de otro sin firma;
     3. la autorización de Linkerd entre ServiceAccounts;
     4. el fallo de zona (drain de `zone-a`: bloqueo de escrituras, reclonado y tiempo medido, NFR-U1-03; Kyverno y Linkerd siguen admitiendo; el reclonado **crea su Job `join`**, que recibe la anotación del sidecar nativo por mutación y llega a `Complete`; cuarta revisión del FD de U9, 2026-10-10);
+    4b. durante ese fallo de zona, `MinioWriteQuorumLost` dispara y los modelos ya desplegados siguen sirviendo (seguimiento de la quinta revisión de coherencia, 2026-10-31);
     5. el restore del sitio en un kind limpio (≤ 4 h, `verify_chain` «íntegra»);
     6. `restore-drill` manual (el Job llega a `Complete` y `restartPolicy: Always` en el proxy);
     7. el `Watchdog` recibido;
     8. las pruebas de readiness de P-U1-04 (`case-db` caída; explainability o governance caídos).
-  - Los puntos 5, 6 y 8 dependen de U3, U7 y U8: se marcan como pendientes hasta que esas unidades existan.
+  - Los puntos 5, 6 y 8 dependen de U3, U7 y U8: aquí se marcan como pendientes, y su evidencia completa la entrega la sección `resilience` de U12, con `governance-db` y `registry-db` (BR-U12-08b; seguimiento de la quinta revisión de coherencia, 2026-10-31).
   - Historias: US-604, US-605, US-608, US-610.
   - **Aceptación**: un archivo de evidencia por simulacro adjunto al PR, con comando, salida y resultado esperado contra el obtenido.
 
 - [ ] **Paso 21 — Prueba de carga: diferida**
-  - NFR-U1-11 (20/s durante 15 min) necesita los servicios de U7 y U8 y el simulador de U12. La ejecuta U12 sobre esta plataforma; los máximos del HPA y `max_connections` se recalculan con su resultado.
+  - NFR-U1-11 (20/s durante 15 min) necesita los servicios de U7 y U8 y el simulador de U12. La ejecuta U12 sobre esta plataforma; los máximos del HPA y `max_connections` se recalculan con su resultado: U12 los informa y un PR a los values de U1 los aplica (seguimiento de la quinta revisión de coherencia, 2026-10-31).
   - **Aceptación**: `grep -q "NFR-U1-11" aidlc-docs/construction/plans/system-verification-code-generation-plan.md` cuando exista ese plan (la verificación la hereda U12).
 
 ### Bloque J — Cierre

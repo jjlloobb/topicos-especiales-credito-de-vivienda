@@ -66,7 +66,7 @@ ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 | `ModelPackageIntegrityFailed` | SEV2 | P-U6-03 |
 | `ServingSaturation` | SEV2 | P-U6-05 |
 | `InferenceServiceNotReady` | SEV1 si es el activo; SEV3 si es un `inactivo` | El `InferenceService` sin réplicas listas |
-| `ServingLatencyHigh` | SEV3 | p95 de `:predict` > 30 ms o de `:explain` > 150 ms durante 15 min |
+| `ServingLatencyHigh` | SEV3 | p95 de `:predict` > 30 ms o de `:explain` > 150 ms durante 15 min, con `vectra_http_request_duration_seconds` (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 
 - Métricas en el puerto 8081 (convención de U0) con `ServiceMonitor`; toda alerta con `runbook_url` (P-U1-10).
 - **Verificación**: `promtool test rules model-serving/observability/rules/tests/*.yaml` y el test de runbooks de U1.

@@ -9,8 +9,8 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 ## 1. Seguridad
 
 ### P-U1-01 — Red generada desde un inventario de flujos (Q1)
-- `platform/network/flows.yaml` es la única fuente de los flujos permitidos. Refleja las tablas de `component-dependency.md` (hoy F01–F118: los flujos de INCEPTION, los que agregó el Infrastructure Design de U1 y los de las unidades siguientes; precisado el 2026-10-08). La prueba de completitud extrae los IDs del Markdown, sin un rango fijo.
-- Cada entrada tiene `id`, `from` (namespace + ServiceAccount), `to` (namespace + ServiceAccount + puerto), `protocol` y `justification`.
+- `platform/network/flows.yaml` es la única fuente de los flujos permitidos. Refleja las tablas de `component-dependency.md` (hoy F01–F121: los flujos de INCEPTION, los que agregó el Infrastructure Design de U1 y los de las unidades siguientes; precisado el 2026-10-08). La prueba de completitud extrae los IDs del Markdown, sin un rango fijo.
+- Cada entrada tiene `id`, `from` (namespace + ServiceAccount), `to` (namespace + ServiceAccount + puerto), `protocol` y `justification`. El puerto del inventario es el del Service; si el pod escucha en otro, como KServe o Envoy, la entrada declara además `target_port`, que es el que usan la NetworkPolicy y el `Server` de Linkerd (seguimiento de la quinta revisión de coherencia, 2026-10-31).
 - `platform/network/generate.py` produce, para cada namespace de Vectra:
   - la NetworkPolicy `deny-all` de ingress y egress;
   - una NetworkPolicy `allow-<flow-id>` por flujo;
@@ -48,7 +48,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 |---|---|
 | case-service | `case-db` |
 | case-worker (U8 INF-U8-01, agregado el 2026-10-08) | `case-db` |
-| governance-service | `governance-db` |
+| governance-service | Copia en memoria de `serving-config` cargada; **no** `governance-db`, para que su caída no deje a scoring sin `serving-config` (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 | decision-registry-service | `registry-db` (incluida la escritura posible: réplica síncrona disponible) |
 | scoring-service, explainability-service, bias, BFF | ninguna dependencia externa (solo su proceso) |
 | product-metrics (U11 INF-U11-01; revisión del Infrastructure Design de U11, 2026-10-10) | su instantánea de métricas **o** el breaker hacia el registro abierto o semiabierto: con el registro sano, una réplica nueva no queda lista sin datos (así un rollout no vacía el dashboard); con el registro caído, queda lista y no bloquea el despliegue. Su `Service` publica las direcciones no listas, porque solo lo consume Prometheus |
@@ -147,7 +147,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 - **SLI de recomendación usable**: `Recommendation` / total. Sin SLO ni alerta: solo dashboard.
 - **`FailClosedPersistente` (SEV2)** no sale de este SLI (tercera revisión de coherencia entre unidades, 2026-10-10): sale del gauge `vectra_cases_failclosed_persistent` de U8 (casos en `no_disponible` tras agotar los reintentos; U8 BR-U8-09, `services.md`, US-112). Expresión: `max(vectra_cases_failclosed_persistent) > 0` con `for: 1m`; `max` porque las réplicas de `case-service` publican el mismo conteo.
 - Alertas de **burn rate en dos ventanas**: rápida (1 h y 5 min, factor 14,4) → SEV2; lenta (6 h y 30 min, factor 6) → SEV3.
-- Reglas de grabación (`recording rules`) en Prometheus sobre las métricas HTTP del middleware de U0.
+- Reglas de grabación (`recording rules`) en Prometheus sobre `vectra_http_request_duration_seconds`, el histograma HTTP del middleware de U0 (seguimiento de la quinta revisión de coherencia, 2026-10-31).
 - **Verificación**: `promtool test rules` con series sintéticas que disparan cada ventana.
 - **Satisface**: RESILIENCY-02, 05; NFR-RES-02.
 
@@ -159,7 +159,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
   |---|---|
   | `bias-monitoring-job` (U9, F106) | `PUT` y `DELETE` en `/metrics/job/bias-monitoring/**`; `GET /api/v1/metrics` |
   | `restore-drill` (F87) | `PUT` en `/metrics/job/restore-drill/**` |
-  | `realm-drift` (U2, F112) | `PUT` en `/metrics/job/realm-drift/**` (cuarta revisión de coherencia entre unidades, 2026-10-31) |
+  | `realm-drift` y `signing-key-age` (U2, F112) | `PUT` en `/metrics/job/realm-drift/**` y `/metrics/job/signing-key-age/**` (cuarta revisión de coherencia entre unidades, 2026-10-31) |
   | CronJob de `grafana-folder-permissions` (F113) | `PUT` en `/metrics/job/grafana-folder-permissions/**` (cuarta revisión de coherencia entre unidades, 2026-10-31) |
   | Prometheus (F88) | `GET /metrics` |
   | Cualquier otra | Denegado (403 de Linkerd) |

@@ -45,9 +45,13 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 - Imagen oficial de Valkey 8, pinneada por digest y firmada; chart propio mínimo en `identity-edge/charts/valkey`.
 - StatefulSet de **2 nodos** (primaria + réplica) en zonas distintas y **3 Sentinel** repartidos por zona.
 - **Sin persistencia** (sin RDB ni AOF; `emptyDir`): los contadores son efímeros.
-- ACL: usuario `ratelimit` con permisos mínimos (`+@read +@write +@connection -@dangerous`) y contraseña desde ESO. Usuario `default` deshabilitado.
+- ACL: usuario `ratelimit` con permisos mínimos (`+@read +@write +@connection -@dangerous`) y contraseña desde ESO. Usuario `default` deshabilitado. También usuarios de replicación y de Sentinel con los comandos mínimos de cada uno, desde ESO, y sin ellos F92 y F93 no funcionan. PDB: Valkey `minAvailable: 1` y Sentinel `minAvailable: 2` (seguimiento de la quinta revisión de coherencia, 2026-10-31).
+- **Sentinel con dos zonas** (seguimiento de la quinta revisión de coherencia, 2026-10-31): 1 Sentinel en la zona A y 2 en la B. La primaria se prefiere en la zona A: si cae A, los 2 de B promueven la réplica; si cae B, la primaria sigue. Tras una conmutación, el runbook la devuelve a A. Mientras esté en B, una caída de B deja 1 de 3 Sentinel, sin promoción, y `/auth/**` responde 503 hasta que vuelva la zona. Es un riesgo aceptado para el MVP.
 - `maxmemory 128mb`, política `volatile-ttl` (todas las claves de rate limit tienen TTL).
 - Prioridad `vectra-high`; NetworkPolicy que solo admite al servicio de rate limit, a la réplica y a los Sentinel (F91–F93).
+
+### INF-U2-05a — Credencial de administración (seguimiento de la quinta revisión de coherencia, 2026-10-31)
+- `keycloak-config-cli`, `realm-drift` y `signing-key-age` usan un cliente de administración del realm por F94, con `private_key_jwt` desde ESO. `realm-drift` y `signing-key-age` solo leen; solo `keycloak-config-cli` escribe.
 
 ### INF-U2-05b — Certificado interno de Keycloak (quinta revisión de coherencia entre unidades, 2026-10-31)
 - `Certificate` `keycloak-tls` en `vectra-identity`, con SAN `keycloak.vectra-identity.svc`, emitido por la CA de INF-U2-01 de cada entorno; 90 días, se renueva a los 60 (P-U1-03).
@@ -68,7 +72,10 @@ Sin cambios: el cluster de CloudNativePG de U1 (INF-U1-02: 10 Gi + 5 Gi, `max_co
 | Servicio de rate limit | 100m / 64 MiB | 500m / 128 MiB | — |
 | Valkey (cada nodo) | 100m / 128 MiB | 500m / 256 MiB | `maxmemory 128mb` |
 | Sentinel (cada uno) | 50m / 32 MiB | 100m / 64 MiB | — |
-| `keycloak-config-cli`, `realm-drift` | 100m / 256 MiB | 500m / 512 MiB | Jobs |
+| `keycloak-config-cli`, `realm-drift`, `signing-key-age` | 100m / 256 MiB | 500m / 512 MiB | Jobs y CronJobs (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
+| Exportador de Valkey (sidecar de cada nodo) | 50m / 32 MiB | 100m / 64 MiB | seguimiento de la quinta revisión de coherencia, 2026-10-31 |
+
+Con `maxSurge: 1`, y el rate limit con HPA de 2 a 4, los aportes con el proxy y el 30 % son: `vectra-edge` ≈ 5,72 CPU / 3,64 GiB de requests y ≈ 25,35 CPU / 9,18 GiB de limits; `vectra-identity` ≈ 4,68 CPU / 7,68 GiB y ≈ 20,15 CPU / 16,25 GiB (seguimiento de la quinta revisión de coherencia, 2026-10-31).
 
 Todos en el pool `general`. Se ajustan con la prueba de carga de NFR-U2-10 y se reflejan en
 las cuotas de U1 (NFR-U1-13).

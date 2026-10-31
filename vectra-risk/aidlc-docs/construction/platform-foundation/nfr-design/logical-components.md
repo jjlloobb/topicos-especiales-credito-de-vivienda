@@ -114,6 +114,7 @@ Wave 5:   restore-drill -> lee S3, crea cluster efímero, verify_chain, empuja m
 | `RegistryDbWritesBlocked` (sin réplica síncrona) | SEV1 | NFR-U1-03 |
 | `KyvernoUnavailable` / `LinkerdControlPlaneDown` | SEV1 | P-U1-06 |
 | `SingleZoneOperation` | SEV2 | NFR-U1-32 |
+| `MinioWriteQuorumLost` | SEV2 | INF-U1-03: MinIO sin quórum de escritura (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 | `PostgresReplicaLag` | SEV2 | NFR-U1-32 |
 | `CertificateExpiringSoon` | SEV2 / SEV1 | P-U1-03 |
 | `RecommendationSLOBurnFast` / `Slow` | SEV2 / SEV3 | P-U1-11 |

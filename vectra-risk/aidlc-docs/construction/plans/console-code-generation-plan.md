@@ -85,7 +85,7 @@ vectra-risk/console/
 ### Bloque B — Lógica pura del BFF
 
 - [ ] **Paso 3 — `object_rules` y `errors`**
-  - `object_rules`: una función pura por endpoint con regla de objeto de C03 (`record_decision` ⇔ `listo`; `retry_case` ⇔ `no_disponible` y no anonimizado; `approve_model` ⇔ `lista_para_aprobacion`; `resolve_frozen` ⇔ `congelado`; `decide_data_source` ⇔ `en_evaluacion` con informe; `start_validation` ⇔ `registrado` o `validacion_fallida`; `retire_model` ⇔ `inactivo`, `rechazado` o `validacion_fallida` (cuarta revisión de coherencia entre unidades, 2026-10-31); `approve_policy` ⇔ `propuesta`; etc.).
+  - `object_rules`: una función pura por endpoint con regla de objeto de C03 (`record_decision` ⇔ `listo`; `retry_case` ⇔ `no_disponible` y no anonimizado; `approve_model` ⇔ `lista_para_aprobacion`; `resolve_frozen` ⇔ `congelado`; `decide_data_source` ⇔ `en_evaluacion` con informe; `start_validation` ⇔ `registrado` o `validacion_fallida`; `create_applicant_summary` ⇔ `decidido` con `final_outcome = desfavorable` (seguimiento de la quinta revisión de coherencia, 2026-10-31); `retire_model` ⇔ `inactivo`, `rechazado` o `validacion_fallida` (cuarta revisión de coherencia entre unidades, 2026-10-31); `approve_policy` ⇔ `propuesta`; etc.).
   - `errors`: traducción de cualquier respuesta de error de un destino al `Problem` de U0 (mismo `code`, o `internal_error`), sin `detail`; un 403 o 404 de un destino se propaga como tal.
   - Diseño: BR-U10-01, 03, 04; P-U10-01, 03. Historias: US-602, US-611.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest console/bff/tests/property/test_object_rules.py tests/property/test_errors.py`: PBT-U10-02 y PBT-U10-03.
@@ -159,7 +159,7 @@ vectra-risk/console/
   - **Aceptación**: `npm run -w console/spa test -- api i18n reporter version`: PBT-U10-06; `uv run python contracts/tools/forbidden_phrases.py console/spa/src/i18n/*.json` en 0; 20 errores en un minuto → 10 envíos; `version.json` distinto → aviso sin recarga.
 
 - [ ] **Paso 13 — Vistas de casos**
-  - `CasesInbox` (filtros de `CaseFilter` en la URL, «Ir al caso» por `case_id`, refresco de 15 s), `CaseDetail` (refresco de 3 s hasta 2 min), `RecommendationSummary`, `ExplanationPanel` (`record_explanation_view` una vez por vista), `ApplicationView` (`free_text` como texto), `CreditStatusBadge` (incluido `no_integrado`), `DecisionForm` (validación igual que el servidor, diálogo de confirmación, botón deshabilitado en curso), `ManualApplicationForm` (`Idempotency-Key` por envío), `PersistentFailures` con `retry`, `ApplicantSummaryButton`, `Dossier` (PDF en el navegador) e `IntegrityCheck` (inicio con MFA, `already_active`, estado cada 30 s).
+  - `CasesInbox` (filtros de `CaseFilter` en la URL, «Ir al caso» por `case_id`, refresco de 15 s), `CaseDetail` (refresco de 3 s hasta 2 min), `RecommendationSummary`, `ExplanationPanel` (`record_explanation_view` una vez por vista, solo con rol `analista`, y una prueba de que `cro` no la llama; seguimiento de la quinta revisión de coherencia, 2026-10-31), `ApplicationView` (`free_text` como texto), `CreditStatusBadge` (incluido `no_integrado`), `DecisionForm` (validación igual que el servidor, diálogo de confirmación, botón deshabilitado en curso), `ManualApplicationForm` (`Idempotency-Key` por envío), `PersistentFailures` con `retry`, `ApplicantSummaryButton`, `Dossier` (PDF en el navegador) e `IntegrityCheck` (inicio con MFA, `already_active`, estado cada 30 s).
   - Diseño: BR-U10-07..11, 03; frontend-components. Historias: US-102, 104, 106, 107, 108, 109, 110, 112, 402, 403, 501, 502.
   - **Aceptación**: `npm run -w console/spa test -- views/cases`: PBT-U10-04 (mismo oráculo que PBT-U8-03); las pruebas de ejemplo del FD de casos (bandeja sin `vencido` por omisión, `free_text` con `<script>`, `no_integrado`, baja confianza y `revision_requerida`, `decision_already_recorded`, expediente sin identificadores, `retry` del CRO, panel de explicación con una sola llamada y ninguna sin abrirlo); la URL de la bandeja nunca contiene datos del solicitante.
 
@@ -227,7 +227,7 @@ vectra-risk/console/
 - [ ] **Paso 22 — Puerta de aprobación y escenarios en kind**
   - **Requisito previo**: un PR con los Pasos 1–21 aprobado por un humano, con U1–U4 y U7–U9 instalados en kind.
   - El operador ejecuta, con evidencia:
-    1. la prueba de concepto del step-up (Paso 10) y la suite de Playwright con Keycloak real y los usuarios `analista-1` … `cumplimiento-2` (incluido aprobador ≠ proponente con `cro-1` y `cro-2`);
+    1. la prueba de concepto del step-up (Paso 10) y la suite de Playwright con Keycloak real y los usuarios `analista-1` … `cumplimiento-2` (incluido aprobador ≠ proponente con `cro-1` y `cro-2`, y el diálogo de step-up que U2 no puede probar sin la SPA; seguimiento de la quinta revisión de coherencia, 2026-10-31);
     2. la suite de conectividad de U1 con los casos de INF-U10-04;
     3. E1–E7 de P-U10-05 con las unidades reales (E7: borrar el pod de `registry-verify-ondemand` a mitad de una `full`);
     4. un rollout real de la SPA con una pestaña abierta antes y otra nueva a mitad: sin `chunk_load_failed` (afinidad por cookie y recursos de dos versiones);

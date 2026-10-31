@@ -3606,3 +3606,26 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Paso 2 de la propuesta de la quinta revisión.
 
 ---
+
+## Respuestas a las preguntas de seguimiento de la quinta revisión
+**Timestamp**: 2026-10-31T19:11:47Z
+**User Input**: "ya respondi las preguntas"
+**AI Response**: Respuestas en `construction/plans/cross-unit-review5-followup-questions.md`: P1 a P19 = A. Aplicación en curso.
+**Context**: Quinta revisión de coherencia, preguntas de seguimiento.
+
+---
+
+## Respuestas de la quinta revisión — Aplicación
+**Timestamp**: 2026-10-31T19:15:24Z
+**User Input**: (sin entrada nueva; cierre de "ya respondi las preguntas")
+**AI Response**: P15 confirma lo aplicado, sin cambios. Aplicadas P1–P14 y P16 en 38 documentos (marca «seguimiento de la quinta revisión de coherencia, 2026-10-31»). P16: todos los puntos resultaron reales. Decisiones al aplicar: recursos iniciales del pool `data`; exportador de llaves reemplazado por el CronJob `signing-key-age`; `target_port` en `flows.yaml`; bindings K17–K19, incluido el sidecar de dashboards de Grafana, que no estaba en la lista original. P17: restricción de no escribir código levantada solo para U0 y U1, después de la aprobación. P18: se pide la aprobación del conjunto de cambios. P19: commit en la rama. Riesgo abierto: `syncReplicaElectionConstraint` por zona puede cambiar NFR-U1-03, se comprueba en kind.
+**Context**: Solo cambios a documentos. Sin código todavía.
+
+---
+
+## Solicitud de aprobación del conjunto de cambios (P18)
+**Timestamp**: 2026-10-31T19:15:24Z
+**AI Response**: Se pide al usuario aprobar los cambios a U0–U12 desde el commit d1816ca, antes de empezar Code Generation Part 2 de U0 y U1.
+**Context**: Puerta de aprobación; pendiente de la respuesta del usuario.
+
+---

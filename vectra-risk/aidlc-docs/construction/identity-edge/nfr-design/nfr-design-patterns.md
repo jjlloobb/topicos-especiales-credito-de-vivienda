@@ -47,7 +47,7 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 - **Satisface**: NFR-U2-05; RESILIENCY-10.
 
 ### P-U2-04 — Keycloak tolerante a fallos
-- 2 réplicas por zona, HPA de 2 a 4, PDB `minAvailable: 1`; Infinispan embebido con `jdbc-ping`; sesiones persistentes en `keycloak-db` (NFR-U2-01, 02).
+- 2 réplicas repartidas por zona, HPA de 2 a 4, PDB `minAvailable: 1`; Infinispan embebido con `jdbc-ping`; sesiones persistentes en `keycloak-db` (NFR-U2-01, 02).
 - Readiness = su base (`keycloak-db`), según P-U1-04. Liveness y readiness en el puerto de gestión (9000), que no se expone en el gateway.
 - Valkey: primaria + réplica + 3 Sentinel repartidos por zona. Un failover de Sentinel dura segundos y reinicia los contadores, lo que se acepta porque son efímeros.
 - **Verificación**: escenario NFR-U2-02 en kind; borrar la primaria de Valkey → Sentinel promueve la réplica y el rate limit se recupera.
@@ -57,7 +57,7 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 ### P-U2-05 — Rotación de las llaves de firma (Q3)
 - Cada 90 días se agrega por realm como código una llave nueva (RS256 o ES256) con mayor prioridad, que pasa a firmar.
 - La anterior queda **pasiva** (publicada en JWKS, sin firmar) durante 24 h y después se desactiva.
-- Runbook `signing-key-rotation.md`. Alerta `SigningKeyAgeHigh` (SEV3) a los 80 días, calculada desde la fecha de creación de la llave activa que expone un exportador.
+- Runbook `signing-key-rotation.md`. Alerta `SigningKeyAgeHigh` (SEV3) a los 80 días, calculada desde la fecha de creación de la llave activa que publica el CronJob `signing-key-age` (seguimiento de la quinta revisión de coherencia, 2026-10-31).
 - **Verificación**: en kind, rotación con tokens emitidos antes y después: los dos se aceptan durante el solapamiento y el anterior se rechaza tras desactivar la llave.
 - **Satisface**: SECURITY-12; NFR-U2-24.
 
@@ -102,9 +102,9 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 | `BreakGlassLogin` | SEV1 | Evento de login del usuario `break-glass` |
 | `RealmDrift` | SEV2 | `vectra_realm_drift > 0`, que el CronJob de comparación empuja al Pushgateway (F112; cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | `RoleConflict` | SEV2 | Evento de la federación LDAP |
-| `SigningKeyAgeHigh` | SEV3 | Exportador de antigüedad de llaves |
+| `SigningKeyAgeHigh` | SEV3 | Métrica de `signing-key-age`, en el Pushgateway (F112) |
 | `LdapUnavailable` | SEV2 | Fallos de conexión de la federación LDAP (solo prod; agregado en INF-U2-07) |
-| `GatewayHighLatency` | SEV3 | Sobrecosto de p95 > 5 ms sostenido 15 min (NFR-U2-11) |
+| `GatewayHighLatency` | SEV3 | Diferencia entre el p95 de la latencia de Envoy hacia el cliente y el p95 hacia el backend > 5 ms sostenida 15 min. Es una aproximación: NFR-U2-11 se mide con la prueba con y sin gateway (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 
 - Keycloak expone métricas en el puerto de gestión (9000); Envoy y el servicio de rate limit, sus estadísticas. Todos llevan `ServiceMonitor` y su flujo de scrape en `flows.yaml`.
 - Toda alerta tiene `runbook_url` (P-U1-10).

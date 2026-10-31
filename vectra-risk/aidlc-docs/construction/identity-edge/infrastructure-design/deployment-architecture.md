@@ -70,7 +70,7 @@ Envoy -> Controlador de Envoy Gateway (envoy-gateway-system, 2 réplicas; xDS 18
 
 | Escenario | Resultado esperado |
 |---|---|
-| Caída de una zona | Envoy, Keycloak y rate limit siguen en la otra zona; las sesiones persisten (NFR-U2-02); Sentinel promueve la réplica de Valkey si la primaria estaba en la zona caída |
+| Caída de una zona | Envoy, Keycloak y rate limit siguen en la otra zona; las sesiones persisten (NFR-U2-02); Sentinel promueve la réplica de Valkey si la primaria estaba en la zona A; con la primaria en B, sin mayoría de Sentinel, `/auth/**` responde 503 hasta que vuelva la zona (INF-U2-04; seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 | Valkey caído por completo | `/auth/**` → 503 (fail-closed); consola e ingesta siguen (P-U2-01); alerta `RateLimitBackendDown` |
 | Keycloak caído por completo | NFR-U2-05: sin logins ni refresh; tokens vigentes ≤ 5 min; servicios en 503 al vencer la cache de JWKS; `KeycloakDown` SEV1 |
 | LDAP del banco caído (prod) | Sin logins nuevos; `LdapUnavailable` SEV2 |

@@ -63,7 +63,7 @@ vectra-risk/system-verification/
   - **Aceptación**: `uv sync --frozen && uv run lint-imports --config system-verification/.importlinter`; `uv run pytest system-verification/tests/unit/test_kubectl_verbs.py` (un fixture con `kubectl apply` → falla).
 
 - [ ] **Paso 2 — Barrera de entorno, credenciales y filtro de evidencias**
-  - `guard`: lista de `issuer` y hosts de kind y staging; secciones permitidas por entorno (staging: `decisions` ≤ 100, lectura de `u11`, `report`); `decisions` no empieza después de las 23:00 UTC.
+  - `guard`: lista de `issuer` y hosts de kind y staging; secciones permitidas por entorno (staging: `prepare`, sin parche de Jobs; seguimiento de la quinta revisión de coherencia, 2026-10-31; `decisions` ≤ 100, lectura de `u11`, `report`); `decisions` no empieza después de las 23:00 UTC.
   - `credentials`: lee del Vault de kind (o la bóveda de staging) con la sesión del operador, en las rutas que usa ESO, la llave de `channel-simulator` y de `verification-reader` y las contraseñas y semillas TOTP de los usuarios sintéticos, salvo las de `cumplimiento-*` fuera de kind (excepción de FR-BIA-05; seguimiento de la cuarta revisión de coherencia, 2026-10-31); solo en memoria; TOTP con `pyotp`.
   - `evidence`: filtro que quita `Authorization`, tokens, cookies y semillas; falla si una salida contiene un JWT o una semilla.
   - Diseño: NFR-U12-03, 04, 05, 32; INF-U12-01.
@@ -134,6 +134,10 @@ vectra-risk/system-verification/
   - **Aceptación**: `uv run pytest system-verification/tests/unit/test_oracles_rt2_rt3_rt5.py` (una sola `recommendation` en RT-3 → `falla`; `RT3-a` aceptado por U4 → `falla`; sin `FailClosed` de `timeout` o `explainer_unavailable` con F22 deshabilitado → `falla`; una versión reactivada que se recongela el mismo día → `falla`; dos corridas con el mismo `model_version_id` → `falla` (cuarta revisión de coherencia entre unidades, 2026-10-31); una corrida de RT-2 de 31 min → `falla` con la medición registrada; un `freeze` sin el campo `data_sources` o con `initial_disparity` vacía, o con un `FreezeContext` incompleto → `falla`; RT-5 con un 403 sin `l5d-proxy-error` (de la aplicación) → `falla`; RT-5 evaluado 6 h después del Job con un doble de Prometheus que tiene la alerta solo en [t0, t1 + 5 min] → `pasa`, y con la alerta fuera de esa ventana → `falla`; retención que no cubre t0 → `no ejecutado` (pendientes consolidados, segunda tanda, 2026-10-10); la serie de denegaciones **nace en 1** dentro de la ventana y no vuelve a crecer → `pasa`; la serie ausente en la ventana → `falla` (pendientes consolidados, tercera tanda, 2026-10-10); contador del mock > 0 → `falla`; sin `CoreWriteAttempt` → `falla` (pendientes consolidados, 2026-10-10); revisión del plan de tareas de U12, 2026-10-10).
     Además, contra un **Prometheus real** (pendientes abiertos, 2026-10-10): `uv run pytest system-verification/tests/integration/test_rt5_promql.py` levanta Prometheus por digest con Testcontainers sobre un bloque TSDB creado con `promtool tsdb create-blocks-from openmetrics` a partir de fixtures (la serie de denegaciones que nace en 1 y no crece; la alerta solo en [t0, t1 + 5 min]; el contador del mock en 0 y en 1; la evaluación 6 h después). Comprueba que cada expresión del oráculo es aceptada por la API (sin `bad_data`) y que el resultado es `pasa`, `falla` o `no ejecutado` como en los casos con doble. Corre en CI (Paso 16) sin clúster.
 
+- [ ] **Paso 8b — Sección `resilience`** (seguimiento de la quinta revisión de coherencia, 2026-10-31)
+  - Oráculos de `RESTORE-DRILL` y `READINESS` (BR-U12-08b); el operador provoca cada caída y la herramienta lee `kubectl get pods`, `/readyz` por `port-forward` y las respuestas por el gateway.
+  - **Aceptación**: `uv run pytest system-verification/tests/unit/test_oracles_resilience.py`: `governance-db` caída con governance no listo → `falla`; `case-db` caída con case-service listo → `falla`; `verify_chain` distinto de «íntegra» → `falla`; sin evidencia → `no ejecutado`.
+
 - [ ] **Paso 9 — X01–X10**
   - Red: toma la salida de la suite de conectividad de U1 (X01, X02, X05, X07, X08, X09) como evidencia.
   - Comportamiento: X03 (`ingeniero-1` y `cro-1` intentan `resolve_frozen` → 403); X04 y X06 desde los Jobs `x04-probe` y `x06-probe`, que solo cuentan con el `runId` del manifiesto y un `completionTime` posterior al `started_at` que fijó la sección `prepare` (Paso 13), **antes** del PR de los Jobs (revisión del plan de tareas de U12, 2026-10-10); X10 (`/auth/admin` → 404).
@@ -149,8 +153,8 @@ vectra-risk/system-verification/
 
 - [ ] **Paso 11 — Carga (US-609)**
   - `capacity`: asignable de los 4 workers frente a la suma de máximos de los HPA (`vectra-app`, `vectra-edge`, `vectra-serving`) y de KServe, y CPU y memoria libres del host; si no alcanza, `scale = 0,5` y se registra.
-  - `run`: línea base a 5/s; después 20/s + 200 usuarios durante 30 min con los scripts k6 de U7, U8 y U10 en su propio contenedor `grafana/k6` de 2 CPU y 2 GiB, siempre aparte y **lanzado por el operador** (pendientes consolidados, 2026-10-10). Intercambio con la sección `load` (pendientes consolidados, segunda tanda, 2026-10-10):
-    - `load` no lanza contenedores: imprime el comando exacto de `docker run` (digest de `grafana/k6`, límites, red de kind, variables de entorno con la URL y el token de carga, montaje del directorio de evidencias de la verificación) y espera;
+  - `run`: línea base a 5/s; después 20/s + 200 usuarios durante 30 min (cubre NFR-U1-11) con los scripts k6 de U8 y U10, que entran por el gateway (seguimiento de la quinta revisión de coherencia, 2026-10-31), en su propio contenedor `grafana/k6` de 2 CPU y 2 GiB, siempre aparte y **lanzado por el operador** (pendientes consolidados, 2026-10-10). Intercambio con la sección `load` (pendientes consolidados, segunda tanda, 2026-10-10):
+    - `load` no lanza contenedores: imprime el comando exacto de `docker run` (digest de `grafana/k6`, límites, red de kind, variables de entorno con la URL, `tmpfs` con los tokens que `load` renueva cada 240 s y que el filtro de evidencia excluye (seguimiento de la quinta revisión de coherencia, 2026-10-31), montaje del directorio de evidencias de la verificación) y espera;
     - k6 escribe su resumen con `--summary-export` en `evidence/<fecha>-<commit>/load/k6-summary-<runId>.json` del directorio montado;
     - el operador confirma el fin y `load` lee ese resumen, comprueba que el nombre lleva el `runId` del manifiesto y que el archivo es posterior a la impresión del comando, y aplica el oráculo; prueba en `test_load_oracle.py`: resumen ausente o anterior al comando → `no ejecutado`; sin el archivo, o con uno viejo, US-609 sale `no ejecutado`; HPA muestreados cada 30 s (lectura); p95 contra NFR-U7-01..03, NFR-U8-01 y NFR-U10-01; tasa de fail-closed frente a la línea base.
   - Diseño: BR-U12-08; INF-U12-05.
@@ -165,7 +169,7 @@ vectra-risk/system-verification/
   - **Aceptación**: la prueba del Paso 1 sobre `demos/`; `shellcheck system-verification/demos/verify/*.sh`.
 
 - [ ] **Paso 13 — CLI por secciones, manifiesto y `CODEOWNERS`**
-  - `cli`: secciones `prepare`, `network`, `decisions`, `rt1`, `rt4`, `rt5`, `rt3`, `rt2-setup`, `rt2`, `load`, `pii`, `u11`, `report`, en el orden de business-logic-model §2.1, con retoma desde una sección y evidencia al terminar cada una.
+  - `cli`: secciones `prepare`, `network`, `decisions`, `rt1`, `rt4`, `rt5`, `rt3`, `rt2-setup`, `rt2`, `load`, `pii`, `u11`, `resilience`, `report`, en el orden de business-logic-model §2.1, con retoma desde una sección y evidencia al terminar cada una.
   - **`prepare`** (revisión del plan de tareas de U12, 2026-10-10): primera sección, **antes** del PR de los Jobs de prueba. Genera el `runId` de la verificación, escribe el manifiesto inicial con ese `runId` y `started_at = ahora`, y produce el parche de values de kind (`probes.runId`, y el de U8 para RT-5) que el operador usa en el PR. Así los Jobs de prueba terminan **después** de `started_at`, y el oráculo de X04 y X06 (Paso 9) puede aceptarlos. Sin `prepare`, las demás secciones se niegan a correr.
   - `manifest`: `manifest.json` con SHA-256 por archivo, `started_at`, semillas, `generator_version`, digests (leídos del clúster), tamaño de `test` y las **solicitudes repetidas** entre escenarios (misma fila de U5 enviada en dos escenarios, NFR-U12-11); tope de 50 MB.
   - **`runId`** (pendientes posteriores al cierre, 2026-10-10): un solo `runId` por verificación, generado por `prepare` con el formato `AAAAMMDD-HHMM` a partir de `started_at` en UTC, truncado al minuto (el que exige `rebuild-runid-check` de U3; pendientes consolidados, 2026-10-10); es el `probes.runId` de los tres Jobs (`x04-probe-<runId>` de U9, `x06-probe-<runId>` de U3 y `rt5-demo-<runId>` de U8). El manifiesto guarda ese `runId` y los nombres esperados de los tres Jobs; el oráculo de cada uno compara contra ellos.
@@ -228,6 +232,7 @@ vectra-risk/system-verification/
 | US-106 (RT-4), US-109 (RT-1) | 7, 18 |
 | US-111 (RT-3, `journey-7-3`), US-303 (RT-2, `RT2-LATENCY`, `journey-7-4`), US-305 (`journey-7-4`, X03) | 8, 9, 12, 18 |
 | US-603 (RT-5, X01, `rt-5`), US-604 (X02, `LOGS-NO-PII`) | 8, 9, 10, 12, 18 |
+| US-608 (`RESTORE-DRILL`), US-610 (`READINESS`) | 8b, 18 |
 | Demos US-304, 503, 504, 505 | 12, 18 |
 
 | Diseño | Pasos |

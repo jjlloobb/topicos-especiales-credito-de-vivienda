@@ -17,7 +17,7 @@
 | Ubicación | `vectra-risk/scoring-explainability/` (dos servicios) y Applications en `vectra-risk-gitops` |
 | Datos propios | Ninguno: servicios sin estado, cachés en memoria |
 | Depende de | U0 (tipos, con `received_at` y `first_evaluation` en `ScoringRequest` y en el payload de `recommendation`, `check_preconditions`/`build_outcome`, `create_app`, `deps` con deadline y circuit breaker, `vectra_common.deadline`), U1 (plataforma, cuotas, `flows.yaml`, supply chain), U2 (clientes `scoring-service` y `explainability-service`), U3 (append con idempotencia, proyección `explanation` por `seq`), U4 (`serving-config`, diccionario F103), U5 (conjuntos RT-1/RT-3/RT-4 como fixtures), U6 (`:predict`, `:explain`) |
-| Lo consumen | case-service (U8, F15), console-bff (U10, F12), U12 (carga y RT) |
+| Lo consumen | `case-worker` (U8, F15), console-bff (U10, F12), U11 (métricas de recomendación), U12 (RT y métricas) |
 
 **Diseño de entrada:**
 - Functional Design: `construction/scoring-explainability/functional-design/` (BR-U7-01..16, PBT-U7-01..08).
@@ -253,7 +253,7 @@ vectra-risk/scoring-explainability/
 
 - [ ] **Paso 17 — Applications, especificación de carga y trazabilidad**
   - Application en la wave 5, por entorno y sin auto-sync.
-  - Script k6 para U12: 10 solicitudes/s de diseño y 20/s de prueba, con umbrales p95 de 400 ms, 250 ms y 500 ms y p99 de 1 s.
+  - Script k6 de U7, fuera de `LOAD` de U12 porque F15 no pasa por el gateway (seguimiento de la quinta revisión de coherencia, 2026-10-31): corre en esta unidad contra el servicio, con dobles; 10 solicitudes/s de diseño y 20/s de prueba, con umbrales p95 de 400 ms, 250 ms y 500 ms y p99 de 1 s.
   - Trazabilidad de cada BR-U7 a una prueba.
   - Diseño: P-U1-12; NFR-U7-01, 02, 03.
   - **Aceptación**: `uv run python platform/tests/test_waves.py`; `kyverno test` de `disallow-argocd-auto-sync`; `k6 inspect scoring-explainability/tests/load/recommendations.js`; `uv run python platform/tests/test_traceability.py --unit scoring-explainability --all`.

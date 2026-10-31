@@ -22,8 +22,8 @@
 - **Structure patterns**: See code-generation.md Critical Rules
 
 ## Scope Constraint (instrucción del usuario)
-- **NO se escribe código**. El trabajo se detiene al terminar el plan de tareas de cada unidad
-  (Code Generation Part 1 — Planning). Code Generation Part 2 y Build and Test NO se ejecutan.
+- **Restricción levantada solo para U0 y U1** (P17 de `cross-unit-review5-followup-questions.md`, 2026-10-31): se ejecuta su Code Generation Part 2 y la comprobación de la plataforma en kind, después de la aprobación del conjunto de cambios (P18). Ningún operador humano queda reemplazado: AUTONOMIA-01 sigue vigente.
+- **Para U2–U12 sigue sin escribirse código**: el trabajo se detiene en su plan de tareas.
 
 ## Source Inputs
 - `entradas/prd.md` — fuente autoritativa de requisitos
@@ -40,7 +40,7 @@
 ## Project-Wide Decisions
 | Decisión | Valor | Decidido en |
 |---|---|---|
-| Pruebas de resiliencia (RESILIENCY-14, NFR-RES-14) | C: diferir la ejecución a Operations; cada unidad con runtime documenta sus escenarios en NFR Design o Infrastructure Design (escenarios mínimos en `construction/contracts/nfr-design/nfr-design-patterns.md` P-U0-08) | U0 NFR Design, 2026-10-03T09:20:34Z |
+| Pruebas de resiliencia (RESILIENCY-14, NFR-RES-14) | C: diferir la ejecución a Operations; cada unidad con runtime documenta sus escenarios en NFR Design o Infrastructure Design (escenarios mínimos en `construction/contracts/nfr-design/nfr-design-patterns.md` P-U0-08). La sección `resilience` de U12 ejecuta en kind lo que piden US-608 y US-610; la ejecución a escala sigue en Operations (2026-10-31) | U0 NFR Design, 2026-10-03T09:20:34Z |
 | Evidencia de AUTONOMIA-03 y AUTONOMIA-06 | Por unidad, con lo que exista en ese momento (dobles y X01), y la demostración completa de RT-3 y RT-5 en U12. Una unidad puede cerrar sin esa demostración, pero la historia no pasa hasta que U12 la entregue (BR-U12-13) | seguimiento de la cuarta revisión de coherencia, 2026-10-31 |
 
 ## Execution Plan Summary
@@ -71,7 +71,7 @@
 ## Current Status
 - **Lifecycle Phase**: CONSTRUCTION
 - **Current Stage**: CONSTRUCTION cerrada en los planes de tareas de U0–U12
-- **Next Stage**: ninguna dentro del alcance actual (Code Generation Part 2, Build and Test y OPERATIONS fuera de alcance)
+- **Next Stage**: aprobación del conjunto de cambios desde el 2026-10-31 (P18); después, Code Generation Part 2 de U0 y U1, revisando primero cada plan contra su tabla de cambios
 
 ## Per-Unit Progress (CONSTRUCTION)
 | Unidad | FD | NFR Req | NFR Design | Infra Design | Plan de tareas |
@@ -116,6 +116,7 @@ tabla de cambios de la unidad afectada y en `audit.md`. Las de más impacto:
 | U0–U12; inventario de flujos y de métodos | FD, NFR, NFR Design, Infra y planes | Cuarta revisión de coherencia (2026-10-31): flujos F112–F118 y egress a la API de Kubernetes por binding K; `restore-drill`; roles de base en CloudNativePG (U1); oráculos de RT-2 (5 versiones del proxy) y RT-3 (por paquete); `inference_service` en `ExplainRequest`; tipos de gobierno en U0; xDS, CRDs, Grafana, buckets de kind, cuota de `vectra-serving` |
 | U0–U12; requisitos e historias | FD, NFR, NFR Design, Infra y planes; FR-BIA-05, US-503, US-603 | Seguimiento de la cuarta revisión (2026-10-31, `cross-unit-review4-followup-questions.md`): North Star con consulta previa; excepción de FR-BIA-05 solo en kind; pool `general` de 4 nodos por zona; `FreezeRecord.resolutions`; `descartada` en evidencia de `explanation_view`; `AppProject` por entorno; outlier del borde; política de referencia de U5 |
 | U0–U12; requisitos e inventario | FD, NFR, NFR Design, Infra y planes; RT-5 en requisitos | Quinta revisión de coherencia (2026-10-31): RT-3 con F22 deshabilitado y RT3-c solo en U4; RT-2 con `rt2-setup` y `mark_active`; 30 endpoints en U10; celdas de U9 en `stratified`; 422 en `X-Test-Scenario`; `descartada` en PBT-U8-07; HPA del rate limit; credenciales y recursos de `model-validation-job`; certificado de Keycloak y `VECTRA_CA_BUNDLE`. Quedan abiertas las altas y medias que no eran errores de la cuarta revisión ni bloqueantes |
+| U0–U12; requisitos, historias e inventario | FD, NFR, NFR Design, Infra y planes | Seguimiento de la quinta revisión (2026-10-31, `cross-unit-review5-followup-questions.md`): histograma HTTP y buckets en U0; pool `data` de 8 vCPU / 32 GiB y cuotas de `vectra-data`, `vectra-edge` y `vectra-identity`; flujos F119–F121 y bindings K17–K19; MinIO y Sentinel ante una zona caída; carga por el gateway; readiness de governance con la copia en memoria; sección `resilience` de U12; réplica síncrona en otra zona, pendiente de comprobar en kind con NFR-U1-03 |
 
 Antes de Code Generation Part 2 de cualquier unidad, conviene revisar su plan contra su tabla de
 cambios, porque las aprobaciones son anteriores a estas revisiones.

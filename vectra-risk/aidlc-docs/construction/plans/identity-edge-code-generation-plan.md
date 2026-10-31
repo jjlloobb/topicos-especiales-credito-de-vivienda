@@ -119,7 +119,7 @@ vectra-risk/identity-edge/
     - `hostname` y `hostname-admin`, `proxy-headers=xforwarded`;
     - puerto de gestión 9000;
     - recursos de INF-U2-06 y prioridad `vectra-high`;
-    - Secrets por `ExternalSecret`;
+    - Secrets por `ExternalSecret`, incluida la credencial de administración de INF-U2-05a (seguimiento de la quinta revisión de coherencia, 2026-10-31);
     - `Certificate` `keycloak-tls` para 8443 y `BackendTLSPolicy` de F05 con el certificado de la CA (INF-U2-05b; quinta revisión de coherencia entre unidades, 2026-10-31).
   - `keycloak-config-cli` como Job hook del sync.
   - Diseño: NFR-U2-01, 02, 23, 26; P-U2-04; INF-U2-01, 05, 06. Historia: US-601.
@@ -127,7 +127,7 @@ vectra-risk/identity-edge/
 
 - [ ] **Paso 6 — `realm-drift` y exportador de antigüedad de llaves**
   - CronJob diario que exporta el realm, lo normaliza (sin secretos, IDs internos ni timestamps) y lo compara con Git; empuja `vectra_realm_drift` al Pushgateway (F112), de donde sale `RealmDrift` (cuarta revisión de coherencia entre unidades, 2026-10-31).
-  - Exportador que publica la antigüedad de la llave de firma activa (`SigningKeyAgeHigh`).
+  - CronJob horario `signing-key-age`: lee por F94 la llave de firma activa y empuja su antigüedad al Pushgateway (F112) para `SigningKeyAgeHigh`. Sin Deployment ni scrape (seguimiento de la quinta revisión de coherencia, 2026-10-31).
   - Diseño: BR-U2-12; P-U2-05.
   - **Aceptación**: `uv run pytest identity-edge/tests/unit/test_realm_diff.py` y una propiedad: `normalize(normalize(x)) == normalize(x)`, y dos exportaciones que solo difieren en secretos o timestamps no generan diferencias.
 
@@ -165,7 +165,7 @@ vectra-risk/identity-edge/
 
 - [ ] **Paso 9 — Servicio de rate limit y Valkey**
   - `envoyproxy/ratelimit` (HPA de 2 a 4, quinta revisión de coherencia entre unidades, 2026-10-31; gRPC en 8083, métricas en 8081) con la configuración de descriptores generada por `route-gen`.
-  - Chart propio de Valkey 8: 2 nodos en zonas distintas, 3 Sentinel, sin persistencia, ACL `ratelimit` desde ESO, usuario `default` deshabilitado, `maxmemory 128mb`, `volatile-ttl`, prioridad `vectra-high`.
+  - Chart propio de Valkey 8: 2 nodos en zonas distintas, primaria preferida en la zona A, 3 Sentinel, sin persistencia, PDB, exportador como sidecar, ACL `ratelimit`, de replicación y de Sentinel desde ESO (seguimiento de la quinta revisión de coherencia, 2026-10-31), usuario `default` deshabilitado, `maxmemory 128mb`, `volatile-ttl`, prioridad `vectra-high`.
   - Diseño: NFR-U2-20, 27, 30; P-U2-04, 06; INF-U2-03, 04. Historia: US-611 (exceso de solicitudes → 429).
   - **Aceptación**: `helm template` + `conftest test identity-edge/ratelimit/ identity-edge/charts/valkey/` (puertos 8083/8081, sin RDB/AOF, ACL presente, `default` deshabilitado, spread por zona); `uv run pytest identity-edge/tests/unit/test_ratelimit_config.py` (los descriptores coinciden con `routes.yaml`).
 
@@ -191,11 +191,11 @@ vectra-risk/identity-edge/
 - [ ] **Paso 13 — Especificación de las pruebas de extremo a extremo**
   - Playwright + `httpx` + `pyotp` + `axe-core`:
     - aprobador sin TOTP → no obtiene token;
-    - step-up en ventana emergente (revisión del Infrastructure Design de U10, 2026-10-10): firma con `auth_time` > 900 s → `mfa_required` → diálogo → clic → ventana con `acr_values=mfa` → TOTP → `/stepup-callback` envía `code` y `state` por `postMessage` → la ventana principal reintenta con el mismo cuerpo → éxito, sin recarga; un `postMessage` de otro origen → ignorado; la ventana conserva `window.opener` con `Cross-Origin-Opener-Policy: same-origin`;
+    - step-up sin SPA: flujo OIDC con `acr_values=mfa` y TOTP hasta el token con `acr = mfa`; el diálogo en la consola se prueba en U10, que se construye después (seguimiento de la quinta revisión de coherencia, 2026-10-31). Comportamiento que U10 debe cubrir, step-up en ventana emergente (revisión del Infrastructure Design de U10, 2026-10-10): firma con `auth_time` > 900 s → `mfa_required` → diálogo → clic → ventana con `acr_values=mfa` → TOTP → `/stepup-callback` envía `code` y `state` por `postMessage` → la ventana principal reintenta con el mismo cuerpo → éxito, sin recarga; un `postMessage` de otro origen → ignorado; la ventana conserva `window.opener` con `Cross-Origin-Opener-Policy: same-origin`;
     - 5 fallos → bloqueo, con el evento con `userId` y sin `username`;
     - refresh reusado → sesión revocada;
     - cabeceras (CSP, HSTS, `nosniff`, `DENY`, `Referrer-Policy`); la CSP de `spa` y `api` incluye `require-trusted-types-for 'script'` y `trusted-types 'none'` (NFR Requirements de U10, 2026-10-10, Q7);
-    - 429 con `Retry-After`; `/auth/admin` → 404;
+    - 429 con `Retry-After`; cuerpo mayor que el límite → 413 `payload_too_large` (seguimiento de la quinta revisión de coherencia, 2026-10-31); `/auth/admin` → 404;
     - token de otro servicio → 401;
     - `X-Forwarded-For` falso no cambia la IP registrada;
     - cabecera interna `x-vectra-sub` inyectada → sin efecto;

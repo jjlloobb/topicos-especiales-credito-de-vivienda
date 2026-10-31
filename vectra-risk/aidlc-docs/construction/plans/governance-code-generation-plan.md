@@ -18,7 +18,7 @@
 | Ubicación | `vectra-risk/governance/` (servicio, `promotion-tool`, `model-validation-job`) y Applications en `vectra-risk-gitops` |
 | Datos propios | `governance-db` (esquema, triggers, grants) y el bucket `vectra-model-archive` |
 | Depende de | U0 (tipos y `create_app`), U1 (plataforma, K01, model-store), U2 (roles, MFA, step-up, cliente `promotion-tool`), U3 (append con idempotencia), U9 (librería de disparidad y `compare_source`; se usa un doble hasta que exista), U5/U6 (modelo de referencia y KServe de staging para la validación real) |
-| Lo consumen | scoring (`serving-config`), BFF (consola), bias (`freeze`), U12 (verificación) |
+| Lo consumen | scoring y `case-worker` (`serving-config`), explainability (diccionario), case-service y `case-worker` (`feature_spec`), U6 (`inference_service`, `promotion-tool`), BFF (consola), bias (`freeze`), U12 (verificación) |
 
 **Diseño de entrada:**
 - Functional Design: `construction/governance/functional-design/` (BR-U4-01..19, PBT-U4-01..07).
@@ -240,7 +240,7 @@ vectra-risk/governance/
     2. la validación con el modelo de referencia (cuando existan U5 y U6) → informe en ≤ 30 min;
     3. la promoción de punta a punta: aprobación → `promotion-tool` (PR de un commit) → revisión y merge → sync manual → `mark_active`;
     4. el rollback a la versión `inactivo` (US-208);
-    5. `governance-db` pausada → `serving-config` sigue respondiendo;
+    5. `governance-db` pausada → la readiness sigue en 200, `serving-config` responde y las escrituras dan 503 (seguimiento de la quinta revisión de coherencia, 2026-10-31);
     6. registro caído → transiciones pendientes sin efecto y `freeze` aplicado igual;
     7. la propagación del congelamiento en ≤ 6 s (completa cuando existan U7 y U9);
     8. la protección de rama verificada con `branch-protection-check`;

@@ -16,7 +16,7 @@
 | Historias (dueña) | US-301, US-302, US-303, US-304, US-306, US-307, US-308 |
 | Ubicación | `vectra-risk/bias-monitoring/` (una imagen con dos puntos de entrada; la librería como paquete propio del workspace) y Applications en `vectra-risk-gitops` |
 | Datos propios | Ninguno: lee conteos agregados del registro (F26) y publica métricas (F106) |
-| Depende de | U0 (tipos de §9.4, `create_app`, `deps.call` con `breaker="disabled"` para batch, catálogo de eventos §8.1, `RouteContract`), U1 (Pushgateway, cuotas, `flows.yaml`, `require-hpa-bounds` con exención, sidecar nativo), U2 (clientes `bias-monitoring-job` y `bias-monitoring-service`), U3 (`POST /v1/monitoring/daily:query`, `GET /v1/monitoring/freezes`, agregador), U4 (`freeze` con su `AuthorizationPolicy`, `compare_source` por F25, `list_models` para el BFF) |
+| Depende de | U0 (tipos de §9.4, `create_app`, `deps.call` con `breaker="disabled"` para batch, catálogo de eventos §8.1, `RouteContract`), U1 (Pushgateway, cuotas, `flows.yaml`, `require-hpa-bounds` con exención, sidecar nativo), U2 (clientes `bias-monitoring-job` y `bias-monitoring-service`), U3 (`POST /v1/monitoring/daily:query`, `GET /v1/monitoring/freezes`, agregador), U5 (conteos de la variante proxy para pruebas, cuando exista), U4 (`freeze` con su `AuthorizationPolicy`, `compare_source` por F25, `list_models` para el BFF) |
 | Lo consumen | console-bff (U10, F14), governance (U4, F25; y la librería en el `model-validation-job`), U5 (la librería), U12 (demostración RT-2) |
 
 **Diseño de entrada:**

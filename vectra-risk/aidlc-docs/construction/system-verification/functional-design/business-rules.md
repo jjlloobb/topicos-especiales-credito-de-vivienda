@@ -87,15 +87,25 @@ Cada escenario guarda su evidencia: comando, salida y resultado esperado frente 
 - **Entre corridas**: cumplimiento reactiva la versión congelada; se comprueba que no vuelve a congelarse ese día (en la corrida 1, tras las 3 corridas de bias de BR-U12-04); se promueve la versión siguiente: PR de promoción, sync, `mark_active` del operador con `promotion-tool` (F08, BR-U4-08) y PR post-activación de la anterior. Sin `mark_active` el lote lo puntuaría la versión anterior (quinta revisión de coherencia entre unidades, 2026-10-31). Las 5 versiones se registran, validan y aprueban en la sección `rt2-setup`, con `ingeniero-1` y `cro-1` por el BFF. Al terminar, se vuelve al modelo de referencia con un rollback (US-208).
 - **Si una corrida supera 30 min** (nota de Q7): RT-2 se declara **fallida** y se registra la medición. Según NFR-U9-01, el plan es bajar el intervalo de bias a 10 min antes que subir el objetivo. Con ≈ 27 min típicos el margen es pequeño, y el informe lo dice.
 
+## 5b. Resiliencia (seguimiento de la quinta revisión de coherencia, 2026-10-31; US-608, US-610)
+
+**BR-U12-08b — Sección `resilience`.** Solo en kind, tras un PR aprobado y antes de `report`:
+- `RESTORE-DRILL`: `restore-drill` manual y restore del sitio en un kind limpio (≤ 4 h), con `verify_chain` «íntegra».
+- `READINESS`: `case-db` y `registry-db` caídas → su servicio no listo; `governance-db` caída → governance listo, con `serving-config` respondiendo y escrituras 503; explainability o governance caídos → scoring listo y `FailClosed` tipificado.
+- Las caídas las provoca el operador; U12 solo lee y compara, como en el resto de las secciones.
+
+Complementa la decisión de proyecto de RESILIENCY-14: la ejecución a escala sigue en Operations.
+
 ## 6. Carga (Q4; US-609)
 
 **BR-U12-08 — Perfil combinado.**
 - **Perfil**: 30 min sostenidos con ingesta a 20 solicitudes/s y 200 usuarios de consola con el perfil de U10.
 - **Línea base**: la misma prueba a 5 solicitudes/s.
+- **Entrada** (seguimiento de la quinta revisión de coherencia, 2026-10-31): toda la carga entra por el gateway: ingesta con el cliente `channel-simulator` y consola con usuarios reales. Los tokens duran 300 s, así que la sección `load` los renueva y k6 los lee de un archivo.
 - **Criterios**:
   - las réplicas del HPA suben sin superar el máximo;
   - KServe escala dentro de sus límites;
-  - p95 dentro de NFR-U7-01..03, NFR-U8-01 y NFR-U10-01;
+  - p95 dentro de NFR-U7-01..03 (leídos del histograma HTTP de U0, porque scoring no tiene ruta por el gateway), NFR-U8-01 y NFR-U10-01;
   - la tasa de fail-closed no supera la de la línea base.
 - **Evidencia**: el reporte de k6, `kubectl get hpa` cada 30 s (solo lectura) y las series de Prometheus.
 - **Sin capacidad suficiente en kind**: la prueba se escala a la mitad y el informe lo dice.

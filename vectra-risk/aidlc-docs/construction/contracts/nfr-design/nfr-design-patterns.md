@@ -23,6 +23,7 @@ plan de tareas.
 8. AccessLog               un LogRecord por request (BR-U0-50)
 ```
 
+- **Histograma HTTP** (seguimiento de la quinta revisión de coherencia, 2026-10-31): el middleware observa `vectra_http_request_duration_seconds` en cada request, con `route_template` y nunca la URL con parámetros. Todo otro histograma declara sus buckets al registrarse, y `vectra_common.metrics` rechaza uno sin ellos.
 - Los health checks y `/metrics` se montan en una app separada en el puerto 8081, sin las capas 2–5.
 - **Verificación**: una prueba inspecciona el stack de una app creada con `create_app` y compara el orden exacto. import-linter prohíbe que los servicios importen `fastapi.FastAPI` directamente.
 - **Satisface**: NFR-U0-01, 15; SECURITY-08, 15.

@@ -24,7 +24,7 @@ compartidos ni bases de datos nuevas.
 | `deadline` | `vectra_common` | Lectura de `x-vectra-deadline` entrante | P-U0-07; NFR-U0-23 | — (precisado el 2026-10-06) |
 | `logging` (`allowlist_filter`) | `vectra_common` | Procesador de structlog | P-U0-04 | — |
 | `telemetry` (OTel + `SpanAllowlist`) | `vectra_common` | Configuración + procesador | P-U0-11 | Exportador OTLP hacia el Collector in-cluster |
-| `metrics` | `vectra_common` | Contadores Prometheus | P-U0-04, 06; BR-U0-73 | Registro por proceso, expuesto en 8081 |
+| `metrics` | `vectra_common` | Contadores Prometheus e histograma HTTP (seguimiento de la quinta revisión de coherencia, 2026-10-31) | P-U0-04, 06; BR-U0-73 | Registro por proceso, expuesto en 8081 |
 | `ts-client` | `contracts/ts` | Tipos generados + `openapi-fetch` | NFR-U0-34 | En el navegador (SPA) |
 | `strategies` | `contracts/tests` | Generadores Hypothesis | NFR-U0-44 | Solo en pruebas |
 | `codegen` (specs, realm, matriz) | herramienta de CI | Script | P-U0-12 | Solo en CI |
@@ -40,6 +40,7 @@ compartidos ni bases de datos nuevas.
 | `vectra_jwks_refresh_total` | `result` (`ok`, `error`, `throttled`) | P-U0-06 |
 | `vectra_log_fields_dropped_total` | `service`, `event` | P-U0-04 |
 | `vectra_circuit_state` | `dependency` | P-U0-07, NFR-U0-23 (precisado el 2026-10-06) |
+| `vectra_http_request_duration_seconds` (histograma) | `service`, `route_template`, `method`, `status` | Middleware de `create_app`. Buckets fijos en `vectra_common`: 0,005; 0,01; 0,025; 0,03; 0,05; 0,1; 0,15; 0,25; 0,3; 0,4; 0,5; 0,7; 0,8; 1; 1,5; 2; 2,5; 5; 10 s, que incluyen los umbrales de los SLO y de las alertas (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 
 Ninguna etiqueta lleva identificadores de usuario ni de caso (cardinalidad acotada,
 sin PII).

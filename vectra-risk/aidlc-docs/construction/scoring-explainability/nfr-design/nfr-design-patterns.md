@@ -163,7 +163,7 @@ en CI.
 | `RegistryIdempotencyConflict` | SEV2 | Cualquier conflicto en 15 min (P-U7-02) |
 | `FactualityFailed` | SEV2 | Cualquier `factuality_failed` en 15 min. Con una plantilla determinista no debería ocurrir: indica divergencia entre generador y validador |
 | `ExplainerVersionMismatch` | SEV2 | Cualquier `version_mismatch` en 15 min (P-U6-02 lo hace imposible por despliegue; si aparece es un defecto o un ataque RT-3). Complementa a `PromotionMismatchPersistent` de U4, que se dispara si el `version_mismatch` dura más de 10 min |
-| `RecommendationLatencyHigh` | SEV3 | p95 de `POST /v1/recommendations` > 400 ms durante 15 min |
+| `RecommendationLatencyHigh` | SEV3 | p95 de `POST /v1/recommendations` > 400 ms durante 15 min, con `vectra_http_request_duration_seconds` (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 
 - Métricas en el puerto 8081 (convención de U0) con `ServiceMonitor`. Toda alerta lleva `runbook_url` (P-U1-10).
 - Alertas de otras unidades relacionadas con U7: `PromotionMismatchPersistent` (U4, sobre `vectra_scoring_failclosed_total{cause="version_mismatch"}`) y `FailClosedPersistente` (U1, P-U1-11). Esta última sale de `vectra_cases_failclosed_persistent` de case-service (U8, `services.md`), no de una métrica de U7. Antes, esta tabla decía que `FailClosedPersistente` usaba una métrica de U7 y que esa métrica llevaba `cause` en `vectra_recommendations_total`, en lugar del nombre de BR-U7-03 (corregido el 2026-10-03 al preparar el plan de tareas de U7).

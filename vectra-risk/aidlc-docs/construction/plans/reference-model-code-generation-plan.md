@@ -17,7 +17,7 @@
 | Ubicación | `vectra-risk/reference-model/` y el workflow `.github/workflows/reference-model.yml` |
 | Datos propios | Datasets sintéticos y paquetes de modelo versionados (publicados como releases OCI firmadas) |
 | Depende de | U0 (`ApplicationIn`, `derive` con `feature_spec`, `FeatureDictionary`, JCS), U1 (workflows reutilizables de CI), U9 (librería de disparidad; doble mientras no exista) |
-| Lo consumen | U4 (registro y validación), U6 (predictor con `envelope.confidence`; serving), U12 (casos adversariales) |
+| Lo consumen | U4 (registro y validación), U6 (predictor con `envelope.confidence`; serving), U7 y U9 (paquete y conteos de prueba), U12 (casos adversariales) |
 | Etapas omitidas | NFR Design e Infrastructure Design (sin runtime ni despliegue) |
 
 **Diseño de entrada:**

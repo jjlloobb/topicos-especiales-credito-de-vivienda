@@ -17,7 +17,7 @@
 | Ubicación | `vectra-risk/decision-registry/` (monorepo) y Applications en `vectra-risk-gitops` |
 | Datos propios | `registry-db` (cluster de CloudNativePG de U1): esquema, particiones, roles y génesis |
 | Depende de | U0 (tipos de registro, JCS, `create_app`, `deps.call`), U1 (plataforma, `restore-drill`, buckets, ESO, observabilidad), U2 (scopes en el realm) |
-| Lo consumen | scoring y case (append), governance (eventos), BFF (expediente y verificación), explainability, bias y product-metrics (proyecciones), U1 `restore-drill` (CLI) |
+| Lo consumen | scoring y case (append), governance (eventos), BFF (expediente y verificación), explainability, bias y product-metrics (proyecciones), U1 `restore-drill` (CLI), U12 (`x06-probe`, proyecciones) |
 
 **Diseño de entrada:**
 - Functional Design: `construction/decision-registry/functional-design/` (BR-U3-01..17, PBT-U3-01..09; BR-U3-17 y PBT-U3-09 agregados por el FD de U9).

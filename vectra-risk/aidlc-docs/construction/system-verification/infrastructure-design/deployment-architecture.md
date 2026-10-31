@@ -80,7 +80,7 @@ Nada de U12 corre ni se despliega dentro del clúster.
 - el kubeconfig del operador (que ya existe en su estación) y el certificado raíz se montan como archivos de **solo lectura**; el contenedor no los copia;
 - la sesión de Vault la abre el operador en su estación (`vault login`), y su token entra al contenedor como variable de entorno al arrancar, nunca como archivo;
 - el sistema de archivos del contenedor es de solo lectura, salvo el directorio de evidencias montado del checkout y un `tmpfs` para el perfil de Chromium;
-- el contenedor de k6 recibe solo la URL y el token de carga por variables de entorno.
+- el contenedor de k6 recibe la URL por variable de entorno y lee los tokens de carga de un archivo en un `tmpfs` montado, que la sección `load` renueva cada 240 s (seguimiento de la quinta revisión de coherencia, 2026-10-31).
 
 ## 3. Recursos que U12 usa (de otras unidades)
 

@@ -746,7 +746,7 @@ Escenario: alerta con runbook
   Cuando se dispara cualquier alerta definida
   Entonces incluye la anotación runbook_url hacia un runbook existente en el repositorio
 ```
-**Verificación:** `promtool test rules` + script que comprueba que cada regla tiene un `runbook_url` resoluble + pruebas de readiness en kind: `case-db` caída → case-service no listo (lo mismo para governance y el registro con sus bases); explainability o governance caídos → scoring listo y `FailClosed` tipificado. Criterio de NFR-RES-07 precisado (P-U1-04 de U1).
+**Verificación:** `promtool test rules` + script que comprueba que cada regla tiene un `runbook_url` resoluble + pruebas de readiness en kind: `case-db` caída → case-service no listo (lo mismo para el registro con su base); `governance-db` caída → governance sigue listo, con `serving-config` respondiendo y escrituras 503 (seguimiento de la quinta revisión de coherencia, 2026-10-31); explainability o governance caídos → scoring listo y `FailClosed` tipificado. Criterio de NFR-RES-07 precisado (P-U1-04 de U1).
 
 ### US-611 — Endurecimiento del gateway y de la SPA · `M`
 **Como** oficial de cumplimiento, **quiero** rate limiting, validación de tamaño, cabeceras de seguridad y errores genéricos, **para** reducir la superficie de abuso.

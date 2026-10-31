@@ -30,6 +30,8 @@ un número de puerto, pero no la existencia ni la dirección de un flujo.
 | `18000/TCP` | xDS: Envoy se conecta al controlador de Envoy Gateway |
 | `8200/TCP` | Vault (Transit y secretos), solo en kind |
 | `9000/TCP` | MinIO in-cluster (API S3): model-store, Loki, Tempo; también el puerto de gestión (health y métricas) de Keycloak, que no se expone en el gateway |
+| `7946/TCP`, `9095/TCP` | Memberlist y gRPC interno de Loki y Tempo (F120, F121; seguimiento de la quinta revisión de coherencia, 2026-10-31) |
+| `10250/TCP` | Kubelet (F119; seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 | `9094/TCP` | Gossip de Alertmanager entre réplicas (F116; cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | `7800/TCP` | JGroups de Infinispan entre réplicas de Keycloak (F117; cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | `80/TCP` | predictor y explainer de KServe (modo RawDeployment) |
@@ -45,7 +47,7 @@ un número de puerto, pero no la existencia ni la dirección de un flujo.
 | `vectra-staging` | InferenceServices de staging, model-validation-job |
 | `vectra-data` | PostgreSQL (`case-db`, `governance-db`, `registry-db`, `keycloak-db`) con CloudNativePG; MinIO (model-store, Loki, Tempo) |
 | `vectra-restore-drill` | CronJob `restore-drill` y cluster efímero de PostgreSQL (U1, P-U1-05) |
-| `vectra-identity` | Keycloak, `keycloak-config-cli` (hook de sync), `realm-drift` (CronJob), exportador de antigüedad de llaves |
+| `vectra-identity` | Keycloak, `keycloak-config-cli` (hook de sync), `realm-drift` y `signing-key-age` (CronJobs) |
 | `vectra-mock` | core-banking-mock; solo en kind y staging (U1 deployment-architecture, U8 INF-U8-02). `channel-simulator` ya no corre aquí: es una sección de la imagen de U12 que el operador ejecuta fuera del clúster (Infrastructure Design de U12, 2026-10-10) |
 | `vectra-observability` | Prometheus, Alertmanager, Grafana, Loki, Tempo, OpenTelemetry Collector, agente de logs |
 | `argocd` | Argo CD |
@@ -131,13 +133,16 @@ Tipo: **S** = llamada síncrona request/response · **R** = lectura · **A** = a
 | F109 | Grafana (`vectra-observability`) | Alertmanager (`vectra-observability`) | 9093 | W | Silencios creados por un operador desde la UI de Grafana (equipo `operacion`), con autor y comentario obligatorios y vencimiento ≤ 4 h; lectura de silencios y alertas; solo el rol de Grafana `operacion` (OIDC) (revisión del Infrastructure Design de U10, 2026-10-10) |
 | F110 | Job `grafana-folder-permissions` y su CronJob de comprobación (`vectra-observability`) | Grafana (`vectra-observability`) | 3000 | W / R | Aplicar y comprobar los permisos de las carpetas `Vectra / Sesgo` y `Vectra / Producto` por la API de Grafana, con una cuenta de servicio de Grafana cuyo token llega por ESO; solo el Job (escritura) y el CronJob (lectura) (FD de U11, 2026-10-10) |
 | F111 | Job `x06-probe-<runId>` (`vectra-app`; Application `decision-registry-rebuild`; **solo kind**, con `probes.runId`) | `registry-db-rw` (`vectra-data`) | 5432 | W | Intenta un `UPDATE` con `registry_app` para que U12 verifique X06 (`permission denied`) (revisión del Infrastructure Design de U12, 2026-10-10) |
-| F112 | `realm-drift` (`vectra-identity`) | Pushgateway (`vectra-observability`) | 9091 | O | Push de `vectra_realm_drift` para la alerta `RealmDrift` (cuarta revisión de coherencia entre unidades, 2026-10-31) |
+| F112 | `realm-drift` y `signing-key-age` (`vectra-identity`) | Pushgateway (`vectra-observability`) | 9091 | O | Push de `vectra_realm_drift` y de la antigüedad de la llave de firma (seguimiento de la quinta revisión de coherencia, 2026-10-31; cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | F113 | CronJob de comprobación de `grafana-folder-permissions` (`vectra-observability`) | Pushgateway (`vectra-observability`) | 9091 | O | Push de `vectra_grafana_folder_permissions_drift` (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | F114 | `restore-drill` (`vectra-restore-drill`) | Cluster efímero de `restore-drill` | 5432 | R | `verify_chain` sobre la copia restaurada (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | F115 | MinIO (cada pod) | MinIO (los demás pods) | 9000 | Replicación | Erasure coding y quórum del modo distribuido (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | F116 | Alertmanager (cada réplica) | Alertmanager (las demás réplicas) | 9094 | O | Gossip del clúster: silencios y deduplicación (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | F117 | Keycloak (cada réplica) | Keycloak (las demás réplicas) | 7800 | O | Clúster Infinispan embebido con JGroups (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | F118 | `registry-checkpoint`, `registry-archive`, `registry-verify-*`, `restore-drill`, `model-archive` (**solo kind**) | MinIO, buckets `vectra-registry-checkpoints`, `vectra-registry-archive` y `vectra-model-archive` | 9000 | W / R | En kind reemplaza a F75 (solo checkpoints), F77, F78, F79 y F100 (cuarta revisión de coherencia entre unidades, 2026-10-31) |
+| F119 | Prometheus | Kubelet de cada nodo | 10250 | O | `kubelet_volume_stats_*` para `PostgresVolumeUsageHigh`; el destino es el nodo, no un pod (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
+| F120 | Loki (cada componente) | Loki (los demás componentes) | 7946 / 9095 | O | Anillo (memberlist) y gRPC interno (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
+| F121 | Tempo (cada componente) | Tempo (los demás componentes) | 7946 / 9095 | O | Anillo (memberlist) y gRPC interno (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 | F101 | `model-archive` (U4) | MinIO, bucket `model-store` | 9000 | R | Leer artefactos y explicadores para archivarlos |
 | F102 | `model-archive` (U4) | `governance-db` | 5432 | W | Registrar `archived_uri`/`archived_at` (rol `gov_archiver`, permiso por columna) |
 
@@ -186,7 +191,7 @@ Ningún componente de observabilidad exporta fuera del clúster, salvo la notifi
 | F91 | Servicio de rate limit | Valkey (vía Sentinel) | 26379 / 6379 | W | Contadores efímeros con TTL |
 | F92 | Valkey réplica | Valkey primaria | 6379 | Replicación | Réplica en otra zona |
 | F93 | Sentinel | Valkey y otros Sentinel | 6379 / 26379 | O | Monitoreo y failover |
-| F94 | `keycloak-config-cli`, `realm-drift` | Keycloak (API de administración, interna) | 8443 | W / R | Aplicar el realm en el sync manual; exportarlo para detectar deriva (BR-U2-12) |
+| F94 | `keycloak-config-cli`, `realm-drift`, `signing-key-age` | Keycloak (API de administración, interna) | 8443 | W / R | Aplicar el realm en el sync manual; exportarlo para detectar deriva (BR-U2-12) |
 | F95 | Envoy (data plane) | Controlador de Envoy Gateway (`envoy-gateway-system`) | 18000 | O | Configuración xDS: Envoy inicia la conexión y el controlador la sirve (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 
 ---
@@ -201,7 +206,7 @@ Role ni RoleBinding.
 | ID | ServiceAccount | Namespace del recurso | Verbos y recursos | Motivo |
 |---|---|---|---|---|
 | K01 | `governance-service` | `vectra-staging` | `create`, `get`, `list`, `watch` sobre `batch/jobs`; `list` sobre `pods` (para hallar el pod del Job); `get` sobre `pods/log` (seguimiento de la cuarta revisión de coherencia, 2026-10-31) | Lanzar y seguir el `model-validation-job` (flujo S3). **Única** escritura a la API de Kubernetes desde un servicio de negocio. No puede crear Jobs en otros namespaces ni tocar InferenceServices |
-| K02 | `prometheus` | todos los de Vectra | `get`, `list`, `watch` sobre `pods`, `services`, `endpoints` | Service discovery |
+| K02 | `prometheus` | todos los de Vectra; `nodes` a nivel de clúster | `get`, `list`, `watch` sobre `pods`, `services`, `endpoints`; `get`, `list`, `watch` sobre `nodes` y `get` sobre `nodes/metrics` (F119; seguimiento de la quinta revisión de coherencia, 2026-10-31) | Service discovery y métricas del kubelet |
 | K03 | `otel-collector` | todos los de Vectra | `get`, `list`, `watch` sobre `pods`, `namespaces` | Enriquecer telemetría con metadata de K8s |
 | K04 | `argocd-application-controller` | namespaces de Vectra | Escritura sobre los recursos que gestionan las Applications | Aplicar cambios **solo** tras un sync manual aprobado (AUTONOMIA-01) |
 | K05 | `kserve-controller-manager` | `vectra-serving`, `vectra-staging` | Los que requiere el controlador de KServe | Reconciliar InferenceServices |
@@ -215,6 +220,9 @@ Role ni RoleBinding.
 | K13 | Grafana Alloy | todo el clúster | `get`, `list`, `watch` sobre `pods`, `namespaces`, `nodes` | Descubrir contenedores y leer sus logs del nodo |
 | K14 | Controlador de Envoy Gateway | `vectra-edge` y `envoy-gateway-system` | Lectura de recursos de Gateway API y de Envoy Gateway; gestión de los Deployments, Services y ConfigMaps del data plane | Reconciliar el gateway (INF-U2-02) |
 | K16 | Operador de verificación (rol `vectra-verification-operator`; **solo** kind y staging) | `ClusterRole` para `nodes`; `Role` en `vectra-app`, `vectra-edge`, `vectra-serving`, `vectra-identity`, `vectra-data` y `vectra-observability` | `get`, `list` sobre `nodes`; `get`, `list`, `watch` sobre `pods` (estado y digests), `jobs` (`vectra-app`), `horizontalpodautoscalers` (`vectra-app`, `vectra-edge`, `vectra-serving`) e `inferenceservices` (`vectra-serving`); `get` sobre `pods/log` (`vectra-app`); `create` sobre `pods/portforward` (`vectra-app`, `vectra-observability`) | Lectura y `port-forward` de U12 (INF-U12-03; Infrastructure Design de U12 y su revisión del Infrastructure Design de U12, 2026-10-10). K15 se descartó antes y no se reutiliza |
+| K17 | Prometheus Operator | `vectra-observability` y namespaces con `ServiceMonitor` o `PrometheusRule` | Lectura de sus CRDs; gestión de los StatefulSets, Secrets y ConfigMaps de Prometheus y Alertmanager | Reconciliar el stack de observabilidad (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
+| K18 | Instance manager de CloudNativePG | `vectra-data`, `vectra-restore-drill` | Los que crea el operador para cada `Cluster` (lectura de su `Cluster`, actualización de su estado) | Cada instancia informa su estado (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
+| K19 | Sidecar de dashboards de Grafana | Namespaces con `ConfigMap` de dashboards | `get`, `list`, `watch` sobre `configmaps` | Cargar los dashboards como código (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 
 **Explícitamente sin acceso a la API de Kubernetes:** scoring-service,
 explainability-service, bias-monitoring-service, case-service, case-worker,
@@ -424,5 +432,5 @@ Evaluación:   case-worker -> {case-db, scoring (F15), governance (F104)} (U8 IN
 1. **Red del banco → api-gateway** (F01): único ingress. TLS, JWT y rate limiting (X09).
 2. **Namespaces**: NetworkPolicy deny-all por defecto (ingress y egress). Solo existen los flujos de §2 y el egress a la API de Kubernetes de los bindings de §3 (cuarta revisión de coherencia entre unidades, 2026-10-31).
 3. **Egress**: solo F70–F79, F99 y F100 (§5); nunca desde scoring, explainability ni bias.
-4. **API de Kubernetes**: solo K01–K14 y K16 (§3; K16 es el operador de verificación de U12, solo en kind y staging; pendientes posteriores al cierre, 2026-10-10); ningún servicio de negocio, salvo el alcance acotado de K01.
+4. **API de Kubernetes**: solo K01–K14 y K16–K19 (§3; K16 es el operador de verificación de U12, solo en kind y staging; pendientes posteriores al cierre, 2026-10-10); ningún servicio de negocio, salvo el alcance acotado de K01.
 5. **Fuera del runtime**: CI (GitHub Actions), repositorio GitOps y `promotion-tool` operan sobre Git. El único cambio al clúster es el sync manual de Argo CD aprobado por un humano (K04, AUTONOMIA-01).

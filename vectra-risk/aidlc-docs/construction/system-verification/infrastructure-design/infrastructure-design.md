@@ -18,7 +18,7 @@ y solo lee.
   | Entorno | Secciones permitidas |
   |---|---|
   | kind | Todas |
-  | staging | Solo humo (nota 1 de Q5): `decisions` reducida a 100 casos, la lectura del dashboard en `u11` y `report` |
+  | staging | Solo humo (nota 1 de Q5): `prepare`, sin el parche de los Jobs de prueba (seguimiento de la quinta revisión de coherencia, 2026-10-31); `decisions` reducida a 100 casos, la lectura del dashboard en `u11` y `report` |
   | producción | Ninguna (barrera de NFR-U12-03; el cliente y los usuarios no existen) |
 
 - **`channel-simulator` sale del clúster** (nota 2 de Q5): ya no es un `Deployment` de `vectra-mock`. Es una sección de la imagen de U12, que envía por el gateway como un canal real. Cambia U1 y el inventario (§6):
