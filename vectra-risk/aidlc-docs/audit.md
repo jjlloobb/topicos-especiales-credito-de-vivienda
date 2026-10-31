@@ -3494,3 +3494,19 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Consulta de estado; sin cambios a los documentos de diseño.
 
 ---
+
+## Verificación de estado
+**Timestamp**: 2026-10-31T16:52:56Z
+**User Input**: "verify the current status"
+**AI Response**: Verificación de solo lectura del estado contra los archivos del workspace; resultado informado al usuario.
+**Context**: Consulta de estado; sin cambios a los documentos de diseño.
+
+---
+
+## Corrección de registros de estado
+**Timestamp**: 2026-10-31T16:53:50Z
+**User Input**: "fix gaps 2 and 3 and commit the audit entry"
+**AI Response**: `execution-plan.md`: marcadas como completas Application Design, Units Generation, las cuatro etapas de diseño y Code Generation (solo Part 1), y Execution Plan pasa a COMPLETED; Build and Test y Operations siguen abiertas. `aidlc-state.md`: Programming Languages y Project Structure actualizados; Existing Code sigue en No.
+**Context**: Correcciones de registro tras la verificación de estado; sin cambios de diseño.
+
+---
