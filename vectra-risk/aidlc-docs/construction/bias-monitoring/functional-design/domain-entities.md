@@ -45,8 +45,8 @@ Solicitud (`MonitoringQuery` de U0 §9.4): hasta **12 rangos** `{range_id, model
 
 ### 1.3 `FreezeRecord` (proyección `monitoring_freezes`)
 `freeze_id`, `model_version_id`, `frozen_at`, `context_package` (§3.1 más lo que agrega
-governance: `data_sources`, `initial_disparity`) y `resolution?`: `{action: reactivar |
-descartar | investigar, recorded_at}` de la `frozen_resolution` posterior, si existe (`recorded_at` del registro, como en U0 §9.4 y U3; la reactivación tiene efecto al confirmarse; tercera revisión del FD de U9, 2026-10-10). La última
+governance: `data_sources`, `initial_disparity`) y `resolutions`: lista de `{action: reactivar |
+descartar | investigar, recorded_at}`, una por cada `frozen_resolution` posterior, en orden (seguimiento de la cuarta revisión de coherencia, 2026-10-31; `recorded_at` del registro, como en U0 §9.4 y U3; la reactivación tiene efecto al confirmarse; tercera revisión del FD de U9, 2026-10-10). La última
 `reactivar` de una versión fija el inicio de su ventana (BR-U9-08; revisión del FD de U9, 2026-10-08, H1).
 
 ## 2. Cálculo (librería compartida)
@@ -139,7 +139,7 @@ DisparityResult`, `threshold_pp`, `n_min`, `window_days`, `schedule`, `stale_aft
 no certifica»).
 
 ### 3.4 `FreezeSummary`
-`freeze_id`, `model_version_id`, `frozen_at`, `trigger_attribute`, `model_aggregate`, `resolution?` (`{action, recorded_at}`, como U0 §9.4; cuarta revisión del FD de U9, 2026-10-10).
+`freeze_id`, `model_version_id`, `frozen_at`, `trigger_attribute`, `model_aggregate`, `resolution?` (`{action, recorded_at}` de la más reciente, como U0 §9.4; cuarta revisión del FD de U9, 2026-10-10).
 
 ## 4. Configuración (values de Helm, BR-U9-13)
 

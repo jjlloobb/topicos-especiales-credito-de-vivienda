@@ -200,7 +200,7 @@ Role ni RoleBinding.
 
 | ID | ServiceAccount | Namespace del recurso | Verbos y recursos | Motivo |
 |---|---|---|---|---|
-| K01 | `governance-service` | `vectra-staging` | `create`, `get`, `list`, `watch` sobre `batch/jobs`; `get` sobre `pods/log` | Lanzar y seguir el `model-validation-job` (flujo S3). **Única** escritura a la API de Kubernetes desde un servicio de negocio. No puede crear Jobs en otros namespaces ni tocar InferenceServices |
+| K01 | `governance-service` | `vectra-staging` | `create`, `get`, `list`, `watch` sobre `batch/jobs`; `list` sobre `pods` (para hallar el pod del Job); `get` sobre `pods/log` (seguimiento de la cuarta revisión de coherencia, 2026-10-31) | Lanzar y seguir el `model-validation-job` (flujo S3). **Única** escritura a la API de Kubernetes desde un servicio de negocio. No puede crear Jobs en otros namespaces ni tocar InferenceServices |
 | K02 | `prometheus` | todos los de Vectra | `get`, `list`, `watch` sobre `pods`, `services`, `endpoints` | Service discovery |
 | K03 | `otel-collector` | todos los de Vectra | `get`, `list`, `watch` sobre `pods`, `namespaces` | Enriquecer telemetría con metadata de K8s |
 | K04 | `argocd-application-controller` | namespaces de Vectra | Escritura sobre los recursos que gestionan las Applications | Aplicar cambios **solo** tras un sync manual aprobado (AUTONOMIA-01) |

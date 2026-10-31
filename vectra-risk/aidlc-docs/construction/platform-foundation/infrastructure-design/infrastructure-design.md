@@ -26,7 +26,7 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 |---|---|---|---|---|---|
 | kind | control-plane | 1 | — | — | — |
 | kind | workers | 4 (2 en `zone-a`, 2 en `zone-b`) | — | — | Todo |
-| prod/staging | `general` | ≥ 3 por zona | 8 vCPU / 32 GiB (inicial) | — | Servicios, KServe, observabilidad, controladores |
+| prod/staging | `general` | ≥ 4 por zona (antes ≥ 3; se ajusta con la prueba de carga de U12; seguimiento de la cuarta revisión de coherencia, 2026-10-31) | 8 vCPU / 32 GiB (inicial) | — | Servicios, KServe, observabilidad, controladores |
 | prod/staging | `data` | ≥ 2 por zona | 4 vCPU / 16 GiB (inicial) | `vectra.io/pool=data:NoSchedule` | PostgreSQL y MinIO |
 
 - Los tamaños son iniciales y se ajustan con la prueba de carga (NFR-U1-11) y las cuotas (NFR-U1-13).

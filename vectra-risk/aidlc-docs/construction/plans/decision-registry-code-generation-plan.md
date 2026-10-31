@@ -137,7 +137,7 @@ vectra-risk/decision-registry/
     - `POST /v1/monitoring/daily:query` con 12 rangos de 90 días responde dentro del tiempo límite del pool `projections` (2 s) y con unos miles de filas, porque suma en el servidor; una consulta `explanation` concurrente no supera su límite (segunda revisión del FD de U9, 2026-10-08);
     - `registry_verifier` no puede leer `monitoring_case_index` (segunda revisión del FD de U9, 2026-10-08);
     - gauge `vectra_registry_monitoring_lag_seconds`: 0 con la marca igual a la cabeza y el registro sin tráfico durante 2 h; con una entrada pendiente de hace 31 min → > 1800 (tercera revisión del FD de U9, 2026-10-10);
-    - `GET /v1/monitoring/freezes`: un `freeze` con una `frozen_resolution` `reactivar` → `resolution.action = reactivar` y `resolution.recorded_at` = el `recorded_at` de la entrada (tercera revisión del FD de U9, 2026-10-10);
+    - `GET /v1/monitoring/freezes`: un `freeze` con una `frozen_resolution` `reactivar` → `resolutions[-1].action = reactivar` y su `recorded_at` = el `recorded_at` de la entrada; `investigar` y luego `reactivar` → dos elementos en ese orden (seguimiento de la cuarta revisión de coherencia, 2026-10-31; tercera revisión del FD de U9, 2026-10-10);
     - `versions` devuelve `first_day` y `last_day` por versión y población; `totals` trae una fila por `range_id` (tercera revisión del FD de U9, 2026-10-10);
     - una solicitud con 13 rangos → 422 (tercera revisión del FD de U9, 2026-10-10);
     - `unattributable_invalid`: un solo valor sobre el `unattributable_range` pedido; 0 sin ese rango; no aparece en `totals` (sexta revisión del FD de U9, 2026-10-10);

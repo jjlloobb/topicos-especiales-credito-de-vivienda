@@ -137,7 +137,7 @@ vectra-risk/identity-edge/
   - `route-gen` genera:
     - **HTTPRoute** cerradas, con 404 genérico para el resto (incluido `/auth/admin/**` y el realm `master`);
     - **SecurityPolicy**: JWT con JWKS por la URL interna, refresco cada 5 min, claims requeridos por ruta y copia de `sub`/`azp` a cabeceras internas;
-    - **BackendTrafficPolicy**: descriptores de rate limit, timeouts, reintentos solo idempotentes y outlier detection;
+    - **BackendTrafficPolicy**: descriptores de rate limit, timeouts, reintentos solo idempotentes y outlier detection, que en `/api/console/**` cuenta solo errores de conexión (seguimiento de la cuarta revisión de coherencia, 2026-10-31);
     - **ClientTrafficPolicy**: tamaño máximo por ruta y confianza en `X-Forwarded-For` de 1 salto o PROXY protocol;
     - perfiles de cabeceras, con `Cross-Origin-Opener-Policy: same-origin` en todos (revisión del Infrastructure Design de U10, 2026-10-10);
     - afinidad por cookie `vectra-spa-route` en la ruta `/` (BackendTrafficPolicy con `consistentHash` de tipo `Cookie`; revisión del Infrastructure Design de U10, 2026-10-10);

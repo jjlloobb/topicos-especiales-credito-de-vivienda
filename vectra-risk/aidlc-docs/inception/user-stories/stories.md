@@ -574,7 +574,7 @@ Escenario: sigue el score
 Escenario: cálculo
   Dado decisiones con justificación estructurada
   Cuando se calcula la North Star
-  Entonces = (decisiones con factores marcados, apartadas o sustentadas) / total de decisiones, por periodo
+  Entonces = (decisiones con la explicación consultada antes de decidir y con factores marcados, apartadas o sustentadas) / total de decisiones atribuibles, por periodo (BR-U11-03)
 ```
 **Verificación:** PBT de oráculo del cálculo (0 ≤ tasa ≤ 1, coincide con el conteo de referencia) + panel en Grafana definido en código.
 
@@ -637,16 +637,17 @@ Escenario: token inválido
 **Como** CRO, **quiero** que scoring y explainability no puedan escribir estado de crédito ni por permisos ni por red, **para** poder demostrar que el modelo puntúa y el humano decide.
 - Persona: P3, P6 · Requisitos: FR-SCO-09, FR-INT-01, FR-PLT-02 · Restricciones: AUTONOMIA-03, SECURITY-06
 ```gherkin
-Escenario: RBAC
-  Cuando se consulta kubectl auth can-i sobre los recursos de crédito para las service accounts de scoring y explainability
-  Entonces get/list/watch = yes y create/update/patch/delete = no
+Escenario: sin ruta de red desde scoring y explainability (X01)
+  Dado el core bancario simulado
+  Cuando la suite de conectividad intenta llegar a él desde los pods de scoring y explainability
+  Entonces la conexión queda bloqueada
 
-Escenario: intento por red (RT-5)
-  Dado el core bancario simulado con una ruta de escritura
-  Cuando desde un pod de scoring se intenta un POST a esa ruta
-  Entonces la conexión es rechazada por NetworkPolicy y el mock no registra el intento como exitoso
+Escenario: intento de escritura bloqueado (RT-5)
+  Dado el core bancario simulado con una ruta de escritura y ninguna identidad con `core:write-credit`
+  Cuando el Job de demostración intenta un POST a esa ruta con la identidad de case-service
+  Entonces el proxy responde 403, se dispara `CoreWriteAttempt` y el mock no registra ningún intento
 ```
-**Verificación:** script RT-5 (`kubectl auth can-i ... --as=system:serviceaccount:...` + `kubectl exec ... curl -X POST` → fallo) ejecutado en CI contra kind.
+**Verificación:** RT-5 con el Job `rt5-demo` y X01 de la suite de conectividad, ejecutados en kind por U12 (BR-U12-04, 05). Sin `kubectl auth can-i`: K16 no da impersonación (seguimiento de la cuarta revisión de coherencia, 2026-10-31).
 
 ### US-604 — Soberanía del dato: egress denegado y logs sin PII · `M`
 **Como** CRO, **quiero** que ningún dato del solicitante salga del clúster y que los logs no contengan PII, **para** sostener el diferenciador de soberanía del dato.

@@ -141,7 +141,7 @@ evento `freeze` del registro (BR-U4-15). Si el evento superara 60 KiB, governanc
 - Siempre lleva `disclaimer = "mide y alerta, no certifica"`. Ningún texto de la API contiene una frase de la lista única de U0 (`contracts/forbidden-phrases.yaml`, BR-U0-94; precisado el 2026-10-10 por U10 FD, Q8).
 
 **BR-U9-19 — Congelamientos** (`list_freezes` para `cumplimiento` y `cro`; `get_context_package` solo para `cumplimiento`).
-- Se leen de las entradas `freeze` y `frozen_resolution` del registro, en la proyección `monitoring_freezes` de U3: `freeze_id`, `model_version_id`, `frozen_at`, el paquete completo (BR-U9-15, 16) y, si existe, la resolución (`reactivar`, `descartar` o `investigar`) con su `recorded_at` (revisión del FD de U9, 2026-10-08, H1). `list_freezes` devuelve `FreezeSummary` con `resolution?` (cuarta revisión del FD de U9, 2026-10-10).
+- Se leen de las entradas `freeze` y `frozen_resolution` del registro, en la proyección `monitoring_freezes` de U3: `freeze_id`, `model_version_id`, `frozen_at`, el paquete completo (BR-U9-15, 16) y todas sus resoluciones en orden (`reactivar`, `descartar` o `investigar`), cada una con su `recorded_at`; `investigar` y luego `reactivar` son dos, y BR-U9-08 usa la última `reactivar` (seguimiento de la cuarta revisión de coherencia, 2026-10-31) (revisión del FD de U9, 2026-10-08, H1). `list_freezes` devuelve `FreezeSummary` con `resolution?` (cuarta revisión del FD de U9, 2026-10-10).
 - `get_context_package` emite el log `freeze_context.viewed` con `principal_subject`, `principal_role` y `model_version_id` (NFR-U9-32; U0 §8.1; revisión del NFR Requirements de U9, 2026-10-10 (segunda)).
 - Un `freeze_id` inexistente → 404.
 

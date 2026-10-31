@@ -32,7 +32,7 @@ hace una persona con sus propias credenciales (NFR-U5-03).
 ```text
 vectra-risk/reference-model/
 |-- Makefile  pyproject.toml
-|-- config/generator.yaml         # versión, semilla, marginales, correlaciones, etiqueta, proxy
+|-- config/generator.yaml         # versión, semilla, marginales, correlaciones, etiqueta, proxy, reference_policy
 |-- config/catalog/               # nombres ficticios; tablas de zona y de canal (variante proxy)
 |-- src/vectra_reference/
 |   |-- generate.py  train.py  package.py  proxy.py  adversarial.py  release.py
@@ -72,7 +72,7 @@ vectra-risk/reference-model/
 - [ ] **Paso 4 — Envolvente de dominio y `confidence`**
   - `envelope/fit.py`: p1–p99, categorías vistas, `MinCovDet` y la distribución de distancias.
   - `envelope/confidence.py`: la fórmula de BR-U5-12, cuantizada a `Decimal4`, solo con numpy.
-  - Calibración: los casos RT-4 bajo el umbral y ≥ 95 % de `test` sobre él.
+  - Calibración: los casos RT-4 bajo el umbral de `reference_policy` y ≥ 95 % de `test` sobre él; el resultado se publica como `reference-policy.json`, válido según `PolicyDraft` de U0 (seguimiento de la cuarta revisión de coherencia, 2026-10-31).
   - Propiedades PBT-U5-03 y PBT-U5-04.
   - Diseño: BR-U5-11..13; NFR-U5-32, 33. Historia: US-106.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest reference-model/tests/property/test_envelope.py`, cobertura del 100 % en `envelope/confidence.py`, y una prueba que importa `confidence` en un entorno con solo numpy.

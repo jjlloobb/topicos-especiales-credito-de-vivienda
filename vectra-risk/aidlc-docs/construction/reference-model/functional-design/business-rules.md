@@ -71,7 +71,7 @@ marcan con `applicant_safe = false`.
 La calcula el predictor de U6, en el mismo proceso que la predicción, con `domain_envelope.json`.
 
 **BR-U5-13 — Calibración contra RT-4.** Los 18 casos RT-4 deben dar `confidence` por debajo
-del umbral de baja confianza de la política de referencia, y al menos el 95 % de `test`
+del umbral de baja confianza de la política de referencia (`reference_policy`, domain-entities §1), y al menos el 95 % de `test`
 debe quedar por encima. Si no, la entrega falla.
 
 ## 5. Variante proxy (Q6; US-303, RT-2)

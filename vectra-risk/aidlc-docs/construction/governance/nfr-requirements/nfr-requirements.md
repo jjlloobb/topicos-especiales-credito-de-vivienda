@@ -38,7 +38,7 @@ Los IDs `NFR-U4-xx` se referencian en NFR Design, Infrastructure Design y el pla
 | NFR-U4-22 | Protección de rama en `vectra-risk-gitops`: merge solo por PR, ≥ 1 aprobación de una persona distinta del autor (CODEOWNERS), checks obligatorios, sin push directo ni force-push | Q3, AUTONOMIA-01, SECURITY-13 | `gh api repos/{owner}/vectra-risk-gitops/branches/main/protection` muestra la configuración esperada (script versionado) |
 | NFR-U4-23 | `model-validation-job` aislado: `runAsNonRoot`, `readOnlyRootFilesystem`, `automountServiceAccountToken: false`, sin egress; solo F30, F31 (solo lectura) y F32 | Q6, SECURITY-06, 07 | `conftest` sobre el Job; `flows.yaml` |
 | NFR-U4-24 | Librerías de inferencia (ONNX Runtime, `xgboost`, `lightgbm`) **solo** en la imagen del `model-validation-job`; la imagen de `governance-service` no las incluye (BR-U4-06) | Q5, SECURITY-13 | Prueba sobre el `uv.lock`/SBOM de la imagen del servicio: ninguna de esas librerías presente |
-| NFR-U4-25 | Cliente de Kubernetes con el ServiceAccount de K01 (solo `batch/jobs` y `pods/log` en `vectra-staging`) y timeouts explícitos | Q5, SECURITY-06 | `kubectl auth can-i --list --as=system:serviceaccount:vectra-app:governance-service` en kind |
+| NFR-U4-25 | Cliente de Kubernetes con el ServiceAccount de K01 (solo `batch/jobs`, `list` de `pods` y `pods/log` en `vectra-staging`) y timeouts explícitos | Q5, SECURITY-06 | `kubectl auth can-i --list --as=system:serviceaccount:vectra-app:governance-service` en kind |
 
 ## 4. Datos y retención (Q4)
 

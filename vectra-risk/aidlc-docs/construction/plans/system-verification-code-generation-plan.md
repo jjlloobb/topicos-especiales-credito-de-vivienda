@@ -64,10 +64,10 @@ vectra-risk/system-verification/
 
 - [ ] **Paso 2 — Barrera de entorno, credenciales y filtro de evidencias**
   - `guard`: lista de `issuer` y hosts de kind y staging; secciones permitidas por entorno (staging: `decisions` ≤ 100, lectura de `u11`, `report`); `decisions` no empieza después de las 23:00 UTC.
-  - `credentials`: lee del Vault de kind (o la bóveda de staging) con la sesión del operador, en las rutas que usa ESO, la llave de `channel-simulator` y de `verification-reader` y las contraseñas y semillas TOTP de los usuarios sintéticos; solo en memoria; TOTP con `pyotp`.
+  - `credentials`: lee del Vault de kind (o la bóveda de staging) con la sesión del operador, en las rutas que usa ESO, la llave de `channel-simulator` y de `verification-reader` y las contraseñas y semillas TOTP de los usuarios sintéticos, salvo las de `cumplimiento-*` fuera de kind (excepción de FR-BIA-05; seguimiento de la cuarta revisión de coherencia, 2026-10-31); solo en memoria; TOTP con `pyotp`.
   - `evidence`: filtro que quita `Authorization`, tokens, cookies y semillas; falla si una salida contiene un JWT o una semilla.
   - Diseño: NFR-U12-03, 04, 05, 32; INF-U12-01.
-  - **Aceptación**: `uv run pytest system-verification/tests/unit/test_guard.py test_credentials.py test_evidence_filter.py`: `issuer` o host de producción simulados → error y cero solicitudes; `rt2` en staging → se niega; `decisions` a las 22:30 UTC con reloj simulado → se niega; ningún archivo escrito con credenciales; evidencia con un JWT → la generación falla.
+  - **Aceptación**: `uv run pytest system-verification/tests/unit/test_guard.py test_credentials.py test_evidence_filter.py`: `issuer` o host de producción simulados → error y cero solicitudes; `rt2` en staging → se niega; en staging, pedir la semilla de `cumplimiento-1` → error sin leer la bóveda, y una reactivación desde la herramienta fuera de la sección `rt2` → error (seguimiento de la cuarta revisión de coherencia, 2026-10-31); `decisions` a las 22:30 UTC con reloj simulado → se niega; ningún archivo escrito con credenciales; evidencia con un JWT → la generación falla.
 
 ### Bloque B — Lógica pura
 

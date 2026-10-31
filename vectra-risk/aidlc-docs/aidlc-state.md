@@ -41,6 +41,7 @@
 | Decisión | Valor | Decidido en |
 |---|---|---|
 | Pruebas de resiliencia (RESILIENCY-14, NFR-RES-14) | C: diferir la ejecución a Operations; cada unidad con runtime documenta sus escenarios en NFR Design o Infrastructure Design (escenarios mínimos en `construction/contracts/nfr-design/nfr-design-patterns.md` P-U0-08) | U0 NFR Design, 2026-10-03T09:20:34Z |
+| Evidencia de AUTONOMIA-03 y AUTONOMIA-06 | Por unidad, con lo que exista en ese momento (dobles y X01), y la demostración completa de RT-3 y RT-5 en U12. Una unidad puede cerrar sin esa demostración, pero la historia no pasa hasta que U12 la entregue (BR-U12-13) | seguimiento de la cuarta revisión de coherencia, 2026-10-31 |
 
 ## Execution Plan Summary
 - **Stages to Execute**: Application Design, Units Generation; por unidad: Functional Design, NFR Requirements, NFR Design, Infrastructure Design, Code Generation Part 1 (Planning)
@@ -113,6 +114,7 @@ tabla de cambios de la unidad afectada y en `audit.md`. Las de más impacto:
 | U1; catálogo de componentes | NFR, NFR Design y plan; `components.md`, `application-design.md` | Segunda revisión de coherencia (2026-10-10): `AuthDeniedBurst` solo en U2; NFR-U1-12 con las tres exenciones; C04 con `case-worker` y C14 fuera del clúster |
 | U1; `unit-of-work.md` | NFR Design y plan | Tercera revisión de coherencia (2026-10-10): `FailClosedPersistente` sobre el gauge de U8; entrada de U8 con `case-worker` |
 | U0–U12; inventario de flujos y de métodos | FD, NFR, NFR Design, Infra y planes | Cuarta revisión de coherencia (2026-10-31): flujos F112–F118 y egress a la API de Kubernetes por binding K; `restore-drill`; roles de base en CloudNativePG (U1); oráculos de RT-2 (5 versiones del proxy) y RT-3 (por paquete); `inference_service` en `ExplainRequest`; tipos de gobierno en U0; xDS, CRDs, Grafana, buckets de kind, cuota de `vectra-serving` |
+| U0–U12; requisitos e historias | FD, NFR, NFR Design, Infra y planes; FR-BIA-05, US-503, US-603 | Seguimiento de la cuarta revisión (2026-10-31, `cross-unit-review4-followup-questions.md`): North Star con consulta previa; excepción de FR-BIA-05 solo en kind; pool `general` de 4 nodos por zona; `FreezeRecord.resolutions`; `descartada` en evidencia de `explanation_view`; `AppProject` por entorno; outlier del borde; política de referencia de U5 |
 
 Antes de Code Generation Part 2 de cualquier unidad, conviene revisar su plan contra su tabla de
 cambios, porque las aprobaciones son anteriores a estas revisiones.

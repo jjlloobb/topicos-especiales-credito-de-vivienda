@@ -70,7 +70,7 @@ Una sola fila (`CHECK (id = 1)`): `decided_years`, `undecided_years`, `intake_ke
 | `entry_type` | `human_decision \| explanation_view \| fail_closed` |
 | `idempotency_key` | UUID fijo de la escritura (U3 BR-U3-06), **determinista** por hecho de negocio: `human_decision` → UUIDv5(`case_id`, "human_decision"); `explanation_view` → UUIDv5(`case_id`, `user_id`) (Q6); `fail_closed` → UUIDv5(`case_id`, "fail_closed", ciclo) (precisado el 2026-10-06). **Índice único parcial** `UNIQUE (idempotency_key) WHERE state <> 'abandonada'`, con la misma lógica que el de `decisions`: una evidencia viva por llave, y una decisión nueva tras un abandono puede insertar su fila con la misma llave (BR-U8-18). Es el índice que produce el `unique_violation` de BR-U8-09 (precisado el 2026-10-08, segunda revisión del plan de tareas de U8) |
 | `payload` | `RegistryEntryIn` sin `occurred_at`, con el `correlation_id` original de la solicitud que lo originó (precisado el 2026-10-06, revisión del FD de U8). El reconciliador fija `occurred_at` en cada intento (BR-U3-05); el momento de negocio va dentro del payload (precisado el 2026-10-06) |
-| `state` | `pendiente_registro \| confirmada \| abandonada` (a las 24 h, BR-U8-18) |
+| `state` | `pendiente_registro \| confirmada \| abandonada` (a las 24 h, BR-U8-18) `\| descartada` (solo `explanation_view`, terminal, BR-U8-19; seguimiento de la cuarta revisión de coherencia, 2026-10-31) |
 | `registry_entry_id` | Al confirmar |
 | `attempts`, `next_attempt_at` | Del reconciliador (BR-U8-18) |
 

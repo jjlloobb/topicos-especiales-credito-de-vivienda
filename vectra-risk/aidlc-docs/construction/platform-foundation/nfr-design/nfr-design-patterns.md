@@ -191,6 +191,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 | 6 | InferenceServices; Application `decision-registry-rebuild` de U3 (Jobs de reconstrucción, solo con `runId`; revisión del FD de U10, 2026-10-10, B11 y B13) |
 
 - Toda `Application` sin `syncPolicy.automated` (NFR-U1-43). El aprobador sincroniza la raíz en orden.
+- **`AppProject` por entorno** (`vectra-{env}`; seguimiento de la cuarta revisión de coherencia, 2026-10-31): `sourceRepos` limitado al espejo Git, `destinations` a los namespaces de ese entorno y una lista explícita de los tipos de recurso de clúster que hacen falta. Ninguna `Application` usa `default`.
 - **Verificación**: test de política sobre los manifiestos de las Applications (sin auto-sync, con anotación de wave); `argocd app diff` en kind adjunto al PR.
 - **Satisface**: NFR-U1-43; RESILIENCY-03, 04; AUTONOMIA-01; US-607.
 

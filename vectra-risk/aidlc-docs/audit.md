@@ -3550,3 +3550,19 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Puntos abiertos de la cuarta revisión; sin cambios de diseño.
 
 ---
+
+## Respuestas a las preguntas de seguimiento de la cuarta revisión
+**Timestamp**: 2026-10-31T17:43:39Z
+**User Input**: "ya respondi las preguntas"
+**AI Response**: Respuestas en `construction/plans/cross-unit-review4-followup-questions.md`: P1 a P20 = A. Commit de las correcciones ya aplicadas según P20; aplicación de las respuestas en curso.
+**Context**: Cuarta revisión de coherencia, preguntas de seguimiento.
+
+---
+
+## Respuestas de la cuarta revisión — Aplicación
+**Timestamp**: 2026-10-31T17:47:00Z
+**User Input**: (sin entrada nueva; cierre de "ya respondi las preguntas")
+**AI Response**: P1, P2, P3, P5, P6 y P7 confirman lo aplicado, sin cambios. Aplicadas P4, P8, P10–P16 y P17 en 29 documentos (marca «seguimiento de la cuarta revisión de coherencia, 2026-10-31»). **P9 aplicada solo en parte**: la opción A pedía que `cumplimiento-*` y su semilla no existieran en staging, pero el Infrastructure Design de U10 (Q6) los exige en kind y staging; se aplicó la excepción de FR-BIA-05, y la herramienta de U12 no lee esas semillas fuera de kind. Pendiente de decisión del usuario. **P17**: seis de ocho ajustes aplicados; descartados K16 sobre `vectra-mock` (U12 lee esas métricas por Prometheus y no necesita ese namespace) y los timeouts del BFF (cortar antes que el servicio de abajo responde el 503 del catálogo; no es una contradicción). P18: revisión dirigida en curso. P19: pendiente de la aprobación del usuario.
+**Context**: Solo cambios a documentos; las extensiones y `entradas/` no se tocaron.
+
+---

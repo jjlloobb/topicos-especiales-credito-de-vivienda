@@ -187,7 +187,7 @@ vectra-risk/bias-monitoring/
     - caché LRU de 64 entradas y 15 min con *single-flight*;
     - `disclaimer` en toda respuesta;
     - log `disparity.viewed`.
-  - `freezes`: `FreezeSummary` con `resolution?`; log `freeze_context.viewed`; 404 si no existe.
+  - `freezes`: `FreezeSummary` con `resolution?` (la más reciente); `investigar` seguido de `reactivar` reinicia la ventana según BR-U9-08, con prueba (seguimiento de la cuarta revisión de coherencia, 2026-10-31); log `freeze_context.viewed`; 404 si no existe.
   - `compare`: valida las tablas (422) y devuelve `PrePostReport` ≤ 48 KiB con `truncated`.
   - Readiness y liveness solo del proceso; `preStop` de 5 s y uvicorn con `timeout_graceful_shutdown = 10`.
   - Diseño: BR-U9-17, 18, 19; P-U9-03, 05; NFR-U9-02, 12, 32, 33. Historias: US-304, US-306, US-307.

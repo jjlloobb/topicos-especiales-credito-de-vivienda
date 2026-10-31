@@ -203,7 +203,8 @@ vectra-risk/governance/
   - Deployment: HPA de 2 a 6, spread, PDB, `vectra-high`, recursos de INF-U4-01, `tzdata`.
   - CronJob `model-archive` (sidecar nativo de Linkerd, `Forbid`); Job de migración como hook.
   - RBAC K01; values del bucket por entorno.
-  - Values de staging de U6 con el predictor de la versión activa para `source_comparison` (INF-U4-05; tercera revisión del FD de U9, 2026-10-10).
+  - Runbook de kind: carga `reference-policy.json` de U5 como política por la API normal, con `ingeniero-1` proponiendo y `cro-1` aprobando, y sin un atajo en el servicio (seguimiento de la cuarta revisión de coherencia, 2026-10-31).
+  - La plantilla de values de staging con el predictor de la versión activa la entrega U6, que se construye después; aquí se prueba con un doble y, cuando exista U6, con su chart (INF-U4-05; seguimiento de la cuarta revisión de coherencia, 2026-10-31).
   - Agregar F100, F101 y F102 a `platform/network/flows.yaml` de U1.
   - `AuthorizationPolicy` de Linkerd de la ruta `freeze`: solo la identidad `bias-monitoring-job`; prueba de conectividad: `bias-monitoring-service` → `freeze` → denegado (precisado el 2026-10-10 por U9 Infrastructure Design Q4).
   - Diseño: NFR-U4-03, 25; INF-U4-01..05.

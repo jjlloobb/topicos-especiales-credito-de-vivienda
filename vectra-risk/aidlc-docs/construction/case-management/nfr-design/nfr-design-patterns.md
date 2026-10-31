@@ -91,10 +91,12 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01); las demás co
   - toma las evidencias `pendiente_registro` con `next_attempt_at ≤ now()` (lotes de 100, `SKIP LOCKED`) y las envía con **como máximo 4 en vuelo** (P-U8-02);
   - reintenta con la misma `idempotency_key`, el payload y el `correlation_id` originales, y un `occurred_at` nuevo;
   - el backoff va de 1 s a 5 min, con jitter de ±20 %;
-  - a las 24 h la evidencia pasa a `abandonada`.
+  - a las 24 h la evidencia pasa a `abandonada`;
+  - un 422 de `explanation_view` por BR-U0-37 la pasa a `descartada`, sin más reintentos (seguimiento de la cuarta revisión de coherencia, 2026-10-31).
 - **Métricas** (calculadas cada 30 s, en todas las réplicas):
   - `vectra_case_evidence_pending_oldest_seconds{entry_type}` (gauge);
-  - `vectra_case_evidence_abandoned_total{entry_type}` (contador, lo incrementa la réplica que abandona; sus tres series se crean en 0 al arrancar, P-U8-06).
+  - `vectra_case_evidence_abandoned_total{entry_type}` (contador, lo incrementa la réplica que abandona; sus tres series se crean en 0 al arrancar, P-U8-06);
+  - `vectra_case_evidence_discarded_total` (contador, creado en 0).
 - **Alertas**:
 
   | Alerta | Condición | Severidad |
@@ -103,6 +105,7 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01); las demás co
   | `CaseEvidencePending` | `max(vectra_case_evidence_pending_oldest_seconds{entry_type="explanation_view"}) > 7200` | SEV3 |
   | `CaseEvidenceAbandoned` | `sum(increase(vectra_case_evidence_abandoned_total{entry_type=~"human_decision\|fail_closed"}[15m])) > 0` | SEV2 |
   | `CaseEvidenceAbandoned` | `sum(increase(vectra_case_evidence_abandoned_total{entry_type="explanation_view"}[15m])) > 0` | SEV3 |
+  | `CaseEvidenceDiscarded` | `increase(vectra_case_evidence_discarded_total[15m]) > 0` | SEV3 |
 
   Con 30 min quedan 23,5 h para actuar antes del abandono. Una `explanation_view` pendiente no bloquea el caso: solo puede subestimar `explanation_viewed_before` (BR-U8-17).
 - **Verificación**:

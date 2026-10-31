@@ -133,7 +133,7 @@ vectra-risk-gitops/
   - La cuota de `vectra-app` suma también los Jobs de reconstrucción de U3, `registry-aggregator-rebuild-<runId>` y `registry-aggregator-reset-<runId>`, de la Application aparte `decision-registry-rebuild` (INF-U3-03), mientras corren (revisión del NFR Requirements de U9, 2026-10-10; revisión del FD de U10, 2026-10-10, B13). El aporte de U9 se suma **con** el sidecar de Linkerd y el 30 % de margen ya incluido, para 4 pods en el peor momento (2 del servicio, 1 de su `maxSurge` y 1 del CronJob) (INF-U9-01: requests ≈ 1,04 CPU / 0,75 GiB y limits ≈ 5,2 CPU / 1,95 GiB; antes 3 pods sin el del rollout; pendientes posteriores al cierre, 2026-10-10), porque la cuota cuenta el sidecar nativo; los recursos del proxy son los de P-U1-14, que coinciden con los usados en INF-U9-01 e INF-U10-01 (revisión del FD de U10, B8, y del Infrastructure Design de U10, 2026-10-10).
   - La cuota de `vectra-app` suma el BFF de U10 y la de `vectra-edge`, la SPA de U10, con el sidecar (INF-U10-01, con los pods del rollout: requests ≈ 3,19 CPU / 2,4 GiB y 0,78 CPU / 0,26 GiB; limits ≈ 13,7 CPU / 5,7 GiB y 3,64 CPU / 0,97 GiB; segunda revisión del Infrastructure Design de U10, 2026-10-10). Regla general: cada unidad dimensiona su aporte con los pods del peor momento, incluido el `maxSurge` de su rollout.
   - La cuota de `vectra-staging` suma los `InferenceService` de staging de U6 y el predictor de la versión activa de U4 INF-U4-05 durante una `source_comparison` (quinta revisión del FD de U9, 2026-10-10).
-  - La cuota de `vectra-serving` usa el aporte de U6 (INF-U6-01): requests ≈ 17,16 CPU / 14,86 GiB y limits ≈ 59,8 CPU / 32,2 GiB, con el proxy y el 30 %. El pool de serving debe poder alojarlos (cuarta revisión de coherencia entre unidades, 2026-10-31).
+  - La cuota de `vectra-serving` usa el aporte de U6 (INF-U6-01): requests ≈ 17,16 CPU / 14,86 GiB y limits ≈ 59,8 CPU / 32,2 GiB, con el proxy y el 30 %. Caben en el pool `general`, con su mínimo de 4 nodos por zona (INF-U1-01; cuarta revisión de coherencia entre unidades, 2026-10-31).
   - Los Jobs de prueba de U12 en kind (`x04-probe`, `x06-probe`, `rt5-demo`) no tienen aporte propio: los absorbe el margen del 30 % (revisión de coherencia entre unidades, 2026-10-10).
   - Diseño: NFR-U1-13; P-U1-09; INF-U3-03; INF-U4-01; INF-U7-02; INF-U8-05; INF-U9-01; INF-U10-01; INF-U4-05; NFR-U11-14; INF-U6-01.
   - **Aceptación**: `conftest test platform/policies/quotas/` (todo namespace de Vectra tiene cuota y límites); `kyverno test` del caso «Pod sin `priorityClassName` → rechazado».
@@ -208,9 +208,9 @@ vectra-risk-gitops/
 ### Bloque G — GitOps
 
 - [ ] **Paso 15 — Argo CD y app-of-apps**
-  - Argo CD (values); `root.yaml` por entorno; una `Application` por componente con las waves 0–6 de P-U1-12; values por entorno (registro de imágenes, Git del espejo, StorageClass, tamaños).
+  - Argo CD (values); `AppProject` `vectra-{env}` por entorno (P-U1-12; seguimiento de la cuarta revisión de coherencia, 2026-10-31); `root.yaml` por entorno; una `Application` por componente con las waves 0–6 de P-U1-12; values por entorno (registro de imágenes, Git del espejo, StorageClass, tamaños).
   - Diseño: P-U1-12; INF-U1-01..03, 09; NFR-U1-23 (StorageClass cifrada por entorno), 43. Historia: US-607.
-  - **Aceptación**: `kyverno test` de `disallow-argocd-auto-sync` sobre `vectra-risk-gitops/apps/`; `python platform/tests/test_waves.py` (cada Application tiene wave y el orden coincide con P-U1-12).
+  - **Aceptación**: `kyverno test` de `disallow-argocd-auto-sync` sobre `vectra-risk-gitops/apps/`; `python platform/tests/test_waves.py` (cada Application tiene wave y el orden coincide con P-U1-12); `conftest` de los `AppProject` (ninguna Application con `project: default`, sin comodines en repositorios ni destinos; seguimiento de la cuarta revisión de coherencia, 2026-10-31).
 
 - [ ] **Paso 16 — Lint y render de todos los charts**
   - `helm lint` de todos los charts y snapshots de `helm template` por entorno, versionados para revisarlos en el PR.

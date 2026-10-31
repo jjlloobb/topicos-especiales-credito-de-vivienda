@@ -118,7 +118,7 @@ acceso» sin llamar al BFF, pero cada endpoint lo valida igual.
 - **Retiro** (`retire_model`): solo `cro` con MFA, con la versión en `inactivo`, `rechazado` o `validacion_fallida`, y con un diálogo que avisa que es definitivo (BR-U4-01; cuarta revisión de coherencia entre unidades, 2026-10-31).
 
 **BR-U10-13 — Resolución de un congelamiento** (Q10; US-304, US-305).
-- La vista muestra el paquete de contexto completo: antes, después, últimos 7 días, atributo disparador, grupos y bandas implicados, fuentes de datos y disparidad de validación. Siempre lleva el `disclaimer`.
+- La vista muestra el paquete de contexto completo: antes, después, últimos 7 días, atributo disparador, grupos y bandas implicados, fuentes de datos, disparidad de validación y el historial de resoluciones (seguimiento de la cuarta revisión de coherencia, 2026-10-31). Siempre lleva el `disclaimer`.
 - Las tres acciones (`reactivar`, `descartar`, `investigar`) exigen justificación y MFA.
 - `reactivar` muestra además un aviso: la ventana de monitoreo empieza al día siguiente y habrá un periodo de «muestra insuficiente» (U9 §8b).
 

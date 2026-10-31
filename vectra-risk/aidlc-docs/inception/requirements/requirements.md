@@ -154,7 +154,7 @@ Trazabilidad: sección del PRD de origen.
 | FR-BIA-02 | Calcula por separado la disparidad sobre **decisiones finales humanas** registradas; se reporta, no dispara congelamiento | M | Q6 |
 | FR-BIA-03 | Cuando la disparidad agregada del modelo supera **5 pp** (configurable, [INTERNO]), congela el modelo **automáticamente** para nuevas solicitudes | M | Q2, §7.4 |
 | FR-BIA-04 | Al congelar genera un **paquete de contexto**: métrica antes/después, fuente de datos, volumen afectado, versión congelada, grupos y bandas implicados | M | §7.4 |
-| FR-BIA-05 | **Ninguna** ruta automática reactiva un modelo congelado; solo una acción autenticada del rol cumplimiento, registrada con `user_id` y timestamp | M | AUTONOMIA-04 |
+| FR-BIA-05 | **Ninguna** ruta automática reactiva un modelo congelado; solo una acción autenticada del rol cumplimiento, registrada con `user_id` y timestamp. **Excepción de verificación**: en kind, y solo en kind, la sección `rt2` de U12 reactiva con el usuario sintético `cumplimiento-1` para medir RT-2, sobre datos sintéticos y por la misma API autenticada. No existe en staging ni en producción (seguimiento de la cuarta revisión de coherencia, 2026-10-31) | M | AUTONOMIA-04 |
 | FR-BIA-06 | Mide disparidad **antes y después** de incorporar cada nueva fuente de datos; la incorporación requiere aprobación del oficial de cumplimiento | S | §8, P4 |
 | FR-BIA-07 | Monitoreo inicial de sesgo obligatorio en staging para toda nueva versión de modelo antes de solicitar aprobación del CRO | M | §7.2 |
 | FR-BIA-08 | Ningún texto del producto presenta el monitoreo como "prueba de ausencia de discriminación" | M | P4 |

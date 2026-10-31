@@ -298,7 +298,7 @@ Catálogo cerrado de `code`:
 | `dependency_unavailable` | 503 |
 | `internal_error` | 500 |
 | `unprocessable_explanation` | 422 (solo entre explainability y scoring; siempre con `reason`, U7) (precisado el 2026-10-06, revisión del FD de U8) |
-| `deadline_exceeded` | 504 (`x-vectra-deadline` ya vencido al llegar, NFR-U0-23 (b); antes se nombraba el 504 sin un `code`; revisión del Infrastructure Design de U10, 2026-10-10) |
+| `deadline_exceeded` | 504 (presupuesto agotado: `x-vectra-deadline` ya vencido al llegar, NFR-U0-23 (b), o agotado durante el trabajo; seguimiento de la cuarta revisión de coherencia, 2026-10-31; antes se nombraba el 504 sin un `code`; revisión del Infrastructure Design de U10, 2026-10-10) |
 
 No existe un `code` `fail_closed`: el fail-closed viaja como `FailClosed` en una respuesta
 200 (R2, §3.5).
@@ -426,14 +426,14 @@ La semántica de cada campo está en U9 domain-entities; aquí vive el tipo (BR-
 | `MonitoringRangeRequest` | `range_id`, `model_version_id?`, `population`, `from_day: date`, `to_day: date`; hasta 12 por solicitud (segunda revisión del FD de U9, 2026-10-08) |
 | `MonitoringQuery` | `ranges: list[MonitoringRangeRequest]` (1 a 12), `include_versions: bool` y `unattributable_range?: {from_day, to_day}`; es el cuerpo de `POST /v1/monitoring/daily:query` (quinta revisión del FD de U9; `unattributable_range` y POST en la sexta revisión del FD de U9, 2026-10-10) |
 | `MonitoringWindow` | `versions: list[{model_version_id, population, first_day, last_day}]`, `counts: list[MonitoringMarginalCount]` (sumados por rango), `totals: list[{range_id, total_entries, invalid_entries}]`, `unattributable_invalid: int` (un **solo** valor por solicitud, sobre `unattributable_range`: decisiones de `humana` cuya recomendación no existe o no es una `recommendation`, sin versión; 0 si no se pidió el rango; sexta revisión del FD de U9, 2026-10-10), `invalid_seqs: list[int]` (≤ 100), `watermark_seq: int`, `lag_seconds: int` |
-| `FreezeRecord` | `freeze_id`, `model_version_id`, `frozen_at`, `context_package: FreezeContext` (+ `data_sources`, `initial_disparity`), `resolution?: {action, recorded_at}` |
+| `FreezeRecord` | `freeze_id`, `model_version_id`, `frozen_at`, `context_package: FreezeContext` (+ `data_sources`, `initial_disparity`), `resolutions: list[{action, recorded_at}]` (en orden de `recorded_at`; vacía si no hay ninguna; antes `resolution?`, seguimiento de la cuarta revisión de coherencia, 2026-10-31) |
 | `CountTable` | `attribute`, `cells: list[{group, band, favorable: int ≥ 0, total: int ≥ favorable}]` |
 | `CellResult`, `BandResult`, `AttributeResult`, `DisparityResult` | Como U9 domain-entities §2.2–§2.5; las tasas y diferencias son `Decimal4`; una celda insuficiente no lleva `rate`; `AttributeResult` lleva `population_difference_partial: bool` (precisado el 2026-10-10 por U9 NFR Requirements) |
 | `FreezeContext` | `model_version_id`, `computed_at`, `threshold_pp`, `n_min`, `window_days`, `schedule`, `stale_after_s` (los cinco de U9 BR-U9-13; revisión del FD de U10, 2026-10-10, A7), `library_version`, `window_start`, `before: DisparityResult \| "sin_datos"`, `after`, `last_7_days`, `trigger_attribute`, `implicated`, `affected_volume`, `truncated: bool`; JCS ≤ 48 KiB |
 | `CompareSourceRequest` | `source_id`, `pre: list[CountTable]`, `post: list[CountTable]` (los cuatro atributos en cada una, sin repetir) |
 | `PrePostReport` | `source_id`, `pre: DisparityResult`, `post: DisparityResult`, `delta`, `threshold_pp`, `n_min`, `truncated: bool`, `disclaimer`; JCS ≤ 48 KiB (tercera revisión del FD de U9, 2026-10-10) |
 | `DisparityView` | `model_version_id`, `window`, `computed_at`, `model: DisparityResult`, `human: DisparityResult`, `threshold_pp`, `n_min`, `window_days`, `schedule`, `stale_after_s` (los cinco de U9 BR-U9-13; revisión del FD de U10, 2026-10-10, A7), `invalid_entries`, `disclaimer` |
-| `FreezeSummary` | `freeze_id`, `model_version_id`, `frozen_at`, `trigger_attribute`, `model_aggregate`, `resolution?` |
+| `FreezeSummary` | `freeze_id`, `model_version_id`, `frozen_at`, `trigger_attribute`, `model_aggregate`, `resolution?` (la más reciente de `FreezeRecord.resolutions`) |
 
 **Validación de estructura de §9.4** (cuarta revisión del FD de U9, 2026-10-10). U0 valida, con `model_validator` y pruebas de
 ejemplo en el Paso 3 de su plan: `MonitoringQuery.ranges` de 1 a 12 (13 → error);
@@ -471,6 +471,6 @@ La semántica está en U3 domain-entities §4; aquí vive el tipo (BR-U0-93).
 - `IntegrityCheckStatus`: `terminada` ⇔ `report` presente con `result ∈ {integra, inconsistente}`; `fallida` ⇔ `reason` presente; `pendiente` y `en_curso` sin `report` ni `reason`; `progress.checked ≤ progress.total`;
 - `IntegrityCheckRequest`: `range` ⇔ `from_seq` y `to_seq` presentes, con `from_seq ≤ to_seq`;
 - `IntegrityReport`: `inconsistente` ⇔ `first_inconsistent_seq` y `reason` presentes;
-- `IntegrityStatus`: `not_verified` ⇔ `reason` presente (y `first_inconsistent_seq` presente salvo cuando el motivo es la falta de una verificación);
+- `IntegrityStatus`: `not_verified` ⇔ `reason` presente (y `first_inconsistent_seq` presente);
 - `ConsoleDossier`: `anonymized = true` ⇒ sin `identifiers`; `identifiers_unavailable = true` ⇒ sin `identifiers`;
 - `ClientErrorReport`: campos extra → error.

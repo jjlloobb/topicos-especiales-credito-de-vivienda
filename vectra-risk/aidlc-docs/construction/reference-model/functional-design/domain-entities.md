@@ -21,6 +21,7 @@ modelo que entran por el registro de U4. Los tipos de solicitud (`ApplicationIn`
 | `sources` | Referencias de forma (DANE, Redalyc); ningún dato real |
 | `label` | Coeficientes de la función de riesgo latente, ruido y tasa objetivo (~4 % **[VERIFICAR]**) |
 | `proxy` | Configuración de la variante RT-2 (§4) |
+| `reference_policy` | Política sintética de referencia: `cutoff`, `low_confidence_threshold` (se fija al calibrar, BR-U5-13) y `normative` (vigencia con `vis_max_property_value` y `usury_cap_ea` sintéticos, sin valor normativo real). Solo para kind (seguimiento de la cuarta revisión de coherencia, 2026-10-31) |
 
 ## 2. Datasets
 

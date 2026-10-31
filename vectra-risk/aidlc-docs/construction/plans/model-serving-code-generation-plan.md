@@ -86,7 +86,7 @@ vectra-risk/model-serving/
 
 - [ ] **Paso 6 — Plantilla del `InferenceService`**
   - `isvc-<8 hex>`: predictor y explicador con el mismo `storageUri` y la misma anotación, y etiquetas `vectra.io/component`.
-  - Values `prod` (HPA por CPU al 60 %, predictor 2–4, explicador 2–6, spread, PDB, `vectra-high`), `inactive` (1 réplica fija, `vectra-normal`) y `staging` (1 réplica, recursos reducidos, `vectra-low`).
+  - Values `prod` (HPA por CPU al 60 %, predictor 2–4, explicador 2–6, spread, PDB, `vectra-high`), `inactive` (1 réplica fija, `vectra-normal`) y `staging` (1 réplica, recursos reducidos, `vectra-low`), con la plantilla del predictor de la versión activa para `source_comparison`, solo predictor (INF-U4-05; seguimiento de la cuarta revisión de coherencia, 2026-10-31).
   - Probes de INF-U6-01; `emptyDir` de 1 GiB.
   - Diseño: NFR-U6-02, 11, 20; P-U6-02, 04; INF-U6-01, 02. Historias: US-204, US-609.
   - **Aceptación**: `helm template` con cada values + `kubeconform` con el CRD de `InferenceService` + `conftest test model-serving/policies/conftest/`:
