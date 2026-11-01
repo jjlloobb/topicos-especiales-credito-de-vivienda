@@ -74,3 +74,11 @@ spec:
     kind: GatewayClass
   - group: serving.kserve.io
     kind: ClusterServingRuntime
+  - group: serving.kserve.io
+    kind: ClusterStorageContainer
+  - group: admissionregistration.k8s.io
+    kind: ValidatingAdmissionPolicy
+    name: safe-upgrades.gateway.networking.k8s.io
+  - group: admissionregistration.k8s.io
+    kind: ValidatingAdmissionPolicyBinding
+    name: safe-upgrades.gateway.networking.k8s.io
