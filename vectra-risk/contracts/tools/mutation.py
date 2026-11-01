@@ -54,6 +54,8 @@ TESTS = {
     "unit/test_authz.py",
     "unit/test_deps.py",
     "unit/test_deps_extra.py",
+    "unit/test_deps_tokens.py",
+    "unit/test_service_token.py",
     "unit/test_deadline.py",
     "unit/test_require_app.py",
     "examples/test_logic_examples.py",

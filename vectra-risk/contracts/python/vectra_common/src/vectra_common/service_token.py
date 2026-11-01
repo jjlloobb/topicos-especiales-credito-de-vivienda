@@ -33,7 +33,7 @@ class ServiceTokenProvider:
         *,
         algorithm: str = "ES256",
         key_id: str | None = None,
-        poster: Poster = deps.post_form_once,
+        poster: Poster | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self._client_id = client_id
@@ -43,7 +43,7 @@ class ServiceTokenProvider:
         self._scopes = scopes
         self._algorithm = algorithm
         self._key_id = key_id
-        self._poster = poster
+        self._poster = poster or deps.post_form_once
         self._clock = clock
         self._lock = asyncio.Lock()
         self._token: str | None = None

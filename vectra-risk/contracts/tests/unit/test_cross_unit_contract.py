@@ -7,10 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-import jwt
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ec
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import ValidationError
@@ -18,14 +15,11 @@ from starlette.requests import Request
 from strategies import auth as a
 
 from tools.codegen import spec_for, ts_enums
-from vectra_common import deps, ops_server, process, telemetry
-from vectra_common import logging as vlog
+from vectra_common import ops_server, process, telemetry
 from vectra_common.app_factory import create_app, parse_query, respond
 from vectra_common.authn import principal_from_claims
-from vectra_common.deps import BreakerConfig, CircuitBreaker, CircuitState, DependencyClient
 from vectra_common.errors import DependencyTimeout, DependencyUnavailable, ValidationFailed, to_problem
 from vectra_common.metrics import REGISTRY as METRICS
-from vectra_common.service_token import ServiceTokenProvider, provider_from_env
 from vectra_contracts import catalog
 from vectra_contracts.catalog import SCOPE_HOLDERS, LogEvent, Role, Scope
 from vectra_contracts.errors import ContractViolation
@@ -315,196 +309,6 @@ def test_dependency_timeout_is_504_and_unavailable_is_503():
     assert issubclass(DependencyTimeout, DependencyUnavailable)
 
 
-# --- Breaker con ventana de tiempo
-
-
-def test_old_failures_leave_the_window():
-    now = {"value": 0.0}
-    config = BreakerConfig(open_for=10, window_size=4, failure_ratio=0.5, window_seconds=30)
-    breaker = CircuitBreaker("tiempo", config, clock=lambda: now["value"])
-    for _ in range(3):
-        breaker.on_failure()
-    now["value"] = 31.0
-    breaker.on_success()
-    breaker.on_success()
-    breaker.on_failure()
-    assert breaker.state is CircuitState.CLOSED  # sin la ventana, 4 de 6 ya lo habria abierto
-
-
-def test_failures_within_the_window_still_open():
-    now = {"value": 0.0}
-    config = BreakerConfig(open_for=10, window_size=4, failure_ratio=0.5, window_seconds=30)
-    breaker = CircuitBreaker("tiempo2", config, clock=lambda: now["value"])
-    for _ in range(4):
-        breaker.on_failure()
-        now["value"] += 1
-    assert breaker.state is CircuitState.OPEN
-
-
-def test_window_seconds_excludes_consecutive():
-    with pytest.raises(ContractViolation):
-        BreakerConfig(open_for=1, consecutive_failures=2, window_seconds=30)
-
-
-# --- Tokens de servicio
-
-
-def es256_key() -> tuple[str, str]:
-    key = ec.generate_private_key(ec.SECP256R1())
-    private = key.private_bytes(
-        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
-    ).decode()
-    public = key.public_key().public_bytes(
-        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
-    ).decode()
-    return private, public
-
-
-def provider(answers: list[Any], now: dict[str, float], seen: list[dict[str, str]], key: str) -> ServiceTokenProvider:
-    async def poster(_url, data, _timeout):
-        seen.append(dict(data))
-        return answers.pop(0)
-
-    return ServiceTokenProvider(
-        "case-worker",
-        "https://kc/token",
-        key,
-        "scoring-service",
-        ("case:recommend",),
-        key_id="k1",
-        poster=poster,
-        clock=lambda: now["value"],
-    )
-
-
-async def test_token_uses_private_key_jwt_and_is_cached_until_it_expires():
-    private, public = es256_key()
-    now = {"value": 1_800_000_000.0}
-    seen: list[dict[str, str]] = []
-    source = provider(
-        [{"access_token": "uno", "expires_in": 60}, {"access_token": "dos", "expires_in": 60}], now, seen, private
-    )
-    assert await source.token() == "uno"
-    assert await source.token() == "uno"
-    assert len(seen) == 1
-    sent = seen[0]
-    assert sent["grant_type"] == "client_credentials" and sent["audience"] == "scoring-service"
-    assert "client_secret" not in sent
-    claims = jwt.decode(
-        sent["client_assertion"],
-        public,
-        algorithms=["ES256"],
-        audience="https://kc/token",
-        options={"verify_exp": False, "verify_iat": False},
-    )
-    assert claims["iss"] == claims["sub"] == "case-worker"
-    now["value"] += 31  # dentro de RENEW_BEFORE
-    assert await source.token() == "dos"
-
-
-async def test_concurrent_requests_ask_for_one_token():
-    private, _ = es256_key()
-    seen: list[dict[str, str]] = []
-    source = provider([{"access_token": "uno", "expires_in": 60}], {"value": 1.0}, seen, private)
-    assert await asyncio.gather(source.token(), source.token(), source.token()) == ["uno"] * 3
-    assert len(seen) == 1
-
-
-async def test_malformed_token_answer_is_unavailable():
-    private, _ = es256_key()
-    source = provider([{"nada": 1}], {"value": 1.0}, [], private)
-    with pytest.raises(DependencyUnavailable):
-        await source.token()
-
-
-def test_provider_from_env(tmp_path, monkeypatch):
-    private, _ = es256_key()
-    path = tmp_path / "key.pem"
-    path.write_text(private)
-    monkeypatch.setenv("VECTRA_CLIENT_ID", "case-worker")
-    monkeypatch.setenv("VECTRA_TOKEN_URL", "https://kc/token")
-    monkeypatch.setenv("VECTRA_CLIENT_KEY_PATH", str(path))
-    assert isinstance(provider_from_env("scoring-service", ("case:recommend",)), ServiceTokenProvider)
-
-
-class StaticSource:
-    def __init__(self) -> None:
-        self.tokens = ["viejo", "nuevo"]
-        self.invalidated = 0
-
-    async def token(self) -> str:
-        return self.tokens[0]
-
-    def invalidate(self) -> None:
-        self.invalidated += 1
-        self.tokens.pop(0)
-
-
-def dependency_client(handler, source=None) -> DependencyClient:
-    process.ensure_service()
-    return DependencyClient(
-        "dep",
-        "http://dep",
-        BreakerConfig(open_for=1, consecutive_failures=5),
-        10,
-        transport=httpx.MockTransport(handler),
-        token_source=source,
-    )
-
-
-async def test_401_retries_once_with_a_new_token():
-    seen: list[str] = []
-
-    def handler(request):
-        seen.append(request.headers["authorization"])
-        return httpx.Response(401 if len(seen) == 1 else 200)
-
-    source = StaticSource()
-    response = await deps.call(dependency_client(handler, source), "GET", "/x", timeout=1)
-    assert response.status_code == 200
-    assert seen == ["Bearer viejo", "Bearer nuevo"]
-    assert source.invalidated == 1
-
-
-async def test_second_401_is_returned_and_not_retried_forever():
-    calls = {"n": 0}
-
-    def handler(_):
-        calls["n"] += 1
-        return httpx.Response(401)
-
-    source = StaticSource()
-    source.tokens = ["a", "b", "c"]
-    response = await deps.call(dependency_client(handler, source), "GET", "/x", timeout=1)
-    assert response.status_code == 401 and calls["n"] == 2
-
-
-async def test_without_token_source_there_is_no_authorization_or_retry():
-    calls: list[httpx.Request] = []
-
-    def handler(request):
-        calls.append(request)
-        return httpx.Response(401)
-
-    response = await deps.call(dependency_client(handler), "GET", "/x", timeout=1)
-    assert response.status_code == 401 and len(calls) == 1
-    assert "authorization" not in calls[0].headers
-
-
-async def test_post_form_once_translates_errors():
-    def ok(request):
-        assert b"grant_type=x" in request.content
-        return httpx.Response(200, json={"access_token": "t"})
-
-    assert (await deps.post_form_once("http://kc/t", {"grant_type": "x"}, 1, httpx.MockTransport(ok))) == {
-        "access_token": "t"
-    }
-    with pytest.raises(DependencyUnavailable):
-        await deps.post_form_once(
-            "http://kc/t", {"grant_type": "x"}, 1, httpx.MockTransport(lambda _: httpx.Response(500))
-        )
-
-
 # --- Trazas
 
 
@@ -559,22 +363,3 @@ def test_otlp_endpoint_without_scheme_is_rejected(monkeypatch):
     monkeypatch.setenv(telemetry.ENDPOINT_ENV, "otel-collector:4317")
     with pytest.raises(ContractViolation):
         telemetry.configure("svc")
-
-
-async def test_outgoing_call_propagates_the_sampling_decision():
-    seen: list[str] = []
-
-    def handler(request):
-        seen.append(request.headers["traceparent"])
-        return httpx.Response(200)
-
-    correlation = vlog.correlation_id_var.set("a" * 32)
-    span = vlog.span_id_var.set("b" * 16)
-    sampled = vlog.trace_sampled_var.set(False)
-    try:
-        await deps.call(dependency_client(handler), "GET", "/x", timeout=1)
-    finally:
-        vlog.correlation_id_var.reset(correlation)
-        vlog.span_id_var.reset(span)
-        vlog.trace_sampled_var.reset(sampled)
-    assert seen == [f"00-{'a' * 32}-{'b' * 16}-00"]

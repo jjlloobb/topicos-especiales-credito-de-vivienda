@@ -3887,3 +3887,11 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: PR https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda/pull/1
 
 ---
+
+## Mutación de U0 corregida y subida
+**Timestamp**: 2026-11-01T06:41:41Z
+**User Input**: "sube las correcciones cuando pase la mutación"
+**AI Response**: La mutación fallaba en CI porque el código nuevo de `deps` y `service_token` no estaba en sus pruebas; tampoco se había completado en local antes de la aprobación de U0. Con pruebas nuevas termina en 0: 645 eliminados y 7 equivalentes justificados en `mutmut-allowlist.txt`. Se sube al PR 1. La etiqueta `contracts-v0.1.0` no se mueve: los specs no cambiaron.
+**Context**: PR https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda/pull/1
+
+---
