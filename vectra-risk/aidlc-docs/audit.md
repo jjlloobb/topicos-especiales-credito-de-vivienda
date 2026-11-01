@@ -4201,3 +4201,19 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Preparación del tramo B, issue 7.
 
 ---
+
+## Revisión de la máquina tras los comandos del operador
+**Timestamp**: 2026-11-01T10:17:22Z
+**User Input**: "ya ejecuté los comandos, revisa de nuevo"
+**AI Response**: Se revisa la máquina, solo lectura. Responde `docker-ce` 29.9.2, con el snap desactivado y los puertos 5001 y 443 libres. Queda el puente `br-8e146fce54f1` del snap, con la subred IPv6 de kind. Entrada registrada aquí a pedido de la sesión paralela que atendió este mensaje. Estado posterior, según el registro de `sudo`: a las 10:17:43Z se ejecutó `snap start --enable docker` y a las 10:18:08Z `docker rm e2980300d9c3` (`registro-cks2`); a las 10:18:34Z `docker` responde 29.8.0, el motor de snap, que sigue activo.
+**Context**: Preparación del tramo B.
+
+---
+
+## Revisión de la máquina tras reactivarse el snap
+**Timestamp**: 2026-11-01T10:18:51Z
+**User Input**: "ya ejecuté los comandos, revisa de nuevo"
+**AI Response**: Se revisa la máquina, solo lectura. A las 10:19Z el motor de snap sigue activo y responde 29.8.0. El registro de `sudo` muestra `snap start --enable docker` a las 10:17:43Z, sin un `snap stop` posterior. El puente `br-8e146fce54f1` sigue. El usuario debe repetir la desactivación del snap, el reinicio de docker y el borrado del puente. Entrada registrada aquí a pedido de la sesión paralela que atendió este mensaje.
+**Context**: Preparación del tramo B.
+
+---
