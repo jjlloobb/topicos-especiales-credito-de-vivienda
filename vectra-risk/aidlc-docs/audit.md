@@ -4384,3 +4384,34 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Preparación del tramo B, issue 7.
 
 ---
+
+## Relación de los laboratorios con el proyecto
+**Timestamp**: 2026-11-01T14:50:32Z
+**User Input**: "confirma que los laboratorios ckad y cks no tienen que ninguna relacion con el proyecto?"
+**AI Response**: Se buscan referencias cruzadas entre los laboratorios y `vectra-risk/`, solo lectura.
+**Context**: Rama `docs/labs-ckad-cks`.
+
+---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-01T14:52:34Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda autenticar `gh` para publicar las ramas y, tras fusionar el runbook, corregir el almacén de credenciales de Docker y ejecutar el tramo B como operador. No se ejecuta nada.
+**Context**: Preparación del tramo B, issue 7.
+
+---
+
+## Eliminar el material del curso
+**Timestamp**: 2026-11-01T14:54:11Z
+**User Input**: "elimina todo lo relacionado con el curso si no tiene que ver con el proyecto"
+**AI Response**: Antes de borrar, se revisa qué hay del curso y qué depende de ello, solo lectura.
+**Context**: Repositorio.
+
+---
+
+## Material del curso quitado en una rama local
+**Timestamp**: 2026-11-01T14:55:26Z
+**AI Response**: En `chore/remove-course-material`, sin publicar, se quita el material del curso sin relación con Vectra Risk. Se conservan el material de Vectra Risk en `modulo2/` y `modulo3/` y las guías del proyecto final de los módulos 5, 6 y 8. `docs/labs-ckad-cks` deja de publicarse, pero no se borra porque guarda la única copia de los laboratorios CKAD y CKS con sus cambios.
+**Context**: Repositorio. Pendiente el push por falta de credenciales.
+
+---
