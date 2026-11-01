@@ -4506,3 +4506,48 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, tramo B. Termina cuando el PR de digests entre en `main`.
 
 ---
+
+## Aprobar y fusionar el PR 12
+**Timestamp**: 2026-11-01T15:43:45Z
+**User Input**: "realiza el paso 1, 2 y 3"
+**AI Response**: Se revisa el estado del PR 12 antes de fusionar. El agente no aprueba: la aprobación es de un revisor humano.
+**Context**: Issue 7, tramo B.
+
+---
+
+## Tramo B cerrado en el issue 7
+**Timestamp**: 2026-11-01T15:48:35Z
+**AI Response**: El PR 12 ya estaba aprobado por `joseluisjedi` y fusionado por `jjlloobb`, así que el agente no aprueba ni fusiona. `main` local en `b7b1452`. Se marcan el tramo B y la publicación de imágenes en el issue 7. El clúster y `kind-registry` siguen activos para el tramo C.
+**Context**: Issue 7.
+
+---
+
+## Copia local y suspensión de la máquina
+**Timestamp**: 2026-11-01T15:48:54Z
+**AI Response**: Un cambio de rama falló y el avance rápido a `b7b1452` se aplicó a `feat/u1-image-digests` local; se corrige sin efecto en GitHub y la copia queda en `main`. Se desactiva la suspensión por inactividad con corriente y se restaura de inmediato: su tiempo ya era 0, así que nunca se activaba.
+**Context**: Issue 7, tramo B cerrado.
+
+---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-01T15:51:12Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se revisa la máquina y el runbook, solo lectura, y se recomienda conectar la corriente y ejecutar el tramo C por waves, con una pausa después de la wave 1.
+**Context**: Issue 7, tramo C.
+
+---
+
+## Tramo C ejecutado por el agente
+**Timestamp**: 2026-11-01T15:52:49Z
+**User Input**: "realiza el tramo C"
+**AI Response**: A pedido explícito del usuario, el agente ejecuta el tramo C en `kind-vectra` desde `b7b1452`, dentro de la aprobación del issue 7. Se detiene en el primer fallo y hace una pausa obligatoria después de la wave 1.
+**Context**: Issue 7, tramo C, AUTONOMIA-01.
+
+---
+
+## Tramo C detenido en la wave 0
+**Timestamp**: 2026-11-01T16:11:28Z
+**AI Response**: Se detiene en `envoy-gateway`: el AppProject no permite `ValidatingAdmissionPolicy` ni su Binding. Además `linkerd-cni` falla con `too many open files` por `fs.inotify.max_user_instances` en 128, que Argo CD dio por `ok` antes de que empezara a fallar. Se abre un PR que permite esas políticas por nombre y agrega `ClusterStorageContainer`, que KServe también necesita. El ajuste de inotify requiere `sudo` y queda en manos del usuario.
+**Context**: Issue 7, tramo C.
+
+---

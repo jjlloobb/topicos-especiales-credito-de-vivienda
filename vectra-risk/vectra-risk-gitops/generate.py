@@ -27,6 +27,21 @@ CLUSTER_KINDS = [
     ("admissionregistration.k8s.io", "MutatingWebhookConfiguration"),
     ("gateway.networking.k8s.io", "GatewayClass"),
     ("serving.kserve.io", "ClusterServingRuntime"),
+    ("serving.kserve.io", "ClusterStorageContainer"),
+]
+# Las politicas de admision las trae el chart de Envoy Gateway. Se permiten por nombre, porque un tipo abierto
+# dejaria a cualquier Application del proyecto crear reglas de admision para todo el cluster.
+NAMED_CLUSTER_RESOURCES = [
+    {
+        "group": "admissionregistration.k8s.io",
+        "kind": "ValidatingAdmissionPolicy",
+        "name": "safe-upgrades.gateway.networking.k8s.io",
+    },
+    {
+        "group": "admissionregistration.k8s.io",
+        "kind": "ValidatingAdmissionPolicyBinding",
+        "name": "safe-upgrades.gateway.networking.k8s.io",
+    },
 ]
 MESHED = ["vectra-edge", "vectra-app", "vectra-serving", "vectra-staging", "vectra-data", "vectra-identity", "vectra-observability", "vectra-restore-drill"]
 Doc = dict[str, Any]
@@ -49,7 +64,7 @@ def project(env: str, config: Doc, components: list[Doc]) -> Doc:
             "description": f"Vectra Risk, entorno {env}",
             "sourceRepos": sorted(repos),
             "destinations": [{"server": "https://kubernetes.default.svc", "namespace": n} for n in sorted(namespaces)],
-            "clusterResourceWhitelist": [{"group": g, "kind": k} for g, k in CLUSTER_KINDS],
+            "clusterResourceWhitelist": [{"group": g, "kind": k} for g, k in CLUSTER_KINDS] + NAMED_CLUSTER_RESOURCES,
         },
     }
 

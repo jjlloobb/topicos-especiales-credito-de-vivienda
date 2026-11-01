@@ -332,6 +332,14 @@ def test_app_project_without_wildcards(env):
     assert all("*" not in r["kind"] for r in project["spec"]["clusterResourceWhitelist"])
 
 
+@pytest.mark.parametrize("env", ["kind", "staging", "prod"])
+def test_admission_policies_are_allowed_only_by_name(env):
+    project = docs_of(GITOPS / f"apps/{env}/project.yaml")[0]
+    policies = [r for r in project["spec"]["clusterResourceWhitelist"] if "AdmissionPolicy" in r["kind"]]
+    assert {r["kind"] for r in policies} == {"ValidatingAdmissionPolicy", "ValidatingAdmissionPolicyBinding"}
+    assert all(r["name"] == "safe-upgrades.gateway.networking.k8s.io" for r in policies)
+
+
 def test_forbidden_steps_fixture(tmp_path):
     (tmp_path / "bad.yml").write_text("jobs:\n  a:\n    steps:\n      - run: kubectl apply -f x\n", encoding="utf-8")
     (tmp_path / "good.yml").write_text("jobs:\n  a:\n    steps:\n      - run: kubectl diff -f x\n", encoding="utf-8")
