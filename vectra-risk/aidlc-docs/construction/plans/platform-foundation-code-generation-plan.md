@@ -214,7 +214,7 @@ vectra-risk-gitops/
   - Diseño: P-U1-12; INF-U1-01..03, 09; NFR-U1-23 (StorageClass cifrada por entorno), 43. Historia: US-607.
   - **Aceptación**: `kyverno test` de `disallow-argocd-auto-sync` sobre `vectra-risk-gitops/apps/`; `python platform/tests/test_waves.py` (cada Application tiene wave y el orden coincide con P-U1-12); `conftest` de los `AppProject` (ninguna Application con `project: default`, sin comodines en repositorios ni destinos; seguimiento de la cuarta revisión de coherencia, 2026-10-31).
 
-- [ ] **Paso 16 — Lint y render de todos los charts**
+- [x] **Paso 16 — Lint y render de todos los charts**
   - `helm lint` de todos los charts y snapshots de `helm template` por entorno, versionados para revisarlos en el PR.
   - Historia: US-605.
   - **Aceptación**: `make -C platform render && git diff --exit-code platform/rendered/`; `conftest test platform/rendered/prod/` (topologySpread por zona y PDB en todos los Deployments, como exige US-605; y la anotación del sidecar nativo **explícita** en el pod template de cada Job y CronJob renderizado, incluidos los Jobs de reconstrucción de U3, que se renderizan desde `decision-registry/chart-rebuild/` (Application aparte `decision-registry-rebuild`, wave 6; revisión del FD de U10, 2026-10-10, B13) con `--set monitoringRebuild.runId=test` en una variante del render (aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10), para que la mutación de Kyverno nunca cambie un recurso de Git; sexta revisión del FD de U9, 2026-10-10).
@@ -310,7 +310,6 @@ vectra-risk-gitops/
 
 | Paso | Qué falta |
 |---|---|
-| 16 | `git diff --exit-code platform/rendered/` requiere un commit; la regla de topologySpread aún no tiene Deployments que revisar en `rendered/prod` |
 | 19, 20 | Los ejecuta un operador después de un PR aprobado (AUTONOMIA-01) |
 | 23 | Su comando pasa; se marca cuando se cierren los pasos anteriores |
 

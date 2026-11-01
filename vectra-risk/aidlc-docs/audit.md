@@ -3841,3 +3841,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Code Generation Part 2 de U0 (reabierta) y de U1.
 
 ---
+
+## Commit y etiqueta de U0 y U1
+**Timestamp**: 2026-11-01T06:06:31Z
+**AI Response**: Commit de U0 y U1 en `docs/audit-status-check`. `make -C platform check-rendered` terminó en 0 sobre ese commit, así que se marca el Paso 16; la regla de topologySpread sigue sin Deployments que revisar en `rendered/prod`, hasta que existan charts de unidades. Etiqueta `contracts-v0.1.0` creada localmente. Sin push ni acceso a clústeres.
+**Context**: Abiertos los Pasos 19, 20 y 23 de U1.
+
+---
