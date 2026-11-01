@@ -269,6 +269,9 @@ k_egress:
   K14: envoy-gateway
   K17: prometheus-operator
   K18: { ns: vectra-data, sa: cnpg-instance, cnpg_any: true }
+  # Los Job de CNPG no llevan podRole: instance, y sin la API `initdb` no arranca. `join` es el de las replicas.
+  K18I: { ns: vectra-data, sa: "*", labels: { "cnpg.io/jobRole": initdb } }
+  K18J: { ns: vectra-data, sa: "*", labels: { "cnpg.io/jobRole": join } }
   K18R: { ns: vectra-restore-drill, sa: "*", name: restore-cluster }
   K19: grafana
   K20: kube-state-metrics
