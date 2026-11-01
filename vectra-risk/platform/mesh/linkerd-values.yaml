@@ -7,6 +7,8 @@ identity:
   externalCA: true # la raiz la publica el ConfigMap linkerd-identity-trust-roots
   issuer:
     scheme: kubernetes.io/tls # lo gestiona cert-manager
+# Sin el CronJob que envia version, UUID de instalacion y conteos a versioncheck.linkerd.io: nada sale del cluster del banco.
+disableHeartBeat: true
 proxy:
   defaultInboundPolicy: deny
   # Con `transport-header`, por omision, los proxies se conectan al 4143 y una NetworkPolicy por puerto de aplicacion los corta.

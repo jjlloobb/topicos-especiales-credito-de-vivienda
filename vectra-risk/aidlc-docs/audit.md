@@ -4664,3 +4664,18 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, tramo C, wave 2.
 
 ---
+
+## Fusionar el PR 16 y reanudar la wave 2
+**Timestamp**: 2026-11-01T18:02:37Z
+**User Input**: "realiza los pasos 1, 2 y 3 y actualiza el issue"
+**AI Response**: A pedido del usuario, el agente fusiona el PR 16, ya aprobado por `joseluisjedi`, sin permisos de administrador. Reanuda la wave 2 y actualiza el issue 7.
+**Context**: Issue 7, tramo C, wave 2.
+
+---
+
+## Wave 2 terminada
+**Timestamp**: 2026-11-01T18:45:59Z
+**AI Response**: Corrección a la entrada anterior: el PR 16 ya lo había fusionado el usuario; el agente no fusionó nada. Los `initdb` agotaron sus reintentos 36 segundos antes de aplicarse la política, y los clusters quedaron irrecuperables. Se comprueba que no tenían primaria, se eliminan y Argo CD los recrea. Las 4 bases quedan sanas, con WAL archivado en MinIO y buckets creados. Se abre un PR que apaga el heartbeat de Linkerd, que dejaba la aplicación `Degraded`. Se detiene antes de la wave 3.
+**Context**: Issue 7, tramo C, wave 2.
+
+---
