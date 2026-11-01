@@ -146,6 +146,7 @@ Identidades de MinIO, con su política y su Secret por ESO (2026-11-01): `kserve
 ### INF-U1-10 — Secretos
 - ESO + Vault en kind (in-cluster, F86); ESO + la bóveda del banco en staging/prod (egress F74).
 - ESO solo escribe Secrets en los namespaces de Vectra que lo declaran (binding K11). Ningún servicio de negocio lee Secrets por la API.
+- **Decisión abierta (issue 7, 2026-11-01):** el controlador de ESO necesita `list` y `watch` sobre `secrets` en todo el clúster, y K11 no los da. En kind se concede con `platform/secrets/eso-rbac-secrets-read-kind.yaml`, que lee todos los Secret. En staging y prod ESO no arranca hasta que cumplimiento decida.
 
 ## 7. Cambios aplicados a `component-dependency.md`
 

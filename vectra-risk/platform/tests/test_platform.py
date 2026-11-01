@@ -249,7 +249,7 @@ def test_f75_bucket_policy_is_read_only_and_scoped():
 COMPONENTS = yaml.safe_load((GITOPS / "components.yaml").read_text(encoding="utf-8"))
 # P-U1-12: cada componente en su wave.
 EXPECTED_WAVES = {
-    0: {"cert-manager", "trust-manager", "cloudnative-pg", "external-secrets-rbac", "external-secrets", "kyverno", "linkerd-crds", "linkerd-cni", "prometheus-operator-crds", "envoy-gateway", "kserve-crd", "kserve", "argo-cd", "vault"},
+    0: {"cert-manager", "trust-manager", "cloudnative-pg", "external-secrets-rbac", "external-secrets-rbac-kind", "external-secrets", "kyverno", "linkerd-crds", "linkerd-cni", "prometheus-operator-crds", "envoy-gateway", "kserve-crd", "kserve", "argo-cd", "vault"},
     1: {"mesh-certificates", "linkerd-control-plane", "kyverno-context-rbac", "kyverno-policies", "priority-classes", "namespaces", "quotas", "network", "secret-store", "secret-store-env", "verification-operator", "verify-images"},
     2: {"postgres", "minio"},
     3: {"grafana-secrets"},
@@ -338,6 +338,16 @@ def test_admission_policies_are_allowed_only_by_name(env):
     policies = [r for r in project["spec"]["clusterResourceWhitelist"] if "AdmissionPolicy" in r["kind"]]
     assert {r["kind"] for r in policies} == {"ValidatingAdmissionPolicy", "ValidatingAdmissionPolicyBinding"}
     assert all(r["name"] == "safe-upgrades.gateway.networking.k8s.io" for r in policies)
+
+
+def test_cluster_wide_secret_read_exists_only_in_kind():
+    docs = docs_of(PLATFORM / "secrets/eso-rbac-secrets-read-kind.yaml")
+    role = next(d for d in docs if d["kind"] == "ClusterRole")
+    assert role["rules"] == [{"apiGroups": [""], "resources": ["secrets"], "verbs": ["list", "watch"]}]
+    assert (GITOPS / "apps/kind/external-secrets-rbac-kind.yaml").exists()
+    for env in ("staging", "prod"):
+        assert not (GITOPS / f"apps/{env}/external-secrets-rbac-kind.yaml").exists()
+        assert "eso-rbac-secrets-read-kind" not in "".join(p.read_text(encoding="utf-8") for p in (GITOPS / f"apps/{env}").glob("*.yaml"))
 
 
 def test_forbidden_steps_fixture(tmp_path):

@@ -4551,3 +4551,48 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, tramo C.
 
 ---
+
+## Tramo C en espera del límite de inotify
+**Timestamp**: 2026-11-01T16:16:08Z
+**AI Response**: PR 13 ya fusionado. `main` local actualizado. El agente no tiene `sudo`, así que no sube `fs.inotify.max_user_instances`, que sigue en 128, y no reanuda hasta que el usuario lo haga. No se sincroniza nada más.
+**Context**: Issue 7, tramo C, wave 0.
+
+---
+
+## Límite de inotify
+**Timestamp**: 2026-11-01T16:16:48Z
+**User Input**: "sudo sysctl fs.inotify.max_user_instances=512"
+**AI Response**: Se comprueba el valor en la máquina antes de reanudar el tramo C.
+**Context**: Issue 7, tramo C, wave 0.
+
+---
+
+## Reanudación del tramo C
+**Timestamp**: 2026-11-01T16:18:27Z
+**User Input**: "ya ejecute el comando"
+**AI Response**: Se comprueba el límite y `linkerd-cni` antes de reanudar la wave 0 en `envoy-gateway`.
+**Context**: Issue 7, tramo C, wave 0.
+
+---
+
+## Tramo C detenido por permisos de ESO
+**Timestamp**: 2026-11-01T16:28:09Z
+**AI Response**: El controlador de ESO falla porque necesita `list` y `watch` sobre `secrets` en todo el clúster, y K11 no los da. Es una decisión de seguridad, así que se detiene sin cambiar el clúster y se pide decisión al usuario. Se recomienda un permiso solo para kind, con la decisión de staging y prod abierta para cumplimiento.
+**Context**: Issue 7, tramo C, wave 0; K11.
+
+---
+
+## Decisión sobre los permisos de ESO
+**Timestamp**: 2026-11-01T16:30:02Z
+**User Input**: "sigue con A"
+**AI Response**: Se prepara un PR con `list` y `watch` sobre `secrets` en todo el clúster, solo para kind. Staging y prod no cambian, y su decisión queda abierta para cumplimiento.
+**Context**: Issue 7, tramo C, wave 0; K11.
+
+---
+
+## PR de permisos de ESO solo en kind
+**Timestamp**: 2026-11-01T16:38:10Z
+**AI Response**: Se abre el PR con `eso-rbac-secrets-read-kind.yaml`. Se documenta la decisión abierta de K11 en el diseño de U1 y en su plan. Una prueba exige que el permiso no exista en staging ni prod.
+**Context**: Issue 7, tramo C, wave 0; K11.
+
+---

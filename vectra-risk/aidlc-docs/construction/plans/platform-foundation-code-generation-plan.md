@@ -348,6 +348,7 @@ vectra-risk-gitops/
 
 - `require-pdb` y `require-hpa-bounds` consultan la API solo en un clúster; `kyverno test` les inyecta el resultado. La consulta real y el `ClusterRole` de `platform/policies/rbac/` se comprueban en el Paso 19.
 - Con los verbos de K11 (`create`, `update`, `get`), ESO podría necesitar además `list`, `watch` o `patch` sobre `secrets`: se comprueba en el Paso 19.
+  - Comprobado en kind (2026-11-01): necesita `list` y `watch` en todo el clúster. Concedido solo en kind; staging y prod quedan abiertos (issue 7).
 - `pod_cidr` y `api_server_cidr` de staging y prod valen `0.0.0.0/32`, que no autoriza a nadie, hasta que el banco entregue los rangos. Las URL `git.banco.internal` y `charts.banco.internal` son provisionales.
 - En kind, `api_server_cidr` supone la red de Docker `172.18.0.0/16`.
 - El backup mensual con prefijo `monthly/` no se logra con un `ScheduledBackup` sobre el mismo almacén, y la retención de 30 días podría borrarlo.
