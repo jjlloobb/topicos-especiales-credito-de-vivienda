@@ -4438,3 +4438,19 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Preparación del tramo B, issue 7.
 
 ---
+
+## Punto 3 de la preparación
+**Timestamp**: 2026-11-01T15:02:40Z
+**User Input**: "ya autoricé, sigue"
+**AI Response**: Se actualiza `main` local. El sistema de permisos deniega el comando que quitaba `credsStore` de `~/.docker/config.json`; no se reintenta y queda en manos del usuario. El issue 7 no se comenta: `main` sigue en `d764cbb`, el commit que ya cita, hasta que se fusionen los PR.
+**Context**: Preparación del tramo B, issue 7. PR 9 y 10 abiertos.
+
+---
+
+## PR 9 y 10 fusionados
+**Timestamp**: 2026-11-01T15:10:28Z
+**User Input**: "ya fusionamos los PR"
+**AI Response**: Se comprueba la fusión (`0eec29d`), se actualiza `main` local y se abre el PR de auditoría. El issue 7 se actualiza cuando ese PR entre, porque vuelve a mover `main`. `credsStore` sigue en `~/.docker/config.json`, así que las pruebas de Grafana no se repiten.
+**Context**: Preparación del tramo B, issue 7.
+
+---
