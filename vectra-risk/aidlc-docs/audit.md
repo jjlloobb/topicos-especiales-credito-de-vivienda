@@ -3856,3 +3856,19 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: U0 y U1 aprobadas.
 
 ---
+
+## Credenciales para subir la rama
+**Timestamp**: 2026-11-01T06:13:59Z
+**User Input**: "use this github credentials username jjlloobb password [TOKEN REDACTADO]"
+**AI Response**: Se usa el token solo en esta operación, sin guardarlo en Git ni en archivos, para subir `docs/audit-status-check` y `contracts-v0.1.0` y abrir el PR a `main`. La entrada se registra sin el token, para no publicarlo. Resultado: GitHub rechazó la rama y la etiqueta porque el token no tiene el permiso `workflow`, necesario para cambiar `.github/workflows/`. No se subió nada ni se abrió el PR.
+**Context**: U0 y U1 aprobadas.
+
+---
+
+## Segundo intento con las mismas credenciales
+**Timestamp**: 2026-11-01T06:17:43Z
+**User Input**: "use this github credentials username jjlloobb password [TOKEN REDACTADO]"
+**AI Response**: Se reintenta la subida: el valor del token es el mismo, pero sus permisos pudieron cambiar.
+**Context**: U0 y U1 aprobadas.
+
+---
