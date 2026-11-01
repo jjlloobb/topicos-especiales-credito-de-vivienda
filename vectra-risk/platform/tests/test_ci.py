@@ -1013,3 +1013,15 @@ def test_setup_helm_uses_the_pinned_version():
 def test_install_tools_uses_the_pinned_helm():
     script = (PLATFORM / "install-tools.sh").read_text(encoding="utf-8")
     assert "helm-${HELM_VERSION}-linux-amd64.tar.gz" in script and "get.helm.sh" in script
+
+
+@pytest.mark.parametrize("name", ["supply-chain.yml", "evidence.yml"])
+def test_trivy_version_is_pinned(name):
+    """La version por omision de la accion dejo de estar publicada y el CI fallo al instalarla."""
+    trivy = next(s for s in steps(workflow(name)) if "trivy-action" in s.get("uses", ""))
+    assert trivy["with"]["version"].startswith("v")
+
+
+def test_contract_baseline_is_read_from_the_repository_root():
+    """`git archive` resuelve la ruta desde el directorio actual, y el job corre en `vectra-risk/`."""
+    assert 'git -C "$(git rev-parse --show-toplevel)" archive' in run_blocks(workflow("contracts.yml"))

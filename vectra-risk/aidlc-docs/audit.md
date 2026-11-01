@@ -3872,3 +3872,18 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: U0 y U1 aprobadas.
 
 ---
+
+## Rama, etiqueta, PR y primera corrida de CI
+**Timestamp**: 2026-11-01T06:25:48Z
+**AI Response**: Se subieron `docs/audit-status-check` y `contracts-v0.1.0` y se abrió el PR 1. Fallan en CI `supply-chain` y `evidence` (la acción instala Trivy v0.64.1, ya no publicada) y `contracts` (`git archive` con una ruta relativa al subdirectorio). Pasan `tests`, `policies`, `forbidden` y `rollback-note`. Correcciones hechas en la copia local, sin commit ni push: esperan la aprobación del usuario.
+**Context**: PR https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda/pull/1
+
+---
+
+## Subida de las correcciones de CI
+**Timestamp**: 2026-11-01T06:26:47Z
+**User Input**: "sube las correcciones"
+**AI Response**: Commit y push al PR 1 de las correcciones de CI, y revisión de la nueva corrida.
+**Context**: PR https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda/pull/1
+
+---

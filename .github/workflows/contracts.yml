@@ -66,7 +66,7 @@ jobs:
             | tar -xz -C "$HOME/.local/bin" oasdiff
           export PATH="$HOME/.local/bin:$PATH"
           mkdir -p /tmp/base
-          git archive "$base_tag" vectra-risk/contracts/openapi | tar -x -C /tmp/base
+          git -C "$(git rev-parse --show-toplevel)" archive "$base_tag" vectra-risk/contracts/openapi | tar -x -C /tmp/base
           head_version="$(uv run python -c 'import vectra_contracts; print(vectra_contracts.__version__)')"
           for spec in contracts/openapi/*.yaml; do
             uv run python contracts/tools/version_gate.py \
