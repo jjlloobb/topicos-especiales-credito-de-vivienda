@@ -104,7 +104,8 @@ sync namespaces priority-classes quotas mesh-certificates
 kubectl get configmap linkerd-identity-trust-roots -n linkerd   # debe existir antes del plano de control
 sync linkerd-control-plane
 platform/kind/seed-vault.sh                                    # paso 8
-sync secret-store secret-store-env network verification-operator kyverno-context-rbac kyverno-policies   # `verify-images` no se instala en kind
+sync secret-store-env secret-store network   # primero el permiso de leer vault-token; si no, secret-store queda Degraded
+sync verification-operator kyverno-context-rbac kyverno-policies   # `verify-images` no se instala en kind
 # Wave 2: `postgres` entrega los Secret de MinIO, y MinIO recibe los backups de `postgres`. Ninguno espera al otro.
 argocd app sync postgres
 kubectl wait -n vectra-data externalsecret --all --for=condition=Ready --timeout=300s
