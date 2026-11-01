@@ -371,7 +371,7 @@ Decisiones:
 - `verify-images` no se instala en kind. La firma es con llave (`sign-image.yml`), no sin llave.
 - `require-hpa-bounds` audita al admitir; el HPA se exige sobre el render en el PR (`hpa.rego`).
 - MinIO: se mantiene la opción A, con `docker-entrypoint.sh`; la imagen sigue sin construirse, y AGPL-3.0 sigue sin revisión de cumplimiento.
-- Excepciones de Trivy con vencimiento 2027-02-01: `AVD-KSV-0053` y `AVD-KSV-0114` (`.trivyignore`). Las aceptó el dueño del repositorio el 2026-11-01, hasta su vencimiento.
+- Sin excepciones de Trivy. `AVD-KSV-0053`: el simulacro lee el LSN por F114, sin `pods/exec`. `AVD-KSV-0114`: el webhook de ESO usa un certificado de cert-manager, sin `cert-controller`. Sin comprobar en un clúster (Paso 19).
 
 Tareas humanas para la separación de funciones en un solo repositorio (decisión del usuario, 2026-11-01): crear los equipos, pasarles las reglas de `.github/CODEOWNERS` y exigir la revisión de code owners en la rama protegida. Hasta entonces, todas las reglas apuntan al dueño del repositorio.
 
