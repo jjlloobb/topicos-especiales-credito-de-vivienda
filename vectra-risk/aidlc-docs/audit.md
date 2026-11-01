@@ -3895,3 +3895,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: PR https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda/pull/1
 
 ---
+
+## Mutación independiente de la zona horaria
+**Timestamp**: 2026-11-01T06:51:03Z
+**AI Response**: En CI sobrevivía `x_to_header__mutmut_6` (`astimezone(None)`), porque el runner corre en UTC. Se agrega una prueba con otra zona; la mutación termina en 0 con `TZ=UTC` y con la zona local. Se sube al PR 1, según lo pedido por el usuario.
+**Context**: PR https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda/pull/1
+
+---

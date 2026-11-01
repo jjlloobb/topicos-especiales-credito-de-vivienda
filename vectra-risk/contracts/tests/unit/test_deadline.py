@@ -1,5 +1,6 @@
 """`x-vectra-deadline` (NFR-U0-23 (b), (h))."""
 
+import time
 from datetime import timedelta
 
 import pytest
@@ -30,3 +31,14 @@ def test_future_accepted():
 def test_header_format_rfc3339_ms():
     assert to_header(NOW) == "2026-10-31T12:00:00.000Z"
     assert parse("2026-10-31T07:00:00-05:00") == NOW
+
+
+def test_header_is_utc_whatever_the_local_zone(monkeypatch):
+    """Un runner en UTC no distingue `astimezone(UTC)` de la zona local: se fija una que no lo sea."""
+    monkeypatch.setenv("TZ", "America/Bogota")
+    time.tzset()
+    try:
+        assert to_header(NOW) == "2026-10-31T12:00:00.000Z"
+    finally:
+        monkeypatch.undo()
+        time.tzset()
