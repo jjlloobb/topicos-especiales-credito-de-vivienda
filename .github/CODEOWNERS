@@ -1,11 +1,11 @@
 # BR-U0-94: cambiar la lista exige la aprobacion de cumplimiento.
-# Hasta que exista un equipo de cumplimiento en GitHub, la revisa el dueno del repositorio.
-vectra-risk/contracts/forbidden-phrases.yaml @jjlloobb
+# Hasta que exista un equipo de cumplimiento en GitHub, la revisan estas dos personas.
+vectra-risk/contracts/forbidden-phrases.yaml @jjlloobb @joseluisjedi
 
 # Separacion de funciones en un solo repositorio (revision de consistencia, 2026-11-01). Hasta que existan los equipos
-# del banco, revisa el dueno; con los equipos, cada regla pasa al suyo y se exige su revision en la rama protegida.
-vectra-risk/vectra-risk-gitops/ @jjlloobb
-vectra-risk/platform/policies/ @jjlloobb
-vectra-risk/system-verification/evidence/ @jjlloobb
-**/values-monitoring-policy.yaml @jjlloobb
-**/values-product-metrics-policy.yaml @jjlloobb
+# del banco, revisan estas dos personas; con los equipos, cada regla pasa al suyo y se exige su revision en la rama protegida.
+vectra-risk/vectra-risk-gitops/ @jjlloobb @joseluisjedi
+vectra-risk/platform/policies/ @jjlloobb @joseluisjedi
+vectra-risk/system-verification/evidence/ @jjlloobb @joseluisjedi
+**/values-monitoring-policy.yaml @jjlloobb @joseluisjedi
+**/values-product-metrics-policy.yaml @jjlloobb @joseluisjedi

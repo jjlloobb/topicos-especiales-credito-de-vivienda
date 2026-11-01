@@ -3934,3 +3934,18 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Después de fusionar el PR 1. Sin acceso a clústeres.
 
 ---
+
+## Protección de main aplicada, PR 2 sin fusionar
+**Timestamp**: 2026-11-01T07:13:19Z
+**AI Response**: Se aplicó la protección de `main` (checks, revisión de code owners, sin force push ni borrado; `enforce_admins` apagado). El sistema de permisos denegó fusionar el PR 2 sin revisión, así que queda abierto para que lo fusione el usuario. No se intentó otra vía.
+**Context**: PR https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda/pull/2
+
+---
+
+## Nuevo code owner
+**Timestamp**: 2026-11-01T07:18:29Z
+**User Input**: "add this username as CODEOWNER joseluisjedi"
+**AI Response**: Se agrega @joseluisjedi a todas las reglas de `.github/CODEOWNERS` en el PR 2. La cuenta existe, pero no es colaboradora del repositorio: sin permiso de escritura, GitHub no la tiene en cuenta como dueña. No se le dio acceso; lo decide el usuario.
+**Context**: PR https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda/pull/2
+
+---
