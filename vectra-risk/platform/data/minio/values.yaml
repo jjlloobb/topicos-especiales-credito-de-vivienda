@@ -1,8 +1,8 @@
 # MinIO distribuido (INF-U1-03; NFR-U1-30). Con una zona caida se lee, pero no se escribe (MinioWriteQuorumLost).
 mode: distributed
 # Imagenes propias (ver Dockerfile); el digest se reemplaza al publicarlas.
-image: { repository: registro.vectra.internal/minio, tag: "RELEASE.2025-10-15T17-29-55Z@sha256:0000000000000000000000000000000000000000000000000000000000000000" }
-mcImage: { repository: registro.vectra.internal/mc, tag: "RELEASE.2025-08-13T08-35-41Z@sha256:0000000000000000000000000000000000000000000000000000000000000000" }
+image: { repository: registro.vectra.internal/minio, tag: "RELEASE.2025-10-15T17-29-55Z@sha256:639cf7c92dbabea8fb8bc19479051182340f16f74e605154d32ddd38a6d0fba8" }
+mcImage: { repository: registro.vectra.internal/mc, tag: "RELEASE.2025-08-13T08-35-41Z@sha256:14a8a8b3e3cc7989195f2a697aa6ee9e75cee58d83a9f60305e2490ae79325e2" }
 replicas: 4
 pools: 1
 drivesPerNode: 1
