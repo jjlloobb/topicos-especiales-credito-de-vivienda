@@ -1,0 +1,7 @@
+# staging: S3 del banco fuera del sitio (F75). El tamano del volumen sale del origen (restore-cluster.sh).
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: restore-drill-config, namespace: vectra-restore-drill }
+data:
+  BACKUP_DESTINATION: s3://vectra-backups
+  BACKUP_ENDPOINT: https://s3.banco.internal

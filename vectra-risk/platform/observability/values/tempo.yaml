@@ -1,0 +1,37 @@
+# INF-U1-07: modo distribuido minimo, 7 dias. Credenciales de S3 por el entorno, desde `tempo-s3`.
+fullnameOverride: tempo
+global:
+  commonLabels: { vectra.io/criticality: medium }
+  priorityClassName: vectra-normal
+  extraEnvFrom: [{ secretRef: { name: tempo-s3 } }]
+serviceAccount: { create: true, name: tempo }
+memcached: { enabled: false }
+memcachedExporter: { enabled: false }
+tempo:
+  image: { tag: "2.9.0@sha256:65a5789759435f1ef696f1953258b9bbdb18eb571d5ce711ff812d2e128288a4" }
+  podSecurityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: { type: RuntimeDefault } }
+  securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+  structuredConfig:
+    cache: { caches: [] }
+compactor:
+  config:
+    compaction: { block_retention: 168h }
+  resources: &small
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+distributor: { resources: *small }
+querier: { resources: *small }
+queryFrontend: { resources: *small }
+ingester:
+  labels: { vectra.io/criticality: medium }
+  # RF 3, quorum 2: se puede perder un ingester sin dejar de escribir. Con RF 2 el quorum es 2 y no tolera ninguna baja.
+  replicas: 3
+  config: { replication_factor: 3 }
+  resources: *small
+storage:
+  trace:
+    backend: s3
+    s3: { bucket: tempo, endpoint: "minio.vectra-data.svc:9000", insecure: true }
+traces:
+  otlp:
+    grpc: { enabled: true }

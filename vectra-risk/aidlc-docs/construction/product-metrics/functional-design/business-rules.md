@@ -42,7 +42,7 @@ las `explanation_view` confirmadas antes de la decisión (BR-U8-19); U11 no la r
 
 **BR-U11-06 — Respuesta completa y fail-closed** (Q4; FR-MET-03). Recording rules de U11 sobre
 las métricas de U7, sin leer el registro:
-- `vectra:product_complete_response_ratio:1h` y `:1d` = `recommendation` / (`recommendation` + `fail_closed`) de `vectra_recommendations_total`, por intento. Toda `recommendation` lleva su explicación (BR-U0-01..08), así que la razón mide cuántas solicitudes llegan a una respuesta completa. Target: 100 %.
+- `vectra:product_complete_response_ratio:1h` y `:1d` = (`outcome` distinto de `fail_closed`) / (todos los `outcome`) de `vectra_recommendations_total`, por intento. U7 emite `favorable`, `desfavorable`, `revision_requerida` y `fail_closed`, sin un valor `recommendation` (cuarta revisión de coherencia entre unidades, 2026-10-31). Toda `recommendation` lleva su explicación (BR-U0-01..08), así que la razón mide cuántas solicitudes llegan a una respuesta completa. Target: 100 %.
 - `vectra:product_desync_failclosed:rate1h` = tasa de `vectra_scoring_failclosed_total` con las causas de la categoría `desincronia` del catálogo de U0 (hoy `version_mismatch` y `feature_dictionary_incomplete`; §7, cambio a U0). La regla **no** se escribe a mano: `product-metrics/tools/gen_rules.py` la genera desde `vectra_contracts.catalog.FailClosedCause` y CI corre `gen_rules.py --check`, que falla si la regla versionada difiere de la generada. Así, si U0 agrega o recategoriza una causa, el build de U11 falla en lugar de desfasarse en silencio (revisión del FD de U11, 2026-10-10).
 
 **BR-U11-07 — Métrica de ruido** (Q5; FR-MET-02, US-504).
@@ -67,7 +67,7 @@ las métricas de U7, sin leer el registro:
 
 **BR-U11-09 — Parámetros y targets** (Q5, Q9).
 - Un archivo `values-product-metrics-policy.yaml` del chart contiene F, S y N, y los targets del PRD §10: 100 % de respuesta completa, < 1 h en el 80 %, > 70 % sostenidas al mes 6 y la North Star «sin target acordado». Todos marcados **[INTERNO]**.
-- `CODEOWNERS` del monorepo y de GitOps lo asignan a los equipos de producto y de riesgo, con la protección de rama de U4 (`branch-protection-check`).
+- `.github/CODEOWNERS`, el único del monorepo, lo asigna con una regla de ruta (revisión de consistencia entre unidades, 2026-11-01) a los equipos de producto y de riesgo, con la protección de rama de U4 (`branch-protection-check`).
 - Rangos validados por `conftest`: 0 < F < 1, 1 ≤ S ≤ 14, N ≥ 30, targets entre 0 y 1 o en horas > 0.
 - El dashboard dibuja los targets como líneas de referencia; un target sin definir se muestra como «sin target acordado».
 

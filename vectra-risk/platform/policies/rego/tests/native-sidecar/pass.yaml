@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: con-sidecar }
+spec:
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+---
+apiVersion: batch/v1
+kind: Job
+metadata: { name: con-sidecar-job }
+spec:
+  template:
+    metadata:
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"

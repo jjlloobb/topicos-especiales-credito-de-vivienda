@@ -1,0 +1,191 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: kyverno
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: kyverno
+spec:
+  egress:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F125
+  name: allow-f125-same-namespace-ingress
+  namespace: kyverno
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kyverno
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F125
+  name: allow-f125-same-namespace-egress
+  namespace: kyverno
+spec:
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kyverno
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F126
+  name: allow-f126-k8s-api
+  namespace: kyverno
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.0/16
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F127
+  name: allow-f127-webhooks
+  namespace: kyverno
+spec:
+  ingress:
+  - ports:
+    - port: 9443
+      protocol: TCP
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F128
+  name: allow-f128-to-kyverno-ingress
+  namespace: kyverno
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - port: 8000
+      protocol: TCP
+    - port: 9402
+      protocol: TCP
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F76
+  name: allow-f76-kyverno-admission-to-registro-egress
+  namespace: kyverno
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: kyverno
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F85
+  name: allow-f85-to-kyverno-admission-ingress
+  namespace: kyverno
+spec:
+  ingress:
+  - ports:
+    - port: 9443
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: kyverno
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: K10
+  name: allow-k8s-api-k10
+  namespace: kyverno
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.0/16
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: kyverno
+  policyTypes:
+  - Egress

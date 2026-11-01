@@ -1,0 +1,10 @@
+# Solo kind: una replica de cada rol, y por eso factor de replicacion 1 (con 3 no habria quorum).
+loki:
+  commonConfig: { replication_factor: 1 }
+backend: &component
+  replicas: 1
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+read: *component
+write: *component

@@ -1,0 +1,1053 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: vectra-edge
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F01
+  name: allow-f01-to-api-gateway-ingress
+  namespace: vectra-edge
+spec:
+  ingress:
+  - ports:
+    - port: 10443
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F02
+  name: allow-f02-api-gateway-to-console-spa-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: console-spa
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F02
+  name: allow-f02-to-console-spa-ingress
+  namespace: vectra-edge
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: api-gateway
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: console-spa
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: console-spa-8080
+  namespace: vectra-edge
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: console-spa
+  port: 8080
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f02-console-spa-8080-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - api-gateway.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f02-console-spa-8080
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f02-console-spa-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: console-spa-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F03
+  name: allow-f03-api-gateway-to-console-bff-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: console-bff
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F04
+  name: allow-f04-api-gateway-to-case-service-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: case-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F05
+  name: allow-f05-api-gateway-to-keycloak-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F06
+  name: allow-f06-api-gateway-to-grafana-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 3000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F08
+  name: allow-f08-to-api-gateway-ingress
+  namespace: vectra-edge
+spec:
+  ingress:
+  - ports:
+    - port: 10443
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F08
+  name: allow-f08-api-gateway-to-governance-service-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: governance-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F50
+  name: allow-f50-api-gateway-to-keycloak-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-to-vectra-edge-ingress
+  namespace: vectra-edge
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - port: 8081
+      protocol: TCP
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: metrics-8081
+  namespace: vectra-edge
+spec:
+  podSelector: {}
+  port: 8081
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f60-metrics-8081-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - prometheus.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f60-metrics-8081
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f60-metrics-8081-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: metrics-8081
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F61
+  name: allow-f61-vectra-edge-to-opentelemetry-collector-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 4317
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: opentelemetry-collector
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F83
+  name: allow-f83-vectra-edge-to-linkerd-control-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 8086
+      protocol: TCP
+    - port: 8080
+      protocol: TCP
+    - port: 8090
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: linkerd
+      podSelector:
+        matchLabels:
+          linkerd.io/control-plane-ns: linkerd
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F90
+  name: allow-f90-api-gateway-to-rate-limit-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 8083
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: rate-limit
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F90
+  name: allow-f90-to-rate-limit-ingress
+  namespace: vectra-edge
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: api-gateway
+    ports:
+    - port: 8083
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: rate-limit
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: rate-limit-8083
+  namespace: vectra-edge
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: rate-limit
+  port: 8083
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f90-rate-limit-8083-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - api-gateway.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f90-rate-limit-8083
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f90-rate-limit-8083-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: rate-limit-8083
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F91
+  name: allow-f91-rate-limit-to-valkey-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 26379
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: valkey
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: rate-limit
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F91
+  name: allow-f91-to-valkey-ingress
+  namespace: vectra-edge
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: rate-limit
+    ports:
+    - port: 26379
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: valkey-26379
+  namespace: vectra-edge
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  port: 26379
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f91-valkey-26379-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - rate-limit.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f91-valkey-26379
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f91-valkey-26379-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: valkey-26379
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: valkey-6379
+  namespace: vectra-edge
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  port: 6379
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f91-valkey-6379-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - rate-limit.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f91-valkey-6379
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f91-valkey-6379-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: valkey-6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F91
+  name: allow-f91-rate-limit-to-sentinel-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 26379
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: sentinel
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: rate-limit
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F91
+  name: allow-f91-to-sentinel-ingress
+  namespace: vectra-edge
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: rate-limit
+    ports:
+    - port: 26379
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sentinel
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: sentinel-26379
+  namespace: vectra-edge
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sentinel
+  port: 26379
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f91-sentinel-26379-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - rate-limit.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f91-sentinel-26379
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f91-sentinel-26379-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: sentinel-26379
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: sentinel-6379
+  namespace: vectra-edge
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sentinel
+  port: 6379
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f91-sentinel-6379-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - rate-limit.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f91-sentinel-6379
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f91-sentinel-6379-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: sentinel-6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F92
+  name: allow-f92-valkey-to-valkey-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 6379
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: valkey
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F92
+  name: allow-f92-to-valkey-ingress
+  namespace: vectra-edge
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: valkey
+    ports:
+    - port: 6379
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f92-valkey-6379-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - valkey.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f92-valkey-6379
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f92-valkey-6379-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: valkey-6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F93
+  name: allow-f93-sentinel-to-valkey-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 6379
+      protocol: TCP
+    - port: 26379
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: valkey
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sentinel
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F93
+  name: allow-f93-to-valkey-ingress
+  namespace: vectra-edge
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: sentinel
+    ports:
+    - port: 6379
+      protocol: TCP
+    - port: 26379
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f93-valkey-6379-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - sentinel.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f93-valkey-6379
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f93-valkey-6379-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: valkey-6379
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f93-valkey-26379-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - sentinel.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f93-valkey-26379
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f93-valkey-26379-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: valkey-26379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F93
+  name: allow-f93-sentinel-to-sentinel-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 6379
+      protocol: TCP
+    - port: 26379
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: sentinel
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sentinel
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F93
+  name: allow-f93-to-sentinel-ingress
+  namespace: vectra-edge
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: sentinel
+    ports:
+    - port: 6379
+      protocol: TCP
+    - port: 26379
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sentinel
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f93-sentinel-6379-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - sentinel.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f93-sentinel-6379
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f93-sentinel-6379-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: sentinel-6379
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f93-sentinel-26379-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - sentinel.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f93-sentinel-26379
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f93-sentinel-26379-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: sentinel-26379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F95
+  name: allow-f95-api-gateway-to-envoy-gateway-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 18000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: envoy-gateway-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: envoy-gateway
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  policyTypes:
+  - Egress

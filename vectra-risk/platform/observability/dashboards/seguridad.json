@@ -1,0 +1,50 @@
+{
+  "uid": "vectra-seguridad",
+  "title": "Seguridad",
+  "folderUid": "vectra-operacion",
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Denegaciones",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (code) (rate(vectra_authz_denied_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Campos de log descartados",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(vectra_log_fields_dropped_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      }
+    }
+  ]
+}

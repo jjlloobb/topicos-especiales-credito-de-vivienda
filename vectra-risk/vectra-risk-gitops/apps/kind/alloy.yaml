@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '4'
+spec:
+  project: vectra-kind
+  sources:
+  - repoURL: https://grafana.github.io/helm-charts
+    chart: alloy
+    targetRevision: 1.15.0
+    helm:
+      valueFiles:
+      - $values/vectra-risk/platform/observability/values/alloy.yaml
+      - $values/vectra-risk/platform/observability/values/alloy-kind.yaml
+  - repoURL: https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda.git
+    targetRevision: main
+    ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-observability
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

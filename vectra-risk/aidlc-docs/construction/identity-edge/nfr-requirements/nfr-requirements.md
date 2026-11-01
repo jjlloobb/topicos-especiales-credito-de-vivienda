@@ -12,7 +12,7 @@ Los IDs `NFR-U2-xx` se referencian en NFR Design, Infrastructure Design y el pla
 
 | ID | Requisito | Verificación |
 |---|---|---|
-| NFR-U2-01 | Keycloak: 2 réplicas repartidas por zona, PDB y HPA de 2 a 4 por CPU; clúster Infinispan embebido con descubrimiento `jdbc-ping` sobre `keycloak-db` | `helm template` + `conftest` (réplicas, spread, PDB, HPA, `cache-stack`) |
+| NFR-U2-01 | Keycloak: 2 réplicas repartidas por zona, PDB y HPA de 2 a 4 por CPU; clúster Infinispan embebido con descubrimiento `jdbc-ping` sobre `keycloak-db` (tráfico entre réplicas por F117) | `helm template` + `conftest` (réplicas, spread, PDB, HPA, `cache-stack`) |
 | NFR-U2-02 | **Sesiones de usuario persistentes** en `keycloak-db`: perder un pod o una zona no cierra las sesiones activas | En kind: login → borrar el pod que atendió la sesión → el refresh sigue funcionando |
 | NFR-U2-03 | Envoy (data plane): ≥ 2 réplicas repartidas por zona, PDB y HPA de 2 a 6 por CPU. Controlador de Envoy Gateway: 2 réplicas con elección de líder | `helm template` + `conftest` |
 | NFR-U2-04 | Si el controlador de Envoy Gateway cae, el data plane sigue sirviendo con la última configuración | En kind: escalar el controlador a 0 → las rutas siguen respondiendo |

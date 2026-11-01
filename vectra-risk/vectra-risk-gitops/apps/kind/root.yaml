@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
+spec:
+  project: vectra-kind
+  source:
+    repoURL: https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda.git
+    targetRevision: main
+    path: vectra-risk/vectra-risk-gitops/apps/kind
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

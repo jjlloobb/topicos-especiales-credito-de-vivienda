@@ -1,0 +1,9 @@
+# espera: sin topologySpreadConstraints por zona
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: sin-reparto, namespace: vectra-app }
+spec:
+  template:
+    spec:
+      topologySpreadConstraints:
+        - topologyKey: kubernetes.io/hostname

@@ -1,0 +1,4299 @@
+components:
+  schemas:
+    Actor:
+      additionalProperties: false
+      properties:
+        acr:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Acr
+        auth_time:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Auth Time
+        id:
+          title: Id
+          type: string
+        kind:
+          enum:
+          - user
+          - service
+          - system
+          title: Kind
+          type: string
+        role:
+          anyOf:
+          - $ref: '#/components/schemas/Role'
+          - type: 'null'
+          default: null
+      required:
+      - kind
+      - id
+      title: Actor
+      type: object
+    AffectedVolume:
+      additionalProperties: false
+      description: Recomendaciones de la versión en la ventana y cuántas fueron `favorable`
+        (U9 §3.1).
+      properties:
+        favorable:
+          minimum: 0
+          title: Favorable
+          type: integer
+        total:
+          minimum: 0
+          title: Total
+          type: integer
+      required:
+      - total
+      - favorable
+      title: AffectedVolume
+      type: object
+    ApplicantFactor:
+      additionalProperties: false
+      properties:
+        direction:
+          enum:
+          - aumenta
+          - reduce
+          title: Direction
+          type: string
+        label_es:
+          title: Label Es
+          type: string
+      required:
+      - label_es
+      - direction
+      title: ApplicantFactor
+      type: object
+    ApplicantSummary:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        factors:
+          items:
+            $ref: '#/components/schemas/ApplicantFactor'
+          title: Factors
+          type: array
+        generated_at:
+          format: date-time
+          title: Generated At
+          type: string
+        posthoc_notice:
+          title: Posthoc Notice
+          type: string
+      required:
+      - case_id
+      - factors
+      - posthoc_notice
+      - generated_at
+      title: ApplicantSummary
+      type: object
+    ApplicationIn:
+      additionalProperties: false
+      properties:
+        address:
+          maxLength: 300
+          title: Address
+          type: string
+        birth_date:
+          format: date
+          title: Birth Date
+          type: string
+        broker_id:
+          anyOf:
+          - maxLength: 40
+            type: string
+          - type: 'null'
+          default: null
+          title: Broker Id
+        channel:
+          maxLength: 40
+          title: Channel
+          type: string
+        department_code:
+          pattern: ^\d{2}$
+          title: Department Code
+          type: string
+        document_number:
+          maxLength: 15
+          title: Document Number
+          type: string
+        document_type:
+          enum:
+          - CC
+          - CE
+          - PA
+          - PPT
+          title: Document Type
+          type: string
+        email:
+          maxLength: 254
+          title: Email
+          type: string
+        employment_months:
+          maximum: 720
+          minimum: 0
+          title: Employment Months
+          type: integer
+        employment_type:
+          enum:
+          - asalariado
+          - independiente
+          - pensionado
+          title: Employment Type
+          type: string
+        free_text:
+          anyOf:
+          - maxLength: 2000
+            type: string
+          - type: 'null'
+          default: null
+          title: Free Text
+        full_name:
+          maxLength: 200
+          title: Full Name
+          type: string
+        max_days_past_due_12m:
+          maximum: 365
+          minimum: 0
+          title: Max Days Past Due 12M
+          type: integer
+        monthly_income:
+          maximum: 1000000000000
+          minimum: 0
+          title: Monthly Income
+          type: integer
+        monthly_obligations:
+          maximum: 1000000000000
+          minimum: 0
+          title: Monthly Obligations
+          type: integer
+        municipality_code:
+          pattern: ^\d{5}$
+          title: Municipality Code
+          type: string
+        other_income:
+          maximum: 1000000000000
+          minimum: 0
+          title: Other Income
+          type: integer
+        phone:
+          maxLength: 20
+          title: Phone
+          type: string
+        property_condition:
+          enum:
+          - nueva
+          - usada
+          title: Property Condition
+          type: string
+        property_value:
+          maximum: 1000000000000
+          minimum: 0
+          title: Property Value
+          type: integer
+        proposed_rate_ea:
+          pattern: ^-?\d+\.\d{4}$
+          title: Proposed Rate Ea
+          type: string
+        requested_amount:
+          maximum: 1000000000000
+          minimum: 0
+          title: Requested Amount
+          type: integer
+        sex:
+          default: no_informado
+          enum:
+          - F
+          - M
+          - no_informado
+          title: Sex
+          type: string
+        socioeconomic_stratum:
+          default: no_informado
+          enum:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - no_informado
+          title: Socioeconomic Stratum
+          type: string
+        term_months:
+          maximum: 360
+          minimum: 12
+          title: Term Months
+          type: integer
+      required:
+      - full_name
+      - document_type
+      - document_number
+      - birth_date
+      - phone
+      - email
+      - address
+      - municipality_code
+      - department_code
+      - monthly_income
+      - other_income
+      - employment_type
+      - employment_months
+      - monthly_obligations
+      - max_days_past_due_12m
+      - property_value
+      - requested_amount
+      - term_months
+      - proposed_rate_ea
+      - property_condition
+      - channel
+      title: ApplicationIn
+      type: object
+    ApplicationView:
+      additionalProperties: false
+      description: '`ApplicationIn` sin identificacion y sin etiquetas de monitoreo
+        (§1.2).'
+      properties:
+        broker_id:
+          anyOf:
+          - maxLength: 40
+            type: string
+          - type: 'null'
+          default: null
+          title: Broker Id
+        channel:
+          maxLength: 40
+          title: Channel
+          type: string
+        department_code:
+          pattern: ^\d{2}$
+          title: Department Code
+          type: string
+        employment_months:
+          maximum: 720
+          minimum: 0
+          title: Employment Months
+          type: integer
+        employment_type:
+          enum:
+          - asalariado
+          - independiente
+          - pensionado
+          title: Employment Type
+          type: string
+        free_text:
+          anyOf:
+          - maxLength: 2000
+            type: string
+          - type: 'null'
+          default: null
+          title: Free Text
+        max_days_past_due_12m:
+          maximum: 365
+          minimum: 0
+          title: Max Days Past Due 12M
+          type: integer
+        monthly_income:
+          maximum: 1000000000000
+          minimum: 0
+          title: Monthly Income
+          type: integer
+        monthly_obligations:
+          maximum: 1000000000000
+          minimum: 0
+          title: Monthly Obligations
+          type: integer
+        other_income:
+          maximum: 1000000000000
+          minimum: 0
+          title: Other Income
+          type: integer
+        property_condition:
+          enum:
+          - nueva
+          - usada
+          title: Property Condition
+          type: string
+        property_value:
+          maximum: 1000000000000
+          minimum: 0
+          title: Property Value
+          type: integer
+        proposed_rate_ea:
+          pattern: ^-?\d+\.\d{4}$
+          title: Proposed Rate Ea
+          type: string
+        requested_amount:
+          maximum: 1000000000000
+          minimum: 0
+          title: Requested Amount
+          type: integer
+        term_months:
+          maximum: 360
+          minimum: 12
+          title: Term Months
+          type: integer
+      required:
+      - department_code
+      - monthly_income
+      - other_income
+      - employment_type
+      - employment_months
+      - monthly_obligations
+      - max_days_past_due_12m
+      - property_value
+      - requested_amount
+      - term_months
+      - proposed_rate_ea
+      - property_condition
+      - channel
+      title: ApplicationView
+      type: object
+    AttributeDelta:
+      additionalProperties: false
+      properties:
+        attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Attribute
+          type: string
+        delta:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Delta
+      required:
+      - attribute
+      title: AttributeDelta
+      type: object
+    AttributeResult:
+      additionalProperties: false
+      properties:
+        aggregate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Aggregate
+        aggregate_ci_95:
+          anyOf:
+          - items:
+              pattern: ^-?\d+\.\d{4}$
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: Aggregate Ci 95
+        attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Attribute
+          type: string
+        bands:
+          items:
+            $ref: '#/components/schemas/BandResult'
+          title: Bands
+          type: array
+        cells:
+          items:
+            $ref: '#/components/schemas/CellResult'
+          title: Cells
+          type: array
+        population_difference:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Population Difference
+        population_difference_partial:
+          title: Population Difference Partial
+          type: boolean
+      required:
+      - attribute
+      - cells
+      - bands
+      - population_difference_partial
+      title: AttributeResult
+      type: object
+    BandResult:
+      additionalProperties: false
+      properties:
+        band:
+          enum:
+          - lt_20
+          - '20_30'
+          - gt_30
+          title: Band
+          type: string
+        ci_95:
+          anyOf:
+          - items:
+              pattern: ^-?\d+\.\d{4}$
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: Ci 95
+        difference:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Difference
+        extreme_pair:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: Extreme Pair
+        n_band:
+          minimum: 0
+          title: N Band
+          type: integer
+      required:
+      - band
+      - n_band
+      title: BandResult
+      type: object
+    CaseDetail:
+      additionalProperties: false
+      properties:
+        anonymized:
+          title: Anonymized
+          type: boolean
+        applicant_display:
+          title: Applicant Display
+          type: string
+        application:
+          $ref: '#/components/schemas/ApplicationView'
+        attempts:
+          title: Attempts
+          type: integer
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        channel:
+          maxLength: 40
+          title: Channel
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        credit_status:
+          anyOf:
+          - $ref: '#/components/schemas/CreditStatus'
+          - type: 'null'
+          default: null
+        decision:
+          anyOf:
+          - $ref: '#/components/schemas/DecisionView'
+          - type: 'null'
+          default: null
+        identifiers:
+          anyOf:
+          - $ref: '#/components/schemas/CaseIdentifierGroup'
+          - type: 'null'
+          default: null
+        last_cause:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Last Cause
+        model_frozen_after_recommendation:
+          title: Model Frozen After Recommendation
+          type: boolean
+        outcome:
+          anyOf:
+          - $ref: '#/components/schemas/Outcome'
+          - type: 'null'
+          default: null
+        recommendation:
+          anyOf:
+          - $ref: '#/components/schemas/Recommendation'
+          - type: 'null'
+          default: null
+        recommendation_entry_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Recommendation Entry Id
+        score:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Score
+        state:
+          $ref: '#/components/schemas/CaseState'
+      required:
+      - case_id
+      - state
+      - channel
+      - created_at
+      - applicant_display
+      - application
+      - model_frozen_after_recommendation
+      - anonymized
+      - attempts
+      title: CaseDetail
+      type: object
+    CaseFilter:
+      additionalProperties: false
+      properties:
+        channel: &id001
+          anyOf:
+          - maxLength: 40
+            type: string
+          - type: 'null'
+          default: null
+          title: Channel
+        created_from: &id002
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Created From
+        created_to: &id003
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Created To
+        model_frozen_after_recommendation: &id004
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          title: Model Frozen After Recommendation
+        page: &id005
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+        page_size: &id006
+          default: 20
+          maximum: 100
+          minimum: 1
+          title: Page Size
+          type: integer
+        state: &id007
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/CaseState'
+            type: array
+          - type: 'null'
+          default: null
+          title: State
+      title: CaseFilter
+      type: object
+    CaseIdentifierGroup:
+      additionalProperties: false
+      description: 'Grupo de identificacion de §1.1: nunca sale al registro (BR-U0-95).'
+      properties:
+        address:
+          maxLength: 300
+          title: Address
+          type: string
+        birth_date:
+          format: date
+          title: Birth Date
+          type: string
+        document_number:
+          maxLength: 15
+          title: Document Number
+          type: string
+        document_type:
+          enum:
+          - CC
+          - CE
+          - PA
+          - PPT
+          title: Document Type
+          type: string
+        email:
+          maxLength: 254
+          title: Email
+          type: string
+        full_name:
+          maxLength: 200
+          title: Full Name
+          type: string
+        municipality_code:
+          pattern: ^\d{5}$
+          title: Municipality Code
+          type: string
+        phone:
+          maxLength: 20
+          title: Phone
+          type: string
+      required:
+      - full_name
+      - document_type
+      - document_number
+      - birth_date
+      - phone
+      - email
+      - address
+      - municipality_code
+      title: CaseIdentifierGroup
+      type: object
+    CaseRef:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        state:
+          $ref: '#/components/schemas/CaseState'
+      required:
+      - case_id
+      - state
+      title: CaseRef
+      type: object
+    CaseState:
+      enum:
+      - en_evaluacion
+      - listo
+      - en_sincronizacion
+      - no_disponible
+      - modelo_congelado
+      - decidido
+      - vencido
+      title: CaseState
+      type: string
+    CaseSummary:
+      additionalProperties: false
+      properties:
+        applicant_display:
+          title: Applicant Display
+          type: string
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        channel:
+          maxLength: 40
+          title: Channel
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        outcome:
+          anyOf:
+          - $ref: '#/components/schemas/Outcome'
+          - type: 'null'
+          default: null
+        score:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Score
+        state:
+          $ref: '#/components/schemas/CaseState'
+      required:
+      - case_id
+      - state
+      - channel
+      - created_at
+      - applicant_display
+      title: CaseSummary
+      type: object
+    CategoryFeature:
+      additionalProperties: false
+      properties:
+        type:
+          const: category
+          default: category
+          title: Type
+          type: string
+        value:
+          maxLength: 60
+          title: Value
+          type: string
+      required:
+      - value
+      title: CategoryFeature
+      type: object
+    CellResult:
+      additionalProperties: false
+      properties:
+        band:
+          enum:
+          - lt_20
+          - '20_30'
+          - gt_30
+          title: Band
+          type: string
+        group:
+          title: Group
+          type: string
+        n:
+          minimum: 0
+          title: N
+          type: integer
+        rate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Rate
+        status:
+          enum:
+          - suficiente
+          - muestra_insuficiente
+          title: Status
+          type: string
+      required:
+      - group
+      - band
+      - n
+      - status
+      title: CellResult
+      type: object
+    ChannelRule:
+      additionalProperties: false
+      properties:
+        channel:
+          title: Channel
+          type: string
+        cutoff:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Cutoff
+      required:
+      - channel
+      title: ChannelRule
+      type: object
+    CheckpointPayload:
+      additionalProperties: false
+      properties:
+        checkpoint_hash:
+          title: Checkpoint Hash
+          type: string
+        checkpoint_seq:
+          title: Checkpoint Seq
+          type: integer
+        key_fingerprint:
+          title: Key Fingerprint
+          type: string
+        signature:
+          title: Signature
+          type: string
+      required:
+      - checkpoint_seq
+      - checkpoint_hash
+      - signature
+      - key_fingerprint
+      title: CheckpointPayload
+      type: object
+    ClientErrorReport:
+      additionalProperties: false
+      properties:
+        app_version:
+          pattern: ^\d+\.\d+\.\d+$
+          title: App Version
+          type: string
+        correlation_id:
+          anyOf:
+          - pattern: ^[0-9a-f]{32}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Correlation Id
+        error_code:
+          enum:
+          - render_error
+          - chunk_load_failed
+          - unhandled_rejection
+          - api_contract_mismatch
+          - stepup_failed
+          - csp_violation
+          title: Error Code
+          type: string
+        route_template:
+          maxLength: 200
+          title: Route Template
+          type: string
+      required:
+      - error_code
+      - route_template
+      - app_version
+      title: ClientErrorReport
+      type: object
+    ConsoleDossier:
+      additionalProperties: false
+      properties:
+        anonymized:
+          title: Anonymized
+          type: boolean
+        dossier:
+          $ref: '#/components/schemas/RegistryDossier'
+        identifiers:
+          anyOf:
+          - $ref: '#/components/schemas/CaseIdentifierGroup'
+          - type: 'null'
+          default: null
+        identifiers_unavailable:
+          title: Identifiers Unavailable
+          type: boolean
+      required:
+      - dossier
+      - identifiers_unavailable
+      - anonymized
+      title: ConsoleDossier
+      type: object
+    CreditStatus:
+      enum:
+      - en_estudio
+      - aprobado
+      - desembolsado
+      - rechazado
+      - cancelado
+      - sin_credito
+      - no_disponible
+      - no_integrado
+      title: CreditStatus
+      type: string
+    DataSource:
+      additionalProperties: false
+      properties:
+        decided_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Decided By
+        description:
+          title: Description
+          type: string
+        ds_id:
+          title: Ds Id
+          type: string
+        name:
+          title: Name
+          type: string
+        owner:
+          title: Owner
+          type: string
+        pre_post_report:
+          anyOf:
+          - $ref: '#/components/schemas/PrePostReport'
+          - type: 'null'
+          default: null
+        proposed_by:
+          title: Proposed By
+          type: string
+        provides_features:
+          items:
+            type: string
+          title: Provides Features
+          type: array
+        state:
+          enum:
+          - propuesta
+          - en_evaluacion
+          - aprobada
+          - rechazada
+          title: State
+          type: string
+      required:
+      - name
+      - description
+      - provides_features
+      - owner
+      - ds_id
+      - proposed_by
+      - state
+      title: DataSource
+      type: object
+    DataSourceDecisionIn:
+      additionalProperties: false
+      properties:
+        decision:
+          enum:
+          - aprobada
+          - rechazada
+          title: Decision
+          type: string
+        justification:
+          anyOf:
+          - maxLength: 2000
+            type: string
+          - type: 'null'
+          default: null
+          title: Justification
+      required:
+      - decision
+      title: DataSourceDecisionIn
+      type: object
+    DataSourceEventPayload:
+      additionalProperties: false
+      properties:
+        event:
+          enum:
+          - propuesta
+          - evaluacion_iniciada
+          - aprobada
+          - rechazada
+          title: Event
+          type: string
+        pre_post_report:
+          anyOf:
+          - $ref: '#/components/schemas/PrePostReport'
+          - type: 'null'
+          default: null
+        source_id:
+          title: Source Id
+          type: string
+      required:
+      - event
+      - source_id
+      title: DataSourceEventPayload
+      type: object
+    DataSourceProposal:
+      additionalProperties: false
+      properties:
+        description:
+          title: Description
+          type: string
+        name:
+          title: Name
+          type: string
+        owner:
+          title: Owner
+          type: string
+        provides_features:
+          items:
+            type: string
+          title: Provides Features
+          type: array
+      required:
+      - name
+      - description
+      - provides_features
+      - owner
+      title: DataSourceProposal
+      type: object
+    DayRange:
+      additionalProperties: false
+      properties:
+        from_day:
+          format: date
+          title: From Day
+          type: string
+        to_day:
+          format: date
+          title: To Day
+          type: string
+      required:
+      - from_day
+      - to_day
+      title: DayRange
+      type: object
+    DecimalFeature:
+      additionalProperties: false
+      properties:
+        type:
+          const: decimal
+          default: decimal
+          title: Type
+          type: string
+        value:
+          pattern: ^-?\d+(\.\d+)?$
+          title: Value
+          type: string
+      required:
+      - value
+      title: DecimalFeature
+      type: object
+    Decision:
+      enum:
+      - sigue
+      - se_aparta
+      - resuelve_revision
+      title: Decision
+      type: string
+    DecisionIn:
+      additionalProperties: false
+      properties:
+        decision:
+          $ref: '#/components/schemas/Decision'
+        final_outcome:
+          $ref: '#/components/schemas/FinalOutcome'
+        justification:
+          maxLength: 2000
+          title: Justification
+          type: string
+        used_factors:
+          items:
+            type: string
+          title: Used Factors
+          type: array
+      required:
+      - decision
+      - final_outcome
+      - used_factors
+      - justification
+      title: DecisionIn
+      type: object
+    DecisionRef:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        recorded_at:
+          format: date-time
+          title: Recorded At
+          type: string
+        registry_entry_id:
+          title: Registry Entry Id
+          type: string
+      required:
+      - case_id
+      - registry_entry_id
+      - recorded_at
+      title: DecisionRef
+      type: object
+    DecisionView:
+      additionalProperties: false
+      properties:
+        decided_at:
+          format: date-time
+          title: Decided At
+          type: string
+        decided_by:
+          title: Decided By
+          type: string
+        decision:
+          $ref: '#/components/schemas/Decision'
+        final_outcome:
+          $ref: '#/components/schemas/FinalOutcome'
+        justification:
+          title: Justification
+          type: string
+        used_factors:
+          items:
+            type: string
+          title: Used Factors
+          type: array
+      required:
+      - decision
+      - final_outcome
+      - used_factors
+      - justification
+      - decided_at
+      - decided_by
+      title: DecisionView
+      type: object
+    DepartureRate:
+      additionalProperties: false
+      properties:
+        band:
+          enum:
+          - lt_20
+          - '20_30'
+          - gt_30
+          title: Band
+          type: string
+        group:
+          title: Group
+          type: string
+        rate:
+          pattern: ^-?\d+\.\d{4}$
+          title: Rate
+          type: string
+      required:
+      - group
+      - band
+      - rate
+      title: DepartureRate
+      type: object
+    DisparityFilter:
+      additionalProperties: false
+      description: 'BR-U9-18: versión, atributo y ventana. Sin versión, bias usa la
+        más reciente.'
+      properties:
+        attribute: &id009
+          anyOf:
+          - enum:
+            - sexo
+            - rango_edad
+            - region
+            - estrato
+            type: string
+          - type: 'null'
+          default: null
+          title: Attribute
+        version: &id010
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Version
+        window: &id011
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Window
+      title: DisparityFilter
+      type: object
+    DisparityResult:
+      additionalProperties: false
+      properties:
+        attributes:
+          items:
+            $ref: '#/components/schemas/AttributeResult'
+          title: Attributes
+          type: array
+        departure_rates:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/DepartureRate'
+            type: array
+          - type: 'null'
+          default: null
+          title: Departure Rates
+        model_aggregate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Model Aggregate
+        model_version_id:
+          title: Model Version Id
+          type: string
+        population:
+          enum:
+          - modelo
+          - humana
+          title: Population
+          type: string
+        trigger_attribute:
+          anyOf:
+          - enum:
+            - sexo
+            - rango_edad
+            - region
+            - estrato
+            type: string
+          - type: 'null'
+          default: null
+          title: Trigger Attribute
+        window_from:
+          format: date
+          title: Window From
+          type: string
+        window_to:
+          format: date
+          title: Window To
+          type: string
+      required:
+      - population
+      - model_version_id
+      - window_from
+      - window_to
+      - attributes
+      title: DisparityResult
+      type: object
+    DisparityView:
+      additionalProperties: false
+      properties:
+        computed_at:
+          format: date-time
+          title: Computed At
+          type: string
+        disclaimer:
+          title: Disclaimer
+          type: string
+        human:
+          $ref: '#/components/schemas/DisparityResult'
+        invalid_entries:
+          title: Invalid Entries
+          type: integer
+        model:
+          $ref: '#/components/schemas/DisparityResult'
+        model_version_id:
+          title: Model Version Id
+          type: string
+        n_min:
+          title: N Min
+          type: integer
+        schedule:
+          title: Schedule
+          type: string
+        stale_after_s:
+          title: Stale After S
+          type: integer
+        threshold_pp:
+          pattern: ^-?\d+\.\d{4}$
+          title: Threshold Pp
+          type: string
+        window:
+          $ref: '#/components/schemas/DayRange'
+        window_days:
+          title: Window Days
+          type: integer
+      required:
+      - model_version_id
+      - window
+      - computed_at
+      - model
+      - human
+      - threshold_pp
+      - n_min
+      - window_days
+      - schedule
+      - stale_after_s
+      - invalid_entries
+      - disclaimer
+      title: DisparityView
+      type: object
+    DossierEntry:
+      additionalProperties: false
+      properties:
+        actor:
+          $ref: '#/components/schemas/Actor'
+        canonical:
+          title: Canonical
+          type: string
+        case_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          default: null
+          title: Case Id
+        contract_version:
+          title: Contract Version
+          type: string
+        correlation_id:
+          pattern: ^[0-9a-f]{32}$
+          title: Correlation Id
+          type: string
+        delivery_status:
+          anyOf:
+          - enum:
+            - entregada
+            - no_entregada
+            - pendiente_de_decision
+            type: string
+          - type: 'null'
+          default: null
+          title: Delivery Status
+        entry_type:
+          $ref: '#/components/schemas/EntryType'
+        hash:
+          title: Hash
+          type: string
+        idempotency_key:
+          format: uuid
+          title: Idempotency Key
+          type: string
+        model_version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Model Version Id
+        occurred_at:
+          format: date-time
+          title: Occurred At
+          type: string
+        payload:
+          anyOf:
+          - $ref: '#/components/schemas/RecommendationPayload'
+          - $ref: '#/components/schemas/FailClosedPayload'
+          - $ref: '#/components/schemas/HumanDecisionPayload'
+          - $ref: '#/components/schemas/ExplanationViewPayload'
+          - $ref: '#/components/schemas/ModelEventPayload'
+          - $ref: '#/components/schemas/PolicyEventPayload'
+          - $ref: '#/components/schemas/DataSourceEventPayload'
+          - $ref: '#/components/schemas/FreezePayload'
+          - $ref: '#/components/schemas/FrozenResolutionPayload'
+          - $ref: '#/components/schemas/GenesisPayload'
+          - $ref: '#/components/schemas/CheckpointPayload'
+          title: Payload
+        policy_version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Policy Version Id
+        prev_hash:
+          title: Prev Hash
+          type: string
+        recorded_at:
+          format: date-time
+          title: Recorded At
+          type: string
+        seq:
+          minimum: 0
+          title: Seq
+          type: integer
+      required:
+      - entry_type
+      - actor
+      - occurred_at
+      - correlation_id
+      - idempotency_key
+      - payload
+      - seq
+      - prev_hash
+      - hash
+      - recorded_at
+      - contract_version
+      - canonical
+      title: DossierEntry
+      type: object
+    EntryType:
+      enum:
+      - recommendation
+      - fail_closed
+      - human_decision
+      - explanation_view
+      - model_event
+      - policy_event
+      - data_source_event
+      - freeze
+      - frozen_resolution
+      - genesis
+      - checkpoint
+      title: EntryType
+      type: string
+    Explanation:
+      additionalProperties: false
+      properties:
+        base_value:
+          pattern: ^-?\d+(\.\d+)?$
+          title: Base Value
+          type: string
+        factuality_check:
+          const: passed
+          title: Factuality Check
+          type: string
+        feature_dictionary_version:
+          title: Feature Dictionary Version
+          type: string
+        method:
+          const: shap
+          title: Method
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        narrative:
+          maxLength: 4000
+          title: Narrative
+          type: string
+        narrative_generator:
+          title: Narrative Generator
+          type: string
+        posthoc_notice:
+          title: Posthoc Notice
+          type: string
+        shap_vector:
+          items:
+            $ref: '#/components/schemas/FeatureContribution'
+          title: Shap Vector
+          type: array
+      required:
+      - model_version_id
+      - method
+      - shap_vector
+      - base_value
+      - narrative
+      - narrative_generator
+      - feature_dictionary_version
+      - posthoc_notice
+      - factuality_check
+      title: Explanation
+      type: object
+    ExplanationViewPayload:
+      additionalProperties: false
+      properties:
+        recommendation_entry_id:
+          title: Recommendation Entry Id
+          type: string
+        viewed_at:
+          format: date-time
+          title: Viewed At
+          type: string
+      required:
+      - viewed_at
+      - recommendation_entry_id
+      title: ExplanationViewPayload
+      type: object
+    FailClosedCause:
+      description: En el orden de precedencia de BR-U0-02 (BR-U0-03).
+      enum:
+      - model_frozen
+      - serving_config_unavailable
+      - model_output_invalid
+      - timeout
+      - explainer_unavailable
+      - explainer_error
+      - version_mismatch
+      - feature_dictionary_incomplete
+      - factuality_failed
+      - registry_unavailable
+      title: FailClosedCause
+      type: string
+    FailClosedPayload:
+      additionalProperties: false
+      properties:
+        attempt:
+          minimum: 1
+          title: Attempt
+          type: integer
+        cause:
+          anyOf:
+          - $ref: '#/components/schemas/FailClosedCause'
+          - type: 'null'
+          default: null
+        escalated_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Escalated At
+        local_cause:
+          anyOf:
+          - $ref: '#/components/schemas/LocalCause'
+          - type: 'null'
+          default: null
+        retryable:
+          title: Retryable
+          type: boolean
+      required:
+      - retryable
+      - attempt
+      title: FailClosedPayload
+      type: object
+    FeatureContribution:
+      additionalProperties: false
+      properties:
+        contribution:
+          pattern: ^-?\d+(\.\d+)?$
+          title: Contribution
+          type: string
+        feature_id:
+          title: Feature Id
+          type: string
+        value:
+          discriminator:
+            mapping:
+              category: '#/components/schemas/CategoryFeature'
+              decimal: '#/components/schemas/DecimalFeature'
+              int: '#/components/schemas/IntFeature'
+            propertyName: type
+          oneOf:
+          - $ref: '#/components/schemas/DecimalFeature'
+          - $ref: '#/components/schemas/IntFeature'
+          - $ref: '#/components/schemas/CategoryFeature'
+          title: Value
+      required:
+      - feature_id
+      - value
+      - contribution
+      title: FeatureContribution
+      type: object
+    FeatureVector:
+      additionalProperties: false
+      properties:
+        features:
+          additionalProperties:
+            discriminator:
+              mapping:
+                category: '#/components/schemas/CategoryFeature'
+                decimal: '#/components/schemas/DecimalFeature'
+                int: '#/components/schemas/IntFeature'
+              propertyName: type
+            oneOf:
+            - $ref: '#/components/schemas/DecimalFeature'
+            - $ref: '#/components/schemas/IntFeature'
+            - $ref: '#/components/schemas/CategoryFeature'
+          title: Features
+          type: object
+      required:
+      - features
+      title: FeatureVector
+      type: object
+    FinalOutcome:
+      enum:
+      - favorable
+      - desfavorable
+      title: FinalOutcome
+      type: string
+    FreezeContextPackage:
+      additionalProperties: false
+      description: '`FreezeContext` mas lo que agrega governance (BR-U9-16).'
+      properties:
+        affected_volume:
+          $ref: '#/components/schemas/AffectedVolume'
+        after:
+          $ref: '#/components/schemas/DisparityResult'
+        before:
+          anyOf:
+          - $ref: '#/components/schemas/DisparityResult'
+          - const: sin_datos
+            type: string
+          title: Before
+        computed_at:
+          format: date-time
+          title: Computed At
+          type: string
+        data_sources:
+          items:
+            $ref: '#/components/schemas/JsonValue'
+          title: Data Sources
+          type: array
+        implicated:
+          items:
+            $ref: '#/components/schemas/JsonValue'
+          title: Implicated
+          type: array
+        initial_disparity:
+          $ref: '#/components/schemas/InitialDisparity'
+        last_7_days:
+          anyOf:
+          - $ref: '#/components/schemas/DisparityResult'
+          - const: sin_datos
+            type: string
+          title: Last 7 Days
+        library_version:
+          title: Library Version
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        n_min:
+          title: N Min
+          type: integer
+        schedule:
+          title: Schedule
+          type: string
+        stale_after_s:
+          title: Stale After S
+          type: integer
+        threshold_pp:
+          pattern: ^-?\d+\.\d{4}$
+          title: Threshold Pp
+          type: string
+        trigger_attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Trigger Attribute
+          type: string
+        truncated:
+          title: Truncated
+          type: boolean
+        window_days:
+          title: Window Days
+          type: integer
+        window_start:
+          format: date
+          title: Window Start
+          type: string
+      required:
+      - model_version_id
+      - computed_at
+      - threshold_pp
+      - n_min
+      - window_days
+      - schedule
+      - stale_after_s
+      - library_version
+      - window_start
+      - before
+      - after
+      - last_7_days
+      - trigger_attribute
+      - implicated
+      - affected_volume
+      - truncated
+      - data_sources
+      - initial_disparity
+      title: FreezeContextPackage
+      type: object
+    FreezePayload:
+      additionalProperties: false
+      properties:
+        context_package:
+          $ref: '#/components/schemas/FreezeContextPackage'
+        freeze_id:
+          title: Freeze Id
+          type: string
+        frozen_at:
+          format: date-time
+          title: Frozen At
+          type: string
+      required:
+      - freeze_id
+      - frozen_at
+      - context_package
+      title: FreezePayload
+      type: object
+    FreezeRecord:
+      additionalProperties: false
+      properties:
+        context_package:
+          $ref: '#/components/schemas/FreezeContextPackage'
+        freeze_id:
+          title: Freeze Id
+          type: string
+        frozen_at:
+          format: date-time
+          title: Frozen At
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        resolutions:
+          items:
+            $ref: '#/components/schemas/Resolution'
+          title: Resolutions
+          type: array
+      required:
+      - freeze_id
+      - model_version_id
+      - frozen_at
+      - context_package
+      - resolutions
+      title: FreezeRecord
+      type: object
+    FreezeSummary:
+      additionalProperties: false
+      properties:
+        freeze_id:
+          title: Freeze Id
+          type: string
+        frozen_at:
+          format: date-time
+          title: Frozen At
+          type: string
+        model_aggregate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Model Aggregate
+        model_version_id:
+          title: Model Version Id
+          type: string
+        resolution:
+          anyOf:
+          - $ref: '#/components/schemas/Resolution'
+          - type: 'null'
+          default: null
+        trigger_attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Trigger Attribute
+          type: string
+      required:
+      - freeze_id
+      - model_version_id
+      - frozen_at
+      - trigger_attribute
+      title: FreezeSummary
+      type: object
+    FrozenResolutionIn:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+          - reactivar
+          - descartar
+          - investigar
+          title: Action
+          type: string
+        justification:
+          maxLength: 2000
+          minLength: 1
+          title: Justification
+          type: string
+      required:
+      - action
+      - justification
+      title: FrozenResolutionIn
+      type: object
+    FrozenResolutionPayload:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+          - reactivar
+          - descartar
+          - investigar
+          title: Action
+          type: string
+        justification:
+          maxLength: 2000
+          title: Justification
+          type: string
+      required:
+      - action
+      - justification
+      title: FrozenResolutionPayload
+      type: object
+    GenesisPayload:
+      additionalProperties: false
+      properties:
+        checkpoint_key_fingerprint:
+          title: Checkpoint Key Fingerprint
+          type: string
+        contract_version:
+          title: Contract Version
+          type: string
+        schema_version:
+          title: Schema Version
+          type: string
+      required:
+      - schema_version
+      - contract_version
+      - checkpoint_key_fingerprint
+      title: GenesisPayload
+      type: object
+    HumanDecisionPayload:
+      additionalProperties: false
+      properties:
+        decided_at:
+          format: date-time
+          title: Decided At
+          type: string
+        decision:
+          $ref: '#/components/schemas/Decision'
+        explanation_viewed_before:
+          title: Explanation Viewed Before
+          type: boolean
+        final_outcome:
+          $ref: '#/components/schemas/FinalOutcome'
+        justification:
+          maxLength: 2000
+          title: Justification
+          type: string
+        recommendation_entry_id:
+          title: Recommendation Entry Id
+          type: string
+        used_factors:
+          items:
+            type: string
+          title: Used Factors
+          type: array
+      required:
+      - decision
+      - final_outcome
+      - used_factors
+      - justification
+      - explanation_viewed_before
+      - decided_at
+      - recommendation_entry_id
+      title: HumanDecisionPayload
+      type: object
+    InitialDisparity:
+      additionalProperties: false
+      properties:
+        attributes:
+          items:
+            $ref: '#/components/schemas/AttributeResult'
+          title: Attributes
+          type: array
+        model_aggregate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Model Aggregate
+        n_min:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: N Min
+        rule_met:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          title: Rule Met
+        threshold_pp:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Threshold Pp
+        trigger_attribute:
+          anyOf:
+          - enum:
+            - sexo
+            - rango_edad
+            - region
+            - estrato
+            type: string
+          - type: 'null'
+          default: null
+          title: Trigger Attribute
+      required:
+      - attributes
+      title: InitialDisparity
+      type: object
+    IntFeature:
+      additionalProperties: false
+      properties:
+        type:
+          const: int
+          default: int
+          title: Type
+          type: string
+        value:
+          title: Value
+          type: integer
+      required:
+      - value
+      title: IntFeature
+      type: object
+    IntegrityCheckRef:
+      additionalProperties: false
+      properties:
+        already_active:
+          title: Already Active
+          type: boolean
+        check_id:
+          title: Check Id
+          type: string
+        mode:
+          enum:
+          - full
+          - range
+          title: Mode
+          type: string
+        requested_at:
+          format: date-time
+          title: Requested At
+          type: string
+      required:
+      - check_id
+      - mode
+      - requested_at
+      - already_active
+      title: IntegrityCheckRef
+      type: object
+    IntegrityCheckRequest:
+      additionalProperties: false
+      properties:
+        from_seq:
+          anyOf:
+          - minimum: 0
+            type: integer
+          - type: 'null'
+          default: null
+          title: From Seq
+        mode:
+          enum:
+          - full
+          - range
+          title: Mode
+          type: string
+        to_seq:
+          anyOf:
+          - minimum: 0
+            type: integer
+          - type: 'null'
+          default: null
+          title: To Seq
+      required:
+      - mode
+      title: IntegrityCheckRequest
+      type: object
+    IntegrityCheckStatus:
+      additionalProperties: false
+      properties:
+        check_id:
+          title: Check Id
+          type: string
+        finished_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Finished At
+        mode:
+          enum:
+          - full
+          - range
+          title: Mode
+          type: string
+        progress:
+          $ref: '#/components/schemas/Progress'
+        reason:
+          anyOf:
+          - enum:
+            - interrumpida
+            - error_de_ejecucion
+            - plazo_vencido
+            type: string
+          - type: 'null'
+          default: null
+          title: Reason
+        report:
+          anyOf:
+          - $ref: '#/components/schemas/IntegrityReport'
+          - type: 'null'
+          default: null
+        requested_at:
+          format: date-time
+          title: Requested At
+          type: string
+        started_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Started At
+        status:
+          enum:
+          - pendiente
+          - en_curso
+          - terminada
+          - fallida
+          title: Status
+          type: string
+      required:
+      - check_id
+      - mode
+      - status
+      - progress
+      - requested_at
+      title: IntegrityCheckStatus
+      type: object
+    IntegrityReport:
+      additionalProperties: false
+      properties:
+        checkpoints_checked:
+          title: Checkpoints Checked
+          type: integer
+        entries_checked:
+          title: Entries Checked
+          type: integer
+        finished_at:
+          format: date-time
+          title: Finished At
+          type: string
+        first_inconsistent_seq:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: First Inconsistent Seq
+        from_seq:
+          title: From Seq
+          type: integer
+        mode:
+          enum:
+          - incremental
+          - nightly
+          - full
+          - range
+          title: Mode
+          type: string
+        reason:
+          anyOf:
+          - enum:
+            - hash
+            - link
+            - checkpoint_signature
+            - checkpoint_mismatch
+            - seq_gap
+            - column_mismatch
+            type: string
+          - type: 'null'
+          default: null
+          title: Reason
+        result:
+          enum:
+          - integra
+          - inconsistente
+          - error
+          title: Result
+          type: string
+        started_at:
+          format: date-time
+          title: Started At
+          type: string
+        to_seq:
+          title: To Seq
+          type: integer
+      required:
+      - mode
+      - from_seq
+      - to_seq
+      - entries_checked
+      - checkpoints_checked
+      - result
+      - started_at
+      - finished_at
+      title: IntegrityReport
+      type: object
+    IntegrityStatus:
+      additionalProperties: false
+      properties:
+        entries_checked:
+          title: Entries Checked
+          type: integer
+        first_inconsistent_seq:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: First Inconsistent Seq
+        from_checkpoint_seq:
+          title: From Checkpoint Seq
+          type: integer
+        reason:
+          anyOf:
+          - enum:
+            - hash
+            - link
+            - checkpoint_signature
+            - checkpoint_mismatch
+            - seq_gap
+            - column_mismatch
+            type: string
+          - type: 'null'
+          default: null
+          title: Reason
+        status:
+          enum:
+          - verified
+          - not_verified
+          title: Status
+          type: string
+        to_checkpoint_seq:
+          anyOf:
+          - type: integer
+          - const: head
+            type: string
+          title: To Checkpoint Seq
+      required:
+      - status
+      - from_checkpoint_seq
+      - to_checkpoint_seq
+      - entries_checked
+      title: IntegrityStatus
+      type: object
+    InvalidParam:
+      additionalProperties: false
+      properties:
+        name:
+          title: Name
+          type: string
+        reason_code:
+          title: Reason Code
+          type: string
+      required:
+      - name
+      - reason_code
+      title: InvalidParam
+      type: object
+    JsonValue: {}
+    LastFullVerification:
+      additionalProperties: false
+      properties:
+        check_id:
+          title: Check Id
+          type: string
+        finished_at:
+          format: date-time
+          title: Finished At
+          type: string
+        result:
+          enum:
+          - integra
+          - inconsistente
+          title: Result
+          type: string
+      required:
+      - check_id
+      - finished_at
+      - result
+      title: LastFullVerification
+      type: object
+    LocalCause:
+      enum:
+      - serving_config_unavailable
+      - scoring_unreachable
+      - scoring_rejected
+      title: LocalCause
+      type: string
+    ModelApprovalIn:
+      additionalProperties: false
+      properties:
+        decision:
+          enum:
+          - aprobado
+          - rechazado
+          title: Decision
+          type: string
+        justification:
+          anyOf:
+          - maxLength: 2000
+            type: string
+          - type: 'null'
+          default: null
+          title: Justification
+      required:
+      - decision
+      title: ModelApprovalIn
+      type: object
+    ModelEventPayload:
+      additionalProperties: false
+      properties:
+        details:
+          additionalProperties:
+            $ref: '#/components/schemas/JsonValue'
+          title: Details
+          type: object
+        event:
+          enum:
+          - registrado
+          - validacion_iniciada
+          - informe_validacion
+          - validacion_fallida
+          - aprobado
+          - rechazado
+          - activado
+          - inactivado
+          - retirado
+          - transicion_descartada
+          title: Event
+          type: string
+      required:
+      - event
+      - details
+      title: ModelEventPayload
+      type: object
+    ModelFilter:
+      additionalProperties: false
+      description: '`GET /v1/models?state=activo,congelado`: uno o varios estados.'
+      properties:
+        page: &id013
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+        page_size: &id014
+          default: 20
+          maximum: 100
+          minimum: 1
+          title: Page Size
+          type: integer
+        state: &id015
+          anyOf:
+          - items:
+              enum:
+              - registrado
+              - en_validacion
+              - validacion_fallida
+              - lista_para_aprobacion
+              - aprobado
+              - rechazado
+              - activo
+              - inactivo
+              - congelado
+              - retirado
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: State
+      title: ModelFilter
+      type: object
+    ModelRegistration:
+      additionalProperties: false
+      properties:
+        artifact_format:
+          enum:
+          - onnx
+          - xgboost_json
+          - xgboost_ubj
+          - lightgbm_txt
+          title: Artifact Format
+          type: string
+        artifact_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Artifact Sha256
+          type: string
+        artifact_uri:
+          title: Artifact Uri
+          type: string
+        data_sources:
+          default: []
+          items:
+            type: string
+          title: Data Sources
+          type: array
+        explainer_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Explainer Sha256
+          type: string
+        explainer_uri:
+          title: Explainer Uri
+          type: string
+        manifest_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Manifest Sha256
+          type: string
+        manifest_uri:
+          title: Manifest Uri
+          type: string
+        source_candidate_for:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Source Candidate For
+      required:
+      - artifact_uri
+      - artifact_format
+      - artifact_sha256
+      - explainer_uri
+      - explainer_sha256
+      - manifest_uri
+      - manifest_sha256
+      title: ModelRegistration
+      type: object
+    ModelVersion:
+      additionalProperties: false
+      properties:
+        approved_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Approved By
+        archived_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Archived At
+        archived_uri:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Archived Uri
+        artifact_format:
+          enum:
+          - onnx
+          - xgboost_json
+          - xgboost_ubj
+          - lightgbm_txt
+          title: Artifact Format
+          type: string
+        artifact_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Artifact Sha256
+          type: string
+        artifact_uri:
+          title: Artifact Uri
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        data_sources:
+          items:
+            type: string
+          title: Data Sources
+          type: array
+        explainer_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Explainer Sha256
+          type: string
+        explainer_uri:
+          title: Explainer Uri
+          type: string
+        feature_dictionary_version:
+          title: Feature Dictionary Version
+          type: string
+        inference_service:
+          pattern: ^isvc-[0-9a-f]{8}$
+          title: Inference Service
+          type: string
+        investigation:
+          title: Investigation
+          type: boolean
+        manifest_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Manifest Sha256
+          type: string
+        manifest_uri:
+          title: Manifest Uri
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        registered_by:
+          title: Registered By
+          type: string
+        source_candidate_for:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Source Candidate For
+        state:
+          enum:
+          - registrado
+          - en_validacion
+          - validacion_fallida
+          - lista_para_aprobacion
+          - aprobado
+          - rechazado
+          - activo
+          - inactivo
+          - congelado
+          - retirado
+          title: State
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - model_version_id
+      - state
+      - artifact_uri
+      - artifact_format
+      - artifact_sha256
+      - explainer_uri
+      - explainer_sha256
+      - inference_service
+      - manifest_uri
+      - manifest_sha256
+      - feature_dictionary_version
+      - data_sources
+      - registered_by
+      - investigation
+      - created_at
+      - updated_at
+      title: ModelVersion
+      type: object
+    ModelVersionDetail:
+      additionalProperties: false
+      properties:
+        approved_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Approved By
+        archived_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Archived At
+        archived_uri:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Archived Uri
+        artifact_format:
+          enum:
+          - onnx
+          - xgboost_json
+          - xgboost_ubj
+          - lightgbm_txt
+          title: Artifact Format
+          type: string
+        artifact_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Artifact Sha256
+          type: string
+        artifact_uri:
+          title: Artifact Uri
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        data_sources:
+          items:
+            type: string
+          title: Data Sources
+          type: array
+        explainer_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Explainer Sha256
+          type: string
+        explainer_uri:
+          title: Explainer Uri
+          type: string
+        feature_dictionary_version:
+          title: Feature Dictionary Version
+          type: string
+        inference_service:
+          pattern: ^isvc-[0-9a-f]{8}$
+          title: Inference Service
+          type: string
+        investigation:
+          title: Investigation
+          type: boolean
+        manifest_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Manifest Sha256
+          type: string
+        manifest_uri:
+          title: Manifest Uri
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        registered_by:
+          title: Registered By
+          type: string
+        source_candidate_for:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Source Candidate For
+        state:
+          enum:
+          - registrado
+          - en_validacion
+          - validacion_fallida
+          - lista_para_aprobacion
+          - aprobado
+          - rechazado
+          - activo
+          - inactivo
+          - congelado
+          - retirado
+          title: State
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+        validation_report:
+          anyOf:
+          - $ref: '#/components/schemas/ValidationReport'
+          - type: 'null'
+          default: null
+      required:
+      - model_version_id
+      - state
+      - artifact_uri
+      - artifact_format
+      - artifact_sha256
+      - explainer_uri
+      - explainer_sha256
+      - inference_service
+      - manifest_uri
+      - manifest_sha256
+      - feature_dictionary_version
+      - data_sources
+      - registered_by
+      - investigation
+      - created_at
+      - updated_at
+      title: ModelVersionDetail
+      type: object
+    MonitoringLabels:
+      additionalProperties: false
+      properties:
+        banda_capacidad_pago:
+          enum:
+          - lt_20
+          - '20_30'
+          - gt_30
+          title: Banda Capacidad Pago
+          type: string
+        estrato:
+          enum:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - no_informado
+          title: Estrato
+          type: string
+        rango_edad:
+          enum:
+          - 18-25
+          - 26-35
+          - 36-45
+          - 46-55
+          - 56-65
+          - 66+
+          title: Rango Edad
+          type: string
+        region:
+          enum:
+          - andina
+          - caribe
+          - pacifica
+          - orinoquia
+          - amazonia
+          - insular
+          title: Region
+          type: string
+        sexo:
+          enum:
+          - F
+          - M
+          - no_informado
+          title: Sexo
+          type: string
+      required:
+      - sexo
+      - rango_edad
+      - region
+      - estrato
+      - banda_capacidad_pago
+      title: MonitoringLabels
+      type: object
+    NormativeParams:
+      additionalProperties: false
+      properties:
+        effective_from:
+          format: date
+          title: Effective From
+          type: string
+        effective_to:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          default: null
+          title: Effective To
+        source_ref:
+          maxLength: 300
+          title: Source Ref
+          type: string
+        usury_cap_ea:
+          pattern: ^-?\d+\.\d{4}$
+          title: Usury Cap Ea
+          type: string
+        vis_max_property_value:
+          maximum: 1000000000000
+          minimum: 0
+          title: Vis Max Property Value
+          type: integer
+      required:
+      - vis_max_property_value
+      - usury_cap_ea
+      - effective_from
+      - source_ref
+      title: NormativeParams
+      type: object
+    Outcome:
+      enum:
+      - favorable
+      - desfavorable
+      - revision_requerida
+      title: Outcome
+      type: string
+    Page_CaseSummary_:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/CaseSummary'
+          title: Items
+          type: array
+        next_seq_after:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Next Seq After
+        page:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Page
+        total:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Total
+      required:
+      - items
+      title: Page[CaseSummary]
+      type: object
+    Page_ModelVersion_:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ModelVersion'
+          title: Items
+          type: array
+        next_seq_after:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Next Seq After
+        page:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Page
+        total:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Total
+      required:
+      - items
+      title: Page[ModelVersion]
+      type: object
+    PersistentFailure:
+      additionalProperties: false
+      properties:
+        attempts:
+          title: Attempts
+          type: integer
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        channel:
+          maxLength: 40
+          title: Channel
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        last_cause:
+          title: Last Cause
+          type: string
+        since:
+          format: date-time
+          title: Since
+          type: string
+      required:
+      - case_id
+      - channel
+      - created_at
+      - attempts
+      - last_cause
+      - since
+      title: PersistentFailure
+      type: object
+    PolicyDecisionIn:
+      additionalProperties: false
+      description: '`rechazada` exige `justification` (U4 `rejection_justification`).'
+      properties:
+        decision:
+          enum:
+          - aprobada
+          - rechazada
+          title: Decision
+          type: string
+        justification:
+          anyOf:
+          - maxLength: 2000
+            type: string
+          - type: 'null'
+          default: null
+          title: Justification
+      required:
+      - decision
+      title: PolicyDecisionIn
+      type: object
+    PolicyDraft:
+      additionalProperties: false
+      properties:
+        channel_rules:
+          items:
+            $ref: '#/components/schemas/ChannelRule'
+          title: Channel Rules
+          type: array
+        cutoff:
+          pattern: ^-?\d+\.\d{4}$
+          title: Cutoff
+          type: string
+        low_confidence_threshold:
+          pattern: ^-?\d+\.\d{4}$
+          title: Low Confidence Threshold
+          type: string
+        normative:
+          items:
+            $ref: '#/components/schemas/NormativeParams'
+          title: Normative
+          type: array
+      required:
+      - cutoff
+      - low_confidence_threshold
+      - channel_rules
+      - normative
+      title: PolicyDraft
+      type: object
+    PolicyEventPayload:
+      additionalProperties: false
+      properties:
+        event:
+          enum:
+          - propuesta
+          - activada
+          - rechazada
+          - historica
+          title: Event
+          type: string
+        policy_version_id:
+          title: Policy Version Id
+          type: string
+      required:
+      - event
+      - policy_version_id
+      title: PolicyEventPayload
+      type: object
+    PolicyVersion:
+      additionalProperties: false
+      properties:
+        approved_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Approved By
+        channel_rules:
+          items:
+            $ref: '#/components/schemas/ChannelRule'
+          title: Channel Rules
+          type: array
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        cutoff:
+          pattern: ^-?\d+\.\d{4}$
+          title: Cutoff
+          type: string
+        low_confidence_threshold:
+          pattern: ^-?\d+\.\d{4}$
+          title: Low Confidence Threshold
+          type: string
+        normative:
+          items:
+            $ref: '#/components/schemas/NormativeParams'
+          title: Normative
+          type: array
+        policy_version_id:
+          title: Policy Version Id
+          type: string
+        proposed_by:
+          title: Proposed By
+          type: string
+        state:
+          enum:
+          - propuesta
+          - activa
+          - rechazada
+          - historica
+          title: State
+          type: string
+      required:
+      - cutoff
+      - low_confidence_threshold
+      - channel_rules
+      - normative
+      - policy_version_id
+      - state
+      - proposed_by
+      - created_at
+      title: PolicyVersion
+      type: object
+    PrePostDelta:
+      additionalProperties: false
+      description: '`post − pre` de cada agregada y de `model_aggregate` (U9 §3.2).'
+      properties:
+        attributes:
+          items:
+            $ref: '#/components/schemas/AttributeDelta'
+          title: Attributes
+          type: array
+        model_aggregate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Model Aggregate
+      required:
+      - attributes
+      title: PrePostDelta
+      type: object
+    PrePostReport:
+      additionalProperties: false
+      properties:
+        delta:
+          $ref: '#/components/schemas/PrePostDelta'
+        disclaimer:
+          title: Disclaimer
+          type: string
+        n_min:
+          title: N Min
+          type: integer
+        post:
+          $ref: '#/components/schemas/DisparityResult'
+        pre:
+          $ref: '#/components/schemas/DisparityResult'
+        source_id:
+          title: Source Id
+          type: string
+        threshold_pp:
+          pattern: ^-?\d+\.\d{4}$
+          title: Threshold Pp
+          type: string
+        truncated:
+          title: Truncated
+          type: boolean
+      required:
+      - source_id
+      - pre
+      - post
+      - delta
+      - threshold_pp
+      - n_min
+      - truncated
+      - disclaimer
+      title: PrePostReport
+      type: object
+    Problem:
+      additionalProperties: false
+      description: RFC 9457; campos cerrados (BR-U0-61) y `reason` de su catalogo
+        (§6).
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        correlation_id:
+          title: Correlation Id
+          type: string
+        invalid_params:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/InvalidParam'
+            type: array
+          - type: 'null'
+          default: null
+          title: Invalid Params
+        reason:
+          anyOf:
+          - $ref: '#/components/schemas/ProblemReason'
+          - type: 'null'
+          default: null
+        status:
+          title: Status
+          type: integer
+        title:
+          title: Title
+          type: string
+        type:
+          title: Type
+          type: string
+      required:
+      - type
+      - title
+      - status
+      - code
+      - correlation_id
+      title: Problem
+      type: object
+    ProblemCode:
+      enum:
+      - malformed_request
+      - unsupported_media_type
+      - validation_error
+      - unauthenticated
+      - forbidden
+      - mfa_required
+      - not_found
+      - conflict_state
+      - payload_too_large
+      - rate_limited
+      - dependency_unavailable
+      - internal_error
+      - unprocessable_explanation
+      - deadline_exceeded
+      title: ProblemCode
+      type: string
+    ProblemReason:
+      enum:
+      - decision_already_recorded
+      - transition_pending
+      - version_mismatch
+      - feature_dictionary_incomplete
+      - factuality_failed
+      - no_active_version
+      - active_version_frozen
+      title: ProblemReason
+      type: string
+    Progress:
+      additionalProperties: false
+      properties:
+        checked:
+          minimum: 0
+          title: Checked
+          type: integer
+        total:
+          minimum: 0
+          title: Total
+          type: integer
+      required:
+      - checked
+      - total
+      title: Progress
+      type: object
+    ReasonCode:
+      enum:
+      - score_bajo_corte
+      - score_sobre_corte
+      - baja_confianza
+      - vis
+      - no_vis
+      - tasa_sobre_usura
+      - parametro_normativo_no_vigente
+      title: ReasonCode
+      type: string
+    Recommendation:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        confidence:
+          pattern: ^-?\d+\.\d{4}$
+          title: Confidence
+          type: string
+        evaluated_at:
+          format: date-time
+          title: Evaluated At
+          type: string
+        explanation:
+          $ref: '#/components/schemas/Explanation'
+        feature_vector_hash:
+          pattern: ^[0-9a-f]{64}$
+          title: Feature Vector Hash
+          type: string
+        kind:
+          const: recommendation
+          default: recommendation
+          title: Kind
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        outcome:
+          title: Outcome
+          type: string
+        policy_version_id:
+          title: Policy Version Id
+          type: string
+        reasons:
+          items:
+            type: string
+          title: Reasons
+          type: array
+        registry_entry_id:
+          minLength: 1
+          title: Registry Entry Id
+          type: string
+        score:
+          pattern: ^-?\d+\.\d{4}$
+          title: Score
+          type: string
+      required:
+      - case_id
+      - score
+      - confidence
+      - outcome
+      - reasons
+      - model_version_id
+      - policy_version_id
+      - explanation
+      - registry_entry_id
+      - evaluated_at
+      - feature_vector_hash
+      title: Recommendation
+      type: object
+    RecommendationPayload:
+      additionalProperties: false
+      properties:
+        attempt:
+          minimum: 1
+          title: Attempt
+          type: integer
+        channel:
+          maxLength: 40
+          title: Channel
+          type: string
+        confidence:
+          pattern: ^-?\d+\.\d{4}$
+          title: Confidence
+          type: string
+        evaluated_at:
+          format: date-time
+          title: Evaluated At
+          type: string
+        explanation:
+          $ref: '#/components/schemas/Explanation'
+        feature_vector:
+          $ref: '#/components/schemas/FeatureVector'
+        feature_vector_hash:
+          pattern: ^[0-9a-f]{64}$
+          title: Feature Vector Hash
+          type: string
+        first_evaluation:
+          title: First Evaluation
+          type: boolean
+        monitoring_labels:
+          $ref: '#/components/schemas/MonitoringLabels'
+        outcome:
+          $ref: '#/components/schemas/Outcome'
+        reasons:
+          items:
+            $ref: '#/components/schemas/ReasonCode'
+          title: Reasons
+          type: array
+        received_at:
+          format: date-time
+          title: Received At
+          type: string
+        score:
+          pattern: ^-?\d+\.\d{4}$
+          title: Score
+          type: string
+      required:
+      - score
+      - confidence
+      - outcome
+      - reasons
+      - feature_vector
+      - feature_vector_hash
+      - evaluated_at
+      - monitoring_labels
+      - explanation
+      - received_at
+      - channel
+      - attempt
+      - first_evaluation
+      title: RecommendationPayload
+      type: object
+    RegistryDossier:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        entries:
+          items:
+            $ref: '#/components/schemas/DossierEntry'
+          title: Entries
+          type: array
+        integrity:
+          $ref: '#/components/schemas/IntegrityStatus'
+        last_full_verification:
+          anyOf:
+          - $ref: '#/components/schemas/LastFullVerification'
+          - type: 'null'
+      required:
+      - case_id
+      - entries
+      - integrity
+      - last_full_verification
+      title: RegistryDossier
+      type: object
+    Resolution:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+          - reactivar
+          - descartar
+          - investigar
+          title: Action
+          type: string
+        recorded_at:
+          format: date-time
+          title: Recorded At
+          type: string
+      required:
+      - action
+      - recorded_at
+      title: Resolution
+      type: object
+    Role:
+      enum:
+      - analista
+      - ingeniero_riesgo
+      - cro
+      - cumplimiento
+      title: Role
+      type: string
+    RootModel_list_DataSource__:
+      items:
+        $ref: '#/components/schemas/DataSource'
+      title: RootModel[list[DataSource]]
+      type: array
+    RootModel_list_FreezeSummary__:
+      items:
+        $ref: '#/components/schemas/FreezeSummary'
+      title: RootModel[list[FreezeSummary]]
+      type: array
+    RootModel_list_PersistentFailure__:
+      items:
+        $ref: '#/components/schemas/PersistentFailure'
+      title: RootModel[list[PersistentFailure]]
+      type: array
+    RootModel_list_PolicyVersion__:
+      items:
+        $ref: '#/components/schemas/PolicyVersion'
+      title: RootModel[list[PolicyVersion]]
+      type: array
+    SessionInfo:
+      additionalProperties: false
+      properties:
+        auth_time:
+          format: date-time
+          title: Auth Time
+          type: string
+        locale:
+          const: es-CO
+          title: Locale
+          type: string
+        mfa:
+          title: Mfa
+          type: boolean
+        role:
+          $ref: '#/components/schemas/Role'
+      required:
+      - role
+      - mfa
+      - auth_time
+      - locale
+      title: SessionInfo
+      type: object
+    SourceComparisonIn:
+      additionalProperties: false
+      properties:
+        candidate_version_id:
+          title: Candidate Version Id
+          type: string
+      required:
+      - candidate_version_id
+      title: SourceComparisonIn
+      type: object
+    SyncCheck:
+      additionalProperties: false
+      properties:
+        explainer_version:
+          title: Explainer Version
+          type: string
+        failure_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Failure Reason
+        passed:
+          title: Passed
+          type: boolean
+        predictor_version:
+          title: Predictor Version
+          type: string
+        samples_checked:
+          title: Samples Checked
+          type: integer
+      required:
+      - passed
+      - predictor_version
+      - explainer_version
+      - samples_checked
+      title: SyncCheck
+      type: object
+    ValidationReport:
+      additionalProperties: false
+      properties:
+        auc_meets_target:
+          title: Auc Meets Target
+          type: boolean
+        auc_roc:
+          pattern: ^-?\d+\.\d{4}$
+          title: Auc Roc
+          type: string
+        auc_target:
+          pattern: ^-?\d+\.\d{4}$
+          title: Auc Target
+          type: string
+        dataset_ref:
+          title: Dataset Ref
+          type: string
+        disclaimer:
+          title: Disclaimer
+          type: string
+        initial_disparity:
+          $ref: '#/components/schemas/InitialDisparity'
+        sync_check:
+          $ref: '#/components/schemas/SyncCheck'
+      required:
+      - auc_roc
+      - auc_target
+      - auc_meets_target
+      - initial_disparity
+      - sync_check
+      - dataset_ref
+      - disclaimer
+      title: ValidationReport
+      type: object
+    ValidationRun:
+      additionalProperties: false
+      properties:
+        baseline_version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Baseline Version Id
+        deadline_at:
+          format: date-time
+          title: Deadline At
+          type: string
+        finished_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Finished At
+        job_name:
+          title: Job Name
+          type: string
+        mode:
+          enum:
+          - validacion
+          - source_comparison
+          title: Mode
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        run_id:
+          title: Run Id
+          type: string
+        source_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Source Id
+        started_at:
+          format: date-time
+          title: Started At
+          type: string
+        state:
+          enum:
+          - lanzado
+          - informe_recibido
+          - fallido
+          - timeout
+          title: State
+          type: string
+      required:
+      - run_id
+      - model_version_id
+      - job_name
+      - mode
+      - state
+      - started_at
+      - deadline_at
+      title: ValidationRun
+      type: object
+info:
+  title: console-bff
+  version: 0.1.0
+openapi: 3.1.0
+paths:
+  /api/console/cases:
+    get:
+      operationId: get_api_console_cases
+      parameters:
+      - in: query
+        name: channel
+        required: false
+        schema: *id001
+      - in: query
+        name: created_from
+        required: false
+        schema: *id002
+      - in: query
+        name: created_to
+        required: false
+        schema: *id003
+      - in: query
+        name: model_frozen_after_recommendation
+        required: false
+        schema: *id004
+      - in: query
+        name: page
+        required: false
+        schema: *id005
+      - in: query
+        name: page_size
+        required: false
+        schema: *id006
+      - in: query
+        name: state
+        required: false
+        schema: *id007
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_CaseSummary_'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      - cro
+      x-vectra-scopes: []
+    post:
+      operationId: post_api_console_cases
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: &id008
+                $ref: '#/components/schemas/CaseRef'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      x-vectra-scopes: []
+  /api/console/cases/failures:
+    get:
+      operationId: get_api_console_cases_failures
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RootModel_list_PersistentFailure__'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []
+  /api/console/cases/{id}:
+    get:
+      operationId: get_api_console_cases_id
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDetail'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      - cro
+      x-vectra-scopes: []
+  /api/console/cases/{id}/applicant-summary:
+    post:
+      operationId: post_api_console_cases_id_applicant-summary
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicantSummary'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      - cro
+      x-vectra-scopes: []
+  /api/console/cases/{id}/decision:
+    post:
+      operationId: post_api_console_cases_id_decision
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecisionIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionRef'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      x-vectra-scopes: []
+  /api/console/cases/{id}/dossier:
+    get:
+      operationId: get_api_console_cases_id_dossier
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsoleDossier'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      - cumplimiento
+      x-vectra-scopes: []
+  /api/console/cases/{id}/explanation-views:
+    post:
+      operationId: post_api_console_cases_id_explanation-views
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      x-vectra-scopes: []
+  /api/console/cases/{id}/retry:
+    post:
+      operationId: post_api_console_cases_id_retry
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: *id008
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []
+  /api/console/client-errors:
+    post:
+      operationId: post_api_console_client-errors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientErrorReport'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      - cro
+      - cumplimiento
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+  /api/console/data-sources:
+    get:
+      operationId: get_api_console_data-sources
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RootModel_list_DataSource__'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      - cumplimiento
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+    post:
+      operationId: post_api_console_data-sources
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataSourceProposal'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataSource'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+  /api/console/data-sources/{id}/comparisons:
+    post:
+      operationId: post_api_console_data-sources_id_comparisons
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceComparisonIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: &id017
+                $ref: '#/components/schemas/ValidationRun'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+  /api/console/data-sources/{id}/decision:
+    post:
+      operationId: post_api_console_data-sources_id_decision
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataSourceDecisionIn'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cumplimiento
+      x-vectra-scopes: []
+  /api/console/disparity:
+    get:
+      operationId: get_api_console_disparity
+      parameters:
+      - in: query
+        name: attribute
+        required: false
+        schema: *id009
+      - in: query
+        name: version
+        required: false
+        schema: *id010
+      - in: query
+        name: window
+        required: false
+        schema: *id011
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisparityView'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      - cumplimiento
+      x-vectra-scopes: []
+  /api/console/freezes:
+    get:
+      operationId: get_api_console_freezes
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RootModel_list_FreezeSummary__'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      - cumplimiento
+      x-vectra-scopes: []
+  /api/console/freezes/{id}:
+    get:
+      operationId: get_api_console_freezes_id
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FreezeRecord'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cumplimiento
+      x-vectra-scopes: []
+  /api/console/integrity-checks:
+    post:
+      operationId: post_api_console_integrity-checks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntegrityCheckRequest'
+        required: true
+      responses:
+        '200':
+          content: &id012
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrityCheckRef'
+          description: OK
+        '202':
+          content: *id012
+          description: Aceptada
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []
+  /api/console/integrity-checks/{id}:
+    get:
+      operationId: get_api_console_integrity-checks_id
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrityCheckStatus'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []
+  /api/console/me:
+    get:
+      operationId: get_api_console_me
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionInfo'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      - cro
+      - cumplimiento
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+  /api/console/models:
+    get:
+      operationId: get_api_console_models
+      parameters:
+      - in: query
+        name: page
+        required: false
+        schema: *id013
+      - in: query
+        name: page_size
+        required: false
+        schema: *id014
+      - in: query
+        name: state
+        required: false
+        schema: *id015
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_ModelVersion_'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      - cumplimiento
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+    post:
+      operationId: post_api_console_models
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelRegistration'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: &id016
+                $ref: '#/components/schemas/ModelVersion'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+  /api/console/models/{id}:
+    get:
+      operationId: get_api_console_models_id
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelVersionDetail'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      - cumplimiento
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+  /api/console/models/{id}/approval:
+    post:
+      operationId: post_api_console_models_id_approval
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelApprovalIn'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []
+  /api/console/models/{id}/frozen-resolution:
+    post:
+      operationId: post_api_console_models_id_frozen-resolution
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FrozenResolutionIn'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cumplimiento
+      x-vectra-scopes: []
+  /api/console/models/{id}/retirement:
+    post:
+      operationId: post_api_console_models_id_retirement
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: *id016
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []
+  /api/console/models/{id}/validations:
+    post:
+      operationId: post_api_console_models_id_validations
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: *id017
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+  /api/console/policies:
+    get:
+      operationId: get_api_console_policies
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RootModel_list_PolicyVersion__'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      - cro
+      - cumplimiento
+      x-vectra-scopes: []
+    post:
+      operationId: post_api_console_policies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyDraft'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyVersion'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []
+  /api/console/policies/{id}/approval:
+    post:
+      operationId: post_api_console_policies_id_approval
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyDecisionIn'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []

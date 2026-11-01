@@ -1,0 +1,73 @@
+# P-U1-05: semanal, vectra-low, sidecar nativo. RBAC K12 sin comodines; credencial F75 distinta de F70.
+# El endpoint y el destino de los backups estan en configmap-<entorno>.yaml.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: restore-drill
+  namespace: vectra-restore-drill
+  labels: { app.kubernetes.io/name: restore-drill, vectra.io/criticality: medium }
+spec:
+  schedule: "0 2 * * 0"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 14400
+      template:
+        metadata:
+          labels: { app.kubernetes.io/name: restore-drill }
+          annotations:
+            config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+        spec:
+          serviceAccountName: restore-drill
+          priorityClassName: vectra-low
+          restartPolicy: Never
+          securityContext: { runAsNonRoot: true, runAsUser: 65532, seccompProfile: { type: RuntimeDefault } }
+          containers:
+            - name: drill
+              image: registro.vectra.internal/restore-drill@sha256:0000000000000000000000000000000000000000000000000000000000000000
+              command: [python, /app/drill.py]
+              env:
+                - { name: PUSHGATEWAY_URL, value: "http://pushgateway.vectra-observability.svc:9091" }
+                # El digest de `imageName` en platform/data/chart/values.yaml.
+                - { name: RESTORE_IMAGE, value: "ghcr.io/cloudnative-pg/postgresql:17.9-system-trixie@sha256:8fd8db26090e602458269741849e5c9cd7aff577a22af53c8a402c580fd1e729" }
+              envFrom:
+                - configMapRef: { name: restore-drill-config } # por entorno: configmap-<entorno>.yaml
+                - secretRef: { name: restore-drill-readonly-credentials }
+              securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits: { cpu: 500m, memory: 512Mi }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: restore-drill, namespace: vectra-restore-drill }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: restore-drill, namespace: vectra-restore-drill }
+rules:
+  # list y watch: `kubectl wait` y `kubectl delete --wait` sobre el Cluster.
+  - { apiGroups: [postgresql.cnpg.io], resources: [clusters], verbs: [create, get, list, watch, delete] }
+  - { apiGroups: [""], resources: [pods/log], verbs: [get] }
+  # `restore-cluster.sh lsn`. `kubectl exec` lee el pod y abre pods/exec: con POST (create) o, por WebSocket, GET.
+  # Solo la unica instancia de cada Cluster efimero.
+  - { apiGroups: [""], resources: [pods], resourceNames: [restore-registry-1, restore-case-1], verbs: [get] }
+  - { apiGroups: [""], resources: [pods/exec], resourceNames: [restore-registry-1, restore-case-1], verbs: [create, get] }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: restore-drill, namespace: vectra-restore-drill }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: restore-drill }
+subjects:
+  - { kind: ServiceAccount, name: restore-drill, namespace: vectra-restore-drill }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: { name: restore-drill-readonly-credentials, namespace: vectra-restore-drill }
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: restore-drill-readonly-credentials }
+  data:
+    - { secretKey: ACCESS_KEY_ID, remoteRef: { key: backups/restore-readonly, property: access_key_id } }
+    - { secretKey: SECRET_ACCESS_KEY, remoteRef: { key: backups/restore-readonly, property: secret_access_key } }

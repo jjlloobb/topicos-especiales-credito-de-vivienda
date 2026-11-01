@@ -1,0 +1,23 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest
+  annotations:
+    policies.kyverno.io/description: "Imagen sin etiqueta latest: se exige digest"
+spec:
+  validationFailureAction: Enforce
+  failurePolicy: Fail
+  background: false
+  rules:
+    - name: disallow-latest
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-staging, vectra-data, vectra-mock, vectra-observability, vectra-restore-drill]
+      validate:
+        message: "Imagen sin etiqueta latest: se exige digest"
+        pattern:
+          spec:
+            containers:
+              - image: "*@sha256:*"

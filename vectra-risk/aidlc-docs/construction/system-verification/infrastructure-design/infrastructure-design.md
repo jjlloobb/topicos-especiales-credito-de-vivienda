@@ -12,13 +12,13 @@ y solo lee.
 ## 1. Ejecución fuera del clúster (Q5; hallazgo del plan)
 
 ### INF-U12-01 — Imagen y entornos
-- Imagen `system-verification` construida, escaneada, con SBOM y firmada por `supply-chain.yml` de U1, publicada en el registro del banco; el operador la ejecuta por digest.
+- Imagen `system-verification` construida, escaneada, con SBOM y firmada con `sign-image.yml` de U1; el escaneo y el SBOM son de `supply-chain.yml`, publicada en el registro del banco; el operador la ejecuta por digest.
 - **Secciones por entorno**:
 
   | Entorno | Secciones permitidas |
   |---|---|
   | kind | Todas |
-  | staging | Solo humo (nota 1 de Q5): `decisions` reducida a 100 casos, la lectura del dashboard en `u11` y `report` |
+  | staging | Solo humo (nota 1 de Q5): `prepare`, sin el parche de los Jobs de prueba (seguimiento de la quinta revisión de coherencia, 2026-10-31); `decisions` reducida a 100 casos, la lectura del dashboard en `u11` y `report` |
   | producción | Ninguna (barrera de NFR-U12-03; el cliente y los usuarios no existen) |
 
 - **`channel-simulator` sale del clúster** (nota 2 de Q5): ya no es un `Deployment` de `vectra-mock`. Es una sección de la imagen de U12, que envía por el gateway como un canal real. Cambia U1 y el inventario (§6):
@@ -33,15 +33,15 @@ y solo lee.
 ### INF-U12-02 — Jobs de prueba de las unidades dueñas
 - **U9** agrega a su chart el Job `x04-probe-<runId>`, con la identidad `bias-monitoring-job`. Obtiene un token válido de ese cliente y llama a `POST /v1/models/{id}/approval` de governance, una ruta distinta de `freeze`. Termina con éxito solo si recibe el 403 del proxy de Linkerd (cabecera `l5d-proxy-error`, sin el `Problem` de U0); un 403 `forbidden` de governance significaría que Linkerd dejó pasar la llamada, y la prueba falla (pendientes posteriores al cierre, 2026-10-10).
 - **U8** lanza su Job de RT-5 como `rt5-demo-<runId>` con el mismo `probes.runId` (pendientes posteriores al cierre, 2026-10-10), **solo en kind** (pendientes consolidados, 2026-10-10).
-- **U3** agrega a su chart de reconstrucción (`chart-rebuild/`) el Job `x06-probe-<runId>`, con la credencial de `registry_app` del `ExternalSecret` existente (no crea un Secret nuevo). Intenta `UPDATE registry_entries …` y termina con éxito solo si recibe `permission denied`.
+- **U3** agrega a su chart de reconstrucción (`chart-rebuild/`) el Job `x06-probe-<runId>`, con la `ServiceAccount` `registry-app-probe`, la etiqueta `app.kubernetes.io/name: x06-probe`, como `flows.yaml`, y la credencial `pg-role-registry-app` de U1 (no crea un Secret nuevo; revisión de consistencia entre unidades, 2026-11-01). Intenta `UPDATE registry_entries …` y termina con éxito solo si recibe `permission denied`.
 - **Los tres Jobs** (`x04-probe`, `x06-probe` y `rt5-demo`; nota 1 de Q1; el tercero agregado en pendientes consolidados, 2026-10-10):
   - se renderizan **solo con los values de kind**; un `conftest` de U9, de U3 y de U8 rechaza `probes.runId` en los values de staging y de producción y comprueba que ningún Job de prueba aparece con ellos;
   - llevan `backoffLimit: 0` y el sidecar nativo de Linkerd, y **no** llevan `ttlSecondsAfterFinished` (revisión del Infrastructure Design de U12, 2026-10-10): como los Jobs de reconstrucción de U3, un Job completado queda como está y se **poda** cuando el `runId` cambia (sync con prune). Con un TTL, Kubernetes lo borraría a las 24 h, la Application quedaría `OutOfSync` y el siguiente sync volvería a correr la prueba;
-  - se lanzan con **un** PR que fija el mismo `probes.runId` en los values de kind de **tres Applications** y un sync manual con prune de las tres (pendientes consolidados, 2026-10-10):
+  - se lanzan con **un** PR que fija el mismo `probes.runId` en `vectra-risk-gitops/values/kind/<componente>.yaml` (revisión de consistencia entre unidades, 2026-11-01) de **tres Applications** y un sync manual con prune de las tres (pendientes consolidados, 2026-10-10):
     - `bias-monitoring` (U9, `x04-probe`);
     - `decision-registry-rebuild` (U3, `chart-rebuild/`, `x06-probe`);
     - `case-management` (U8, `rt5-demo`);
-  - **formato del `runId`** (pendientes consolidados, 2026-10-10): `AAAAMMDD-HHMM`, derivado de `started_at` en UTC y truncado al minuto (por ejemplo, `started_at = 2026-10-12T14:07:31Z` → `20261012-1407`). Es el formato que exige el check `rebuild-runid-check` del repositorio GitOps (plan de U3, Paso 15). Dos verificaciones en el mismo minuto no pueden coexistir, porque `prepare` exige un directorio de evidencias nuevo;
+  - **formato del `runId`** (pendientes consolidados, 2026-10-10): `AAAAMMDD-HHMM`, derivado de `started_at` en UTC y truncado al minuto (por ejemplo, `started_at = 2026-10-12T14:07:31Z` → `20261012-1407`). Es el formato que exige el check `rebuild-runid-check` (plan de U3, Paso 15; workflow del monorepo; revisión de consistencia entre unidades, 2026-11-01). Dos verificaciones en el mismo minuto no pueden coexistir, porque `prepare` exige un directorio de evidencias nuevo;
   - **`probes.runId` es independiente de `monitoringRebuild.runId`** en `chart-rebuild/`: el chart renderiza los Jobs de reconstrucción solo con `monitoringRebuild.runId` y `x06-probe` solo con `probes.runId`. La regla «sin `runId` no hay recursos» pasa a ser «sin **ninguno** de los dos `runId` no hay recursos», y fijar uno no renderiza los recursos del otro.
 - **Red** (revisión del Infrastructure Design de U12, 2026-10-10):
   - **X06**: U1 aplica deny-all, así que `x06-probe` necesita su propio flujo hacia `registry-db-rw`; sin él, la prueba daría timeout en lugar de `permission denied`. Se agrega **F111** (`x06-probe-<runId>` → `registry-db-rw`, 5432, **solo kind**) al inventario y a `flows.yaml`;
@@ -81,7 +81,7 @@ y solo lee.
   `disallow-rbac-wildcards` de U1 lo cubre, y un `kyverno test` comprueba que el binding no existe en producción.
 - **Cliente de lectura**: `verification-reader` de U2 (`private_key_jwt`), solo en `realm.kind.yaml` y `realm.staging.yaml`, con `registry:read:metrics` (entradas `recommendation` y `human_decision`) y `registry:read:monitoring` (entradas `freeze`). `realm-lint` lo rechaza en producción y comprueba que no tenga ningún otro scope.
 - **RT-1 sin el registro** (nota 2 de Q2): el registro **nunca** guarda `free_text` (BR-U0-95 lo rechaza en todo payload), así que el oráculo de RT-1 de BR-U12-04 no puede leerlo de ahí. El texto vive en `case-db` y el analista lo ve en el detalle del caso (`CaseDetail.application`). RT-1 se verifica **por el BFF con `analista-1`**: el `free_text` del detalle es igual byte a byte al enviado, y la recomendación y la narrativa del detalle son idénticas a las del caso par. No hace falta ningún scope sensible. BR-U12-04 cambia (§6).
-- **Dónde se lee el `recorded_at` del `freeze`** (pendientes consolidados, 2026-10-10): U12 lee la entrada `freeze` por `GET /v1/entries` con `entry_type = freeze` y la proyección `monitoring_freezes` de `verification-reader`. Cada elemento es un `RegistryEntry` y el `recorded_at` es el del **sobre** (U0 §5.3), no un campo de `FreezeRecord`. `GET /v1/monitoring/freezes`, que devuelve `FreezeRecord` (U0 §9.4, con `frozen_at`) a bias, no se usa para RT-2. **U0 no cambia.**
+- **Dónde se lee el `recorded_at` del `freeze`** (pendientes consolidados, 2026-10-10): U12 lee la entrada `freeze` por `GET /v1/entries` con `entry_type = freeze` y la proyección `monitoring_freezes` de `verification-reader`. Cada elemento es un `FreezeProjection` y el `recorded_at` es campo suyo, no de `FreezeRecord` (revisión de consistencia entre unidades, 2026-11-01). `GET /v1/monitoring/freezes`, que devuelve `FreezeRecord` (U0 §9.4, con `frozen_at`) a bias, no se usa para RT-2. **U0 no cambia.**
 - **Latencia de RT-2** (nota 3 de Q2): una sola definición, la **más conservadora que se puede calcular**:
   - **inicio** = el **menor** `recorded_at` de las `recommendation` del lote `stratified` (leídas por `verification-reader` y filtradas por los `case_id` del `RunReport`). El cruce real del umbral ocurre entre la primera y la última entrada del lote, así que medir desde la primera nunca subestima;
   - **fin** = el `recorded_at` de la entrada `freeze`;

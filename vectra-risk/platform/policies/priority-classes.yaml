@@ -1,0 +1,21 @@
+# P-U1-09
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: vectra-critical }
+value: 1000000
+preemptionPolicy: PreemptLowerPriority
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: vectra-high }
+value: 100000
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: vectra-normal }
+value: 10000
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: vectra-low }
+value: 100

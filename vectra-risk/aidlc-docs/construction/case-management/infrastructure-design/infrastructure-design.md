@@ -51,7 +51,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 
   La transición `en_evaluacion` → `en_sincronizacion` → `no_disponible` de la tabla de BR-U8-12 queda cubierta: `no_disponible` solo se alcanza desde un estado de evaluación y por el worker.
 - **Flujos**: F15 pasa a tener origen `case-worker`; F104 y F40 suman `case-worker` como origen. La `NetworkPolicy` y la `AuthorizationPolicy` de scoring admiten solo `case-worker`, y las de governance admiten `case-service` (solo `serving-config`) y `case-worker`.
-- Credenciales: la llave privada de cada cliente de Keycloak (`private_key_jwt`) llega por un `ExternalSecret` (U2). La contraseña de cada rol de base es un `Secret` de los roles gestionados de CloudNativePG (U1).
+- Credenciales: la llave privada de cada cliente de Keycloak (`private_key_jwt`) llega por un `ExternalSecret` (U2). La contraseña de cada rol de base es el Secret `pg-role-<rol>` de `vectra-app`, que crea U1 con la misma ruta de la bóveda que el rol gestionado de CloudNativePG; el chart de U8 no lo declara (U1, INF-U1-02; cuarta revisión de coherencia entre unidades, 2026-10-31; revisión de consistencia entre unidades, 2026-11-01).
 - **Satisface**: SECURITY-06, 08; AUTONOMIA-03; NFR-U8-41, 45.
 - **Verificación**:
   - prueba de migraciones con Testcontainers: `case_worker` intenta leer `decisions`, borrar `case_identifiers` y escribir `vencido` → error; `case_app` intenta `DELETE` sobre `evaluation_jobs` → error;
@@ -99,10 +99,10 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
   - **Limitación (para el runbook)** (revisión 2026-10-08, N3): el contador de Linkerd vive en el proxy del pod del mock. Si ese pod se reemplaza dentro de los 5 min posteriores a un evento, la serie nueva arranca de nuevo en 1 y la resta contra `offset 5m` del pod anterior puede dar ≤ 0 y ocultar el evento siguiente. El runbook de `CoreWriteAttempt` indica revisar también los logs de denegación del proxy y del mock cuando hubo un reinicio del mock cerca del evento.
 - **Las tres capas de X01**:
   1. la `NetworkPolicy` descarta cualquier origen distinto de `case-service`, sin métrica. Ya lo prueba la suite de conectividad de U1;
-  2. Linkerd rechaza un método distinto de `GET` desde `case-service` → `inbound_http_authz_deny_total`. Para eso el `Server` del mock tiene, además de la `HTTPRoute` de `GET /v1/credits/{id}` autorizada, una `HTTPRoute` de captura llamada `core-mock-catch-all` (`/`, cualquier método) **sin** `AuthorizationPolicy`. La alerta filtra por ese nombre (`route_name`). Sin ella, una solicitud que no coincide con ninguna ruta terminaría en 404 sin ruta y no en una denegación medida;
+  2. Linkerd rechaza un método distinto de `GET` desde `case-service` → `inbound_http_authz_deny_total`. Para eso el `Server` del mock tiene, además de la `HTTPRoute` de `GET /v1/credits/{id}` autorizada, una `HTTPRoute` de captura llamada `core-mock-catch-all` (`/`, cualquier método) **sin** `AuthorizationPolicy`. Los genera U1 desde `http_routes.core-banking-mock` de `flows.yaml`, no el chart de U8 (revisión de consistencia entre unidades, 2026-11-01). La alerta filtra por ese nombre (`route_name`). Sin ella, una solicitud que no coincide con ninguna ruta terminaría en 404 sin ruta y no en una denegación medida;
   3. si Linkerd estuviera mal configurado, el mock responde 403 por scope y registra el `WriteAttempt`. La descripción de la alerta distingue las dos series: la segunda indica además una configuración rota.
 - **Demostración de RT-5** (U12): un Job con la ServiceAccount `case-service`, **solo en kind** (antes «kind y staging»; pendientes consolidados, 2026-10-10), envía `POST /v1/credits/{id}/status`. La evidencia esperada es el 403 del proxy y la alerta. El Job se llama `rt5-demo-<runId>` y solo se renderiza cuando los values fijan `probes.runId` (el `runId` de la verificación de U12). No lleva `ttlSecondsAfterFinished`, para no causar OutOfSync; Argo CD lo poda cuando cambia el `runId`. Un `conftest` rechaza `probes.runId` en los values de staging y de producción y comprueba que el Job no aparece con ellos (pendientes posteriores al cierre, 2026-10-10; staging agregado en pendientes consolidados, 2026-10-10).
-- El Job corre en `vectra-app` y su pod lleva la etiqueta `app.kubernetes.io/name: case-service`, que es la que admite la `NetworkPolicy` del mock. Sin ella, la `NetworkPolicy` lo descartaría sin métrica y la demostración no probaría la capa L7 (hallazgo 5 de la revisión).
+- El Job corre en `vectra-app` y su pod lleva la etiqueta `app.kubernetes.io/name: case-service`, que es la que admite la `NetworkPolicy` del mock. El `Service` y el PDB de `case-service` seleccionan además `vectra.io/workload: case-service`, que el Job no lleva, para que no reciba tráfico (seguimiento de la cuarta revisión de coherencia, 2026-10-31). Sin ella, la `NetworkPolicy` lo descartaría sin métrica y la demostración no probaría la capa L7 (hallazgo 5 de la revisión).
 - Ese Job de demostración tiene la ServiceAccount `case-service`, pero no tiene su llave de Keycloak: no obtiene tokens.
 - **Verificación**:
   - `promtool test rules` con cada serie por separado. El caso de Linkerd **arranca en 1** (la serie nace con la primera denegación) y debe disparar; una denegación con otro `route_name` no dispara;
@@ -119,7 +119,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 | `case-service` | 250m / 256 MiB | 1 CPU / 512 MiB | HPA de 2 a 6 por CPU al 70 % (estabilización 60 s hacia arriba / 300 s hacia abajo); spread por zona; PDB `minAvailable: 1` | `vectra-high` |
 | `case-worker` | 200m / 256 MiB | 1 CPU / 512 MiB | Igual | `vectra-high` |
 | `case-retention` (CronJob) | 100m / 128 MiB | 500m / 256 MiB | 1 pod por corrida (P-U8-07) | `vectra-low` |
-| Job de migración | 100m / 128 MiB | 500m / 256 MiB | 1 pod (hook de sync, F44) | `vectra-low` |
+| Job de migración (`ServiceAccount` y etiqueta `vectra.io/workload`: `migration-case`; revisión de consistencia entre unidades, 2026-11-01) | 100m / 128 MiB | 500m / 256 MiB | 1 pod (hook de sync, F44) | `vectra-low` |
 | `core-banking-mock` | 50m / 64 MiB | 250m / 128 MiB | 2 réplicas fijas; spread por zona; PDB `minAvailable: 1` | `vectra-low` |
 
 - Readiness (`/readyz`, 8081) cada 5 s, solo con `case-db` (NFR-U8-21); liveness (`/livez`) cada 10 s, solo con el proceso (P-U1-04).
@@ -143,7 +143,7 @@ Recalculado en los pendientes posteriores al cierre, 2026-10-10: la versión ant
 ### INF-U8-06 — Apagado ordenado (Q5)
 - **`case-service`**, como INF-U7-03:
   - `preStop.sleep.seconds: 5`;
-  - uvicorn con `timeout_graceful_shutdown = 10`;
+  - arranque con `vectra_common.ops_server.run_service(app)` y espera de ≤ 10 s en el apagado (revisión de consistencia entre unidades, 2026-11-01);
   - `terminationGracePeriodSeconds: 20`, por encima del append de la decisión (2,5 s);
   - al recibir `SIGTERM`, los barridos y el reconciliador dejan de tomar trabajo y terminan el lote en curso.
 - **`case-worker`**:
@@ -237,4 +237,4 @@ Recalculado en los pendientes posteriores al cierre, 2026-10-10: la versión ant
 - **Para Operations**: integración con el core real del banco (INF-U8-02): contrato del API **[VERIFICAR]**, flujo de egress en §5 de `component-dependency.md` (host, puerto y TLS), revisión de seguridad, equivalente de X01 fuera de la malla (egress gateway que solo admita `GET /v1/credits/{id}`), `CoreWriteAttempt` alimentado por ese gateway y el scope `core:read-credit` en el realm de producción.
 - **Para U10** (resuelto el 2026-10-10 por U10 FD, Q3): case-service devuelve `credit_status = no_integrado` con `core.enabled = false` y la consola lo muestra como «estado de crédito no integrado» (BR-U10-07).
 - **Para U12**: Job de demostración de RT-5 (INF-U8-03) y medición del tamaño por caso (INF-U8-08).
-- **Para el plan de tareas de U8**: CLI `case-retention` (ya pendiente del FD), migración con los cuatro roles y la fila de `retention_settings`, `PrometheusRule` con todas las alertas de P-U8 e INF-U8.
+- **Para el plan de tareas de U8**: CLI `case-retention` (ya pendiente del FD), migración con los grants de los cuatro roles y la fila de `retention_settings`, `PrometheusRule` con todas las alertas de P-U8 e INF-U8.

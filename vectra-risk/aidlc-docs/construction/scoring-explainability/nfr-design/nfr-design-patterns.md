@@ -16,7 +16,7 @@ en CI.
 - **Hacia explainability**:
   - scoring envía la cabecera `x-vectra-deadline` con un instante absoluto en RFC 3339 con milisegundos: `min(ahora + 800 ms, pre_deadline)`.
   - explainability corta todo su trabajo en `min(deadline − 50 ms, llegada + 700 ms)` y, si ese instante llega, responde 504. scoring lo trata como `timeout`.
-  - Una cabecera ausente, mal formada o en el pasado se trata como «sin presupuesto externo» y aplica solo el tope de 700 ms. La llamada F12 (resumen al solicitante) no la envía.
+  - Una cabecera ausente o mal formada se trata como «sin presupuesto externo» y aplica solo el tope de 700 ms; una en el pasado da 504 inmediato (NFR-U0-23; cuarta revisión de coherencia entre unidades, 2026-10-31). La llamada F12 (resumen al solicitante) no la envía.
   - El tope propio de 700 ms acota el efecto de un desfase de reloj entre nodos (sincronizados por NTP en U1).
 - **En explainability, en paralelo**:
   - con la caché del diccionario fría, la consulta del diccionario (F103) y `:explain` (F22) se lanzan a la vez con `asyncio.TaskGroup`;
@@ -163,7 +163,7 @@ en CI.
 | `RegistryIdempotencyConflict` | SEV2 | Cualquier conflicto en 15 min (P-U7-02) |
 | `FactualityFailed` | SEV2 | Cualquier `factuality_failed` en 15 min. Con una plantilla determinista no debería ocurrir: indica divergencia entre generador y validador |
 | `ExplainerVersionMismatch` | SEV2 | Cualquier `version_mismatch` en 15 min (P-U6-02 lo hace imposible por despliegue; si aparece es un defecto o un ataque RT-3). Complementa a `PromotionMismatchPersistent` de U4, que se dispara si el `version_mismatch` dura más de 10 min |
-| `RecommendationLatencyHigh` | SEV3 | p95 de `POST /v1/recommendations` > 400 ms durante 15 min |
+| `RecommendationLatencyHigh` | SEV3 | p95 de `POST /v1/recommendations` > 400 ms durante 15 min, con `vectra_http_request_duration_seconds` (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 
 - Métricas en el puerto 8081 (convención de U0) con `ServiceMonitor`. Toda alerta lleva `runbook_url` (P-U1-10).
 - Alertas de otras unidades relacionadas con U7: `PromotionMismatchPersistent` (U4, sobre `vectra_scoring_failclosed_total{cause="version_mismatch"}`) y `FailClosedPersistente` (U1, P-U1-11). Esta última sale de `vectra_cases_failclosed_persistent` de case-service (U8, `services.md`), no de una métrica de U7. Antes, esta tabla decía que `FailClosedPersistente` usaba una métrica de U7 y que esa métrica llevaba `cause` en `vectra_recommendations_total`, en lugar del nombre de BR-U7-03 (corregido el 2026-10-03 al preparar el plan de tareas de U7).

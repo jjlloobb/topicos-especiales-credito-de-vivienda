@@ -1,0 +1,29 @@
+# Solo kind: una replica y poca memoria para un portatil de 14 GiB. Sin HA ni gossip F116.
+prometheus:
+  prometheusSpec:
+    replicas: 1
+    retention: 3d
+    resources:
+      requests: { cpu: 100m, memory: 512Mi }
+      limits: { cpu: "1", memory: 1Gi }
+    storageSpec:
+      volumeClaimTemplate:
+        spec: { accessModes: [ReadWriteOnce], resources: { requests: { storage: 5Gi } } }
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+    resources:
+      requests: { cpu: 10m, memory: 64Mi }
+      limits: { cpu: 100m, memory: 128Mi }
+prometheusOperator:
+  resources:
+    requests: { cpu: 10m, memory: 64Mi }
+    limits: { cpu: 100m, memory: 128Mi }
+kube-state-metrics:
+  resources:
+    requests: { cpu: 10m, memory: 64Mi }
+    limits: { cpu: 100m, memory: 128Mi }
+grafana:
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }

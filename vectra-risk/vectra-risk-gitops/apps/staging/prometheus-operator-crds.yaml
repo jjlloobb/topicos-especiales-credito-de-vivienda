@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus-operator-crds
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
+spec:
+  project: vectra-staging
+  sources:
+  - repoURL: https://charts.banco.internal/vectra
+    chart: prometheus-operator-crds
+    targetRevision: 32.0.2
+  - repoURL: https://git.banco.internal/vectra/vectra-risk.git
+    targetRevision: main
+    ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-observability
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

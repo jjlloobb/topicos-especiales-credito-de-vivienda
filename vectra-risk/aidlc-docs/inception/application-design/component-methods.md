@@ -69,7 +69,7 @@ Grafana (F06), con login OIDC y permisos por equipo.
 | `create_application(app) -> CaseRef` | `POST /api/console/cases` | analista | — | — | case `create_manual_application` |
 | `record_explanation_view(case_id)` | `POST /api/console/cases/{id}/explanation-views` | analista | — | el caso está `listo` o `decidido` | case `record_explanation_view` |
 | `record_decision(case_id, d) -> DecisionRef` | `POST /api/console/cases/{id}/decision` | analista | — | el caso está `listo` (si no, 409); la decisión queda a nombre del llamante | case `record_decision` |
-| `create_applicant_summary(case_id) -> ApplicantSummary` | `POST /api/console/cases/{id}/applicant-summary` | analista, cro | — | caso `decidido` con explicación sincronizada | explainability `applicant_summary` |
+| `create_applicant_summary(case_id) -> ApplicantSummary` | `POST /api/console/cases/{id}/applicant-summary` | analista, cro | — | caso `decidido`, decisión final `desfavorable` (BR-U7-13; seguimiento de la quinta revisión de coherencia, 2026-10-31) y explicación sincronizada; el BFF envía `recommendation_entry_id` desde el detalle del caso | explainability `applicant_summary` |
 | `list_persistent_failures() -> list[PersistentFailure]` | `GET /api/console/cases/failures` | cro | — | — | case `list_persistent_failures` (tipo precisado el 2026-10-06) |
 | `retry_case(case_id) -> CaseRef` | `POST /api/console/cases/{id}/retry` | cro | no (acción técnica, sin efecto sobre el crédito; queda en el log `case.retry_requested`) | el caso está `no_disponible` y no anonimizado (si no, 409) | case `retry_case` (agregado por U8 FD Q2) |
 | `get_dossier(case_id) -> Dossier` | `GET /api/console/cases/{id}/dossier` | cro, cumplimiento | — | el caso existe | registry `get_case_dossier` + case `get_case_identifiers` (identificadores directos; `get_case` no sirve para `cumplimiento`; revisión del Infrastructure Design de U10, 2026-10-10); el BFF compone, el registro no toca identificadores (U3 FD Q7) |
@@ -83,10 +83,11 @@ Grafana (F06), con login OIDC y permisos por equipo.
 | `list_models(filter) -> Page[ModelVersion]` | `GET /api/console/models` | ingeniero_riesgo, cro, cumplimiento | — | — | governance |
 | `get_model(mv_id) -> ModelVersionDetail` | `GET /api/console/models/{id}` | ingeniero_riesgo, cro, cumplimiento | — | incluye el informe de validación | governance |
 | `register_model(m) -> ModelVersion` | `POST /api/console/models` | ingeniero_riesgo | sí | — | governance `register_model` |
-| `start_validation(mv_id) -> ValidationRun` | `POST /api/console/models/{id}/validations` | ingeniero_riesgo | sí | estado `registrado` | governance `start_validation` |
+| `start_validation(mv_id) -> ValidationRun` | `POST /api/console/models/{id}/validations` | ingeniero_riesgo | sí | estado `registrado` o `validacion_fallida` (reintento, BR-U4-01; cuarta revisión de coherencia entre unidades, 2026-10-31) | governance `start_validation` |
 | `start_source_comparison(ds_id, candidate_version_id) -> ValidationRun` | `POST /api/console/data-sources/{id}/comparisons` | ingeniero_riesgo | sí | fuente `en_evaluacion`; candidata con `source_candidate_for`; existe una versión `activo` (U4 BR-U4-13, segunda revisión del FD de U9, 2026-10-08) | governance `start_source_comparison` |
 | `approve_model(mv_id, decision)` | `POST /api/console/models/{id}/approval` | cro | sí | estado `lista_para_aprobacion` | governance `approve_model` |
 | `resolve_frozen(mv_id, action, justification)` | `POST /api/console/models/{id}/frozen-resolution` | **cumplimiento** | sí | estado `congelado` | governance `resolve_frozen` |
+| `retire_model(mv_id) -> ModelVersion` | `POST /api/console/models/{id}/retirement` | cro | sí | estado `inactivo`, `rechazado` o `validacion_fallida` (BR-U4-01; cuarta revisión de coherencia entre unidades, 2026-10-31) | governance `retire_model` |
 
 `mark_active` **no** se expone en el BFF. Solo lo usa `promotion-tool` después de un
 sync manual aprobado (flujo S3).
@@ -97,7 +98,7 @@ sync manual aprobado (flujo S3).
 |---|---|---|---|---|---|
 | `list_policies() -> list[PolicyVersion]` | `GET /api/console/policies` | analista, cro, cumplimiento | — | — (lectura, para transparencia) | governance |
 | `propose_policy(p) -> PolicyVersion` | `POST /api/console/policies` | cro | sí | — | governance `propose_policy` |
-| `approve_policy(pv_id)` | `POST /api/console/policies/{id}/approval` | cro | sí | estado `propuesta` | governance `approve_policy` |
+| `approve_policy(pv_id, decision: PolicyDecisionIn)` | `POST /api/console/policies/{id}/approval` | cro | sí | estado `propuesta`; `rechazada` exige `justification` (2026-11-01) | governance `approve_policy` |
 
 ### Fuentes de datos (E3)
 
@@ -113,7 +114,7 @@ sync manual aprobado (flujo S3).
 |---|---|---|---|---|---|
 | `get_disparity(filter) -> DisparityView` | `GET /api/console/disparity` | cumplimiento, cro | — | — | governance `list_models(state=activo,congelado)` (F11, la versión servible) y después bias `get_dashboard` con esa versión (U9 BR-U9-18; quinta revisión del FD de U9, 2026-10-10) |
 | `list_freezes() -> list[FreezeSummary]` | `GET /api/console/freezes` | cumplimiento, cro | — | — | bias |
-| `get_freeze(freeze_id) -> FreezeContext` | `GET /api/console/freezes/{id}` | cumplimiento | — | el congelamiento existe | bias `get_context_package` |
+| `get_freeze(freeze_id) -> FreezeRecord` | `GET /api/console/freezes/{id}` | cumplimiento | — | el congelamiento existe | bias `get_context_package` |
 
 **Cobertura:** cada acción de usuario de las historias de E1–E5 tiene un endpoint en
 esta tabla, salvo la visualización de métricas, que se hace en Grafana (F06). La matriz
@@ -138,7 +139,7 @@ rol × endpoint de US-602 se genera desde esta tabla.
 
 | Operación | Endpoint | Entrada → Salida | Llamado por |
 |---|---|---|---|
-| `recommend(req: ScoringRequest) -> RecommendResult` | `POST /v1/recommendations` | features + `case_id` + etiquetas de monitoreo + `policy_inputs` → recomendación o fail-closed (siempre HTTP 200, BR-U0-06) | case-service |
+| `recommend(req: ScoringRequest) -> RecommendResult` | `POST /v1/recommendations` | features + `case_id` + etiquetas de monitoreo + `policy_inputs` → recomendación o fail-closed (siempre HTTP 200, BR-U0-06) | case-worker (F15, scope `case:recommend`; revisión de consistencia entre unidades, 2026-11-01) |
 | `apply_policy(score: Decimal4, confidence: Decimal4, inputs: PolicyInputs, policy: PolicyVersion) -> PolicyResult` | módulo interno puro | → outcome + `ReasonCode` | interno |
 
 ## C06 `explainability-service`
@@ -176,16 +177,17 @@ En el MVP solo existe `TemplateNarrativeGenerator`. Un futuro `InClusterLLMNarra
 | `submit_source_counts(run_id, pre, post)` | `PUT /v1/validation-runs/{run_id}/source-counts` | model-validation-job (`governance:validation-report`) |
 | `submit_validation_report(mv_id, r: ValidationReport)` | `PUT /v1/models/{id}/validation-report` | model-validation-job (identidad de servicio) |
 | `approve_model(mv_id, decision, user)` | `POST /v1/models/{id}/approval` | BFF (cro, con MFA) |
+| `retire_model(mv_id, user) -> ModelVersion` | `POST /v1/models/{id}/retirement` | BFF (cro, con MFA; cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | `list_models(filter) -> Page[ModelVersion]` | `GET /v1/models?state=…` (filtro por uno o varios estados; `state=activo,congelado` da la versión servible) | BFF (ingeniero_riesgo, cro, cumplimiento; para `get_disparity` del BFF, cro y cumplimiento) (sexta revisión del FD de U9, 2026-10-10) |
 | `list_promotable() -> list[ModelVersion]` | `GET /v1/models?state=aprobado` | promotion-tool |
 | `mark_active(mv_id, evidence)` | `POST /v1/models/{id}/activation` | promotion-tool tras sync aprobado (ingeniero_riesgo) |
 | `freeze_model(mv_id, ctx: FreezeContext)` | `POST /v1/models/{id}/freeze` | **solo** identidad `bias-monitoring-job` (CronJob de U9, scope `governance:freeze`; tercera revisión del FD de U9, 2026-10-10) |
 | `resolve_frozen(mv_id, action: Literal["reactivar","descartar","investigar"], justification, user)` | `POST /v1/models/{id}/frozen-resolution` | BFF (**solo** cumplimiento, con MFA) |
 | `get_active_serving_config() -> ServingConfig` | `GET /v1/serving-config` | scoring-service (lectura: versión activa, estado, política vigente) |
-| `get_feature_spec(mv_id) -> FeatureSpec` | `GET /v1/models/{id}/feature-spec` | case-service (F104, scope `governance:read-feature-spec`; agregado por U8 FD Q1) |
+| `get_feature_spec(mv_id) -> FeatureSpec` | `GET /v1/models/{id}/feature-spec` | case-worker (F104, scope `governance:read-feature-spec`; agregado por U8 FD Q1; revisión de consistencia entre unidades, 2026-11-01) |
 | `get_feature_dictionary(mv_id) -> FeatureDictionary` | `GET /v1/models/{id}/feature-dictionary` | explainability-service (F103, scope `governance:read-dictionary`; agregado por U7 FD Q4) |
 | `propose_policy(p: PolicyDraft, user) -> PolicyVersion` | `POST /v1/policies` | BFF (cro) |
-| `approve_policy(pv_id, user)` | `POST /v1/policies/{id}/approval` | BFF (cro, con MFA) |
+| `approve_policy(pv_id, decision: PolicyDecisionIn, user)` | `POST /v1/policies/{id}/approval` | BFF (cro, con MFA) |
 | `propose_data_source(s: DataSourceProposal, user)` | `POST /v1/data-sources` | BFF (ingeniero_riesgo) |
 | `decide_data_source(ds_id, decision, user)` | `POST /v1/data-sources/{id}/decision` | BFF (cumplimiento) |
 
@@ -222,7 +224,7 @@ def disparity_by_band(counts: CountTable, attribute: str, n_min: int) -> Attribu
 | Operación | Endpoint | Llamado por |
 |---|---|---|
 | `append(entry: RegistryEntryIn) -> RegistryAck` | `POST /v1/entries` | scoring, case, governance (identidades de servicio). bias **no** escribe: el congelamiento lo registra governance (F24) |
-| `query(filter: EntryFilter, principal) -> Page[RegistryEntry]` | `GET /v1/entries` | BFF (filtrado por rol), explainability (F23), product-metrics |
+| `query(filter: EntryFilter, principal) -> Page[EntryProjection]` (revisión de consistencia entre unidades, 2026-11-01) | `GET /v1/entries` | BFF (filtrado por rol), explainability (F23), product-metrics |
 | `monitoring_daily(q: MonitoringQuery) -> MonitoringWindow` | `POST /v1/monitoring/daily:query` (solo lectura e idempotente; la consulta va en el cuerpo porque son hasta 12 rangos; sexta revisión del FD de U9, 2026-10-10) | bias (servicio y CronJob, `registry:read:monitoring`; U3 BR-U3-17; quinta revisión del FD de U9, 2026-10-10) |
 | `monitoring_freezes() -> list[FreezeRecord]` | `GET /v1/monitoring/freezes` | bias (`registry:read:monitoring`) |
 | `get_case_dossier(case_id, principal) -> Dossier` | `GET /v1/dossiers/{case_id}` | BFF (cro, cumplimiento) |

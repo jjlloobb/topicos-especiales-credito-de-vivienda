@@ -1,7 +1,7 @@
 # Decisiones de stack — U2 `identity-edge`
 
 Decisiones del plan (`identity-edge-nfr-requirements-plan.md`, Q1–Q9 = A). Las versiones
-exactas se pinnean por digest en los values del repositorio GitOps.
+exactas se pinnean por digest en `vectra-risk-gitops/values/<env>/` (revisión de consistencia entre unidades, 2026-11-01).
 
 ---
 

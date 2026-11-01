@@ -1,0 +1,2203 @@
+components:
+  schemas:
+    ActivationIn:
+      additionalProperties: false
+      properties:
+        evidence:
+          maxLength: 500
+          title: Evidence
+          type: string
+      required:
+      - evidence
+      title: ActivationIn
+      type: object
+    AffectedVolume:
+      additionalProperties: false
+      description: Recomendaciones de la versión en la ventana y cuántas fueron `favorable`
+        (U9 §3.1).
+      properties:
+        favorable:
+          minimum: 0
+          title: Favorable
+          type: integer
+        total:
+          minimum: 0
+          title: Total
+          type: integer
+      required:
+      - total
+      - favorable
+      title: AffectedVolume
+      type: object
+    AttributeDelta:
+      additionalProperties: false
+      properties:
+        attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Attribute
+          type: string
+        delta:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Delta
+      required:
+      - attribute
+      title: AttributeDelta
+      type: object
+    AttributeResult:
+      additionalProperties: false
+      properties:
+        aggregate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Aggregate
+        aggregate_ci_95:
+          anyOf:
+          - items:
+              pattern: ^-?\d+\.\d{4}$
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: Aggregate Ci 95
+        attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Attribute
+          type: string
+        bands:
+          items:
+            $ref: '#/components/schemas/BandResult'
+          title: Bands
+          type: array
+        cells:
+          items:
+            $ref: '#/components/schemas/CellResult'
+          title: Cells
+          type: array
+        population_difference:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Population Difference
+        population_difference_partial:
+          title: Population Difference Partial
+          type: boolean
+      required:
+      - attribute
+      - cells
+      - bands
+      - population_difference_partial
+      title: AttributeResult
+      type: object
+    BandResult:
+      additionalProperties: false
+      properties:
+        band:
+          enum:
+          - lt_20
+          - '20_30'
+          - gt_30
+          title: Band
+          type: string
+        ci_95:
+          anyOf:
+          - items:
+              pattern: ^-?\d+\.\d{4}$
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: Ci 95
+        difference:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Difference
+        extreme_pair:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: Extreme Pair
+        n_band:
+          minimum: 0
+          title: N Band
+          type: integer
+      required:
+      - band
+      - n_band
+      title: BandResult
+      type: object
+    CellResult:
+      additionalProperties: false
+      properties:
+        band:
+          enum:
+          - lt_20
+          - '20_30'
+          - gt_30
+          title: Band
+          type: string
+        group:
+          title: Group
+          type: string
+        n:
+          minimum: 0
+          title: N
+          type: integer
+        rate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Rate
+        status:
+          enum:
+          - suficiente
+          - muestra_insuficiente
+          title: Status
+          type: string
+      required:
+      - group
+      - band
+      - n
+      - status
+      title: CellResult
+      type: object
+    ChannelRule:
+      additionalProperties: false
+      properties:
+        channel:
+          title: Channel
+          type: string
+        cutoff:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Cutoff
+      required:
+      - channel
+      title: ChannelRule
+      type: object
+    CountCell:
+      additionalProperties: false
+      properties:
+        band:
+          enum:
+          - lt_20
+          - '20_30'
+          - gt_30
+          title: Band
+          type: string
+        favorable:
+          minimum: 0
+          title: Favorable
+          type: integer
+        group:
+          title: Group
+          type: string
+        total:
+          minimum: 0
+          title: Total
+          type: integer
+      required:
+      - group
+      - band
+      - favorable
+      - total
+      title: CountCell
+      type: object
+    CountTable:
+      additionalProperties: false
+      properties:
+        attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Attribute
+          type: string
+        cells:
+          items:
+            $ref: '#/components/schemas/CountCell'
+          title: Cells
+          type: array
+      required:
+      - attribute
+      - cells
+      title: CountTable
+      type: object
+    DataSource:
+      additionalProperties: false
+      properties:
+        decided_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Decided By
+        description:
+          title: Description
+          type: string
+        ds_id:
+          title: Ds Id
+          type: string
+        name:
+          title: Name
+          type: string
+        owner:
+          title: Owner
+          type: string
+        pre_post_report:
+          anyOf:
+          - $ref: '#/components/schemas/PrePostReport'
+          - type: 'null'
+          default: null
+        proposed_by:
+          title: Proposed By
+          type: string
+        provides_features:
+          items:
+            type: string
+          title: Provides Features
+          type: array
+        state:
+          enum:
+          - propuesta
+          - en_evaluacion
+          - aprobada
+          - rechazada
+          title: State
+          type: string
+      required:
+      - name
+      - description
+      - provides_features
+      - owner
+      - ds_id
+      - proposed_by
+      - state
+      title: DataSource
+      type: object
+    DataSourceDecisionIn:
+      additionalProperties: false
+      properties:
+        decision:
+          enum:
+          - aprobada
+          - rechazada
+          title: Decision
+          type: string
+        justification:
+          anyOf:
+          - maxLength: 2000
+            type: string
+          - type: 'null'
+          default: null
+          title: Justification
+      required:
+      - decision
+      title: DataSourceDecisionIn
+      type: object
+    DataSourceProposal:
+      additionalProperties: false
+      properties:
+        description:
+          title: Description
+          type: string
+        name:
+          title: Name
+          type: string
+        owner:
+          title: Owner
+          type: string
+        provides_features:
+          items:
+            type: string
+          title: Provides Features
+          type: array
+      required:
+      - name
+      - description
+      - provides_features
+      - owner
+      title: DataSourceProposal
+      type: object
+    DepartureRate:
+      additionalProperties: false
+      properties:
+        band:
+          enum:
+          - lt_20
+          - '20_30'
+          - gt_30
+          title: Band
+          type: string
+        group:
+          title: Group
+          type: string
+        rate:
+          pattern: ^-?\d+\.\d{4}$
+          title: Rate
+          type: string
+      required:
+      - group
+      - band
+      - rate
+      title: DepartureRate
+      type: object
+    DisparityResult:
+      additionalProperties: false
+      properties:
+        attributes:
+          items:
+            $ref: '#/components/schemas/AttributeResult'
+          title: Attributes
+          type: array
+        departure_rates:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/DepartureRate'
+            type: array
+          - type: 'null'
+          default: null
+          title: Departure Rates
+        model_aggregate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Model Aggregate
+        model_version_id:
+          title: Model Version Id
+          type: string
+        population:
+          enum:
+          - modelo
+          - humana
+          title: Population
+          type: string
+        trigger_attribute:
+          anyOf:
+          - enum:
+            - sexo
+            - rango_edad
+            - region
+            - estrato
+            type: string
+          - type: 'null'
+          default: null
+          title: Trigger Attribute
+        window_from:
+          format: date
+          title: Window From
+          type: string
+        window_to:
+          format: date
+          title: Window To
+          type: string
+      required:
+      - population
+      - model_version_id
+      - window_from
+      - window_to
+      - attributes
+      title: DisparityResult
+      type: object
+    FeatureDictionary:
+      additionalProperties: false
+      properties:
+        dictionary_version:
+          title: Dictionary Version
+          type: string
+        entries:
+          items:
+            $ref: '#/components/schemas/FeatureDictionaryEntry'
+          title: Entries
+          type: array
+        model_version_id:
+          title: Model Version Id
+          type: string
+      required:
+      - dictionary_version
+      - model_version_id
+      - entries
+      title: FeatureDictionary
+      type: object
+    FeatureDictionaryEntry:
+      additionalProperties: false
+      properties:
+        applicant_safe:
+          title: Applicant Safe
+          type: boolean
+        decreases_risk_phrase_es:
+          maxLength: 160
+          title: Decreases Risk Phrase Es
+          type: string
+        feature_id:
+          title: Feature Id
+          type: string
+        increases_risk_phrase_es:
+          maxLength: 160
+          title: Increases Risk Phrase Es
+          type: string
+        label_es:
+          maxLength: 80
+          title: Label Es
+          type: string
+        unit:
+          anyOf:
+          - maxLength: 20
+            type: string
+          - type: 'null'
+          default: null
+          title: Unit
+      required:
+      - feature_id
+      - label_es
+      - increases_risk_phrase_es
+      - decreases_risk_phrase_es
+      - applicant_safe
+      title: FeatureDictionaryEntry
+      type: object
+    FeatureSpec:
+      additionalProperties: false
+      properties:
+        features:
+          items:
+            $ref: '#/components/schemas/FeatureSpecItem'
+          title: Features
+          type: array
+        model_version_id:
+          title: Model Version Id
+          type: string
+      required:
+      - model_version_id
+      - features
+      title: FeatureSpec
+      type: object
+    FeatureSpecItem:
+      additionalProperties: false
+      description: '`feature_spec.json` de U5: feature derivada, campo permitido o
+        busqueda en tabla.'
+      properties:
+        default:
+          anyOf:
+          - maxLength: 60
+            type: string
+          - type: 'null'
+          default: null
+          title: Default
+        feature_id:
+          title: Feature Id
+          type: string
+        origin:
+          enum:
+          - derived
+          - field
+          - lookup
+          title: Origin
+          type: string
+        source_fields:
+          default: []
+          items:
+            type: string
+          title: Source Fields
+          type: array
+        table:
+          anyOf:
+          - additionalProperties:
+              type: string
+            type: object
+          - type: 'null'
+          default: null
+          title: Table
+      required:
+      - feature_id
+      - origin
+      title: FeatureSpecItem
+      type: object
+    FreezeContext:
+      additionalProperties: false
+      properties:
+        affected_volume:
+          $ref: '#/components/schemas/AffectedVolume'
+        after:
+          $ref: '#/components/schemas/DisparityResult'
+        before:
+          anyOf:
+          - $ref: '#/components/schemas/DisparityResult'
+          - const: sin_datos
+            type: string
+          title: Before
+        computed_at:
+          format: date-time
+          title: Computed At
+          type: string
+        implicated:
+          items:
+            $ref: '#/components/schemas/JsonValue'
+          title: Implicated
+          type: array
+        last_7_days:
+          anyOf:
+          - $ref: '#/components/schemas/DisparityResult'
+          - const: sin_datos
+            type: string
+          title: Last 7 Days
+        library_version:
+          title: Library Version
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        n_min:
+          title: N Min
+          type: integer
+        schedule:
+          title: Schedule
+          type: string
+        stale_after_s:
+          title: Stale After S
+          type: integer
+        threshold_pp:
+          pattern: ^-?\d+\.\d{4}$
+          title: Threshold Pp
+          type: string
+        trigger_attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Trigger Attribute
+          type: string
+        truncated:
+          title: Truncated
+          type: boolean
+        window_days:
+          title: Window Days
+          type: integer
+        window_start:
+          format: date
+          title: Window Start
+          type: string
+      required:
+      - model_version_id
+      - computed_at
+      - threshold_pp
+      - n_min
+      - window_days
+      - schedule
+      - stale_after_s
+      - library_version
+      - window_start
+      - before
+      - after
+      - last_7_days
+      - trigger_attribute
+      - implicated
+      - affected_volume
+      - truncated
+      title: FreezeContext
+      type: object
+    FrozenResolutionIn:
+      additionalProperties: false
+      properties:
+        action:
+          enum:
+          - reactivar
+          - descartar
+          - investigar
+          title: Action
+          type: string
+        justification:
+          maxLength: 2000
+          minLength: 1
+          title: Justification
+          type: string
+      required:
+      - action
+      - justification
+      title: FrozenResolutionIn
+      type: object
+    InitialDisparity:
+      additionalProperties: false
+      properties:
+        attributes:
+          items:
+            $ref: '#/components/schemas/AttributeResult'
+          title: Attributes
+          type: array
+        model_aggregate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Model Aggregate
+        n_min:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: N Min
+        rule_met:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          title: Rule Met
+        threshold_pp:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Threshold Pp
+        trigger_attribute:
+          anyOf:
+          - enum:
+            - sexo
+            - rango_edad
+            - region
+            - estrato
+            type: string
+          - type: 'null'
+          default: null
+          title: Trigger Attribute
+      required:
+      - attributes
+      title: InitialDisparity
+      type: object
+    InvalidParam:
+      additionalProperties: false
+      properties:
+        name:
+          title: Name
+          type: string
+        reason_code:
+          title: Reason Code
+          type: string
+      required:
+      - name
+      - reason_code
+      title: InvalidParam
+      type: object
+    JsonValue: {}
+    ModelApprovalIn:
+      additionalProperties: false
+      properties:
+        decision:
+          enum:
+          - aprobado
+          - rechazado
+          title: Decision
+          type: string
+        justification:
+          anyOf:
+          - maxLength: 2000
+            type: string
+          - type: 'null'
+          default: null
+          title: Justification
+      required:
+      - decision
+      title: ModelApprovalIn
+      type: object
+    ModelFilter:
+      additionalProperties: false
+      description: '`GET /v1/models?state=activo,congelado`: uno o varios estados.'
+      properties:
+        page: &id001
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+        page_size: &id002
+          default: 20
+          maximum: 100
+          minimum: 1
+          title: Page Size
+          type: integer
+        state: &id003
+          anyOf:
+          - items:
+              enum:
+              - registrado
+              - en_validacion
+              - validacion_fallida
+              - lista_para_aprobacion
+              - aprobado
+              - rechazado
+              - activo
+              - inactivo
+              - congelado
+              - retirado
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: State
+      title: ModelFilter
+      type: object
+    ModelRegistration:
+      additionalProperties: false
+      properties:
+        artifact_format:
+          enum:
+          - onnx
+          - xgboost_json
+          - xgboost_ubj
+          - lightgbm_txt
+          title: Artifact Format
+          type: string
+        artifact_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Artifact Sha256
+          type: string
+        artifact_uri:
+          title: Artifact Uri
+          type: string
+        data_sources:
+          default: []
+          items:
+            type: string
+          title: Data Sources
+          type: array
+        explainer_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Explainer Sha256
+          type: string
+        explainer_uri:
+          title: Explainer Uri
+          type: string
+        manifest_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Manifest Sha256
+          type: string
+        manifest_uri:
+          title: Manifest Uri
+          type: string
+        source_candidate_for:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Source Candidate For
+      required:
+      - artifact_uri
+      - artifact_format
+      - artifact_sha256
+      - explainer_uri
+      - explainer_sha256
+      - manifest_uri
+      - manifest_sha256
+      title: ModelRegistration
+      type: object
+    ModelVersion:
+      additionalProperties: false
+      properties:
+        approved_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Approved By
+        archived_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Archived At
+        archived_uri:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Archived Uri
+        artifact_format:
+          enum:
+          - onnx
+          - xgboost_json
+          - xgboost_ubj
+          - lightgbm_txt
+          title: Artifact Format
+          type: string
+        artifact_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Artifact Sha256
+          type: string
+        artifact_uri:
+          title: Artifact Uri
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        data_sources:
+          items:
+            type: string
+          title: Data Sources
+          type: array
+        explainer_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Explainer Sha256
+          type: string
+        explainer_uri:
+          title: Explainer Uri
+          type: string
+        feature_dictionary_version:
+          title: Feature Dictionary Version
+          type: string
+        inference_service:
+          pattern: ^isvc-[0-9a-f]{8}$
+          title: Inference Service
+          type: string
+        investigation:
+          title: Investigation
+          type: boolean
+        manifest_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Manifest Sha256
+          type: string
+        manifest_uri:
+          title: Manifest Uri
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        registered_by:
+          title: Registered By
+          type: string
+        source_candidate_for:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Source Candidate For
+        state:
+          enum:
+          - registrado
+          - en_validacion
+          - validacion_fallida
+          - lista_para_aprobacion
+          - aprobado
+          - rechazado
+          - activo
+          - inactivo
+          - congelado
+          - retirado
+          title: State
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - model_version_id
+      - state
+      - artifact_uri
+      - artifact_format
+      - artifact_sha256
+      - explainer_uri
+      - explainer_sha256
+      - inference_service
+      - manifest_uri
+      - manifest_sha256
+      - feature_dictionary_version
+      - data_sources
+      - registered_by
+      - investigation
+      - created_at
+      - updated_at
+      title: ModelVersion
+      type: object
+    ModelVersionDetail:
+      additionalProperties: false
+      properties:
+        approved_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Approved By
+        archived_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Archived At
+        archived_uri:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Archived Uri
+        artifact_format:
+          enum:
+          - onnx
+          - xgboost_json
+          - xgboost_ubj
+          - lightgbm_txt
+          title: Artifact Format
+          type: string
+        artifact_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Artifact Sha256
+          type: string
+        artifact_uri:
+          title: Artifact Uri
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        data_sources:
+          items:
+            type: string
+          title: Data Sources
+          type: array
+        explainer_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Explainer Sha256
+          type: string
+        explainer_uri:
+          title: Explainer Uri
+          type: string
+        feature_dictionary_version:
+          title: Feature Dictionary Version
+          type: string
+        inference_service:
+          pattern: ^isvc-[0-9a-f]{8}$
+          title: Inference Service
+          type: string
+        investigation:
+          title: Investigation
+          type: boolean
+        manifest_sha256:
+          pattern: ^[0-9a-f]{64}$
+          title: Manifest Sha256
+          type: string
+        manifest_uri:
+          title: Manifest Uri
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        registered_by:
+          title: Registered By
+          type: string
+        source_candidate_for:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Source Candidate For
+        state:
+          enum:
+          - registrado
+          - en_validacion
+          - validacion_fallida
+          - lista_para_aprobacion
+          - aprobado
+          - rechazado
+          - activo
+          - inactivo
+          - congelado
+          - retirado
+          title: State
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+        validation_report:
+          anyOf:
+          - $ref: '#/components/schemas/ValidationReport'
+          - type: 'null'
+          default: null
+      required:
+      - model_version_id
+      - state
+      - artifact_uri
+      - artifact_format
+      - artifact_sha256
+      - explainer_uri
+      - explainer_sha256
+      - inference_service
+      - manifest_uri
+      - manifest_sha256
+      - feature_dictionary_version
+      - data_sources
+      - registered_by
+      - investigation
+      - created_at
+      - updated_at
+      title: ModelVersionDetail
+      type: object
+    NormativeParams:
+      additionalProperties: false
+      properties:
+        effective_from:
+          format: date
+          title: Effective From
+          type: string
+        effective_to:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          default: null
+          title: Effective To
+        source_ref:
+          maxLength: 300
+          title: Source Ref
+          type: string
+        usury_cap_ea:
+          pattern: ^-?\d+\.\d{4}$
+          title: Usury Cap Ea
+          type: string
+        vis_max_property_value:
+          maximum: 1000000000000
+          minimum: 0
+          title: Vis Max Property Value
+          type: integer
+      required:
+      - vis_max_property_value
+      - usury_cap_ea
+      - effective_from
+      - source_ref
+      title: NormativeParams
+      type: object
+    Page_ModelVersion_:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ModelVersion'
+          title: Items
+          type: array
+        next_seq_after:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Next Seq After
+        page:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Page
+        total:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Total
+      required:
+      - items
+      title: Page[ModelVersion]
+      type: object
+    PolicyDecisionIn:
+      additionalProperties: false
+      description: '`rechazada` exige `justification` (U4 `rejection_justification`).'
+      properties:
+        decision:
+          enum:
+          - aprobada
+          - rechazada
+          title: Decision
+          type: string
+        justification:
+          anyOf:
+          - maxLength: 2000
+            type: string
+          - type: 'null'
+          default: null
+          title: Justification
+      required:
+      - decision
+      title: PolicyDecisionIn
+      type: object
+    PolicyDraft:
+      additionalProperties: false
+      properties:
+        channel_rules:
+          items:
+            $ref: '#/components/schemas/ChannelRule'
+          title: Channel Rules
+          type: array
+        cutoff:
+          pattern: ^-?\d+\.\d{4}$
+          title: Cutoff
+          type: string
+        low_confidence_threshold:
+          pattern: ^-?\d+\.\d{4}$
+          title: Low Confidence Threshold
+          type: string
+        normative:
+          items:
+            $ref: '#/components/schemas/NormativeParams'
+          title: Normative
+          type: array
+      required:
+      - cutoff
+      - low_confidence_threshold
+      - channel_rules
+      - normative
+      title: PolicyDraft
+      type: object
+    PolicyVersion:
+      additionalProperties: false
+      properties:
+        approved_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Approved By
+        channel_rules:
+          items:
+            $ref: '#/components/schemas/ChannelRule'
+          title: Channel Rules
+          type: array
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        cutoff:
+          pattern: ^-?\d+\.\d{4}$
+          title: Cutoff
+          type: string
+        low_confidence_threshold:
+          pattern: ^-?\d+\.\d{4}$
+          title: Low Confidence Threshold
+          type: string
+        normative:
+          items:
+            $ref: '#/components/schemas/NormativeParams'
+          title: Normative
+          type: array
+        policy_version_id:
+          title: Policy Version Id
+          type: string
+        proposed_by:
+          title: Proposed By
+          type: string
+        state:
+          enum:
+          - propuesta
+          - activa
+          - rechazada
+          - historica
+          title: State
+          type: string
+      required:
+      - cutoff
+      - low_confidence_threshold
+      - channel_rules
+      - normative
+      - policy_version_id
+      - state
+      - proposed_by
+      - created_at
+      title: PolicyVersion
+      type: object
+    PrePostDelta:
+      additionalProperties: false
+      description: '`post − pre` de cada agregada y de `model_aggregate` (U9 §3.2).'
+      properties:
+        attributes:
+          items:
+            $ref: '#/components/schemas/AttributeDelta'
+          title: Attributes
+          type: array
+        model_aggregate:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Model Aggregate
+      required:
+      - attributes
+      title: PrePostDelta
+      type: object
+    PrePostReport:
+      additionalProperties: false
+      properties:
+        delta:
+          $ref: '#/components/schemas/PrePostDelta'
+        disclaimer:
+          title: Disclaimer
+          type: string
+        n_min:
+          title: N Min
+          type: integer
+        post:
+          $ref: '#/components/schemas/DisparityResult'
+        pre:
+          $ref: '#/components/schemas/DisparityResult'
+        source_id:
+          title: Source Id
+          type: string
+        threshold_pp:
+          pattern: ^-?\d+\.\d{4}$
+          title: Threshold Pp
+          type: string
+        truncated:
+          title: Truncated
+          type: boolean
+      required:
+      - source_id
+      - pre
+      - post
+      - delta
+      - threshold_pp
+      - n_min
+      - truncated
+      - disclaimer
+      title: PrePostReport
+      type: object
+    Problem:
+      additionalProperties: false
+      description: RFC 9457; campos cerrados (BR-U0-61) y `reason` de su catalogo
+        (§6).
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        correlation_id:
+          title: Correlation Id
+          type: string
+        invalid_params:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/InvalidParam'
+            type: array
+          - type: 'null'
+          default: null
+          title: Invalid Params
+        reason:
+          anyOf:
+          - $ref: '#/components/schemas/ProblemReason'
+          - type: 'null'
+          default: null
+        status:
+          title: Status
+          type: integer
+        title:
+          title: Title
+          type: string
+        type:
+          title: Type
+          type: string
+      required:
+      - type
+      - title
+      - status
+      - code
+      - correlation_id
+      title: Problem
+      type: object
+    ProblemCode:
+      enum:
+      - malformed_request
+      - unsupported_media_type
+      - validation_error
+      - unauthenticated
+      - forbidden
+      - mfa_required
+      - not_found
+      - conflict_state
+      - payload_too_large
+      - rate_limited
+      - dependency_unavailable
+      - internal_error
+      - unprocessable_explanation
+      - deadline_exceeded
+      title: ProblemCode
+      type: string
+    ProblemReason:
+      enum:
+      - decision_already_recorded
+      - transition_pending
+      - version_mismatch
+      - feature_dictionary_incomplete
+      - factuality_failed
+      - no_active_version
+      - active_version_frozen
+      title: ProblemReason
+      type: string
+    RootModel_list_DataSource__:
+      items:
+        $ref: '#/components/schemas/DataSource'
+      title: RootModel[list[DataSource]]
+      type: array
+    RootModel_list_PolicyVersion__:
+      items:
+        $ref: '#/components/schemas/PolicyVersion'
+      title: RootModel[list[PolicyVersion]]
+      type: array
+    ServingConfig:
+      additionalProperties: false
+      properties:
+        effective_from:
+          format: date-time
+          title: Effective From
+          type: string
+        etag:
+          title: Etag
+          type: string
+        feature_dictionary_version:
+          title: Feature Dictionary Version
+          type: string
+        inference_service:
+          pattern: ^isvc-[0-9a-f]{8}$
+          title: Inference Service
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        normative_current:
+          anyOf:
+          - $ref: '#/components/schemas/NormativeParams'
+          - type: 'null'
+          default: null
+        policy_version_id:
+          title: Policy Version Id
+          type: string
+        state:
+          enum:
+          - activo
+          - congelado
+          title: State
+          type: string
+      required:
+      - model_version_id
+      - state
+      - policy_version_id
+      - feature_dictionary_version
+      - effective_from
+      - inference_service
+      - etag
+      title: ServingConfig
+      type: object
+    SourceComparisonIn:
+      additionalProperties: false
+      properties:
+        candidate_version_id:
+          title: Candidate Version Id
+          type: string
+      required:
+      - candidate_version_id
+      title: SourceComparisonIn
+      type: object
+    SourceCountsIn:
+      additionalProperties: false
+      properties:
+        post:
+          items:
+            $ref: '#/components/schemas/CountTable'
+          title: Post
+          type: array
+        pre:
+          items:
+            $ref: '#/components/schemas/CountTable'
+          title: Pre
+          type: array
+      required:
+      - pre
+      - post
+      title: SourceCountsIn
+      type: object
+    SyncCheck:
+      additionalProperties: false
+      properties:
+        explainer_version:
+          title: Explainer Version
+          type: string
+        failure_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Failure Reason
+        passed:
+          title: Passed
+          type: boolean
+        predictor_version:
+          title: Predictor Version
+          type: string
+        samples_checked:
+          title: Samples Checked
+          type: integer
+      required:
+      - passed
+      - predictor_version
+      - explainer_version
+      - samples_checked
+      title: SyncCheck
+      type: object
+    ValidationReport:
+      additionalProperties: false
+      properties:
+        auc_meets_target:
+          title: Auc Meets Target
+          type: boolean
+        auc_roc:
+          pattern: ^-?\d+\.\d{4}$
+          title: Auc Roc
+          type: string
+        auc_target:
+          pattern: ^-?\d+\.\d{4}$
+          title: Auc Target
+          type: string
+        dataset_ref:
+          title: Dataset Ref
+          type: string
+        disclaimer:
+          title: Disclaimer
+          type: string
+        initial_disparity:
+          $ref: '#/components/schemas/InitialDisparity'
+        sync_check:
+          $ref: '#/components/schemas/SyncCheck'
+      required:
+      - auc_roc
+      - auc_target
+      - auc_meets_target
+      - initial_disparity
+      - sync_check
+      - dataset_ref
+      - disclaimer
+      title: ValidationReport
+      type: object
+    ValidationRun:
+      additionalProperties: false
+      properties:
+        baseline_version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Baseline Version Id
+        deadline_at:
+          format: date-time
+          title: Deadline At
+          type: string
+        finished_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Finished At
+        job_name:
+          title: Job Name
+          type: string
+        mode:
+          enum:
+          - validacion
+          - source_comparison
+          title: Mode
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        run_id:
+          title: Run Id
+          type: string
+        source_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Source Id
+        started_at:
+          format: date-time
+          title: Started At
+          type: string
+        state:
+          enum:
+          - lanzado
+          - informe_recibido
+          - fallido
+          - timeout
+          title: State
+          type: string
+      required:
+      - run_id
+      - model_version_id
+      - job_name
+      - mode
+      - state
+      - started_at
+      - deadline_at
+      title: ValidationRun
+      type: object
+info:
+  title: governance-service
+  version: 0.1.0
+openapi: 3.1.0
+paths:
+  /v1/data-sources:
+    get:
+      operationId: get_v1_data-sources
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RootModel_list_DataSource__'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      - cumplimiento
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+    post:
+      operationId: post_v1_data-sources
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataSourceProposal'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataSource'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+  /v1/data-sources/{id}/comparisons:
+    post:
+      operationId: post_v1_data-sources_id_comparisons
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceComparisonIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: &id005
+                $ref: '#/components/schemas/ValidationRun'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+  /v1/data-sources/{id}/decision:
+    post:
+      operationId: post_v1_data-sources_id_decision
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataSourceDecisionIn'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cumplimiento
+      x-vectra-scopes: []
+  /v1/models:
+    get:
+      operationId: get_v1_models
+      parameters:
+      - in: query
+        name: page
+        required: false
+        schema: *id001
+      - in: query
+        name: page_size
+        required: false
+        schema: *id002
+      - in: query
+        name: state
+        required: false
+        schema: *id003
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_ModelVersion_'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      - cumplimiento
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+    post:
+      operationId: post_v1_models
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelRegistration'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: &id004
+                $ref: '#/components/schemas/ModelVersion'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+  /v1/models/{id}:
+    get:
+      operationId: get_v1_models_id
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelVersionDetail'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      - cumplimiento
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+  /v1/models/{id}/activation:
+    post:
+      operationId: post_v1_models_id_activation
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivationIn'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - ingeniero_riesgo
+      x-vectra-scopes:
+      - governance:promotion
+  /v1/models/{id}/approval:
+    post:
+      operationId: post_v1_models_id_approval
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelApprovalIn'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []
+  /v1/models/{id}/feature-dictionary:
+    get:
+      operationId: get_v1_models_id_feature-dictionary
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureDictionary'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles: []
+      x-vectra-scopes:
+      - governance:read-dictionary
+  /v1/models/{id}/feature-spec:
+    get:
+      operationId: get_v1_models_id_feature-spec
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureSpec'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles: []
+      x-vectra-scopes:
+      - governance:read-feature-spec
+  /v1/models/{id}/freeze:
+    post:
+      operationId: post_v1_models_id_freeze
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FreezeContext'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 65536
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles: []
+      x-vectra-scopes:
+      - governance:freeze
+  /v1/models/{id}/frozen-resolution:
+    post:
+      operationId: post_v1_models_id_frozen-resolution
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FrozenResolutionIn'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cumplimiento
+      x-vectra-scopes: []
+  /v1/models/{id}/retirement:
+    post:
+      operationId: post_v1_models_id_retirement
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: *id004
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []
+  /v1/models/{id}/validation-report:
+    put:
+      operationId: put_v1_models_id_validation-report
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidationReport'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 65536
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles: []
+      x-vectra-scopes:
+      - governance:validation-report
+  /v1/models/{id}/validations:
+    post:
+      operationId: post_v1_models_id_validations
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: *id005
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - ingeniero_riesgo
+      x-vectra-scopes: []
+  /v1/policies:
+    get:
+      operationId: get_v1_policies
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RootModel_list_PolicyVersion__'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      - cro
+      - cumplimiento
+      x-vectra-scopes: []
+    post:
+      operationId: post_v1_policies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyDraft'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyVersion'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []
+  /v1/policies/{id}/approval:
+    post:
+      operationId: post_v1_policies_id_approval
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyDecisionIn'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: true
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []
+  /v1/serving-config:
+    get:
+      operationId: get_v1_serving-config
+      parameters:
+      - in: header
+        name: If-None-Match
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServingConfig'
+          description: OK
+        '304':
+          description: Sin cambios
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles: []
+      x-vectra-scopes:
+      - governance:read-serving
+  /v1/validation-runs/{run_id}/source-counts:
+    put:
+      operationId: put_v1_validation-runs_run_id_source-counts
+      parameters:
+      - in: path
+        name: run_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceCountsIn'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 65536
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles: []
+      x-vectra-scopes:
+      - governance:validation-report

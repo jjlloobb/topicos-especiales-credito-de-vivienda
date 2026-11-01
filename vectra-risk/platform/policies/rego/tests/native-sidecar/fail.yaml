@@ -1,0 +1,28 @@
+# espera: sin-metadata sin el sidecar nativo explicito
+# espera: job-sin-metadata sin el sidecar nativo explicito
+# espera: sin-anotacion sin el sidecar nativo explicito
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: sin-metadata }
+spec:
+  jobTemplate:
+    spec:
+      template:
+        spec: {}
+---
+apiVersion: batch/v1
+kind: Job
+metadata: { name: job-sin-metadata }
+spec:
+  template:
+    spec: {}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: sin-anotacion }
+spec:
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations: { otra: "true" }

@@ -1,0 +1,258 @@
+# K16: solo kind y staging (U12 INF-U12-03). Sin ServiceAccount: el sujeto es un grupo.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vectra-verification-operator-nodes
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vectra-verification-operator-nodes
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vectra-verification-operator-nodes
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: vectra-verification-operators
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vectra-verification-operator
+  namespace: vectra-app
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ''
+  resources:
+  - pods/log
+  verbs:
+  - get
+- apiGroups:
+  - ''
+  resources:
+  - pods/portforward
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vectra-verification-operator
+  namespace: vectra-app
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vectra-verification-operator
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: vectra-verification-operators
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vectra-verification-operator
+  namespace: vectra-edge
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vectra-verification-operator
+  namespace: vectra-edge
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vectra-verification-operator
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: vectra-verification-operators
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vectra-verification-operator
+  namespace: vectra-serving
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - inferenceservices
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vectra-verification-operator
+  namespace: vectra-serving
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vectra-verification-operator
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: vectra-verification-operators
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vectra-verification-operator
+  namespace: vectra-identity
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vectra-verification-operator
+  namespace: vectra-identity
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vectra-verification-operator
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: vectra-verification-operators
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vectra-verification-operator
+  namespace: vectra-data
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vectra-verification-operator
+  namespace: vectra-data
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vectra-verification-operator
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: vectra-verification-operators
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vectra-verification-operator
+  namespace: vectra-observability
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ''
+  resources:
+  - pods/portforward
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vectra-verification-operator
+  namespace: vectra-observability
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vectra-verification-operator
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: vectra-verification-operators

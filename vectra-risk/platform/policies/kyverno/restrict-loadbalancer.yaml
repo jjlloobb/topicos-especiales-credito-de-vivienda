@@ -1,0 +1,29 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-loadbalancer
+  annotations:
+    policies.kyverno.io/description: Solo el api-gateway es LoadBalancer
+spec:
+  validationFailureAction: Enforce
+  failurePolicy: Fail
+  background: false
+  rules:
+    - name: restrict-loadbalancer
+      match:
+        any:
+          - resources:
+              kinds: [Service]
+              operations: [CREATE, UPDATE]
+              namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-staging, vectra-data, vectra-mock, vectra-observability, vectra-restore-drill]
+      validate:
+        message: "Solo el api-gateway es LoadBalancer"
+        deny:
+          conditions:
+            all:
+              - key: "{{ request.object.spec.type || 'ClusterIP' }}"
+                operator: Equals
+                value: LoadBalancer
+              - key: "{{ request.object.metadata.labels.\"app.kubernetes.io/name\" || '' }}"
+                operator: NotEquals
+                value: api-gateway

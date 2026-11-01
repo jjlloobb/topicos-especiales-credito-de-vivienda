@@ -1,0 +1,22 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-priority-class
+  annotations:
+    policies.kyverno.io/description: priorityClassName obligatorio
+spec:
+  validationFailureAction: Enforce
+  failurePolicy: Fail
+  background: false
+  rules:
+    - name: require-priority-class
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-staging, vectra-data, vectra-mock, vectra-observability, vectra-restore-drill]
+      validate:
+        message: "priorityClassName obligatorio"
+        pattern:
+          spec:
+            priorityClassName: "vectra-*"

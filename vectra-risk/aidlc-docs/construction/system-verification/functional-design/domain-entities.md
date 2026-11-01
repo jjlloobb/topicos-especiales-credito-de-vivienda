@@ -9,7 +9,7 @@ escenarios, informes de corrida y evidencias versionadas en el PR.
 
 | Tipo | Campos |
 |---|---|
-| `SimulatorScenario` | `name` (`normal`, `stratified`, `rt1`, `rt4`), `volume`, `rate` (≤ 30/s), `seed`, `strata?` (para `stratified`: `min_per_cell = 30`, atributos `region` y `estrato`) |
+| `SimulatorScenario` | `name` (`normal`, `stratified`, `rt1`, `rt4`), `volume`, `rate` (≤ 30/s), `seed`, `strata?` (para `stratified`: `min_per_cell = 30`, celda de U9: atributo, grupo y banda, con los cuatro atributos) |
 | `DecisionMix` | `p_view` (probabilidad de abrir la explicación), `p_sigue`, `p_se_aparta`, `p_resuelve_revision` (solo con `revision_requerida`), `p_factors` (marcar factores frente a «Ninguno»), `seed` |
 | `LoadProfile` | `intake_rate` (20/s), `console_users` (200, perfil de U10), `duration` (30 min), `baseline_rate` (5/s), `scale` (1 o 0,5) |
 
@@ -39,7 +39,7 @@ aunque `result` diga otra cosa.
 |---|---|
 | RT | RT-1, RT-2, RT-3, RT-4, RT-5 |
 | Negativas | X01–X10 |
-| Historias | US-101, 106, 109, 111, 303, 305, 603, 604, 609 |
+| Historias | US-101, 106, 109, 111, 303, 305, 603, 604, 608, 609, 610 |
 | Demos | `journey-7-3`, `journey-7-4`, `rt-5`, `dashboard` |
 | Mediciones | Tamaño por caso (INF-U8-08), latencia de RT-2 |
 
@@ -50,9 +50,11 @@ Además de RT-1..5, X01–X10 y las cuatro demos, el generador reconoce estas ev
 | Id | Qué prueba | Regla |
 |---|---|---|
 | `SIM-NORMAL` | La corrida `normal` del simulador: `accepted = sent`, un caso por solicitud aceptada y cada caso llega a `listo` o a un estado de fail-closed documentado | BR-U12-02 |
-| `RT2-LATENCY` | Las 5 corridas de latencia de RT-2, con su máximo ≤ 30 min | BR-U12-07 |
+| `RT2-LATENCY` | Las 5 corridas de latencia de RT-2, una por versión del proxy, con su máximo ≤ 30 min | BR-U12-07 |
 | `LOGS-NO-PII` | Durante las corridas, Loki no contiene ningún identificador ni nombre de las solicitudes enviadas (prefijo `SYN-` y el catálogo ficticio de U5) | BR-U12-12 |
 | `LOAD` | La prueba de carga con su línea base | BR-U12-08 |
+| `RESTORE-DRILL` | El simulacro y el restore del sitio con la cadena íntegra | BR-U12-08b |
+| `READINESS` | Las pruebas de readiness de P-U1-04 | BR-U12-08b |
 | `CASE-SIZE` | La medición del tamaño por caso | BR-U12-06 |
 
 ### 4.2 Mapa historia → evidencias (revisión del FD de U12, 2026-10-10)
@@ -68,6 +70,8 @@ Además de RT-1..5, X01–X10 y las cuatro demos, el generador reconoce estas ev
 | US-603 (sin escritura al estado de crédito) | `RT-5`, `X01`, `rt-5` |
 | US-604 (egress denegado y logs sin PII) | `X02`, `LOGS-NO-PII` |
 | US-609 (autoscaling con carga simulada) | `LOAD` |
+| US-608 (backups y restauración probada) | `RESTORE-DRILL` |
+| US-610 (health checks y respuesta a incidentes) | `READINESS` |
 | US-304 (paquete de contexto; demo 7.4) | `journey-7-4` (paso del paquete), `RT-2` (oráculo del paquete completo) |
 | US-503 (North Star; demo del dashboard) | `dashboard` |
 | US-504 (métrica de ruido con alerta; demo del dashboard) | `dashboard` |

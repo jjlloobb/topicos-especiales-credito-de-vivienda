@@ -1,0 +1,15 @@
+# P-U1-13: 1 replica con persistencia. Sin --web.enable-admin-api.
+replicaCount: 1
+image: { tag: "v1.11.4@sha256:91a56b89b97dd8a5e1e4fa8b5bbbd86dd57a87a2a3cee3a3ce3368b40ef158ef" }
+fullnameOverride: pushgateway
+podLabels: { vectra.io/criticality: medium } # el chart las aplica tambien al Deployment
+priorityClassName: vectra-normal
+serviceAccount: { create: true, name: pushgateway }
+persistentVolume: { enabled: true, size: 1Gi, mountPath: /data }
+extraArgs: [--persistence.file=/data/metrics, --persistence.interval=1m]
+serviceMonitor: { enabled: true, namespace: vectra-observability } # el chart usa `monitoring` por defecto
+securityContext: { runAsNonRoot: true, runAsUser: 65534, fsGroup: 65534, seccompProfile: { type: RuntimeDefault } }
+containerSecurityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+resources:
+  requests: { cpu: 25m, memory: 64Mi }
+  limits: { cpu: 100m, memory: 128Mi }

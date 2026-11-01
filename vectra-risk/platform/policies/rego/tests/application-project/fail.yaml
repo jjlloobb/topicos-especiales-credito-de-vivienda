@@ -1,0 +1,5 @@
+# espera: usa el proyecto default
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata: { name: por-defecto }
+spec: { project: default }

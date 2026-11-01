@@ -23,6 +23,7 @@ plan de tareas.
 8. AccessLog               un LogRecord por request (BR-U0-50)
 ```
 
+- **Histograma HTTP** (seguimiento de la quinta revisión de coherencia, 2026-10-31): el middleware observa `vectra_http_request_duration_seconds` en cada request, con `route_template` y nunca la URL con parámetros. Todo otro histograma declara sus buckets al registrarse, y `vectra_common.metrics` rechaza uno sin ellos.
 - Los health checks y `/metrics` se montan en una app separada en el puerto 8081, sin las capas 2–5.
 - **Verificación**: una prueba inspecciona el stack de una app creada con `create_app` y compara el orden exacto. import-linter prohíbe que los servicios importen `fastapi.FastAPI` directamente.
 - **Satisface**: NFR-U0-01, 15; SECURITY-08, 15.
@@ -56,8 +57,8 @@ plan de tareas.
 
 ### P-U0-05 — Jerarquía cerrada de errores (Q6)
 - `VectraError(code)` tiene una subclase por `code` del catálogo (`ValidationFailed`, `Unauthenticated`, `Forbidden`, `MfaRequired`, `NotFound`, `ConflictState`, `PayloadTooLarge`, `RateLimited`, `DependencyUnavailable`, `MalformedRequest`, `UnsupportedMediaType`).
-- El `ProblemHandler` traduce **solo** `VectraError`; cualquier otra excepción se convierte en `internal_error`, con un log de tipo y `error_code`, sin `str(exc)` (BR-U0-52).
-- Las excepciones de dependencias se envuelven en el punto de llamada con el helper `vectra_common.deps.call(...)`, que aplica el timeout y convierte `httpx.TimeoutException` y los errores de conexión en `DependencyUnavailable`.
+- El `ProblemHandler` traduce **solo** `VectraError`; cualquier otra excepción se convierte en `internal_error`, con un log de tipo (`exception_type`) y `error_code`, sin `str(exc)` (BR-U0-52).
+- Las excepciones de dependencias se envuelven en el punto de llamada con el helper `vectra_common.deps.call(...)`, que aplica el timeout y convierte `httpx.TimeoutException` en `DependencyTimeout` (504) y los errores de conexión en `DependencyUnavailable` (503) (revisión de consistencia entre unidades, 2026-11-01).
 - **Verificación**: PBT-U0-08; prueba de que una excepción de terceros que llega al handler da `internal_error`.
 - **Satisface**: SECURITY-15; NFR-U0-12; BR-U0-60, 61.
 
@@ -79,17 +80,18 @@ validar token(kid):
 - El cache es en memoria y por proceso; no hay cache compartido.
 - El límite de 1 refresco cada 30 s hace de circuit breaker: protege a Keycloak de ráfagas de `kid` falsos.
 - Métrica `vectra_jwks_refresh_total{result=ok|error|throttled}`.
+- **Confianza** (quinta revisión de coherencia entre unidades, 2026-10-31): `authn` y `deps` verifican el TLS de Keycloak con el archivo que indica `VECTRA_CA_BUNDLE`, que cada servicio recibe por `ExternalSecret`. Si falta el archivo, el servicio no arranca: nunca se desactiva la verificación.
 - **Verificación**: prueba con un servidor JWKS falso que cuenta las llamadas (100 requests concurrentes → 1 llamada); prueba con el JWKS caído y la cache vencida → 503 (NFR-U0-11, 12).
 - **Satisface**: NFR-U0-11, 12; RESILIENCY-10 (timeout explícito y fail-fast).
 
 ### P-U0-07 — Helper de llamadas a dependencias (Q6)
-- `vectra_common.deps.call(client, request, timeout)` exige un timeout explícito, sin valor por defecto, y envuelve los errores de transporte (P-U0-05).
+- `vectra_common.deps.call(client, method, path, *, timeout, …)` exige un timeout explícito, sin valor por defecto, y envuelve los errores de transporte (P-U0-05).
 - Los servicios lo usan para KServe, explainability, el registro y governance.
 - **Circuit breaker por dependencia** también en `deps` (precisado por U7 NFR Requirements Q4): estados cerrado, abierto y semiabierto con ventana deslizante. Cada servicio declara sus umbrales por dependencia. Solo cuentan como fallo los timeouts, los errores de conexión y los 5xx; un 4xx no cuenta (precisado el 2026-10-06 por U8 NFR Requirements, NFR-U8-32). Abierto → la llamada falla de inmediato con `DependencyUnavailable`, sin salir del proceso. Métrica `vectra_circuit_state{dependency}`.
 - **Presupuesto propagado y aislamiento** (precisado el 2026-10-03 por U7 NFR Design Q1 y Q4):
-  - `call(..., deadline=)` usa `min(timeout, deadline − ahora)` y propaga la cabecera `x-vectra-deadline` (RFC 3339 con milisegundos); `vectra_common.deadline` la lee en el servicio que recibe y descarta una cabecera mal formada o en el pasado;
+  - `call(..., deadline=)` usa `min(timeout, deadline − ahora)` y propaga la cabecera `x-vectra-deadline` (RFC 3339 con milisegundos); `vectra_common.deadline` la lee en el servicio que recibe y descarta una cabecera mal formada; una en el pasado agota el presupuesto (504 inmediato, NFR-U0-23; cuarta revisión de coherencia entre unidades, 2026-10-31);
   - un `httpx.AsyncClient` por dependencia con su propio límite de conexiones; la espera de una conexión libre cuenta dentro del timeout.
-- **Modo `disabled` del breaker, solo para procesos batch** (precisado el 2026-10-10 por U9 NFR Design Q1): un cliente puede crearse con `breaker="disabled"` únicamente si el proceso declara `process_kind="batch"` (un Job o CronJob que termina en cada corrida y no acumula estadística, como el CronJob de U9); un servicio HTTP que lo intente falla al crear el cliente. El timeout sigue siendo obligatorio.
+- **Modo `disabled` del breaker, solo para procesos batch** (precisado el 2026-10-10 por U9 NFR Design Q1): un cliente puede crearse con `breaker="disabled"` únicamente si el proceso declara `process.init("batch")` (un Job o CronJob que termina en cada corrida y no acumula estadística, como el CronJob de U9); un servicio HTTP que lo intente falla al crear el cliente. El timeout sigue siendo obligatorio.
 - Antes decía que el circuit breaker era responsabilidad de cada servicio; se centralizó para que todos compartan la misma semántica y la misma métrica.
 - **Verificación**: regla de lint que prohíbe llamar a `httpx` directamente fuera de `vectra_common.deps`; prueba de que `call` sin timeout no compila (parámetro obligatorio); **propiedad stateful PBT-U0-14** del circuit breaker: para toda secuencia de éxitos, fallos y paso del tiempo, el estado coincide con un modelo de referencia, y en estado abierto nunca se emite una llamada.
 - **Satisface**: NFR-U0-23; RESILIENCY-10 (timeouts y circuit breaking); NFR-RES-11.
@@ -126,14 +128,14 @@ validar token(kid):
 ### P-U0-11 — Trazas con muestreo completo y allowlist (Q8)
 - Muestreo `ParentBased(TraceIdRatioBased(VECTRA_TRACE_RATIO))`, con un valor por defecto de `1.0`.
 - Un `SpanProcessor` aplica a los atributos de span la misma allowlist que los logs (P-U0-04).
-- La auto-instrumentación de `httpx` y FastAPI está configurada para **no** capturar cuerpos, query strings ni cabeceras salvo `traceparent`.
+- No se usa auto-instrumentación: `TelemetryMiddleware` abre un span por solicitud con los ids de los logs y del `traceparent`, y `deps.call` propaga la decisión de muestreo; así no se capturan cuerpos, query strings ni cabeceras (decisión de la revisión de consistencia entre unidades, 2026-11-01).
 - **Verificación**: prueba con un exportador en memoria: los atributos de span ⊆ allowlist y ningún valor de PII generado aparece.
 - **Satisface**: NFR-RES-06; AUTONOMIA-05; NFR-U0-16.
 
 ## 4. Patrón de contratos
 
 ### P-U0-12 — Registro de contratos de rutas (Q7)
-- `vectra_contracts.routes` declara, por servicio, cada ruta como dato: `RouteContract(service, method, path, request_model, response_model, scopes, roles, mfa, mfa_max_age=900, port=8080, read_only=False)`. `read_only=True` marca un `POST` de consulta sin efectos (hoy, `POST /v1/monitoring/daily:query` de U3): `create_app` lo admite con un scope de lectura como `registry:read:monitoring` y sin `Idempotency-Key`; un `POST` sin `read_only` con solo scopes de lectura falla al arrancar (séptima revisión del FD de U9, 2026-10-10).
+- `vectra_contracts.routes` declara, por servicio, cada ruta como dato: `RouteContract(service, method, path, request_model, response_model, scopes, any_scopes, roles, mfa, mfa_max_age=900, port=8080, read_only=False, max_body_bytes=32 KiB)`; `any_scopes` autoriza con al menos uno, para rutas que varias identidades usan con scopes distintos (BR-U0-71; Code Generation de U0, 2026-10-31). `read_only=True` marca un `POST` de consulta sin efectos (hoy, `POST /v1/monitoring/daily:query` de U3): `create_app` lo admite con un scope de lectura como `registry:read:monitoring` y sin `Idempotency-Key`; un `POST` sin `read_only` con solo scopes de lectura falla al arrancar (séptima revisión del FD de U9, 2026-10-10).
 - Del registro se generan:
   - las specs `contracts/openapi/{service}.yaml` (NFR-U0-30);
   - el catálogo de scopes y clientes para el realm de U2;

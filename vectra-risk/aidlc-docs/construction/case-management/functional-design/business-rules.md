@@ -22,7 +22,7 @@ U8 las **aplica**.
 
 **BR-U8-03 — Escenarios adversariales (Q9; US-101).**
 - `X-Test-Scenario` (sin el prefijo `x-vectra-`, que el gateway reserva a las cabeceras internas y elimina; U2 P-U2-06 precisado) solo se acepta si el cliente es el simulador (`azp = channel-simulator`, un cliente de U2 que solo existe fuera de producción) **y** el despliegue tiene `allow_test_scenarios = true`. Ese valor es `false` en producción, fijado en los values y verificado por política.
-- En producción la cabecera → 400.
+- En producción la cabecera → 422 `validation_error`.
 - Se guarda como `test_scenario_id` y nunca se envía a scoring, al registro ni a los logs de negocio.
 
 **BR-U8-04 — Alta manual.** Solo `analista` (US-102; otro rol → 403 y log `authz.denied`).
@@ -191,6 +191,7 @@ usan el mismo outbox y el mismo reconciliador; solo las decisiones cambian el es
 - `record_explanation_view` solo para el rol `analista` (como en el BFF; otro rol → 403) y solo con el caso `listo` o `decidido`; si no → 409, lo que incluye `vencido`. Un caso `decidido` anonimizado **sí** acepta la consulta: no expone datos y conserva la métrica (precisado el 2026-10-06).
 - La primera vez por (`case_id`, `user_id`): insertar `explanation_views` + `evidence_outbox` con `idempotency_key = UUIDv5(case_id, user_id)` y hacer el append de `explanation_view`.
 - Las siguientes → 204, sin entrada nueva. Si la evidencia de la primera quedó `abandonada`, la apertura siguiente reenvía el **payload original** con la misma llave: con ack, se confirma; si el registro sigue sin responder, la consulta continúa pendiente (precisado el 2026-10-06, revisión del FD de U8).
+- **Rechazo por antigüedad** (seguimiento de la cuarta revisión de coherencia, 2026-10-31): si el registro responde 422 porque `viewed_at` supera los 7 días de BR-U0-37, la evidencia pasa a `descartada`, un estado terminal, y no se reenvía nunca más; se incrementa `vectra_case_evidence_discarded_total` y dispara `CaseEvidenceDiscarded` (SEV3). La fila de `explanation_views` se conserva, porque la consulta sí ocurrió (BR-U8-17), pero no queda entrada en la cadena, y el runbook lo explica.
 - La clave única y la llave derivada impiden duplicados en una carrera.
 - La entrada lleva caso, usuario, `viewed_at` (el momento de la primera consulta, dentro del payload; `occurred_at` es el del intento, BR-U3-05) y `recommendation_entry_id` = `cases.recommendation_entry_id`, es decir, la recomendación que se consultó (precisado el 2026-10-06, revisión del FD de U8). No lleva PII del solicitante.
 

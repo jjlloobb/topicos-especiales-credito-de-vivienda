@@ -114,6 +114,7 @@ Wave 5:   restore-drill -> lee S3, crea cluster efímero, verify_chain, empuja m
 | `RegistryDbWritesBlocked` (sin réplica síncrona) | SEV1 | NFR-U1-03 |
 | `KyvernoUnavailable` / `LinkerdControlPlaneDown` | SEV1 | P-U1-06 |
 | `SingleZoneOperation` | SEV2 | NFR-U1-32 |
+| `MinioWriteQuorumLost` | SEV2 | INF-U1-03: MinIO sin quórum de escritura (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 | `PostgresReplicaLag` | SEV2 | NFR-U1-32 |
 | `CertificateExpiringSoon` | SEV2 / SEV1 | P-U1-03 |
 | `RecommendationSLOBurnFast` / `Slow` | SEV2 / SEV3 | P-U1-11 |
@@ -124,6 +125,7 @@ Wave 5:   restore-drill -> lee S3, crea cluster efímero, verify_chain, empuja m
 | `HPAMaxedOut` | SEV3 | NFR-U1-32 |
 | `PushgatewayDown` (`up{job="pushgateway"} == 0` o `absent()` durante 5 min; sin él no llegan las métricas de `restore-drill` ni de bias; tercera revisión del FD de U9, 2026-10-10) | SEV2 | P-U1-05 |
 | `GrafanaFolderPermissionsDrift` | SEV3 | Los permisos de una carpeta de Grafana difieren de `folder-permissions.yaml`; los compara el CronJob de permisos de carpetas (F110; U11 BR-U11-13, U9 INF-U9-05). Runbook `grafana-folder-permissions-drift` (revisión de coherencia entre unidades, 2026-10-10) |
+| `LogFieldsDropped` (`increase(vectra_log_fields_dropped_total[15m]) > 0`; la pide P-U0-04, agregada el 2026-11-01) | SEV3 | Un servicio intentó registrar un campo fuera de `LogRecord`. Runbook `log-fields-dropped` |
 | `Watchdog` | latido | P-U1-07 |
 
 ## 4. Pendiente para Infrastructure Design de U1

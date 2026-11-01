@@ -1,0 +1,1360 @@
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: case-db
+  namespace: vectra-data
+  labels:
+    vectra.io/criticality: high
+spec:
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.9-system-trixie@sha256:8fd8db26090e602458269741849e5c9cd7aff577a22af53c8a402c580fd1e729
+  instances: 3
+  minSyncReplicas: 1
+  maxSyncReplicas: 2
+  primaryUpdateStrategy: unsupervised
+  bootstrap:
+    initdb:
+      database: case
+      owner: case_migrator
+      secret: { name: pg-role-case-migrator }
+  priorityClassName: vectra-critical
+  postgresql:
+    syncReplicaElectionConstraint:
+      enabled: true
+      nodeLabelsAntiAffinity: [topology.kubernetes.io/zone]
+    parameters:
+      max_connections: "100"
+      archive_timeout: 60s
+      ssl_min_protocol_version: TLSv1.2
+  certificates:
+    serverTLSSecret: postgres-server-tls
+    serverCASecret: postgres-server-tls
+  inheritedMetadata:
+    annotations:
+      config.linkerd.io/skip-inbound-ports: "8000"
+  storage:
+    size: 2Gi
+    storageClass: standard
+  walStorage:
+    size: 1Gi
+    storageClass: standard
+  resources:
+    limits:
+      cpu: "1"
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+    tolerations:
+      - { key: vectra.io/pool, operator: Equal, value: data, effect: NoSchedule }
+    additionalPodAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: topology.kubernetes.io/zone
+            labelSelector:
+              matchLabels: { cnpg.io/cluster: case-db }
+  managed:
+    roles:
+      - name: case_app
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-case-app }
+      - name: case_migrator
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-case-migrator }
+      - name: case_retention
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-case-retention }
+      - name: case_worker
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-case-worker }
+  backup:
+    target: prefer-standby
+    retentionPolicy: 30d
+    barmanObjectStore:
+      destinationPath: s3://vectra-backups/case-db
+      endpointURL: http://minio.vectra-data.svc:9000
+      s3Credentials:
+        accessKeyId: { name: postgres-backup-credentials, key: ACCESS_KEY_ID }
+        secretAccessKey: { name: postgres-backup-credentials, key: SECRET_ACCESS_KEY }
+      wal: { compression: gzip }
+      data: { compression: gzip }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: governance-db
+  namespace: vectra-data
+  labels:
+    vectra.io/criticality: high
+spec:
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.9-system-trixie@sha256:8fd8db26090e602458269741849e5c9cd7aff577a22af53c8a402c580fd1e729
+  instances: 3
+  minSyncReplicas: 1
+  maxSyncReplicas: 2
+  primaryUpdateStrategy: unsupervised
+  bootstrap:
+    initdb:
+      database: governance
+      owner: gov_migrator
+      secret: { name: pg-role-gov-migrator }
+  priorityClassName: vectra-critical
+  postgresql:
+    syncReplicaElectionConstraint:
+      enabled: true
+      nodeLabelsAntiAffinity: [topology.kubernetes.io/zone]
+    parameters:
+      max_connections: "50"
+      archive_timeout: 60s
+      ssl_min_protocol_version: TLSv1.2
+  certificates:
+    serverTLSSecret: postgres-server-tls
+    serverCASecret: postgres-server-tls
+  inheritedMetadata:
+    annotations:
+      config.linkerd.io/skip-inbound-ports: "8000"
+  storage:
+    size: 2Gi
+    storageClass: standard
+  walStorage:
+    size: 1Gi
+    storageClass: standard
+  resources:
+    limits:
+      cpu: "1"
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+    tolerations:
+      - { key: vectra.io/pool, operator: Equal, value: data, effect: NoSchedule }
+    additionalPodAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: topology.kubernetes.io/zone
+            labelSelector:
+              matchLabels: { cnpg.io/cluster: governance-db }
+  managed:
+    roles:
+      - name: gov_app
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-gov-app }
+      - name: gov_archiver
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-gov-archiver }
+      - name: gov_migrator
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-gov-migrator }
+  backup:
+    target: prefer-standby
+    retentionPolicy: 30d
+    barmanObjectStore:
+      destinationPath: s3://vectra-backups/governance-db
+      endpointURL: http://minio.vectra-data.svc:9000
+      s3Credentials:
+        accessKeyId: { name: postgres-backup-credentials, key: ACCESS_KEY_ID }
+        secretAccessKey: { name: postgres-backup-credentials, key: SECRET_ACCESS_KEY }
+      wal: { compression: gzip }
+      data: { compression: gzip }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: keycloak-db
+  namespace: vectra-data
+  labels:
+    vectra.io/criticality: high
+spec:
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.9-system-trixie@sha256:8fd8db26090e602458269741849e5c9cd7aff577a22af53c8a402c580fd1e729
+  instances: 3
+  minSyncReplicas: 1
+  maxSyncReplicas: 2
+  primaryUpdateStrategy: unsupervised
+  bootstrap:
+    initdb:
+      database: keycloak
+      owner: keycloak
+      secret: { name: pg-role-keycloak }
+  priorityClassName: vectra-critical
+  postgresql:
+    syncReplicaElectionConstraint:
+      enabled: true
+      nodeLabelsAntiAffinity: [topology.kubernetes.io/zone]
+    parameters:
+      max_connections: "100"
+      archive_timeout: 60s
+      ssl_min_protocol_version: TLSv1.2
+  certificates:
+    serverTLSSecret: postgres-server-tls
+    serverCASecret: postgres-server-tls
+  inheritedMetadata:
+    annotations:
+      config.linkerd.io/skip-inbound-ports: "8000"
+  storage:
+    size: 2Gi
+    storageClass: standard
+  walStorage:
+    size: 1Gi
+    storageClass: standard
+  resources:
+    limits:
+      cpu: "1"
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+    tolerations:
+      - { key: vectra.io/pool, operator: Equal, value: data, effect: NoSchedule }
+    additionalPodAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: topology.kubernetes.io/zone
+            labelSelector:
+              matchLabels: { cnpg.io/cluster: keycloak-db }
+  managed:
+    roles:
+      - name: keycloak
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-keycloak }
+  backup:
+    target: prefer-standby
+    retentionPolicy: 30d
+    barmanObjectStore:
+      destinationPath: s3://vectra-backups/keycloak-db
+      endpointURL: http://minio.vectra-data.svc:9000
+      s3Credentials:
+        accessKeyId: { name: postgres-backup-credentials, key: ACCESS_KEY_ID }
+        secretAccessKey: { name: postgres-backup-credentials, key: SECRET_ACCESS_KEY }
+      wal: { compression: gzip }
+      data: { compression: gzip }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: registry-db
+  namespace: vectra-data
+  labels:
+    vectra.io/criticality: critical
+spec:
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.9-system-trixie@sha256:8fd8db26090e602458269741849e5c9cd7aff577a22af53c8a402c580fd1e729
+  instances: 3
+  minSyncReplicas: 1
+  maxSyncReplicas: 2
+  primaryUpdateStrategy: unsupervised
+  bootstrap:
+    initdb:
+      database: registry
+      owner: registry_migrator
+      secret: { name: pg-role-registry-migrator }
+  priorityClassName: vectra-critical
+  postgresql:
+    syncReplicaElectionConstraint:
+      enabled: true
+      nodeLabelsAntiAffinity: [topology.kubernetes.io/zone]
+    parameters:
+      max_connections: "100"
+      archive_timeout: 60s
+      ssl_min_protocol_version: TLSv1.2
+  certificates:
+    serverTLSSecret: postgres-server-tls
+    serverCASecret: postgres-server-tls
+  inheritedMetadata:
+    annotations:
+      config.linkerd.io/skip-inbound-ports: "8000"
+  storage:
+    size: 2Gi
+    storageClass: standard
+  walStorage:
+    size: 1Gi
+    storageClass: standard
+  resources:
+    limits:
+      cpu: "1"
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+    tolerations:
+      - { key: vectra.io/pool, operator: Equal, value: data, effect: NoSchedule }
+    additionalPodAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: topology.kubernetes.io/zone
+            labelSelector:
+              matchLabels: { cnpg.io/cluster: registry-db }
+  managed:
+    roles:
+      - name: registry_aggregator
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-registry-aggregator }
+      - name: registry_app
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-registry-app }
+      - name: registry_health
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-registry-health }
+        inRoles: [pg_monitor]
+      - name: registry_migrator
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-registry-migrator }
+      - name: registry_ondemand
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-registry-ondemand }
+      - name: registry_verifier
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-registry-verifier }
+  backup:
+    target: prefer-standby
+    retentionPolicy: 30d
+    barmanObjectStore:
+      destinationPath: s3://vectra-backups/registry-db
+      endpointURL: http://minio.vectra-data.svc:9000
+      s3Credentials:
+        accessKeyId: { name: postgres-backup-credentials, key: ACCESS_KEY_ID }
+        secretAccessKey: { name: postgres-backup-credentials, key: SECRET_ACCESS_KEY }
+      wal: { compression: gzip }
+      data: { compression: gzip }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-case-app
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-case-app
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/case_app, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/case_app, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-case-app
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-case-app
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/case_app, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/case_app, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-case-migrator
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-case-migrator
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/case_migrator, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/case_migrator, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-case-migrator
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-case-migrator
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/case_migrator, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/case_migrator, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-case-retention
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-case-retention
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/case_retention, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/case_retention, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-case-retention
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-case-retention
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/case_retention, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/case_retention, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-case-retention
+  namespace: vectra-restore-drill
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-case-retention
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/case_retention, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/case_retention, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-case-worker
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-case-worker
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/case_worker, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/case_worker, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-case-worker
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-case-worker
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/case_worker, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/case_worker, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-gov-app
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-gov-app
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/gov_app, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/gov_app, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-gov-app
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-gov-app
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/gov_app, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/gov_app, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-gov-archiver
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-gov-archiver
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/gov_archiver, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/gov_archiver, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-gov-archiver
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-gov-archiver
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/gov_archiver, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/gov_archiver, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-gov-migrator
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-gov-migrator
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/gov_migrator, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/gov_migrator, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-gov-migrator
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-gov-migrator
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/gov_migrator, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/gov_migrator, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-keycloak
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-keycloak
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/keycloak, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/keycloak, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-keycloak
+  namespace: vectra-identity
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-keycloak
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/keycloak, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/keycloak, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-registry-aggregator
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-registry-aggregator
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/registry_aggregator, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/registry_aggregator, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-registry-aggregator
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-registry-aggregator
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/registry_aggregator, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/registry_aggregator, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-registry-app
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-registry-app
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/registry_app, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/registry_app, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-registry-app
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-registry-app
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/registry_app, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/registry_app, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-registry-health
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-registry-health
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/registry_health, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/registry_health, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-registry-health
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-registry-health
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/registry_health, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/registry_health, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-registry-migrator
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-registry-migrator
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/registry_migrator, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/registry_migrator, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-registry-migrator
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-registry-migrator
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/registry_migrator, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/registry_migrator, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-registry-ondemand
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-registry-ondemand
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/registry_ondemand, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/registry_ondemand, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-registry-ondemand
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-registry-ondemand
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/registry_ondemand, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/registry_ondemand, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-registry-verifier
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-registry-verifier
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/registry_verifier, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/registry_verifier, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-registry-verifier
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-registry-verifier
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/registry_verifier, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/registry_verifier, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-registry-verifier
+  namespace: vectra-restore-drill
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-registry-verifier
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/registry_verifier, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/registry_verifier, property: password } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: loki-s3
+  namespace: vectra-observability
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: loki-s3 }
+  data:
+    - { secretKey: AWS_ACCESS_KEY_ID, remoteRef: { key: minio/loki, property: accessKey } }
+    - { secretKey: AWS_SECRET_ACCESS_KEY, remoteRef: { key: minio/loki, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-engineer-upload
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-engineer-upload }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/engineer-upload, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/engineer-upload, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-governance
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-governance }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/governance, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/governance, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-governance
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-governance }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/governance, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/governance, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-kserve
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-kserve }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/kserve, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/kserve, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-kserve
+  namespace: vectra-serving
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-kserve }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/kserve, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/kserve, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-kserve
+  namespace: vectra-staging
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-kserve }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/kserve, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/kserve, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-loki
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-loki }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/loki, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/loki, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-model-archive
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-model-archive }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/model-archive, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/model-archive, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-model-archive
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-model-archive }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/model-archive, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/model-archive, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-postgres-backup
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-postgres-backup }
+  data:
+    - { secretKey: secretKey, remoteRef: { key: postgres/backup, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-registry-archive
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-registry-archive }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/registry-archive, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/registry-archive, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-registry-archive
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-registry-archive }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/registry-archive, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/registry-archive, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-registry-checkpoint
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-registry-checkpoint }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/registry-checkpoint, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/registry-checkpoint, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-registry-checkpoint
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-registry-checkpoint }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/registry-checkpoint, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/registry-checkpoint, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-registry-verify
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-registry-verify }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/registry-verify, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/registry-verify, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-registry-verify
+  namespace: vectra-app
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-registry-verify }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/registry-verify, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/registry-verify, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-restore-drill
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-restore-drill }
+  data:
+    - { secretKey: secretKey, remoteRef: { key: backups/restore-readonly, property: secret_access_key } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-root
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-root }
+  data:
+    - { secretKey: rootPassword, remoteRef: { key: minio/root, property: password } }
+    - { secretKey: rootUser, remoteRef: { key: minio/root, property: user } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-tempo
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-tempo }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/tempo, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/tempo, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-validation
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-validation }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/validation, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/validation, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-validation
+  namespace: vectra-staging
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: minio-validation }
+  data:
+    - { secretKey: accessKey, remoteRef: { key: minio/validation, property: accessKey } }
+    - { secretKey: secretKey, remoteRef: { key: minio/validation, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: postgres-backup-credentials
+  namespace: vectra-data
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: postgres-backup-credentials }
+  data:
+    - { secretKey: ACCESS_KEY_ID, remoteRef: { key: postgres/backup, property: accessKey } }
+    - { secretKey: SECRET_ACCESS_KEY, remoteRef: { key: postgres/backup, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: tempo-s3
+  namespace: vectra-observability
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: tempo-s3 }
+  data:
+    - { secretKey: AWS_ACCESS_KEY_ID, remoteRef: { key: minio/tempo, property: accessKey } }
+    - { secretKey: AWS_SECRET_ACCESS_KEY, remoteRef: { key: minio/tempo, property: secretKey } }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+# Metricas cnpg_* de las alertas de PostgreSQL. `cluster` es la etiqueta que usan las reglas.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: case-db
+  namespace: vectra-data
+spec:
+  selector:
+    matchLabels: { cnpg.io/cluster: case-db, cnpg.io/podRole: instance }
+  podMetricsEndpoints:
+    - port: metrics
+      relabelings:
+        - { sourceLabels: [__meta_kubernetes_pod_label_cnpg_io_cluster], targetLabel: cluster }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+# Metricas cnpg_* de las alertas de PostgreSQL. `cluster` es la etiqueta que usan las reglas.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: governance-db
+  namespace: vectra-data
+spec:
+  selector:
+    matchLabels: { cnpg.io/cluster: governance-db, cnpg.io/podRole: instance }
+  podMetricsEndpoints:
+    - port: metrics
+      relabelings:
+        - { sourceLabels: [__meta_kubernetes_pod_label_cnpg_io_cluster], targetLabel: cluster }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+# Metricas cnpg_* de las alertas de PostgreSQL. `cluster` es la etiqueta que usan las reglas.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: keycloak-db
+  namespace: vectra-data
+spec:
+  selector:
+    matchLabels: { cnpg.io/cluster: keycloak-db, cnpg.io/podRole: instance }
+  podMetricsEndpoints:
+    - port: metrics
+      relabelings:
+        - { sourceLabels: [__meta_kubernetes_pod_label_cnpg_io_cluster], targetLabel: cluster }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+# Metricas cnpg_* de las alertas de PostgreSQL. `cluster` es la etiqueta que usan las reglas.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: registry-db
+  namespace: vectra-data
+spec:
+  selector:
+    matchLabels: { cnpg.io/cluster: registry-db, cnpg.io/podRole: instance }
+  podMetricsEndpoints:
+    - port: metrics
+      relabelings:
+        - { sourceLabels: [__meta_kubernetes_pod_label_cnpg_io_cluster], targetLabel: cluster }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: case-db-daily
+  namespace: vectra-data
+spec:
+  schedule: "0 0 3 * * *"
+  backupOwnerReference: self
+  cluster: { name: case-db }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: case-db-monthly
+  namespace: vectra-data
+spec:
+  schedule: "0 0 4 1 * *"
+  backupOwnerReference: self
+  cluster: { name: case-db }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: governance-db-daily
+  namespace: vectra-data
+spec:
+  schedule: "0 0 3 * * *"
+  backupOwnerReference: self
+  cluster: { name: governance-db }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: governance-db-monthly
+  namespace: vectra-data
+spec:
+  schedule: "0 0 4 1 * *"
+  backupOwnerReference: self
+  cluster: { name: governance-db }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: keycloak-db-daily
+  namespace: vectra-data
+spec:
+  schedule: "0 0 3 * * *"
+  backupOwnerReference: self
+  cluster: { name: keycloak-db }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: keycloak-db-monthly
+  namespace: vectra-data
+spec:
+  schedule: "0 0 4 1 * *"
+  backupOwnerReference: self
+  cluster: { name: keycloak-db }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: registry-db-daily
+  namespace: vectra-data
+spec:
+  schedule: "0 0 3 * * *"
+  backupOwnerReference: self
+  cluster: { name: registry-db }
+
+---
+# Source: vectra-data/templates/clusters.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: registry-db-monthly
+  namespace: vectra-data
+spec:
+  schedule: "0 0 4 1 * *"
+  backupOwnerReference: self
+  cluster: { name: registry-db }

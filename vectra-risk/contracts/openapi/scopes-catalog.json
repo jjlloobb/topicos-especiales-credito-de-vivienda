@@ -1,0 +1,60 @@
+{
+  "bias:compare": [
+    "governance-service"
+  ],
+  "case:recommend": [
+    "case-worker"
+  ],
+  "core:read-credit": [
+    "case-service"
+  ],
+  "core:write-credit": [],
+  "governance:freeze": [
+    "bias-monitoring-job"
+  ],
+  "governance:promotion": [
+    "promotion-tool"
+  ],
+  "governance:read-dictionary": [
+    "explainability-service"
+  ],
+  "governance:read-feature-spec": [
+    "case-worker"
+  ],
+  "governance:read-serving": [
+    "scoring-service",
+    "case-service",
+    "case-worker"
+  ],
+  "governance:validation-report": [
+    "model-validation-job"
+  ],
+  "intake:submit": [
+    "channel",
+    "channel-simulator"
+  ],
+  "registry:append:case": [
+    "case-service"
+  ],
+  "registry:append:governance": [
+    "governance-service"
+  ],
+  "registry:append:scoring": [
+    "scoring-service"
+  ],
+  "registry:read:explanation": [
+    "explainability-service"
+  ],
+  "registry:read:metrics": [
+    "product-metrics",
+    "verification-reader"
+  ],
+  "registry:read:monitoring": [
+    "bias-monitoring-service",
+    "bias-monitoring-job",
+    "verification-reader"
+  ],
+  "scoring:explain": [
+    "scoring-service"
+  ]
+}

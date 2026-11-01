@@ -1,0 +1,312 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: vectra-serving
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: vectra-serving
+spec:
+  egress:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F19
+  name: allow-f19-to-predictor-ingress
+  namespace: vectra-serving
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: scoring-service
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      vectra.io/component: predictor
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: predictor-8080
+  namespace: vectra-serving
+spec:
+  podSelector:
+    matchLabels:
+      vectra.io/component: predictor
+  port: 8080
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f19-predictor-8080-mtls
+  namespace: vectra-serving
+spec:
+  identities:
+  - scoring-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f19-predictor-8080
+  namespace: vectra-serving
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f19-predictor-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: predictor-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F22
+  name: allow-f22-to-explainer-ingress
+  namespace: vectra-serving
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: explainability-service
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      vectra.io/component: explainer
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: explainer-8080
+  namespace: vectra-serving
+spec:
+  podSelector:
+    matchLabels:
+      vectra.io/component: explainer
+  port: 8080
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f22-explainer-8080-mtls
+  namespace: vectra-serving
+spec:
+  identities:
+  - explainability-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f22-explainer-8080
+  namespace: vectra-serving
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f22-explainer-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: explainer-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F46
+  name: allow-f46-predictor-to-minio-egress
+  namespace: vectra-serving
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          app: minio
+  podSelector:
+    matchLabels:
+      vectra.io/component: predictor
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F46
+  name: allow-f46-explainer-to-minio-egress
+  namespace: vectra-serving
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          app: minio
+  podSelector:
+    matchLabels:
+      vectra.io/component: explainer
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-to-vectra-serving-ingress
+  namespace: vectra-serving
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - port: 8081
+      protocol: TCP
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: metrics-8081
+  namespace: vectra-serving
+spec:
+  podSelector: {}
+  port: 8081
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f60-metrics-8081-mtls
+  namespace: vectra-serving
+spec:
+  identities:
+  - prometheus.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f60-metrics-8081
+  namespace: vectra-serving
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f60-metrics-8081-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: metrics-8081
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F61
+  name: allow-f61-vectra-serving-to-opentelemetry-collector-egress
+  namespace: vectra-serving
+spec:
+  egress:
+  - ports:
+    - port: 4317
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: opentelemetry-collector
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F83
+  name: allow-f83-vectra-serving-to-linkerd-control-egress
+  namespace: vectra-serving
+spec:
+  egress:
+  - ports:
+    - port: 8086
+      protocol: TCP
+    - port: 8080
+      protocol: TCP
+    - port: 8090
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: linkerd
+      podSelector:
+        matchLabels:
+          linkerd.io/control-plane-ns: linkerd
+  podSelector: {}
+  policyTypes:
+  - Egress

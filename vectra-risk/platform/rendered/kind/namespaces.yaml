@@ -1,0 +1,125 @@
+---
+# Source: namespaces/templates/namespaces.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vectra-edge
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    vectra.io/mesh: enabled
+  annotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/default-inbound-policy: deny
+    config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+
+---
+# Source: namespaces/templates/namespaces.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vectra-app
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    vectra.io/mesh: enabled
+  annotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/default-inbound-policy: deny
+    config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+
+---
+# Source: namespaces/templates/namespaces.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vectra-serving
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    vectra.io/mesh: enabled
+  annotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/default-inbound-policy: deny
+    config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+
+---
+# Source: namespaces/templates/namespaces.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vectra-staging
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    vectra.io/mesh: enabled
+  annotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/default-inbound-policy: deny
+    config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+
+---
+# Source: namespaces/templates/namespaces.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vectra-data
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    vectra.io/mesh: enabled
+  annotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/default-inbound-policy: deny
+    config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+
+---
+# Source: namespaces/templates/namespaces.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vectra-identity
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    vectra.io/mesh: enabled
+  annotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/default-inbound-policy: deny
+    config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+
+---
+# Source: namespaces/templates/namespaces.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vectra-mock
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    vectra.io/mesh: enabled
+  annotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/default-inbound-policy: deny
+    config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+
+---
+# Source: namespaces/templates/namespaces.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vectra-observability
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    vectra.io/mesh: enabled
+  annotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/default-inbound-policy: deny
+    config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+
+---
+# Source: namespaces/templates/namespaces.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vectra-restore-drill
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    vectra.io/mesh: enabled
+  annotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/default-inbound-policy: deny
+    config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"

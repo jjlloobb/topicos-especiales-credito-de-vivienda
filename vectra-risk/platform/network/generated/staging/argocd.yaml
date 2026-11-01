@@ -1,0 +1,132 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: argocd
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: argocd
+spec:
+  egress:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F125
+  name: allow-f125-same-namespace-ingress
+  namespace: argocd
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: argocd
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F125
+  name: allow-f125-same-namespace-egress
+  namespace: argocd
+spec:
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: argocd
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F126
+  name: allow-f126-k8s-api
+  namespace: argocd
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 0.0.0.0/32
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F71
+  name: allow-f71-argocd-repo-server-to-git-egress
+  namespace: argocd
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-repo-server
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: K04
+  name: allow-k8s-api-k04
+  namespace: argocd
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 0.0.0.0/32
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-application-controller
+  policyTypes:
+  - Egress

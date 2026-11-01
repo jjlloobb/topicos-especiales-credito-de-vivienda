@@ -1,0 +1,4 @@
+# Vault en modo dev: solo kind (INF-U1-10). Guarda todo en memoria: al reiniciarse hay que volver a sembrarlo
+# (platform/kind/seed-vault.sh; runbook install.md). ESO lee con token, asi que el inyector no se usa.
+server: { dev: { enabled: true, devRootToken: root } }
+injector: { enabled: false }

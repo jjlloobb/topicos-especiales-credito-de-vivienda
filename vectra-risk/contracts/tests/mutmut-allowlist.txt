@@ -1,0 +1,8 @@
+# Mutantes sobrevivientes justificados (NFR-U0-41): patron  # justificacion
+vectra_common.deps.x__call_once__mutmut_20  # equivalente: `authorization`; las cabeceras HTTP no distinguen mayusculas
+vectra_common.deps.x__call_once__mutmut_21  # equivalente: `AUTHORIZATION`; igual
+vectra_common.service_token.xǁServiceTokenProviderǁ__init____mutmut_14  # equivalente: con `_expires_at = 0` el token inicial nunca se devuelve
+vectra_common.service_token.xǁServiceTokenProviderǁ__init____mutmut_15  # equivalente: `_expires_at` no se lee mientras no haya token
+vectra_common.service_token.xǁServiceTokenProviderǁ__init____mutmut_16  # equivalente: igual
+vectra_common.service_token.x_provider_from_env__mutmut_17  # equivalente: una llave PEM es ASCII en cualquier codificacion
+vectra_common.service_token.x_provider_from_env__mutmut_22  # equivalente: `UTF-8` y `utf-8` son la misma codificacion

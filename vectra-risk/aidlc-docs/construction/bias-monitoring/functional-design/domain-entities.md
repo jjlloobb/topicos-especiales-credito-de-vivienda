@@ -45,8 +45,8 @@ Solicitud (`MonitoringQuery` de U0 §9.4): hasta **12 rangos** `{range_id, model
 
 ### 1.3 `FreezeRecord` (proyección `monitoring_freezes`)
 `freeze_id`, `model_version_id`, `frozen_at`, `context_package` (§3.1 más lo que agrega
-governance: `data_sources`, `initial_disparity`) y `resolution?`: `{action: reactivar |
-descartar | investigar, recorded_at}` de la `frozen_resolution` posterior, si existe (`recorded_at` del registro, como en U0 §9.4 y U3; la reactivación tiene efecto al confirmarse; tercera revisión del FD de U9, 2026-10-10). La última
+governance: `data_sources`, `initial_disparity`) y `resolutions`: lista de `{action: reactivar |
+descartar | investigar, recorded_at}`, una por cada `frozen_resolution` posterior, en orden (seguimiento de la cuarta revisión de coherencia, 2026-10-31; `recorded_at` del registro, como en U0 §9.4 y U3; la reactivación tiene efecto al confirmarse; tercera revisión del FD de U9, 2026-10-10). La última
 `reactivar` de una versión fija el inicio de su ventana (BR-U9-08; revisión del FD de U9, 2026-10-08, H1).
 
 ## 2. Cálculo (librería compartida)
@@ -124,14 +124,14 @@ el log de la corrida (sin datos del solicitante).
 | `truncated` | `true` si se quitaron celdas para no superar 48 KiB (BR-U9-15) |
 | `trigger_attribute` | — |
 | `implicated` | Grupos y bandas cuya diferencia supera el umbral |
-| `affected_volume` | Recomendaciones de la versión en la ventana y cuántas fueron `favorable` |
+| `affected_volume` | Recomendaciones de la versión en la ventana y cuántas fueron `favorable` (tipo `AffectedVolume` de U0: `total`, `favorable`) (revisión de consistencia entre unidades, 2026-11-01) |
 
 Solo agregados: una celda insuficiente lleva solo su tamaño. Governance agrega
 `data_sources` e `initial_disparity` (BR-U9-16).
 
 ### 3.2 `CompareSourceRequest` y `PrePostReport` (F25, BR-U9-17)
 - Solicitud: `source_id`, `pre: list[CountTable]`, `post: list[CountTable]`, con los cuatro atributos en cada lista y sin atributos repetidos (como U0 §9.4; cuarta revisión del FD de U9, 2026-10-10).
-- Respuesta: `source_id`, `pre: DisparityResult`, `post: DisparityResult`, `delta` (post − pre de cada agregada y de `model_aggregate`), `threshold_pp`, `n_min`, `truncated: bool`, `disclaimer`. JCS ≤ 48 KiB (BR-U9-17).
+- Respuesta: `source_id`, `pre: DisparityResult`, `post: DisparityResult`, `delta` (post − pre de cada agregada y de `model_aggregate`; tipo `PrePostDelta` de U0; revisión de consistencia entre unidades, 2026-11-01), `threshold_pp`, `n_min`, `truncated: bool`, `disclaimer`. JCS ≤ 48 KiB (BR-U9-17).
 
 ### 3.3 `DisparityView` (F14, BR-U9-18)
 `model_version_id`, `window`, `computed_at`, `model: DisparityResult`, `human:
@@ -139,7 +139,7 @@ DisparityResult`, `threshold_pp`, `n_min`, `window_days`, `schedule`, `stale_aft
 no certifica»).
 
 ### 3.4 `FreezeSummary`
-`freeze_id`, `model_version_id`, `frozen_at`, `trigger_attribute`, `model_aggregate`, `resolution?` (`{action, recorded_at}`, como U0 §9.4; cuarta revisión del FD de U9, 2026-10-10).
+`freeze_id`, `model_version_id`, `frozen_at`, `trigger_attribute`, `model_aggregate`, `resolution?` (`{action, recorded_at}` de la más reciente, como U0 §9.4; cuarta revisión del FD de U9, 2026-10-10).
 
 ## 4. Configuración (values de Helm, BR-U9-13)
 

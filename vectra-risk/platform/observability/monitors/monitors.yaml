@@ -1,0 +1,37 @@
+# Fuente de las metricas de las alertas de U1 que no vienen de un chart propio (NFR-U1-32).
+# Los `job` son los que usan platform-rules.yaml. El de CloudNativePG esta en platform/data/chart.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: kyverno, namespace: vectra-observability, labels: { vectra.io/criticality: medium } }
+spec:
+  namespaceSelector: { matchNames: [kyverno] }
+  selector: { matchLabels: { app.kubernetes.io/component: admission-controller, app.kubernetes.io/part-of: kyverno } }
+  podMetricsEndpoints:
+    - { port: metrics-port, relabelings: [{ targetLabel: job, replacement: kyverno }] }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: cert-manager, namespace: vectra-observability, labels: { vectra.io/criticality: medium } }
+spec:
+  namespaceSelector: { matchNames: [cert-manager] }
+  selector: { matchLabels: { app.kubernetes.io/name: cert-manager, app.kubernetes.io/component: controller } }
+  podMetricsEndpoints:
+    - { port: http-metrics, relabelings: [{ targetLabel: job, replacement: cert-manager }] }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: linkerd-controller, namespace: vectra-observability, labels: { vectra.io/criticality: medium } }
+spec:
+  namespaceSelector: { matchNames: [linkerd] }
+  selector: { matchLabels: { linkerd.io/control-plane-component: destination } }
+  podMetricsEndpoints:
+    - { port: dest-admin, relabelings: [{ targetLabel: job, replacement: linkerd-controller }] }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: minio, namespace: vectra-observability, labels: { vectra.io/criticality: medium } }
+spec:
+  namespaceSelector: { matchNames: [vectra-data] }
+  selector: { matchLabels: { app: minio } }
+  podMetricsEndpoints:
+    - { port: http, path: /minio/v2/metrics/cluster, relabelings: [{ targetLabel: job, replacement: minio }] }

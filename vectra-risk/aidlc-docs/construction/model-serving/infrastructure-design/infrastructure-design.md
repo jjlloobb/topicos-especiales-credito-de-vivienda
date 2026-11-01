@@ -24,7 +24,7 @@ la infraestructura compartida de U1. Los IDs `INF-U6-xx` se referencian en el pl
 
 ### INF-U6-02 — Réplicas del inactivo y secuencia de PRs
 
-(Precisado en la segunda revisión del Infrastructure Design de U10, 2026-10-10: el PR de post-activación agrega al `InferenceService` del inactivo la etiqueta `vectra.io/serving-state: inactivo` y la anotación `vectra.io/hpa-exempt`, que `require-hpa-bounds` de U1 exige para admitir 1 réplica en `vectra-serving`; el rollback las quita al restaurar los mínimos.)
+(Precisado en la segunda revisión del Infrastructure Design de U10, 2026-10-10: el PR de post-activación agrega al `InferenceService` del inactivo la etiqueta `vectra.io/serving-state: inactivo` y la anotación `vectra.io/hpa-exempt`, que `require-hpa-bounds` de U1 exige para admitir 1 réplica en `vectra-serving`; el rollback las quita al restaurar los mínimos. Las dos juntas lo excluyen también de las reglas de 2 réplicas y de PDB de `require-spread-and-pdb`, sin verificar aún que KServe las propague al `Deployment` (Paso 19 de U1) (revisión de consistencia entre unidades, 2026-11-01).)
 Todos los cambios entran por PR + sync manual (AUTONOMIA-01). La baja del inactivo **no** va
 en el PR de promoción: ese sync ocurre antes de `mark_active`, con la versión anterior todavía
 activa, y la dejaría con 1 réplica por debajo del mínimo de 2 (NFR-U1-04). Por eso son tres PR,
@@ -45,12 +45,12 @@ todos generados por `promotion-tool`:
 
 Nunca hay un `InferenceService` activo con menos de 2 réplicas.
 
-- **Cuotas de `vectra-serving`** (NFR-U1-13): el activo en su máximo (4 predictores + 6 explicadores) + 1 + 1 del inactivo, + 30 % de margen. Para el escenario de rollback, el activo en su máximo + el que se restaura con sus mínimos (2 + 2) cabe dentro de ese 30 %.
+- **Cuotas de `vectra-serving`** (NFR-U1-13; cuarta revisión de coherencia entre unidades, 2026-10-31): el peor momento es después de `mark_active` y antes del PR post-activación, con la versión nueva y la anterior en su máximo (10 + 10 pods) y un inactivo previo (1 + 1), 22 pods en total. Con el proxy (P-U1-14): requests 13,2 CPU / 11,43 GiB y limits 46 CPU / 24,75 GiB. Con el 30 % de margen: requests ≈ 17,16 CPU / 14,86 GiB y limits ≈ 59,8 CPU / 32,2 GiB. El rollback (activo en su máximo + 2 + 2) cabe dentro.
 - La alerta `InferenceServiceNotReady` distingue el activo (SEV1) del inactivo (SEV3) por la etiqueta que lee de `serving-config`.
 
 ## 3. Red, almacenamiento y mensajería
 
-- **Sin flujos nuevos**: F19, F22, F30 y F46 cubren los `InferenceService` por etiqueta (`vectra.io/component=predictor|explainer`).
+- **Sin flujos nuevos**: F19, F22, F30 y F46 cubren los `InferenceService` por etiqueta (`vectra.io/component=predictor|explainer`), con la `ServiceAccount` `kserve-model`; en `vectra-staging`, `flows.yaml` solo selecciona `vectra.io/component: predictor` (`staging-isvc`). **Abierto**: el explicador de staging de INF-U6-01 queda sin F46 (revisión de consistencia entre unidades, 2026-11-01).
 - **Almacenamiento**: N/A (paquete en `emptyDir`).
 - **Mensajería**: N/A (solo request/response síncrono).
 

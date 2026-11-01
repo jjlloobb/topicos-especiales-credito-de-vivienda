@@ -1,0 +1,29 @@
+# Lee los logs por la API (K13), sin hostPath: `restricted` y disallow-host-path no lo admiten.
+image: { digest: "sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4" }
+global:
+  podSecurityContext: { runAsNonRoot: true, runAsUser: 473, runAsGroup: 473, fsGroup: 473, seccompProfile: { type: RuntimeDefault } }
+controller:
+  type: daemonset
+  priorityClassName: vectra-normal
+serviceAccount: { create: true, name: alloy }
+configReloader:
+  securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { cpu: 50m, memory: 64Mi }
+alloy:
+  securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 200m, memory: 256Mi }
+  mounts: { varlog: false, dockercontainers: false }
+  configMap:
+    content: |
+      discovery.kubernetes "pods" { role = "pod" }
+      loki.source.kubernetes "pods" {
+        targets    = discovery.kubernetes.pods.targets
+        forward_to = [loki.write.default.receiver]
+      }
+      loki.write "default" {
+        endpoint { url = "http://loki-write.vectra-observability.svc:3100/loki/api/v1/push" }
+      }

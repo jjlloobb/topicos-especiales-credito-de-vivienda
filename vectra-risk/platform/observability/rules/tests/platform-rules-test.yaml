@@ -1,0 +1,627 @@
+rule_files:
+- ../platform-rules.yaml
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  input_series:
+  - series: vectra_cases_failclosed_persistent{pod="a"}
+    values: 1x5
+  - series: vectra_cases_failclosed_persistent{pod="b"}
+    values: 1x5
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: FailClosedPersistente
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: FailClosedPersistente
+        runbook_url: platform/runbooks/fail-closed-persistente.md
+- interval: 1m
+  input_series:
+  - series: vectra_cases_failclosed_persistent{pod="a"}
+    values: '0x5'
+  - series: vectra_recommendations_total{outcome="fail_closed"}
+    values: 0+100x5
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: FailClosedPersistente
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: kubelet_volume_stats_capacity_bytes{namespace="vectra-data",persistentvolumeclaim="registry-db-1"}
+    values: 1x20
+  - series: kubelet_volume_stats_capacity_bytes{namespace="vectra-data",persistentvolumeclaim="registry-db-1-wal"}
+    values: 1x20
+  - series: kubelet_volume_stats_capacity_bytes{namespace="vectra-data",persistentvolumeclaim="registry-db-2"}
+    values: 1x20
+  - series: kubelet_volume_stats_capacity_bytes{namespace="vectra-data",persistentvolumeclaim="registry-db-2-wal"}
+    values: 1x20
+  - series: kubelet_volume_stats_capacity_bytes{namespace="vectra-data",persistentvolumeclaim="registry-db-3"}
+    values: 1x20
+  - series: kubelet_volume_stats_capacity_bytes{namespace="vectra-data",persistentvolumeclaim="registry-db-3-wal"}
+    values: 1x20
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PostgresVolumeUsageHigh
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        cluster: case-db
+      exp_annotations:
+        summary: PostgresVolumeUsageHigh
+        runbook_url: platform/runbooks/postgres-volume-usage-high.md
+    - exp_labels:
+        severity: SEV2
+        cluster: governance-db
+      exp_annotations:
+        summary: PostgresVolumeUsageHigh
+        runbook_url: platform/runbooks/postgres-volume-usage-high.md
+    - exp_labels:
+        severity: SEV2
+        cluster: keycloak-db
+      exp_annotations:
+        summary: PostgresVolumeUsageHigh
+        runbook_url: platform/runbooks/postgres-volume-usage-high.md
+- interval: 1m
+  input_series:
+  - series: vectra_restore_drill_retention_violations
+    values: 2x5
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: RestoreDrillRetentionViolation
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: RestoreDrillRetentionViolation
+        runbook_url: platform/runbooks/restore-drill-retention-violation.md
+- interval: 1m
+  input_series:
+  - series: dummy
+    values: 1x5
+  alert_rule_test:
+  - eval_time: 1m
+    alertname: Watchdog
+    exp_alerts:
+    - exp_labels:
+        severity: none
+      exp_annotations:
+        summary: Latido del sistema de alertas
+        runbook_url: platform/runbooks/watchdog.md
+- interval: 1m
+  input_series:
+  - series: cnpg_pg_stat_archiver_last_archived_time{cluster="registry-db"}
+    values: '0x20'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: WalArchiveStale
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        cluster: registry-db
+      exp_annotations:
+        summary: WalArchiveStale
+        runbook_url: platform/runbooks/wal-archive-stale.md
+- interval: 1m
+  input_series:
+  - series: cnpg_pg_stat_archiver_last_archived_time{cluster="registry-db"}
+    values: 0+60x20
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: WalArchiveStale
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: cnpg_collector_last_failed_backup_timestamp{cluster="case-db"}
+    values: 200x10
+  - series: cnpg_collector_last_available_backup_timestamp{cluster="case-db"}
+    values: 100x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: BackupFailed
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        cluster: case-db
+      exp_annotations:
+        summary: BackupFailed
+        runbook_url: platform/runbooks/backup-failed.md
+- interval: 1m
+  input_series:
+  - series: cnpg_collector_last_failed_backup_timestamp{cluster="case-db"}
+    values: 100x10
+  - series: cnpg_collector_last_available_backup_timestamp{cluster="case-db"}
+    values: 200x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: BackupFailed
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: vectra_restore_drill_success{job="restore-drill"}
+    values: '0x5'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: RestoreDrillFailed
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        job: restore-drill
+      exp_annotations:
+        summary: RestoreDrillFailed
+        runbook_url: platform/runbooks/restore-drill-failed.md
+- interval: 1m
+  input_series:
+  - series: vectra_restore_drill_success{job="restore-drill"}
+    values: 1x5
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: RestoreDrillFailed
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: dummy
+    values: 1x5
+  - series: dummy2
+    values: 1x70
+  alert_rule_test:
+  - eval_time: 61m
+    alertname: RestoreDrillMissing
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        job: restore-drill
+      exp_annotations: &id001
+        summary: RestoreDrillMissing
+        runbook_url: platform/runbooks/restore-drill-missing.md
+- interval: 1h
+  input_series:
+  - series: push_time_seconds{job="restore-drill"}
+    values: '0x200'
+  alert_rule_test:
+  - eval_time: 194h
+    alertname: RestoreDrillMissing
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        job: restore-drill
+      exp_annotations: *id001
+- interval: 1h
+  input_series:
+  - series: push_time_seconds{job="restore-drill"}
+    values: 0+3600x200
+  alert_rule_test:
+  - eval_time: 194h
+    alertname: RestoreDrillMissing
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: cnpg_pg_replication_streaming_replicas{cluster="registry-db"}
+    values: '0x5'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: RegistryDbWritesBlocked
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        cluster: registry-db
+      exp_annotations:
+        summary: RegistryDbWritesBlocked
+        runbook_url: platform/runbooks/registry-db-writes-blocked.md
+- interval: 1m
+  input_series:
+  - series: cnpg_pg_replication_streaming_replicas{cluster="registry-db"}
+    values: 1x5
+  - series: cnpg_pg_replication_streaming_replicas{cluster="case-db"}
+    values: '0x5'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: RegistryDbWritesBlocked
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: up{job="kyverno"}
+    values: '0x5'
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: KyvernoUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+      exp_annotations: &id002
+        summary: KyvernoUnavailable
+        runbook_url: platform/runbooks/kyverno-unavailable.md
+- interval: 1m
+  input_series:
+  - series: dummy
+    values: 1x5
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: KyvernoUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+      exp_annotations: *id002
+- interval: 1m
+  input_series:
+  - series: up{job="kyverno"}
+    values: 1x5
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: KyvernoUnavailable
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: up{job="linkerd-controller"}
+    values: '0x5'
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: LinkerdControlPlaneDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+      exp_annotations:
+        summary: LinkerdControlPlaneDown
+        runbook_url: platform/runbooks/linkerd-control-plane-down.md
+- interval: 1m
+  input_series:
+  - series: up{job="linkerd-controller"}
+    values: 1x5
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: LinkerdControlPlaneDown
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: kube_node_labels{node="a",label_topology_kubernetes_io_zone="zone-a"}
+    values: 1x10
+  - series: kube_node_labels{node="b",label_topology_kubernetes_io_zone="zone-b"}
+    values: 1x10
+  - series: kube_node_status_condition{node="a",condition="Ready",status="true"}
+    values: 1x10
+  - series: kube_node_status_condition{node="b",condition="Ready",status="true"}
+    values: '0x10'
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: SingleZoneOperation
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: SingleZoneOperation
+        runbook_url: platform/runbooks/single-zone-operation.md
+- interval: 1m
+  input_series:
+  - series: kube_node_labels{node="a",label_topology_kubernetes_io_zone="zone-a"}
+    values: 1x10
+  - series: kube_node_labels{node="b",label_topology_kubernetes_io_zone="zone-b"}
+    values: 1x10
+  - series: kube_node_status_condition{node="a",condition="Ready",status="true"}
+    values: 1x10
+  - series: kube_node_status_condition{node="b",condition="Ready",status="true"}
+    values: 1x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: SingleZoneOperation
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: minio_cluster_health_status{quorum="write"}
+    values: '0x5'
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: MinioWriteQuorumLost
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        quorum: write
+      exp_annotations:
+        summary: MinioWriteQuorumLost
+        runbook_url: platform/runbooks/minio-write-quorum-lost.md
+- interval: 1m
+  input_series:
+  - series: minio_cluster_health_status{quorum="write"}
+    values: 1x5
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: MinioWriteQuorumLost
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: cnpg_pg_replication_lag{pod="x"}
+    values: 60x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: PostgresReplicaLag
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        pod: x
+      exp_annotations:
+        summary: PostgresReplicaLag
+        runbook_url: platform/runbooks/postgres-replica-lag.md
+- interval: 1m
+  input_series:
+  - series: cnpg_pg_replication_lag{pod="x"}
+    values: 10x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: PostgresReplicaLag
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: certmanager_certificate_expiration_timestamp_seconds{name="x"}
+    values: 259200x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: CertificateExpiringSoon
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        name: x
+      exp_annotations: &id003
+        summary: CertificateExpiringSoon
+        runbook_url: platform/runbooks/certificate-expiring-soon.md
+- interval: 1m
+  input_series:
+  - series: certmanager_certificate_expiration_timestamp_seconds{name="x"}
+    values: 3600x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: CertificateExpiringSoon
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        name: x
+      exp_annotations: *id003
+    - exp_labels:
+        severity: SEV2
+        name: x
+      exp_annotations: *id003
+- interval: 1m
+  input_series:
+  - series: certmanager_certificate_expiration_timestamp_seconds{name="x"}
+    values: 9999999x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: CertificateExpiringSoon
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations",status="200"}
+    values: 0+10x130
+  - series: vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations",status="500"}
+    values: 0+10x130
+  alert_rule_test:
+  - eval_time: 2h
+    alertname: RecommendationSLOBurnFast
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: RecommendationSLOBurnFast
+        runbook_url: platform/runbooks/recommendation-slo-burn-fast.md
+- interval: 1m
+  input_series:
+  - series: vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations",status="200"}
+    values: 0+95x130
+  - series: vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations",status="500"}
+    values: 0+5x130
+  alert_rule_test:
+  - eval_time: 2h
+    alertname: RecommendationSLOBurnFast
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations",status="200"}
+    values: 0+95x430
+  - series: vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations",status="500"}
+    values: 0+5x430
+  alert_rule_test:
+  - eval_time: 7h
+    alertname: RecommendationSLOBurnSlow
+    exp_alerts:
+    - exp_labels:
+        severity: SEV3
+      exp_annotations:
+        summary: RecommendationSLOBurnSlow
+        runbook_url: platform/runbooks/recommendation-slo-burn-slow.md
+- interval: 1m
+  input_series:
+  - series: vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations",status="200"}
+    values: 0+999x430
+  - series: vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations",status="500"}
+    values: 0+1x430
+  alert_rule_test:
+  - eval_time: 7h
+    alertname: RecommendationSLOBurnSlow
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: cnpg_backends_total{cluster="case-db",pod="x"}
+    values: 90x15
+  - series: cnpg_pg_settings_setting{cluster="case-db",name="max_connections"}
+    values: 100x15
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: PostgresConnectionsHigh
+    exp_alerts:
+    - exp_labels:
+        severity: SEV3
+        cluster: case-db
+      exp_annotations:
+        summary: PostgresConnectionsHigh
+        runbook_url: platform/runbooks/postgres-connections-high.md
+- interval: 1m
+  input_series:
+  - series: cnpg_backends_total{cluster="case-db",pod="x"}
+    values: 50x15
+  - series: cnpg_pg_settings_setting{cluster="case-db",name="max_connections"}
+    values: 100x15
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: PostgresConnectionsHigh
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: kubelet_volume_stats_used_bytes{namespace="vectra-data",persistentvolumeclaim="registry-db-1"}
+    values: 95x20
+  - series: kubelet_volume_stats_capacity_bytes{namespace="vectra-data",persistentvolumeclaim="registry-db-1"}
+    values: 100x20
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PostgresVolumeUsageHigh
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        namespace: vectra-data
+        persistentvolumeclaim: registry-db-1
+      exp_annotations: &id004
+        summary: PostgresVolumeUsageHigh
+        runbook_url: platform/runbooks/postgres-volume-usage-high.md
+    - exp_labels: &id005
+        severity: SEV2
+        cluster: registry-db
+      exp_annotations: *id004
+    - exp_labels: &id006
+        severity: SEV2
+        cluster: case-db
+      exp_annotations: *id004
+    - exp_labels: &id007
+        severity: SEV2
+        cluster: governance-db
+      exp_annotations: *id004
+    - exp_labels: &id008
+        severity: SEV2
+        cluster: keycloak-db
+      exp_annotations: *id004
+- interval: 1m
+  input_series:
+  - series: kubelet_volume_stats_used_bytes{namespace="vectra-data",persistentvolumeclaim="registry-db-1"}
+    values: 85x20
+  - series: kubelet_volume_stats_capacity_bytes{namespace="vectra-data",persistentvolumeclaim="registry-db-1"}
+    values: 100x20
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PostgresVolumeUsageHigh
+    exp_alerts:
+    - exp_labels:
+        severity: SEV3
+        namespace: vectra-data
+        persistentvolumeclaim: registry-db-1
+      exp_annotations: *id004
+    - exp_labels: *id005
+      exp_annotations: *id004
+    - exp_labels: *id006
+      exp_annotations: *id004
+    - exp_labels: *id007
+      exp_annotations: *id004
+    - exp_labels: *id008
+      exp_annotations: *id004
+- interval: 1m
+  input_series:
+  - series: kube_horizontalpodautoscaler_status_current_replicas{horizontalpodautoscaler="x"}
+    values: 5x20
+  - series: kube_horizontalpodautoscaler_spec_max_replicas{horizontalpodautoscaler="x"}
+    values: 5x20
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: HPAMaxedOut
+    exp_alerts:
+    - exp_labels:
+        severity: SEV3
+        horizontalpodautoscaler: x
+      exp_annotations:
+        summary: HPAMaxedOut
+        runbook_url: platform/runbooks/hpa-maxed-out.md
+- interval: 1m
+  input_series:
+  - series: kube_horizontalpodautoscaler_status_current_replicas{horizontalpodautoscaler="x"}
+    values: 3x20
+  - series: kube_horizontalpodautoscaler_spec_max_replicas{horizontalpodautoscaler="x"}
+    values: 5x20
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: HPAMaxedOut
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: up{job="pushgateway"}
+    values: '0x10'
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: PushgatewayDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        job: pushgateway
+      exp_annotations: &id009
+        summary: PushgatewayDown
+        runbook_url: platform/runbooks/pushgateway-down.md
+- interval: 1m
+  input_series:
+  - series: dummy
+    values: 1x5
+  - series: dummy2
+    values: 1x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: PushgatewayDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        job: pushgateway
+      exp_annotations: *id009
+- interval: 1m
+  input_series:
+  - series: up{job="pushgateway"}
+    values: 1x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: PushgatewayDown
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: vectra_grafana_folder_permissions_drift
+    values: 1x5
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: GrafanaFolderPermissionsDrift
+    exp_alerts:
+    - exp_labels:
+        severity: SEV3
+      exp_annotations:
+        summary: GrafanaFolderPermissionsDrift
+        runbook_url: platform/runbooks/grafana-folder-permissions-drift.md
+- interval: 1m
+  input_series:
+  - series: vectra_grafana_folder_permissions_drift
+    values: '0x5'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: GrafanaFolderPermissionsDrift
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: vectra_log_fields_dropped_total{service="case-service",event="http.request"}
+    values: 0+1x30
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: LogFieldsDropped
+    exp_alerts:
+    - exp_labels:
+        severity: SEV3
+        service: case-service
+        event: http.request
+      exp_annotations:
+        summary: LogFieldsDropped
+        runbook_url: platform/runbooks/log-fields-dropped.md
+- interval: 1m
+  input_series:
+  - series: vectra_log_fields_dropped_total{service="case-service",event="http.request"}
+    values: '0x30'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: LogFieldsDropped
+    exp_alerts: []

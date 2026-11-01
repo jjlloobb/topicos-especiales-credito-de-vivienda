@@ -1,0 +1,883 @@
+allowed:
+- flow: F01
+  from: banco
+  ports:
+  - 10443
+  to: api-gateway
+- flow: F02
+  from: api-gateway
+  ports:
+  - 8080
+  to: console-spa
+- flow: F03
+  from: api-gateway
+  ports:
+  - 8080
+  to: console-bff
+- flow: F04
+  from: api-gateway
+  ports:
+  - 8080
+  to: case-service
+- flow: F05
+  from: api-gateway
+  ports:
+  - 8443
+  to: keycloak
+- flow: F06
+  from: api-gateway
+  ports:
+  - 3000
+  to: grafana
+- flow: F08
+  from: promotion-tool
+  ports:
+  - 10443
+  to: api-gateway
+- flow: F08
+  from: api-gateway
+  ports:
+  - 8080
+  to: governance-service
+- flow: F10
+  from: console-bff
+  ports:
+  - 8080
+  to: case-service
+- flow: F11
+  from: console-bff
+  ports:
+  - 8080
+  to: governance-service
+- flow: F12
+  from: console-bff
+  ports:
+  - 8080
+  to: explainability-service
+- flow: F13
+  from: console-bff
+  ports:
+  - 8080
+  to: decision-registry-service
+- flow: F14
+  from: console-bff
+  ports:
+  - 8080
+  to: bias-monitoring-service
+- flow: F15
+  from: case-worker
+  ports:
+  - 8080
+  to: scoring-service
+- flow: F16
+  from: case-service
+  ports:
+  - 8080
+  to: decision-registry-service
+- flow: F18
+  from: scoring-service
+  ports:
+  - 8080
+  to: governance-service
+- flow: F19
+  from: scoring-service
+  ports:
+  - 8080
+  to: predictor
+- flow: F20
+  from: scoring-service
+  ports:
+  - 8080
+  to: explainability-service
+- flow: F21
+  from: scoring-service
+  ports:
+  - 8080
+  to: decision-registry-service
+- flow: F22
+  from: explainability-service
+  ports:
+  - 8080
+  to: explainer
+- flow: F23
+  from: explainability-service
+  ports:
+  - 8080
+  to: decision-registry-service
+- flow: F103
+  from: explainability-service
+  ports:
+  - 8080
+  to: governance-service
+- flow: F104
+  from: case-worker
+  ports: &id001
+  - 8080
+  to: governance-service
+- flow: F104
+  from: case-service
+  ports: *id001
+  to: governance-service
+- flow: F24
+  from: governance-service
+  ports:
+  - 8080
+  to: decision-registry-service
+- flow: F25
+  from: governance-service
+  ports:
+  - 8080
+  to: bias-monitoring-service
+- flow: F26
+  from: bias-monitoring-service
+  ports: &id002
+  - 8080
+  to: decision-registry-service
+- flow: F26
+  from: bias-monitoring-job
+  ports: *id002
+  to: decision-registry-service
+- flow: F27
+  from: bias-monitoring-job
+  ports:
+  - 8080
+  to: governance-service
+- flow: F28
+  from: product-metrics
+  ports:
+  - 8080
+  to: decision-registry-service
+- flow: F30
+  from: model-validation-job
+  ports: &id003
+  - 8080
+  to: staging-isvc
+- flow: F30
+  from: model-validation-job
+  ports: *id003
+  to: staging-explainer
+- flow: F31
+  from: model-validation-job
+  ports:
+  - 9000
+  to: minio
+- flow: F32
+  from: model-validation-job
+  ports:
+  - 8080
+  to: governance-service
+- flow: F40
+  from: case-service
+  ports: &id004
+  - 5432
+  to: case-db
+- flow: F40
+  from: case-worker
+  ports: *id004
+  to: case-db
+- flow: F105
+  from: case-retention
+  ports:
+  - 5432
+  to: case-db
+- flow: F41
+  from: governance-service
+  ports:
+  - 5432
+  to: governance-db
+- flow: F42
+  from: decision-registry-service
+  ports:
+  - 5432
+  to: registry-db
+- flow: F43
+  from: keycloak
+  ports:
+  - 5432
+  to: keycloak-db
+- flow: F44
+  from: migration-case
+  ports:
+  - 5432
+  to: case-db
+- flow: F44
+  from: migration-governance
+  ports:
+  - 5432
+  to: governance-db
+- flow: F44
+  from: migration-registry
+  ports:
+  - 5432
+  to: registry-db
+- flow: F45
+  from: case-db
+  ports:
+  - 5432
+  to: case-db
+- flow: F45
+  from: governance-db
+  ports:
+  - 5432
+  to: governance-db
+- flow: F45
+  from: registry-db
+  ports:
+  - 5432
+  to: registry-db
+- flow: F45
+  from: keycloak-db
+  ports:
+  - 5432
+  to: keycloak-db
+- flow: F46
+  from: predictor
+  ports: &id005
+  - 9000
+  to: minio
+- flow: F46
+  from: explainer
+  ports: *id005
+  to: minio
+- flow: F46
+  from: staging-isvc
+  ports: *id005
+  to: minio
+- flow: F46
+  from: staging-explainer
+  ports: *id005
+  to: minio
+- flow: F47
+  from: governance-service
+  ports:
+  - 9000
+  to: minio
+- flow: F96
+  from: decision-registry-service
+  ports:
+  - 5432
+  to: registry-db
+- flow: F97
+  from: registry-checkpoint
+  ports: &id006
+  - 5432
+  to: registry-db
+- flow: F97
+  from: registry-verify
+  ports: *id006
+  to: registry-db
+- flow: F97
+  from: registry-archive
+  ports: *id006
+  to: registry-db
+- flow: F107
+  from: registry-aggregator
+  ports:
+  - 5432
+  to: registry-db
+- flow: F108
+  from: registry-aggregator-reset
+  ports:
+  - 5432
+  to: registry-db
+- flow: F109
+  from: grafana
+  ports:
+  - 9093
+  to: alertmanager
+- flow: F110
+  from: grafana-folder-permissions
+  ports: &id007
+  - 3000
+  to: grafana
+- flow: F110
+  from: grafana-folder-check
+  ports: *id007
+  to: grafana
+- flow: F112
+  from: realm-drift
+  ports: &id008
+  - 9091
+  to: prometheus-pushgateway
+- flow: F112
+  from: signing-key-age
+  ports: *id008
+  to: prometheus-pushgateway
+- flow: F113
+  from: grafana-folder-check
+  ports:
+  - 9091
+  to: prometheus-pushgateway
+- flow: F114
+  from: restore-drill
+  ports:
+  - 5432
+  to: restore-cluster
+- flow: F115
+  from: minio
+  ports:
+  - 9000
+  to: minio
+- flow: F116
+  from: alertmanager
+  ports:
+  - 9094
+  to: alertmanager
+- flow: F117
+  from: keycloak
+  ports:
+  - 7800
+  to: keycloak
+- flow: F119
+  from: prometheus
+  ports:
+  - 10250
+  to: kubelet
+- flow: F120
+  from: loki
+  ports:
+  - 7946
+  - 9095
+  to: loki
+- flow: F121
+  from: tempo
+  ports:
+  - 7946
+  - 9095
+  to: tempo
+- flow: F122
+  from: prometheus
+  ports:
+  - 8080
+  to: kube-state-metrics
+- flow: F123
+  from: minio-post-job
+  ports:
+  - 9000
+  to: minio
+- flow: F124
+  from: kube-apiserver
+  ports:
+  - 6443
+  to: trust-manager
+- flow: F101
+  from: model-archive
+  ports:
+  - 9000
+  to: minio
+- flow: F128
+  from: prometheus
+  ports: &id009
+  - 8000
+  - 9402
+  to: kyverno
+- flow: F128
+  from: prometheus
+  ports: *id009
+  to: cert-manager
+- flow: F128
+  from: prometheus
+  ports:
+  - 9996
+  to: linkerd-control
+- flow: F129
+  from: prometheus
+  ports:
+  - 9000
+  to: minio
+- flow: F102
+  from: model-archive
+  ports:
+  - 5432
+  to: governance-db
+- flow: F50
+  from: api-gateway
+  ports: &id010
+  - 8443
+  to: keycloak
+- flow: F50
+  from: console-bff
+  ports: *id010
+  to: keycloak
+- flow: F50
+  from: case-service
+  ports: *id010
+  to: keycloak
+- flow: F50
+  from: case-worker
+  ports: *id010
+  to: keycloak
+- flow: F50
+  from: scoring-service
+  ports: *id010
+  to: keycloak
+- flow: F50
+  from: explainability-service
+  ports: *id010
+  to: keycloak
+- flow: F50
+  from: governance-service
+  ports: *id010
+  to: keycloak
+- flow: F50
+  from: bias-monitoring-service
+  ports: *id010
+  to: keycloak
+- flow: F50
+  from: bias-monitoring-job
+  ports: *id010
+  to: keycloak
+- flow: F50
+  from: decision-registry-service
+  ports: *id010
+  to: keycloak
+- flow: F50
+  from: product-metrics
+  ports: *id010
+  to: keycloak
+- flow: F50
+  from: model-validation-job
+  ports: *id010
+  to: keycloak
+- flow: F50
+  from: grafana
+  ports: *id010
+  to: keycloak
+- flow: F50
+  from: keycloak-config-cli
+  ports: *id010
+  to: keycloak
+- flow: F60
+  from: prometheus
+  ports: &id011
+  - 8081
+  to: vectra-app
+- flow: F60
+  from: prometheus
+  ports: *id011
+  to: vectra-edge
+- flow: F60
+  from: prometheus
+  ports: *id011
+  to: vectra-serving
+- flow: F60
+  from: prometheus
+  ports: &id012
+  - 9187
+  to: case-db
+- flow: F60
+  from: prometheus
+  ports: *id012
+  to: governance-db
+- flow: F60
+  from: prometheus
+  ports: *id012
+  to: registry-db
+- flow: F60
+  from: prometheus
+  ports: *id012
+  to: keycloak-db
+- flow: F60
+  from: prometheus
+  ports:
+  - 9000
+  to: keycloak
+- flow: F61
+  from: vectra-app
+  ports: &id013
+  - 4317
+  to: opentelemetry-collector
+- flow: F61
+  from: vectra-serving
+  ports: *id013
+  to: opentelemetry-collector
+- flow: F61
+  from: vectra-edge
+  ports: *id013
+  to: opentelemetry-collector
+- flow: F61
+  from: vectra-staging
+  ports: *id013
+  to: opentelemetry-collector
+- flow: F61
+  from: vectra-identity
+  ports: *id013
+  to: opentelemetry-collector
+- flow: F61
+  from: vectra-data
+  ports: *id013
+  to: opentelemetry-collector
+- flow: F61
+  from: vectra-restore-drill
+  ports: *id013
+  to: opentelemetry-collector
+- flow: F62
+  from: opentelemetry-collector
+  ports: &id014
+  - 4317
+  - 3100
+  to: tempo
+- flow: F62
+  from: opentelemetry-collector
+  ports: *id014
+  to: loki
+- flow: F63
+  from: alloy
+  ports:
+  - 3100
+  to: loki
+- flow: F64
+  from: prometheus
+  ports:
+  - 9093
+  to: alertmanager
+- flow: F65
+  from: grafana
+  ports: &id015
+  - 9090
+  - 3100
+  - 3200
+  to: prometheus
+- flow: F65
+  from: grafana
+  ports: *id015
+  to: loki
+- flow: F65
+  from: grafana
+  ports: *id015
+  to: tempo
+- flow: F66
+  from: loki
+  ports:
+  - 9000
+  to: minio
+- flow: F67
+  from: tempo
+  ports:
+  - 9000
+  to: minio
+- flow: F70
+  from: case-db
+  ports: &id016
+  - 443
+  to: backups
+- flow: F70
+  from: governance-db
+  ports: *id016
+  to: backups
+- flow: F70
+  from: registry-db
+  ports: *id016
+  to: backups
+- flow: F70
+  from: keycloak-db
+  ports: *id016
+  to: backups
+- flow: F71
+  from: argocd-repo-server
+  ports:
+  - 443
+  to: git
+- flow: F72
+  from: alertmanager
+  ports:
+  - 443
+  - 587
+  to: notificaciones
+- flow: F73
+  from: keycloak
+  ports:
+  - 636
+  - 443
+  to: ldap
+- flow: F74
+  from: external-secrets
+  ports:
+  - 443
+  to: boveda
+- flow: F75
+  from: restore-cluster
+  ports: &id017
+  - 443
+  to: backups
+- flow: F75
+  from: restore-drill
+  ports: *id017
+  to: backups
+- flow: F76
+  from: kyverno-admission
+  ports:
+  - 443
+  to: registro
+- flow: F77
+  from: registry-checkpoint
+  ports:
+  - 443
+  to: backups
+- flow: F78
+  from: registry-archive
+  ports:
+  - 443
+  to: backups
+- flow: F79
+  from: registry-verify
+  ports:
+  - 443
+  to: backups
+- flow: F80
+  from: cloudnative-pg
+  ports: &id018
+  - 8000
+  - 5432
+  to: case-db
+- flow: F80
+  from: cloudnative-pg
+  ports: *id018
+  to: governance-db
+- flow: F80
+  from: cloudnative-pg
+  ports: *id018
+  to: registry-db
+- flow: F80
+  from: cloudnative-pg
+  ports: *id018
+  to: keycloak-db
+- flow: F80
+  from: cloudnative-pg
+  ports: *id018
+  to: restore-cluster
+- flow: F81
+  from: kube-apiserver
+  ports:
+  - 9443
+  to: cloudnative-pg
+- flow: F82
+  from: kube-apiserver
+  ports:
+  - 10250
+  to: webhook
+- flow: F83
+  from: vectra-edge
+  ports: &id019
+  - 8086
+  - 8080
+  - 8090
+  to: linkerd-control
+- flow: F83
+  from: vectra-app
+  ports: *id019
+  to: linkerd-control
+- flow: F83
+  from: vectra-serving
+  ports: *id019
+  to: linkerd-control
+- flow: F83
+  from: vectra-staging
+  ports: *id019
+  to: linkerd-control
+- flow: F83
+  from: vectra-data
+  ports: *id019
+  to: linkerd-control
+- flow: F83
+  from: vectra-identity
+  ports: *id019
+  to: linkerd-control
+- flow: F83
+  from: vectra-observability
+  ports: *id019
+  to: linkerd-control
+- flow: F83
+  from: vectra-restore-drill
+  ports: *id019
+  to: linkerd-control
+- flow: F84
+  from: kube-apiserver
+  ports:
+  - 8443
+  to: linkerd-control
+- flow: F85
+  from: kube-apiserver
+  ports:
+  - 9443
+  to: kyverno-admission
+- flow: F99
+  from: registry-checkpoint
+  ports: &id020
+  - 443
+  to: boveda
+- flow: F99
+  from: registry-archive
+  ports: *id020
+  to: boveda
+- flow: F99
+  from: registry-verify
+  ports: *id020
+  to: boveda
+- flow: F99
+  from: restore-drill
+  ports: *id020
+  to: boveda
+- flow: F100
+  from: model-archive
+  ports:
+  - 443
+  to: backups
+- flow: F87
+  from: restore-drill
+  ports:
+  - 9091
+  to: prometheus-pushgateway
+- flow: F88
+  from: prometheus
+  ports:
+  - 9091
+  to: prometheus-pushgateway
+- flow: F106
+  from: bias-monitoring-job
+  ports:
+  - 9091
+  to: prometheus-pushgateway
+- flow: F90
+  from: api-gateway
+  ports:
+  - 8083
+  to: rate-limit
+- flow: F91
+  from: rate-limit
+  ports: &id021
+  - 26379
+  - 6379
+  to: valkey
+- flow: F91
+  from: rate-limit
+  ports: *id021
+  to: sentinel
+- flow: F92
+  from: valkey
+  ports:
+  - 6379
+  to: valkey
+- flow: F93
+  from: sentinel
+  ports: &id022
+  - 6379
+  - 26379
+  to: valkey
+- flow: F93
+  from: sentinel
+  ports: *id022
+  to: sentinel
+- flow: F94
+  from: keycloak-config-cli
+  ports: &id023
+  - 8443
+  to: keycloak
+- flow: F94
+  from: realm-drift
+  ports: *id023
+  to: keycloak
+- flow: F94
+  from: signing-key-age
+  ports: *id023
+  to: keycloak
+- flow: F95
+  from: api-gateway
+  ports:
+  - 18000
+  to: envoy-gateway
+blocked:
+- from: scoring-service
+  id: X02
+  port: 443
+  to: external:internet
+- from: explainability-service
+  id: X02
+  port: 443
+  to: external:internet
+- from: bias-monitoring-service
+  id: X02
+  port: 443
+  to: external:internet
+- from: bias-monitoring-service
+  id: X04
+  note: 'sin F27: solo el CronJob congela'
+  port: 8080
+  to: governance-service
+- from: case-service
+  id: X05
+  port: 5432
+  to: registry-db
+- from: scoring-service
+  id: X05
+  port: 5432
+  to: case-db
+- from: scoring-service
+  id: X07
+  port: 443
+  to: external:kube-apiserver
+- from: case-service
+  id: X07
+  port: 443
+  to: external:kube-apiserver
+- from: model-validation-job
+  id: X08
+  port: 80
+  to: predictor
+- from: predictor
+  id: X08
+  port: 80
+  to: staging-isvc
+- from: case-service
+  id: U8
+  port: 8080
+  to: scoring-service
+- from: case-worker
+  id: U8
+  port: 8080
+  to: decision-registry-service
+- from: bias-monitoring-service
+  id: U9
+  port: 9091
+  to: pushgateway
+- from: scoring-service
+  id: U9
+  port: 9091
+  to: pushgateway
+- from: external:banco
+  id: X09
+  port: 8080
+  to: console-bff
+- from: external:banco
+  id: X09
+  port: 8080
+  to: case-service
+- from: console-spa
+  id: U10
+  port: 8080
+  to: case-service
+- from: console-spa
+  id: U10
+  port: 8080
+  to: console-bff
+- from: console-bff
+  id: U10
+  port: 5432
+  to: case-db
+- from: console-bff
+  id: U10
+  port: 80
+  to: predictor
+- from: product-metrics
+  id: U11
+  port: 8080
+  to: case-service
+- from: product-metrics
+  id: U11
+  port: 8080
+  to: governance-service
+- from: case-service
+  id: U11
+  port: 8081
+  to: product-metrics
+env: prod

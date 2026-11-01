@@ -1,0 +1,46 @@
+# Cuotas por namespace: maximo del HPA + 30 %, con el proxy de Linkerd (NFR-U1-13, P-U1-14).
+# vectra-app suma U3, U4, U7, U8, U9, U10 y U11 (plan de U1, Paso 6). Los aportes ya incluyen el 30 %.
+# Requests y limits de CPU en cores, memoria en GiB. Unidades de Kubernetes en el render.
+namespaces:
+  vectra-app:
+    contributions:
+      U3: { requests: [6.70, 5.91], limits: [29.25, 13.49] }
+      U4: { requests: [3.71, 2.99], limits: [16.25, 6.99] }
+      U7: { requests: [6.37, 4.91], limits: [27.3, 11.38] }
+      U8: { requests: [6.44, 5.3], limits: [29.9, 12.35] }
+      U9: { requests: [1.04, 0.75], limits: [5.2, 1.95] }
+      U10: { requests: [3.19, 2.4], limits: [13.7, 5.7] }
+      U11: { requests: [0.78, 1.05], limits: [3.9, 2.44] }
+  vectra-edge:
+    contributions:
+      U2: { requests: [5.72, 3.64], limits: [25.35, 9.18] }
+      U10: { requests: [0.78, 0.26], limits: [3.64, 0.97] }
+  vectra-identity:
+    contributions:
+      U2: { requests: [4.68, 7.68], limits: [20.15, 16.25] }
+  vectra-serving:
+    contributions:
+      U6: { requests: [17.16, 14.86], limits: [59.8, 32.2] }
+  vectra-staging:
+    contributions:
+      validation: { requests: [0.78, 1.33], limits: [3.25, 5.37] } # model-validation-job con proxy y 30 %
+      U6: { requests: [1.82, 1.40], limits: [7.8, 3.25] } # 4 pods de staging con proxy y 30 %
+      source-comparison: { requests: [0.46, 0.36], limits: [1.95, 0.83] } # predictor activo, INF-U4-05
+  vectra-data:
+    contributions:
+      U1: { requests: [18.98, 68.0], limits: [44.2, 137.8] }
+  vectra-mock:
+    contributions:
+      U8: { requests: [0.59, 0.32], limits: [2.93, 0.98] }
+  vectra-observability:
+    contributions:
+      # Suma de lo renderizado (2026-11-01), con proxy (100m/20Mi, 500m/128Mi) en cada pod, antes del 30 %:
+      #   Prometheus 2, Alertmanager 3, con su recargador; Grafana, kube-state-metrics, operador, Pushgateway: 1;
+      #   Loki read 2, backend 2, write 3; Tempo compactor, distributor, querier, query-frontend 1, ingester 3;
+      #   otel-collector 2; Alloy en 8 nodos `general`; Job y CronJob de permisos de carpetas.
+      #   Requests 7.15 CPU, 11.28 GiB. Limits 34.2 CPU, 25.77 GiB. Se ajusta con la prueba de carga (INF-U1-07).
+      U1: { requests: [9.3, 14.67], limits: [44.46, 33.5] }
+  vectra-restore-drill:
+    contributions:
+      U1: { requests: [2.6, 10.4], limits: [5.2, 20.8] } # CronJob y dos clusters efimeros de 1 instancia
+limit_range: { default_cpu: 500m, default_memory: 512Mi, request_cpu: 100m, request_memory: 128Mi }

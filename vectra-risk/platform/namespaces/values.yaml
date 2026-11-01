@@ -1,0 +1,3 @@
+meshed: [vectra-edge, vectra-app, vectra-serving, vectra-staging, vectra-data, vectra-identity, vectra-mock, vectra-observability, vectra-restore-drill]
+system: []
+mockEnabled: true

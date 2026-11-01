@@ -1,0 +1,175 @@
+components:
+  schemas:
+    CreditStatus:
+      enum:
+      - en_estudio
+      - aprobado
+      - desembolsado
+      - rechazado
+      - cancelado
+      - sin_credito
+      - no_disponible
+      - no_integrado
+      title: CreditStatus
+      type: string
+    CreditStatusView:
+      additionalProperties: false
+      properties:
+        credit_id:
+          title: Credit Id
+          type: string
+        status:
+          $ref: '#/components/schemas/CreditStatus'
+      required:
+      - credit_id
+      - status
+      title: CreditStatusView
+      type: object
+    InvalidParam:
+      additionalProperties: false
+      properties:
+        name:
+          title: Name
+          type: string
+        reason_code:
+          title: Reason Code
+          type: string
+      required:
+      - name
+      - reason_code
+      title: InvalidParam
+      type: object
+    Problem:
+      additionalProperties: false
+      description: RFC 9457; campos cerrados (BR-U0-61) y `reason` de su catalogo
+        (§6).
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        correlation_id:
+          title: Correlation Id
+          type: string
+        invalid_params:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/InvalidParam'
+            type: array
+          - type: 'null'
+          default: null
+          title: Invalid Params
+        reason:
+          anyOf:
+          - $ref: '#/components/schemas/ProblemReason'
+          - type: 'null'
+          default: null
+        status:
+          title: Status
+          type: integer
+        title:
+          title: Title
+          type: string
+        type:
+          title: Type
+          type: string
+      required:
+      - type
+      - title
+      - status
+      - code
+      - correlation_id
+      title: Problem
+      type: object
+    ProblemCode:
+      enum:
+      - malformed_request
+      - unsupported_media_type
+      - validation_error
+      - unauthenticated
+      - forbidden
+      - mfa_required
+      - not_found
+      - conflict_state
+      - payload_too_large
+      - rate_limited
+      - dependency_unavailable
+      - internal_error
+      - unprocessable_explanation
+      - deadline_exceeded
+      title: ProblemCode
+      type: string
+    ProblemReason:
+      enum:
+      - decision_already_recorded
+      - transition_pending
+      - version_mismatch
+      - feature_dictionary_incomplete
+      - factuality_failed
+      - no_active_version
+      - active_version_frozen
+      title: ProblemReason
+      type: string
+info:
+  title: core-banking-mock
+  version: 0.1.0
+openapi: 3.1.0
+paths:
+  /v1/credits/{id}:
+    get:
+      operationId: get_v1_credits_id
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditStatusView'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles: []
+      x-vectra-scopes:
+      - core:read-credit
+  /v1/credits/{id}/status:
+    post:
+      operationId: post_v1_credits_id_status
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditStatusView'
+        required: true
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles: []
+      x-vectra-scopes:
+      - core:write-credit

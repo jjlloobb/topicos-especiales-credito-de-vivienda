@@ -15,10 +15,10 @@
 | Unidad | U4 `governance`: modelos, políticas, fuentes de datos y `serving-config` |
 | Historias (dueña) | US-201, US-202, US-203, US-204, US-205, US-206, US-208, US-305 |
 | Historias (participa) | US-306 (dueña U9): ciclo de la fuente, versión candidata y modo `source_comparison` (quinta revisión del FD de U9, 2026-10-10) |
-| Ubicación | `vectra-risk/governance/` (servicio, `promotion-tool`, `model-validation-job`) y Applications en `vectra-risk-gitops` |
-| Datos propios | `governance-db` (esquema, triggers, roles) y el bucket `vectra-model-archive` |
+| Ubicación | `vectra-risk/governance/` (servicio, `promotion-tool`, `model-validation-job`) y entradas en `vectra-risk-gitops/components.yaml`, dentro del monorepo (revisión de consistencia entre unidades, 2026-11-01) |
+| Datos propios | `governance-db` (esquema, triggers, grants) y el bucket `vectra-model-archive` |
 | Depende de | U0 (tipos y `create_app`), U1 (plataforma, K01, model-store), U2 (roles, MFA, step-up, cliente `promotion-tool`), U3 (append con idempotencia), U9 (librería de disparidad y `compare_source`; se usa un doble hasta que exista), U5/U6 (modelo de referencia y KServe de staging para la validación real) |
-| Lo consumen | scoring (`serving-config`), BFF (consola), bias (`freeze`), U12 (verificación) |
+| Lo consumen | scoring y `case-worker` (`serving-config`), explainability (diccionario), case-service y `case-worker` (`feature_spec`), U6 (`inference_service`, `promotion-tool`), BFF (consola), bias (`freeze`), U12 (verificación) |
 
 **Diseño de entrada:**
 - Functional Design: `construction/governance/functional-design/` (BR-U4-01..19, PBT-U4-01..07).
@@ -38,7 +38,7 @@ vectra-risk/governance/
 |-- src/vectra_governance/
 |   |-- model_fsm.py  policy.py  serving_config.py  registration.py   # puros
 |   |-- evidence.py  background.py  convergence.py  pools.py  api.py  k8s_jobs.py
-|-- migrations/                  # Alembic: tablas, índice parcial, triggers, roles, NOTIFY
+|-- migrations/                  # Alembic: tablas, índice parcial, triggers, grants, NOTIFY
 |-- promotion_tool/              # CLI: PKCE loopback, gh, gitsign
 |-- validation_job/              # AUC, disparidad, sincronía, informe
 |-- archive_job/                 # model-archive
@@ -67,7 +67,7 @@ vectra-risk/governance/
   - Triggers `guard_unfreeze` y `guard_freeze` (P-U4-06).
   - `validation_runs.mode` (`validacion` por omisión en las filas existentes), `source_id`, `baseline_version_id`; `model_versions.source_candidate_for`; `data_sources.pre_post_report` (segunda revisión del FD de U9, 2026-10-08).
   - `NOTIFY serving_config` al confirmar.
-  - Roles `gov_app`, `gov_migrator` y `gov_archiver` (permiso por columna); sin `DELETE` en tablas de historia.
+  - Grants de `gov_app`, `gov_migrator` y `gov_archiver` (permiso por columna); los roles los crea U1 (cuarta revisión de coherencia entre unidades, 2026-10-31); sin `DELETE` en tablas de historia.
   - Diseño: BR-U4-02, 03; NFR-U4-30; P-U4-01, 06; INF-U4-03. Historia: US-305.
   - **Aceptación**: `uv run pytest governance/tests/integration/test_migrations.py` (Testcontainers):
     - una transición `descartada` con `n = 5` → otra inserción con `n = 5` en la misma entidad viola el índice (el `n` sigue reservado); una `abandonada` con `n = 5` → se puede insertar otra con `n = 5` (precisado el 2026-10-06, revisión del FD de U8);
@@ -130,11 +130,12 @@ vectra-risk/governance/
 
 - [ ] **Paso 10 — Endpoints**
   - Modelos: registrar, lanzar validación (Job en `vectra-staging` por K01, con TTL, `activeDeadlineSeconds` y `backoffLimit: 0`), recibir el informe (F32), aprobar o rechazar, `mark_active`, retirar.
+  - Registro: los paquetes RT-3 (a), (c) y (d) de U5 → 422 sin crear la versión; (b) → aceptado (BR-U4-06; doble de los paquetes hasta que exista U5; quinta revisión de coherencia entre unidades, 2026-10-31).
   - `freeze` (solo `governance:freeze`).
   - `GET /v1/models/{id}/feature-dictionary` (solo `governance:read-dictionary`; BR-U4-18, agregado por U7 FD Q4).
   - `GET /v1/models/{id}/feature-spec` (solo `governance:read-feature-spec`; BR-U4-19, agregado por U8 FD Q1). Prueba: otra identidad → 403; el contenido es byte a byte el `feature_spec.json` verificado.
   - `frozen-resolution`: solo `cumplimiento` + MFA + step-up; fija `SET LOCAL vectra.frozen_resolution`.
-  - Políticas (cuatro ojos); fuentes (BR-U4-13, precisado el 2026-10-08 por U9 FD): versión candidata con `source_candidate_for`, Job en modo `source_comparison` (con la versión activa también desplegada en KServe de staging, X08), `PUT /v1/validation-runs/{run_id}/source-counts` (F32), `compare_source` por **F25** con tablas de conteo (doble de U9 hasta que exista) y `data_sources.pre_post_report`; un `timeout` en ese modo no cambia ninguna versión (revisión del FD de U9, 2026-10-08); `freeze` agrega `data_sources` e `initial_disparity` al `FreezeContext` antes de escribir el evento (BR-U4-15).
+  - Políticas (cuatro ojos; `POST /v1/policies/{id}/approval` recibe `PolicyDecisionIn`; revisión de consistencia entre unidades, 2026-11-01); fuentes (BR-U4-13, precisado el 2026-10-08 por U9 FD): versión candidata con `source_candidate_for`, Job en modo `source_comparison` (con la versión activa también desplegada en KServe de staging, X08), `PUT /v1/validation-runs/{run_id}/source-counts` (F32), `compare_source` por **F25** con tablas de conteo (doble de U9 hasta que exista) y `data_sources.pre_post_report`; un `timeout` en ese modo no cambia ninguna versión (revisión del FD de U9, 2026-10-08); `freeze` agrega `data_sources` e `initial_disparity` al `FreezeContext` antes de escribir el evento (BR-U4-15).
   - Todas las rutas como `RouteContract` en el registro de contratos de U0.
   - Diseño: BR-U4-01..05, 07, 08, 10..13, 15, 16, 18, 19; NFR-U4-11, 25; P-U4-03, 06. Historias: US-201, US-202, US-203, US-205, US-206, US-208, US-305.
   - **Aceptación**: `uv run pytest governance/tests/integration/test_api_*.py` con las pruebas de ejemplo de business-logic-model §3:
@@ -144,9 +145,9 @@ vectra-risk/governance/
     - una vigencia normativa vencida da `normative_current` nulo;
     - una candidata con `source_candidate_for` y la fuente `en_evaluacion` se registra; aprobarla o activarla → 409; una versión común que declara esa fuente → 422;
     - el evento `freeze` lleva el `FreezeContext` de bias más `data_sources` e `initial_disparity`;
-    - `freeze` con un token del cliente `bias-monitoring-service` → 403; con `bias-monitoring-job` → 200 (revisión del FD de U9, 2026-10-08);
+    - `freeze` con un token del cliente `bias-monitoring-service` → 403; con `bias-monitoring-job` → 204 (el contrato no tiene cuerpo de respuesta; revisión del FD de U9, 2026-10-08);
     - `start_source_comparison` (`ingeniero_riesgo` con MFA): sin versión `activo` → 409 `no_active_version`; con la servible `congelado` → 409 `active_version_frozen`; sin los `InferenceService` de staging → 409; otro rol → 403 (segunda revisión del FD de U9, 2026-10-08);
-    - `PUT /v1/validation-runs/{run_id}/source-counts`: con `governance:validation-report` sobre un run `source_comparison` `lanzado` → 200 y `PrePostReport` guardado; en un run `validacion` o repetido → 409; sin el scope → 403 (segunda revisión del FD de U9, 2026-10-08);
+    - `PUT /v1/validation-runs/{run_id}/source-counts`: con `governance:validation-report` sobre un run `source_comparison` `lanzado` → 204 y `PrePostReport` guardado; en un run `validacion` o repetido → 409; sin el scope → 403 (segunda revisión del FD de U9, 2026-10-08);
     - evento `freeze` mayor de 60 KiB → `initial_disparity` con sus agregadas; mayor de 64 KiB → `data_sources` con ids; el doble del registro nunca recibe más de 64 KiB (segunda revisión del FD de U9, 2026-10-08);
     - aprobar o activar una candidata con su fuente `en_evaluacion` → 409 (segunda revisión del FD de U9, 2026-10-08);
     - `GET /v1/models?state=activo,congelado` (la versión servible que usa el BFF para `get_disparity`): con `cro` o `cumplimiento` → 200 con una sola versión; tras un congelamiento, la `congelado`; con `analista` → 403 (sexta revisión del FD de U9, 2026-10-10);
@@ -171,6 +172,7 @@ vectra-risk/governance/
     - `! grep -rE "argocd app sync|kubectl apply|helm (install|upgrade)" governance/promotion_tool/`.
 
 - [ ] **Paso 13 — `model-validation-job`**
+  - En `vectra-staging` (quinta revisión de coherencia entre unidades, 2026-10-31): `ServiceAccount` `model-validation-job` y `ExternalSecret` con la llave `private_key_jwt` de su cliente de Keycloak (F32, F50). La credencial de solo lectura de `validation-datasets` (F31) es `minio-validation`, usuario `validation-readonly`, que U1 ya entrega en `vectra-staging` (revisión de consistencia entre unidades, 2026-11-01). El Job las monta y sigue sin token de Kubernetes. Recursos de INF-U4-01.
   - AUC-ROC (con `auc_target` y `auc_meets_target`), disparidad inicial con la librería de U9 (`counts_from_records` + `disparity_by_band`; doble mientras no exista), prueba de sincronía predictor ↔ explicador, informe con el `disclaimer` y envío por F32.
   - Modo `source_comparison` (BR-U4-13): puntúa el dataset con la versión activa y con la candidata y envía por F32 **solo** tablas de conteo por atributo, nunca filas (precisado el 2026-10-08 por U9 FD).
   - Imagen con las librerías de inferencia, `runAsNonRoot`, `readOnlyRootFilesystem`, sin token de Kubernetes.
@@ -183,8 +185,8 @@ vectra-risk/governance/
 
 - [ ] **Paso 14 — Scripts de CI**
   - `no-unfreeze-paths`: falla si hay escrituras `congelado → activo` fuera del handler de cumplimiento.
-  - `promotion-pr-check` en el repositorio GitOps: un commit, mismo `model_version_id` y evidencia adjunta.
-  - `branch-protection-check`: verifica con `gh api` la protección de `main` en `vectra-risk-gitops` **y en el monorepo `vectra-risk`**, incluida la aprobación obligatoria de los *code owners* (`require_code_owner_reviews`), que sostiene la revisión de cumplimiento de `values-monitoring-policy.yaml` de U9 y `contracts/forbidden-phrases.yaml` de U0 (revisión del FD de U10, 2026-10-10, A5).
+  - `promotion-pr-check`, workflow de `.github/workflows/` en la raíz del monorepo, para los PR que tocan `vectra-risk/vectra-risk-gitops/`: un commit, mismo `model_version_id` y evidencia adjunta. Un check obligatorio no puede usar `on.paths`, porque GitHub lo deja pendiente en los PR que no tocan la ruta: el filtro va dentro del job (revisión de consistencia entre unidades, 2026-11-01).
+  - `branch-protection-check`: verifica con `gh api` la protección de `main` del único repositorio, el monorepo (`vectra-risk-gitops/` vive dentro, con el prefijo `vectra-risk/`), incluida la aprobación obligatoria de los *code owners* (`require_code_owner_reviews`), que sostiene la revisión de cumplimiento de `values-monitoring-policy.yaml` de U9 y `contracts/forbidden-phrases.yaml` de U0. `CODEOWNERS` es un solo archivo, `.github/CODEOWNERS`, con una regla por ruta (revisión del FD de U10, 2026-10-10, A5; revisión de consistencia entre unidades, 2026-11-01).
   - `sbom-check`: la imagen del servicio no contiene ONNX Runtime, `xgboost` ni `lightgbm`.
   - Diseño: BR-U4-03, 09; NFR-U4-21, 22, 24. Historias: US-204, US-305.
   - **Aceptación**: `uv run pytest governance/tests/unit/test_ci_scripts.py` (cada script falla con un fixture que lo viola y pasa con uno correcto).
@@ -201,11 +203,12 @@ vectra-risk/governance/
 
 - [ ] **Paso 16 — Chart, flujos y RBAC**
   - Deployment: HPA de 2 a 6, spread, PDB, `vectra-high`, recursos de INF-U4-01, `tzdata`.
-  - CronJob `model-archive` (sidecar nativo de Linkerd, `Forbid`); Job de migración como hook.
-  - RBAC K01; values del bucket por entorno.
-  - Values de staging de U6 con el predictor de la versión activa para `source_comparison` (INF-U4-05; tercera revisión del FD de U9, 2026-10-10).
-  - Agregar F100, F101 y F102 a `platform/network/flows.yaml` de U1.
-  - `AuthorizationPolicy` de Linkerd de la ruta `freeze`: solo la identidad `bias-monitoring-job`; prueba de conectividad: `bias-monitoring-service` → `freeze` → denegado (precisado el 2026-10-10 por U9 Infrastructure Design Q4).
+  - CronJob `model-archive` (sidecar nativo de Linkerd, `Forbid`); Job de migración como hook, con la `ServiceAccount` `migration-governance`, la etiqueta `vectra.io/workload: migration-governance` (F44) y `pg-role-gov-migrator`. El servicio y `model-archive` montan `pg-role-gov-app` y `pg-role-gov-archiver`, y para leer el model-store `minio-governance` (`governance-readonly`, F47) y `minio-model-archive` (`model-archive-writer`, F101), todos de U1; la credencial del S3 del banco de F100 sigue en este chart. En kind, el destino es MinIO por F118, con `minio-model-archive` (revisión de consistencia entre unidades, 2026-11-01).
+  - RBAC K01; values del bucket por entorno en `vectra-risk-gitops/values/<env>/governance.yaml` (revisión de consistencia entre unidades, 2026-11-01).
+  - Runbook de kind: carga `reference-policy.json` de U5 como política por la API normal, con `ingeniero-1` proponiendo y `cro-1` aprobando, y sin un atajo en el servicio (seguimiento de la cuarta revisión de coherencia, 2026-10-31).
+  - La plantilla de values de staging con el predictor de la versión activa la entrega U6, que se construye después; aquí se prueba con un doble y, cuando exista U6, con su chart (INF-U4-05; seguimiento de la cuarta revisión de coherencia, 2026-10-31).
+  - Verificar F100, F101 y F102 en `platform/network/flows.yaml` de U1: ya están (revisión de consistencia entre unidades, 2026-11-01).
+  - Sin `AuthorizationPolicy` ni `HTTPRoute` en el chart: U1 las genera desde `http_routes.governance-service` de `flows.yaml`, una por identidad, con la ruta de captura `governance-catch-all`. Aquí se verifica la ruta `freeze`, solo para la identidad `bias-monitoring-job` (revisión de consistencia entre unidades, 2026-11-01); prueba de conectividad: `bias-monitoring-service` → `freeze` → denegado (precisado el 2026-10-10 por U9 Infrastructure Design Q4).
   - Diseño: NFR-U4-03, 25; INF-U4-01..05.
   - **Aceptación**: `helm template` + `conftest test governance/chart/`; `conftest test` sobre los values de staging (el `InferenceService` de la versión activa es solo predictor, 1 réplica, `vectra-low`; tercera revisión del FD de U9, 2026-10-10); `uv run python platform/network/generate.py --check && uv run pytest platform/network/tests` (F100–F102 presentes).
 
@@ -216,9 +219,9 @@ vectra-risk/governance/
   - **Aceptación**: `promtool test rules governance/observability/rules/tests/*.yaml`; `uv run python platform/tests/test_runbooks.py --root governance`; `test -s governance/docs/slo.md`.
 
 - [ ] **Paso 18 — Application de GitOps**
-  - Application en la wave 5 (migración como hook, servicio y CronJob).
+  - Entrada `governance` en `vectra-risk-gitops/components.yaml` con `wave: 5` (migración como hook, servicio y CronJob); `generate.py` escribe las Applications y los values por entorno van en `vectra-risk-gitops/values/<env>/governance.yaml` (revisión de consistencia entre unidades, 2026-11-01).
   - Diseño: P-U1-12.
-  - **Aceptación**: `uv run python platform/tests/test_waves.py` y `kyverno test` de `disallow-argocd-auto-sync`.
+  - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`, `uv run python platform/tests/test_waves.py` y `kyverno test` de `disallow-argocd-auto-sync` (revisión de consistencia entre unidades, 2026-11-01).
 
 ### Bloque G — Calidad
 
@@ -237,7 +240,7 @@ vectra-risk/governance/
     2. la validación con el modelo de referencia (cuando existan U5 y U6) → informe en ≤ 30 min;
     3. la promoción de punta a punta: aprobación → `promotion-tool` (PR de un commit) → revisión y merge → sync manual → `mark_active`;
     4. el rollback a la versión `inactivo` (US-208);
-    5. `governance-db` pausada → `serving-config` sigue respondiendo;
+    5. `governance-db` pausada → la readiness sigue en 200, `serving-config` responde y las escrituras dan 503 (seguimiento de la quinta revisión de coherencia, 2026-10-31);
     6. registro caído → transiciones pendientes sin efecto y `freeze` aplicado igual;
     7. la propagación del congelamiento en ≤ 6 s (completa cuando existan U7 y U9);
     8. la protección de rama verificada con `branch-protection-check`;
@@ -297,3 +300,14 @@ vectra-risk/governance/
 | SECURITY-01/05/06/07/08/11/12/13/14/15 | Cumple | Pasos 2, 6, 10, 12..17 |
 | RESILIENCY-05..12, 14, 15 | Cumple | Pasos 8, 9, 15, 16, 17, 20 |
 | PBT-01..10 | Cumple | Pasos 3..6, 8 (dos stateful), 19 |
+
+## Reglas de admisión que este plan debe cumplir (revisión de consistencia entre unidades, 2026-11-01)
+
+Cada chart de esta unidad pasa `make -C platform check-chart CHART=<ruta>` en el PR, con los mismos values que usa Argo CD en cada entorno:
+
+- Imágenes por digest, de un registro que admita `restrict-registries`; las de terceros se espejan.
+- `runAsNonRoot`, `readOnlyRootFilesystem` (con `emptyDir` para lo que escriba en disco), sin `privileged` ni `hostPath`, con recursos y `priorityClassName`.
+- `vectra.io/criticality` en cada `Deployment` y `StatefulSet` que el chart declare.
+- En `vectra-app`, `vectra-edge`, `vectra-identity`, `vectra-serving` y `vectra-mock`: 2 réplicas o más, `topologySpreadConstraints` por zona, PDB por `app.kubernetes.io/name`, y HPA o `vectra.io/hpa-exempt`.
+
+Detalle en `aidlc-docs/construction/shared-infrastructure.md` §2.

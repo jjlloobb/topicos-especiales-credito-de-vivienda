@@ -1,0 +1,4 @@
+storageClass: vectra-encrypted
+imageRegistry: registro.banco.internal/vectra
+mockEnabled: true
+verificationOperator: true

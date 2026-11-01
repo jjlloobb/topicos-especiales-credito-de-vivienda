@@ -15,7 +15,7 @@
 | Unidad | U2 `identity-edge`: identidad (Keycloak) y borde (Envoy Gateway) |
 | Historias (dueña) | US-601 (autenticación con roles y MFA), US-611 (endurecimiento del gateway y de la SPA) |
 | Contribuye a | US-602 (primera capa de autorización en el gateway) |
-| Ubicación | `vectra-risk/identity-edge/` (monorepo) y Applications en `vectra-risk-gitops` |
+| Ubicación | `vectra-risk/identity-edge/` (monorepo) y entradas en `vectra-risk-gitops/components.yaml`, dentro del monorepo (revisión de consistencia entre unidades, 2026-11-01) |
 | Datos propios | El realm, en `keycloak-db` (cluster de U1). Keycloak migra su propio esquema al arrancar una versión nueva; una actualización de versión entra por PR + sync manual |
 | Depende de | U0 (catálogo de scopes, `Problem`, BR-U0-70..72), U1 (plataforma completa: `flows.yaml`, Kyverno, ESO, cert-manager, observabilidad, waves) |
 | Lo consumen | Todas las unidades: rutas, clientes de Keycloak, JWKS y step-up (`shared-infrastructure.md` §4) |
@@ -47,7 +47,7 @@ vectra-risk/identity-edge/
 |   `-- values/                    # Envoy Gateway, EnvoyProxy, Gateway, certificado
 |-- ratelimit/                     # values del servicio y configuración generada
 |-- charts/valkey/                 # chart propio mínimo (Valkey + Sentinel)
-|-- jobs/                          # realm-drift, exportador de antigüedad de llaves
+|-- jobs/                          # realm-drift, signing-key-age
 |-- observability/                 # PrometheusRule, ServiceMonitor, tests de reglas
 |-- runbooks/
 |-- tools/                         # realm_lint.py, route_gen.py, realm_diff.py
@@ -119,14 +119,15 @@ vectra-risk/identity-edge/
     - `hostname` y `hostname-admin`, `proxy-headers=xforwarded`;
     - puerto de gestión 9000;
     - recursos de INF-U2-06 y prioridad `vectra-high`;
-    - Secrets por `ExternalSecret`.
+    - Secrets por `ExternalSecret`, incluida la credencial de administración de INF-U2-05a (seguimiento de la quinta revisión de coherencia, 2026-10-31); la contraseña de la base `keycloak` es `pg-role-keycloak`, que U1 entrega en `vectra-identity` (revisión de consistencia entre unidades, 2026-11-01);
+    - `Certificate` `keycloak-tls` para 8443 y `BackendTLSPolicy` de F05 con el certificado de la CA (INF-U2-05b; quinta revisión de coherencia entre unidades, 2026-10-31).
   - `keycloak-config-cli` como Job hook del sync.
   - Diseño: NFR-U2-01, 02, 23, 26; P-U2-04; INF-U2-01, 05, 06. Historia: US-601.
-  - **Aceptación**: `helm template` + `conftest test identity-edge/keycloak/` (réplicas, HPA, spread, PDB, `start --optimized`, `hostname-admin` interno, sin Secret plano, hook de sync presente).
+  - **Aceptación**: `helm template` + `conftest test identity-edge/keycloak/` (réplicas, HPA, spread, PDB, `start --optimized`, `hostname-admin` interno, sin Secret plano, hook de sync presente, `keycloak-tls` y `BackendTLSPolicy` presentes).
 
-- [ ] **Paso 6 — `realm-drift` y exportador de antigüedad de llaves**
-  - CronJob diario que exporta el realm, lo normaliza (sin secretos, IDs internos ni timestamps) y lo compara con Git; emite `RealmDrift`.
-  - Exportador que publica la antigüedad de la llave de firma activa (`SigningKeyAgeHigh`).
+- [ ] **Paso 6 — `realm-drift` y `signing-key-age`**
+  - CronJob diario que exporta el realm, lo normaliza (sin secretos, IDs internos ni timestamps) y lo compara con Git; empuja `vectra_realm_drift` al Pushgateway (F112, `PUT /metrics/job/realm-drift`; revisión de consistencia entre unidades, 2026-11-01), de donde sale `RealmDrift` (cuarta revisión de coherencia entre unidades, 2026-10-31).
+  - CronJob horario `signing-key-age`: lee por F94 la llave de firma activa y empuja su antigüedad al Pushgateway (F112, `PUT /metrics/job/signing-key-age`; revisión de consistencia entre unidades, 2026-11-01) para `SigningKeyAgeHigh`. Sin Deployment ni scrape (seguimiento de la quinta revisión de coherencia, 2026-10-31).
   - Diseño: BR-U2-12; P-U2-05.
   - **Aceptación**: `uv run pytest identity-edge/tests/unit/test_realm_diff.py` y una propiedad: `normalize(normalize(x)) == normalize(x)`, y dos exportaciones que solo difieren en secretos o timestamps no generan diferencias.
 
@@ -137,7 +138,7 @@ vectra-risk/identity-edge/
   - `route-gen` genera:
     - **HTTPRoute** cerradas, con 404 genérico para el resto (incluido `/auth/admin/**` y el realm `master`);
     - **SecurityPolicy**: JWT con JWKS por la URL interna, refresco cada 5 min, claims requeridos por ruta y copia de `sub`/`azp` a cabeceras internas;
-    - **BackendTrafficPolicy**: descriptores de rate limit, timeouts, reintentos solo idempotentes y outlier detection;
+    - **BackendTrafficPolicy**: descriptores de rate limit, timeouts, reintentos solo idempotentes y outlier detection, que en `/api/console/**` cuenta solo errores de conexión (seguimiento de la cuarta revisión de coherencia, 2026-10-31);
     - **ClientTrafficPolicy**: tamaño máximo por ruta y confianza en `X-Forwarded-For` de 1 salto o PROXY protocol;
     - perfiles de cabeceras, con `Cross-Origin-Opener-Policy: same-origin` en todos (revisión del Infrastructure Design de U10, 2026-10-10);
     - afinidad por cookie `vectra-spa-route` en la ruta `/` (BackendTrafficPolicy con `consistentHash` de tipo `Cookie`; revisión del Infrastructure Design de U10, 2026-10-10);
@@ -153,7 +154,7 @@ vectra-risk/identity-edge/
     - `/api/intake/**`: el JWT de `channel-simulator` pasa en kind y staging y se rechaza (403) con los values de producción; descriptores separados por `azp` (10/20 para `channel`, 30/60 para `channel-simulator`), y el de `channel-simulator` no existe en producción (precisado el 2026-10-06, revisión del FD de U8).
 
 - [ ] **Paso 8 — Envoy Gateway, `Gateway` y verificación de la versión pinneada**
-  - Values del controlador (`envoy-gateway-system`, 2 réplicas); `EnvoyProxy` (data plane en `vectra-edge`, HPA de 2 a 6, spread, PDB, Service `LoadBalancer` con `externalTrafficPolicy: Local` o PROXY protocol); `GatewayClass`, `Gateway` (HTTPS 443) y `Certificate` con el `ClusterIssuer` de cada entorno; binding K14.
+  - Values del controlador (`envoy-gateway-system`, 2 réplicas; `deploy.type: GatewayNamespace` ya está en `platform/operators/envoy-gateway.yaml`); `EnvoyProxy` con la identidad que usa `flows.yaml` (`provider.kubernetes.envoyServiceAccount.name: api-gateway`, `envoyDeployment.pod.labels: {app.kubernetes.io/name: api-gateway}`, `envoyDeployment.container.image` espejada en un registro permitido, `envoyDeployment.replicas ≥ 2`, `envoyPDB`, `securityContext` y `priorityClassName` para Kyverno; campos comprobados en el CRD de v1.9.3, no en un clúster (revisión de consistencia entre unidades, 2026-11-01)); (data plane en `vectra-edge`, HPA de 2 a 6, spread, PDB, Service `LoadBalancer` con `externalTrafficPolicy: Local` o PROXY protocol); `GatewayClass`, `Gateway` (HTTPS 443) y `Certificate` con el `ClusterIssuer` de cada entorno; binding K14.
   - **Verificación de la versión pinneada.** Se registra en `identity-edge/docs/adr-envoy-gateway.md` y en `audit.md`:
     1. si se puede desplegar el data plane en el namespace del `Gateway` (INF-U2-02); si no, el data plane va en `envoy-gateway-system` y se ajustan `flows.yaml` y las NetworkPolicies;
     2. cuál de las tres alternativas de P-U2-01 se usa para el modo de fallo por ruta.
@@ -163,15 +164,15 @@ vectra-risk/identity-edge/
     - `test -s identity-edge/docs/adr-envoy-gateway.md`.
 
 - [ ] **Paso 9 — Servicio de rate limit y Valkey**
-  - `envoyproxy/ratelimit` (2 réplicas, gRPC en 8083, métricas en 8081) con la configuración de descriptores generada por `route-gen`.
-  - Chart propio de Valkey 8: 2 nodos en zonas distintas, 3 Sentinel, sin persistencia, ACL `ratelimit` desde ESO, usuario `default` deshabilitado, `maxmemory 128mb`, `volatile-ttl`, prioridad `vectra-high`.
+  - `envoyproxy/ratelimit` (HPA de 2 a 4, quinta revisión de coherencia entre unidades, 2026-10-31; gRPC en 8083, métricas en 8081) con la configuración de descriptores generada por `route-gen`.
+  - Chart propio de Valkey 8: 2 nodos en zonas distintas, primaria preferida en la zona A, 3 Sentinel, sin persistencia, PDB, exportador como sidecar, ACL `ratelimit`, de replicación y de Sentinel desde ESO (seguimiento de la quinta revisión de coherencia, 2026-10-31), usuario `default` deshabilitado, `maxmemory 128mb`, `volatile-ttl`, prioridad `vectra-high`.
   - Diseño: NFR-U2-20, 27, 30; P-U2-04, 06; INF-U2-03, 04. Historia: US-611 (exceso de solicitudes → 429).
   - **Aceptación**: `helm template` + `conftest test identity-edge/ratelimit/ identity-edge/charts/valkey/` (puertos 8083/8081, sin RDB/AOF, ACL presente, `default` deshabilitado, spread por zona); `uv run pytest identity-edge/tests/unit/test_ratelimit_config.py` (los descriptores coinciden con `routes.yaml`).
 
 ### Bloque D — Plataforma: red, observabilidad y GitOps
 
 - [ ] **Paso 10 — Flujos y RBAC**
-  - Agregar a `platform/network/flows.yaml` de U1: F05, F43, F50, F73 (solo prod), F90–F95 y el scrape de Keycloak (9000), Envoy, rate limit y el exportador de Valkey. Agregar el RBAC K14 y el de `realm-drift`.
+  - Verificar en `platform/network/flows.yaml` de U1, donde ya están: F05, F43, F50, F73 (solo prod), F90–F95, F112, F117 y el scrape de Keycloak (9000). El de `vectra-edge` es F60, solo al 8081: Envoy, rate limit y el exportador de Valkey se publican en ese puerto o se agrega su puerto por PR (revisión de consistencia entre unidades, 2026-11-01). Agregar el RBAC K14. `realm-drift` no tiene binding: usa F94, no la API de Kubernetes (cuarta revisión de coherencia entre unidades, 2026-10-31).
   - Diseño: INF-U2-02..04; P-U1-01.
   - **Aceptación**: `uv run python platform/network/generate.py --check` y `uv run pytest platform/network/tests` (los IDs F90–F95 y K14 de `component-dependency.md` están en `flows.yaml`).
 
@@ -181,20 +182,20 @@ vectra-risk/identity-edge/
   - **Aceptación**: `promtool test rules identity-edge/observability/rules/tests/*.yaml` y `uv run python platform/tests/test_runbooks.py --root identity-edge` (`severity` válida y `runbook_url` existente).
 
 - [ ] **Paso 12 — Applications de GitOps**
-  - Applications con sus waves: CRDs de Gateway API y controlador (0), Valkey (2), Keycloak + `keycloak-config-cli` y gateway + rate limit (3). Values por entorno: hostnames (INF-U2-01), issuer y LDAP (prod).
+  - Entradas en `vectra-risk-gitops/components.yaml` con sus waves: Valkey (2), Keycloak + `keycloak-config-cli` y gateway + rate limit (3); los CRDs de Gateway API y el controlador (0) ya están en la entrada `envoy-gateway` de U1. `generate.py` escribe las Applications. Values por entorno en `vectra-risk-gitops/values/<env>/<componente>.yaml`: hostnames (INF-U2-01), issuer y LDAP (prod) (revisión de consistencia entre unidades, 2026-11-01).
   - Diseño: P-U1-12; INF-U2-01.
-  - **Aceptación**: `uv run python platform/tests/test_waves.py` y `kyverno test` de `disallow-argocd-auto-sync` sobre las Applications nuevas.
+  - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`, `uv run python platform/tests/test_waves.py` y `kyverno test` de `disallow-argocd-auto-sync` sobre las Applications nuevas (revisión de consistencia entre unidades, 2026-11-01).
 
 ### Bloque E — Pruebas de extremo a extremo y de carga (definición)
 
 - [ ] **Paso 13 — Especificación de las pruebas de extremo a extremo**
   - Playwright + `httpx` + `pyotp` + `axe-core`:
     - aprobador sin TOTP → no obtiene token;
-    - step-up en ventana emergente (revisión del Infrastructure Design de U10, 2026-10-10): firma con `auth_time` > 900 s → `mfa_required` → diálogo → clic → ventana con `acr_values=mfa` → TOTP → `/stepup-callback` envía `code` y `state` por `postMessage` → la ventana principal reintenta con el mismo cuerpo → éxito, sin recarga; un `postMessage` de otro origen → ignorado; la ventana conserva `window.opener` con `Cross-Origin-Opener-Policy: same-origin`;
+    - step-up sin SPA: flujo OIDC con `acr_values=mfa` y TOTP hasta el token con `acr = mfa`; el diálogo en la consola se prueba en U10, que se construye después (seguimiento de la quinta revisión de coherencia, 2026-10-31). Comportamiento que U10 debe cubrir, step-up en ventana emergente (revisión del Infrastructure Design de U10, 2026-10-10): firma con `auth_time` > 900 s → `mfa_required` → diálogo → clic → ventana con `acr_values=mfa` → TOTP → `/stepup-callback` envía `code` y `state` por `postMessage` → la ventana principal reintenta con el mismo cuerpo → éxito, sin recarga; un `postMessage` de otro origen → ignorado; la ventana conserva `window.opener` con `Cross-Origin-Opener-Policy: same-origin`;
     - 5 fallos → bloqueo, con el evento con `userId` y sin `username`;
     - refresh reusado → sesión revocada;
     - cabeceras (CSP, HSTS, `nosniff`, `DENY`, `Referrer-Policy`); la CSP de `spa` y `api` incluye `require-trusted-types-for 'script'` y `trusted-types 'none'` (NFR Requirements de U10, 2026-10-10, Q7);
-    - 429 con `Retry-After`; `/auth/admin` → 404;
+    - 429 con `Retry-After`; cuerpo mayor que el límite → 413 `payload_too_large` (seguimiento de la quinta revisión de coherencia, 2026-10-31); `/auth/admin` → 404;
     - token de otro servicio → 401;
     - `X-Forwarded-For` falso no cambia la IP registrada;
     - cabecera interna `x-vectra-sub` inyectada → sin efecto;
@@ -278,3 +279,14 @@ vectra-risk/identity-edge/
 | SECURITY-01/02/04/07/08/09/11/12/13/14/15 | Cumple | Pasos 2–11 y 16 |
 | RESILIENCY-05..10, 14, 15 | Cumple | Pasos 5, 8, 9, 11, 16 |
 | PBT-01..10 | Cumple | Pasos 3, 7, 13 (PBT-U2-07 en U0) |
+
+## Reglas de admisión que este plan debe cumplir (revisión de consistencia entre unidades, 2026-11-01)
+
+Cada chart de esta unidad pasa `make -C platform check-chart CHART=<ruta>` en el PR, con los mismos values que usa Argo CD en cada entorno:
+
+- Imágenes por digest, de un registro que admita `restrict-registries`; las de terceros se espejan.
+- `runAsNonRoot`, `readOnlyRootFilesystem` (con `emptyDir` para lo que escriba en disco), sin `privileged` ni `hostPath`, con recursos y `priorityClassName`.
+- `vectra.io/criticality` en cada `Deployment` y `StatefulSet` que el chart declare.
+- En `vectra-app`, `vectra-edge`, `vectra-identity`, `vectra-serving` y `vectra-mock`: 2 réplicas o más, `topologySpreadConstraints` por zona, PDB por `app.kubernetes.io/name`, y HPA o `vectra.io/hpa-exempt`.
+
+Detalle en `aidlc-docs/construction/shared-infrastructure.md` §2.

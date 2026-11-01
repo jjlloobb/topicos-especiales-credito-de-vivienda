@@ -8,10 +8,10 @@ y U1. Versiones fijadas en `uv.lock`.
 | Área | Decisión | Origen |
 |---|---|---|
 | Lenguaje | Python 3.12 | U0 |
-| Proceso | Un proceso `asyncio` con `vectra_common.process.init(kind="service")`; **sin FastAPI** ni `RouteContract`, porque no hay rutas de negocio | Q7 |
+| Proceso | Un proceso `asyncio` con `vectra_common.process.init(kind="service")`; **sin usar FastAPI** ni `RouteContract`, porque no hay rutas de negocio; llega al SBOM como dependencia de `vectra_common` (revisión de consistencia entre unidades, 2026-11-01) | Q7 |
 | Métricas y sondas | `vectra_common.ops_server` (nuevo en U0): `/metrics` (`prometheus-client`), `/healthz` y `/readyz` en 8081 | Q7 |
 | Cliente HTTP | `vectra_common.deps.call` hacia U3 (F28), timeout de 5 s por página, breaker de U7 | Q4, U0 |
-| Identidad | Cliente `product-metrics` de Keycloak con `private_key_jwt` (token por `deps`), solo `registry:read:metrics` | Q6, U2 |
+| Identidad | Cliente `product-metrics` de Keycloak con `private_key_jwt` (token con `vectra_common.service_token` como `token_source` de `deps`; revisión de consistencia entre unidades, 2026-11-01), solo `registry:read:metrics` | Q6, U2 |
 | Tipos | `vectra_contracts` (proyección `metrics`, `FailClosedCause.category`) | U0 |
 | Reglas | `gen_rules.py` genera la regla de desincronía desde el catálogo de U0; `promtool` las prueba | FD, Q8 |
 | PBT | Hypothesis, incluida `RuleBasedStateMachine` (PBT-U11-02) | U0 |

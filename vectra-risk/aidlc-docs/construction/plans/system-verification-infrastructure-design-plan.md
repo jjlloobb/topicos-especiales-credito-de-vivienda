@@ -107,7 +107,7 @@ Nota: kind y k6 comparten el host; la comprobación de capacidad incluye la CPU 
 ## Question 5 — Imagen y entornos (Deployment Environment)
 
 A)
-   - imagen `system-verification` construida, escaneada, con SBOM y firmada por `supply-chain.yml` de U1, publicada en el registro del banco; el operador la ejecuta por digest;
+   - imagen `system-verification` construida, escaneada, con SBOM y firmada con `sign-image.yml` de U1; el escaneo y el SBOM son de `supply-chain.yml`, publicada en el registro del banco; el operador la ejecuta por digest;
    - **kind**: todas las secciones;
    - **staging**: solo humo (BR-U12-10), con el cliente `verification-reader` y los usuarios sintéticos de staging;
    - **producción**: nada (barrera de NFR-U12-03; el cliente y los usuarios no existen).

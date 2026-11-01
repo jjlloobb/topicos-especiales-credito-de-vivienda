@@ -17,7 +17,7 @@
 | Ubicación | `vectra-risk/reference-model/` y el workflow `.github/workflows/reference-model.yml` |
 | Datos propios | Datasets sintéticos y paquetes de modelo versionados (publicados como releases OCI firmadas) |
 | Depende de | U0 (`ApplicationIn`, `derive` con `feature_spec`, `FeatureDictionary`, JCS), U1 (workflows reutilizables de CI), U9 (librería de disparidad; doble mientras no exista) |
-| Lo consumen | U4 (registro y validación), U6 (predictor con `envelope.confidence`; serving), U12 (casos adversariales) |
+| Lo consumen | U4 (registro y validación), U6 (predictor con `envelope.confidence`; serving), U7 y U9 (paquete y conteos de prueba), U12 (casos adversariales) |
 | Etapas omitidas | NFR Design e Infrastructure Design (sin runtime ni despliegue) |
 
 **Diseño de entrada:**
@@ -32,7 +32,7 @@ hace una persona con sus propias credenciales (NFR-U5-03).
 ```text
 vectra-risk/reference-model/
 |-- Makefile  pyproject.toml
-|-- config/generator.yaml         # versión, semilla, marginales, correlaciones, etiqueta, proxy
+|-- config/generator.yaml         # versión, semilla, marginales, correlaciones, etiqueta, proxy, reference_policy
 |-- config/catalog/               # nombres ficticios; tablas de zona y de canal (variante proxy)
 |-- src/vectra_reference/
 |   |-- generate.py  train.py  package.py  proxy.py  adversarial.py  release.py
@@ -72,7 +72,7 @@ vectra-risk/reference-model/
 - [ ] **Paso 4 — Envolvente de dominio y `confidence`**
   - `envelope/fit.py`: p1–p99, categorías vistas, `MinCovDet` y la distribución de distancias.
   - `envelope/confidence.py`: la fórmula de BR-U5-12, cuantizada a `Decimal4`, solo con numpy.
-  - Calibración: los casos RT-4 bajo el umbral y ≥ 95 % de `test` sobre él.
+  - Calibración: los casos RT-4 bajo el umbral de `reference_policy` y ≥ 95 % de `test` sobre él; el resultado se publica como `reference-policy.json`, válido según `PolicyDraft` de U0 (seguimiento de la cuarta revisión de coherencia, 2026-10-31).
   - Propiedades PBT-U5-03 y PBT-U5-04.
   - Diseño: BR-U5-11..13; NFR-U5-32, 33. Historia: US-106.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest reference-model/tests/property/test_envelope.py`, cobertura del 100 % en `envelope/confidence.py`, y una prueba que importa `confidence` en un entorno con solo numpy.
@@ -89,15 +89,15 @@ vectra-risk/reference-model/
 ### Bloque D — Variante proxy y conjunto adversarial
 
 - [ ] **Paso 6 — Variante proxy (RT-2)**
-  - `zona_vivienda` (≥ 5 municipios por zona) y `canal_originacion_detalle` como búsquedas en el `feature_spec`; etiqueta con dependencia parcial; disparidad agregada ≥ 10 pp con la librería de U9 (doble mientras no exista); `purpose = rt2-demo`.
+  - `zona_vivienda` (≥ 5 municipios por zona) y `canal_originacion_detalle` como búsquedas en el `feature_spec`; etiqueta con dependencia parcial; disparidad agregada ≥ 10 pp con la librería de U9 (doble mientras no exista); `purpose = rt2-demo`; 5 paquetes con `rt2_run` de 1 a 5 y `model_version_id` distintos (cuarta revisión de coherencia entre unidades, 2026-10-31).
   - Diseño: BR-U5-06, 14, 15. Historia: US-303.
-  - **Aceptación**: `uv run pytest reference-model/tests/examples/test_proxy.py` (disparidad del modelo base < 5 pp y de la variante ≥ 10 pp; ninguna zona con menos de 5 municipios; `municipality_code` no aparece en el `FeatureVector` producido por `derive`).
+  - **Aceptación**: `uv run pytest reference-model/tests/examples/test_proxy.py` (disparidad del modelo base < 5 pp y de la variante ≥ 10 pp; ninguna zona con menos de 5 municipios; `municipality_code` no aparece en el `FeatureVector` producido por `derive`; 5 `model_version_id` distintos, con el mismo predictor).
 
 - [ ] **Paso 7 — Conjunto adversarial**
   - 20 pares RT-1, 18 casos RT-4 y los paquetes RT-3 (a)–(d), con `adversarial/manifest.json` y el resultado esperado de cada caso.
   - Propiedad PBT-U5-07.
   - Diseño: BR-U5-16..18. Historias: US-106, US-109, US-111.
-  - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest reference-model/tests/property/test_adversarial.py`; `uv run pytest reference-model/tests/examples/test_adversarial_manifest.py` (42 casos, cada uno con su `expected`; `RT3-d` rechazado por el validador de manifiesto).
+  - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest reference-model/tests/property/test_adversarial.py`; `uv run pytest reference-model/tests/examples/test_adversarial_manifest.py` (42 casos, cada uno con su `expected`; `RT3-a`, `RT3-c` y `RT3-d` rechazados por el validador de manifiesto, y `RT3-b` aceptado; cuarta revisión de coherencia entre unidades, 2026-10-31).
 
 ### Bloque E — Entrega en CI
 
@@ -105,7 +105,7 @@ vectra-risk/reference-model/
   - `.github/workflows/reference-model.yml`, que usa los workflows reutilizables de U1:
     - dos ejecuciones en paralelo de `make release`, con comparación del SHA-256 del manifiesto;
     - un paso que falla si la entrega supera 30 min (timeout del job de 60 min);
-    - publicación OCI con `oras`, firma Cosign *keyless*, SBOM con Syft y attestation de procedencia (commit, `generator_version`, semilla);
+    - publicación OCI con `oras`, firma Cosign con llave (`sign-image.yml`) (revisión de consistencia entre unidades, 2026-11-01), SBOM con Syft y attestation de procedencia (commit, `generator_version`, semilla);
     - `cosign verify` y `cosign verify-attestation` sobre lo publicado.
   - Sin secretos del clúster ni del almacenamiento.
   - Diseño: NFR-U5-01, 02, 10, 20.

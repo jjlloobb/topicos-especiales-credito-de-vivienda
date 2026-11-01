@@ -81,10 +81,10 @@ CronJob (cada corrida)
 | `ServiceAccount` | `bias-monitoring-service` | `bias-monitoring-job` |
 | `ExternalSecret` (llave del cliente de Keycloak) | Sí | Sí |
 | `ServiceMonitor` | 8081 | — (Pushgateway) |
-| Linkerd `Server`, `HTTPRoute`, `AuthorizationPolicy` | Rutas de F14 (BFF) y F25 (governance) | En governance: la ruta `freeze` solo admite `bias-monitoring-job` (INF-U9-04) |
+| Linkerd `Server`, `HTTPRoute`, `AuthorizationPolicy` | Rutas de F14 (BFF) y F25 (governance), generadas por U1 desde `flows.yaml`, no por este chart (revisión de consistencia entre unidades, 2026-11-01) | En governance: la ruta `freeze` solo admite `bias-monitoring-job` (INF-U9-04) |
 
 - Una `PrometheusRule` del chart reúne las alertas de P-U9-06, todas con `severity` y `runbook_url`.
-- El dashboard `bias.json` va como `ConfigMap` de dashboards de Grafana (U1).
+- El dashboard `bias.json` va como `ConfigMap` de dashboards de Grafana (U1), con la etiqueta `vectra.io/dashboard` y la anotación `grafana_folder` (revisión de consistencia entre unidades, 2026-11-01).
 - `Application` de Argo CD en la wave 5, con sync manual (AUTONOMIA-01).
 - `NetworkPolicy` y `AuthorizationPolicy` vienen de U1 y U2, con los flujos de INF-U9-04.
 

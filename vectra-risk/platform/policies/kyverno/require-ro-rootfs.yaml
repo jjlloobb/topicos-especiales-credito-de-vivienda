@@ -1,0 +1,24 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-ro-rootfs
+  annotations:
+    policies.kyverno.io/description: Sistema de archivos raiz de solo lectura
+spec:
+  validationFailureAction: Enforce
+  failurePolicy: Fail
+  background: false
+  rules:
+    - name: require-ro-rootfs
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-staging, vectra-data, vectra-mock, vectra-observability, vectra-restore-drill]
+      validate:
+        message: "Sistema de archivos raiz de solo lectura"
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  readOnlyRootFilesystem: true

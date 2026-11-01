@@ -1,0 +1,4 @@
+storageClass: standard
+imageRegistry: kind-registry:5000
+mockEnabled: true
+verificationOperator: true

@@ -53,6 +53,7 @@ Sitio del banco
 Salidas del sitio/clúster:
   PostgreSQL -> S3 fuera del sitio (F70: backups + WAL, archive_timeout 60 s)
   restore-drill -> S3 fuera del sitio (F75: solo lectura)
+  restore-drill -> API de Kubernetes (K12), cluster efímero (F114) y llave pública (F98 o F99)
   restore-drill -> Pushgateway (F87, dentro del clúster) <- Prometheus (F88)
   CronJob de bias (vectra-app) -> Pushgateway (F106, U9)
   ESO -> bóveda del banco (F74)
@@ -87,7 +88,7 @@ instancias; la zona con 2 instancias varía por cluster.
 | Wave | Contenido | Requisito previo verificable |
 |---|---|---|
 | — | Suite de conformidad del CNI (INF-U1-04) | La suite pasa en el clúster de destino |
-| 0 | CRDs y operadores: CloudNativePG, cert-manager, ESO, Kyverno, CRDs de Linkerd, KServe, Argo CD; CRDs de Gateway API y controlador de Envoy Gateway (U2) | `kubectl get crd` lista los CRDs esperados |
+| 0 | CRDs y operadores: CloudNativePG, cert-manager, ESO, Kyverno, CRDs de Linkerd, KServe, Argo CD y Prometheus Operator (`ServiceMonitor`, `PrometheusRule`, que usan unidades de waves anteriores a la 4; cuarta revisión de coherencia entre unidades, 2026-10-31); CRDs de Gateway API y controlador de Envoy Gateway (U2) | `kubectl get crd` lista los CRDs esperados |
 | 1 | Políticas de Kyverno, plano de control de Linkerd + CNI, PriorityClasses, namespaces, NetworkPolicies y políticas de Linkerd generadas | `kyverno test` y `linkerd check` en verde |
 | 2 | Clusters de PostgreSQL, MinIO, Vault (kind); Valkey + Sentinel del rate limit (U2) | Clusters en `Cluster in healthy state`; buckets creados con object lock; Sentinel responde la primaria |
 | 3 | Keycloak; `Gateway`, rutas, políticas y servicio de rate limit (U2) | Realm importado (U2); `egctl x status` sin errores (revisión del Infrastructure Design de U10, 2026-10-10) |

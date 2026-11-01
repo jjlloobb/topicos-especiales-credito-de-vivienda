@@ -9,12 +9,13 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 ## 1. Seguridad
 
 ### P-U1-01 — Red generada desde un inventario de flujos (Q1)
-- `platform/network/flows.yaml` es la única fuente de los flujos permitidos. Refleja las tablas de `component-dependency.md` (hoy F01–F111: los flujos de INCEPTION, los que agregó el Infrastructure Design de U1 y los de las unidades siguientes; precisado el 2026-10-08). La prueba de completitud extrae los IDs del Markdown, sin un rango fijo.
-- Cada entrada tiene `id`, `from` (namespace + ServiceAccount), `to` (namespace + ServiceAccount + puerto), `protocol` y `justification`.
+- `platform/network/flows.yaml` es la única fuente de los flujos permitidos. Refleja las tablas de `component-dependency.md` (hoy F01–F124: los flujos de INCEPTION, los que agregó el Infrastructure Design de U1 y los de las unidades siguientes; precisado el 2026-10-08). La prueba de completitud extrae los IDs del Markdown, sin un rango fijo.
+- Cada entrada tiene `id`, `from` (namespace + ServiceAccount), `to` (namespace + ServiceAccount + puerto), `protocol` y `justification`. El puerto del inventario es el del Service; si el pod escucha en otro, como KServe o Envoy, la entrada declara además `target_port`, que es el que usan la NetworkPolicy y el `Server` de Linkerd (seguimiento de la quinta revisión de coherencia, 2026-10-31).
 - `platform/network/generate.py` produce, para cada namespace de Vectra:
   - la NetworkPolicy `deny-all` de ingress y egress;
   - una NetworkPolicy `allow-<flow-id>` por flujo;
   - el DNS hacia `kube-dns` como única excepción común;
+  - una NetworkPolicy `allow-k8s-api-<K-id>` por cada binding K cuyo sujeto corre en un pod, limitada a ese ServiceAccount; K09 y K16 no la llevan (cuarta revisión de coherencia entre unidades, 2026-10-31);
   - los recursos `Server` y `AuthorizationPolicy` de Linkerd (P-U1-02);
   - las pruebas de conectividad: por flujo, un caso permitido y otro bloqueado.
 - **Verificación**: `python platform/network/generate.py --check` (CI falla si los manifiestos versionados difieren de los generados) y la suite de conectividad en kind.
@@ -24,6 +25,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 - Anotación `config.linkerd.io/default-inbound-policy: deny` en todos los namespaces de Vectra.
 - Por cada flujo de `flows.yaml`: un `Server` (puerto del destino) y una `AuthorizationPolicy` con `MeshTLSAuthentication` que admite solo la identidad (ServiceAccount) de origen.
 - Excepciones explícitas, también en el inventario: probes del kubelet y scrape de Prometheus al puerto 8081.
+- **Orígenes sin malla** (cuarta revisión de coherencia entre unidades, 2026-10-31): F80 sale de `cnpg-system`, que no tiene identidad mTLS. Las instancias de PostgreSQL llevan `config.linkerd.io/skip-inbound-ports: "8000"`, y el `Server` de 5432 admite además una `NetworkAuthentication` con el rango de pods de `cnpg-system`; la NetworkPolicy de F80 sigue limitando el origen. Se verifica con una conmutación por error en kind y con un pod de otro namespace, que queda bloqueado.
 - **Verificación**: prueba en kind desde un pod de otra ServiceAccount del mismo namespace → 403 de Linkerd; `linkerd viz authz` muestra la política por flujo.
 - **Satisface**: NFR-U1-21; SECURITY-08 (defensa en profundidad), SECURITY-06.
 
@@ -31,7 +33,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 - La jerarquía de Linkerd la gestiona cert-manager:
   - trust anchor de 1 año, con alerta 30 días antes y rotación por runbook con dos anchors en paralelo;
   - issuer intermedio rotado automáticamente cada 48 h.
-- Los certificados del borde (Envoy Gateway) y de PostgreSQL duran 90 días y se renuevan a los 60.
+- Los certificados del borde (Envoy Gateway), de PostgreSQL y de Keycloak (8443; quinta revisión de coherencia entre unidades, 2026-10-31) duran 90 días y se renuevan a los 60.
 - Alerta `CertificateExpiringSoon`: SEV2 a menos de 7 días, SEV1 a menos de 24 h.
 - **Verificación**: `cmctl status certificate` en kind; prueba de rotación del issuer sin cortes (`linkerd check --proxy`).
 - **Satisface**: NFR-U1-21, 22; SECURITY-01.
@@ -46,7 +48,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 |---|---|
 | case-service | `case-db` |
 | case-worker (U8 INF-U8-01, agregado el 2026-10-08) | `case-db` |
-| governance-service | `governance-db` |
+| governance-service | Copia en memoria de `serving-config` cargada; **no** `governance-db`, para que su caída no deje a scoring sin `serving-config` (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 | decision-registry-service | `registry-db` (incluida la escritura posible: réplica síncrona disponible) |
 | scoring-service, explainability-service, bias, BFF | ninguna dependencia externa (solo su proceso) |
 | product-metrics (U11 INF-U11-01; revisión del Infrastructure Design de U11, 2026-10-10) | su instantánea de métricas **o** el breaker hacia el registro abierto o semiabierto: con el registro sano, una réplica nueva no queda lista sin datos (así un rollout no vacía el dashboard); con el registro caído, queda lista y no bloquea el despliegue. Su `Service` publica las direcciones no listas, porque solo lo consume Prometheus |
@@ -62,7 +64,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 - **Satisface**: NFR-RES-07 (precisado); RESILIENCY-06; NFR-U1-32.
 
 ### P-U1-05 — Simulacro de restore semanal (Q6)
-- `CronJob restore-drill` (semanal) en el namespace aislado `vectra-restore-drill`, cuyas NetworkPolicies solo permiten leer del almacenamiento de backups (F75, con una credencial de solo lectura limitada a los backups y WAL de `registry-db` y `case-db` y a los checkpoints; precisado el 2026-10-06, revisión del FD de U8) y empujar métricas al Pushgateway (F87):
+- `CronJob restore-drill` (semanal) en el namespace aislado `vectra-restore-drill`, cuyas NetworkPolicies permiten solo los flujos de INF-U1-06 (quinta revisión de coherencia entre unidades, 2026-10-31); entre ellos, leer del almacenamiento de backups (F75, con una credencial de solo lectura limitada a los backups y WAL de `registry-db` y `case-db` y a los checkpoints; precisado el 2026-10-06, revisión del FD de U8. El WAL está bajo `vectra-backups/<cluster>/<cluster>/wals` y, en kind, los backups van a MinIO; revisión de consistencia entre unidades, 2026-11-01) y empujar métricas al Pushgateway (F87):
   1. crea un `Cluster` efímero de CloudNativePG desde el último backup base + WAL;
   2. corre `verify_chain` (CLI de U3) sobre la copia de `registry-db`;
   2b. crea un segundo `Cluster` efímero desde el último backup de `case-db`, ejecuta `case-retention` (CLI de U8, BR-U8-20) **conectado con el rol real `case_retention`** (no con un superusuario, para que el simulacro pruebe también sus permisos; revisión del Infrastructure Design de U10, 2026-10-10) y cuenta las filas de `case_identifiers` con la retención vencida, que deben ser **0** (precisado el 2026-10-06, revisión del FD de U8);
@@ -145,7 +147,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 - **SLI de recomendación usable**: `Recommendation` / total. Sin SLO ni alerta: solo dashboard.
 - **`FailClosedPersistente` (SEV2)** no sale de este SLI (tercera revisión de coherencia entre unidades, 2026-10-10): sale del gauge `vectra_cases_failclosed_persistent` de U8 (casos en `no_disponible` tras agotar los reintentos; U8 BR-U8-09, `services.md`, US-112). Expresión: `max(vectra_cases_failclosed_persistent) > 0` con `for: 1m`; `max` porque las réplicas de `case-service` publican el mismo conteo.
 - Alertas de **burn rate en dos ventanas**: rápida (1 h y 5 min, factor 14,4) → SEV2; lenta (6 h y 30 min, factor 6) → SEV3.
-- Reglas de grabación (`recording rules`) en Prometheus sobre las métricas HTTP del middleware de U0.
+- Reglas de grabación (`recording rules`) en Prometheus sobre `vectra_http_request_duration_seconds`, el histograma HTTP del middleware de U0 (seguimiento de la quinta revisión de coherencia, 2026-10-31).
 - **Verificación**: `promtool test rules` con series sintéticas que disparan cada ventana.
 - **Satisface**: RESILIENCY-02, 05; NFR-RES-02.
 
@@ -157,6 +159,8 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
   |---|---|
   | `bias-monitoring-job` (U9, F106) | `PUT` y `DELETE` en `/metrics/job/bias-monitoring/**`; `GET /api/v1/metrics` |
   | `restore-drill` (F87) | `PUT` en `/metrics/job/restore-drill/**` |
+  | `realm-drift` y `signing-key-age` (U2, F112) | `PUT` en `/metrics/job/realm-drift/**` y `/metrics/job/signing-key-age/**` (cuarta revisión de coherencia entre unidades, 2026-10-31) |
+  | CronJob de `grafana-folder-permissions` (F113) | `PUT` en `/metrics/job/grafana-folder-permissions/**` (cuarta revisión de coherencia entre unidades, 2026-10-31) |
   | Prometheus (F88) | `GET /metrics` |
   | Cualquier otra | Denegado (403 de Linkerd) |
 
@@ -173,20 +177,21 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 ## 5. Estructura GitOps
 
 ### P-U1-12 — App-of-apps por entorno con sync waves (Q10)
-- Repositorio `vectra-risk-gitops`: `apps/{kind,staging,prod}/root.yaml`, una `Application` por componente y values por entorno en `envs/{env}/`.
+- Directorio `vectra-risk-gitops/` dentro del monorepo, con el prefijo `vectra-risk/` en las rutas: `apps/{kind,staging,prod}/root.yaml`, una `Application` por componente, generada desde `components.yaml` por `generate.py`, y values en `envs/{env}/` (generados) y `values/{env}/<componente>.yaml` (de cada unidad) (revisión de consistencia entre unidades, 2026-11-01).
 - Sync waves:
 
 | Wave | Contenido |
 |---|---|
 | 0 | CRDs y operadores (CloudNativePG, cert-manager, ESO, Kyverno, Linkerd CRDs, KServe, Argo CD, Gateway API y controlador de Envoy Gateway) |
 | 1 | Políticas de Kyverno y plano de control de Linkerd; PriorityClasses; namespaces y NetworkPolicies |
-| 2 | Datos: clusters de PostgreSQL, MinIO (kind); Valkey + Sentinel del rate limit (U2) |
+| 2 | Datos: clusters de PostgreSQL, MinIO (en todos los entornos; revisión de consistencia entre unidades, 2026-11-01); Valkey + Sentinel del rate limit (U2) |
 | 3 | Identidad: Keycloak; `Gateway`, rutas, políticas y servicio de rate limit (U2) (el controlador de Envoy Gateway y los CRDs de Gateway API van en la wave 0; revisión del Infrastructure Design de U10, 2026-10-10) |
 | 4 | Observabilidad |
 | 5 | Servicios de Vectra |
 | 6 | InferenceServices; Application `decision-registry-rebuild` de U3 (Jobs de reconstrucción, solo con `runId`; revisión del FD de U10, 2026-10-10, B11 y B13) |
 
 - Toda `Application` sin `syncPolicy.automated` (NFR-U1-43). El aprobador sincroniza la raíz en orden.
+- **`AppProject` por entorno** (`vectra-{env}`; seguimiento de la cuarta revisión de coherencia, 2026-10-31): `sourceRepos` limitado al espejo Git, `destinations` a los namespaces de ese entorno y una lista explícita de los tipos de recurso de clúster que hacen falta. Ninguna `Application` usa `default`.
 - **Verificación**: test de política sobre los manifiestos de las Applications (sin auto-sync, con anotación de wave); `argocd app diff` en kind adjunto al PR.
 - **Satisface**: NFR-U1-43; RESILIENCY-03, 04; AUTONOMIA-01; US-607.
 

@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: con-hpa, namespace: vectra-staging }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: con-hpa, namespace: vectra-staging }
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: con-hpa }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exento
+  namespace: vectra-staging
+  annotations: { vectra.io/hpa-exempt: sin carga variable }

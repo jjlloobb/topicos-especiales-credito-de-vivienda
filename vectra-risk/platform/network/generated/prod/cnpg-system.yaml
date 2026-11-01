@@ -1,0 +1,280 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: cnpg-system
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: cnpg-system
+spec:
+  egress:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F125
+  name: allow-f125-same-namespace-ingress
+  namespace: cnpg-system
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: cnpg-system
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F125
+  name: allow-f125-same-namespace-egress
+  namespace: cnpg-system
+spec:
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: cnpg-system
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F126
+  name: allow-f126-k8s-api
+  namespace: cnpg-system
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 0.0.0.0/32
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F127
+  name: allow-f127-webhooks
+  namespace: cnpg-system
+spec:
+  ingress:
+  - ports:
+    - port: 9443
+      protocol: TCP
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F80
+  name: allow-f80-cloudnative-pg-to-case-db-egress
+  namespace: cnpg-system
+spec:
+  egress:
+  - ports:
+    - port: 8000
+      protocol: TCP
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: case-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F80
+  name: allow-f80-cloudnative-pg-to-governance-db-egress
+  namespace: cnpg-system
+spec:
+  egress:
+  - ports:
+    - port: 8000
+      protocol: TCP
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: governance-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F80
+  name: allow-f80-cloudnative-pg-to-registry-db-egress
+  namespace: cnpg-system
+spec:
+  egress:
+  - ports:
+    - port: 8000
+      protocol: TCP
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: registry-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F80
+  name: allow-f80-cloudnative-pg-to-keycloak-db-egress
+  namespace: cnpg-system
+spec:
+  egress:
+  - ports:
+    - port: 8000
+      protocol: TCP
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: keycloak-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F80
+  name: allow-f80-cloudnative-pg-to-restore-cluster-egress
+  namespace: cnpg-system
+spec:
+  egress:
+  - ports:
+    - port: 8000
+      protocol: TCP
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-restore-drill
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: restore-cluster
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F81
+  name: allow-f81-to-cloudnative-pg-ingress
+  namespace: cnpg-system
+spec:
+  ingress:
+  - ports:
+    - port: 9443
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: K06
+  name: allow-k8s-api-k06
+  namespace: cnpg-system
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 0.0.0.0/32
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  policyTypes:
+  - Egress

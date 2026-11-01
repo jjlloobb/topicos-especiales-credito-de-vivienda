@@ -206,7 +206,7 @@ devuelve en la cabecera `traceparent` y en el campo `correlation_id` de `Problem
 
 **BR-U0-71 — Scopes y roles.** Un endpoint declara `required_scopes`, `required_roles` o
 ambos. Se autoriza **si y solo si** `required_scopes ⊆ principal.scopes` **y**
-`required_roles ∩ principal.roles ≠ ∅` (un conjunto no declarado no restringe). Un
+`required_roles ∩ principal.roles ≠ ∅` (un conjunto no declarado no restringe). Una ruta que usan varias identidades con scopes distintos declara `any_scopes`, y exige además `any_scopes ∩ principal.scopes ≠ ∅`: con solo `required_scopes`, `POST /v1/entries` no autorizaría a ningún escritor (U3 BR-U3-03; Code Generation de U0, 2026-10-31). Un
 endpoint que no declara ninguno de los dos se rechaza al arrancar el servicio (deny by
 default). No se usan comodines. Esta regla aplica al puerto de la API (8080). Los health
 checks y `/metrics` viven en el puerto 8081, no exponen rutas de negocio y no pasan por
@@ -261,7 +261,8 @@ lint pueda verificarla sin interpretar el contexto (revisión del Infrastructure
 La comparación ignora mayúsculas y tildes y usa límites de palabra al principio y al final de la
 frase. `contracts/tools/forbidden_phrases.py` la aplica a los archivos que se le pasen. La usan
 U4 (plantillas del informe de validación), **U7** (plantillas de la narrativa y del resumen para el
-solicitante), U9 (textos de la API y `bias.json`) y U10 (catálogos i18n y `console.json`).
+solicitante), U9 (textos de la API y `bias.json`), U10 (catálogos i18n y `console.json`) y U11
+(dashboards `product-metrics/observability/dashboards/*.json`; revisión de consistencia entre unidades, 2026-11-01).
 Cambiar la lista exige la aprobación de cumplimiento (`CODEOWNERS` del monorepo).
 
 ## 10. Datos del registro (R7)

@@ -73,7 +73,7 @@ con un error tipificado que scoring convierte en `ExplainerError` (U0 §3.6):
 | El `model_version_id` pedido no coincide con el que devuelve el explicador de KServe | 409 `conflict_state` + `reason = version_mismatch` | `version_mismatch` |
 | El diccionario no cubre un factor del vector | 422 `unprocessable_explanation` + `reason = feature_dictionary_incomplete` (precisado el 2026-10-06, revisión del FD de U8) | `feature_dictionary_incomplete` |
 | La narrativa no pasa la validación | 422 `unprocessable_explanation` + `reason = factuality_failed` | `factuality_failed` |
-| KServe no responde a tiempo | 504 | `timeout` |
+| KServe no responde a tiempo | 504 `deadline_exceeded` | `timeout` |
 | KServe o el diccionario no disponibles (503, circuito abierto) | 503 | `unavailable` |
 | Cualquier otro error | 500 | `error` |
 

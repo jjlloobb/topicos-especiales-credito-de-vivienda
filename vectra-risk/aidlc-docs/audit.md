@@ -3494,3 +3494,411 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Consulta de estado; sin cambios a los documentos de diseño.
 
 ---
+
+## Verificación de estado
+**Timestamp**: 2026-10-31T16:52:56Z
+**User Input**: "verify the current status"
+**AI Response**: Verificación de solo lectura del estado contra los archivos del workspace; resultado informado al usuario.
+**Context**: Consulta de estado; sin cambios a los documentos de diseño.
+
+---
+
+## Corrección de registros de estado
+**Timestamp**: 2026-10-31T16:53:50Z
+**User Input**: "fix gaps 2 and 3 and commit the audit entry"
+**AI Response**: `execution-plan.md`: marcadas como completas Application Design, Units Generation, las cuatro etapas de diseño y Code Generation (solo Part 1), y Execution Plan pasa a COMPLETED; Build and Test y Operations siguen abiertas. `aidlc-state.md`: Programming Languages y Project Structure actualizados; Existing Code sigue en No.
+**Context**: Correcciones de registro tras la verificación de estado; sin cambios de diseño.
+
+---
+
+## Cuarta revisión de coherencia entre unidades — Solicitud
+**Timestamp**: 2026-10-31T16:55:05Z
+**User Input**: "verificar inconsistencias entre todas las unidades"
+**AI Response**: Revisión en curso; resultado al terminar.
+**Context**: Revisión transversal de U0–U12.
+
+---
+
+## Cuarta revisión de coherencia entre unidades — Resultado
+**Timestamp**: 2026-10-31T17:04:50Z
+**User Input**: (sin entrada nueva; cierre de la solicitud "verificar inconsistencias entre todas las unidades")
+**AI Response**: Revisión de cuatro ángulos (contratos de datos, parámetros operativos, identidad/red/despliegue, semántica de negocio), con citas de los hallazgos graves comprobadas contra los documentos. Hallazgos informados al usuario; no se modificó ningún documento de diseño ni plan.
+**Context**: Revisión de solo lectura; correcciones pendientes de la decisión del usuario.
+
+---
+
+## Correcciones de la cuarta revisión de coherencia — Solicitud
+**Timestamp**: 2026-10-31T17:11:06Z
+**User Input**: "aplica las recomendaciones"
+**AI Response**: Correcciones en curso; resultado al terminar.
+**Context**: Aplicar las tres decisiones recomendadas (RT-2, RT-3, roles de base) y las correcciones de los hallazgos de la cuarta revisión.
+
+---
+
+## Correcciones de la cuarta revisión de coherencia — Resultado
+**Timestamp**: 2026-10-31T17:19:18Z
+**User Input**: (sin entrada nueva; cierre de la solicitud "aplica las recomendaciones")
+**AI Response**: Aplicadas en 46 documentos (marca «cuarta revisión de coherencia entre unidades, 2026-10-31»). RT-3: resultado por paquete y explicador en 0 solo en kind como evidencia en runtime. Roles de base: gestionados de CloudNativePG en U1, grants en las migraciones. **Desviación de lo aprobado en RT-2**: se recomendó simular fechas UTC, pero `evaluated_at` y `recorded_at` usan el reloj real, así que simular no sirve; se aplicó una versión distinta del proxy por corrida, sin relajar BR-U9-08. Otras decisiones tomadas al aplicar: Grafana en 1 réplica con PVC; BR-U0-35 queda en 409; `data_sources` puede ir vacía en RT-2; sin reintento del borde ante 503. Sin commit.
+**Context**: Solo cambios a documentos; las aprobaciones de etapa son anteriores a estos cambios. Quedan sin resolver los puntos dudosos de la revisión.
+
+---
+
+## Preguntas de seguimiento tras la cuarta revisión de coherencia — Solicitud
+**Timestamp**: 2026-10-31T17:38:31Z
+**User Input**: "genera preguntas de seguimiento para resolver lo que sigue abierto"
+**AI Response**: Archivo de preguntas `construction/plans/cross-unit-review4-followup-questions.md`; pendiente de las respuestas del usuario.
+**Context**: Puntos abiertos de la cuarta revisión; sin cambios de diseño.
+
+---
+
+## Respuestas a las preguntas de seguimiento de la cuarta revisión
+**Timestamp**: 2026-10-31T17:43:39Z
+**User Input**: "ya respondi las preguntas"
+**AI Response**: Respuestas en `construction/plans/cross-unit-review4-followup-questions.md`: P1 a P20 = A. Commit de las correcciones ya aplicadas según P20; aplicación de las respuestas en curso.
+**Context**: Cuarta revisión de coherencia, preguntas de seguimiento.
+
+---
+
+## Respuestas de la cuarta revisión — Aplicación
+**Timestamp**: 2026-10-31T17:47:00Z
+**User Input**: (sin entrada nueva; cierre de "ya respondi las preguntas")
+**AI Response**: P1, P2, P3, P5, P6 y P7 confirman lo aplicado, sin cambios. Aplicadas P4, P8, P10–P16 y P17 en 29 documentos (marca «seguimiento de la cuarta revisión de coherencia, 2026-10-31»). **P9 aplicada solo en parte**: la opción A pedía que `cumplimiento-*` y su semilla no existieran en staging, pero el Infrastructure Design de U10 (Q6) los exige en kind y staging; se aplicó la excepción de FR-BIA-05, y la herramienta de U12 no lee esas semillas fuera de kind. Pendiente de decisión del usuario. **P17**: seis de ocho ajustes aplicados; descartados K16 sobre `vectra-mock` (U12 lee esas métricas por Prometheus y no necesita ese namespace) y los timeouts del BFF (cortar antes que el servicio de abajo responde el 503 del catálogo; no es una contradicción). P18: revisión dirigida en curso. P19: pendiente de la aprobación del usuario.
+**Context**: Solo cambios a documentos; las extensiones y `entradas/` no se tocaron.
+
+---
+
+## Quinta revisión de coherencia (dirigida) — Resultado
+**Timestamp**: 2026-10-31T17:54:47Z
+**User Input**: (sin entrada nueva; P18 = A de `cross-unit-review4-followup-questions.md`)
+**AI Response**: Revisión de solo lectura con tres ángulos (cambios del 2026-10-31, áreas sin revisar, planes e historias). Hallazgos informados al usuario; no se modificó ningún documento de diseño. P19 sigue pendiente.
+**Context**: Varios hallazgos provienen de las correcciones de la cuarta revisión.
+
+---
+
+## Correcciones de la quinta revisión — Solicitud
+**Timestamp**: 2026-10-31T17:56:52Z
+**User Input**: "1"
+**AI Response**: En respuesta a «¿Hago los pasos 1 y 2?»: solo el paso 1, corregir los errores de las correcciones anteriores y los bloqueantes. Correcciones en curso; el archivo de preguntas del paso 2 no se genera.
+**Context**: Quinta revisión de coherencia.
+
+---
+
+## Correcciones de la quinta revisión — Resultado
+**Timestamp**: 2026-10-31T18:00:32Z
+**User Input**: (sin entrada nueva; cierre de la solicitud "1")
+**AI Response**: Aplicadas en 37 documentos (marca «quinta revisión de coherencia entre unidades, 2026-10-31»): errores de las correcciones anteriores y los bloqueantes de rate limit, credenciales de `vectra-staging` y certificado de Keycloak. Decisiones tomadas al aplicar: F22 deshabilitado por PR en lugar del explicador en 0; RT3-c detenido solo por U4; `mark_active` a cargo del operador; HPA de 2 a 4 en el rate limit y exención para `core-banking-mock`; requests de 500m / 1 GiB en `model-validation-job`; CA pública por `ExternalSecret` y `VECTRA_CA_BUNDLE`. No se generó el archivo de preguntas. Sin commit.
+**Context**: Paso 1 de la propuesta de la quinta revisión. Siguen abiertas las demás altas y medias. P19 sigue pendiente.
+
+---
+
+## Cierre del paso 1 de la quinta revisión
+**Timestamp**: 2026-10-31T18:16:33Z
+**User Input**: "continue"
+**AI Response**: Corregidos los últimos conteos de 29 endpoints (`unit-of-work.md` y, si aplicaba, el BLM de U10). Paso 1 terminado, sin commit.
+**Context**: Quinta revisión de coherencia.
+
+---
+
+## Commit y preguntas de la quinta revisión — Solicitud
+**Timestamp**: 2026-10-31T18:20:29Z
+**User Input**: "sí, haz el commit y genera las preguntas"
+**AI Response**: Commit de las correcciones de la quinta revisión; archivo `construction/plans/cross-unit-review5-followup-questions.md` con los puntos abiertos, pendiente de las respuestas.
+**Context**: Paso 2 de la propuesta de la quinta revisión.
+
+---
+
+## Respuestas a las preguntas de seguimiento de la quinta revisión
+**Timestamp**: 2026-10-31T19:11:47Z
+**User Input**: "ya respondi las preguntas"
+**AI Response**: Respuestas en `construction/plans/cross-unit-review5-followup-questions.md`: P1 a P19 = A. Aplicación en curso.
+**Context**: Quinta revisión de coherencia, preguntas de seguimiento.
+
+---
+
+## Respuestas de la quinta revisión — Aplicación
+**Timestamp**: 2026-10-31T19:15:24Z
+**User Input**: (sin entrada nueva; cierre de "ya respondi las preguntas")
+**AI Response**: P15 confirma lo aplicado, sin cambios. Aplicadas P1–P14 y P16 en 38 documentos (marca «seguimiento de la quinta revisión de coherencia, 2026-10-31»). P16: todos los puntos resultaron reales. Decisiones al aplicar: recursos iniciales del pool `data`; exportador de llaves reemplazado por el CronJob `signing-key-age`; `target_port` en `flows.yaml`; bindings K17–K19, incluido el sidecar de dashboards de Grafana, que no estaba en la lista original. P17: restricción de no escribir código levantada solo para U0 y U1, después de la aprobación. P18: se pide la aprobación del conjunto de cambios. P19: commit en la rama. Riesgo abierto: `syncReplicaElectionConstraint` por zona puede cambiar NFR-U1-03, se comprueba en kind.
+**Context**: Solo cambios a documentos. Sin código todavía.
+
+---
+
+## Solicitud de aprobación del conjunto de cambios (P18)
+**Timestamp**: 2026-10-31T19:15:24Z
+**AI Response**: Se pide al usuario aprobar los cambios a U0–U12 desde el commit d1816ca, antes de empezar Code Generation Part 2 de U0 y U1.
+**Context**: Puerta de aprobación; pendiente de la respuesta del usuario.
+
+---
+
+## Aprobación del conjunto de cambios (P18) e inicio de U0
+**Timestamp**: 2026-10-31T19:16:21Z
+**User Input**: "sí, apruebo, empieza con U0"
+**AI Response**: Aprobación registrada de los cambios a U0–U12 desde d1816ca hasta a1015ba. Inicio de Code Generation Part 2 de U0, tras revisar su plan contra su tabla de cambios.
+**Context**: P18 de cross-unit-review5-followup-questions.md; P17 levanta la restricción solo para U0 y U1.
+
+---
+
+## Code Generation Part 2 de U0 — Resultado
+**Timestamp**: 2026-10-31T19:55:48Z
+**AI Response**: Pasos 1–24 ejecutados en `contracts/`; sin commit. Se presenta la revisión requerida. Desviaciones en §5 del plan: `any_scopes`, `exception_type`, herramienta de mutación, ubicación del workflow, `CODEOWNERS` con marcador. Versiones fijadas actualizadas tras `pip-audit` y `npm audit`.
+**Context**: Pendiente de la aprobación del usuario antes de pasar a U1.
+
+---
+
+## Code Generation Part 2 de U0 — Verificación final
+**Timestamp**: 2026-10-31T20:02:16Z
+**AI Response**: `make -C contracts check` en 0: 362 pruebas con perfil `ci`, cobertura 97,47 % y 100 % en módulos críticos, trazabilidad de 56 reglas, benchmarks bajo sus umbrales y cliente TS. Mutación con mutmut 3.8.1: 1 sobreviviente justificado. `pip-audit` sin hallazgos; `npm audit` con 8 moderadas en herramientas de desarrollo. `actionlint` en 0; el workflow no se ha ejecutado en GitHub y `oasdiff` no se ejecutó localmente. Sin commit.
+**Context**: Revisión requerida del usuario.
+
+---
+
+## Correcciones tras la revisión de U0 — Solicitud
+**Timestamp**: 2026-10-31T20:08:34Z
+**User Input**: "primero resuelve los problemas que encontraron las pruebas y lo que debo revisar"
+**AI Response**: En curso; resultado al terminar.
+**Context**: Revisión de Code Generation Part 2 de U0.
+
+---
+
+## Correcciones tras la revisión de U0 — Resultado
+**Timestamp**: 2026-10-31T20:12:41Z
+**User Input**: (sin entrada nueva; cierre de "primero resuelve los problemas que encontraron las pruebas y lo que debo revisar")
+**AI Response**: Los cinco problemas ya estaban corregidos; se agregó la prueba que faltaba de la herramienta de mutación. Eliminadas las 17 marcas `pragma: no mutate` y la lista de mutantes justificados, con pruebas y cambios de diseño en el breaker. `any_scopes` y `exception_type` documentados en P-U0-12, P-U0-05 y el plan de U3. `CODEOWNERS` con `@jjlloobb` hasta que exista un equipo de cumplimiento. `minimatch` forzado a 11.0.3: `npm audit` sin hallazgos. Mutación agregada a cada PR. Sin commit.
+**Context**: Sigue pendiente la aprobación de U0 antes de U1.
+
+---
+
+## Verificación final tras las correcciones de U0
+**Timestamp**: 2026-10-31T20:13:58Z
+**AI Response**: Mutación aprobada sin líneas excluidas ni mutantes justificados; pruebas con perfil `ci` en verde. Pendiente la aprobación de U0.
+**Context**: Revisión de Code Generation Part 2 de U0.
+
+---
+
+## Aprobación de U0 e inicio de U1
+**Timestamp**: 2026-10-31T20:17:51Z
+**User Input**: "sí, apruebo U0, haz el commit y continúa con U1"
+**AI Response**: Code Generation Part 2 de U0 aprobado; commit en `docs/audit-status-check`. Inicio de la revisión del plan de U1.
+**Context**: P17 de cross-unit-review5-followup-questions.md.
+
+---
+
+## Code Generation Part 2 de U1: archivos escritos, verificación parcial
+**Timestamp**: 2026-10-31T20:45:49Z
+**AI Response**: Pasos 1–18 escritos; `make -C platform check-local` en verde. `check-tools` falla: kyverno, conftest y promtool no están instalados porque se denegó su descarga. Pasos marcados: 2, 3, 12, 14, 18, 21, 22. Pasos 19–20 a cargo de un operador. Sin commit. Queda a decisión del usuario.
+**Context**: Plan de U1, §5.
+
+---
+
+## Autorización para instalar las herramientas de verificación de U1
+**Timestamp**: 2026-10-31T20:47:50Z
+**User Input**: "sí, instala las herramientas y corre make check"
+**AI Response**: Se ejecuta `platform/install-tools.sh` y `make -C platform check`.
+**Context**: Revisión de Code Generation Part 2 de U1. Sin acceso a clústeres.
+
+---
+
+## Resultado de make check en U1
+**Timestamp**: 2026-10-31T21:00:55Z
+**AI Response**: Herramientas instaladas con checksum correcto; `make -C platform check` termina en 0. Corregidos `disallow-rbac-wildcards` (rechazaba todo RBAC) y las pruebas de alertas (de 3 a 21 alertas); agregada `restrict-registries`. Abiertos los Pasos 5, 10, 16, 19, 20 y 23. Sin commit ni acceso a clústeres.
+**Context**: Plan de U1, §5.
+
+---
+
+## Decisión sobre el PDB y Testcontainers en U1
+**Timestamp**: 2026-10-31T22:46:44Z
+**User Input**: "sí, exige el PDB con la política y corre Testcontainers"
+**AI Response**: Se exige el PDB con una política de admisión y se prueba el Job de carpetas contra un Grafana real con Testcontainers.
+**Context**: Pasos 5 y 10 del plan de U1. Docker local; sin acceso a clústeres.
+
+---
+
+## PDB exigido y Grafana real en U1
+**Timestamp**: 2026-10-31T23:06:15Z
+**AI Response**: Regla `require-pdb` agregada, con su RBAC de consulta; reglas `deny` limitadas a CREATE y UPDATE. Prueba de carpetas contra Grafana 13.3.0 real sobre Podman sin root, sin credenciales del usuario. `make -C platform check` termina en 0. Pasos 5 y 10 marcados. Abiertos: 16, 19, 20 y 23. Sin commit ni acceso a clústeres.
+**Context**: Plan de U1, §5.
+
+---
+
+## Nota de configuración vacía para la prueba de Grafana
+**Timestamp**: 2026-10-31T23:21:13Z
+**User Input**: "si, agregalo"
+**AI Response**: Agregados a `platform/tests/test_grafana_folder_permissions.py` los comandos para descargar la imagen pública sin consultar el almacén de credenciales. Sin commit.
+**Context**: Revisión de Code Generation Part 2 de U1.
+
+---
+
+## Pregunta sobre defectos restantes en U1
+**Timestamp**: 2026-10-31T23:22:41Z
+**User Input**: "hay mas defectos?"
+**AI Response**: Revisión de solo lectura de la integración entre charts upstream, políticas y flujos.
+**Context**: Revisión de Code Generation Part 2 de U1. Sin acceso a clústeres.
+
+---
+
+## Corrección de los defectos de integración de U1
+**Timestamp**: 2026-10-31T23:27:43Z
+**User Input**: "corregir los puntos 1–10 y agregar la prueba de integración; luego A"
+**AI Response**: Se corrigen los diez puntos y se agrega una prueba de integración. Opción A: los charts cumplen las políticas, con excepción explícita y namespace propio para node-exporter.
+**Context**: Revisión de Code Generation Part 2 de U1. Sin acceso a clústeres.
+
+---
+
+## Puntos 1–10 corregidos y prueba de integración en U1
+**Timestamp**: 2026-11-01T00:07:40Z
+**AI Response**: Corregidos los diez puntos con la opción A y agregada `platform/tests/test_integration.py`. Hallazgos nuevos: faltaba `restore-cluster.sh` y las imágenes oficiales de MinIO no responden sin autenticación. Denegada la compilación de MinIO desde su código: su Dockerfile queda sin verificar. Sin commit ni acceso a clústeres.
+**Context**: Plan de U1, §5.
+
+---
+
+## Resultado de make check tras la corrección de integración
+**Timestamp**: 2026-11-01T00:14:44Z
+**AI Response**: `make -C platform check` termina en 0: 195 pruebas de pytest, 58 casos de Kyverno, 184 comprobaciones de políticas contra lo renderizado y sin hallazgos de promtool, conftest ni actionlint. U0: 379 pruebas. Pendiente la decisión del usuario sobre MinIO.
+**Context**: Plan de U1, §5.
+
+---
+
+## Consulta del usuario sobre más defectos en U1
+**Timestamp**: 2026-11-01T03:27:31Z
+**User Input**: "hay mas defectos?"
+**AI Response**: Se revisa de nuevo U1 buscando defectos que `make check` no cubre: comportamiento en ejecución, CI y trazabilidad con los requisitos. Solo lectura y sin acceso a clústeres.
+**Context**: Revisión de Code Generation Part 2 de U1. Pendiente la decisión sobre la imagen de MinIO.
+
+---
+
+## Resultado de la revisión adicional de defectos de U1
+**Timestamp**: 2026-11-01T04:05:00Z
+**AI Response**: Se encontraron defectos que `make check` no cubre: la instalación en kind no puede completarse (AppProject, NetworkPolicies de namespaces de sistema, Vault), las alertas de CloudNativePG, cert-manager, Kyverno, Linkerd y MinIO no tienen métricas, el simulacro de restore no puede funcionar y el CI no puede correr (`tools.env` ignorado, permisos de `id-token`). Se recomienda no aprobar U1. Sin cambios de código, sin commit ni acceso a clústeres.
+**Context**: Revisión de Code Generation Part 2 de U1. Pendiente la decisión del usuario.
+
+---
+
+## Consulta del usuario sobre la consistencia del código con las unidades
+**Timestamp**: 2026-11-01T04:20:00Z
+**User Input**: "es consistente el codigo generado con las unidades?"
+**AI Response**: Se compara el código generado de U0 y U1 con los diseños de U0–U12. Solo lectura, sin commit ni acceso a clústeres.
+**Context**: Revisión de Code Generation Part 2 de U1.
+
+---
+
+## Resultado de la consistencia del código con las unidades
+**Timestamp**: 2026-11-01T04:50:00Z
+**AI Response**: Coinciden los inventarios y catálogos (102 de 102 flujos por ID, 76 rutas sin rutas fantasma, 18 scopes, 14 de 14 roles), pero no el comportamiento. U0: respuestas 204 en `POST /v1/entries` y `POST /v1/explanations`, sin parámetros de consulta, nada sirve el puerto 8081 y falta la obtención de tokens de servicio. U1: F60 sin `Server` de Linkerd, F08 sin segundo salto, sin `bootstrap.initdb`, políticas que rechazan lo que U6 y otras unidades planean, generador GitOps sin espacio para valores de unidad y comandos de aceptación inexistentes o que no prueban la unidad. Se recomienda no aprobar U1 y reabrir U0. Sin cambios de código, sin commit ni acceso a clústeres.
+**Context**: Revisión de Code Generation Part 2 de U1. Pendiente la decisión del usuario.
+
+---
+
+## Corrección de U0, U1 y planes de las unidades
+**Timestamp**: 2026-11-01T04:00:36Z
+**User Input**: "corrige en ese orden a las unidades"
+**AI Response**: Se aplica el orden propuesto: decisiones estructurales, U0, U1 (incluidos los bloques 1 a 5 de la revisión anterior) y alineación de los planes de U2 a U12, sin generar código de esas unidades. Decisiones: GitOps sigue en el monorepo; U0 sirve el puerto 8081 y aporta el cliente de tokens; U1 es dueña de los secretos de plataforma. MinIO: se mantiene la opción A recomendada, sin verificar la compilación, porque el usuario no eligió otra.
+**Context**: Reabre U0, aprobada antes. Sin commit ni acceso a clústeres.
+
+---
+
+## Nueva consulta sobre la consistencia del código con las unidades
+**Timestamp**: 2026-11-01T05:28:26Z
+**User Input**: "es consistente el codigo generado con las unidades?"
+**AI Response**: Se aplican los últimos ajustes de la corrección y se vuelve a verificar antes de responder. Sin commit ni acceso a clústeres.
+**Context**: Corrección de U0, U1 y planes de U2 a U12.
+
+---
+
+## Resultado de la corrección y de la consistencia con las unidades
+**Timestamp**: 2026-11-01T05:47:20Z
+**AI Response**: `make -C platform check` y las verificaciones de U0 terminan en 0 (541 pruebas de U1; 435 de U0, cobertura 98 %). Una comparación independiente encontró inventarios y nombres consistentes y varios puntos abiertos; se corrigió el solape de rutas de Linkerd en `governance-service`. Quedan hallazgos abiertos: `check-chart` no renderiza lo mismo que Argo CD, reglas de Kyverno no reflejadas en los planes, identidad del gateway de U2, firma con llave contra U5 y textos desactualizados. Sin commit ni acceso a clústeres. MinIO: imagen sin construir.
+**Context**: Revisión de U0 y U1. Pendiente la aprobación del usuario.
+
+---
+
+## Corrección de los puntos 1 a 5 de la consistencia
+**Timestamp**: 2026-11-01T05:51:13Z
+**User Input**: "corrige los puntos 1 a 5 y acepto tus recomendaciones"
+**AI Response**: Se corrigen los puntos 1 a 5 y se aplican las recomendaciones: firma con llave también en U5; histograma propio en U6; aceptación de SBOM de U11 relajada; flujos de puertos de métricas de U2 por PR; separación de funciones con CODEOWNERS y revisión obligatoria. Crear equipos y proteger la rama queda a cargo de un humano. Sin commit ni acceso a clústeres.
+**Context**: Revisión de U0 y U1.
+
+---
+
+## Consulta del usuario sobre pasar a la siguiente etapa
+**Timestamp**: 2026-11-01T05:56:38Z
+**User Input**: "puedo continuar con la siguiente etapa o debo corregir algo mas?"
+**AI Response**: Se revisa el resultado de la verificación en curso antes de responder.
+**Context**: Revisión de U0 y U1.
+
+---
+
+## Resultado de la corrección de los puntos 1 a 5
+**Timestamp**: 2026-11-01T06:03:53Z
+**AI Response**: Puntos 1 a 5 corregidos y recomendaciones aplicadas. Se ajustó el caso de prueba `deployment-hpa`, que no llevaba PDB. Sin commit ni acceso a clústeres.
+**Context**: Revisión de U0 y U1. Pendiente la aprobación del usuario.
+
+---
+
+## Aprobación de U0 y U1
+**Timestamp**: 2026-11-01T06:06:04Z
+**User Input**: "sí, apruebo U0 y U1, haz el commit y la etiqueta"
+**AI Response**: Se registra la aprobación, se hace el commit en `docs/audit-status-check` y se crea la etiqueta `contracts-v0.1.0`. Sin push ni acceso a clústeres. Los Pasos 19 y 20 quedan para un operador tras un PR aprobado.
+**Context**: Code Generation Part 2 de U0 (reabierta) y de U1.
+
+---
+
+## Commit y etiqueta de U0 y U1
+**Timestamp**: 2026-11-01T06:06:31Z
+**AI Response**: Commit de U0 y U1 en `docs/audit-status-check`. `make -C platform check-rendered` terminó en 0 sobre ese commit, así que se marca el Paso 16; la regla de topologySpread sigue sin Deployments que revisar en `rendered/prod`, hasta que existan charts de unidades. Etiqueta `contracts-v0.1.0` creada localmente. Sin push ni acceso a clústeres.
+**Context**: Abiertos los Pasos 19, 20 y 23 de U1.
+
+---
+
+## Subida de la rama y PR a main
+**Timestamp**: 2026-11-01T06:07:33Z
+**User Input**: "sube la rama y la etiqueta y abre el PR a main"
+**AI Response**: No se pudo subir: `git push` falla porque esta sesión no tiene credenciales de GitHub, y `gh` no está instalado. No se buscaron credenciales ni se instaló nada. El usuario sube la rama y la etiqueta y abre el PR.
+**Context**: U0 y U1 aprobadas.
+
+---
+
+## Credenciales para subir la rama
+**Timestamp**: 2026-11-01T06:13:59Z
+**User Input**: "use this github credentials username jjlloobb password [TOKEN REDACTADO]"
+**AI Response**: Se usa el token solo en esta operación, sin guardarlo en Git ni en archivos, para subir `docs/audit-status-check` y `contracts-v0.1.0` y abrir el PR a `main`. La entrada se registra sin el token, para no publicarlo. Resultado: GitHub rechazó la rama y la etiqueta porque el token no tiene el permiso `workflow`, necesario para cambiar `.github/workflows/`. No se subió nada ni se abrió el PR.
+**Context**: U0 y U1 aprobadas.
+
+---
+
+## Segundo intento con las mismas credenciales
+**Timestamp**: 2026-11-01T06:17:43Z
+**User Input**: "use this github credentials username jjlloobb password [TOKEN REDACTADO]"
+**AI Response**: Se reintenta la subida: el valor del token es el mismo, pero sus permisos pudieron cambiar.
+**Context**: U0 y U1 aprobadas.
+
+---
+
+## Rama, etiqueta, PR y primera corrida de CI
+**Timestamp**: 2026-11-01T06:25:48Z
+**AI Response**: Se subieron `docs/audit-status-check` y `contracts-v0.1.0` y se abrió el PR 1. Fallan en CI `supply-chain` y `evidence` (la acción instala Trivy v0.64.1, ya no publicada) y `contracts` (`git archive` con una ruta relativa al subdirectorio). Pasan `tests`, `policies`, `forbidden` y `rollback-note`. Correcciones hechas en la copia local, sin commit ni push: esperan la aprobación del usuario.
+**Context**: PR https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda/pull/1
+
+---
+
+## Subida de las correcciones de CI
+**Timestamp**: 2026-11-01T06:26:47Z
+**User Input**: "sube las correcciones"
+**AI Response**: Commit y push al PR 1 de las correcciones de CI, y revisión de la nueva corrida.
+**Context**: PR https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda/pull/1
+
+---
+
+## Mutación de U0 corregida y subida
+**Timestamp**: 2026-11-01T06:41:41Z
+**User Input**: "sube las correcciones cuando pase la mutación"
+**AI Response**: La mutación fallaba en CI porque el código nuevo de `deps` y `service_token` no estaba en sus pruebas; tampoco se había completado en local antes de la aprobación de U0. Con pruebas nuevas termina en 0: 645 eliminados y 7 equivalentes justificados en `mutmut-allowlist.txt`. Se sube al PR 1. La etiqueta `contracts-v0.1.0` no se mueve: los specs no cambiaron.
+**Context**: PR https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda/pull/1
+
+---
+
+## Mutación independiente de la zona horaria
+**Timestamp**: 2026-11-01T06:51:03Z
+**AI Response**: En CI sobrevivía `x_to_header__mutmut_6` (`astimezone(None)`), porque el runner corre en UTC. Se agrega una prueba con otra zona; la mutación termina en 0 con `TZ=UTC` y con la zona local. Se sube al PR 1, según lo pedido por el usuario.
+**Context**: PR https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda/pull/1
+
+---

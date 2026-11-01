@@ -86,7 +86,7 @@ Cortes: `channel` y `outcome` en todas las métricas de decisión; `model_versio
 
 | Serie | Etiquetas |
 |---|---|
-| `vectra_product_cycle_duration_seconds` (histograma) | `kind` (`incremental`, `full`) |
+| `vectra_product_cycle_duration_seconds` (histograma; buckets 1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800 y 3600 s; seguimiento de la quinta revisión de coherencia, 2026-10-31) | `kind` (`incremental`, `full`) |
 | `vectra_product_entries_read_total` (contador) | `kind` (`incremental`, `full`) |
 | `vectra_product_last_full_recompute_timestamp` | — (no se emite hasta la primera pasada completa exitosa; nunca 0; pendientes consolidados, 2026-10-10) |
 | `vectra_product_full_pass_in_progress` | — (revisión del NFR Design de U11, 2026-10-10) |

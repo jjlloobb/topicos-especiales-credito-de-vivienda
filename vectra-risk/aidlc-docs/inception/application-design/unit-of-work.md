@@ -36,11 +36,11 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
   - model-store;
   - instalación del controlador de KServe (K05);
   - observability stack: Prometheus, Alertmanager (con receptor F72), Grafana, Loki, Tempo, OTel Collector y agente de logs (F60–F65, K02, K03);
-  - Argo CD con **sync manual** (K04, F71) y la estructura inicial del repositorio `vectra-risk-gitops`;
+  - Argo CD con **sync manual** (K04, F71) y la estructura inicial de `vectra-risk-gitops/`, dentro del monorepo (revisión de consistencia entre unidades, 2026-11-01);
   - workflows reutilizables de GitHub Actions: pruebas con semilla de PBT, escaneo de dependencias e imágenes, SBOM, evidencia `helm template` y `kubectl diff`, y **verificación de pasos prohibidos** (`apply`/`install`/`sync`);
   - runbooks de restore y failover de zona.
 - **Datos propios**: la infraestructura de las bases de datos (los esquemas pertenecen a cada unidad).
-- **Flujos**: F45, F60–F67, F70–F72, F74–F76, F80–F88 (F09 opcional); K02–K13 (ver U1 Infrastructure Design).
+- **Flujos**: F45, F60–F67, F70–F72, F74–F76, F80–F88 (F09 opcional), F113–F116, F118–F121; K02–K13 (ver U1 Infrastructure Design).
 - **Criticidad**: High. Todo depende de ella.
 - **Historias (dueña)**: US-604 (base de red y egress), US-605, US-606, US-607, US-608, US-610.
 
@@ -50,7 +50,7 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
   - **realm de Keycloak como código**: roles, MFA obligatorio para `ingeniero_riesgo`, `cro` y `cumplimiento`, protección contra fuerza bruta, clientes (SPA, Grafana e identidades de servicio con los scopes de U0) y consola de administración no expuesta;
   - **Envoy Gateway**: rutas F01–F07, validación de JWT, rate limiting, límite de payload, access log y cabeceras de seguridad de la SPA.
 - **Datos propios**: el realm (en `keycloak-db`).
-- **Flujos**: F01–F09 (F09 opcional), F43, F50 (destino), F73 (solo prod), F90–F95; K14; X09, X10 (ver U2 Infrastructure Design).
+- **Flujos**: F01–F09 (F09 opcional), F43, F50 (destino), F73 (solo prod), F90–F95, F112, F117; K14; X09, X10 (ver U2 Infrastructure Design).
 - **Criticidad**: High.
 - **Historias (dueña)**: US-601, US-611.
 
@@ -69,7 +69,7 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
   - esquema de `governance-db`;
   - CronJob `model-archive` (archivo de artefactos de modelo, F100–F102);
   - `model-validation-job` (modos `validacion` y `source_comparison`; depende de la librería `vectra_disparity` de U9; tercera revisión del FD de U9, 2026-10-10);
-  - CLI `promotion-tool`, que genera un PR de un solo commit con evidencia en `vectra-risk-gitops`.
+  - CLI `promotion-tool`, que genera un PR de un solo commit con evidencia sobre `vectra-risk-gitops/` (revisión de consistencia entre unidades, 2026-11-01).
 - **Datos propios**: `governance-db`.
 - **Flujos**: F11, F18, F24, F25, F27, F32 (destino), F41, F47, F101, F102, F103 y F104 (destino; U7 FD Q4 y U8 FD Q1); egress F100; **K01**; X03, X04 (ver U4 Infrastructure Design).
 - **Criticidad**: High.
@@ -129,7 +129,7 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
 ### U10 — `console`
 - **Propósito**: la experiencia de las cuatro personas que operan el sistema.
 - **Contenido**:
-  - `console-bff`: **29 endpoints** con rol, MFA y regla de objeto (tabla de `component-methods.md` C03), propagación del token y errores genéricos:
+  - `console-bff`: **30 endpoints** con rol, MFA y regla de objeto (tabla de `component-methods.md` C03), propagación del token y errores genéricos:
     - sesión, 2: `get_me` y `report_client_error`;
     - casos, 11: incluidos `run_integrity_check` y `get_integrity_check`;
     - modelos, 7; políticas, 3; fuentes, 3; vigilancia, 3.
@@ -249,20 +249,23 @@ vectra-risk/
 `-- aidlc-docs/                   #   SOLO documentación
 ```
 
-### 3.2 Repositorio GitOps separado: `vectra-risk-gitops`
+### 3.2 GitOps dentro del monorepo: `vectra-risk/vectra-risk-gitops/`
+
+Vive en el monorepo, y las rutas de las `Application` llevan el prefijo `vectra-risk/` (revisión de consistencia entre unidades, 2026-11-01).
 
 ```text
 vectra-risk-gitops/
-|-- apps/            # Applications de Argo CD (sin syncPolicy.automated)
-|-- environments/
-|   |-- staging/     # values por unidad + InferenceServices de staging
-|   `-- prod/        # values por unidad + InferenceService activo
-`-- README.md        # proceso de cambio: PR + evidencia + aprobación + sync manual
+|-- components.yaml  # unica fuente: una entrada por componente
+|-- generate.py      # escribe apps/ y envs/; --check falla si difieren
+|-- apps/            # Applications de Argo CD (sin syncPolicy.automated), generadas
+|-- envs/            # values comunes por entorno, generados
+|-- values/<env>/    # values por unidad, <componente>.yaml; se agregan solos
+`-- README.md
 ```
 
-- Solo contiene values y manifiestos desplegables que referencian imágenes por digest y charts versionados del monorepo.
-- Tienen permiso de merge solo los aprobadores de despliegue (separación de funciones, SECURITY-13). `promotion-tool` abre PRs aquí; **nunca** hace merge ni sync.
-- Argo CD solo lee este repositorio (F71).
+- Solo contiene values y manifiestos desplegables que referencian imágenes por digest y charts del monorepo.
+- Los cambios bajo esta ruta los aprueban solo los aprobadores de despliegue, con una regla de ruta en `.github/CODEOWNERS` (separación de funciones, SECURITY-13; revisión de consistencia entre unidades, 2026-11-01). `promotion-tool` abre PRs aquí; **nunca** hace merge ni sync.
+- Argo CD solo lee el monorepo (F71) (revisión de consistencia entre unidades, 2026-11-01).
 
 ---
 

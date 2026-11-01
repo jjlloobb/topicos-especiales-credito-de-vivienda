@@ -13,7 +13,7 @@
 | Job de migración | Job (hook de sync) | Esquema, triggers de P-U4-06 | P-U4-06 | `vectra-normal` |
 | `governance-db` | Cluster de CloudNativePG (U1) | Datos de governance; `LISTEN/NOTIFY` | P-U4-01 | `vectra-critical` |
 | Script de CI `no-unfreeze-paths` | CI | Busca rutas `congelado → activo` fuera del endpoint | BR-U4-03 | — |
-| Script de CI `promotion-pr-check` | CI del repositorio GitOps | Un commit, mismo `model_version_id` en predictor y explicador, evidencia adjunta | BR-U4-09 | — |
+| Script de CI `promotion-pr-check` | CI del monorepo, para los PR que tocan `vectra-risk-gitops/` (revisión de consistencia entre unidades, 2026-11-01) | Un commit, mismo `model_version_id` en predictor y explicador, evidencia adjunta | BR-U4-09 | — |
 
 ## 2. Dependencias
 

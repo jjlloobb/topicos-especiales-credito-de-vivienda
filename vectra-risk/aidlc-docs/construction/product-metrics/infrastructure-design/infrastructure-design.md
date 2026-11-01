@@ -58,11 +58,11 @@ y 2,44 GiB (NFR-U11-14; plan de U1, Paso 6).
 
 ### INF-U11-02 — `values-product-metrics-policy.yaml` (BR-U11-09)
 - `product-metrics/chart/values-product-metrics-policy.yaml` en el monorepo, igual en los tres entornos.
-- `CODEOWNERS` de los equipos de producto y de riesgo en el monorepo y en GitOps; `branch-protection-check` de U4 verifica la aprobación obligatoria de *code owners* en los dos.
+- Regla de ruta en `.github/CODEOWNERS`, el único del monorepo, para los equipos de producto y de riesgo; `branch-protection-check` de U4 verifica la aprobación obligatoria de *code owners* (revisión de consistencia entre unidades, 2026-11-01).
 - `conftest` con los rangos de BR-U11-09.
 - El chart lo convierte en un `ConfigMap` montado sin `subPath`, con `checksum/config`; la `PrometheusRule` toma S del mismo archivo.
 - Un cambio reinicia las réplicas una a una, cada una con su pasada completa (INF-U11-01); como los parámetros cambian poco, el lapso se acepta y el runbook de cambio de parámetros lo dice (nota de Q2).
-- **Verificación**: `conftest` dentro y fuera de rango; `CODEOWNERS` con la línea del archivo en los dos repositorios; `helm template` con `checksum/config`.
+- **Verificación**: `conftest` dentro y fuera de rango; `CODEOWNERS` con la línea del archivo (revisión de consistencia entre unidades, 2026-11-01); `helm template` con `checksum/config`.
 - **Satisface**: BR-U11-09; SECURITY-11.
 
 ### INF-U11-03 — Identidad (NFR-U11-20)
@@ -81,7 +81,7 @@ y 2,44 GiB (NFR-U11-14; plan de U1, Paso 6).
 | `product-metrics` | 8081 (métricas y sondas) | Prometheus (F60) y las sondas del kubelet | F28 (`decision-registry-service`), F50 (Keycloak) |
 
 - El `Service` expone solo 8081; no hay puerto 8080 porque no hay API.
-- El `Server` de Linkerd en 8081 admite solo a Prometheus; las sondas del kubelet a `/healthz` y `/readyz` pasan por la autorización automática de sondas de Linkerd (nota de Q3).
+- El `Server` `metrics-8081`, que U1 genera por namespace desde F60, admite solo a Prometheus en 8081, y el chart de U11 no declara otro (revisión de consistencia entre unidades, 2026-11-01); las sondas del kubelet a `/healthz` y `/readyz` pasan por la autorización automática de sondas de Linkerd (nota de Q3).
 - **Casos de la suite de conectividad de U1**:
   - `/readyz` desde el kubelet → 200 con el `Server` aplicado;
   - `product-metrics` → `case-service` o `governance-service` → bloqueado;
@@ -93,7 +93,7 @@ y 2,44 GiB (NFR-U11-14; plan de U1, Paso 6).
 
 ### INF-U11-05 — Reglas, dashboards y runbooks (P-U11-05, 06)
 - `PrometheusRule` del chart con las recording rules `:dedup`, las reglas generadas por `gen_rules.py` y las alertas de P-U11-06, cada una con `severity` y `runbook_url`.
-- `product.json` en `Vectra / Producto`, y el panel de operación de U11 en la carpeta de operación de U1; los dos como `ConfigMap` de dashboards de Grafana, aprovisionados y de solo lectura.
+- `product.json` en `Vectra / Producto`, como `ConfigMap` del chart con la etiqueta `vectra.io/dashboard` y la anotación `grafana_folder`, que Grafana descubre en todos los namespaces. El panel de operación de U11 está en `platform/observability/dashboards/operacion.json` de U1, carpeta `Vectra / Operación`. Los dos, aprovisionados y de solo lectura (revisión de consistencia entre unidades, 2026-11-01).
 - **Permisos** (nota de Q4): `folder-permissions.yaml` de U1 lista **tres** carpetas:
   - `Vectra / Sesgo`, para `cro` y `cumplimiento`;
   - `Vectra / Producto`, para `cro`, `cumplimiento` e `ingeniero_riesgo`;

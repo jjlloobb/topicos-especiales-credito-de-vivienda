@@ -1,0 +1,21 @@
+# El chart de MinIO no admite priorityClassName en su Job posterior. Solo ese Job, por nombre.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: add-priority-to-minio-job
+spec:
+  background: false
+  rules:
+    - name: add-priority-to-minio-job
+      match:
+        any:
+          - resources:
+              kinds: [Job]
+              names: [minio-post-job]
+              namespaces: [vectra-data]
+      mutate:
+        patchStrategicMerge:
+          spec:
+            template:
+              spec:
+                +(priorityClassName): vectra-normal

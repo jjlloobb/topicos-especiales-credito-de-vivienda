@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '4'
+spec:
+  project: vectra-kind
+  source:
+    repoURL: https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda.git
+    targetRevision: main
+    path: vectra-risk/platform/observability/grafana
+    directory:
+      include: manifests.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-observability
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

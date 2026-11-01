@@ -3,6 +3,8 @@
 .env.*
 !.env.example
 *.env
+# Versiones de herramientas, sin secretos: install-tools.sh lo necesita al clonar.
+!vectra-risk/platform/tools.env
 secrets.yaml
 secrets.yml
 *.secret

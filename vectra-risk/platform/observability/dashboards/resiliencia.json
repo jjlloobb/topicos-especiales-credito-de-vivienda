@@ -1,0 +1,71 @@
+{
+  "uid": "vectra-resiliencia",
+  "title": "Resiliencia",
+  "folderUid": "vectra-operacion",
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Réplicas en streaming",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "cnpg_pg_replication_streaming_replicas",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Último WAL archivado",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "time() - cnpg_pg_stat_archiver_last_archived_time",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Circuitos",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra_circuit_state",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      }
+    }
+  ]
+}

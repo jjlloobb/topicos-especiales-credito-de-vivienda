@@ -18,7 +18,7 @@ propios ni corre en producción.
 | Escenario | Origen | Para qué |
 |---|---|---|
 | `normal` | Partición `test` de U5 (no la usa U4, así que no repite el dataset de validación), muestreada al azar con semilla | Ingesta, carga, decisiones de demostración |
-| `stratified` | `test` muestreada por `region` × `estrato` hasta ≥ 30 casos por celda | RT-2 (BR-U12-06) |
+| `stratified` | `test` muestreada hasta ≥ 30 casos en cada celda de U9 (atributo, grupo, banda; BR-U9) de los cuatro atributos (cuarta revisión de coherencia entre unidades, 2026-10-31) | RT-2 (BR-U12-06) |
 | `rt1` | Los pares RT-1 del manifiesto adversarial | RT-1 |
 | `rt4` | Los 18 casos RT-4 del manifiesto | RT-4 |
 
@@ -47,8 +47,8 @@ propios ni corre en producción.
 | RT | Estímulo | Oráculo |
 |---|---|---|
 | RT-1 | Todos los pares RT-1 de U5 | Leído **por el BFF con `analista-1`**: el `free_text` del detalle del caso es igual byte a byte al enviado, y la recomendación y la narrativa del detalle son **idénticas** a las de su par sin el texto (`expected` del manifiesto); scoring y explainability no hacen ninguna llamada distinta de las del par (métricas y logs). El registro no guarda `free_text` (BR-U0-95), así que no se lee de ahí (Infrastructure Design de U12, 2026-10-10) |
-| RT-2 | Modelo proxy de U5 promovido en kind por PR; ~1 500 casos `stratified` (BR-U12-06) | La versión pasa a `congelado` con su paquete completo (un `FreezeContext` válido según U0 §9.4, más `data_sources` e `initial_disparity` no vacíos; revisión del plan de tareas de U12, 2026-10-10); los casos nuevos quedan `modelo_congelado`; sigue congelada tras 3 corridas más de bias; latencia según BR-U12-07 |
-| RT-3 | Cada uno de los 4 paquetes alterados de U5, desplegado por PR | Toda respuesta es `FailClosed(version_mismatch)`; **cero** `recommendation` en el registro durante la ventana; los casos quedan `en_sincronizacion` |
+| RT-2 | Modelo proxy de U5 promovido en kind por PR; ~1 500 casos `stratified` (BR-U12-06) | La versión pasa a `congelado` con su paquete completo (un `FreezeContext` válido según U0 §9.4, más `data_sources` presente, que puede ir vacía porque el proxy no declara fuentes, e `initial_disparity` no vacía; revisión del plan de tareas de U12, 2026-10-10; cuarta revisión de coherencia entre unidades, 2026-10-31); los casos nuevos quedan `modelo_congelado`; sigue congelada tras 3 corridas más de bias; latencia según BR-U12-07 |
+| RT-3 | Los 4 paquetes alterados de U5, cada uno hasta la barrera que le toca (U5 domain-entities §5), y un PR solo de kind que deshabilita F22 (`enabled: false`), porque `require-hpa-bounds` rechaza un activo con menos de 2 réplicas (quinta revisión de coherencia entre unidades, 2026-10-31) | **RT3-a, c y d**: 422 de U4 al registrar; `serving-config` no cambia. Desplegados por PR sin registrar, a y d quedan no listos con `ModelPackageIntegrityFailed`; U6 no lee el diccionario, que U7 pide a U4 por versión, así que c solo lo detiene U4. **RT3-b**: `validacion_fallida`, o `FailClosed` con `explainer_error` o `feature_dictionary_incomplete` si llega a servirse. **F22 deshabilitado**: `FailClosed` con `timeout` o `explainer_unavailable`, según el breaker. En todos: **cero** `recommendation` de la versión alterada, y con F22 deshabilitado, cero `recommendation` de cualquier versión; los casos quedan `en_sincronizacion`, o `no_disponible` tras ≈ 15,5 min (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | RT-4 | Los 18 casos RT-4 | `confidence` por debajo del umbral de baja confianza, `revision_requerida` y la marca `baja_confianza` (`expected` del manifiesto) |
 | RT-5 | El Job `rt5-demo-<runId>` de U8 (INF-U8-03, solo kind) intenta escribir al core con la identidad de `case-service` | El Job termina con éxito y su log tiene el 403 del proxy de Linkerd (cabecera `l5d-proxy-error`); `CoreWriteAttempt` dispara; `vectra_core_write_attempts_total` del mock en 0. Las identidades de scoring y explainability no tienen ruta al core: las cubre X01 (suite de conectividad de U1). Sin `kubectl auth can-i` de otras identidades, que exigiría impersonación y K16 no la da (pendientes consolidados, 2026-10-10) |
 
@@ -73,7 +73,7 @@ Cada escenario guarda su evidencia: comando, salida y resultado esperado frente 
 |---|---|---|
 | Decisiones para U11 y la disparidad humana de U9 | 2 000 casos `normal` decididos por el conductor | Se corren **antes** de RT-2, con el modelo de referencia activo (sin congelar), para que los casos lleguen a `listo` |
 | Tamaño por caso (INF-U8-08) | Los primeros 1 000 de esos 2 000 | Se mide el crecimiento de `case-db` y del registro antes y después |
-| RT-2 | ~1 500 casos `stratified` (≥ 30 por celda en `region` y `estrato`, ≈ 36 celdas) | Después de las decisiones, con el modelo proxy promovido |
+| RT-2 | ~1 500 casos `stratified` por corrida (≥ 30 por celda de U9; el volumen se ajusta si la sección se niega, NFR-U12-11; cuarta revisión de coherencia entre unidades, 2026-10-31) | Después de las decisiones, con el modelo proxy promovido |
 | Dashboard de producto | Las 2 000 decisiones | El mismo conjunto de U11 |
 
 - **Días** (nota 2 de Q6): `decided_at` lo pone case-service con su reloj, así que no se puede simular el pasado. `day` de U11 es «ayer completo» y `RuidoExplicacion` necesita **S** días seguidos bajo el piso.
@@ -82,18 +82,30 @@ Cada escenario guarda su evidencia: comando, salida y resultado esperado frente 
 
 **BR-U12-07 — Latencia de detección de RT-2.**
 - Desde el **menor** `recorded_at` de las `recommendation` del lote `stratified` hasta el `recorded_at` de la entrada `freeze` (Infrastructure Design de U12, 2026-10-10). El cruce real del umbral ocurre entre la primera y la última entrada del lote, así que medir desde la primera nunca subestima la latencia; puede sobrestimarla hasta ≈ 3 min, lo que dejan los ≈ 27 min típicos con un margen de ≈ 0 a 3 min frente a 30, y el informe lo dice.
-- Se repite RT-2 **5 veces**, con reactivación por cumplimiento entre corridas, y se informa el máximo, que debe ser ≤ 30 min. El informe dice que es una cota conservadora y no un p95 estadístico.
+- Se repite la medición **5 veces**, cada una con una **versión distinta** del proxy (U5 §4), y se informa el máximo, que debe ser ≤ 30 min. El informe dice que es una cota conservadora y no un p95 estadístico.
+- **Por qué versiones distintas** (cuarta revisión de coherencia entre unidades, 2026-10-31): tras reactivar, la ventana de la versión empieza al día siguiente UTC (BR-U9-08), así que la misma versión no vuelve a congelarse ese día. Esa regla no se relaja, y simular la fecha no sirve: `evaluated_at` y `recorded_at` usan el reloj real. Una versión nueva no tiene reactivación y su ventana empieza con sus primeros datos.
+- **Entre corridas**: cumplimiento reactiva la versión congelada; se comprueba que no vuelve a congelarse ese día (en la corrida 1, tras las 3 corridas de bias de BR-U12-04); se promueve la versión siguiente: PR de promoción, sync, `mark_active` del operador con `promotion-tool` (F08, BR-U4-08) y PR post-activación de la anterior. Sin `mark_active` el lote lo puntuaría la versión anterior (quinta revisión de coherencia entre unidades, 2026-10-31). Las 5 versiones se registran, validan y aprueban en la sección `rt2-setup`, con `ingeniero-1` y `cro-1` por el BFF. Al terminar, se vuelve al modelo de referencia con un rollback (US-208).
 - **Si una corrida supera 30 min** (nota de Q7): RT-2 se declara **fallida** y se registra la medición. Según NFR-U9-01, el plan es bajar el intervalo de bias a 10 min antes que subir el objetivo. Con ≈ 27 min típicos el margen es pequeño, y el informe lo dice.
+
+## 5b. Resiliencia (seguimiento de la quinta revisión de coherencia, 2026-10-31; US-608, US-610)
+
+**BR-U12-08b — Sección `resilience`.** Solo en kind, tras un PR aprobado y antes de `report`:
+- `RESTORE-DRILL`: `restore-drill` manual y restore del sitio en un kind limpio (≤ 4 h), con `verify_chain` «íntegra».
+- `READINESS`: `case-db` y `registry-db` caídas → su servicio no listo; `governance-db` caída → governance listo, con `serving-config` respondiendo y escrituras 503; explainability o governance caídos → scoring listo y `FailClosed` tipificado.
+- Las caídas las provoca el operador; U12 solo lee y compara, como en el resto de las secciones.
+
+Complementa la decisión de proyecto de RESILIENCY-14: la ejecución a escala sigue en Operations.
 
 ## 6. Carga (Q4; US-609)
 
 **BR-U12-08 — Perfil combinado.**
 - **Perfil**: 30 min sostenidos con ingesta a 20 solicitudes/s y 200 usuarios de consola con el perfil de U10.
 - **Línea base**: la misma prueba a 5 solicitudes/s.
+- **Entrada** (seguimiento de la quinta revisión de coherencia, 2026-10-31): toda la carga entra por el gateway: ingesta con el cliente `channel-simulator` y consola con usuarios reales. Los tokens duran 300 s, así que la sección `load` los renueva y k6 los lee de un archivo.
 - **Criterios**:
   - las réplicas del HPA suben sin superar el máximo;
   - KServe escala dentro de sus límites;
-  - p95 dentro de NFR-U7-01..03, NFR-U8-01 y NFR-U10-01;
+  - p95 dentro de NFR-U7-01..03 (leídos del histograma HTTP de U0, porque scoring no tiene ruta por el gateway), NFR-U8-01 y NFR-U10-01;
   - la tasa de fail-closed no supera la de la línea base.
 - **Evidencia**: el reporte de k6, `kubectl get hpa` cada 30 s (solo lectura) y las series de Prometheus.
 - **Sin capacidad suficiente en kind**: la prueba se escala a la mitad y el informe lo dice.
@@ -115,7 +127,7 @@ Cada escenario guarda su evidencia: comando, salida y resultado esperado frente 
 | Nada de U12 | producción |
 | Pruebas de los componentes de U12 | CI, con dobles |
 
-RT-2 y RT-3 devuelven el entorno a su estado inicial al terminar, por PR: reactivar el modelo y revertir el artefacto.
+RT-2 y RT-3 devuelven el entorno a su estado inicial al terminar: revierten por PR lo desplegado y vuelven al modelo de referencia con un rollback. La reactivación es de cumplimiento, por el BFF, no por PR (quinta revisión de coherencia entre unidades, 2026-10-31).
 
 ## 8. Informe (Q10)
 

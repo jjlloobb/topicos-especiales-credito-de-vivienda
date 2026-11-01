@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tempo
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '4'
+spec:
+  project: vectra-kind
+  sources:
+  - repoURL: https://grafana.github.io/helm-charts
+    chart: tempo-distributed
+    targetRevision: 1.61.3
+    helm:
+      valueFiles:
+      - $values/vectra-risk/platform/observability/values/tempo.yaml
+      - $values/vectra-risk/platform/observability/values/tempo-kind.yaml
+  - repoURL: https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda.git
+    targetRevision: main
+    ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-observability
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

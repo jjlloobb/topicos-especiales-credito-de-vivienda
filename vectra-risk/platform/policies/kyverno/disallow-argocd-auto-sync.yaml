@@ -1,0 +1,23 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-argocd-auto-sync
+  annotations:
+    policies.kyverno.io/description: Toda Application con sync manual (NFR-U1-43)
+spec:
+  validationFailureAction: Enforce
+  failurePolicy: Fail
+  background: false
+  rules:
+    - name: disallow-argocd-auto-sync
+      match:
+        any:
+          - resources:
+              kinds: [argoproj.io/v1alpha1/Application]
+              namespaces: [argocd]
+      validate:
+        message: "Toda Application con sync manual (NFR-U1-43)"
+        pattern:
+          spec:
+            =(syncPolicy):
+              X(automated): "null"

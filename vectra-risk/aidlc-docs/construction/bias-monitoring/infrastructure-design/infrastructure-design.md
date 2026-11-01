@@ -58,7 +58,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
   | `schedule` | el de INF-U9-02 |
   | `stale_after` (W) | 1 h |
 
-- **Revisión obligatoria de cumplimiento** (revisión del FD de U10, 2026-10-10, A5): el archivo vive en el **monorepo** (`vectra-risk/bias-monitoring/chart/`), donde se edita, y llega a `vectra-risk-gitops` con el chart. Por eso hay una línea de `CODEOWNERS` en **los dos** repositorios: en el monorepo (`bias-monitoring/chart/values-monitoring-policy.yaml`, donde se aprueba el cambio) y en GitOps (la copia que despliega Argo CD). La protección de `main` exige la aprobación de los *code owners* en los dos. `branch-protection-check` de U4 verifica ambos repositorios (antes, solo GitOps). La misma regla cubre `contracts/forbidden-phrases.yaml` de U0 (BR-U0-94).
+- **Revisión obligatoria de cumplimiento** (revisión del FD de U10, 2026-10-10, A5): el archivo vive en el **monorepo** (`vectra-risk/bias-monitoring/chart/`), donde se edita, y Argo CD lo lee de ahí, sin copia: la entrada `bias-monitoring` de `vectra-risk-gitops/components.yaml` lo declara en `values`. Por eso hay una sola línea de `CODEOWNERS`, en `.github/CODEOWNERS`, con la ruta `vectra-risk/bias-monitoring/chart/values-monitoring-policy.yaml`. La protección de `main` exige la aprobación de los *code owners*, y `branch-protection-check` de U4 lo verifica (revisión de consistencia entre unidades, 2026-11-01). La misma regla cubre `contracts/forbidden-phrases.yaml` de U0 (BR-U0-94).
 - **Rangos válidos**, con una regla de `conftest`:
   - umbral entre 1 y 20 pp;
   - `n_min` ≥ 30;
@@ -67,7 +67,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
   - **horario** (revisión del Infrastructure Design de U9, 2026-10-10): una lista de minutos con un intervalo fijo de **5, 10 o 15 min** entre corridas (por ejemplo `2,17,32,47 * * * *`), con un desfase de 1 a 4 min respecto de los múltiplos de 5 (el agregador de U3), y **W ≥ 4 × el intervalo**, para que una sola corrida fallida no dispare la alerta. El intervalo debe ser múltiplo de 5 y dividir 60: con 6 o 12 min el desfase respecto del agregador cambia de una corrida a otra (revisión del FD de U10, 2026-10-10, A6). Un horario fuera de ese rango obliga además a revisar NFR-U9-01;
   - **plazo**: `activeDeadlineSeconds` ≤ el intervalo en segundos (hoy 600 s con 15 min; con 5 min, el plazo debe bajar a ≤ 300 s, que sigue cubriendo el peor caso de ≈ 186 s de P-U9-02) (revisión del FD de U10, 2026-10-10, A6).
 - **Constantes del código** (no values, como INF-U8-07): timeouts y reintentos (P-U9-02), caché del dashboard (P-U9-03), razón de inválidas (1 %) y atraso máximo del agregador (30 min).
-- **Values por entorno**: URLs y audiencias de las dependencias, endpoint de telemetría, URL del Pushgateway y nivel de log.
+- **Values por entorno**, en `vectra-risk-gitops/values/<env>/bias-monitoring.yaml` (revisión de consistencia entre unidades, 2026-11-01): URLs y audiencias de las dependencias, endpoint de telemetría, URL del Pushgateway y nivel de log.
 - **Verificación**:
   - `conftest` con valores dentro y fuera de rango;
   - prueba de que ninguna constante aparece como variable de entorno;
@@ -89,7 +89,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 1. **Scope**: solo el cliente `bias-monitoring-job` tiene `governance:freeze`; `realm-lint` lo verifica (U2).
 2. **Código**: el servicio no importa `freeze_client` (import-linter, P-U9-05).
 3. **Red**:
-   - en governance, la `AuthorizationPolicy` de Linkerd de la ruta `POST /v1/models/{id}/freeze` admite **solo** la identidad `bias-monitoring-job`;
+   - en governance, la `AuthorizationPolicy` de Linkerd de la ruta `POST /v1/models/{id}/freeze`, generada desde `http_routes.governance-service` de `flows.yaml` (revisión de consistencia entre unidades, 2026-11-01), admite **solo** la identidad `bias-monitoring-job`;
    - la `NetworkPolicy` de F27 admite solo los pods con la etiqueta `vectra.io/workload: bias-monitoring-job` (la del CronJob y la de `x04-probe`; alineada con `component-dependency.md` F27, antes `app.kubernetes.io/component: bias-calculation`; pendientes consolidados, 2026-10-10).
 
 **Flujos**, en `flows.yaml` de U1:
@@ -122,7 +122,7 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 ### INF-U9-05 — Reglas, runbooks y dashboard como código (Q5; P-U9-06; FR-UI-05, US-307)
 - `PrometheusRule` del chart con las alertas de P-U9-06, cada una con `severity` y `runbook_url`. Los umbrales de `MonitoreoSesgoDetenido` (W y 2W) se generan desde `stale_after` de `values-monitoring-policy.yaml`, no se escriben a mano (revisión del Infrastructure Design de U9, 2026-10-10).
 - `ServiceMonitor` del servicio (8081). Prometheus lee las métricas del CronJob en el Pushgateway (F88, `honor_labels: true`).
-- **Dashboard de Grafana** (`observability/dashboards/bias.json`), como código:
+- **Dashboard de Grafana** (`observability/dashboards/bias.json`), como código, en un `ConfigMap` del chart con la etiqueta `vectra.io/dashboard` y la anotación `grafana_folder: "Vectra / Sesgo"`, que Grafana descubre en todos los namespaces (revisión de consistencia entre unidades, 2026-11-01):
   - paneles de disparidad por atributo y banda, de las agregadas del modelo y de las decisiones humanas (separadas), del tamaño de celda y del estado de las corridas;
   - la leyenda «mide y alerta, no certifica» como texto fijo en el panel principal;
   - las celdas insuficientes solo muestran su tamaño, y la serie `sin_bandas` respeta la etiqueta `partial` (BR-U9-06, 20);
@@ -154,9 +154,9 @@ de tareas. Lo que se verifica «en kind» lo ejecuta el operador después de un 
 
 | Artefacto | Cambio | Origen |
 |---|---|---|
-| U4 (`AuthorizationPolicy` de Linkerd de la ruta `freeze`; INF-U4-04 y plan de U4, Paso 16) | La ruta `POST /v1/models/{id}/freeze` admite solo la identidad `bias-monitoring-job` | Q4 |
+| U1 `flows.yaml` (`http_routes.governance-service` genera la `AuthorizationPolicy` de la ruta `freeze`; desde 2026-11-01, no la entrega U4); INF-U4-04 y plan de U4, Paso 16 | La ruta `POST /v1/models/{id}/freeze` admite solo la identidad `bias-monitoring-job` | Q4 |
 | U1 `flows.yaml` y plan de U1 (Pasos 3 y 6) | F27 solo desde los pods del CronJob; aporte de U9 a la cuota de `vectra-app` | Q1, Q4 |
-| Monorepo y repositorio GitOps (`CODEOWNERS`); U4 `branch-protection-check` | `values-monitoring-policy.yaml` asignado al equipo de cumplimiento en los dos repositorios; el check verifica la protección de los dos | Q3; revisión del FD de U10, 2026-10-10, A5 |
+| `.github/CODEOWNERS` del monorepo; U4 `branch-protection-check` | `values-monitoring-policy.yaml` asignado al equipo de cumplimiento con una regla de ruta; el check verifica la protección de `main` | Q3; revisión del FD de U10, 2026-10-10, A5; revisión de consistencia entre unidades, 2026-11-01 |
 | U10 (pendiente) | Embeber `bias.json`; el lint de frases prohibidas cubre ese JSON | Q5 |
 | U9 chart y plan (Paso 12); U12 INF-U12-02 | Job `x04-probe-<runId>` solo en kind, con `probes.runId` y `conftest`; etiqueta de F27 `vectra.io/workload: bias-monitoring-job` | Infrastructure Design de U12; pendientes consolidados, 2026-10-10 |
 

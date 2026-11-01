@@ -41,13 +41,13 @@ Recalculado en la revisión de coherencia entre unidades, 2026-10-10: la versió
 
 ### INF-U7-03 — Drenaje antes de terminar
 - `lifecycle.preStop.sleep.seconds: 5`. Es la acción `sleep` nativa de Kubernetes (habilitada desde 1.30, el mínimo de U1), así que no hace falta un binario `sleep` en la imagen. Da tiempo a que Linkerd y los `Endpoints` dejen de enviar tráfico al pod.
-- Al recibir `SIGTERM`, uvicorn deja de aceptar conexiones y espera las solicitudes en curso con `timeout_graceful_shutdown = 10`.
+- El proceso arranca con `vectra_common.ops_server.run_service(app)`. Al recibir `SIGTERM`, uvicorn deja de aceptar conexiones y espera las solicitudes en curso con `timeout_graceful_shutdown = 10`, que debe fijar `ops_server` de U0, no el comando del contenedor; hoy `serve` no lo fija (revisión de consistencia entre unidades, 2026-11-01).
 - `terminationGracePeriodSeconds: 20`, que cubre 5 + 10 + margen y supera el peor caso de 6,1 s de P-U7-02.
 - El proxy nativo de Linkerd termina después del contenedor de la app (sidecar nativo).
 - Igual en explainability, aunque su peor caso sea de 700 ms.
 - **Resultado**: un despliegue, un escalado hacia abajo o un desalojo voluntario no abandona un append, así que no produce entradas `recommendation` no entregadas (P-U7-03). Esas entradas quedan reservadas para fallas reales del registro.
 - **Verificación**:
-  - `conftest`: `preStop.sleep`, `terminationGracePeriodSeconds ≥ 20` y el parámetro de uvicorn en el comando del contenedor;
+  - `conftest`: `preStop.sleep`, `terminationGracePeriodSeconds ≥ 20` (revisión de consistencia entre unidades, 2026-11-01);
   - prueba de integración: con un registro doble que responde a los 3 s, se envía `SIGTERM` al proceso a los 0,5 s y la solicitud termina con `Recommendation` y `registry_entry_id`;
   - en kind (operador): un `rollout restart` de scoring durante la prueba de carga deja `vectra_registry_append_abandoned_total` en 0.
 - **Satisface**: RESILIENCY-04 (despliegue sin pérdida de solicitudes), RESILIENCY-10; AUTONOMIA-06; P-U7-03.

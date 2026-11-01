@@ -1,0 +1,72 @@
+# Evidencia de cada PR de infraestructura (NFR-U1-42): helm template, kubectl diff contra kind, pruebas con la semilla
+# de PBT, reporte de vulnerabilidades y SBOM. El kind es efimero y solo se lee: nunca se aplica nada ni se instalan CRDs.
+name: evidence
+on:
+  workflow_call:
+    inputs:
+      runner: { type: string, default: ubuntu-24.04 }
+permissions: { contents: read }
+jobs:
+  evidence:
+    runs-on: ${{ inputs.runner }}
+    defaults: { run: { working-directory: vectra-risk } }
+    env:
+      PBT_SEED: ${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@c7f87aa956e4c323abf06d5dec078e358f6b4d04 # v6.0.0
+      - uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+      - run: uv sync --frozen
+      - uses: ./.github/actions/setup-helm
+      - name: helm template
+        run: |
+          make -C platform charts render
+          mkdir -p evidence/helm-template
+          cp -r platform/rendered/. evidence/helm-template/
+      - name: Diff contra el kind efimero del propio workflow (solo lectura)
+        run: |
+          mkdir -p evidence/kubectl-diff
+          existing=()
+          for namespace in $(kubectl get namespaces -o name); do existing+=(--namespace "$namespace"); done
+          # Limite: sin CRDs ni namespaces de Vectra solo se evaluan los tipos del nucleo que el kind admite.
+          # Lo excluido queda en evidence/kubectl-diff/resources/limits.txt.
+          uv run python platform/tests/core_resources.py platform/rendered/kind/*.yaml --out evidence/kubectl-diff/resources "${existing[@]}"
+          failed=0
+          for file in evidence/kubectl-diff/resources/*.yaml; do
+            # 0 sin cambios, 1 con cambios, mas de 1 error: un error no es evidencia y hace fallar el job.
+            code=0; kubectl diff --server-side=false -f "$file" > "evidence/kubectl-diff/$(basename "$file").diff" 2>&1 || code=$?
+            echo "$file: $code" >> evidence/kubectl-diff/exit-codes.txt
+            if [ "$code" -gt 1 ]; then failed=1; cat "evidence/kubectl-diff/$(basename "$file").diff"; fi
+          done
+          exit "$failed"
+      - name: Pruebas con la semilla de PBT registrada
+        if: always()
+        run: |
+          echo "$PBT_SEED" > evidence/pbt-seed.txt
+          uv run pytest platform -q -p no:cacheprovider --rootdir=platform --import-mode=importlib \
+            --hypothesis-seed="$PBT_SEED" --junit-xml=evidence/junit.xml -o junit_suite_name="pbt-seed-$PBT_SEED"
+      - uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
+        if: always()
+        with:
+          version: v0.76.1 # la de omision de la accion (v0.64.1) ya no esta publicada
+          scan-type: fs
+          scan-ref: vectra-risk
+          scanners: vuln,misconfig,secret
+          severity: CRITICAL,HIGH
+          exit-code: "0" # el bloqueo es de supply-chain.yml; aqui solo se registra
+          timeout: 15m # el analisis de manifiestos no termina en los 5 min por omision
+          trivyignores: vectra-risk/.trivyignore
+          format: table
+          output: vectra-risk/evidence/trivy-report.txt
+          skip-dirs: vectra-risk/evidence,vectra-risk/platform/policies/kyverno/fixtures,vectra-risk/platform/policies/rego/tests
+      - uses: anchore/sbom-action@7b36ad622f042cab6f59a75c2ac24ccb256e9b45 # v0.20.4
+        if: always()
+        with:
+          path: vectra-risk
+          format: spdx-json
+          output-file: vectra-risk/evidence/sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with: { name: evidence, path: vectra-risk/evidence }

@@ -87,5 +87,6 @@ Grafana presenta los dashboards de producto.
 
 La SPA hace el login OIDC con PKCE contra Keycloak. El gateway valida el JWT. El BFF
 autoriza por función y por objeto. Cada servicio vuelve a validar el JWT y el rol o
-scope: el de usuario propagado, o el de servicio obtenido por client credentials con
+scope: el de usuario propagado, o el de servicio obtenido por client credentials
+(`vectra_common.service_token.provider_from_env`; revisión de consistencia entre unidades, 2026-11-01) con
 scopes mínimos (p. ej. `governance:freeze` solo para `bias-monitoring-job`, el CronJob de U9; el servicio HTTP de bias no lo tiene; quinta revisión del FD de U9, 2026-10-10).

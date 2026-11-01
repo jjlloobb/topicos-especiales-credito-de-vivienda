@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: linkerd-crds
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
+spec:
+  project: vectra-staging
+  sources:
+  - repoURL: https://charts.banco.internal/vectra
+    chart: linkerd-crds
+    targetRevision: 2026.10.2
+  - repoURL: https://git.banco.internal/vectra/vectra-risk.git
+    targetRevision: main
+    ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: linkerd
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true
+    - CreateNamespace=true

@@ -1,0 +1,16 @@
+{{- range .Values.meshed }}
+{{- if or $.Values.mockEnabled (ne . "vectra-mock") }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ . }}
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    vectra.io/mesh: enabled
+  annotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/default-inbound-policy: deny
+    config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+{{- end }}
+{{- end }}

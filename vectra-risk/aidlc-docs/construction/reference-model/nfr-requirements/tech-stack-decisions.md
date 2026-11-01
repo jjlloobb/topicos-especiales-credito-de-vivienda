@@ -15,7 +15,7 @@ pinneadas en `uv.lock`.
 | Envolvente (`confidence`) | numpy y biblioteca estándar; librería compartida con U6 | CI y predictor de U6 (runtime) | Q4, BR-U5-12 |
 | Disparidad | Librería de U9 (doble mientras no exista) | CI | FD |
 | PBT | Hypothesis, pytest | CI | U0 |
-| Publicación | `oras` (OCI), Cosign *keyless*, Syft (SBOM), attestation de procedencia | CI | Q1 |
+| Publicación | `oras` (OCI), Cosign con llave (revisión de consistencia entre unidades, 2026-11-01), Syft (SBOM), attestation de procedencia | CI | Q1 |
 | Ejecución | GitHub Actions, runner estándar (4 vCPU, 16 GiB) | CI | Q3 |
 
 ## Descartado

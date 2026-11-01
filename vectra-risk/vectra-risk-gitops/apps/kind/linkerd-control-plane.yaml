@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: linkerd-control-plane
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '1'
+spec:
+  project: vectra-kind
+  sources:
+  - repoURL: https://helm.linkerd.io/edge
+    chart: linkerd-control-plane
+    targetRevision: 2026.10.2
+    helm:
+      valueFiles:
+      - $values/vectra-risk/platform/mesh/linkerd-values.yaml
+  - repoURL: https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda.git
+    targetRevision: main
+    ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: linkerd
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true
+    - CreateNamespace=true

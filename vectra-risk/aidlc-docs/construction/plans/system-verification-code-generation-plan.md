@@ -17,7 +17,7 @@
 | Verifica de extremo a extremo | US-101, 106, 109, 111, 303, 305, 603, 604 (mapa de domain-entities §4.2) y las demos de US-304, 503, 504 y 505 |
 | Ubicación | `vectra-risk/system-verification/`; no hay Applications ni recursos en el clúster |
 | Datos propios | Ninguno en el clúster; evidencias en el monorepo por PR |
-| Depende de | U0 (`vectra_contracts`), U1 (suite de conectividad, binding K16, F07 desde fuera, F111), U2 (`channel-simulator`, `verification-reader`, usuarios sintéticos `analista-1`, `analista-2`, `ingeniero-1`, `cro-1`, `cumplimiento-1`), U3 (`x06-probe`, proyecciones `metrics` y `monitoring_freezes`; la `monitoring` está retirada, revisión de coherencia entre unidades, 2026-10-10), U4 (reactivación por el BFF en RT-2), U6 (digests de los `InferenceService`), U5 (partición `test` y manifiesto adversarial), U7, U8 (Job de RT-5, BFF de casos, scripts k6), U9 (`x04-probe`), U10 (BFF y perfil de carga), U11 (métricas y dashboard) |
+| Depende de | U0 (`vectra_contracts`), U1 (suite de conectividad, binding K16, F07 desde fuera, F111), U2 (`channel-simulator`, `verification-reader`, usuarios sintéticos `analista-1`, `analista-2`, `ingeniero-1`, `cro-1`, `cumplimiento-1`), U4 (`promotion-tool`, F08, lo ejecuta el operador), U3 (`x06-probe`, proyecciones `metrics` y `monitoring_freezes`; la `monitoring` está retirada, revisión de coherencia entre unidades, 2026-10-10), U4 (reactivación por el BFF en RT-2), U6 (digests de los `InferenceService`), U5 (partición `test` y manifiesto adversarial), U7, U8 (Job de RT-5, BFF de casos, scripts k6), U9 (`x04-probe`), U10 (BFF y perfil de carga), U11 (métricas y dashboard) |
 
 **Diseño de entrada:**
 - Functional Design: `construction/system-verification/functional-design/` (BR-U12-01..13, PBT-U12-01..04, mapa historia → evidencias).
@@ -63,16 +63,16 @@ vectra-risk/system-verification/
   - **Aceptación**: `uv sync --frozen && uv run lint-imports --config system-verification/.importlinter`; `uv run pytest system-verification/tests/unit/test_kubectl_verbs.py` (un fixture con `kubectl apply` → falla).
 
 - [ ] **Paso 2 — Barrera de entorno, credenciales y filtro de evidencias**
-  - `guard`: lista de `issuer` y hosts de kind y staging; secciones permitidas por entorno (staging: `decisions` ≤ 100, lectura de `u11`, `report`); `decisions` no empieza después de las 23:00 UTC.
-  - `credentials`: lee del Vault de kind (o la bóveda de staging) con la sesión del operador, en las rutas que usa ESO, la llave de `channel-simulator` y de `verification-reader` y las contraseñas y semillas TOTP de los usuarios sintéticos; solo en memoria; TOTP con `pyotp`.
+  - `guard`: lista de `issuer` y hosts de kind y staging; secciones permitidas por entorno (staging: `prepare`, sin parche de Jobs; seguimiento de la quinta revisión de coherencia, 2026-10-31; `decisions` ≤ 100, lectura de `u11`, `report`); `decisions` no empieza después de las 23:00 UTC.
+  - `credentials`: lee del Vault de kind (o la bóveda de staging) con la sesión del operador, en las rutas que usa ESO, la llave de `channel-simulator` y de `verification-reader` y las contraseñas y semillas TOTP de los usuarios sintéticos, salvo las de `cumplimiento-*` fuera de kind (excepción de FR-BIA-05; seguimiento de la cuarta revisión de coherencia, 2026-10-31); solo en memoria; TOTP con `pyotp`.
   - `evidence`: filtro que quita `Authorization`, tokens, cookies y semillas; falla si una salida contiene un JWT o una semilla.
   - Diseño: NFR-U12-03, 04, 05, 32; INF-U12-01.
-  - **Aceptación**: `uv run pytest system-verification/tests/unit/test_guard.py test_credentials.py test_evidence_filter.py`: `issuer` o host de producción simulados → error y cero solicitudes; `rt2` en staging → se niega; `decisions` a las 22:30 UTC con reloj simulado → se niega; ningún archivo escrito con credenciales; evidencia con un JWT → la generación falla.
+  - **Aceptación**: `uv run pytest system-verification/tests/unit/test_guard.py test_credentials.py test_evidence_filter.py`: `issuer` o host de producción simulados → error y cero solicitudes; `rt2` en staging → se niega; en staging, pedir la semilla de `cumplimiento-1` → error sin leer la bóveda, y una reactivación desde la herramienta fuera de la sección `rt2` → error (seguimiento de la cuarta revisión de coherencia, 2026-10-31); `decisions` a las 22:30 UTC con reloj simulado → se niega; ningún archivo escrito con credenciales; evidencia con un JWT → la generación falla.
 
 ### Bloque B — Lógica pura
 
 - [ ] **Paso 3 — `sampler`, `rt2_latency`, `story_map` y `report`**
-  - `sampler`: muestra `normal` y `stratified` (≥ 30 por celda en `region` × `estrato`), determinista con semilla; informa las celdas que no alcanzan.
+  - `sampler`: muestra `normal` y `stratified` (≥ 30 por celda de U9: atributo, grupo y banda), determinista con semilla; informa las celdas que no alcanzan.
   - `rt2_latency`: inicio = menor `recorded_at` de las `recommendation` del lote; fin = `recorded_at` del `freeze`; `passed` ≤ 1 800 s.
   - `story_map`: carga `report/story-map.yaml` y falla ante una historia sin fila o una evidencia desconocida.
   - `report`: `VerificationReport` desde las evidencias y el manifiesto (sin evidencia o con hash distinto → `no ejecutado`; `expected ≠ obtained` → `falla`; historias según el mapa); encabezado con el límite del manifiesto (NFR-U12-21).
@@ -120,9 +120,10 @@ vectra-risk/system-verification/
   - **Aceptación**: `uv run pytest system-verification/tests/unit/test_oracles_rt1_rt4.py`: los oráculos contra respuestas correctas → `pasa` e incorrectas (narrativa distinta, `free_text` alterado, confianza alta) → `falla` (NFR-U12-42).
 
 - [ ] **Paso 8 — RT-2, RT-3 y RT-5**
-  - RT-3: tras cada sync del paquete alterado, solo `FailClosed(version_mismatch)`; cero `recommendation` en la ventana (proyección `metrics`); casos `en_sincronizacion`.
-  - RT-2: tras el sync del modelo proxy, lote `stratified` (la sección se niega si una celda no alcanza 30); espera la entrada `freeze`; los casos nuevos `modelo_congelado`; sigue congelada tras 3 corridas más; reactivación por `cumplimiento-1` con MFA por el BFF; 5 corridas con `rt2_latency`.
-  - **Paquete completo** (revisión del plan de tareas de U12, 2026-10-10; BR-U12-04 y Paso 16 de U9): el oráculo lee la entrada `freeze` por la proyección `monitoring_freezes` (`verification-reader`) y exige un `context_package` válido según `FreezeContext` de U0 §9.4 (`before`, `after`, `last_7_days`, `trigger_attribute`, `implicated`, `affected_volume`, `threshold_pp`, `n_min`), y además `data_sources` e `initial_disparity` presentes y no vacíos (los agrega governance, BR-U9-16). Un paquete al que le falta cualquiera → `falla`.
+  - RT-3 (cuarta revisión de coherencia entre unidades, 2026-10-31): `RT3-a`, `c` y `d`: 422 de U4 al registrar, sin cambio en `serving-config`; `a` y `d`, desplegados por PR sin registrar, no listos con `ModelPackageIntegrityFailed` (quinta revisión de coherencia entre unidades, 2026-10-31). `RT3-b`: `validacion_fallida`; si pasa la validación, se aprueba y se promueve como en RT-2, y da `FailClosed` con `explainer_error` o `feature_dictionary_incomplete`. PR solo de kind que deshabilita F22: `FailClosed` con `timeout` o `explainer_unavailable`, que es la evidencia de `journey-7-3` (quinta revisión de coherencia entre unidades, 2026-10-31). Cero `recommendation` de la versión alterada, y con F22 deshabilitado, de ninguna versión (proyección `metrics`); casos `en_sincronizacion`, o `no_disponible` tras ≈ 15,5 min. `version_mismatch` en runtime lo cubren las pruebas de integración de U7.
+  - RT-2 (cuarta revisión de coherencia entre unidades, 2026-10-31): por cada una de las 5 versiones del proxy, ya aprobadas en `rt2-setup`: PR de promoción y sync; `mark_active` del operador con `promotion-tool` (F08), y la herramienta espera a verla `activo` en `list_models`; PR post-activación de la anterior; lote `stratified` (la sección se niega si una celda no alcanza 30), entrada `freeze`, casos nuevos `modelo_congelado`, reactivación por `cumplimiento-1` con MFA por el BFF, comprobación de que no se recongela y `rt2_latency`. En la primera, además, sigue congelada tras 3 corridas más de bias antes de reactivar. Al final, rollback al modelo de referencia (quinta revisión de coherencia entre unidades, 2026-10-31).
+  - **`rt2-setup`** (quinta revisión de coherencia entre unidades, 2026-10-31): `ingeniero-1` registra las 5 versiones y lanza su validación por el BFF, tras el PR de sus `InferenceService` de staging; `cro-1` las aprueba, distinto de `registered_by`. Termina cuando las 5 están `aprobado`; si una queda en `validacion_fallida`, la sección se niega a seguir.
+  - **Paquete completo** (revisión del plan de tareas de U12, 2026-10-10; BR-U12-04 y Paso 16 de U9): el oráculo lee la entrada `freeze` por la proyección `monitoring_freezes` (`verification-reader`) y exige un `context_package` válido según `FreezeContext` de U0 §9.4 (`before`, `after`, `last_7_days`, `trigger_attribute`, `implicated`, `affected_volume`, `threshold_pp`, `n_min`), y además `data_sources` presente, que puede ir vacía, e `initial_disparity` no vacía (los agrega governance, BR-U9-16; cuarta revisión de coherencia entre unidades, 2026-10-31). Un paquete al que le falta cualquiera → `falla`.
   - RT-5: lee el Job de U8 (`rt5-demo-<runId>`, solo kind, que solo cuenta con el `runId` del manifiesto y un `completionTime` posterior a `started_at`, la misma regla de frescura que X04 y X06; pendientes posteriores al cierre, 2026-10-10): su log con el 403 del proxy (`l5d-proxy-error`), `CoreWriteAttempt` en Prometheus y `vectra_core_write_attempts_total` en 0. Las otras dos identidades las cubre X01; sin `auth can-i` de otras identidades, que exigiría impersonación (pendientes consolidados, 2026-10-10).
   - **Consulta anclada al Job** (pendientes consolidados, segunda tanda, 2026-10-10): la sección `rt5` puede correr horas después del Job, y `CoreWriteAttempt` mira una ventana de 5 min. Por eso el oráculo no consulta «ahora»: toma `t0 = status.startTime` y `t1 = status.completionTime` del Job `rt5-demo-<runId>` y consulta con **`/api/v1/query_range`** (`start`, `end` y `step = 15s`), con expresiones instantáneas válidas; el máximo y la presencia los calcula el oráculo en Python sobre los puntos devueltos, sin rangos `[t0, …]` dentro de PromQL (pendientes abiertos, 2026-10-10):
     - `ALERTS{alertname="CoreWriteAttempt", alertstate="firing"}` en [t0, t1 + 15 min]: al menos un punto;
@@ -130,8 +131,12 @@ vectra-risk/system-verification/
     - `sum(vectra_core_write_attempts_total)` en [`started_at`, ahora]: el máximo de los puntos es 0 (o la serie existe y nunca supera 0);
     - **retención**: `prometheus_tsdb_lowest_timestamp_seconds` (instantánea) ≤ t0; si no, el resultado es `no ejecutado`, nunca `pasa`. Las consultas se guardan en la evidencia (NFR-U12-50).
   - Diseño: BR-U12-04, 07; NFR-U12-11.
-  - **Aceptación**: `uv run pytest system-verification/tests/unit/test_oracles_rt2_rt3_rt5.py` (una sola `recommendation` en RT-3 → `falla`; una corrida de RT-2 de 31 min → `falla` con la medición registrada; un `freeze` sin `data_sources` o sin `initial_disparity`, o con un `FreezeContext` incompleto → `falla`; RT-5 con un 403 sin `l5d-proxy-error` (de la aplicación) → `falla`; RT-5 evaluado 6 h después del Job con un doble de Prometheus que tiene la alerta solo en [t0, t1 + 5 min] → `pasa`, y con la alerta fuera de esa ventana → `falla`; retención que no cubre t0 → `no ejecutado` (pendientes consolidados, segunda tanda, 2026-10-10); la serie de denegaciones **nace en 1** dentro de la ventana y no vuelve a crecer → `pasa`; la serie ausente en la ventana → `falla` (pendientes consolidados, tercera tanda, 2026-10-10); contador del mock > 0 → `falla`; sin `CoreWriteAttempt` → `falla` (pendientes consolidados, 2026-10-10); revisión del plan de tareas de U12, 2026-10-10).
+  - **Aceptación**: `uv run pytest system-verification/tests/unit/test_oracles_rt2_rt3_rt5.py` (una sola `recommendation` en RT-3 → `falla`; `RT3-a` aceptado por U4 → `falla`; sin `FailClosed` de `timeout` o `explainer_unavailable` con F22 deshabilitado → `falla`; una versión reactivada que se recongela el mismo día → `falla`; dos corridas con el mismo `model_version_id` → `falla` (cuarta revisión de coherencia entre unidades, 2026-10-31); una corrida de RT-2 de 31 min → `falla` con la medición registrada; un `freeze` sin el campo `data_sources` o con `initial_disparity` vacía, o con un `FreezeContext` incompleto → `falla`; RT-5 con un 403 sin `l5d-proxy-error` (de la aplicación) → `falla`; RT-5 evaluado 6 h después del Job con un doble de Prometheus que tiene la alerta solo en [t0, t1 + 5 min] → `pasa`, y con la alerta fuera de esa ventana → `falla`; retención que no cubre t0 → `no ejecutado` (pendientes consolidados, segunda tanda, 2026-10-10); la serie de denegaciones **nace en 1** dentro de la ventana y no vuelve a crecer → `pasa`; la serie ausente en la ventana → `falla` (pendientes consolidados, tercera tanda, 2026-10-10); contador del mock > 0 → `falla`; sin `CoreWriteAttempt` → `falla` (pendientes consolidados, 2026-10-10); revisión del plan de tareas de U12, 2026-10-10).
     Además, contra un **Prometheus real** (pendientes abiertos, 2026-10-10): `uv run pytest system-verification/tests/integration/test_rt5_promql.py` levanta Prometheus por digest con Testcontainers sobre un bloque TSDB creado con `promtool tsdb create-blocks-from openmetrics` a partir de fixtures (la serie de denegaciones que nace en 1 y no crece; la alerta solo en [t0, t1 + 5 min]; el contador del mock en 0 y en 1; la evaluación 6 h después). Comprueba que cada expresión del oráculo es aceptada por la API (sin `bad_data`) y que el resultado es `pasa`, `falla` o `no ejecutado` como en los casos con doble. Corre en CI (Paso 16) sin clúster.
+
+- [ ] **Paso 8b — Sección `resilience`** (seguimiento de la quinta revisión de coherencia, 2026-10-31)
+  - Oráculos de `RESTORE-DRILL` y `READINESS` (BR-U12-08b); el operador provoca cada caída y la herramienta lee `kubectl get pods`, `/readyz` por `port-forward` y las respuestas por el gateway.
+  - **Aceptación**: `uv run pytest system-verification/tests/unit/test_oracles_resilience.py`: `governance-db` caída con governance no listo → `falla`; `case-db` caída con case-service listo → `falla`; `verify_chain` distinto de «íntegra» → `falla`; sin evidencia → `no ejecutado`.
 
 - [ ] **Paso 9 — X01–X10**
   - Red: toma la salida de la suite de conectividad de U1 (X01, X02, X05, X07, X08, X09) como evidencia.
@@ -148,8 +153,8 @@ vectra-risk/system-verification/
 
 - [ ] **Paso 11 — Carga (US-609)**
   - `capacity`: asignable de los 4 workers frente a la suma de máximos de los HPA (`vectra-app`, `vectra-edge`, `vectra-serving`) y de KServe, y CPU y memoria libres del host; si no alcanza, `scale = 0,5` y se registra.
-  - `run`: línea base a 5/s; después 20/s + 200 usuarios durante 30 min con los scripts k6 de U7, U8 y U10 en su propio contenedor `grafana/k6` de 2 CPU y 2 GiB, siempre aparte y **lanzado por el operador** (pendientes consolidados, 2026-10-10). Intercambio con la sección `load` (pendientes consolidados, segunda tanda, 2026-10-10):
-    - `load` no lanza contenedores: imprime el comando exacto de `docker run` (digest de `grafana/k6`, límites, red de kind, variables de entorno con la URL y el token de carga, montaje del directorio de evidencias de la verificación) y espera;
+  - `run`: línea base a 5/s; después 20/s + 200 usuarios durante 30 min (cubre NFR-U1-11) con los scripts k6 de U8 y U10, que entran por el gateway (seguimiento de la quinta revisión de coherencia, 2026-10-31), en su propio contenedor `grafana/k6` de 2 CPU y 2 GiB, siempre aparte y **lanzado por el operador** (pendientes consolidados, 2026-10-10). Intercambio con la sección `load` (pendientes consolidados, segunda tanda, 2026-10-10):
+    - `load` no lanza contenedores: imprime el comando exacto de `docker run` (digest de `grafana/k6`, límites, red de kind, variables de entorno con la URL, `tmpfs` con los tokens que `load` renueva cada 240 s y que el filtro de evidencia excluye (seguimiento de la quinta revisión de coherencia, 2026-10-31), montaje del directorio de evidencias de la verificación) y espera;
     - k6 escribe su resumen con `--summary-export` en `evidence/<fecha>-<commit>/load/k6-summary-<runId>.json` del directorio montado;
     - el operador confirma el fin y `load` lee ese resumen, comprueba que el nombre lleva el `runId` del manifiesto y que el archivo es posterior a la impresión del comando, y aplica el oráculo; prueba en `test_load_oracle.py`: resumen ausente o anterior al comando → `no ejecutado`; sin el archivo, o con uno viejo, US-609 sale `no ejecutado`; HPA muestreados cada 30 s (lectura); p95 contra NFR-U7-01..03, NFR-U8-01 y NFR-U10-01; tasa de fail-closed frente a la línea base.
   - Diseño: BR-U12-08; INF-U12-05.
@@ -164,7 +169,7 @@ vectra-risk/system-verification/
   - **Aceptación**: la prueba del Paso 1 sobre `demos/`; `shellcheck system-verification/demos/verify/*.sh`.
 
 - [ ] **Paso 13 — CLI por secciones, manifiesto y `CODEOWNERS`**
-  - `cli`: secciones `prepare`, `network`, `decisions`, `rt1`, `rt4`, `rt5`, `rt3`, `rt2`, `load`, `pii`, `u11`, `report`, en el orden de business-logic-model §2.1, con retoma desde una sección y evidencia al terminar cada una.
+  - `cli`: secciones `prepare`, `network`, `decisions`, `rt1`, `rt4`, `rt5`, `rt3`, `rt2-setup`, `rt2`, `load`, `pii`, `u11`, `resilience`, `report`, en el orden de business-logic-model §2.1, con retoma desde una sección y evidencia al terminar cada una.
   - **`prepare`** (revisión del plan de tareas de U12, 2026-10-10): primera sección, **antes** del PR de los Jobs de prueba. Genera el `runId` de la verificación, escribe el manifiesto inicial con ese `runId` y `started_at = ahora`, y produce el parche de values de kind (`probes.runId`, y el de U8 para RT-5) que el operador usa en el PR. Así los Jobs de prueba terminan **después** de `started_at`, y el oráculo de X04 y X06 (Paso 9) puede aceptarlos. Sin `prepare`, las demás secciones se niegan a correr.
   - `manifest`: `manifest.json` con SHA-256 por archivo, `started_at`, semillas, `generator_version`, digests (leídos del clúster), tamaño de `test` y las **solicitudes repetidas** entre escenarios (misma fila de U5 enviada en dos escenarios, NFR-U12-11); tope de 50 MB.
   - **`runId`** (pendientes posteriores al cierre, 2026-10-10): un solo `runId` por verificación, generado por `prepare` con el formato `AAAAMMDD-HHMM` a partir de `started_at` en UTC, truncado al minuto (el que exige `rebuild-runid-check` de U3; pendientes consolidados, 2026-10-10); es el `probes.runId` de los tres Jobs (`x04-probe-<runId>` de U9, `x06-probe-<runId>` de U3 y `rt5-demo-<runId>` de U8). El manifiesto guarda ese `runId` y los nombres esperados de los tres Jobs; el oráculo de cada uno compara contra ellos.
@@ -184,7 +189,7 @@ vectra-risk/system-verification/
 - [ ] **Paso 15 — Imagen**
   - Python oficial por digest, sin privilegios; incluye `kubectl`, Playwright y su Chromium por versión fijada (el Chromium sin interfaz del login del Paso 5). **k6 no va en esta imagen** (pendientes posteriores al cierre, 2026-10-10): corre en su propio contenedor (`grafana/k6` por digest), con límites de 2 CPU y 2 GiB, que **el operador** lanza en la red de kind con el comando que imprime la sección `load` (Paso 11, INF-U12-05; pendientes consolidados, segunda tanda, 2026-10-10);
   - **sandbox de Chromium** (pendientes posteriores al cierre, 2026-10-10): el contenedor corre como usuario no root con el perfil `seccomp` que publica Playwright para Chromium (`chrome.json`) y espacios de nombres de usuario sin privilegios; **nunca** con `--no-sandbox`. Si el host no los permite, la sección que necesita login termina con un error claro;
-  - la imagen se construye, se escanea, lleva SBOM y se firma con `supply-chain.yml` de U1 (frase separada, pendientes consolidados, 2026-10-10).
+  - la imagen se construye, se escanea, lleva SBOM y se firma con `sign-image.yml` de U1 (frase separada, pendientes consolidados, 2026-10-10).
   - Diseño: INF-U12-01.
   - **Aceptación**: `hadolint system-verification/Dockerfile`; el SBOM lista `kubectl`, Playwright y Chromium con su versión y **no** `k6`; prueba de humo: Chromium arranca con el sandbox activo bajo el perfil `seccomp` (`chrome://sandbox` sin errores).
 
@@ -205,7 +210,7 @@ vectra-risk/system-verification/
   - **Requisito previo**: un PR con los Pasos 1–17 aprobado por un humano, con U1–U11 instalados en kind, el modelo de referencia activo y el binding K16 presente.
   - **Orden** (revisión del plan de tareas de U12, 2026-10-10):
     1. el operador ejecuta `prepare`, que fija el `runId` y el `started_at`;
-    2. abre el PR de los Jobs de prueba con el parche que produjo `prepare` (values de kind de `bias-monitoring`, `decision-registry-rebuild` y `case-management`) y sincroniza las **tres Applications** con prune (pendientes consolidados, 2026-10-10);
+    2. abre el PR de los Jobs de prueba con el parche que produjo `prepare` (`vectra-risk-gitops/values/kind/` de `bias-monitoring`, `decision-registry-rebuild` y `case-management`; revisión de consistencia entre unidades, 2026-11-01) y sincroniza las **tres Applications** con prune (pendientes consolidados, 2026-10-10);
     3. ejecuta las demás secciones en orden, empezando por `network`, que lee los Jobs ya terminados (con `completionTime` posterior a `started_at`).
   - El operador ejecuta todas las secciones en orden, con los PRs preparados de RT-3 y RT-2 y sus reversiones, y el día siguiente la sección `u11`; genera el informe y abre el PR de verificación.
   - Diseño: BR-U12-04..13; NFR-U12-30, 31; INF-U12-01..05. Historias: US-609 y las de domain-entities §4.2.
@@ -227,6 +232,7 @@ vectra-risk/system-verification/
 | US-106 (RT-4), US-109 (RT-1) | 7, 18 |
 | US-111 (RT-3, `journey-7-3`), US-303 (RT-2, `RT2-LATENCY`, `journey-7-4`), US-305 (`journey-7-4`, X03) | 8, 9, 12, 18 |
 | US-603 (RT-5, X01, `rt-5`), US-604 (X02, `LOGS-NO-PII`) | 8, 9, 10, 12, 18 |
+| US-608 (`RESTORE-DRILL`), US-610 (`READINESS`) | 8b, 18 |
 | Demos US-304, 503, 504, 505 | 12, 18 |
 
 | Diseño | Pasos |
@@ -257,3 +263,14 @@ vectra-risk/system-verification/
 | SECURITY-03 / 11 / 12 | Cumple | Pasos 2, 6, 10 |
 | RESILIENCY-09 | Cumple | Paso 11 |
 | PBT-01..10 | Cumple | PBT-U12-01..04 (Pasos 3, 6), perfiles `ci` y `nightly` (Paso 16) y pruebas de ejemplo (Pasos 3, 6–11) |
+
+## Reglas de admisión que este plan debe cumplir (revisión de consistencia entre unidades, 2026-11-01)
+
+Cada chart de esta unidad pasa `make -C platform check-chart CHART=<ruta>` en el PR, con los mismos values que usa Argo CD en cada entorno:
+
+- Imágenes por digest, de un registro que admita `restrict-registries`; las de terceros se espejan.
+- `runAsNonRoot`, `readOnlyRootFilesystem` (con `emptyDir` para lo que escriba en disco), sin `privileged` ni `hostPath`, con recursos y `priorityClassName`.
+- `vectra.io/criticality` en cada `Deployment` y `StatefulSet` que el chart declare.
+- En `vectra-app`, `vectra-edge`, `vectra-identity`, `vectra-serving` y `vectra-mock`: 2 réplicas o más, `topologySpreadConstraints` por zona, PDB por `app.kubernetes.io/name`, y HPA o `vectra.io/hpa-exempt`.
+
+Detalle en `aidlc-docs/construction/shared-infrastructure.md` §2.

@@ -1,0 +1,8 @@
+# INF-U2-02: el data plane corre en el namespace del Gateway (`vectra-edge`), no en `envoy-gateway-system`.
+config:
+  envoyGateway:
+    provider:
+      type: Kubernetes
+      kubernetes:
+        deploy:
+          type: GatewayNamespace

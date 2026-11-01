@@ -153,7 +153,7 @@ casos.
 - **Restricciones**: AUTONOMIA-05; SECURITY-14 (retención ≥ 90 días, tamper-evident); RESILIENCY-05..07.
 
 ## C18 — `delivery` (fuera del runtime)
-- **Propósito**: Helm charts, repositorio GitOps, Argo CD (**sync manual**), workflows de GitHub Actions y **`promotion-tool`** (CLI que un humano ejecuta para convertir una versión aprobada en un PR del repositorio GitOps; el clúster no tiene egress hacia Git).
+- **Propósito**: Helm charts, directorio `vectra-risk-gitops/` del monorepo (revisión de consistencia entre unidades, 2026-11-01), Argo CD (**sync manual**), workflows de GitHub Actions y **`promotion-tool`** (CLI que un humano ejecuta para convertir una versión aprobada en un PR sobre `vectra-risk-gitops/`; el clúster no tiene egress hacia Git).
 - **Restricciones**: AUTONOMIA-01; SECURITY-10, -13; RESILIENCY-03, -04.
 
 ---

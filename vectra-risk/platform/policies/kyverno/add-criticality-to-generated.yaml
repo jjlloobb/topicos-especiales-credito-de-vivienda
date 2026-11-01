@@ -1,0 +1,34 @@
+# Los Deployment que crean KServe y Envoy Gateway no pasan por un chart de la unidad: su etiqueta se agrega aqui.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: add-criticality-to-generated
+  annotations:
+    policies.kyverno.io/description: Criticidad de los Deployment generados por KServe y Envoy Gateway (NFR-U1-01)
+spec:
+  background: false
+  rules:
+    - name: kserve
+      match:
+        any:
+          - resources:
+              kinds: [Deployment]
+              namespaces: [vectra-serving, vectra-staging]
+              selector: { matchExpressions: [{ key: serving.kserve.io/inferenceservice, operator: Exists }] }
+      mutate:
+        patchStrategicMerge:
+          metadata:
+            labels:
+              +(vectra.io/criticality): high
+    - name: envoy-gateway
+      match:
+        any:
+          - resources:
+              kinds: [Deployment]
+              namespaces: [vectra-edge]
+              selector: { matchExpressions: [{ key: gateway.envoyproxy.io/owning-gateway-name, operator: Exists }] }
+      mutate:
+        patchStrategicMerge:
+          metadata:
+            labels:
+              +(vectra.io/criticality): high

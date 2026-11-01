@@ -1,0 +1,23 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-criticality-label
+  annotations:
+    policies.kyverno.io/description: Etiqueta vectra.io/criticality obligatoria
+spec:
+  validationFailureAction: Enforce
+  failurePolicy: Fail
+  background: false
+  rules:
+    - name: require-criticality-label
+      match:
+        any:
+          - resources:
+              kinds: [Deployment, StatefulSet]
+              namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-staging, vectra-data, vectra-mock, vectra-observability, vectra-restore-drill]
+      validate:
+        message: "Etiqueta vectra.io/criticality obligatoria"
+        pattern:
+          metadata:
+            labels:
+              vectra.io/criticality: "critical | high | medium"

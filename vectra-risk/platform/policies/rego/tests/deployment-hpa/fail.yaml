@@ -1,0 +1,26 @@
+# espera: sin-hpa sin HPA en el render
+# espera: hpa-de-otro-tipo sin HPA en el render
+# espera: hpa-de-otro-namespace sin HPA en el render
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: sin-hpa, namespace: vectra-app }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: hpa-de-otro-tipo, namespace: vectra-app }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: x, namespace: vectra-app }
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: StatefulSet, name: hpa-de-otro-tipo }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: hpa-de-otro-namespace, namespace: vectra-app }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: y, namespace: vectra-edge }
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: hpa-de-otro-namespace }

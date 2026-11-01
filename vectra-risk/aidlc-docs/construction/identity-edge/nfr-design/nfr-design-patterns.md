@@ -28,15 +28,15 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 
 | Ruta | Timeout | Reintentos |
 |---|---|---|
-| `/api/console/**` | 15 s | Solo `GET`/`HEAD`: 1 reintento ante `connect-failure` o `503`, presupuesto del 20 % |
+| `/api/console/**` | 15 s | Solo `GET`/`HEAD`: 1 reintento ante `connect-failure`, presupuesto del 20 %. Sin reintento ante `503`: el BFF ya agotó su presupuesto y superaría los 10 s de la SPA (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | `/api/intake/**` | 5 s | **Ninguno** (solo `POST`) |
 | `/api/promotion/**` | 10 s | Solo el `GET`; el `POST` de activación **nunca** |
 | `/auth/**` | 10 s | Solo `GET`/`HEAD` |
 | `/grafana/**` | 30 s | Solo `GET`/`HEAD` |
 
 - **Nunca** se reintentan `POST`, `PUT` ni `PATCH`: un reintento podría duplicar una decisión, una aprobación o una solicitud.
-- **Outlier detection**: 5 errores 5xx consecutivos sacan un pod del balanceo por 30 s, hasta el 50 % de los pods del backend.
-- **Verificación**: `conftest` sobre las `BackendTrafficPolicy` renderizadas (ningún reintento en métodos no idempotentes); en kind, un backend de prueba que devuelve 503 a un `POST` recibe exactamente 1 llamada.
+- **Outlier detection**: 5 errores 5xx consecutivos sacan un pod del balanceo por 30 s, hasta el 50 % de los pods del backend. En `/api/console/**` cuentan **solo los errores de conexión** (`splitExternalLocalOriginErrors` y `consecutiveLocalOriginFailures`), porque un 503 `dependency_unavailable` del BFF no indica un pod enfermo (seguimiento de la cuarta revisión de coherencia, 2026-10-31).
+- **Verificación**: `conftest` sobre las `BackendTrafficPolicy` renderizadas (ningún reintento en métodos no idempotentes; `/api/console/**` no expulsa por 5xx); en kind, un backend de prueba que devuelve 503 a un `POST` recibe exactamente 1 llamada.
 - **Satisface**: RESILIENCY-10; NFR-U2-11.
 
 ### P-U2-03 — JWKS en el gateway (Q5)
@@ -47,7 +47,7 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 - **Satisface**: NFR-U2-05; RESILIENCY-10.
 
 ### P-U2-04 — Keycloak tolerante a fallos
-- 2 réplicas por zona, HPA de 2 a 4, PDB `minAvailable: 1`; Infinispan embebido con `jdbc-ping`; sesiones persistentes en `keycloak-db` (NFR-U2-01, 02).
+- 2 réplicas repartidas por zona, HPA de 2 a 4, PDB `minAvailable: 1`; Infinispan embebido con `jdbc-ping`; sesiones persistentes en `keycloak-db` (NFR-U2-01, 02).
 - Readiness = su base (`keycloak-db`), según P-U1-04. Liveness y readiness en el puerto de gestión (9000), que no se expone en el gateway.
 - Valkey: primaria + réplica + 3 Sentinel repartidos por zona. Un failover de Sentinel dura segundos y reinicia los contadores, lo que se acepta porque son efímeros.
 - **Verificación**: escenario NFR-U2-02 en kind; borrar la primaria de Valkey → Sentinel promueve la réplica y el rate limit se recupera.
@@ -57,7 +57,7 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 ### P-U2-05 — Rotación de las llaves de firma (Q3)
 - Cada 90 días se agrega por realm como código una llave nueva (RS256 o ES256) con mayor prioridad, que pasa a firmar.
 - La anterior queda **pasiva** (publicada en JWKS, sin firmar) durante 24 h y después se desactiva.
-- Runbook `signing-key-rotation.md`. Alerta `SigningKeyAgeHigh` (SEV3) a los 80 días, calculada desde la fecha de creación de la llave activa que expone un exportador.
+- Runbook `signing-key-rotation.md`. Alerta `SigningKeyAgeHigh` (SEV3) a los 80 días, calculada desde la fecha de creación de la llave activa que publica el CronJob `signing-key-age` (seguimiento de la quinta revisión de coherencia, 2026-10-31).
 - **Verificación**: en kind, rotación con tokens emitidos antes y después: los dos se aceptan durante el solapamiento y el anterior se rechaza tras desactivar la llave.
 - **Satisface**: SECURITY-12; NFR-U2-24.
 
@@ -100,13 +100,13 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 | `RateLimitBackendDown` | SEV2 | Servicio de rate limit o Valkey sin respuesta (con `/auth/**` en fail-closed) |
 | `AuthDeniedBurst` | SEV2 | Eventos de Keycloak + 401/403 de U0 |
 | `BreakGlassLogin` | SEV1 | Evento de login del usuario `break-glass` |
-| `RealmDrift` | SEV2 | CronJob de comparación del realm |
+| `RealmDrift` | SEV2 | `vectra_realm_drift > 0`, que el CronJob de comparación empuja al Pushgateway (F112; cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | `RoleConflict` | SEV2 | Evento de la federación LDAP |
-| `SigningKeyAgeHigh` | SEV3 | Exportador de antigüedad de llaves |
+| `SigningKeyAgeHigh` | SEV3 | Métrica de `signing-key-age`, en el Pushgateway (F112, `/metrics/job/signing-key-age`; revisión de consistencia entre unidades, 2026-11-01) |
 | `LdapUnavailable` | SEV2 | Fallos de conexión de la federación LDAP (solo prod; agregado en INF-U2-07) |
-| `GatewayHighLatency` | SEV3 | Sobrecosto de p95 > 5 ms sostenido 15 min (NFR-U2-11) |
+| `GatewayHighLatency` | SEV3 | Diferencia entre el p95 de la latencia de Envoy hacia el cliente y el p95 hacia el backend > 5 ms sostenida 15 min. Es una aproximación: NFR-U2-11 se mide con la prueba con y sin gateway (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 
-- Keycloak expone métricas en el puerto de gestión (9000); Envoy y el servicio de rate limit, sus estadísticas. Todos llevan `ServiceMonitor` y su flujo de scrape en `flows.yaml`.
+- Keycloak expone métricas en el puerto de gestión (9000); Envoy y el servicio de rate limit, sus estadísticas. Todos llevan `ServiceMonitor`. F60 solo abre el 8081 en `vectra-edge`: U2 agrega por PR a `flows.yaml` el flujo de cada puerto de estadísticas cuando lo fije (revisión de consistencia entre unidades, 2026-11-01).
 - Toda alerta tiene `runbook_url` (P-U1-10).
 - **Verificación**: `promtool test rules identity-edge/observability/rules/tests/*.yaml` (cada alerta se dispara con series sintéticas) y el test de runbooks de U1 (`severity` válida y `runbook_url` hacia un archivo existente).
 

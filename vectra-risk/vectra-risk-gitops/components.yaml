@@ -1,0 +1,51 @@
+# Unica fuente de las Applications (P-U1-12). `python vectra-risk-gitops/generate.py` las escribe.
+# Las versiones de chart se tomaron de cada repositorio el 2026-10-31; ninguna se ha instalado aun.
+git:
+  kind: https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda.git
+  staging: https://git.banco.internal/vectra/vectra-risk.git # POR CONFIRMAR con el banco
+  prod: https://git.banco.internal/vectra/vectra-risk.git # POR CONFIRMAR con el banco
+chart_mirror: https://charts.banco.internal/vectra # POR CONFIRMAR con el banco; staging y prod
+system_namespaces: [cert-manager, cnpg-system, external-secrets, kyverno, linkerd, linkerd-cni, envoy-gateway-system, kserve, argocd, vault]
+# Valores de una unidad: `vectra-risk-gitops/values/<env>/<componente>.yaml` se agrega solo; `generate.py` no lo borra.
+components:
+  - { name: cert-manager, wave: 0, namespace: cert-manager, repo: "https://charts.jetstack.io", chart: cert-manager, version: v1.21.3, values: [platform/operators/cert-manager.yaml], kind_values: [platform/operators/cert-manager-kind.yaml] }
+  - { name: trust-manager, wave: 0, namespace: cert-manager, repo: "https://charts.jetstack.io", chart: trust-manager, version: v0.26.0, values: [platform/mesh/trust-manager-values.yaml] }
+  - { name: cloudnative-pg, wave: 0, namespace: cnpg-system, repo: "https://cloudnative-pg.github.io/charts", chart: cloudnative-pg, version: 0.29.1, values: [platform/operators/cloudnative-pg.yaml], kind_values: [platform/operators/cloudnative-pg-kind.yaml] }
+  - { name: external-secrets-rbac, wave: 0, namespace: external-secrets, path: platform/secrets, include: eso-rbac-cluster.yaml }
+  - { name: external-secrets, wave: 0, namespace: external-secrets, repo: "https://charts.external-secrets.io", chart: external-secrets, version: 2.14.0, values: [platform/operators/external-secrets.yaml], kind_values: [platform/operators/external-secrets-kind.yaml] }
+  - { name: kyverno, wave: 0, namespace: kyverno, repo: "https://kyverno.github.io/kyverno", chart: kyverno, version: 3.9.2, values: [platform/operators/kyverno.yaml], kind_values: [platform/operators/kyverno-kind.yaml] }
+  - { name: linkerd-crds, wave: 0, namespace: linkerd, repo: "https://helm.linkerd.io/edge", chart: linkerd-crds, version: 2026.10.2 }
+  - { name: linkerd-cni, wave: 0, namespace: linkerd-cni, repo: "https://helm.linkerd.io/edge", chart: linkerd2-cni, version: 2026.10.2 }
+  - { name: prometheus-operator-crds, wave: 0, namespace: vectra-observability, repo: "https://prometheus-community.github.io/helm-charts", chart: prometheus-operator-crds, version: 32.0.2 }
+  - { name: envoy-gateway, wave: 0, namespace: envoy-gateway-system, repo: "docker.io/envoyproxy", chart: gateway-helm, version: v1.9.3, values: [platform/operators/envoy-gateway.yaml] }
+  - { name: kserve-crd, wave: 0, namespace: kserve, repo: "ghcr.io/kserve/charts", chart: kserve-crd, version: v0.21.0 }
+  - { name: kserve, wave: 0, namespace: kserve, repo: "ghcr.io/kserve/charts", chart: kserve-resources, version: v0.21.0, values: [platform/operators/kserve.yaml] }
+  - { name: argo-cd, wave: 0, namespace: argocd, repo: "https://argoproj.github.io/argo-helm", chart: argo-cd, version: 10.11.6, values: [platform/operators/argo-cd.yaml], kind_values: [platform/operators/argo-cd-kind.yaml] }
+  - { name: vault, wave: 0, namespace: vault, envs: [kind], repo: "https://helm.releases.hashicorp.com", chart: vault, version: 0.34.1, values: [platform/operators/vault-kind.yaml] }
+  - { name: mesh-certificates, wave: 1, namespace: linkerd, path: platform/mesh, include: certificates.yaml }
+  - { name: linkerd-control-plane, wave: 1, namespace: linkerd, repo: "https://helm.linkerd.io/edge", chart: linkerd-control-plane, version: 2026.10.2, values: [platform/mesh/linkerd-values.yaml] }
+  - { name: kyverno-context-rbac, wave: 1, namespace: kyverno, path: platform/policies/rbac, include: kyverno-context.yaml }
+  - { name: kyverno-policies, wave: 1, namespace: kyverno, path: platform/policies/kyverno, exclude: "{kyverno-test.yaml,README.md,verify-images.yaml}" }
+  # Sin llave real rechaza toda imagen propia. En kind no se instala: firmas y llave se prueban en el Paso 20 con su PR.
+  - { name: verify-images, wave: 1, namespace: kyverno, envs: [staging, prod], path: platform/policies/kyverno, include: verify-images.yaml }
+  - { name: priority-classes, wave: 1, namespace: argocd, path: platform/policies, include: priority-classes.yaml }
+  - { name: namespaces, wave: 1, namespace: argocd, path: platform/namespaces, env_values: true }
+  - { name: quotas, wave: 1, namespace: argocd, path: platform/policies/quotas, include: generated.yaml }
+  - { name: network, wave: 1, namespace: argocd, path: "platform/network/generated/{env}", exclude: connectivity-suite.yaml }
+  - { name: secret-store, wave: 1, namespace: external-secrets, path: platform/secrets, include: "{cluster-secret-store-{env}.yaml,eso-rbac-k11.yaml}" }
+  - { name: secret-store-env, wave: 1, namespace: external-secrets, envs: [kind, staging], path: platform/secrets, include: "eso-rbac-k11-{env}.yaml" }
+  - { name: verification-operator, wave: 1, namespace: argocd, envs: [kind, staging], path: platform/rbac/verification-operator, include: k16.yaml }
+  - { name: postgres, wave: 2, namespace: vectra-data, path: platform/data/chart, env_values: true, kind_values: [platform/data/chart/values-kind.yaml] }
+  - { name: minio, wave: 2, namespace: vectra-data, repo: "https://charts.min.io", chart: minio, version: 5.4.0, values: [platform/data/minio/values.yaml], kind_values: [platform/data/minio/values-kind.yaml] }
+  - { name: grafana-secrets, wave: 3, namespace: vectra-observability, path: platform/observability/grafana, include: external-secrets.yaml }
+  - { name: kube-prometheus-stack, wave: 4, namespace: vectra-observability, repo: "https://prometheus-community.github.io/helm-charts", chart: kube-prometheus-stack, version: 92.17.0, values: [platform/observability/values/kube-prometheus-stack.yaml], kind_values: [platform/observability/values/kube-prometheus-stack-kind.yaml] }
+  - { name: loki, wave: 4, namespace: vectra-observability, repo: "https://grafana.github.io/helm-charts", chart: loki, version: 7.5.0, values: [platform/observability/values/loki.yaml], kind_values: [platform/observability/values/loki-kind.yaml] }
+  - { name: tempo, wave: 4, namespace: vectra-observability, repo: "https://grafana.github.io/helm-charts", chart: tempo-distributed, version: 1.61.3, values: [platform/observability/values/tempo.yaml], kind_values: [platform/observability/values/tempo-kind.yaml] }
+  - { name: alloy, wave: 4, namespace: vectra-observability, repo: "https://grafana.github.io/helm-charts", chart: alloy, version: 1.15.0, values: [platform/observability/values/alloy.yaml], kind_values: [platform/observability/values/alloy-kind.yaml] }
+  - { name: pushgateway, wave: 4, namespace: vectra-observability, repo: "https://prometheus-community.github.io/helm-charts", chart: prometheus-pushgateway, version: 3.10.1, values: [platform/observability/values/pushgateway.yaml] }
+  - { name: otel-collector, wave: 4, namespace: vectra-observability, repo: "https://open-telemetry.github.io/opentelemetry-helm-charts", chart: opentelemetry-collector, version: 0.178.1, values: [platform/observability/values/otel-collector.yaml], kind_values: [platform/observability/values/otel-collector-kind.yaml] }
+  - { name: observability-monitors, wave: 4, namespace: vectra-observability, path: platform/observability/monitors, include: monitors.yaml }
+  - { name: observability-rules, wave: 4, namespace: vectra-observability, path: platform/observability/rules, include: platform-rules.prometheusrule.yaml }
+  - { name: grafana-config, wave: 4, namespace: vectra-observability, path: platform/observability/grafana, include: manifests.yaml }
+  - { name: grafana-dashboards, wave: 4, namespace: vectra-observability, path: platform/observability/dashboards }
+  - { name: restore-drill, wave: 5, namespace: vectra-restore-drill, path: platform/restore-drill, include: "{cronjob.yaml,configmap-{env}.yaml}" }

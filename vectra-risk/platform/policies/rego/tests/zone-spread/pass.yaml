@@ -1,0 +1,8 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: repartido, namespace: vectra-app }
+spec:
+  template:
+    spec:
+      topologySpreadConstraints:
+        - topologyKey: topology.kubernetes.io/zone

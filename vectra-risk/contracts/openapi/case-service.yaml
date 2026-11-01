@@ -1,0 +1,1277 @@
+components:
+  schemas:
+    ApplicationIn:
+      additionalProperties: false
+      properties:
+        address:
+          maxLength: 300
+          title: Address
+          type: string
+        birth_date:
+          format: date
+          title: Birth Date
+          type: string
+        broker_id:
+          anyOf:
+          - maxLength: 40
+            type: string
+          - type: 'null'
+          default: null
+          title: Broker Id
+        channel:
+          maxLength: 40
+          title: Channel
+          type: string
+        department_code:
+          pattern: ^\d{2}$
+          title: Department Code
+          type: string
+        document_number:
+          maxLength: 15
+          title: Document Number
+          type: string
+        document_type:
+          enum:
+          - CC
+          - CE
+          - PA
+          - PPT
+          title: Document Type
+          type: string
+        email:
+          maxLength: 254
+          title: Email
+          type: string
+        employment_months:
+          maximum: 720
+          minimum: 0
+          title: Employment Months
+          type: integer
+        employment_type:
+          enum:
+          - asalariado
+          - independiente
+          - pensionado
+          title: Employment Type
+          type: string
+        free_text:
+          anyOf:
+          - maxLength: 2000
+            type: string
+          - type: 'null'
+          default: null
+          title: Free Text
+        full_name:
+          maxLength: 200
+          title: Full Name
+          type: string
+        max_days_past_due_12m:
+          maximum: 365
+          minimum: 0
+          title: Max Days Past Due 12M
+          type: integer
+        monthly_income:
+          maximum: 1000000000000
+          minimum: 0
+          title: Monthly Income
+          type: integer
+        monthly_obligations:
+          maximum: 1000000000000
+          minimum: 0
+          title: Monthly Obligations
+          type: integer
+        municipality_code:
+          pattern: ^\d{5}$
+          title: Municipality Code
+          type: string
+        other_income:
+          maximum: 1000000000000
+          minimum: 0
+          title: Other Income
+          type: integer
+        phone:
+          maxLength: 20
+          title: Phone
+          type: string
+        property_condition:
+          enum:
+          - nueva
+          - usada
+          title: Property Condition
+          type: string
+        property_value:
+          maximum: 1000000000000
+          minimum: 0
+          title: Property Value
+          type: integer
+        proposed_rate_ea:
+          pattern: ^-?\d+\.\d{4}$
+          title: Proposed Rate Ea
+          type: string
+        requested_amount:
+          maximum: 1000000000000
+          minimum: 0
+          title: Requested Amount
+          type: integer
+        sex:
+          default: no_informado
+          enum:
+          - F
+          - M
+          - no_informado
+          title: Sex
+          type: string
+        socioeconomic_stratum:
+          default: no_informado
+          enum:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - no_informado
+          title: Socioeconomic Stratum
+          type: string
+        term_months:
+          maximum: 360
+          minimum: 12
+          title: Term Months
+          type: integer
+      required:
+      - full_name
+      - document_type
+      - document_number
+      - birth_date
+      - phone
+      - email
+      - address
+      - municipality_code
+      - department_code
+      - monthly_income
+      - other_income
+      - employment_type
+      - employment_months
+      - monthly_obligations
+      - max_days_past_due_12m
+      - property_value
+      - requested_amount
+      - term_months
+      - proposed_rate_ea
+      - property_condition
+      - channel
+      title: ApplicationIn
+      type: object
+    ApplicationView:
+      additionalProperties: false
+      description: '`ApplicationIn` sin identificacion y sin etiquetas de monitoreo
+        (§1.2).'
+      properties:
+        broker_id:
+          anyOf:
+          - maxLength: 40
+            type: string
+          - type: 'null'
+          default: null
+          title: Broker Id
+        channel:
+          maxLength: 40
+          title: Channel
+          type: string
+        department_code:
+          pattern: ^\d{2}$
+          title: Department Code
+          type: string
+        employment_months:
+          maximum: 720
+          minimum: 0
+          title: Employment Months
+          type: integer
+        employment_type:
+          enum:
+          - asalariado
+          - independiente
+          - pensionado
+          title: Employment Type
+          type: string
+        free_text:
+          anyOf:
+          - maxLength: 2000
+            type: string
+          - type: 'null'
+          default: null
+          title: Free Text
+        max_days_past_due_12m:
+          maximum: 365
+          minimum: 0
+          title: Max Days Past Due 12M
+          type: integer
+        monthly_income:
+          maximum: 1000000000000
+          minimum: 0
+          title: Monthly Income
+          type: integer
+        monthly_obligations:
+          maximum: 1000000000000
+          minimum: 0
+          title: Monthly Obligations
+          type: integer
+        other_income:
+          maximum: 1000000000000
+          minimum: 0
+          title: Other Income
+          type: integer
+        property_condition:
+          enum:
+          - nueva
+          - usada
+          title: Property Condition
+          type: string
+        property_value:
+          maximum: 1000000000000
+          minimum: 0
+          title: Property Value
+          type: integer
+        proposed_rate_ea:
+          pattern: ^-?\d+\.\d{4}$
+          title: Proposed Rate Ea
+          type: string
+        requested_amount:
+          maximum: 1000000000000
+          minimum: 0
+          title: Requested Amount
+          type: integer
+        term_months:
+          maximum: 360
+          minimum: 12
+          title: Term Months
+          type: integer
+      required:
+      - department_code
+      - monthly_income
+      - other_income
+      - employment_type
+      - employment_months
+      - monthly_obligations
+      - max_days_past_due_12m
+      - property_value
+      - requested_amount
+      - term_months
+      - proposed_rate_ea
+      - property_condition
+      - channel
+      title: ApplicationView
+      type: object
+    CaseDetail:
+      additionalProperties: false
+      properties:
+        anonymized:
+          title: Anonymized
+          type: boolean
+        applicant_display:
+          title: Applicant Display
+          type: string
+        application:
+          $ref: '#/components/schemas/ApplicationView'
+        attempts:
+          title: Attempts
+          type: integer
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        channel:
+          maxLength: 40
+          title: Channel
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        credit_status:
+          anyOf:
+          - $ref: '#/components/schemas/CreditStatus'
+          - type: 'null'
+          default: null
+        decision:
+          anyOf:
+          - $ref: '#/components/schemas/DecisionView'
+          - type: 'null'
+          default: null
+        identifiers:
+          anyOf:
+          - $ref: '#/components/schemas/CaseIdentifierGroup'
+          - type: 'null'
+          default: null
+        last_cause:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Last Cause
+        model_frozen_after_recommendation:
+          title: Model Frozen After Recommendation
+          type: boolean
+        outcome:
+          anyOf:
+          - $ref: '#/components/schemas/Outcome'
+          - type: 'null'
+          default: null
+        recommendation:
+          anyOf:
+          - $ref: '#/components/schemas/Recommendation'
+          - type: 'null'
+          default: null
+        recommendation_entry_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Recommendation Entry Id
+        score:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Score
+        state:
+          $ref: '#/components/schemas/CaseState'
+      required:
+      - case_id
+      - state
+      - channel
+      - created_at
+      - applicant_display
+      - application
+      - model_frozen_after_recommendation
+      - anonymized
+      - attempts
+      title: CaseDetail
+      type: object
+    CaseFilter:
+      additionalProperties: false
+      properties:
+        channel: &id001
+          anyOf:
+          - maxLength: 40
+            type: string
+          - type: 'null'
+          default: null
+          title: Channel
+        created_from: &id002
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Created From
+        created_to: &id003
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Created To
+        model_frozen_after_recommendation: &id004
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          title: Model Frozen After Recommendation
+        page: &id005
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+        page_size: &id006
+          default: 20
+          maximum: 100
+          minimum: 1
+          title: Page Size
+          type: integer
+        state: &id007
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/CaseState'
+            type: array
+          - type: 'null'
+          default: null
+          title: State
+      title: CaseFilter
+      type: object
+    CaseIdentifierGroup:
+      additionalProperties: false
+      description: 'Grupo de identificacion de §1.1: nunca sale al registro (BR-U0-95).'
+      properties:
+        address:
+          maxLength: 300
+          title: Address
+          type: string
+        birth_date:
+          format: date
+          title: Birth Date
+          type: string
+        document_number:
+          maxLength: 15
+          title: Document Number
+          type: string
+        document_type:
+          enum:
+          - CC
+          - CE
+          - PA
+          - PPT
+          title: Document Type
+          type: string
+        email:
+          maxLength: 254
+          title: Email
+          type: string
+        full_name:
+          maxLength: 200
+          title: Full Name
+          type: string
+        municipality_code:
+          pattern: ^\d{5}$
+          title: Municipality Code
+          type: string
+        phone:
+          maxLength: 20
+          title: Phone
+          type: string
+      required:
+      - full_name
+      - document_type
+      - document_number
+      - birth_date
+      - phone
+      - email
+      - address
+      - municipality_code
+      title: CaseIdentifierGroup
+      type: object
+    CaseIdentifiers:
+      additionalProperties: false
+      properties:
+        anonymized:
+          title: Anonymized
+          type: boolean
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        identifiers:
+          anyOf:
+          - $ref: '#/components/schemas/CaseIdentifierGroup'
+          - type: 'null'
+          default: null
+      required:
+      - case_id
+      - anonymized
+      title: CaseIdentifiers
+      type: object
+    CaseRef:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        state:
+          $ref: '#/components/schemas/CaseState'
+      required:
+      - case_id
+      - state
+      title: CaseRef
+      type: object
+    CaseState:
+      enum:
+      - en_evaluacion
+      - listo
+      - en_sincronizacion
+      - no_disponible
+      - modelo_congelado
+      - decidido
+      - vencido
+      title: CaseState
+      type: string
+    CaseSummary:
+      additionalProperties: false
+      properties:
+        applicant_display:
+          title: Applicant Display
+          type: string
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        channel:
+          maxLength: 40
+          title: Channel
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        outcome:
+          anyOf:
+          - $ref: '#/components/schemas/Outcome'
+          - type: 'null'
+          default: null
+        score:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Score
+        state:
+          $ref: '#/components/schemas/CaseState'
+      required:
+      - case_id
+      - state
+      - channel
+      - created_at
+      - applicant_display
+      title: CaseSummary
+      type: object
+    CategoryFeature:
+      additionalProperties: false
+      properties:
+        type:
+          const: category
+          default: category
+          title: Type
+          type: string
+        value:
+          maxLength: 60
+          title: Value
+          type: string
+      required:
+      - value
+      title: CategoryFeature
+      type: object
+    CreditStatus:
+      enum:
+      - en_estudio
+      - aprobado
+      - desembolsado
+      - rechazado
+      - cancelado
+      - sin_credito
+      - no_disponible
+      - no_integrado
+      title: CreditStatus
+      type: string
+    DecimalFeature:
+      additionalProperties: false
+      properties:
+        type:
+          const: decimal
+          default: decimal
+          title: Type
+          type: string
+        value:
+          pattern: ^-?\d+(\.\d+)?$
+          title: Value
+          type: string
+      required:
+      - value
+      title: DecimalFeature
+      type: object
+    Decision:
+      enum:
+      - sigue
+      - se_aparta
+      - resuelve_revision
+      title: Decision
+      type: string
+    DecisionIn:
+      additionalProperties: false
+      properties:
+        decision:
+          $ref: '#/components/schemas/Decision'
+        final_outcome:
+          $ref: '#/components/schemas/FinalOutcome'
+        justification:
+          maxLength: 2000
+          title: Justification
+          type: string
+        used_factors:
+          items:
+            type: string
+          title: Used Factors
+          type: array
+      required:
+      - decision
+      - final_outcome
+      - used_factors
+      - justification
+      title: DecisionIn
+      type: object
+    DecisionRef:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        recorded_at:
+          format: date-time
+          title: Recorded At
+          type: string
+        registry_entry_id:
+          title: Registry Entry Id
+          type: string
+      required:
+      - case_id
+      - registry_entry_id
+      - recorded_at
+      title: DecisionRef
+      type: object
+    DecisionView:
+      additionalProperties: false
+      properties:
+        decided_at:
+          format: date-time
+          title: Decided At
+          type: string
+        decided_by:
+          title: Decided By
+          type: string
+        decision:
+          $ref: '#/components/schemas/Decision'
+        final_outcome:
+          $ref: '#/components/schemas/FinalOutcome'
+        justification:
+          title: Justification
+          type: string
+        used_factors:
+          items:
+            type: string
+          title: Used Factors
+          type: array
+      required:
+      - decision
+      - final_outcome
+      - used_factors
+      - justification
+      - decided_at
+      - decided_by
+      title: DecisionView
+      type: object
+    Explanation:
+      additionalProperties: false
+      properties:
+        base_value:
+          pattern: ^-?\d+(\.\d+)?$
+          title: Base Value
+          type: string
+        factuality_check:
+          const: passed
+          title: Factuality Check
+          type: string
+        feature_dictionary_version:
+          title: Feature Dictionary Version
+          type: string
+        method:
+          const: shap
+          title: Method
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        narrative:
+          maxLength: 4000
+          title: Narrative
+          type: string
+        narrative_generator:
+          title: Narrative Generator
+          type: string
+        posthoc_notice:
+          title: Posthoc Notice
+          type: string
+        shap_vector:
+          items:
+            $ref: '#/components/schemas/FeatureContribution'
+          title: Shap Vector
+          type: array
+      required:
+      - model_version_id
+      - method
+      - shap_vector
+      - base_value
+      - narrative
+      - narrative_generator
+      - feature_dictionary_version
+      - posthoc_notice
+      - factuality_check
+      title: Explanation
+      type: object
+    FeatureContribution:
+      additionalProperties: false
+      properties:
+        contribution:
+          pattern: ^-?\d+(\.\d+)?$
+          title: Contribution
+          type: string
+        feature_id:
+          title: Feature Id
+          type: string
+        value:
+          discriminator:
+            mapping:
+              category: '#/components/schemas/CategoryFeature'
+              decimal: '#/components/schemas/DecimalFeature'
+              int: '#/components/schemas/IntFeature'
+            propertyName: type
+          oneOf:
+          - $ref: '#/components/schemas/DecimalFeature'
+          - $ref: '#/components/schemas/IntFeature'
+          - $ref: '#/components/schemas/CategoryFeature'
+          title: Value
+      required:
+      - feature_id
+      - value
+      - contribution
+      title: FeatureContribution
+      type: object
+    FinalOutcome:
+      enum:
+      - favorable
+      - desfavorable
+      title: FinalOutcome
+      type: string
+    IntFeature:
+      additionalProperties: false
+      properties:
+        type:
+          const: int
+          default: int
+          title: Type
+          type: string
+        value:
+          title: Value
+          type: integer
+      required:
+      - value
+      title: IntFeature
+      type: object
+    InvalidParam:
+      additionalProperties: false
+      properties:
+        name:
+          title: Name
+          type: string
+        reason_code:
+          title: Reason Code
+          type: string
+      required:
+      - name
+      - reason_code
+      title: InvalidParam
+      type: object
+    Outcome:
+      enum:
+      - favorable
+      - desfavorable
+      - revision_requerida
+      title: Outcome
+      type: string
+    Page_CaseSummary_:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/CaseSummary'
+          title: Items
+          type: array
+        next_seq_after:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Next Seq After
+        page:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Page
+        total:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Total
+      required:
+      - items
+      title: Page[CaseSummary]
+      type: object
+    PersistentFailure:
+      additionalProperties: false
+      properties:
+        attempts:
+          title: Attempts
+          type: integer
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        channel:
+          maxLength: 40
+          title: Channel
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        last_cause:
+          title: Last Cause
+          type: string
+        since:
+          format: date-time
+          title: Since
+          type: string
+      required:
+      - case_id
+      - channel
+      - created_at
+      - attempts
+      - last_cause
+      - since
+      title: PersistentFailure
+      type: object
+    Problem:
+      additionalProperties: false
+      description: RFC 9457; campos cerrados (BR-U0-61) y `reason` de su catalogo
+        (§6).
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        correlation_id:
+          title: Correlation Id
+          type: string
+        invalid_params:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/InvalidParam'
+            type: array
+          - type: 'null'
+          default: null
+          title: Invalid Params
+        reason:
+          anyOf:
+          - $ref: '#/components/schemas/ProblemReason'
+          - type: 'null'
+          default: null
+        status:
+          title: Status
+          type: integer
+        title:
+          title: Title
+          type: string
+        type:
+          title: Type
+          type: string
+      required:
+      - type
+      - title
+      - status
+      - code
+      - correlation_id
+      title: Problem
+      type: object
+    ProblemCode:
+      enum:
+      - malformed_request
+      - unsupported_media_type
+      - validation_error
+      - unauthenticated
+      - forbidden
+      - mfa_required
+      - not_found
+      - conflict_state
+      - payload_too_large
+      - rate_limited
+      - dependency_unavailable
+      - internal_error
+      - unprocessable_explanation
+      - deadline_exceeded
+      title: ProblemCode
+      type: string
+    ProblemReason:
+      enum:
+      - decision_already_recorded
+      - transition_pending
+      - version_mismatch
+      - feature_dictionary_incomplete
+      - factuality_failed
+      - no_active_version
+      - active_version_frozen
+      title: ProblemReason
+      type: string
+    Recommendation:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        confidence:
+          pattern: ^-?\d+\.\d{4}$
+          title: Confidence
+          type: string
+        evaluated_at:
+          format: date-time
+          title: Evaluated At
+          type: string
+        explanation:
+          $ref: '#/components/schemas/Explanation'
+        feature_vector_hash:
+          pattern: ^[0-9a-f]{64}$
+          title: Feature Vector Hash
+          type: string
+        kind:
+          const: recommendation
+          default: recommendation
+          title: Kind
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        outcome:
+          title: Outcome
+          type: string
+        policy_version_id:
+          title: Policy Version Id
+          type: string
+        reasons:
+          items:
+            type: string
+          title: Reasons
+          type: array
+        registry_entry_id:
+          minLength: 1
+          title: Registry Entry Id
+          type: string
+        score:
+          pattern: ^-?\d+\.\d{4}$
+          title: Score
+          type: string
+      required:
+      - case_id
+      - score
+      - confidence
+      - outcome
+      - reasons
+      - model_version_id
+      - policy_version_id
+      - explanation
+      - registry_entry_id
+      - evaluated_at
+      - feature_vector_hash
+      title: Recommendation
+      type: object
+    RootModel_list_PersistentFailure__:
+      items:
+        $ref: '#/components/schemas/PersistentFailure'
+      title: RootModel[list[PersistentFailure]]
+      type: array
+info:
+  title: case-service
+  version: 0.1.0
+openapi: 3.1.0
+paths:
+  /v1/cases:
+    get:
+      operationId: get_v1_cases
+      parameters:
+      - in: query
+        name: channel
+        required: false
+        schema: *id001
+      - in: query
+        name: created_from
+        required: false
+        schema: *id002
+      - in: query
+        name: created_to
+        required: false
+        schema: *id003
+      - in: query
+        name: model_frozen_after_recommendation
+        required: false
+        schema: *id004
+      - in: query
+        name: page
+        required: false
+        schema: *id005
+      - in: query
+        name: page_size
+        required: false
+        schema: *id006
+      - in: query
+        name: state
+        required: false
+        schema: *id007
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_CaseSummary_'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      - cro
+      x-vectra-scopes: []
+    post:
+      operationId: post_v1_cases
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema: &id009
+              $ref: '#/components/schemas/ApplicationIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: &id008
+                $ref: '#/components/schemas/CaseRef'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      x-vectra-scopes: []
+  /v1/cases/failures:
+    get:
+      operationId: get_v1_cases_failures
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RootModel_list_PersistentFailure__'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []
+  /v1/cases/{id}:
+    get:
+      operationId: get_v1_cases_id
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDetail'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      - cro
+      x-vectra-scopes: []
+  /v1/cases/{id}/decision:
+    post:
+      operationId: post_v1_cases_id_decision
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecisionIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionRef'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      x-vectra-scopes: []
+  /v1/cases/{id}/explanation-views:
+    post:
+      operationId: post_v1_cases_id_explanation-views
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Sin contenido
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - analista
+      x-vectra-scopes: []
+  /v1/cases/{id}/identifiers:
+    get:
+      operationId: get_v1_cases_id_identifiers
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseIdentifiers'
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      - cumplimiento
+      x-vectra-scopes: []
+  /v1/cases/{id}/retry:
+    post:
+      operationId: post_v1_cases_id_retry
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: *id008
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles:
+      - cro
+      x-vectra-scopes: []
+  /v1/intake/applications:
+    post:
+      operationId: post_v1_intake_applications
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema: *id009
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: *id008
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Problem
+      x-vectra-any-scopes: []
+      x-vectra-max-body-bytes: 32768
+      x-vectra-mfa: false
+      x-vectra-read-only: false
+      x-vectra-roles: []
+      x-vectra-scopes:
+      - intake:submit

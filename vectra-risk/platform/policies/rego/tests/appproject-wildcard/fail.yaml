@@ -1,0 +1,5 @@
+# espera: AppProject con comodin en repositorios
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata: { name: abierto }
+spec: { sourceRepos: ["*"] }

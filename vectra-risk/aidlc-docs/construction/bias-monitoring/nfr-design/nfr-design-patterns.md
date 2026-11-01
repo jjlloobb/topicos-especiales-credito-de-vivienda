@@ -41,7 +41,7 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01); las demás co
   - token 4 s + `freezes` 3 s + rangos 10 s + cálculo ≤ 2 s + `freeze` 57 s + grupos `run` y `success` 10 s = 86 s;
   - grupos por versión: una lectura de los grupos del Pushgateway (`GET /api/v1/metrics`, 5 s), un `PUT` o `DELETE` por versión evaluada (3 × 5 s) y hasta 16 `DELETE` de versiones que ya no se evalúan (16 × 5 s), unos 100 s. Si quedan más de 16, se borran en las corridas siguientes;
   - total ≈ 186 s, unos 3 min, por debajo de `activeDeadlineSeconds` (600 s) y del intervalo mínimo admitido con ese plazo (INF-U9-03).
-- **CronJob sin circuit breaker**: es un proceso de pocas llamadas que termina en cada corrida, así que un breaker no acumula estadística. Usa `deps.call` con `breaker="disabled"`, que U0 admite solo con `process_kind="batch"` (NFR-U0-23 (f), P-U0-07). El timeout sigue siendo obligatorio.
+- **CronJob sin circuit breaker**: es un proceso de pocas llamadas que termina en cada corrida, así que un breaker no acumula estadística. Usa un `DependencyClient(breaker="disabled")`, que U0 admite solo tras `process.init("batch")` (NFR-U0-23 (f), P-U0-07). El timeout sigue siendo obligatorio.
 - **Servicio HTTP con breaker** hacia el registro (F26), con los umbrales de U7: ≥ 50 % de fallos en 20 llamadas dentro de 30 s, y semiabierto a los 10 s. Con el circuito abierto, el dashboard responde 503 sin datos parciales.
 - Fallo del breaker: timeout, error de conexión o 5xx; un 4xx no cuenta (NFR-U8-32, U0).
 - **Verificación**:
@@ -80,7 +80,7 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01); las demás co
 - **Satisface**: NFR-U9-31; SECURITY-03; AUTONOMIA-05.
 
 ### P-U9-05 — Identidades, procesos y publicación (Q6; NFR-U9-30, 32, 34; BR-U9-20)
-- **Una imagen, dos puntos de entrada**: `python -m vectra_bias.run` (CronJob) y `uvicorn vectra_bias.app:app` (servicio).
+- **Una imagen, dos puntos de entrada**: `python -m vectra_bias.run` (CronJob) y `python -m vectra_bias.app` (servicio, que arranca con `vectra_common.ops_server.run_service(app)`) (revisión de consistencia entre unidades, 2026-11-01).
 - **El servicio no puede congelar**:
   - import-linter prohíbe que `vectra_bias.app` y sus módulos importen `freeze_client`;
   - el servicio tiene otro cliente de Keycloak, `bias-monitoring-service`, sin `governance:freeze` (NFR-U9-30).
@@ -148,7 +148,7 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01); las demás co
 
 | Artefacto | Cambio | Origen |
 |---|---|---|
-| U0 NFR-U0-23 (f), P-U0-07 y plan de U0 (Paso 10) | Modo `breaker="disabled"`, solo con `process_kind="batch"`; un servicio HTTP que lo intente falla al crear el cliente | Q1 |
+| U0 NFR-U0-23 (f), P-U0-07 y plan de U0 (Paso 10) | Modo `breaker="disabled"`, solo con `process.init("batch")`; un servicio HTTP que lo intente falla al crear el cliente | Q1 |
 | U9 FD BR-U9-12 (precisión) | Con varias versiones, se intentan todas las que cumplan la regla; la corrida falla al final si alguna falló (P-U9-01) | Q4 |
 | U0 §9.4 (`DisparityView`, `FreezeContext`) | Llevan los cinco parámetros de BR-U9-13 (`window_days`, `schedule`, `stale_after_s` además de `threshold_pp` y `n_min`) | revisión del FD de U10, 2026-10-10, A7 |
 | U9 P-U9-01, 02, 06 y plan de tareas | Grupos `freeze-<v>` con su lectura y borrado acotado; peor caso ≈ 186 s; borrado del grupo en una corrida completa | revisión del plan de tareas de U9, 2026-10-10, y revisión del FD de U10, 2026-10-10, A6 y B7 |

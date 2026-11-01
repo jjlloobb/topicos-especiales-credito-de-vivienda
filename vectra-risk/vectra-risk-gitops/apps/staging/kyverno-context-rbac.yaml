@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kyverno-context-rbac
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '1'
+spec:
+  project: vectra-staging
+  source:
+    repoURL: https://git.banco.internal/vectra/vectra-risk.git
+    targetRevision: main
+    path: vectra-risk/platform/policies/rbac
+    directory:
+      include: kyverno-context.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kyverno
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true
+    - CreateNamespace=true

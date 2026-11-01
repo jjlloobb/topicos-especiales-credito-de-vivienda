@@ -1,0 +1,754 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad-latest
+  namespace: vectra-app
+spec:
+  containers:
+  - name: a
+    image: r/a:latest
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: good-digest
+  namespace: vectra-app
+spec:
+  priorityClassName: vectra-high
+  containers:
+  - name: a
+    image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: auto
+  namespace: argocd
+spec:
+  syncPolicy:
+    automated: {}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: manual
+  namespace: argocd
+spec:
+  syncPolicy: {}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wild
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: vectra-observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grafana
+    spec:
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: grafana
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pushgateway
+  namespace: vectra-observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pushgateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pushgateway
+    spec:
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: pushgateway
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana-in-app
+  namespace: vectra-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grafana-in-app
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grafana-in-app
+    spec:
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: grafana-in-app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: no-hpa
+  namespace: vectra-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: no-hpa
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: no-hpa
+    spec:
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: no-hpa
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exempt-two
+  namespace: vectra-app
+  annotations:
+    vectra.io/hpa-exempt: sin carga variable
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: exempt-two
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: exempt-two
+    spec:
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: exempt-two
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exempt-one
+  namespace: vectra-app
+  annotations:
+    vectra.io/hpa-exempt: sin carga variable
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: exempt-one
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: exempt-one
+    spec:
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: exempt-one
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-metrics
+  namespace: vectra-app
+  annotations:
+    vectra.io/hpa-exempt: sin carga variable
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: product-metrics
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: product-metrics
+    spec:
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: product-metrics
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-metrics-no-exempt
+  namespace: vectra-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: product-metrics-no-exempt
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: product-metrics-no-exempt
+    spec:
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: product-metrics-no-exempt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: console-spa
+  namespace: vectra-edge
+  annotations:
+    vectra.io/hpa-exempt: sin carga variable
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: console-spa
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: console-spa
+    spec:
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: console-spa
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: staging-one
+  namespace: vectra-staging
+spec:
+  predictor:
+    minReplicas: 1
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: serving-one
+  namespace: vectra-serving
+spec:
+  predictor:
+    minReplicas: 1
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: inactive-exempt
+  namespace: vectra-serving
+  labels:
+    vectra.io/serving-state: inactivo
+  annotations:
+    vectra.io/hpa-exempt: sin carga variable
+spec:
+  predictor:
+    minReplicas: 1
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: active-exempt
+  namespace: vectra-serving
+  labels:
+    vectra.io/serving-state: activo
+  annotations:
+    vectra.io/hpa-exempt: sin carga variable
+spec:
+  predictor:
+    minReplicas: 1
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vectra-verification-operator-nodes
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: plain
+  namespace: vectra-app
+data:
+  x: eA==
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cron-app
+  namespace: vectra-app
+spec:
+  schedule: 0 0 * * *
+  jobTemplate:
+    spec:
+      template:
+        metadata: {}
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: a
+            image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: join
+  namespace: vectra-data
+  ownerReferences:
+  - apiVersion: postgresql.cnpg.io/v1
+    kind: Cluster
+    name: registry-db
+    uid: '0'
+spec:
+  template:
+    metadata: {}
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kcc-hook
+  namespace: vectra-identity
+spec:
+  template:
+    metadata: {}
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: realm-drift
+  namespace: vectra-identity
+spec:
+  schedule: 0 0 * * *
+  jobTemplate:
+    spec:
+      template:
+        metadata: {}
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: a
+            image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mock-job
+  namespace: vectra-mock
+spec:
+  template:
+    metadata: {}
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: edge-job
+  namespace: vectra-edge
+spec:
+  template:
+    metadata: {}
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: obs-job
+  namespace: vectra-observability
+spec:
+  template:
+    metadata: {}
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: unmeshed
+  namespace: default
+spec:
+  template:
+    metadata: {}
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hardened
+  namespace: vectra-app
+spec:
+  priorityClassName: vectra-high
+  securityContext:
+    runAsNonRoot: true
+  containers:
+  - name: a
+    image: registro.vectra.internal/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    securityContext:
+      readOnlyRootFilesystem: true
+      privileged: false
+      allowPrivilegeEscalation: false
+    resources:
+      requests:
+        cpu: '1'
+        memory: 1Gi
+      limits:
+        cpu: '1'
+        memory: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure
+  namespace: vectra-app
+spec:
+  volumes:
+  - name: h
+    hostPath:
+      path: /
+  containers:
+  - name: a
+    image: docker.io/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    securityContext:
+      privileged: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: labelled
+  namespace: vectra-app
+  labels:
+    vectra.io/criticality: high
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: labelled
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: labelled
+    spec:
+      containers:
+      - name: a
+        image: registro.vectra.internal/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gw
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: api-gateway
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 443
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: other-lb
+  namespace: vectra-app
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 443
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: eso-managed
+  namespace: vectra-app
+  labels:
+    reconcile.external-secrets.io/managed: 'true'
+data:
+  x: eA==
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: wild-verbs
+  namespace: vectra-app
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - '*'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: wild-groups
+  namespace: vectra-app
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - pods
+  verbs:
+  - get
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-post-job
+  namespace: vectra-data
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: registro.vectra.internal/mc@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: other-job
+  namespace: vectra-data
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: registro.vectra.internal/mc@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: with-hpa
+  namespace: vectra-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: with-hpa
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: with-hpa
+    spec:
+      containers:
+      - name: a
+        image: registro.vectra.internal/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: serving-two
+  namespace: vectra-serving
+spec:
+  predictor:
+    minReplicas: 2
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: inactive-no-exempt
+  namespace: vectra-serving
+  labels:
+    vectra.io/serving-state: inactivo
+spec:
+  predictor:
+    minReplicas: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: drill-postgres
+  namespace: vectra-restore-drill
+spec:
+  containers:
+  - name: a
+    image: ghcr.io/cloudnative-pg/postgresql:17@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: drill-other
+  namespace: vectra-restore-drill
+spec:
+  containers:
+  - name: a
+    image: docker.io/library/postgres:17@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kserve-predictor
+  namespace: vectra-serving
+  labels:
+    serving.kserve.io/inferenceservice: x
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kserve-predictor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kserve-predictor
+    spec:
+      containers:
+      - name: a
+        image: registro.vectra.internal/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy-proxy
+  namespace: vectra-edge
+  labels:
+    gateway.envoyproxy.io/owning-gateway-name: x
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: envoy-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: envoy-proxy
+    spec:
+      containers:
+      - name: a
+        image: registro.vectra.internal/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy-generado
+  namespace: vectra-edge
+  labels:
+    gateway.envoyproxy.io/owning-gateway-name: api-gateway
+    vectra.io/criticality: high
+  annotations:
+    vectra.io/hpa-exempt: lo escala envoyHpa
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api-gateway
+    spec:
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone

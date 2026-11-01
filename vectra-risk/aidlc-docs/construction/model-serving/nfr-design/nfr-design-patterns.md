@@ -39,7 +39,7 @@ ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
   - comprueban que el `model_version_id` coincide con la anotación.
 - Si algo no coincide → no listo + `ModelPackageIntegrityFailed`.
 - `startupProbe` con margen para la descarga y la verificación; readiness = paquete verificado (P-U1-04).
-- **Verificación**: artefactos RT-3 de U5 en staging o kind → el componente no queda listo; un byte alterado → no queda listo.
+- **Verificación**: artefactos RT-3 (a) y (d) de U5 en staging o kind → el componente no queda listo; (b) lleva versiones coherentes y sí queda listo; (c) altera el diccionario, que U6 no usa (quinta revisión de coherencia entre unidades, 2026-10-31); un byte alterado → no queda listo (cuarta revisión de coherencia entre unidades, 2026-10-31).
 - **Satisface**: NFR-U6-03, 40; SECURITY-11, 13.
 
 ## 2. Escalado y aislamiento
@@ -66,9 +66,9 @@ ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 | `ModelPackageIntegrityFailed` | SEV2 | P-U6-03 |
 | `ServingSaturation` | SEV2 | P-U6-05 |
 | `InferenceServiceNotReady` | SEV1 si es el activo; SEV3 si es un `inactivo` | El `InferenceService` sin réplicas listas |
-| `ServingLatencyHigh` | SEV3 | p95 de `:predict` > 30 ms o de `:explain` > 150 ms durante 15 min |
+| `ServingLatencyHigh` | SEV3 | p95 de `:predict` > 30 ms o de `:explain` > 150 ms durante 15 min, con `vectra_serving_request_duration_seconds{component}` (`predictor` o `explainer`), un histograma propio de las imágenes de U6 en el 8081, con `vectra_common.metrics.histogram` y sus buckets declarados: U6 no pasa por `create_app`, y sus imágenes no llevan el servidor de KServe (decidido en la revisión de consistencia entre unidades, 2026-11-01) |
 
-- Métricas en el puerto 8081 (convención de U0) con `ServiceMonitor`; toda alerta con `runbook_url` (P-U1-10).
+- Métricas en el puerto 8081 (convención de U0) con `ServiceMonitor`; toda alerta con `runbook_url` (P-U1-10). Las imágenes de U6 no usan `create_app` ni `RouteContract` de U0, así que no validan JWT ni emiten `authz.denied`: el acceso lo limitan F19, F22 y F30 (revisión de consistencia entre unidades, 2026-11-01).
 - **Verificación**: `promtool test rules model-serving/observability/rules/tests/*.yaml` y el test de runbooks de U1.
 
 ## 4. Cumplimiento de extensiones (NFR Design U6)

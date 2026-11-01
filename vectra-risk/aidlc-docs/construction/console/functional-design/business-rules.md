@@ -8,7 +8,7 @@ regla de acceso vive en el BFF y se vuelve a validar en el servicio de destino.
 
 ## 1. BFF (US-602, SECURITY-08)
 
-**BR-U10-01 — Tres controles por endpoint, en orden.** Para cada uno de los 29 endpoints de
+**BR-U10-01 — Tres controles por endpoint, en orden.** Para cada uno de los 30 endpoints de
 `component-methods.md` C03:
 1. **función**: el rol del token está en la columna «Roles»; si no → 403 `forbidden`;
 2. **MFA**: si la columna lo pide, `acr = mfa` y `auth_time` ≤ 900 s (BR-U0-72); si no → 403 `mfa_required`;
@@ -69,14 +69,15 @@ no integrado» o «Estado de crédito no disponible por ahora».
 - Abrir el panel llama a `record_explanation_view` una vez por sesión de vista del caso. U8 garantiza una sola entrada por (caso, usuario).
 - Si la llamada falla, el panel se muestra igual y el error se registra; la consulta queda pendiente en U8 (BR-U8-18).
 - Abrir el detalle sin abrir el panel **no** cuenta como consulta.
+- Solo el rol `analista` llama a `record_explanation_view`: el CRO abre el panel sin esa llamada (BR-U8-19; cuarta revisión de coherencia entre unidades, 2026-10-31).
 
 **BR-U10-09 — Formulario de decisión** (Q5; BR-U8-16, BR-U0-35, 36).
-- Opciones: `sigue` y `se_aparta`, y además `resuelve_revision` solo si el `outcome` es `revision_requerida`.
+- Opciones: `sigue` y `se_aparta` si el `outcome` es `favorable` o `desfavorable`; `resuelve_revision` solo si es `revision_requerida` (BR-U0-35; cuarta revisión de coherencia entre unidades, 2026-10-31).
 - **Factores usados**: lista de los `feature_id` del `shap_vector`, con su etiqueta en español y en el orden de la narrativa, o la casilla exclusiva «Ninguno».
 - **Justificación**: obligatoria en `se_aparta` y `resuelve_revision`, con un contador de 20 a 2000 caracteres que cuenta igual que el servidor (sin espacios en los bordes).
 - En `se_aparta`, `final_outcome` se elige explícitamente y es distinto del de la recomendación.
 - Un diálogo de confirmación resume la decisión antes de enviarla. El botón queda deshabilitado mientras la solicitud está en curso.
-- La validación del cliente usa las mismas reglas, pero decide el servidor. Un 422 se muestra en su campo (`invalid_params`); un 409 `decision_already_recorded` muestra el aviso y recarga el caso con la decisión registrada.
+- La validación del cliente usa las mismas reglas, pero decide el servidor. Un 422 se muestra en su campo (`invalid_params`); un 409 `decision_already_recorded` muestra el aviso y recarga el caso con la decisión registrada; un 409 `conflict_state` (BR-U0-35) muestra un error general y recarga el caso (cuarta revisión de coherencia entre unidades, 2026-10-31).
 
 **BR-U10-09b — Decisión sin step-up** (revisión del Infrastructure Design de U10, 2026-10-10, Q1 = A). `record_decision` no exige MFA
 reciente: la decisión es una recomendación humana sobre un caso, no la aprobación de un artefacto
@@ -114,9 +115,10 @@ Una prueba compara las rutas de la SPA con C03 (BR-U10-19).
 
 El menú se arma con `get_me()`. Una ruta de la SPA a la que el rol no llega muestra «sin
 acceso» sin llamar al BFF, pero cada endpoint lo valida igual.
+- **Retiro** (`retire_model`): solo `cro` con MFA, con la versión en `inactivo`, `rechazado` o `validacion_fallida`, y con un diálogo que avisa que es definitivo (BR-U4-01; cuarta revisión de coherencia entre unidades, 2026-10-31).
 
 **BR-U10-13 — Resolución de un congelamiento** (Q10; US-304, US-305).
-- La vista muestra el paquete de contexto completo: antes, después, últimos 7 días, atributo disparador, grupos y bandas implicados, fuentes de datos y disparidad de validación. Siempre lleva el `disclaimer`.
+- La vista muestra el paquete de contexto completo: antes, después, últimos 7 días, atributo disparador, grupos y bandas implicados, fuentes de datos, disparidad de validación y el historial de resoluciones (seguimiento de la cuarta revisión de coherencia, 2026-10-31). Siempre lleva el `disclaimer`.
 - Las tres acciones (`reactivar`, `descartar`, `investigar`) exigen justificación y MFA.
 - `reactivar` muestra además un aviso: la ventana de monitoreo empieza al día siguiente y habrá un periodo de «muestra insuficiente» (U9 §8b).
 
@@ -147,7 +149,7 @@ sus cambios son las de U0 BR-U0-94, que no se repiten aquí (revisión del Infra
 
 **BR-U10-19 — Matriz rol × endpoint.**
 - Se genera desde el registro de contratos de U0 (`RouteContract`).
-- Para cada uno de los 29 endpoints (27 del FD, `report_client_error` del NFR Requirements de U10, Q12, y `get_integrity_check` del NFR Design de U10, Q3), prueba los 4 roles, un token sin rol de negocio, uno expirado, uno con otra audiencia, uno con `acr = pwd` y uno con `acr = mfa` pero `auth_time` de hace más de 900 s (revisión del Infrastructure Design de U10, 2026-10-10). Según las columnas «Roles» y «MFA», espera 2xx, 401 (`unauthenticated`), 403 con `code = forbidden` o 403 con `code = mfa_required`. `mfa_required` es un 403 de U0 §6, no un estado aparte; la prueba compara el status y el `code` (revisión del FD de U10, 2026-10-10), B19.
+- Para cada uno de los 30 endpoints (27 del FD, `report_client_error` del NFR Requirements de U10, Q12, `get_integrity_check` del NFR Design de U10, Q3, y `retire_model` de la cuarta revisión de coherencia), prueba los 4 roles, un token sin rol de negocio, uno expirado, uno con otra audiencia, uno con `acr = pwd` y uno con `acr = mfa` pero `auth_time` de hace más de 900 s (revisión del Infrastructure Design de U10, 2026-10-10). Según las columnas «Roles» y «MFA», espera 2xx, 401 (`unauthenticated`), 403 con `code = forbidden` o 403 con `code = mfa_required`. `mfa_required` es un 403 de U0 §6, no un estado aparte; la prueba compara el status y el `code` (revisión del FD de U10, 2026-10-10), B19.
 - Las rutas de la SPA por rol (BR-U10-12) se comparan con la misma columna «Roles».
 - Para cada endpoint con regla de objeto, agrega al menos un caso negativo.
 - Cada 401 o 403 deja `authz.denied` con `principal_subject`.

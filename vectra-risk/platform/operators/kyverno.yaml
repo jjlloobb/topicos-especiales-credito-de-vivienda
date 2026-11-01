@@ -1,0 +1,10 @@
+# HA con failurePolicy Fail; excluye kube-system, kyverno y linkerd (Paso 5).
+admissionController: { replicas: 3 }
+backgroundController: { replicas: 2 }
+cleanupController: { replicas: 2 }
+reportsController: { replicas: 2 }
+config:
+  resourceFilters:
+    - "[*,kube-system,*]"
+    - "[*,kyverno,*]"
+    - "[*,linkerd,*]"

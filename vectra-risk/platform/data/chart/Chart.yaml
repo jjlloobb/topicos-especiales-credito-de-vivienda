@@ -1,0 +1,5 @@
+apiVersion: v2
+name: vectra-data
+description: Clusters de PostgreSQL con CloudNativePG (INF-U1-02, P-U1-08)
+type: application
+version: 0.1.0

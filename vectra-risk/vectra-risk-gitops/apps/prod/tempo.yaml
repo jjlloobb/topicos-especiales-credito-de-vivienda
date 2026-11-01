@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tempo
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '4'
+spec:
+  project: vectra-prod
+  sources:
+  - repoURL: https://charts.banco.internal/vectra
+    chart: tempo-distributed
+    targetRevision: 1.61.3
+    helm:
+      valueFiles:
+      - $values/vectra-risk/platform/observability/values/tempo.yaml
+  - repoURL: https://git.banco.internal/vectra/vectra-risk.git
+    targetRevision: main
+    ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-observability
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

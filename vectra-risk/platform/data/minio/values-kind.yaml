@@ -1,0 +1,56 @@
+# Solo en kind. Los buckets WORM de U3 y U4 (F118) y los backups (no hay S3 del banco que simular) viven aqui;
+# en staging y prod, en el S3 del banco. Helm reemplaza las listas: `buckets`, `policies`, `users` y `customCommands`
+# repiten lo de values.yaml. `standard` es la StorageClass que kind trae de fabrica; no cifra (fuera de NFR-U1-23).
+persistence: { size: 5Gi, storageClass: standard }
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { cpu: "1", memory: 1Gi }
+buckets:
+  - { name: model-store, policy: none, purge: false, versioning: true, objectlocking: false }
+  - { name: validation-datasets, policy: none, purge: false, versioning: true, objectlocking: false }
+  - { name: loki, policy: none, purge: false, versioning: true, objectlocking: true }
+  - { name: tempo, policy: none, purge: false, versioning: false, objectlocking: false }
+  - { name: vectra-registry-checkpoints, policy: none, purge: false, versioning: true, objectlocking: true }
+  - { name: vectra-registry-archive, policy: none, purge: false, versioning: true, objectlocking: true }
+  - { name: vectra-model-archive, policy: none, purge: false, versioning: true, objectlocking: true }
+  - { name: vectra-backups, policy: none, purge: false, versioning: false, objectlocking: false }
+policies:
+  - { name: model-store-read, statements: [{ actions: ["s3:GetObject", "s3:ListBucket"], resources: ["arn:aws:s3:::model-store", "arn:aws:s3:::model-store/*"] }] }
+  - { name: validation-read, statements: [{ actions: ["s3:GetObject", "s3:ListBucket"], resources: ["arn:aws:s3:::validation-datasets", "arn:aws:s3:::validation-datasets/*"] }] }
+  - { name: loki-write, statements: [{ actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"], resources: ["arn:aws:s3:::loki", "arn:aws:s3:::loki/*"] }] }
+  - { name: tempo-write, statements: [{ actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"], resources: ["arn:aws:s3:::tempo", "arn:aws:s3:::tempo/*"] }] }
+  - { name: governance-read, statements: [{ actions: ["s3:GetObject", "s3:ListBucket"], resources: ["arn:aws:s3:::model-store", "arn:aws:s3:::model-store/*"] }] }
+  - { name: model-store-upload, statements: [{ actions: ["s3:GetObject", "s3:PutObject", "s3:ListBucket"], resources: ["arn:aws:s3:::model-store", "arn:aws:s3:::model-store/*"] }] }
+  # F101 mas, solo en kind, el destino que en otros entornos es el S3 del banco (INF-U4-02).
+  - { name: model-archive, statements: [{ actions: ["s3:GetObject", "s3:ListBucket"], resources: ["arn:aws:s3:::model-store", "arn:aws:s3:::model-store/*"] }, { actions: ["s3:GetObject", "s3:PutObject", "s3:PutObjectRetention", "s3:ListBucket"], resources: ["arn:aws:s3:::vectra-model-archive", "arn:aws:s3:::vectra-model-archive/*"] }] }
+  # INF-U3-01: el escritor de cada bucket WORM relee lo que sube; los lectores no escriben.
+  - { name: registry-checkpoint-write, statements: [{ actions: ["s3:GetObject", "s3:PutObject", "s3:PutObjectRetention", "s3:ListBucket"], resources: ["arn:aws:s3:::vectra-registry-checkpoints", "arn:aws:s3:::vectra-registry-checkpoints/*"] }] }
+  - { name: registry-archive-write, statements: [{ actions: ["s3:GetObject", "s3:PutObject", "s3:PutObjectRetention", "s3:ListBucket"], resources: ["arn:aws:s3:::vectra-registry-archive", "arn:aws:s3:::vectra-registry-archive/*"] }] }
+  - { name: registry-verify-read, statements: [{ actions: ["s3:GetObject", "s3:ListBucket"], resources: ["arn:aws:s3:::vectra-registry-checkpoints", "arn:aws:s3:::vectra-registry-checkpoints/*"] }] }
+  # Equivalente de F75 (restore-drill/bucket-policy-f75.json). ListBucket sin condicion de prefijo: en kind no hay nada
+  # mas que proteger y no se ha probado que MinIO admita la variante IfExists de esa politica.
+  - { name: restore-drill-read, statements: [{ actions: ["s3:ListBucket"], resources: ["arn:aws:s3:::vectra-backups", "arn:aws:s3:::vectra-registry-checkpoints"] }, { actions: ["s3:GetObject"], resources: ["arn:aws:s3:::vectra-backups/registry-db/*", "arn:aws:s3:::vectra-backups/case-db/*", "arn:aws:s3:::vectra-registry-checkpoints/*"] }] }
+  # F70 en kind: CloudNativePG escribe y aplica `retentionPolicy`, que borra.
+  - { name: postgres-backup-write, statements: [{ actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket", "s3:GetBucketLocation"], resources: ["arn:aws:s3:::vectra-backups", "arn:aws:s3:::vectra-backups/*"] }] }
+# Los Secret de los usuarios propios de kind los entrega platform/data/chart/values-kind.yaml.
+users:
+  - { accessKey: kserve-readonly, existingSecret: minio-kserve, existingSecretKey: secretKey, policy: model-store-read }
+  - { accessKey: validation-readonly, existingSecret: minio-validation, existingSecretKey: secretKey, policy: validation-read }
+  - { accessKey: loki-writer, existingSecret: minio-loki, existingSecretKey: secretKey, policy: loki-write }
+  - { accessKey: tempo-writer, existingSecret: minio-tempo, existingSecretKey: secretKey, policy: tempo-write }
+  - { accessKey: governance-readonly, existingSecret: minio-governance, existingSecretKey: secretKey, policy: governance-read }
+  - { accessKey: model-archive-writer, existingSecret: minio-model-archive, existingSecretKey: secretKey, policy: model-archive }
+  - { accessKey: risk-engineer-upload, existingSecret: minio-engineer-upload, existingSecretKey: secretKey, policy: model-store-upload }
+  - { accessKey: registry-checkpoint, existingSecret: minio-registry-checkpoint, existingSecretKey: secretKey, policy: registry-checkpoint-write }
+  - { accessKey: registry-archive, existingSecret: minio-registry-archive, existingSecretKey: secretKey, policy: registry-archive-write }
+  - { accessKey: registry-verify, existingSecret: minio-registry-verify, existingSecretKey: secretKey, policy: registry-verify-read }
+  - { accessKey: restore-drill, existingSecret: minio-restore-drill, existingSecretKey: secretKey, policy: restore-drill-read }
+  - { accessKey: postgres-backup, existingSecret: minio-postgres-backup, existingSecretKey: secretKey, policy: postgres-backup-write }
+# Corren en cada sync; ver la nota sobre `ilm rule add` en values.yaml.
+customCommands:
+  - { command: "retention set --default GOVERNANCE 90d myminio/loki" }
+  - { command: "ilm rule add --expire-days 90 --noncurrent-expire-days 1 myminio/loki" }
+  - { command: "ilm rule add --expire-days 7 myminio/tempo" }
+  - { command: "retention set --default COMPLIANCE 3650d myminio/vectra-registry-checkpoints" }
+  - { command: "retention set --default COMPLIANCE 3650d myminio/vectra-registry-archive" }
+  - { command: "retention set --default COMPLIANCE 3650d myminio/vectra-model-archive" }

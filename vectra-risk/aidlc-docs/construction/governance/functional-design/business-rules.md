@@ -19,7 +19,7 @@ Los IDs `BR-U4-xx` se referencian en los planes de tareas. La autenticación, el
 | `lista_para_aprobacion` | `aprobado` | `cro` (MFA) | Distinto de `registered_by` (BR-U4-10); si tiene `source_candidate_for`, la fuente debe estar `aprobada` (si no → 409, BR-U4-13; segunda revisión del FD de U9, 2026-10-08) |
 | `lista_para_aprobacion` | `rechazado` | `cro` (MFA) | Con justificación |
 | `aprobado` | `activo` | `ingeniero_riesgo` (MFA), `mark_active` vía `promotion-tool` (F08) | BR-U4-08; si tiene `source_candidate_for`, la fuente debe estar `aprobada` (si no → 409; segunda revisión del FD de U9, 2026-10-08) |
-| `activo` | `inactivo` | Sistema, dentro del mismo `mark_active` de otra versión | — |
+| `activo` | `inactivo` | Sistema, dentro del mismo `mark_active` de otra versión; el evento `inactivado` lleva el actor de ese `mark_active` (BR-U3-16; cuarta revisión de coherencia entre unidades, 2026-10-31) | — |
 | `inactivo` | `activo` | `ingeniero_riesgo` (MFA), `mark_active` | Rollback (US-208), después del sync del revert |
 | `activo` | `congelado` | **Solo** `bias-monitoring-job`, el CronJob de U9 (`governance:freeze`; antes `bias-monitoring-service`, revisión del FD de U9, 2026-10-08) | Con paquete de contexto (U9) |
 | `congelado` | `activo` | **Solo** `cumplimiento` (MFA), `reactivar` | Con justificación |
@@ -57,7 +57,7 @@ dataset de validación, y fija `deadline_at = ahora + 2 h`. Sin informe al vence
 2. governance lee los **bytes** de `manifest.json` y de **cada** archivo que lista (predictor, explicador, fondo, envolvente, diccionario, especificación) en el model-store (F47);
 3. rechaza `pickle` y `joblib` por extensión **y** por bytes mágicos (`\x80` + versión de protocolo de pickle, cabecera zip de joblib) en cualquiera de ellos;
 4. verifica que cada SHA-256 coincida con el del manifiesto, y el del manifiesto con el declarado;
-5. verifica que todos lleven el mismo `model_version_id` (precisado por U5 FD: el paquete tiene más archivos que predictor y explicador).
+5. verifica que todos lleven el mismo `model_version_id` (precisado por U5 FD: el paquete tiene más archivos que predictor y explicador). Rechaza los paquetes RT3-a, RT3-c y RT3-d de U5 (cuarta revisión de coherencia entre unidades, 2026-10-31).
 
 Nunca carga el modelo. Cualquier fallo → `422 validation_error`, sin crear la versión.
 Al registrar con éxito, governance guarda una copia del `feature_dictionary.json` verificado
@@ -131,7 +131,7 @@ existe en `governance-db` (scoring lee por la API, F18).
      - existe una versión `activo`: sin versión `activo` → `reason = no_active_version`; si la versión servible está `congelado` → `reason = active_version_frozen` (no se compara contra un modelo congelado);
      - los `InferenceService` de staging de la candidata y de la versión activa existen (INF-U4-05);
 
-     governance lanza el `model-validation-job` en modo `source_comparison` (BR-U4-05): puntúa el mismo dataset de validación con la versión `activo` («antes») y con la candidata («después») y devuelve por F32 (`PUT /v1/validation-runs/{run_id}/source-counts`, scope `governance:validation-report`; solo para un `ValidationRun` en modo `source_comparison` y estado `lanzado`, y solo una vez: otro modo o estado → 409; segunda revisión del FD de U9, 2026-10-08) **tablas de conteo por atributo** (grupo × banda × resultado), nunca filas;
+     governance lanza el `model-validation-job` en modo `source_comparison` (BR-U4-05): puntúa el mismo dataset de validación con la versión `activo` («antes») y con la candidata («después») y devuelve por F32 (`PUT /v1/validation-runs/{run_id}/source-counts`, scope `governance:validation-report`; solo para un `ValidationRun` en modo `source_comparison` y estado `lanzado`, y solo una vez: otro modo o estado → 409; segunda revisión del FD de U9, 2026-10-08) **tablas de conteo por atributo** (`CountTable` de U0: grupo × banda, con `favorable` y `total`), nunca filas;
   3. governance llama a `compare_source(source_id, pre, post)` en bias por **F25** (antes decía F27, que es el `freeze`) y guarda el `PrePostReport` en `data_sources.pre_post_report` (revisión del FD de U9, 2026-10-08, H7).
 - `cumplimiento` (MFA) decide `aprobada` o `rechazada` **solo** si existe `pre_post_report`; si no → `409`. El evento de la decisión (`data_source_event`) lleva el `PrePostReport`, con la regla de tamaño de U9 BR-U9-15 (≤ 48 KiB; si no, sin las celdas).
 - Una fuente aprobada no cambia el modelo activo; la puede declarar una versión **futura** en `data_sources`.

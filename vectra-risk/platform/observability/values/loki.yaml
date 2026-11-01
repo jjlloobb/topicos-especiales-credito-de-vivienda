@@ -1,0 +1,43 @@
+# NFR-U1-30: la retencion la aplican el lock y el lifecycle del bucket, nunca el compactor.
+# Las credenciales de S3 llegan por el entorno (AWS_ACCESS_KEY_ID), desde el Secret `loki-s3`.
+deploymentMode: SimpleScalable
+fullnameOverride: loki
+serviceAccount: { create: true, name: loki }
+commonLabels: { vectra.io/criticality: medium }
+minio: { enabled: false }
+gateway: { enabled: false } # F63 y F65 van directo al 3100
+lokiCanary: { enabled: false }
+chunksCache: { enabled: false }
+resultsCache: { enabled: false }
+sidecar: { rules: { enabled: false } }
+test: { enabled: false }
+loki:
+  image: { digest: "sha256:44148ad243c07957113baea950ee5ba9b0c8eff8d7e38ff3cc1c0af705790945" }
+  auth_enabled: false
+  compactor: { retention_enabled: false }
+  limits_config: { retention_period: 0s }
+  podSecurityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: { type: RuntimeDefault } }
+  containerSecurityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+  schemaConfig:
+    configs:
+      - { from: "2026-01-01", store: tsdb, object_store: s3, schema: v13, index: { prefix: loki_index_, period: 24h } }
+  storage:
+    type: s3
+    bucketNames: { chunks: loki, ruler: loki, admin: loki }
+    s3: { endpoint: "http://minio.vectra-data.svc:9000", s3ForcePathStyle: true, insecure: true }
+backend: &component
+  replicas: 2
+  autoscaling: { enabled: false }
+  priorityClassName: vectra-normal
+  extraEnvFrom: [{ secretRef: { name: loki-s3 } }]
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+  topologySpreadConstraints:
+    - { maxSkew: 1, topologyKey: topology.kubernetes.io/zone, whenUnsatisfiable: ScheduleAnyway, labelSelector: { matchLabels: { app.kubernetes.io/name: loki } } }
+read: *component
+# El chart fija replication_factor 3: el quorum de escritura es 2. Con 2 replicas, perder una deja de aceptar logs.
+write:
+  <<: *component
+  replicas: 3
+singleBinary: { replicas: 0 }

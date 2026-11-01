@@ -1,0 +1,25 @@
+# Solo kind (F118): MinIO hace de S3 del banco. Recursos reducidos para un portatil de 14 GiB (ver install.md).
+# `standard` es la StorageClass que kind trae de fabrica. Sin cifrado de volumen: NFR-U1-23 no aplica en kind (INF-U1-02).
+storageClass: standard
+backup:
+  endpointURL: http://minio.vectra-data.svc:9000
+  # MinIO rechaza el cifrado del lado del servidor si no tiene KMS, y en kind no lo tiene.
+  encryption: ""
+clusters:
+  registry-db: &small
+    storage: 2Gi
+    wal: 1Gi
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: "1", memory: 1Gi }
+  case-db: *small
+  governance-db: *small
+  keycloak-db: *small
+# Los usuarios de MinIO exclusivos de kind (values-kind.yaml de MinIO). En staging y prod estas identidades son del
+# S3 del banco. `accessKey` en la boveda es el `accessKey` del usuario en MinIO (lo garantiza platform/kind/seed-vault.sh).
+extraSecrets:
+  minio-registry-checkpoint: { path: minio/registry-checkpoint, namespaces: [vectra-data, vectra-app], keys: { secretKey: secretKey, accessKey: accessKey } }
+  minio-registry-archive: { path: minio/registry-archive, namespaces: [vectra-data, vectra-app], keys: { secretKey: secretKey, accessKey: accessKey } }
+  minio-registry-verify: { path: minio/registry-verify, namespaces: [vectra-data, vectra-app], keys: { secretKey: secretKey, accessKey: accessKey } }
+  minio-restore-drill: { path: backups/restore-readonly, namespaces: [vectra-data], keys: { secretKey: secret_access_key } }
+  minio-postgres-backup: { path: postgres/backup, namespaces: [vectra-data], keys: { secretKey: secretKey } }

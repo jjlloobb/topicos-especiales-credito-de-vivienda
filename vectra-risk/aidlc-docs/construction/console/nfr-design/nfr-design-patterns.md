@@ -8,7 +8,7 @@ referencian en el Infrastructure Design y en el plan de tareas.
 ## 1. Autorización y composición
 
 ### P-U10-01 — Tres controles por ruta en el registro de contratos (BR-U10-01; NFR-U10-46)
-- Cada uno de los **29** endpoints de C03 es un `RouteContract` de U0 con `required_roles`, `mfa_max_age` (900 s cuando la columna «MFA» lo pide) y una `object_rule`.
+- Cada uno de los **30** endpoints de C03 es un `RouteContract` de U0 con `required_roles`, `mfa_max_age` (900 s cuando la columna «MFA» lo pide) y una `object_rule`.
 - El orden fijo es el middleware de U0 (rol → MFA) y después la regla de objeto. La regla de objeto es una función pura que recibe el estado que devolvió el destino, por ejemplo el caso, y responde aceptar, 403 o 409.
 - Cuando la regla depende del estado del objeto, el BFF lee el objeto y aplica la regla antes de reenviar la acción. Por ejemplo, `record_decision` lee el caso y exige `listo`. El destino vuelve a validar igual (defensa en profundidad), así que una carrera entre la lectura y la acción la resuelve el destino con su 409.
 - Un `RouteContract` sin `object_rule` explícita (`None` declarado) no arranca: deny by default, como BR-U0-71.
@@ -113,7 +113,7 @@ referencian en el Infrastructure Design y en el plan de tareas.
 | `ConsoleBffErrorBudgetFastBurn` | razón de 5xx propios del BFF (sin `dependency_unavailable`) > 14,4 × 0,005 en 1 h **y** en 5 min | 2 min | SEV2 |
 | `ConsoleBffErrorBudgetSlowBurn` | > 6 × 0,005 en 6 h **y** en 30 min | 15 min | SEV3 |
 | `ConsoleBffDown` | ninguna réplica de `console-bff` lista (`absent` o 0) | 5 min | SEV2 |
-| `ConsoleDependencyCircuitOpen` | `max by (dependency) (vectra_circuit_state{service="console-bff"}) == 2` (2 = abierto; codificación de U0 NFR-U0-23 (g)) | 5 min | SEV3 (el destino tiene su propia alerta) |
+| `ConsoleDependencyCircuitOpen` | `max by (dependency) (vectra_circuit_state{job="console-bff"}) == 2` (2 = abierto; codificación de U0 NFR-U0-23 (g); la métrica de U0 solo declara `dependency`; revisión de consistencia entre unidades, 2026-11-01) | 5 min | SEV3 (el destino tiene su propia alerta) |
 | `ConsoleClientErrorsSpike` | `sum(rate(vectra_console_client_errors_total[15m])) * 60 > 1` | 15 min | SEV3 |
 | `ConsoleChunkOrCspError` | `sum(increase(vectra_console_client_errors_total{error_code=~"chunk_load_failed|csp_violation"}[15m])) > 0` | 0 (un solo error dispara; antes estaba dentro de la alerta anterior con `for: 15m` y nunca disparaba; revisión del Infrastructure Design de U10, 2026-10-10) | SEV3 |
 

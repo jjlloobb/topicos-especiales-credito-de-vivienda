@@ -1,0 +1,28 @@
+# Casos bloqueados de la suite de conectividad (component-dependency.md §6; U10, U11).
+forbidden:
+  - { id: X01, from: scoring-service, to: core-banking-mock, port: 8080, envs: [kind, staging] }
+  - { id: X01, from: explainability-service, to: core-banking-mock, port: 8080, envs: [kind, staging] }
+  - { id: X02, from: scoring-service, to: "external:internet", port: 443 }
+  - { id: X02, from: explainability-service, to: "external:internet", port: 443 }
+  - { id: X02, from: bias-monitoring-service, to: "external:internet", port: 443 }
+  - { id: X04, from: bias-monitoring-service, to: governance-service, port: 8080, note: "sin F27: solo el CronJob congela" }
+  - { id: X05, from: case-service, to: registry-db, port: 5432 }
+  - { id: X05, from: scoring-service, to: case-db, port: 5432 }
+  - { id: X07, from: scoring-service, to: "external:kube-apiserver", port: 443 }
+  - { id: X07, from: case-service, to: "external:kube-apiserver", port: 443 }
+  - { id: X08, from: model-validation-job, to: predictor, port: 80 }
+  - { id: X08, from: predictor, to: staging-isvc, port: 80 }
+  - { id: U8, from: case-service, to: scoring-service, port: 8080 }
+  - { id: U8, from: case-worker, to: decision-registry-service, port: 8080 }
+  - { id: U8, from: case-worker, to: core-banking-mock, port: 8080, envs: [kind, staging] }
+  - { id: U9, from: bias-monitoring-service, to: pushgateway, port: 9091 }
+  - { id: U9, from: scoring-service, to: pushgateway, port: 9091 }
+  - { id: X09, from: "external:banco", to: console-bff, port: 8080 }
+  - { id: X09, from: "external:banco", to: case-service, port: 8080 }
+  - { id: U10, from: console-spa, to: case-service, port: 8080 }
+  - { id: U10, from: console-spa, to: console-bff, port: 8080 }
+  - { id: U10, from: console-bff, to: case-db, port: 5432 }
+  - { id: U10, from: console-bff, to: predictor, port: 80 }
+  - { id: U11, from: product-metrics, to: case-service, port: 8080 }
+  - { id: U11, from: product-metrics, to: governance-service, port: 8080 }
+  - { id: U11, from: case-service, to: product-metrics, port: 8081 }

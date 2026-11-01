@@ -1,0 +1,36 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-registries
+  annotations:
+    policies.kyverno.io/description: "Registro permitido por entorno (Paso 5). Sin observabilidad ni datos: sus imagenes vienen de charts upstream"
+spec:
+  validationFailureAction: Enforce
+  failurePolicy: Fail
+  background: false
+  rules:
+    - name: restrict-registries
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-staging, vectra-mock]
+      validate:
+        message: "Imagen de un registro no permitido"
+        pattern:
+          spec:
+            containers:
+              - image: "registro.vectra.internal/* | registro.banco.internal/vectra/* | kind-registry:5000/*"
+    # El cluster efimero del simulacro usa la misma imagen de PostgreSQL que `vectra-data`, por digest.
+    - name: restrict-registries-restore-drill
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [vectra-restore-drill]
+      validate:
+        message: "Imagen de un registro no permitido"
+        pattern:
+          spec:
+            containers:
+              - image: "registro.vectra.internal/* | registro.banco.internal/vectra/* | kind-registry:5000/* | ghcr.io/cloudnative-pg/postgresql:*@sha256:*"

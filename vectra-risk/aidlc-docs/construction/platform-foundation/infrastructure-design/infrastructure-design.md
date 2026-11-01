@@ -26,8 +26,8 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 |---|---|---|---|---|---|
 | kind | control-plane | 1 | — | — | — |
 | kind | workers | 4 (2 en `zone-a`, 2 en `zone-b`) | — | — | Todo |
-| prod/staging | `general` | ≥ 3 por zona | 8 vCPU / 32 GiB (inicial) | — | Servicios, KServe, observabilidad, controladores |
-| prod/staging | `data` | ≥ 2 por zona | 4 vCPU / 16 GiB (inicial) | `vectra.io/pool=data:NoSchedule` | PostgreSQL y MinIO |
+| prod/staging | `general` | ≥ 4 por zona (antes ≥ 3; se ajusta con la prueba de carga de U12; seguimiento de la cuarta revisión de coherencia, 2026-10-31) | 8 vCPU / 32 GiB (inicial) | — | Servicios, KServe, observabilidad, controladores |
+| prod/staging | `data` | ≥ 2 por zona | 8 vCPU / 32 GiB (inicial; antes 4 vCPU / 16 GiB; seguimiento de la quinta revisión de coherencia, 2026-10-31) | `vectra.io/pool=data:NoSchedule` | PostgreSQL y MinIO |
 
 - Los tamaños son iniciales y se ajustan con la prueba de carga (NFR-U1-11) y las cuotas (NFR-U1-13).
 - Etiqueta `topology.kubernetes.io/zone` en todos los nodos; en kind se asigna en la configuración del clúster.
@@ -44,7 +44,9 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 | `governance-db` | 10 Gi | 5 Gi | 50 |
 | `keycloak-db` | 10 Gi | 5 Gi | 100 |
 
-- StorageClass de producción y staging: la del banco, con cifrado, `volumeBindingMode: WaitForFirstConsumer` y `allowVolumeExpansion: true`. En kind se usa `local-path`, sin cifrado (documentado como no aplicable a NFR-U1-23).
+Cada `Cluster` se inicializa con `bootstrap.initdb` y su base y dueño (2026-11-01): `registry-db` → `registry`, `registry_migrator`; `case-db` → `case`, `case_migrator`; `governance-db` → `governance`, `gov_migrator`; `keycloak-db` → `keycloak`, `keycloak`. El secreto es el `pg-role-*` del dueño. `case` es palabra reservada de SQL: en una sentencia va entre comillas, en una URL de conexión no.
+
+- StorageClass de producción y staging: la del banco, con cifrado, `volumeBindingMode: WaitForFirstConsumer` y `allowVolumeExpansion: true`. En kind se usa `standard`, la StorageClass que kind trae de fábrica, sin cifrado (documentado como no aplicable a NFR-U1-23).
 - `max_connections` se calcula con P-U1-08: `(réplicas máximas del HPA × 5) × 1,2 + conexiones del operador y de los backups`. Los valores iniciales cubren hasta 12 réplicas por servicio. `case-db` tiene dos Deployments clientes (`case-service` y `case-worker`, 6 réplicas máximas cada uno = 12 × 5 conexiones), más el CronJob `case-retention` y el Job de migración; el valor inicial lo cubre (precisado el 2026-10-06 por U8 NFR Requirements, NFR-U8-14). Para Keycloak se fija un pool máximo de 20 conexiones por pod. Se recalculan con los máximos reales tras la prueba de carga. `registry-db` suma además la conexión del CronJob `registry-aggregator` (F107, 1 conexión a `-rw`): ≈ 47 en total (U3 INF-U3-04; quinta revisión del FD de U9, 2026-10-10).
 - Alertas, para los cuatro `Cluster` (es la única alerta de volumen; U8 la reutiliza para `case-db`, INF-U8-08):
 
@@ -58,16 +60,32 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
   - **Por qué `count < 6`**: cada `Cluster` tiene 3 instancias con un volumen de datos y uno de WAL (INF-U1-02), así que se esperan 6 PVC. El `or vector(0)` cubre el caso sin ninguna serie, que `count()` no devuelve. Si cambia el número de instancias, cambia el 6 (el chart lo calcula de `instances × 2`). Los 15 min absorben la recreación de un PVC durante un failover.
   - `promtool test rules`: 79 % no dispara; 81 % → SEV3; 91 % → SEV2; con los cuatro `Cluster` reportando, **se quitan las series de `case-db`** y a los 15 min dispara la regla de `case-db` (SEV2) y ninguna otra; quitar una sola de las 6 series de `case-db` también dispara; con las 6 series presentes no dispara.
 
+**Recursos iniciales del pool `data`** (seguimiento de la quinta revisión de coherencia, 2026-10-31), que se ajustan con la prueba de carga:
+
+| Componente | Pods | Requests por pod | Limits por pod |
+|---|---|---|---|
+| `registry-db`, `case-db` | 3 + 3 | 1 CPU / 4 GiB | 2 CPU / 8 GiB |
+| `governance-db`, `keycloak-db` | 3 + 3 | 500m / 2 GiB | 1 CPU / 4 GiB |
+| MinIO | 4 | 1 CPU / 4 GiB | 2 CPU / 8 GiB |
+
+Con el proxy (P-U1-14), 16 pods suman requests de 14,6 CPU / 52,3 GiB y limits de 34 CPU / 106 GiB. La cuota de `vectra-data`, con el 30 %, es ≈ 18,98 CPU / 68 GiB de requests y ≈ 44,2 CPU / 137,8 GiB de limits. Con una zona caída quedan 10 pods (2 instancias por cluster y 2 de MinIO) con ≈ 9 CPU / 32,2 GiB de requests, frente a los 16 vCPU / 64 GiB de esa zona.
+
+**Roles de base de datos** (cuarta revisión de coherencia entre unidades, 2026-10-31). U1 declara en `managed.roles` de cada `Cluster` todos los roles de `component-dependency.md` §4. Cada contraseña sale de la bóveda: un `ExternalSecret` en `vectra-data` para CloudNativePG y otro, con la misma ruta, en el namespace de cada consumidor, porque un `Secret` no se monta desde otro namespace. Las migraciones de U3, U4 y U8 se conectan con su `*_migrator`, crean los objetos y dan los grants; no crean roles.
+
 ### INF-U1-03 — Almacenamiento de objetos (Q4)
 
 | Uso | Dónde | Bucket | Protección |
 |---|---|---|---|
-| Backups base y WAL | S3 del banco **fuera del sitio** (F70) | `vectra-backups`, `vectra-wal` | Cifrado del lado del servidor; object lock en los de `registry-db` (NFR-U1-06) |
+| Backups base y WAL | S3 del banco **fuera del sitio** (F70) | `vectra-backups`; base y WAL bajo `<cluster>/` (Barman escribe `<cluster>/<cluster>/base` y `.../wals`; decidido el 2026-11-01) | Cifrado del lado del servidor; object lock en los de `registry-db` (NFR-U1-06) |
 | model-store | **MinIO in-cluster** (`vectra-data`) | `model-store`, `validation-datasets` | Versionado; credenciales de solo lectura para KServe y validación |
 | Logs | MinIO in-cluster | `loki` | Object lock de 90 días; retención por lifecycle (NFR-U1-30) |
 | Trazas | MinIO in-cluster | `tempo` | Lifecycle de 7 días |
 
-- **MinIO distribuido**: 4 pods en el pool `data` (2 por zona) con erasure coding y un volumen por pod (200 Gi inicial). En kind, 4 pods sobre los 4 workers, con volúmenes `local-path`.
+Identidades de MinIO, con su política y su Secret por ESO (2026-11-01): `kserve-readonly`, `validation-readonly`, `loki-writer`, `tempo-writer`, `governance-readonly` (F47, solo `model-store`), `model-archive-writer` (F101; lee `model-store`) y `risk-engineer-upload` (NFR-U5-03). Solo en kind, donde MinIO hace de S3 del banco (F118): `registry-checkpoint`, `registry-archive`, `registry-verify`, `restore-drill`, `postgres-backup` y escritura de `model-archive-writer` en `vectra-model-archive`. El bucket `vectra-backups` solo existe en MinIO en kind.
+| Archivo WORM de U3 y U4 (**solo kind**) | MinIO in-cluster (F118) | `vectra-registry-checkpoints`, `vectra-registry-archive`, `vectra-model-archive` | Object lock; en staging y prod son del S3 del banco (cuarta revisión de coherencia entre unidades, 2026-10-31) |
+
+- **MinIO distribuido**: 4 pods en el pool `data` (2 por zona) con erasure coding y un volumen por pod (200 Gi inicial). En kind, 4 pods sobre los 4 workers, con volúmenes `local-path`. Tráfico entre pods por F115 (cuarta revisión de coherencia entre unidades, 2026-10-31).
+- **Con una zona caída** (seguimiento de la quinta revisión de coherencia, 2026-10-31): con 2 de 4 pods, MinIO se puede leer pero pierde el quórum de escritura. Decisión del MVP: se acepta. Se detienen las escrituras de logs, trazas y artefactos hasta que vuelva la zona, y los modelos ya desplegados siguen sirviéndose. Alerta `MinioWriteQuorumLost`. Se comprueba en el simulacro de zona.
 - **Consecuencia**: no aparece ningún egress nuevo para observabilidad ni para KServe. El único destino S3 externo sigue siendo el de backups (F70).
 - La pérdida de MinIO (sitio) afecta logs, trazas y el model-store. Los modelos se reconstruyen desde el pipeline del banco y los logs aceptan RPO en horas (§8.4 de requirements). MinIO **no** guarda datos de solicitantes salvo los logs, que no tienen PII (U0, P-U0-04).
 
@@ -91,9 +109,9 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 | `linkerd-cni` | DaemonSet de CNI | Solo red del host (sin tráfico de pod) |
 | `kyverno` | Admission, background y reports controllers | deny-all + F85, F76 |
 | `external-secrets` | ESO | deny-all + F86 (kind) / F74 (prod) |
-| `vectra-restore-drill` | CronJob y cluster efímero | deny-all + F75 (egress a backups fuera del sitio) + F87 (egress al Pushgateway, 9091) + F80 (ingress desde el operador CloudNativePG hacia el cluster efímero) |
+| `vectra-restore-drill` | CronJob y cluster efímero | deny-all + F75 (egress a backups fuera del sitio) + F87 (egress al Pushgateway, 9091) + F80 (ingress desde el operador CloudNativePG hacia el cluster efímero) + F83 (plano de control de Linkerd) + F114 (5432 del cluster efímero) + F98 en kind o F99 en staging y prod (llave pública) + F118 (solo kind) + egress a la API de K12 (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | `vault` (solo kind) | Vault dev | deny-all + F86 |
-| `envoy-gateway-system` | Controlador de Envoy Gateway (U2, INF-U2-02; binding K14) | deny-all + F95 (agregado el 2026-10-08) |
+| `envoy-gateway-system` | Controlador de Envoy Gateway (U2, INF-U2-02; binding K14) | deny-all + F95 (agregado el 2026-10-08; ingress desde Envoy, cuarta revisión de coherencia entre unidades, 2026-10-31) |
 
 - MinIO se despliega en `vectra-data` (Q7), junto a PostgreSQL.
 - Los flujos de cada namespace se declaran en `flows.yaml` y se generan como los demás (P-U1-01).
@@ -105,13 +123,13 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 | Componente | Despliegue | Retención | Almacenamiento |
 |---|---|---|---|
 | Prometheus | 2 réplicas (HA), por zona | 30 días | PVC 100 Gi por réplica |
-| Alertmanager | 3 réplicas en cluster | — | — |
+| Alertmanager | 3 réplicas en cluster (gossip, F116) | — | — |
 | Loki | Modo simple escalable, por zona | 90 días (object lock + lifecycle) | MinIO `loki` |
 | Tempo | Modo distribuido mínimo | 7 días | MinIO `tempo` |
 | OTel Collector | Deployment, 2 réplicas | — | — |
-| Pushgateway | 1 réplica con `--persistence.file` y `--persistence.interval=1m`, `vectra-normal`; `Server` y `HTTPRoute` de Linkerd por identidad y método (P-U1-13; antes «sin persistencia», revisión de coherencia entre unidades, 2026-10-10) | Hasta el siguiente push o el borrado del grupo; sobrevive a un reinicio | PVC de 1 GiB (P-U1-13) — (F87 y F106 de entrada, F88 de scrape; F106 = CronJob de bias desde `vectra-app`, revisión del FD de U9, 2026-10-08) |
+| Pushgateway | 1 réplica con `--persistence.file` y `--persistence.interval=1m`, `vectra-normal`; `Server` y `HTTPRoute` de Linkerd por identidad y método (P-U1-13; antes «sin persistencia», revisión de coherencia entre unidades, 2026-10-10) | Hasta el siguiente push o el borrado del grupo; sobrevive a un reinicio | PVC de 1 GiB (P-U1-13) — (F87, F106, F112 y F113 de entrada, F88 de scrape; F106 = CronJob de bias desde `vectra-app`, revisión del FD de U9, 2026-10-08) |
 | **Grafana Alloy** | DaemonSet (logs de stdout → Loki) | — | — |
-| Grafana | 2 réplicas, dashboards como código | — | BD SQLite efímera; los dashboards vienen de Git |
+| Grafana | 1 réplica con `Recreate`, dashboards como código | — | SQLite en un PVC de 1 GiB: los permisos de carpeta y la cuenta de servicio se guardan en la base y no se reconstruyen de Git, así que no puede ser efímera ni repartirse entre réplicas sin base compartida (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | Job y CronJob `grafana-folder-permissions` | Aplica y compara los permisos de carpetas de `folder-permissions.yaml` por la API de Grafana (F110); `GrafanaFolderPermissionsDrift` si difieren | — | Sin estado; la fuente es Git (agregado en revisión de coherencia entre unidades, 2026-10-10; FD de U11, BR-U11-13) |
 
 ### INF-U1-08 — Relación con el banco (Q9)
@@ -123,7 +141,7 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 
 ### INF-U1-09 — Imágenes (Q10)
 - staging/prod: **solo** el registro interno del banco, alimentado desde GHCR por un proceso del banco. kind: `kind-registry`.
-- La política de Kyverno `verify-images` exige la firma Cosign y un registro permitido (`registry.banco.internal/*` en prod; `localhost:5001/*` en kind). Para verificar firmas, Kyverno consulta el registro (F76).
+- La política de Kyverno `verify-images` exige la firma Cosign y un registro permitido (`registro.banco.internal/vectra/*` en prod y staging, `registro.vectra.internal/*` para las imágenes propias; `kind-registry:5000/*` en kind, por `restrict-registries`). `verify-images` se instala solo en staging y prod. Para verificar firmas, Kyverno consulta el registro (F76) (revisión de consistencia entre unidades, 2026-11-01).
 
 ### INF-U1-10 — Secretos
 - ESO + Vault en kind (in-cluster, F86); ESO + la bóveda del banco en staging/prod (egress F74).

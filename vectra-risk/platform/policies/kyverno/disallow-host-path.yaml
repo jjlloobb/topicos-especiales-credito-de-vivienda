@@ -1,0 +1,23 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-host-path
+  annotations:
+    policies.kyverno.io/description: Sin volumenes hostPath
+spec:
+  validationFailureAction: Enforce
+  failurePolicy: Fail
+  background: false
+  rules:
+    - name: disallow-host-path
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-staging, vectra-data, vectra-mock, vectra-observability, vectra-restore-drill]
+      validate:
+        message: "Sin volumenes hostPath"
+        pattern:
+          spec:
+            =(volumes):
+              - X(hostPath): "null"

@@ -64,7 +64,7 @@ para cada human_decision válida (BR-U11-10: catálogo, actor_role = analista, d
   si explanation_viewed_before: vistas[día] += 1
   si channel != manual y outcome != revision_requerida y first_evaluation:
       origination[día(evaluated_at)].append(evaluated_at - received_at)
-agregar por periodo de BR-U11-08 (day = ayer completo; 30d hasta ayer; month_to_date hasta ayer; month = mes anterior cerrado),
+agregar por periodo de BR-U11-08 (day = ayer completo; 30d hasta ayer; month_to_date hasta ayer; month = cada uno de los 6 meses cerrados anteriores),
   publicando conteos con todos los cortes y razones solo totales o por un corte (BR-U11-08); un denominador 0 no publica tasa
 ventanas de 7 días para la tasa de consulta; noise.days_below_floor(...)
 degraded = invalid_entries / total > 0,01
@@ -101,7 +101,7 @@ resultado = cuenta
 - reinicio del proceso a mitad → `days_below_floor` igual que antes del reinicio;
 - una decisión sobre una recomendación de hace 60 días (fuera de la ventana de lectura) → atribuible, porque U3 la resuelve; una decisión que referencia una entrada `freeze` → no atribuible;
 - un caso `manual`, con `attempt = 2` o descongelado con `attempt = 1` y `first_evaluation = false` → fuera del tiempo de originación (revisión del FD de U11, 2026-10-10);
-- `day` publicado a las 10:00 UTC no incluye las decisiones de hoy; el 1 del mes no se publica `month_to_date` y `month` es el mes anterior completo;
+- `day` publicado a las 10:00 UTC no incluye las decisiones de hoy; el 1 del mes no se publica `month_to_date` y `month` incluye el mes anterior completo, entre los 6 cerrados;
 - una decisión con `decided_at` 3 min después de `recorded_at` → válida; 10 min después → excluida; una con `actor_role = cro` → excluida;
 - `gen_rules.py --check` falla si se agrega una causa `desincronia` al catálogo de U0 sin regenerar la regla;
 - una entrada con `decision` desconocido → excluida, con `invalid_entries = 1` y su `seq` solo en el log;
