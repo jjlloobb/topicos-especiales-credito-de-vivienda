@@ -5,6 +5,10 @@ global:
 controller:
   type: daemonset
   priorityClassName: vectra-normal
+  # Con readOnlyRootFilesystem, Alloy no puede crear su storagePath: /tmp/alloy va en un emptyDir.
+  volumes:
+    extra:
+      - { name: alloy-storage, emptyDir: { sizeLimit: 256Mi } }
 serviceAccount: { create: true, name: alloy }
 configReloader:
   securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
@@ -16,7 +20,11 @@ alloy:
   resources:
     requests: { cpu: 50m, memory: 128Mi }
     limits: { cpu: 200m, memory: 256Mi }
-  mounts: { varlog: false, dockercontainers: false }
+  mounts:
+    varlog: false
+    dockercontainers: false
+    extra:
+      - { name: alloy-storage, mountPath: /tmp/alloy }
   configMap:
     content: |
       discovery.kubernetes "pods" { role = "pod" }
