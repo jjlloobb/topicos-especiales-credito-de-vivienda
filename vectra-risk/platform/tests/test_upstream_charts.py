@@ -92,6 +92,14 @@ def test_alloy_is_daemonset():
     assert of(render("alloy"), "DaemonSet")
 
 
+def test_alloy_storage_is_writable_with_a_read_only_root():
+    spec = of(render("alloy"), "DaemonSet")[0]["spec"]["template"]["spec"]
+    alloy = next(c for c in spec["containers"] if c["name"] == "alloy")
+    assert alloy["securityContext"]["readOnlyRootFilesystem"] is True
+    assert {"name": "alloy-storage", "mountPath": "/tmp/alloy"} in alloy["volumeMounts"]  # noqa: S108
+    assert {"name": "alloy-storage", "emptyDir": {"sizeLimit": "256Mi"}} in spec["volumes"]
+
+
 def test_pushgateway_persists_without_admin_api():
     documents = render("pushgateway")
     assert of(documents, "PersistentVolumeClaim")[0]["spec"]["resources"]["requests"]["storage"] == "1Gi"

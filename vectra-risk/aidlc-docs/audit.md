@@ -4679,3 +4679,18 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, tramo C, wave 2.
 
 ---
+
+## Seguir con el PR 17 y las waves 3 y 4
+**Timestamp**: 2026-11-01T19:02:15Z
+**User Input**: "realiza los pasos 1, 2 y 3 y actualiza el issue"
+**AI Response**: Los tres pasos de la lista anterior ya estaban hechos, así que se interpreta como el plan propuesto: PR 17 y waves 3 y 4. El agente no aprueba; solo fusiona si un revisor humano ya aprobó.
+**Context**: Issue 7, tramo C.
+
+---
+
+## Tramo C detenido en Alloy
+**Timestamp**: 2026-11-01T19:21:49Z
+**AI Response**: PR 17 ya fusionado por el usuario y heartbeat eliminado. Wave 3 y wave 4 sincronizadas hasta `otel-collector`. Alloy falla con `mkdir /tmp/alloy: read-only file system`. Se abre un PR con un `emptyDir`. El `Degraded` inicial de `kube-prometheus-stack` fue transitorio.
+**Context**: Issue 7, tramo C, wave 4.
+
+---
