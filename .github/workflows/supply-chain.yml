@@ -23,6 +23,8 @@ jobs:
           trivyignores: vectra-risk/.trivyignore
           # Casos de prueba, inseguros a proposito.
           skip-dirs: vectra-risk/platform/policies/kyverno/fixtures,vectra-risk/platform/policies/rego/tests
+          # KSV-0041, aceptado solo para kind (issue 7): ESO lee todos los Secret. No se instala en staging ni prod.
+          skip-files: vectra-risk/platform/secrets/eso-rbac-secrets-read-kind.yaml
           format: table
           output: trivy-report.txt
       - name: Hallazgos de Trivy

@@ -98,7 +98,7 @@ sync() { for app in "$@"; do argocd app sync "$app" && argocd app wait "$app" --
 sync root argo-cd
 # Wave 0
 sync cert-manager trust-manager prometheus-operator-crds linkerd-crds linkerd-cni cloudnative-pg \
-     external-secrets-rbac external-secrets kyverno envoy-gateway kserve-crd kserve vault
+     external-secrets-rbac external-secrets-rbac-kind external-secrets kyverno envoy-gateway kserve-crd kserve vault
 # Wave 1
 sync namespaces priority-classes quotas mesh-certificates
 kubectl get configmap linkerd-identity-trust-roots -n linkerd   # debe existir antes del plano de control
