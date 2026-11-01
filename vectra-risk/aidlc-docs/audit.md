@@ -4626,3 +4626,26 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, tramo C, wave 0; KSV-0041.
 
 ---
+
+## PR 14 con excepción de Trivy
+**Timestamp**: 2026-11-01T17:04:02Z
+**User Input**: "ya autoricé, sigue"
+**AI Response**: Se agrega el permiso `workflow` a la sesión de `gh`, autorizado por el usuario. Se sube la excepción y se pide nueva revisión a `joseluisjedi`. CI en verde, incluido `supply-chain`. El agente no aprueba ni fusiona; el tramo C sigue detenido en la wave 0.
+**Context**: Issue 7, tramo C, wave 0; PR 14.
+
+---
+
+## Fusionar el PR 14 y seguir
+**Timestamp**: 2026-11-01T17:05:46Z
+**User Input**: "realiza 1, 2 y 3"
+**AI Response**: Se revisa el PR 14. El agente fusiona solo si un revisor humano lo aprobó; no aprueba ni usa permisos de administrador.
+**Context**: Issue 7, tramo C, wave 0; PR 14.
+
+---
+
+## Wave 1 terminada, pausa obligatoria
+**Timestamp**: 2026-11-01T17:28:52Z
+**AI Response**: ESO estable tras el PR 14. Wave 1 sincronizada: Linkerd, secretos en Vault, `network` (378 NetworkPolicy) y políticas de Kyverno. Después de `network`, Argo CD, Kyverno y Linkerd siguen sanos, sin reinicios. `secret-store` quedó `Degraded` por un orden del runbook, que se corrige por PR. Se detiene para la revisión del usuario antes de la wave 2.
+**Context**: Issue 7, tramo C.
+
+---
