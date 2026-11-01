@@ -9,6 +9,8 @@ identity:
     scheme: kubernetes.io/tls # lo gestiona cert-manager
 proxy:
   defaultInboundPolicy: deny
+  # Con `transport-header`, por omision, los proxies se conectan al 4143 y una NetworkPolicy por puerto de aplicacion los corta.
+  outboundTransportMode: transparent
   nativeSidecar: true
   resources: # P-U1-14
     cpu: { request: 100m, limit: 500m }

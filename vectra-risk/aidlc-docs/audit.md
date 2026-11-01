@@ -4649,3 +4649,18 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, tramo C.
 
 ---
+
+## Wave 2
+**Timestamp**: 2026-11-01T17:32:57Z
+**User Input**: "sigue con la wave 2"
+**AI Response**: Se sincronizan `postgres` y `minio` en el orden del runbook. Se detiene en el primer fallo y si la memoria disponible baja de 2 GiB.
+**Context**: Issue 7, tramo C.
+
+---
+
+## Tramo C detenido en la wave 2
+**Timestamp**: 2026-11-01T17:54:42Z
+**AI Response**: `minio server` arranca, primera vez que se prueba. Dos fallos de red. `initdb` no llega a la API porque `allow-k8s-api-k18` solo selecciona instancias. `minio-post-job` agota el tiempo al conectar a MinIO; la causa probable, sin confirmar, es `outboundTransportMode: transport-header`, que usa el 4143, sin permitir en ninguna NetworkPolicy. Se abre un PR con K18I, K18J y `transparent`.
+**Context**: Issue 7, tramo C, wave 2.
+
+---
