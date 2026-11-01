@@ -4185,3 +4185,19 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7.
 
 ---
+
+## Motor de Docker para el ensayo en kind
+**Timestamp**: 2026-11-01T10:08:24Z
+**User Input**: "usa el mas conveniente"
+**AI Response**: Se interpreta como respuesta a la comparación entre Docker Desktop y Docker Engine, y se elige Docker Engine nativo (`docker-ce`). Se encuentra además un Docker de snap activo que parece atender `/var/run/docker.sock` y ocupa el puerto 5001. Se corrige el runbook. El cambio de permisos, la desactivación del snap y la instalación quedan en manos del operador (AUTONOMIA-01).
+**Context**: Preparación del tramo B, issue 7.
+
+---
+
+## Docker Engine nativo y kind
+**Timestamp**: 2026-11-01T10:09:26Z
+**User Input**: "usa el que mas conviene para la maquina usar docker engine nativo y kind"
+**AI Response**: Se revisa la máquina y se ejecuta `docker context use default`. La desactivación del snap y el grupo `docker` quedan en manos del usuario, porque requieren `sudo`. Entrada registrada aquí a pedido de la sesión paralela que atendió este mensaje.
+**Context**: Preparación del tramo B, issue 7.
+
+---
