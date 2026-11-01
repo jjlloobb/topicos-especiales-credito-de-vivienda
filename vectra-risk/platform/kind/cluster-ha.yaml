@@ -1,0 +1,56 @@
+# Clúster de kind para el simulacro de failover de zona (Paso 20), en una máquina de al menos 32 GiB.
+# Solo configuración: lo crea el operador. El de todos los días es cluster.yaml.
+# kind resuelve `hostPath` contra el directorio actual: se ejecuta desde platform/kind (runbooks/install.md).
+# Imagen de nodo: la de kind v0.33.0 para Kubernetes 1.37; digest comprobado con platform/resolve_digest.py.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: vectra
+networking:
+  disableDefaultCNI: true # Calico, con NetworkPolicy de ingress y egress
+  podSubnet: 192.168.0.0/16
+# `certs.d` lleva el espejo de registro.vectra.internal hacia kind-registry:5000 (registry.md).
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry]
+      config_path = "/etc/containerd/certs.d"
+nodes:
+  - role: control-plane
+    image: &node kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+    extraMounts:
+      - hostPath: ./encryption-config.yaml
+        containerPath: /etc/kubernetes/encryption/config.yaml
+        readOnly: true
+      - &certs { hostPath: ./certs.d, containerPath: /etc/containerd/certs.d, readOnly: true }
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiServer:
+          # Lista, no mapa: para Kubernetes >= 1.36, kind v0.33 genera kubeadm v1beta4 (pkg/cluster/internal/kubeadm/config.go).
+          extraArgs:
+            - name: encryption-provider-config
+              value: /etc/kubernetes/encryption/config.yaml
+          extraVolumes:
+            - name: encryption
+              hostPath: /etc/kubernetes/encryption
+              mountPath: /etc/kubernetes/encryption
+              readOnly: true
+    extraPortMappings:
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+  - role: worker
+    image: *node
+    extraMounts: [*certs]
+    labels: { topology.kubernetes.io/zone: zone-a }
+  - role: worker
+    image: *node
+    extraMounts: [*certs]
+    labels: { topology.kubernetes.io/zone: zone-a }
+  - role: worker
+    image: *node
+    extraMounts: [*certs]
+    labels: { topology.kubernetes.io/zone: zone-b }
+  - role: worker
+    image: *node
+    extraMounts: [*certs]
+    labels: { topology.kubernetes.io/zone: zone-b }

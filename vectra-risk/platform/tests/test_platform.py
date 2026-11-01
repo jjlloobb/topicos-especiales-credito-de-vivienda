@@ -33,6 +33,9 @@ def test_kind_config():
     config = docs_of(PLATFORM / "kind/cluster.yaml")[0]
     workers = [n for n in config["nodes"] if n["role"] == "worker"]
     zones = sorted(n["labels"]["topology.kubernetes.io/zone"] for n in workers)
+    assert zones == ["zone-a", "zone-b"]
+    ha = docs_of(PLATFORM / "kind/cluster-ha.yaml")[0]
+    zones = sorted(n["labels"]["topology.kubernetes.io/zone"] for n in ha["nodes"] if n["role"] == "worker")
     assert zones == ["zone-a", "zone-a", "zone-b", "zone-b"]
     assert config["networking"]["disableDefaultCNI"] is True
     plane = next(n for n in config["nodes"] if n["role"] == "control-plane")

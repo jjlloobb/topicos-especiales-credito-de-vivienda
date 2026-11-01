@@ -14,6 +14,14 @@ Sin plataforma no se puede desplegar ninguna unidad.
 
 Todos los comandos corren desde la carpeta `vectra-risk/` del repositorio, salvo donde se indica, y con `--context kind-vectra` implícito: `kubectl config use-context kind-vectra` tras el paso 2. Otros clústeres de kind del equipo no se tocan.
 
+## Antes de instalar: memoria y Docker
+`kind/cluster.yaml` y los `*-kind.yaml` forman un perfil liviano para una máquina de 14 GiB: dos nodos, una instancia de PostgreSQL por base y nada en HA. Sin réplica síncrona no sirve para el simulacro de failover de zona (Paso 20): ese va en una máquina de al menos 32 GiB con `kind/cluster-ha.yaml`, y `instances: 3` y `zoneConstraint: true` en `vectra-risk-gitops/values/kind/postgres.yaml`.
+
+- **Memoria:** `free -h` debe mostrar al menos 8 GiB disponibles, y la swap sin llenar. Cierra navegadores, Teams y máquinas virtuales de otros laboratorios. Con menos, la instalación puede matar pods o congelar el escritorio.
+- **Docker:** usa Docker Desktop, con al menos 10 GiB de memoria en su configuración. kind sobre Podman sin root no sirve aquí: no puede abrir el puerto 443 ni darle a Calico lo que necesita.
+- **Otro clúster:** Docker Desktop puede levantar el clúster `kind` que ya exista. Antes de instalar, `kind get clusters`: si `kind` aparece y no lo necesitas, elimínalo con `kind delete cluster --name kind`; si lo necesitas, detén sus contenedores. Compruebas el contexto antes de cada comando: `kubectl config current-context` debe decir `kind-vectra`.
+- **Si se queda sin memoria:** detente y no sigas con la siguiente wave. Puedes dejar para el final `loki`, `tempo` y `alloy`.
+
 ## Mitigación
 
 ### 1. Llave de etcd

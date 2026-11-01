@@ -1,6 +1,10 @@
 # Solo kind (F118): MinIO hace de S3 del banco. Recursos reducidos para un portatil de 14 GiB (ver install.md).
 # `standard` es la StorageClass que kind trae de fabrica. Sin cifrado de volumen: NFR-U1-23 no aplica en kind (INF-U1-02).
 storageClass: standard
+# Perfil liviano: una instancia por base, sin replica sincrona (cabe en 14 GiB). El simulacro de failover de zona (Paso 20)
+# necesita 3: con `cluster-ha.yaml`, en `vectra-risk-gitops/values/kind/postgres.yaml` se fija `instances: 3` y `zoneConstraint: true`.
+instances: 1
+zoneConstraint: false
 backup:
   endpointURL: http://minio.vectra-data.svc:9000
   # MinIO rechaza el cifrado del lado del servidor si no tiene KMS, y en kind no lo tiene.
