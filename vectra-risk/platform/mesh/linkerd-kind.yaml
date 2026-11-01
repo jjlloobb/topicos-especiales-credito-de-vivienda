@@ -1,0 +1,4 @@
+# Solo kind: sin HA. Si este plano de control cae, los pods nuevos no arrancan hasta que vuelva.
+controllerReplicas: 1
+enablePodAntiAffinity: false
+enablePodDisruptionBudget: false

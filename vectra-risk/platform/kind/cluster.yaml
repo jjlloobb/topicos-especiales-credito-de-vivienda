@@ -1,4 +1,5 @@
 # Clúster de kind (INF-U1-01, 04, 05, 09; NFR-U1-24). Solo configuración: lo crea el operador (Paso 19).
+# Perfil liviano: dos nodos, para una máquina de 14 GiB. El failover de zona (Paso 20) usa cluster-ha.yaml.
 # kind resuelve `hostPath` contra el directorio actual: se ejecuta desde platform/kind (runbooks/install.md).
 # Imagen de nodo: la de kind v0.33.0 para Kubernetes 1.37; digest comprobado con platform/resolve_digest.py.
 kind: Cluster
@@ -41,14 +42,6 @@ nodes:
     image: *node
     extraMounts: [*certs]
     labels: { topology.kubernetes.io/zone: zone-a }
-  - role: worker
-    image: *node
-    extraMounts: [*certs]
-    labels: { topology.kubernetes.io/zone: zone-a }
-  - role: worker
-    image: *node
-    extraMounts: [*certs]
-    labels: { topology.kubernetes.io/zone: zone-b }
   - role: worker
     image: *node
     extraMounts: [*certs]

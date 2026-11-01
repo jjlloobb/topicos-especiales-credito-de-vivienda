@@ -1,7 +1,10 @@
 # Solo en kind. Los buckets WORM de U3 y U4 (F118) y los backups (no hay S3 del banco que simular) viven aqui;
 # en staging y prod, en el S3 del banco. Helm reemplaza las listas: `buckets`, `policies`, `users` y `customCommands`
 # repiten lo de values.yaml. `standard` es la StorageClass que kind trae de fabrica; no cifra (fuera de NFR-U1-23).
-persistence: { size: 5Gi, storageClass: standard }
+# Un nodo con 4 discos: conserva el borrado por codigos que necesita el object lock, sin 4 pods.
+replicas: 1
+drivesPerNode: 4
+persistence: { size: 2Gi, storageClass: standard }
 resources:
   requests: { cpu: 100m, memory: 256Mi }
   limits: { cpu: "1", memory: 1Gi }

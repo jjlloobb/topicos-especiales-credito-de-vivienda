@@ -23,7 +23,7 @@ components:
   - { name: argo-cd, wave: 0, namespace: argocd, repo: "https://argoproj.github.io/argo-helm", chart: argo-cd, version: 10.11.6, values: [platform/operators/argo-cd.yaml], kind_values: [platform/operators/argo-cd-kind.yaml] }
   - { name: vault, wave: 0, namespace: vault, envs: [kind], repo: "https://helm.releases.hashicorp.com", chart: vault, version: 0.34.1, values: [platform/operators/vault-kind.yaml] }
   - { name: mesh-certificates, wave: 1, namespace: linkerd, path: platform/mesh, include: certificates.yaml }
-  - { name: linkerd-control-plane, wave: 1, namespace: linkerd, repo: "https://helm.linkerd.io/edge", chart: linkerd-control-plane, version: 2026.10.2, values: [platform/mesh/linkerd-values.yaml] }
+  - { name: linkerd-control-plane, wave: 1, namespace: linkerd, repo: "https://helm.linkerd.io/edge", chart: linkerd-control-plane, version: 2026.10.2, values: [platform/mesh/linkerd-values.yaml], kind_values: [platform/mesh/linkerd-kind.yaml] }
   - { name: kyverno-context-rbac, wave: 1, namespace: kyverno, path: platform/policies/rbac, include: kyverno-context.yaml }
   - { name: kyverno-policies, wave: 1, namespace: kyverno, path: platform/policies/kyverno, exclude: "{kyverno-test.yaml,README.md,verify-images.yaml}" }
   # Sin llave real rechaza toda imagen propia. En kind no se instala: firmas y llave se prueban en el Paso 20 con su PR.

@@ -103,7 +103,8 @@ def render_env(env: str) -> tuple[tuple[str, tuple[Any, ...]], ...]:
             documents = []  # OCI: fuera de esta prueba
         elif component.get("env_values"):
             values = ROOT / f"vectra-risk-gitops/envs/{env}/values.yaml"
-            documents = helm(name, ROOT / component["path"], component["namespace"], [values])
+            own = [ROOT / f for f in component.get("kind_values", [])] if env == "kind" else []
+            documents = helm(name, ROOT / component["path"], component["namespace"], [values, *own])
         elif component["name"] == "grafana-dashboards":
             documents = []
         else:

@@ -10,8 +10,10 @@ metadata:
 spec:
   imageName: {{ $.Values.imageName }}
   instances: {{ $.Values.instances }}
+  {{- if gt (int $.Values.instances) 1 }}
   minSyncReplicas: 1
   maxSyncReplicas: 2
+  {{- end }}
   primaryUpdateStrategy: unsupervised
   bootstrap:
     initdb:
