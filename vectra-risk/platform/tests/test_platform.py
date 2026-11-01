@@ -350,6 +350,11 @@ def test_cluster_wide_secret_read_exists_only_in_kind():
         assert "eso-rbac-secrets-read-kind" not in "".join(p.read_text(encoding="utf-8") for p in (GITOPS / f"apps/{env}").glob("*.yaml"))
 
 
+def test_trivy_skips_only_the_kind_secret_read():
+    workflow = (REPO / ".github/workflows/supply-chain.yml").read_text(encoding="utf-8")
+    assert re.findall(r"skip-files: (.+)", workflow) == ["vectra-risk/platform/secrets/eso-rbac-secrets-read-kind.yaml"]
+
+
 def test_forbidden_steps_fixture(tmp_path):
     (tmp_path / "bad.yml").write_text("jobs:\n  a:\n    steps:\n      - run: kubectl apply -f x\n", encoding="utf-8")
     (tmp_path / "good.yml").write_text("jobs:\n  a:\n    steps:\n      - run: kubectl diff -f x\n", encoding="utf-8")

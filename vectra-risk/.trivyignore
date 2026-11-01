@@ -1,2 +1,3 @@
 # Excepciones vigentes de Trivy. Cada linea lleva CVE, motivo y fecha de vencimiento.
 # Ninguna: AVD-KSV-0053 y AVD-KSV-0114 se resolvieron el 2026-11-01.
+# Aparte: `skip-files` en supply-chain.yml omite solo platform/secrets/eso-rbac-secrets-read-kind.yaml (KSV-0041, solo kind, issue 7).

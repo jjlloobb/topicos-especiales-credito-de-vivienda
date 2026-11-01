@@ -372,7 +372,7 @@ Decisiones:
 - `verify-images` no se instala en kind. La firma es con llave (`sign-image.yml`), no sin llave.
 - `require-hpa-bounds` audita al admitir; el HPA se exige sobre el render en el PR (`hpa.rego`).
 - MinIO: se mantiene la opción A, con `docker-entrypoint.sh`; la imagen sigue sin construirse, y AGPL-3.0 sigue sin revisión de cumplimiento.
-- Sin excepciones de Trivy. `AVD-KSV-0053`: el simulacro lee el LSN por F114, sin `pods/exec`. `AVD-KSV-0114`: el webhook de ESO usa un certificado de cert-manager, sin `cert-controller`. Sin comprobar en un clúster (Paso 19).
+- Sin excepciones de Trivy, salvo `skip-files` para `eso-rbac-secrets-read-kind.yaml` (KSV-0041), que solo se instala en kind y deja abierta la decisión de K11 para staging y prod (issue 7). `AVD-KSV-0053`: el simulacro lee el LSN por F114, sin `pods/exec`. `AVD-KSV-0114`: el webhook de ESO usa un certificado de cert-manager, sin `cert-controller`. Sin comprobar en un clúster (Paso 19).
 
 Tareas humanas para la separación de funciones en un solo repositorio (decisión del usuario, 2026-11-01): crear los equipos, pasarles las reglas de `.github/CODEOWNERS` y exigir la revisión de code owners en la rama protegida. Hasta entonces, todas las reglas apuntan al dueño del repositorio.
 

@@ -4596,3 +4596,33 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, tramo C, wave 0; K11.
 
 ---
+
+## PR 14 bloqueado por Trivy
+**Timestamp**: 2026-11-01T16:45:04Z
+**AI Response**: `supply-chain` falla con KSV-0041 (CRITICAL) en el permiso solo para kind. Agregar una excepción no estaba incluido en la decisión A, así que no se agrega y se pide decisión al usuario. `# trivy:ignore` no funciona en este manifiesto, comprobado en local con Trivy 0.76.1.
+**Context**: Issue 7, tramo C, wave 0; PR 14.
+
+---
+
+## Prueba de ESO sin caché de secretos
+**Timestamp**: 2026-11-01T16:47:57Z
+**User Input**: "sigue con la 3"
+**AI Response**: Se agrega de forma temporal `--enable-managed-secrets-caching=false` al Deployment de ESO en `kind-vectra`, fuera de GitOps, para ver si arranca sin el permiso de lectura. Se revierte si no funciona.
+**Context**: Issue 7, tramo C, wave 0; K11.
+
+---
+
+## Resultado de la prueba de ESO
+**Timestamp**: 2026-11-01T16:51:11Z
+**AI Response**: No funciona: con la bandera sigue `failed to list *v1.PartialObjectMetadata: secrets is forbidden` y el controlador cae a los 2 minutos. Cambio revertido con `rollout undo`. PR 14 sigue bloqueado por KSV-0041, a la espera de la decisión del usuario.
+**Context**: Issue 7, tramo C, wave 0; K11.
+
+---
+
+## Excepción de Trivy solo para el permiso de kind
+**Timestamp**: 2026-11-01T16:52:21Z
+**User Input**: "sigue con la 1"
+**AI Response**: Se agrega `skip-files` en `supply-chain.yml` solo para `eso-rbac-secrets-read-kind.yaml`, y una prueba que impide ampliarlo. Se pide a `joseluisjedi` que revise de nuevo el PR 14.
+**Context**: Issue 7, tramo C, wave 0; KSV-0041.
+
+---
