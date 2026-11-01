@@ -31,6 +31,9 @@ spec:
                 - { name: PUSHGATEWAY_URL, value: "http://pushgateway.vectra-observability.svc:9091" }
                 # El digest de `imageName` en platform/data/chart/values.yaml.
                 - { name: RESTORE_IMAGE, value: "ghcr.io/cloudnative-pg/postgresql:17.9-system-trixie@sha256:8fd8db26090e602458269741849e5c9cd7aff577a22af53c8a402c580fd1e729" }
+                # Solo para leer el LSN alcanzado por F114; `pg-role-registry-verifier` lo entrega el chart de datos.
+                - { name: LSN_USER, valueFrom: { secretKeyRef: { name: pg-role-registry-verifier, key: username } } }
+                - { name: LSN_PASSWORD, valueFrom: { secretKeyRef: { name: pg-role-registry-verifier, key: password } } }
               envFrom:
                 - configMapRef: { name: restore-drill-config } # por entorno: configmap-<entorno>.yaml
                 - secretRef: { name: restore-drill-readonly-credentials }
@@ -50,10 +53,6 @@ rules:
   # list y watch: `kubectl wait` y `kubectl delete --wait` sobre el Cluster.
   - { apiGroups: [postgresql.cnpg.io], resources: [clusters], verbs: [create, get, list, watch, delete] }
   - { apiGroups: [""], resources: [pods/log], verbs: [get] }
-  # `restore-cluster.sh lsn`. `kubectl exec` lee el pod y abre pods/exec: con POST (create) o, por WebSocket, GET.
-  # Solo la unica instancia de cada Cluster efimero.
-  - { apiGroups: [""], resources: [pods], resourceNames: [restore-registry-1, restore-case-1], verbs: [get] }
-  - { apiGroups: [""], resources: [pods/exec], resourceNames: [restore-registry-1, restore-case-1], verbs: [create, get] }
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

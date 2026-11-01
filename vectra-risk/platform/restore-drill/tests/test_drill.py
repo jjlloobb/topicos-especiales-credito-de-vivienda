@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import threading
+import types
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -166,10 +167,50 @@ def fake_kubectl(tmp_path, monkeypatch, script):
     return tmp_path / "calls"
 
 
-def test_lsn_reads_the_primary_through_exec_and_returns_an_int(tmp_path, monkeypatch):
-    calls = fake_kubectl(tmp_path, monkeypatch, 'case "$1" in get) echo restore-registry-1;; exec) echo " 1234 ";; esac')
+def test_lsn_is_read_over_f114_with_the_verifier_role(monkeypatch):
+    seen = {}
+
+    class Cursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def execute(self, query):
+            seen["query"] = query
+
+        def fetchone(self):
+            return (1234,)
+
+    class Connection(Cursor):
+        def cursor(self):
+            return Cursor()
+
+    def connect(**kwargs):
+        seen.update(kwargs)
+        return Connection()
+
+    monkeypatch.setitem(sys.modules, "psycopg", types.SimpleNamespace(connect=connect))
+    monkeypatch.setenv("LSN_USER", "registry_verifier")
+    monkeypatch.setenv("LSN_PASSWORD", "x")
     assert KubectlCommands().reached_lsn("restore-registry") == 1234
-    assert "exec restore-registry-1 -n vectra-restore-drill -c postgres" in calls.read_text(encoding="utf-8")
+    assert seen["host"] == "restore-registry-rw.vectra-restore-drill.svc" and seen["dbname"] == "registry"
+    assert seen["user"] == "registry_verifier" and seen["sslmode"] == "require"
+    assert "COALESCE(pg_last_wal_replay_lsn(), pg_current_wal_lsn())" in seen["query"]
+
+
+def test_the_drill_role_cannot_exec_or_read_pods():
+    documents = list(yaml.safe_load_all((HERE / "cronjob.yaml").read_text(encoding="utf-8")))
+    role = next(d for d in documents if d and d["kind"] == "Role")
+    resources = {r for rule in role["rules"] for r in rule["resources"]}
+    assert "pods/exec" not in resources and "pods" not in resources
+
+
+def test_the_lsn_secret_is_delivered_to_the_namespace_of_the_drill():
+    values = yaml.safe_load((HERE.parent / "data/chart/values.yaml").read_text(encoding="utf-8"))
+    assert "vectra-restore-drill" in values["roleConsumers"]["registry_verifier"]
+    assert "pg-role-registry-verifier" in (HERE / "cronjob.yaml").read_text(encoding="utf-8")
 
 
 def manifest(tmp_path, monkeypatch, *extra):

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Crea, consulta o destruye el Cluster efimero del simulacro (K12). Lo usa drill.py dentro del CronJob.
-# Uso: restore-cluster.sh create <nombre> <origen> [tamano] | destroy <nombre> | lsn <nombre>
+# Crea o destruye el Cluster efimero del simulacro (K12). Lo usa drill.py dentro del CronJob.
+# Uso: restore-cluster.sh create <nombre> <origen> [tamano] | destroy <nombre>
 #
 # Entorno (cronjob.yaml y configmap-<entorno>.yaml):
 #   RESTORE_IMAGE        imagen de PostgreSQL; el mismo digest del chart de datos.
@@ -13,14 +13,6 @@ action="$1"; name="$2"; namespace=vectra-restore-drill
 case "$action" in
   destroy)
     kubectl delete clusters.postgresql.cnpg.io "$name" -n "$namespace" --ignore-not-found --wait=true
-    ;;
-  lsn)
-    # Imprime un entero. El CR no publica el LSN, asi que se pregunta a PostgreSQL con `kubectl exec` (K12: pods/exec
-    # limitado a las instancias del simulacro). Tras promover, CloudNativePG reinicia la instancia y
-    # pg_last_wal_replay_lsn() puede ser NULL; entonces vale el LSN actual, justo despues de lo reproducido.
-    primary="$(kubectl get clusters.postgresql.cnpg.io "$name" -n "$namespace" -o 'jsonpath={.status.currentPrimary}')"
-    kubectl exec "$primary" -n "$namespace" -c postgres -- psql -d postgres -Atc \
-      "SELECT (COALESCE(pg_last_wal_replay_lsn(), pg_current_wal_lsn()) - '0/0')::bigint"
     ;;
   create)
     source="$3"

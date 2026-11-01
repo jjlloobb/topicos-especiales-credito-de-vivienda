@@ -3996,3 +3996,49 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: `main` protegida con `enforce_admins`.
 
 ---
+
+## Aprobación del PR 5
+**Timestamp**: 2026-11-01T07:55:05Z
+**User Input**: "joseluisjedi approved PR"
+**AI Response**: Comprobado: @joseluisjedi aprobó el PR 5 y el usuario lo fusionó (`d53b249`). Sigue abierto el issue 4, sin comentarios.
+**Context**: `main` protegida con `enforce_admins`.
+
+---
+
+## Comentario en el issue 4
+**Timestamp**: 2026-11-01T08:02:15Z
+**User Input**: "joseluisjedi commented issue"
+**AI Response**: Leído: el único comentario de @joseluisjedi dice "Good work!", sin hallazgos ni detalle de lo revisado, y el issue está cerrado. No hay nada que corregir.
+**Context**: Revisión de los PR 1 y 2.
+
+---
+
+## Revisión de aprobaciones
+**Timestamp**: 2026-11-01T08:05:18Z
+**User Input**: "revisa si los PR fueron aprobados"
+**AI Response**: Se consultan las revisiones de cada PR en GitHub.
+**Context**: Solo lectura.
+
+---
+
+## Consulta sobre las excepciones del issue
+**Timestamp**: 2026-11-01T08:06:56Z
+**User Input**: "las excepciones del issue estan corregidas?"
+**AI Response**: No: las dos excepciones de Trivy están aceptadas hasta 2027-02-01, no corregidas. Los permisos siguen en `main`, y también `StringLikeIfExists`. Sin cambios.
+**Context**: Solo lectura.
+
+---
+
+## Resolver las excepciones de Trivy
+**Timestamp**: 2026-11-01T08:07:59Z
+**User Input**: "por favor resuelve las excepciones"
+**AI Response**: Se buscan soluciones para `AVD-KSV-0053` y `AVD-KSV-0114`, en un PR con revisión. Sin acceso a clústeres.
+**Context**: Excepciones aceptadas en el PR 5.
+
+---
+
+## Excepciones de Trivy resueltas
+**AI Response**: `AVD-KSV-0053`: el simulacro lee el LSN por F114 con psycopg, sin `pods/exec`; imagen construida y consulta probada contra PostgreSQL 17 real. `AVD-KSV-0114`: el webhook de ESO usa un certificado de cert-manager, sin `cert-controller`; solo render, sin clúster. Trivy termina sin hallazgos y `.trivyignore` queda vacío. `StringLikeIfExists` no se cambia: no es una excepción de Trivy y cambiarlo sin probar el restore podría romperlo. Se abre un PR para revisión de @joseluisjedi.
+**Context**: Sin acceso a clústeres.
+
+---

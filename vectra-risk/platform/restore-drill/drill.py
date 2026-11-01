@@ -19,6 +19,9 @@ from typing import Protocol
 TIMEOUT = 5
 REGISTRY = ("restore-registry", "registry-db")
 CASE = ("restore-case", "case-db")
+NAMESPACE = "vectra-restore-drill"
+REGISTRY_DATABASE = "registry"
+LSN_QUERY = "SELECT (COALESCE(pg_last_wal_replay_lsn(), pg_current_wal_lsn()) - '0/0')::bigint"
 LOG = logging.getLogger("restore-drill")
 
 
@@ -117,7 +120,25 @@ class KubectlCommands:
         return int(self._run("case-retention", "--cluster", cluster, "--count-expired").strip())
 
     def reached_lsn(self, cluster: str) -> int:
-        return int(self._run("restore-cluster.sh", "lsn", cluster).strip())
+        """Por F114, sin `kubectl exec`. Tras promover, CloudNativePG reinicia la instancia y
+        `pg_last_wal_replay_lsn()` puede ser NULL; entonces vale el LSN actual, justo despues de lo reproducido.
+        El trafico va por mTLS de Linkerd: la CA del Cluster efimero no existe antes de crearlo, asi que no se verifica.
+        """
+        import psycopg  # solo en la imagen del simulacro
+
+        with (
+            psycopg.connect(
+                host=f"{cluster}-rw.{NAMESPACE}.svc",
+                dbname=REGISTRY_DATABASE,
+                user=os.environ["LSN_USER"],
+                password=os.environ["LSN_PASSWORD"],
+                sslmode="require",
+                connect_timeout=TIMEOUT,
+            ) as connection,
+            connection.cursor() as cursor,
+        ):
+            cursor.execute(LSN_QUERY)
+            return int(cursor.fetchone()[0])
 
 
 def main(commands: DrillCommands | None = None) -> int:
