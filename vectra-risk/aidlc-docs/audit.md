@@ -4415,3 +4415,26 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Repositorio. Pendiente el push por falta de credenciales.
 
 ---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-01T14:56:58Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda autenticar `gh`, fusionar los PR del runbook, de la eliminación del curso y de auditoría antes de fijar el commit del ensayo, y luego ejecutar el tramo B como operador. No se ejecuta nada.
+**Context**: Preparación del tramo B, issue 7.
+
+---
+
+## Instalar gh, abrir los PR y preparar el ensayo
+**Timestamp**: 2026-11-01T14:58:58Z
+**User Input**: "instala gh and gh login, crea los pr y luego realiza el punto 3"
+**AI Response**: Se instala `gh`, se inicia la autenticación, se abren los PR y se prepara el punto 3. Sin fusiones ni acceso a clústeres.
+**Context**: Preparación del tramo B, issue 7.
+
+---
+
+## gh instalado y PR abiertos
+**Timestamp**: 2026-11-01T15:02:00Z
+**AI Response**: Se instala `gh` 2.103.3 en `~/.local/bin`, con suma de verificación y sin `sudo`. El usuario autoriza el acceso desde el navegador. Se suben las ramas y se abren los PR del runbook y de la eliminación del curso. El de auditoría espera a que se fusione el del runbook.
+**Context**: Preparación del tramo B, issue 7.
+
+---
