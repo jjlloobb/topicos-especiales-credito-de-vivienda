@@ -3848,3 +3848,11 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Abiertos los Pasos 19, 20 y 23 de U1.
 
 ---
+
+## Subida de la rama y PR a main
+**Timestamp**: 2026-11-01T06:07:33Z
+**User Input**: "sube la rama y la etiqueta y abre el PR a main"
+**AI Response**: No se pudo subir: `git push` falla porque esta sesión no tiene credenciales de GitHub, y `gh` no está instalado. No se buscaron credenciales ni se instaló nada. El usuario sube la rama y la etiqueta y abre el PR.
+**Context**: U0 y U1 aprobadas.
+
+---
