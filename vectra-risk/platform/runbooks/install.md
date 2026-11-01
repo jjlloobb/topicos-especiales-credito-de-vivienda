@@ -18,8 +18,16 @@ Todos los comandos corren desde la carpeta `vectra-risk/` del repositorio, salvo
 `kind/cluster.yaml` y los `*-kind.yaml` forman un perfil liviano para una máquina de 14 GiB: dos nodos, una instancia de PostgreSQL por base y nada en HA. Sin réplica síncrona no sirve para el simulacro de failover de zona (Paso 20): ese va en una máquina de al menos 32 GiB con `kind/cluster-ha.yaml`, y `instances: 3` y `zoneConstraint: true` en `vectra-risk-gitops/values/kind/postgres.yaml`.
 
 - **Memoria:** `free -h` debe mostrar al menos 8 GiB disponibles, y la swap sin llenar. Cierra navegadores, Teams y máquinas virtuales de otros laboratorios. Con menos, la instalación puede matar pods o congelar el escritorio.
-- **Docker:** usa Docker Desktop, con al menos 10 GiB de memoria en su configuración. kind sobre Podman sin root no sirve aquí: no puede abrir el puerto 443 ni darle a Calico lo que necesita.
-- **Otro clúster:** Docker Desktop puede levantar el clúster `kind` que ya exista. Antes de instalar, `kind get clusters`: si `kind` aparece y no lo necesitas, elimínalo con `kind delete cluster --name kind`; si lo necesitas, detén sus contenedores. Compruebas el contexto antes de cada comando: `kubectl config current-context` debe decir `kind-vectra`.
+- **Docker:** usa Docker Engine nativo (`docker-ce`). Corre sin VM, y en 14 GiB la VM de Docker Desktop, con los 10 GiB que necesitaría, deja poco al sistema. Sin VM tampoco hay límite que proteja el escritorio: el mínimo de `free -h` de arriba es la protección. Docker Desktop también sirve en una máquina más grande, con al menos 10 GiB de memoria en su configuración. kind sobre Podman sin root no sirve aquí: no puede abrir el puerto 443 ni darle a Calico lo que necesita.
+- **Un solo motor:** cada motor tiene sus propios clústeres e imágenes, así que usa uno durante todo el ensayo. El Docker de snap no se usa: kind lo lista como problema conocido porque puede no tener acceso a `$TMPDIR`. Si está instalado junto a `docker-ce`, puede quedarse con `/var/run/docker.sock` y con sus contenedores ocupar puertos como el 5001 del paso 4. Se desactiva con los comandos de abajo. Eso detiene sus contenedores, incluidos los registros de laboratorios con `--restart=always` como `registro-cks2`, y conserva sus datos; se revierte con `sudo snap start --enable docker`. El grupo `docker` da permiso sobre el motor y en la práctica equivale a acceso de root en la máquina.
+  ```bash
+  sudo snap stop --disable docker
+  sudo systemctl stop docker.service docker.socket
+  sudo systemctl start docker.socket docker.service
+  sudo usermod -aG docker "$USER"   # cierra sesión y vuelve a entrar, o usa newgrp docker
+  ```
+  Para comprobarlo: `docker context use default`; `docker version --format '{{.Server.Version}}'` debe dar la misma versión que `dpkg-query -W -f='${Version}' docker-ce`, y `ss -ltn | grep ':5001 '` no debe mostrar nada. Si `ip -br addr | grep fc00:f853` muestra un puente, es la red `kind` que dejó el motor de snap: usa la misma subred IPv6 que kind por omisión y podría chocar al crear la red (no se ha probado). Con el snap ya desactivado, se quita con `sudo ip link delete <puente>`.
+- **Otro clúster:** Docker puede levantar el clúster `kind` que ya exista. Antes de instalar, `kind get clusters`: si `kind` aparece y no lo necesitas, elimínalo con `kind delete cluster --name kind`; si lo necesitas, detén sus contenedores. Compruebas el contexto antes de cada comando: `kubectl config current-context` debe decir `kind-vectra`.
 - **Si se queda sin memoria:** detente y no sigas con la siguiente wave. Puedes dejar para el final `loki`, `tempo` y `alloy`.
 
 ## Mitigación

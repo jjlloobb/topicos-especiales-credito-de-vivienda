@@ -4185,3 +4185,51 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7.
 
 ---
+
+## Motor de Docker para el ensayo en kind
+**Timestamp**: 2026-11-01T10:08:24Z
+**User Input**: "usa el mas conveniente"
+**AI Response**: Se interpreta como respuesta a la comparación entre Docker Desktop y Docker Engine, y se elige Docker Engine nativo (`docker-ce`). Se encuentra además un Docker de snap activo que parece atender `/var/run/docker.sock` y ocupa el puerto 5001. Se corrige el runbook. El cambio de permisos, la desactivación del snap y la instalación quedan en manos del operador (AUTONOMIA-01).
+**Context**: Preparación del tramo B, issue 7.
+
+---
+
+## Docker Engine nativo y kind
+**Timestamp**: 2026-11-01T10:09:26Z
+**User Input**: "usa el que mas conviene para la maquina usar docker engine nativo y kind"
+**AI Response**: Se revisa la máquina y se ejecuta `docker context use default`. La desactivación del snap y el grupo `docker` quedan en manos del usuario, porque requieren `sudo`. Entrada registrada aquí a pedido de la sesión paralela que atendió este mensaje.
+**Context**: Preparación del tramo B, issue 7.
+
+---
+
+## Revisión de la máquina tras los comandos del operador
+**Timestamp**: 2026-11-01T10:17:22Z
+**User Input**: "ya ejecuté los comandos, revisa de nuevo"
+**AI Response**: Se revisa la máquina, solo lectura. Responde `docker-ce` 29.9.2, con el snap desactivado y los puertos 5001 y 443 libres. Queda el puente `br-8e146fce54f1` del snap, con la subred IPv6 de kind. Entrada registrada aquí a pedido de la sesión paralela que atendió este mensaje. Estado posterior, según el registro de `sudo`: a las 10:17:43Z se ejecutó `snap start --enable docker` y a las 10:18:08Z `docker rm e2980300d9c3` (`registro-cks2`); a las 10:18:34Z `docker` responde 29.8.0, el motor de snap, que sigue activo.
+**Context**: Preparación del tramo B.
+
+---
+
+## Revisión de la máquina tras reactivarse el snap
+**Timestamp**: 2026-11-01T10:18:51Z
+**User Input**: "ya ejecuté los comandos, revisa de nuevo"
+**AI Response**: Se revisa la máquina, solo lectura. A las 10:19Z el motor de snap sigue activo y responde 29.8.0. El registro de `sudo` muestra `snap start --enable docker` a las 10:17:43Z, sin un `snap stop` posterior. El puente `br-8e146fce54f1` sigue. El usuario debe repetir la desactivación del snap, el reinicio de docker y el borrado del puente. Entrada registrada aquí a pedido de la sesión paralela que atendió este mensaje.
+**Context**: Preparación del tramo B.
+
+---
+
+## Revisión de la máquina con Docker Engine activo
+**Timestamp**: 2026-11-01T10:22:00Z
+**User Input**: "ya ejecuté los comandos, revisa de nuevo"
+**AI Response**: Se revisa la máquina, solo lectura. Responde `docker-ce` 29.9.2 desde `/var/lib/docker`; el snap está disabled e inactive (10:21:33Z); se borró el puente `br-8e146fce54f1` (10:21:57Z); los puertos 5001 y 443 están libres y no hay clústeres de kind. Pendiente: sesión nueva para el grupo `docker`, 7.9 GiB disponibles y push de la rama. Entrada registrada aquí a pedido de la sesión paralela que atendió este mensaje.
+**Context**: Preparación del tramo B.
+
+---
+
+## Consulta del usuario antes de crear el clúster
+**Timestamp**: 2026-11-01T10:22:51Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda subir la rama y abrir el PR del runbook, reiniciar la máquina (grupo `docker`, swap y comprobar que el snap sigue desactivado) y luego crear el clúster con el Paso 19, como operador. Entrada registrada aquí a pedido de la sesión paralela que atendió este mensaje.
+**Context**: Preparación del tramo B.
+
+---
