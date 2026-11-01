@@ -4186,6 +4186,126 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 
 ---
 
+## Revisión de la aprobación del PR del perfil liviano
+**Timestamp**: 2026-11-01T09:11:55Z
+**User Input**: "revisa si el PR fue aprobado"
+**AI Response**: Se consulta el PR de `feat/kind-lite` en GitHub.
+**Context**: Solo lectura.
+
+---
+
+## Revisión de comentarios del issue
+**Timestamp**: 2026-11-01T09:15:45Z
+**User Input**: "revisa si el issue esta comentado"
+**AI Response**: Se consulta el issue 7 y la descripción del PR 8 en GitHub.
+**Context**: Solo lectura.
+
+---
+
+## Corrección de la descripción del PR 8
+**Timestamp**: 2026-11-01T09:17:37Z
+**User Input**: "corrige el PR 8"
+**AI Response**: Se llena la descripción del PR 8, incluida la nota de rollback que exige NFR-U1-44. No se cambia código ni se fusiona.
+**Context**: PR 8.
+
+---
+
+## Revisión de la fusión del PR 8
+**Timestamp**: 2026-11-01T09:24:17Z
+**User Input**: "revisa si el PR 8 fue fusionado"
+**AI Response**: Se consulta el PR 8 y el CI de `main` en GitHub.
+**Context**: Solo lectura.
+
+---
+
+## Actualización del issue 7
+**Timestamp**: 2026-11-01T09:30:13Z
+**User Input**: "realiza el paso 1, 2 y 3"
+**AI Response**: A pedido del usuario, se actualiza el commit en su último comentario a `d764cbb` y se corrige el cuerpo del issue al perfil liviano. La construcción de `mc` no se reintenta aquí: el sistema de permisos ya la denegó dos veces.
+**Context**: Issue 7.
+
+---
+
+## Construcción de mc
+**Timestamp**: 2026-11-01T09:31:42Z
+**User Input**: "realiza el paso 1 le doy permisos"
+**AI Response**: Con el permiso explícito del usuario, se construye la imagen `mc` con Podman. Sin acceso a clústeres ni publicación.
+**Context**: Tramo A del issue 7.
+
+---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-01T09:32:35Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda registrar el tramo A, revocar el token y hacer una comprobación previa de la máquina antes del tramo B.
+**Context**: Issue 7, tramo A construido.
+
+---
+
+## Tramo A registrado en el issue 7
+**Timestamp**: 2026-11-01T09:33:52Z
+**User Input**: "marca y comenta el issue como recomiendas"
+**AI Response**: Se marcan el tramo A y las tres casillas de construcción, y se comenta qué se comprobó y qué no. La publicación queda sin marcar.
+**Context**: Issue 7.
+
+---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-01T09:34:37Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se revisa el estado de la máquina, solo lectura, y se recomienda prepararla antes del tramo B.
+**Context**: Tramo A registrado en el issue 7.
+
+---
+
+## Revisión de la máquina para el tramo B
+**Timestamp**: 2026-11-01T09:35:19Z
+**User Input**: "revisa si la máquina ya está lista"
+**AI Response**: Se revisa memoria, Docker y clústeres, solo lectura. No se crea ni se elimina nada.
+**Context**: Issue 7, tramo B.
+
+---
+
+## Liberar memoria
+**Timestamp**: 2026-11-01T09:37:27Z
+**User Input**: "realiza el paso 1 y 2"
+**AI Response**: Se revisa cómo corren las VM y los programas antes de cerrarlos, para apagarlos de forma ordenada. El reinicio solo si la swap sigue llena.
+**Context**: Preparación del tramo B.
+
+---
+
+## Revisión de la máquina
+**Timestamp**: 2026-11-01T09:43:42Z
+**User Input**: "revisa de nuevo"
+**AI Response**: Se revisa memoria, Docker, clústeres y herramientas, solo lectura. El apagado de las VM y el cierre de programas por el agente habían sido denegados; lo hace el usuario.
+**Context**: Preparación del tramo B.
+
+---
+
+## Revisión de la máquina
+**Timestamp**: 2026-11-01T09:51:20Z
+**User Input**: "revisa de nuevo"
+**AI Response**: Se revisa memoria, Docker, clústeres, herramientas y repositorio, solo lectura.
+**Context**: Preparación del tramo B.
+
+---
+
+## Revisión de la máquina
+**Timestamp**: 2026-11-01T09:59:14Z
+**User Input**: "revisa de nuevo"
+**AI Response**: Se revisa memoria, Docker, clústeres, herramientas y repositorio, solo lectura.
+**Context**: Preparación del tramo B.
+
+---
+
+## Instalación de herramientas del ensayo
+**Timestamp**: 2026-11-01T09:59:45Z
+**User Input**: "instala las herramientas"
+**AI Response**: Se instalan `argocd` y `sonobuoy` en `~/.local/bin`, con versión fija y suma de verificación, sin `sudo`.
+**Context**: Preparación del tramo B.
+
+---
+
 ## Motor de Docker para el ensayo en kind
 **Timestamp**: 2026-11-01T10:08:24Z
 **User Input**: "usa el mas conveniente"
@@ -4231,5 +4351,36 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **User Input**: "que me recomiendas?"
 **AI Response**: Se recomienda subir la rama y abrir el PR del runbook, reiniciar la máquina (grupo `docker`, swap y comprobar que el snap sigue desactivado) y luego crear el clúster con el Paso 19, como operador. Entrada registrada aquí a pedido de la sesión paralela que atendió este mensaje.
 **Context**: Preparación del tramo B.
+
+---
+
+## Consulta del estado del proyecto
+**Timestamp**: 2026-11-01T14:39:01Z
+**User Input**: "cual es el estado del proyecto?"
+**AI Response**: Se revisa repositorio, issue 7, CI de `main` y máquina, solo lectura. Tramo A hecho y B a D pendientes. La rama del runbook con Docker Engine no está subida ni tiene PR, y sus entradas de auditoría (10:08Z a 10:22Z) no están en esta copia.
+**Context**: Preparación del tramo B, issue 7.
+
+---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-01T14:42:05Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda ordenar primero las ramas (runbook y trabajo sin commit), resolver el token y luego crear el clúster del tramo B como operador. No se ejecuta nada.
+**Context**: Preparación del tramo B, issue 7.
+
+---
+
+## Ordenar las ramas
+**Timestamp**: 2026-11-01T14:43:47Z
+**User Input**: "realiza el paso 2"
+**AI Response**: Se preparan tres PR pequeños: runbook de Docker Engine, material del curso, y auditoría y estado. Sin acceso a clústeres ni fusión.
+**Context**: Preparación del tramo B, issue 7.
+
+---
+
+## Ramas preparadas sin publicar
+**Timestamp**: 2026-11-01T14:45:02Z
+**AI Response**: Se crean en local `docs/kind-docker-engine`, `docs/labs-ckad-cks` y `docs/audit-state`, y se unen en orden cronológico las entradas de auditoría de las dos copias. No se suben ni se abren los PR: esta máquina no tiene credenciales de GitHub ni `gh`.
+**Context**: Preparación del tramo B, issue 7.
 
 ---
