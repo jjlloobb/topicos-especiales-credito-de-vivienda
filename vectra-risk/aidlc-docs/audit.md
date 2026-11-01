@@ -4217,3 +4217,11 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Preparación del tramo B.
 
 ---
+
+## Revisión de la máquina con Docker Engine activo
+**Timestamp**: 2026-11-01T10:22:00Z
+**User Input**: "ya ejecuté los comandos, revisa de nuevo"
+**AI Response**: Se revisa la máquina, solo lectura. Responde `docker-ce` 29.9.2 desde `/var/lib/docker`; el snap está disabled e inactive (10:21:33Z); se borró el puente `br-8e146fce54f1` (10:21:57Z); los puertos 5001 y 443 están libres y no hay clústeres de kind. Pendiente: sesión nueva para el grupo `docker`, 7.9 GiB disponibles y push de la rama. Entrada registrada aquí a pedido de la sesión paralela que atendió este mensaje.
+**Context**: Preparación del tramo B.
+
+---
