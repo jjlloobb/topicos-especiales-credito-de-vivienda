@@ -1,4 +1,5 @@
 # Excepciones vigentes de Trivy. Cada linea lleva CVE, motivo y fecha de vencimiento.
+# Las dos de abajo las acepto el dueno del repositorio el 2026-11-01, hasta su vencimiento (NFR-U1-26).
 
 # KSV-0053 (pods/exec en el Role `restore-drill`): limitado por resourceNames a restore-registry-1 y restore-case-1,
 # pods efimeros del simulacro; lo usa `restore-cluster.sh lsn`. Revisar cuando U3 exponga el LSN en su CLI.
