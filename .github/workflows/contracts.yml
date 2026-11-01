@@ -1,14 +1,10 @@
 # CI de U0 `contracts` (Paso 21). Sin pasos que toquen un cluster (AUTONOMIA-01).
 name: contracts
 on:
+  # Sin filtro de rutas: un check obligatorio de un workflow que no corre deja el PR esperando para siempre.
   pull_request:
-    paths:
-      - "vectra-risk/contracts/**"
-      - "vectra-risk/pyproject.toml"
-      - "vectra-risk/uv.lock"
-      - "vectra-risk/package-lock.json"
-      - ".github/workflows/contracts.yml"
-      - ".github/workflows/supply-chain.yml"
+  push:
+    branches: [main]
   schedule:
     - cron: "0 4 * * *"
 permissions:

@@ -283,22 +283,27 @@ def test_core_resources_refuses_an_empty_diff(tmp_path):
 # --- 6. platform.yml y la nota de rollback
 
 
-def test_platform_filters_and_triggers():
-    on = triggers(workflow("platform.yml"))
-    paths = on["pull_request"]["paths"]
-    for expected in ("vectra-risk/.trivyignore", "vectra-risk/pyproject.toml", "vectra-risk/uv.lock", "vectra-risk/aidlc-docs/**", "**/Dockerfile*"):
-        assert expected in paths
-    assert "edited" in on["pull_request"]["types"] and "synchronize" in on["pull_request"]["types"]
+@pytest.mark.parametrize("name", ["platform.yml", "contracts.yml"])
+def test_required_workflows_run_on_every_pull_request_and_on_main(name):
+    """Con un filtro de rutas, un check obligatorio se queda esperando en los PR que no tocan esas rutas."""
+    on = triggers(workflow(name))
+    assert "paths" not in (on["pull_request"] or {})
+    assert on["push"]["branches"] == ["main"]
     assert on["schedule"][0]["cron"]
 
 
-def test_platform_calls_tests_and_only_the_scan_runs_on_schedule():
+def test_platform_reruns_when_the_description_changes():
+    types = triggers(workflow("platform.yml"))["pull_request"]["types"]
+    assert "edited" in types and "synchronize" in types
+
+
+def test_platform_jobs_by_event():
     jobs = workflow("platform.yml")["jobs"]
     assert jobs["tests"]["uses"] == "./.github/workflows/tests.yml" and jobs["tests"]["with"]["path"] == "platform"
     assert "if" not in jobs["supply-chain"]
-    for name, job in jobs.items():
-        if name != "supply-chain":
-            assert job["if"] == "github.event_name == 'pull_request'", name
+    assert jobs["rollback-note"]["if"] == "github.event_name == 'pull_request'"
+    for name in ("forbidden", "policies", "evidence", "tests"):
+        assert jobs[name]["if"] == "github.event_name != 'schedule'", name
 
 
 @pytest.mark.parametrize(

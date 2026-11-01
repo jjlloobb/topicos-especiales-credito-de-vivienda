@@ -374,3 +374,5 @@ Decisiones:
 - Excepciones de Trivy con vencimiento 2027-02-01: `AVD-KSV-0053` y `AVD-KSV-0114` (`.trivyignore`). Requieren aprobación del dueño del repositorio.
 
 Tareas humanas para la separación de funciones en un solo repositorio (decisión del usuario, 2026-11-01): crear los equipos, pasarles las reglas de `.github/CODEOWNERS` y exigir la revisión de code owners en la rama protegida. Hasta entonces, todas las reglas apuntan al dueño del repositorio.
+
+Protección de `main` (2026-11-01): checks obligatorios `checks`, `forbidden / forbidden`, `policies / policies`, `tests / tests`, `evidence / evidence`, `supply-chain / scan` y `rollback-note`, y revisión de code owners. `platform.yml` y `contracts.yml` corren en todo PR y en cada push a `main`, sin filtro de rutas, porque un check obligatorio que no corre deja el PR esperando. `enforce_admins` queda apagado: con un solo dueño, GitHub no deja aprobar el PR propio, y sin esa salida nadie podría fusionar. Al crear los equipos, se enciende.
