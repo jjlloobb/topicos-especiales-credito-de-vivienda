@@ -4225,3 +4225,11 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Preparación del tramo B.
 
 ---
+
+## Consulta del usuario antes de crear el clúster
+**Timestamp**: 2026-11-01T10:22:51Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda subir la rama y abrir el PR del runbook, reiniciar la máquina (grupo `docker`, swap y comprobar que el snap sigue desactivado) y luego crear el clúster con el Paso 19, como operador. Entrada registrada aquí a pedido de la sesión paralela que atendió este mensaje.
+**Context**: Preparación del tramo B.
+
+---
