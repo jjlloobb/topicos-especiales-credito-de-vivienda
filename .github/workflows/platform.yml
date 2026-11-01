@@ -3,31 +3,25 @@ name: platform
 on:
   pull_request:
     # `edited`: la nota de rollback se puede llenar sin empujar otro commit.
+    # Sin filtro de rutas: un check obligatorio de un workflow que no corre deja el PR esperando para siempre.
     types: [opened, synchronize, reopened, edited]
-    paths:
-      - "vectra-risk/platform/**"
-      - "vectra-risk/vectra-risk-gitops/**"
-      - "vectra-risk/aidlc-docs/**"
-      - "vectra-risk/.trivyignore"
-      - "vectra-risk/pyproject.toml"
-      - "vectra-risk/uv.lock"
-      - "**/Dockerfile*"
-      - ".github/**"
+  push:
+    branches: [main]
   schedule:
     - cron: "0 5 * * 1" # CVEs nuevos sin que nadie abra un PR
 permissions: { contents: read }
 jobs:
   forbidden:
-    if: github.event_name == 'pull_request'
+    if: github.event_name != 'schedule'
     uses: ./.github/workflows/forbidden-steps.yml
   policies:
-    if: github.event_name == 'pull_request'
+    if: github.event_name != 'schedule'
     uses: ./.github/workflows/policies.yml
   evidence:
-    if: github.event_name == 'pull_request'
+    if: github.event_name != 'schedule'
     uses: ./.github/workflows/evidence.yml
   tests:
-    if: github.event_name == 'pull_request'
+    if: github.event_name != 'schedule'
     uses: ./.github/workflows/tests.yml
     with:
       path: platform
