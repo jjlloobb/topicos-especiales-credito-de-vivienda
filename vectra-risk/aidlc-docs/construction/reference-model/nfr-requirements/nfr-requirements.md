@@ -13,7 +13,7 @@ Los IDs `NFR-U5-xx` se referencian en el plan de tareas.
 | ID | Requisito | Verificación |
 |---|---|---|
 | NFR-U5-01 | La entrega completa (BR-U5 §2) corre en un workflow de GitHub Actions **sin credenciales del clúster** (NFR-U1-40) | `grep -L "KUBECONFIG\|MINIO\|S3_" .github/workflows/reference-model.yml` devuelve el archivo (ningún secreto de clúster ni de almacenamiento) |
-| NFR-U5-02 | El resultado se publica como una **release firmada**: artefacto OCI con `oras`, firma Cosign *keyless*, SBOM (Syft) y una attestation de procedencia con el commit, `generator_version` y la semilla | El workflow ejecuta `cosign verify` y `cosign verify-attestation` sobre lo que acaba de publicar |
+| NFR-U5-02 | El resultado se publica como una **release firmada**: artefacto OCI con `oras`, firma Cosign con llave, la misma de `verify-images` (revisión de consistencia entre unidades, 2026-11-01), SBOM (Syft) y una attestation de procedencia con el commit, `generator_version` y la semilla | El workflow ejecuta `cosign verify` y `cosign verify-attestation` sobre lo que acaba de publicar |
 | NFR-U5-03 | El ingeniero de riesgo descarga la release, verifica la firma y los SHA-256 del manifiesto, y la sube al model-store con **sus propias** credenciales; después la registra en U4. El procedimiento está en `reference-model/docs/release.md` con los comandos exactos | `test -s reference-model/docs/release.md`; el procedimiento incluye `cosign verify` y la verificación de cada SHA-256 |
 
 ## 2. Reproducibilidad (Q2; BR-U5-02)

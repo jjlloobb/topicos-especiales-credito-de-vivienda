@@ -1,0 +1,29 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListarBackupsPorPrefijo",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::vectra-backups"],
+      "Condition": { "StringLikeIfExists": { "s3:prefix": ["registry-db/*", "case-db/*"] } }
+    },
+    {
+      "Sid": "ListarCheckpoints",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::vectra-registry-checkpoints"],
+      "Condition": { "StringLikeIfExists": { "s3:prefix": ["checkpoints/*"] } }
+    },
+    {
+      "Sid": "LeerObjetos",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject"],
+      "Resource": [
+        "arn:aws:s3:::vectra-backups/registry-db/*",
+        "arn:aws:s3:::vectra-backups/case-db/*",
+        "arn:aws:s3:::vectra-registry-checkpoints/checkpoints/*"
+      ]
+    }
+  ]
+}

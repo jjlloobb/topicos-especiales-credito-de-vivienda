@@ -1,0 +1,27 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-images
+spec:
+  validationFailureAction: Enforce
+  failurePolicy: Fail
+  webhookTimeoutSeconds: 10
+  rules:
+    - name: verify-signature
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-staging, vectra-data, vectra-mock, vectra-observability, vectra-restore-drill]
+      verifyImages:
+        # Solo staging y prod: la llave real la entrega el banco por PR (INF-U1-09). Mientras tanto rechaza, a proposito.
+        - imageReferences: ["registro.vectra.internal/*", "registro.banco.internal/vectra/*", "kind-registry:5000/*"]
+          mutateDigest: false
+          verifyDigest: true
+          attestors:
+            - entries:
+                - keys:
+                    publicKeys: |-
+                      -----BEGIN PUBLIC KEY-----
+                      REEMPLAZAR_POR_ENTORNO
+                      -----END PUBLIC KEY-----

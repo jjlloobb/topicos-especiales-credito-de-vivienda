@@ -1,0 +1,5 @@
+# Solo kind: sin HA. failurePolicy sigue en Fail: si este pod cae, se rechazan las admisiones hasta que vuelva.
+admissionController: { replicas: 1 }
+backgroundController: { replicas: 1 }
+cleanupController: { replicas: 1 }
+reportsController: { replicas: 1 }

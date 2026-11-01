@@ -1,0 +1,5 @@
+# Permisos de carpetas (U11 BR-U11-13, U9 INF-U9-05). Solo permisos de equipo.
+folders:
+  - { uid: vectra-sesgo, title: "Vectra / Sesgo", teams: { cro: View, cumplimiento: View } }
+  - { uid: vectra-producto, title: "Vectra / Producto", teams: { cro: View, cumplimiento: View, ingeniero_riesgo: View } }
+  - { uid: vectra-operacion, title: "Vectra / Operación", teams: { operacion: Edit } }

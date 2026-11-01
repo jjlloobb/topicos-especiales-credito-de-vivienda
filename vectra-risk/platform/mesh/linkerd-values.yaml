@@ -1,0 +1,16 @@
+# Linkerd en HA con CNI (P-U1-02, 06; NFR-U1-21). Sin NET_ADMIN en los pods.
+cniEnabled: true
+controllerReplicas: 3
+enablePodAntiAffinity: true
+enablePodDisruptionBudget: true
+identity:
+  externalCA: true # la raiz la publica el ConfigMap linkerd-identity-trust-roots
+  issuer:
+    scheme: kubernetes.io/tls # lo gestiona cert-manager
+proxy:
+  defaultInboundPolicy: deny
+  nativeSidecar: true
+  resources: # P-U1-14
+    cpu: { request: 100m, limit: 500m }
+    memory: { request: 20Mi, limit: 128Mi }
+priorityClassName: vectra-critical

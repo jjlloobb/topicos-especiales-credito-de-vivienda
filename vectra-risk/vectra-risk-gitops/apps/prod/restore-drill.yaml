@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: restore-drill
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '5'
+spec:
+  project: vectra-prod
+  source:
+    repoURL: https://git.banco.internal/vectra/vectra-risk.git
+    targetRevision: main
+    path: vectra-risk/platform/restore-drill
+    directory:
+      include: '{cronjob.yaml,configmap-prod.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-restore-drill
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

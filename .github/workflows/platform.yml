@@ -1,0 +1,44 @@
+# CI de U1. Sin credenciales de cluster (NFR-U1-40).
+name: platform
+on:
+  pull_request:
+    # `edited`: la nota de rollback se puede llenar sin empujar otro commit.
+    types: [opened, synchronize, reopened, edited]
+    paths:
+      - "vectra-risk/platform/**"
+      - "vectra-risk/vectra-risk-gitops/**"
+      - "vectra-risk/aidlc-docs/**"
+      - "vectra-risk/.trivyignore"
+      - "vectra-risk/pyproject.toml"
+      - "vectra-risk/uv.lock"
+      - "**/Dockerfile*"
+      - ".github/**"
+  schedule:
+    - cron: "0 5 * * 1" # CVEs nuevos sin que nadie abra un PR
+permissions: { contents: read }
+jobs:
+  forbidden:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/forbidden-steps.yml
+  policies:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/policies.yml
+  evidence:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/evidence.yml
+  tests:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/tests.yml
+    with:
+      path: platform
+  supply-chain:
+    uses: ./.github/workflows/supply-chain.yml
+  rollback-note:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: La nota de rollback es obligatoria (NFR-U1-44)
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: python3 vectra-risk/platform/tests/rollback_note.py

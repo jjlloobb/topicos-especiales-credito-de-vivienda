@@ -91,11 +91,11 @@ las ejecuta el operador después de un PR aprobado (AUTONOMIA-01).
 |---|---|---|---|
 | Servicio (API) | `registry_app` (pools `append` y `dossier`), `registry_verifier` (pool `projections` en la réplica), `registry_health` (pool `health`) | Ninguno | Ninguno |
 | `registry-checkpoint` | `registry_app` | Firma (Transit) | Escritura en `registry-checkpoints` |
-| `registry-verify` (CronJobs, incluido `registry-verify-ondemand`) | `registry_verifier` en la réplica `-ro` (lectura) y `registry_ondemand` en la primaria `-rw` (solo el estado en `integrity_checks`; segunda revisión del Infrastructure Design de U10, 2026-10-10) | Lectura de la llave pública | Lectura de `registry-checkpoints` |
+| `registry-verify` (CronJobs, incluido `registry-verify-ondemand`; etiqueta `vectra.io/workload: registry-verify`; revisión de consistencia entre unidades, 2026-11-01) | `registry_verifier` en la réplica `-ro` (lectura) y `registry_ondemand` en la primaria `-rw` (solo el estado en `integrity_checks`; segunda revisión del Infrastructure Design de U10, 2026-10-10) | Lectura de la llave pública | Lectura de `registry-checkpoints` |
 | `registry-archive` | `registry_verifier` | Firma (Transit) | Escritura en `registry-archive` |
 | `registry-aggregator` | `registry_aggregator` (BR-U3-17; segunda revisión del FD de U9, 2026-10-08) | Ninguno | Ninguno |
 
-- Las credenciales de la base y de los buckets las entrega ESO. Sin comodines en las políticas de la bóveda.
+- Las credenciales de la base y de los buckets las entrega ESO: `pg-role-*` y, en kind, `minio-registry-checkpoint`, `minio-registry-archive` y `minio-registry-verify` los crea U1 (usuarios `registry-checkpoint`, `registry-archive` y `registry-verify` de `platform/data/minio/values-kind.yaml`); la credencial del S3 del banco, en staging y producción, sigue en el chart de U3 (revisión de consistencia entre unidades, 2026-11-01). Sin comodines en las políticas de la bóveda.
 - **Verificación**: pruebas de autorización por identidad (cada una recibe 403 fuera de su fila); `conftest` sobre los RBAC y las políticas versionadas de la bóveda.
 - **Satisface**: SECURITY-06, 12; NFR-U3-40, 42.
 

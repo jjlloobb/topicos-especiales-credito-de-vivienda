@@ -1,5 +1,45 @@
 components:
   schemas:
+    AffectedVolume:
+      additionalProperties: false
+      description: Recomendaciones de la versión en la ventana y cuántas fueron `favorable`
+        (U9 §3.1).
+      properties:
+        favorable:
+          minimum: 0
+          title: Favorable
+          type: integer
+        total:
+          minimum: 0
+          title: Total
+          type: integer
+      required:
+      - total
+      - favorable
+      title: AffectedVolume
+      type: object
+    AttributeDelta:
+      additionalProperties: false
+      properties:
+        attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Attribute
+          type: string
+        delta:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Delta
+      required:
+      - attribute
+      title: AttributeDelta
+      type: object
     AttributeResult:
       additionalProperties: false
       properties:
@@ -244,6 +284,36 @@ components:
       - rate
       title: DepartureRate
       type: object
+    DisparityFilter:
+      additionalProperties: false
+      description: 'BR-U9-18: versión, atributo y ventana. Sin versión, bias usa la
+        más reciente.'
+      properties:
+        attribute: &id001
+          anyOf:
+          - enum:
+            - sexo
+            - rango_edad
+            - region
+            - estrato
+            type: string
+          - type: 'null'
+          default: null
+          title: Attribute
+        version: &id002
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Version
+        window: &id003
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Window
+      title: DisparityFilter
+      type: object
     DisparityResult:
       additionalProperties: false
       properties:
@@ -361,8 +431,7 @@ components:
       description: '`FreezeContext` mas lo que agrega governance (BR-U9-16).'
       properties:
         affected_volume:
-          title: Affected Volume
-          type: integer
+          $ref: '#/components/schemas/AffectedVolume'
         after:
           $ref: '#/components/schemas/DisparityResult'
         before:
@@ -583,16 +652,31 @@ components:
       title: InvalidParam
       type: object
     JsonValue: {}
-    PrePostReport:
+    PrePostDelta:
       additionalProperties: false
+      description: '`post − pre` de cada agregada y de `model_aggregate` (U9 §3.2).'
       properties:
-        delta:
+        attributes:
+          items:
+            $ref: '#/components/schemas/AttributeDelta'
+          title: Attributes
+          type: array
+        model_aggregate:
           anyOf:
           - pattern: ^-?\d+\.\d{4}$
             type: string
           - type: 'null'
           default: null
-          title: Delta
+          title: Model Aggregate
+      required:
+      - attributes
+      title: PrePostDelta
+      type: object
+    PrePostReport:
+      additionalProperties: false
+      properties:
+        delta:
+          $ref: '#/components/schemas/PrePostDelta'
         disclaimer:
           title: Disclaimer
           type: string
@@ -617,6 +701,7 @@ components:
       - source_id
       - pre
       - post
+      - delta
       - threshold_pp
       - n_min
       - truncated
@@ -724,6 +809,19 @@ paths:
   /v1/disparity:
     get:
       operationId: get_v1_disparity
+      parameters:
+      - in: query
+        name: attribute
+        required: false
+        schema: *id001
+      - in: query
+        name: version
+        required: false
+        schema: *id002
+      - in: query
+        name: window
+        required: false
+        schema: *id003
       responses:
         '200':
           content:

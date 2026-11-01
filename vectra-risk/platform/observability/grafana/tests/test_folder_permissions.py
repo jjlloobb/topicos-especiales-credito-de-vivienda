@@ -1,0 +1,173 @@
+"""Permisos de carpetas contra un Grafana doble (F110). El caso real: platform/tests/test_grafana_folder_permissions.py."""
+
+import json
+import re
+import sys
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+from urllib.error import HTTPError
+from urllib.parse import unquote_plus
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import folder_permissions as fp  # noqa: E402
+
+FOLDERS = [{"uid": "vectra-sesgo", "title": "Vectra / Sesgo", "teams": {"cro": "View", "cumplimiento": "View"}}]
+
+
+class Fake:
+    def __init__(self):
+        self.folders, self.writes, self.pushed = {}, [], []
+        self.teams = {"cro": 1, "cumplimiento": 2}
+        self.team_conflict = False
+
+
+@pytest.fixture
+def server():
+    fake = Fake()
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def send(self, status, body=None):
+            raw = json.dumps(body).encode() if body is not None else b""
+            self.send_response(status)
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def do_GET(self):
+            match = re.match(r"/api/folders/([^/]+)(/permissions)?$", self.path)
+            if self.path.startswith("/api/teams/search"):
+                name = unquote_plus(self.path.split("name=")[1])
+                self.send(200, {"teams": [{"id": fake.teams[name], "name": name}] if name in fake.teams else []})
+            elif match and match.group(1) in fake.folders:
+                self.send(200, fake.folders[match.group(1)] if match.group(2) else {"uid": match.group(1)})
+            else:
+                self.send(404, {})
+
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            fake.writes.append(self.path)
+            if self.path == "/api/teams":
+                if fake.team_conflict:
+                    self.send(409, {"message": "Team name taken"})
+                    return
+                fake.teams[body["name"]] = len(fake.teams) + 1
+            elif self.path == "/api/folders":
+                fake.folders[body["uid"]] = [{"role": "Viewer", "permission": 1}, {"role": "Editor", "permission": 2}]
+            else:
+                fake.folders[self.path.split("/")[3]] = [{"teamId": i["teamId"], "permission": i["permission"]} for i in body["items"]]
+            self.send(200, {})
+
+        def do_PUT(self):
+            fake.pushed.append((self.path, self.rfile.read(int(self.headers["Content-Length"])).decode()))
+            self.send(200)
+
+    httpd = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    yield fake, f"http://127.0.0.1:{httpd.server_port}"
+    httpd.shutdown()
+
+
+def test_missing_folder_is_created_with_only_team_permissions(server):
+    fake, url = server
+    fp.apply(fp.Grafana(url, "t"), FOLDERS)
+    assert fake.folders["vectra-sesgo"] == [{"teamId": 1, "permission": 1}, {"teamId": 2, "permission": 1}]
+
+
+def test_role_permissions_are_removed(server):
+    fake, url = server
+    fake.folders["vectra-sesgo"] = [{"role": "Viewer", "permission": 1}]
+    fp.apply(fp.Grafana(url, "t"), FOLDERS)
+    assert all("role" not in item for item in fake.folders["vectra-sesgo"])
+
+
+def test_second_run_writes_nothing(server):
+    fake, url = server
+    fp.apply(fp.Grafana(url, "t"), FOLDERS)
+    writes = len(fake.writes)
+    fp.apply(fp.Grafana(url, "t"), FOLDERS)
+    assert len(fake.writes) == writes
+
+
+def test_check_reports_drift_and_changes_nothing(server):
+    fake, url = server
+    g = fp.Grafana(url, "t")
+    assert fp.drift(g, FOLDERS) == 1
+    fp.apply(g, FOLDERS)
+    assert fp.drift(g, FOLDERS) == 0
+    fake.folders["vectra-sesgo"].append({"role": "Viewer", "permission": 1})
+    writes = len(fake.writes)
+    assert fp.drift(g, FOLDERS) == 1
+    assert len(fake.writes) == writes
+
+
+def test_metric_pushed_to_expected_group(server):
+    fake, url = server
+    fp.push_metric(url, 1)
+    assert fake.pushed == [("/metrics/job/grafana-folder-permissions", "vectra_grafana_folder_permissions_drift 1\n")]
+
+
+def test_apply_creates_missing_teams_only_once(server):
+    fake, url = server
+    del fake.teams["cumplimiento"]
+    fp.apply(fp.Grafana(url, "t"), FOLDERS)
+    assert fake.writes.count("/api/teams") == 1
+    assert {item["teamId"] for item in fake.folders["vectra-sesgo"]} == {fake.teams["cro"], fake.teams["cumplimiento"]}
+    fp.apply(fp.Grafana(url, "t"), FOLDERS)
+    assert fake.writes.count("/api/teams") == 1
+
+
+def test_team_created_by_another_process_is_not_an_error(server):
+    fake, url = server
+    fake.teams, fake.team_conflict = {}, True
+    fp.Grafana(url, "t").ensure_team("cro")
+    assert fake.writes == ["/api/teams"]
+
+
+def test_other_team_errors_are_raised(server):
+    _, url = server
+
+    class Denied(fp.Grafana):
+        def request(self, method, path, body=None):
+            if method == "POST":
+                raise HTTPError(path, 403, "denegado", None, None)
+            return {"teams": []}
+
+    with pytest.raises(HTTPError):
+        Denied(url, "t").ensure_team("cro")
+
+
+def test_missing_team_has_a_clear_error_naming_it(server):
+    _, url = server
+    with pytest.raises(fp.TeamMissingError, match="'nadie'"):
+        fp.Grafana(url, "t").team_id("nadie")
+
+
+def test_team_name_is_url_encoded(server):
+    fake, url = server
+    fake.teams["con espacio"] = 9
+    assert fp.Grafana(url, "t").team_id("con espacio") == 9
+
+
+def test_check_counts_a_missing_team_as_drift_and_pushes_the_metric(server, monkeypatch, tmp_path):
+    fake, url = server
+    client = fp.Grafana(url, "t")
+    fp.apply(client, FOLDERS)
+    del fake.teams["cro"]
+    writes = len(fake.writes)
+    assert fp.drift(client, FOLDERS) == 1
+    config = tmp_path / "permisos.yaml"
+    config.write_text(fp.yaml.safe_dump({"folders": FOLDERS}), encoding="utf-8")
+    monkeypatch.setenv("FOLDER_PERMISSIONS", str(config))
+    monkeypatch.setenv("GRAFANA_URL", url)
+    monkeypatch.setenv("GRAFANA_TOKEN", "t")
+    monkeypatch.setenv("PUSHGATEWAY_URL", url)
+    assert fp.main(["folder_permissions.py", "check"]) == 0
+    assert fake.pushed == [("/metrics/job/grafana-folder-permissions", "vectra_grafana_folder_permissions_drift 1\n")]
+    assert len(fake.writes) == writes

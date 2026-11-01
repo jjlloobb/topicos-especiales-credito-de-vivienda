@@ -71,7 +71,7 @@
 ## Current Status
 - **Lifecycle Phase**: CONSTRUCTION
 - **Current Stage**: CONSTRUCTION cerrada en los planes de tareas de U0–U12
-- **Next Stage**: Code Generation Part 2 de U1, revisando primero su plan contra su tabla de cambios (U0 aprobada el 2026-10-31)
+- **Next Stage**: U0 y U1 aprobadas por el usuario el 2026-11-01. Sigue el PR a `main` y los Pasos 19 y 20 de U1, que ejecuta un operador tras el PR aprobado (AUTONOMIA-01); el Paso 23 cierra después. U2 a U12 siguen en plan de tareas.
 
 ## Per-Unit Progress (CONSTRUCTION)
 | Unidad | FD | NFR Req | NFR Design | Infra Design | Plan de tareas |

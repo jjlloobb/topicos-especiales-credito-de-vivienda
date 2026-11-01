@@ -26,7 +26,12 @@ app = create_app("scoring-service", handlers={("POST", "/v1/recommendations"): r
 - El handler recibe un `RequestContext` ya autenticado, autorizado y validado.
 - Variables: `VECTRA_OIDC_ISSUER`, `VECTRA_JWKS_URL`, `VECTRA_CA_BUNDLE` (con https; sin el archivo no
   arranca), `VECTRA_OTLP_ENDPOINT` (sin ella no exporta trazas), `VECTRA_TRACE_RATIO`, `VECTRA_LOG_STRICT`.
-- La app de 8081 (`/metrics`, `/healthz`, `/readyz`) queda en `app.state.ops_app`.
+- La app de 8081 (`/metrics`, `/healthz`, `/readyz`) queda en `app.state.ops_app`. Cada servicio arranca con
+  `vectra_common.ops_server.run_service(app)`, que sirve 8080 y 8081 en un solo proceso.
+- Identidad de servicio: `vectra_common.service_token.provider_from_env(audience, scopes)` (`private_key_jwt`) se pasa
+  como `token_source` a `DependencyClient`; `deps.call` envía el token y reintenta una vez ante un 401.
+- Filtros: `context.query` trae el `query_model` de la ruta ya validado; un parámetro desconocido o inválido es 422.
+  Un estado alterno (202, 304) se devuelve con `app_factory.respond`.
 
 ## Autorizacion
 

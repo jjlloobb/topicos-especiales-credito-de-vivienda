@@ -1,0 +1,32 @@
+# espera: comodin-url con comodines en nonResourceURLs
+# espera: solo-verbos con comodines en verbs
+# espera: comodin-recurso con comodines en resources
+# espera: comodin-grupo con comodines en apiGroups
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: comodin-url }
+rules:
+  - nonResourceURLs: ["*"]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: solo-verbos }
+rules:
+  - verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: comodin-recurso }
+rules:
+  - apiGroups: [""]
+    resources: ["*"]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: comodin-grupo }
+rules:
+  - apiGroups: ["*"]
+    resources: [pods]
+    verbs: [get]

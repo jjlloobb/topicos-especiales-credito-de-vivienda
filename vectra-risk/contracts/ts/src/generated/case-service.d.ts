@@ -300,7 +300,7 @@ export interface components {
             /** @default null */
             outcome: components["schemas"]["Outcome"] | null;
             /** @default null */
-            recommendation: components["schemas"]["JsonValue"] | null;
+            recommendation: components["schemas"]["Recommendation"] | null;
             /**
              * Recommendation Entry Id
              * @default null
@@ -312,6 +312,44 @@ export interface components {
              */
             score: string | null;
             state: components["schemas"]["CaseState"];
+        };
+        /** CaseFilter */
+        CaseFilter: {
+            /**
+             * Channel
+             * @default null
+             */
+            channel: string | null;
+            /**
+             * Created From
+             * @default null
+             */
+            created_from: string | null;
+            /**
+             * Created To
+             * @default null
+             */
+            created_to: string | null;
+            /**
+             * Model Frozen After Recommendation
+             * @default null
+             */
+            model_frozen_after_recommendation: boolean | null;
+            /**
+             * Page
+             * @default 1
+             */
+            page: number;
+            /**
+             * Page Size
+             * @default 20
+             */
+            page_size: number;
+            /**
+             * State
+             * @default null
+             */
+            state: components["schemas"]["CaseState"][] | null;
         };
         /**
          * CaseIdentifierGroup
@@ -392,11 +430,31 @@ export interface components {
             score: string | null;
             state: components["schemas"]["CaseState"];
         };
+        /** CategoryFeature */
+        CategoryFeature: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "category";
+            /** Value */
+            value: string;
+        };
         /**
          * CreditStatus
          * @enum {string}
          */
         CreditStatus: "en_estudio" | "aprobado" | "desembolsado" | "rechazado" | "cancelado" | "sin_credito" | "no_disponible" | "no_integrado";
+        /** DecimalFeature */
+        DecimalFeature: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "decimal";
+            /** Value */
+            value: string;
+        };
         /**
          * Decision
          * @enum {string}
@@ -442,11 +500,57 @@ export interface components {
             /** Used Factors */
             used_factors: string[];
         };
+        /** Explanation */
+        Explanation: {
+            /** Base Value */
+            base_value: string;
+            /**
+             * Factuality Check
+             * @constant
+             */
+            factuality_check: "passed";
+            /** Feature Dictionary Version */
+            feature_dictionary_version: string;
+            /**
+             * Method
+             * @constant
+             */
+            method: "shap";
+            /** Model Version Id */
+            model_version_id: string;
+            /** Narrative */
+            narrative: string;
+            /** Narrative Generator */
+            narrative_generator: string;
+            /** Posthoc Notice */
+            posthoc_notice: string;
+            /** Shap Vector */
+            shap_vector: components["schemas"]["FeatureContribution"][];
+        };
+        /** FeatureContribution */
+        FeatureContribution: {
+            /** Contribution */
+            contribution: string;
+            /** Feature Id */
+            feature_id: string;
+            /** Value */
+            value: components["schemas"]["DecimalFeature"] | components["schemas"]["IntFeature"] | components["schemas"]["CategoryFeature"];
+        };
         /**
          * FinalOutcome
          * @enum {string}
          */
         FinalOutcome: "favorable" | "desfavorable";
+        /** IntFeature */
+        IntFeature: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "int";
+            /** Value */
+            value: number;
+        };
         /** InvalidParam */
         InvalidParam: {
             /** Name */
@@ -454,7 +558,6 @@ export interface components {
             /** Reason Code */
             reason_code: string;
         };
-        JsonValue: unknown;
         /**
          * Outcome
          * @enum {string}
@@ -536,6 +639,42 @@ export interface components {
          * @enum {string}
          */
         ProblemReason: "decision_already_recorded" | "transition_pending" | "version_mismatch" | "feature_dictionary_incomplete" | "factuality_failed" | "no_active_version" | "active_version_frozen";
+        /** Recommendation */
+        Recommendation: {
+            /**
+             * Case Id
+             * Format: uuid
+             */
+            case_id: string;
+            /** Confidence */
+            confidence: string;
+            /**
+             * Evaluated At
+             * Format: date-time
+             */
+            evaluated_at: string;
+            explanation: components["schemas"]["Explanation"];
+            /** Feature Vector Hash */
+            feature_vector_hash: string;
+            /**
+             * Kind
+             * @default recommendation
+             * @constant
+             */
+            kind: "recommendation";
+            /** Model Version Id */
+            model_version_id: string;
+            /** Outcome */
+            outcome: string;
+            /** Policy Version Id */
+            policy_version_id: string;
+            /** Reasons */
+            reasons: string[];
+            /** Registry Entry Id */
+            registry_entry_id: string;
+            /** Score */
+            score: string;
+        };
         /** RootModel[list[PersistentFailure]] */
         RootModel_list_PersistentFailure__: components["schemas"]["PersistentFailure"][];
     };
@@ -549,7 +688,15 @@ export type $defs = Record<string, never>;
 export interface operations {
     get_v1_cases: {
         parameters: {
-            query?: never;
+            query?: {
+                channel?: string | null;
+                created_from?: string | null;
+                created_to?: string | null;
+                model_frozen_after_recommendation?: boolean | null;
+                page?: number;
+                page_size?: number;
+                state?: components["schemas"]["CaseState"][] | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -579,7 +726,9 @@ export interface operations {
     post_v1_cases: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -798,7 +947,9 @@ export interface operations {
     post_v1_intake_applications: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
             path?: never;
             cookie?: never;
         };

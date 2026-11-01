@@ -3,7 +3,7 @@
 from typing import Annotated, Literal, Self
 from uuid import UUID
 
-from pydantic import Field, JsonValue, model_validator
+from pydantic import Field, model_validator
 
 from vectra_contracts.catalog import (
     REASON_ALLOWED_CODE,
@@ -26,6 +26,7 @@ from vectra_contracts.models.base import (
 )
 from vectra_contracts.models.features import FeatureVector, MonitoringLabels
 from vectra_contracts.models.registry import RegistryDossier
+from vectra_contracts.outcome import Recommendation
 from vectra_contracts.validation import check_justification, check_used_factors
 
 
@@ -102,7 +103,7 @@ class DecisionView(StrictModel):
 class CaseDetail(CaseSummary):
     application: ApplicationView
     identifiers: CaseIdentifierGroup | None = None
-    recommendation: JsonValue | None = None
+    recommendation: Recommendation | None = None
     recommendation_entry_id: str | None = None
     credit_status: CreditStatus | None = None
     decision: DecisionView | None = None
@@ -122,6 +123,8 @@ class Principal(StrictModel):
     acr: str | None = None
     auth_time: Timestamp | None = None
     token_expiry: Timestamp
+    #: Claim `azp`: el cliente que pidió el token (U8 BR-U8-03; alcance de `Idempotency-Key`).
+    client_id: str | None = None
 
 
 class SessionInfo(StrictModel):

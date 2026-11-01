@@ -12,7 +12,7 @@ infraestructura compartida de U1. Los IDs `INF-U4-xx` se referencian en el plan 
 | Componente | Requests | Limits | Escalado / límite | PriorityClass |
 |---|---|---|---|---|
 | `governance-service` | 250m / 256 MiB | 1 CPU / 512 MiB | HPA de 2 a 6 por CPU al 70 %; spread por zona; PDB `minAvailable: 1` | `vectra-high` |
-| Job de migración | 100m / 128 MiB | 500m / 256 MiB | `activeDeadlineSeconds: 600` | `vectra-normal` |
+| Job de migración (`ServiceAccount` y etiqueta `vectra.io/workload`: `migration-governance`; revisión de consistencia entre unidades, 2026-11-01) | 100m / 128 MiB | 500m / 256 MiB | `activeDeadlineSeconds: 600` | `vectra-normal` |
 | `model-validation-job` | 500m / 1 GiB (quinta revisión de coherencia entre unidades, 2026-10-31) | 2 CPU / 4 GiB | `activeDeadlineSeconds: 7200` | `vectra-low` |
 | `model-archive` (CronJob diario) | 100m / 256 MiB | 500m / 512 MiB | `activeDeadlineSeconds: 3600`; `concurrencyPolicy: Forbid`; sidecar nativo de Linkerd | `vectra-low` |
 
@@ -24,7 +24,7 @@ infraestructura compartida de U1. Los IDs `INF-U4-xx` se referencian en el plan 
   | Migración y `model-archive`, con el proxy | 0,4 CPU / 424 MiB | 2 CPU / 1 024 MiB |
   | **Total + 30 %** | **≈ 3,71 CPU / 2,99 GiB** | **≈ 16,25 CPU / 6,99 GiB** |
 
-  `model-validation-job` corre en `vectra-staging` y entra en esa cuota (INF-U4-05), no en esta. Su `ServiceAccount` y su `ExternalSecret` viven en ese namespace y los entrega el chart de U4 (quinta revisión de coherencia entre unidades, 2026-10-31).
+  `model-validation-job` corre en `vectra-staging` y entra en esa cuota (INF-U4-05), no en esta. Su `ServiceAccount` y su `ExternalSecret` viven en ese namespace y los entrega el chart de U4 (quinta revisión de coherencia entre unidades, 2026-10-31); la credencial del bucket es `minio-validation`, de U1 (revisión de consistencia entre unidades, 2026-11-01).
 - La imagen del servicio incluye `tzdata` para `America/Bogota` (P-U4-05).
 - `governance-db` (INF-U1-02, `max_connections` 50): 6 réplicas × 5 (P-U4-04) + migración + `model-archive` + operador ≈ 37.
 
@@ -65,10 +65,10 @@ Egress:
 
 Los demás flujos del servicio ya existían (F11, F18, F24, F25, F27, F30–F32, F41, F47, K01).
 
-**F27 (`freeze`)** (precisado el 2026-10-10 por U9 Infrastructure Design Q4): la `AuthorizationPolicy` de Linkerd de la ruta `POST /v1/models/{id}/freeze` admite **solo** la identidad `bias-monitoring-job` (ServiceAccount del CronJob de U9); la `NetworkPolicy` admite solo los pods del CronJob. El servicio HTTP de bias queda bloqueado en L7 aunque tuviera un token válido.
+**F27 (`freeze`)** (precisado el 2026-10-10 por U9 Infrastructure Design Q4): la `AuthorizationPolicy` de Linkerd de la ruta `POST /v1/models/{id}/freeze` admite **solo** la identidad `bias-monitoring-job` (ServiceAccount del CronJob de U9), y la genera U1 desde `http_routes.governance-service` de `flows.yaml`, con `governance-catch-all` para lo demás (revisión de consistencia entre unidades, 2026-11-01); la `NetworkPolicy` admite solo los pods del CronJob. El servicio HTTP de bias queda bloqueado en L7 aunque tuviera un token válido.
 
 ### INF-U4-05 — Versión activa en KServe de staging para `source_comparison` (segunda revisión del FD de U9, 2026-10-08)
-- X08 impide que el `model-validation-job` llame a `vectra-serving`. Para comparar una fuente, el ingeniero abre un PR en el repositorio GitOps que agrega a los values de staging de U6 un `InferenceService` **solo predictor** (sin explicador) con el artefacto de la versión `activo`, tomado del model-store; se aplica con sync manual (AUTONOMIA-01), igual que el de la candidata. Al terminar la comparación, otro PR lo retira.
+- X08 impide que el `model-validation-job` llame a `vectra-serving`. Para comparar una fuente, el ingeniero abre un PR que agrega a `vectra-risk-gitops/values/staging/model-serving.yaml` (revisión de consistencia entre unidades, 2026-11-01) un `InferenceService` **solo predictor** (sin explicador) con el artefacto de la versión `activo`, tomado del model-store; se aplica con sync manual (AUTONOMIA-01), igual que el de la candidata. Al terminar la comparación, otro PR lo retira.
 - Recursos: los de un predictor de staging de U6 (250m / 256 MiB; 1 CPU / 512 MiB; 1 réplica; `vectra-low`). El aporte a la cuota de `vectra-staging` es **un predictor más** durante la comparación; U1 lo suma (NFR-U1-13, Paso 6 de su plan).
 - `start_source_comparison` comprueba que existan los dos `InferenceService` (BR-U4-13); si no, 409.
 - **Verificación**: `conftest` sobre los values de staging (el `InferenceService` de la versión activa es solo predictor, 1 réplica, `vectra-low`); en kind (operador), una comparación completa con el modelo de referencia y su variante dentro de NFR-U4-12.
@@ -87,7 +87,7 @@ Registrados en `audit.md` (desde el 2026-10-03; filas posteriores con su fecha):
 | U4 NFR Design P-U4-08 | Alerta `ModelArchivePending` |
 | INF-U4-05; values de staging de U6; U1 cuota de `vectra-staging` | Predictor de la versión activa en KServe de staging para `source_comparison` (segunda revisión del FD de U9, 2026-10-08) |
 | INF-U4-04 (F27); `AuthorizationPolicy` de la ruta `freeze`; plan de U4 (Paso 16) | `POST /v1/models/{id}/freeze` solo para la identidad `bias-monitoring-job` (U9 Infrastructure Design Q4, 2026-10-10) |
-| Plan de U4 (Paso 14, `branch-protection-check`) | Verifica la protección de `main` en los dos repositorios, con la aprobación de los *code owners* (revisión del FD de U10, 2026-10-10, A5) |
+| Plan de U4 (Paso 14, `branch-protection-check`) | Verifica la protección de `main` del único repositorio, el monorepo, con la aprobación de los *code owners* (revisión del FD de U10, 2026-10-10, A5; revisión de consistencia entre unidades, 2026-11-01) |
 
 ## 5. Cumplimiento de extensiones (Infrastructure Design U4)
 

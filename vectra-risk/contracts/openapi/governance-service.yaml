@@ -11,6 +11,46 @@ components:
       - evidence
       title: ActivationIn
       type: object
+    AffectedVolume:
+      additionalProperties: false
+      description: Recomendaciones de la versión en la ventana y cuántas fueron `favorable`
+        (U9 §3.1).
+      properties:
+        favorable:
+          minimum: 0
+          title: Favorable
+          type: integer
+        total:
+          minimum: 0
+          title: Total
+          type: integer
+      required:
+      - total
+      - favorable
+      title: AffectedVolume
+      type: object
+    AttributeDelta:
+      additionalProperties: false
+      properties:
+        attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Attribute
+          type: string
+        delta:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Delta
+      required:
+      - attribute
+      title: AttributeDelta
+      type: object
     AttributeResult:
       additionalProperties: false
       properties:
@@ -506,8 +546,7 @@ components:
       additionalProperties: false
       properties:
         affected_volume:
-          title: Affected Volume
-          type: integer
+          $ref: '#/components/schemas/AffectedVolume'
         after:
           $ref: '#/components/schemas/DisparityResult'
         before:
@@ -690,6 +729,42 @@ components:
       required:
       - decision
       title: ModelApprovalIn
+      type: object
+    ModelFilter:
+      additionalProperties: false
+      description: '`GET /v1/models?state=activo,congelado`: uno o varios estados.'
+      properties:
+        page: &id001
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+        page_size: &id002
+          default: 20
+          maximum: 100
+          minimum: 1
+          title: Page Size
+          type: integer
+        state: &id003
+          anyOf:
+          - items:
+              enum:
+              - registrado
+              - en_validacion
+              - validacion_fallida
+              - lista_para_aprobacion
+              - aprobado
+              - rechazado
+              - activo
+              - inactivo
+              - congelado
+              - retirado
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: State
+      title: ModelFilter
       type: object
     ModelRegistration:
       additionalProperties: false
@@ -1052,6 +1127,27 @@ components:
       - items
       title: Page[ModelVersion]
       type: object
+    PolicyDecisionIn:
+      additionalProperties: false
+      description: '`rechazada` exige `justification` (U4 `rejection_justification`).'
+      properties:
+        decision:
+          enum:
+          - aprobada
+          - rechazada
+          title: Decision
+          type: string
+        justification:
+          anyOf:
+          - maxLength: 2000
+            type: string
+          - type: 'null'
+          default: null
+          title: Justification
+      required:
+      - decision
+      title: PolicyDecisionIn
+      type: object
     PolicyDraft:
       additionalProperties: false
       properties:
@@ -1136,16 +1232,31 @@ components:
       - created_at
       title: PolicyVersion
       type: object
-    PrePostReport:
+    PrePostDelta:
       additionalProperties: false
+      description: '`post − pre` de cada agregada y de `model_aggregate` (U9 §3.2).'
       properties:
-        delta:
+        attributes:
+          items:
+            $ref: '#/components/schemas/AttributeDelta'
+          title: Attributes
+          type: array
+        model_aggregate:
           anyOf:
           - pattern: ^-?\d+\.\d{4}$
             type: string
           - type: 'null'
           default: null
-          title: Delta
+          title: Model Aggregate
+      required:
+      - attributes
+      title: PrePostDelta
+      type: object
+    PrePostReport:
+      additionalProperties: false
+      properties:
+        delta:
+          $ref: '#/components/schemas/PrePostDelta'
         disclaimer:
           title: Disclaimer
           type: string
@@ -1170,6 +1281,7 @@ components:
       - source_id
       - pre
       - post
+      - delta
       - threshold_pp
       - n_min
       - truncated
@@ -1529,7 +1641,7 @@ paths:
         '200':
           content:
             application/json:
-              schema: &id002
+              schema: &id005
                 $ref: '#/components/schemas/ValidationRun'
           description: OK
         default:
@@ -1579,6 +1691,19 @@ paths:
   /v1/models:
     get:
       operationId: get_v1_models
+      parameters:
+      - in: query
+        name: page
+        required: false
+        schema: *id001
+      - in: query
+        name: page_size
+        required: false
+        schema: *id002
+      - in: query
+        name: state
+        required: false
+        schema: *id003
       responses:
         '200':
           content:
@@ -1613,7 +1738,7 @@ paths:
         '200':
           content:
             application/json:
-              schema: &id001
+              schema: &id004
                 $ref: '#/components/schemas/ModelVersion'
           description: OK
         default:
@@ -1856,7 +1981,7 @@ paths:
         '200':
           content:
             application/json:
-              schema: *id001
+              schema: *id004
           description: OK
         default:
           content:
@@ -1915,7 +2040,7 @@ paths:
         '200':
           content:
             application/json:
-              schema: *id002
+              schema: *id005
           description: OK
         default:
           content:
@@ -1992,6 +2117,12 @@ paths:
         required: true
         schema:
           type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyDecisionIn'
+        required: true
       responses:
         '204':
           description: Sin contenido
@@ -2011,6 +2142,12 @@ paths:
   /v1/serving-config:
     get:
       operationId: get_v1_serving-config
+      parameters:
+      - in: header
+        name: If-None-Match
+        required: false
+        schema:
+          type: string
       responses:
         '200':
           content:
@@ -2018,6 +2155,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServingConfig'
           description: OK
+        '304':
+          description: Sin cambios
         default:
           content:
             application/problem+json:

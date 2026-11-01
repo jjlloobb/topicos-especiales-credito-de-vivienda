@@ -81,7 +81,9 @@ class DependencyUnavailable(VectraError):
 
 
 class DependencyTimeout(DependencyUnavailable):
-    """Timeout de una dependencia; los servicios lo distinguen, y responde como 503."""
+    """Timeout o presupuesto agotado durante el trabajo: 504 (domain-entities §6; U7 §2)."""
+
+    code = ProblemCode.DEADLINE_EXCEEDED
 
 
 class UnprocessableExplanation(VectraError):

@@ -1,0 +1,11 @@
+# Solo kind: un ingester, y por eso factor de replicacion 1.
+ingester:
+  replicas: 1
+  config: { replication_factor: 1 }
+  resources: &small
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { cpu: 200m, memory: 256Mi }
+compactor: { resources: *small }
+distributor: { resources: *small }
+querier: { resources: *small }
+queryFrontend: { resources: *small }

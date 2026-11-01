@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudnative-pg
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
+spec:
+  project: vectra-staging
+  sources:
+  - repoURL: https://charts.banco.internal/vectra
+    chart: cloudnative-pg
+    targetRevision: 0.29.1
+    helm:
+      valueFiles:
+      - $values/vectra-risk/platform/operators/cloudnative-pg.yaml
+  - repoURL: https://git.banco.internal/vectra/vectra-risk.git
+    targetRevision: main
+    ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true
+    - CreateNamespace=true

@@ -112,6 +112,42 @@ export interface components {
             /** Prediction Score */
             prediction_score: string;
         };
+        /** Explanation */
+        Explanation: {
+            /** Base Value */
+            base_value: string;
+            /**
+             * Factuality Check
+             * @constant
+             */
+            factuality_check: "passed";
+            /** Feature Dictionary Version */
+            feature_dictionary_version: string;
+            /**
+             * Method
+             * @constant
+             */
+            method: "shap";
+            /** Model Version Id */
+            model_version_id: string;
+            /** Narrative */
+            narrative: string;
+            /** Narrative Generator */
+            narrative_generator: string;
+            /** Posthoc Notice */
+            posthoc_notice: string;
+            /** Shap Vector */
+            shap_vector: components["schemas"]["FeatureContribution"][];
+        };
+        /** FeatureContribution */
+        FeatureContribution: {
+            /** Contribution */
+            contribution: string;
+            /** Feature Id */
+            feature_id: string;
+            /** Value */
+            value: components["schemas"]["DecimalFeature"] | components["schemas"]["IntFeature"] | components["schemas"]["CategoryFeature"];
+        };
         /** FeatureVector */
         FeatureVector: {
             /** Features */
@@ -223,12 +259,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Sin contenido */
-            204: {
+            /** @description OK */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Explanation"];
+                };
             };
             /** @description Problem */
             default: {

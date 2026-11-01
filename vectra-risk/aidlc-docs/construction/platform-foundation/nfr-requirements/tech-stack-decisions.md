@@ -14,7 +14,7 @@ GitOps (imágenes por digest, NFR-U1-25).
 | Desarrollo y pruebas | kind con 1 nodo de control y 4 workers en 2 zonas simuladas (`topology.kubernetes.io/zone`; INF-U1-01, precisado el 2026-10-08) | Reproducible en CI y en local; permite ensayar el fallo de zona | Q1, Q18 |
 | OpenShift | Restricción documentada (sin UIDs fijos, `runAsNonRoot`); no se certifica | Compatibilidad sin coste de certificación | Q1 |
 | Empaquetado | Helm (charts por componente) | US-605 | INCEPTION |
-| GitOps | Argo CD con sync manual; repositorio `vectra-risk-gitops` | Q19, AUTONOMIA-01 | INCEPTION |
+| GitOps | Argo CD con sync manual; directorio `vectra-risk-gitops/` del monorepo (revisión de consistencia entre unidades, 2026-11-01) | Q19, AUTONOMIA-01 | INCEPTION |
 
 ## 2. Datos y almacenamiento
 
@@ -22,7 +22,7 @@ GitOps (imágenes por digest, NFR-U1-25).
 |---|---|---|---|
 | PostgreSQL | **CloudNativePG**: 3 instancias por cluster, `minSyncReplicas = 1`, `maxSyncReplicas = 2`, failover automático | Réplica síncrona y PITR nativos, sin componentes externos | Q2, Q7 |
 | Backups | Barman Cloud (integrado en CloudNativePG): backup base diario + WAL continuo (`archive_timeout = 60 s`) | RPO del sitio ≤ 5 min | Q3, Q5 |
-| Almacenamiento de objetos | API compatible con S3. **MinIO in-cluster en todos los entornos** para `model-store`, `validation-datasets`, `loki` y `tempo`; backups y WAL en el **S3 del banco fuera del sitio** (`vectra-backups`, `vectra-wal`, F70) (INF-U1-03, precisado el 2026-10-08) | Un solo contrato, portable | Q6; INF-U1-03 |
+| Almacenamiento de objetos | API compatible con S3. **MinIO in-cluster en todos los entornos** para `model-store`, `validation-datasets`, `loki` y `tempo`; backups y WAL en el **S3 del banco fuera del sitio** (bucket `vectra-backups`, F70; el WAL va bajo `vectra-backups/<cluster>/`, decidido el 2026-11-01) (INF-U1-03, precisado el 2026-10-08) | Un solo contrato, portable | Q6; INF-U1-03 |
 | Inmutabilidad | Object lock en los buckets de `registry-db` y de Loki | Evidencia regulatoria y logs tamper-evident | Q5, Q8 |
 
 ## 3. Seguridad
@@ -52,7 +52,8 @@ GitOps (imágenes por digest, NFR-U1-25).
 | Workflow reutilizable | Contenido | Requisito |
 |---|---|---|
 | `tests.yml` | Pruebas por unidad con la semilla de PBT registrada | NFR-U1-42 |
-| `supply-chain.yml` | Trivy, Syft y Cosign | NFR-U1-26 |
+| `supply-chain.yml` | Trivy y Syft | NFR-U1-26 |
+| `sign-image.yml` | Cosign con llave: firma y verificación, sin `id-token`, porque `verify-images` admite por llave pública (revisión de consistencia entre unidades, 2026-11-01) | NFR-U1-26 |
 | `evidence.yml` | `helm template`, `kubectl diff` contra kind, artefactos en el PR | NFR-U1-42 |
 | `forbidden-steps.yml` | Falla si aparecen `kubectl apply`, `helm install`/`upgrade`, `terraform apply` o `argocd app sync` | NFR-U1-41 |
 | `policies.yml` | `kyverno test`, `promtool test rules`, `actionlint` | NFR-U1-25, 32 |

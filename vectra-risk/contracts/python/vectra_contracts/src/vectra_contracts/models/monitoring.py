@@ -135,6 +135,46 @@ class DepartureRate(StrictModel):
     rate: Decimal4
 
 
+class AffectedVolume(StrictModel):
+    """Recomendaciones de la versión en la ventana y cuántas fueron `favorable` (U9 §3.1)."""
+
+    total: Annotated[int, Field(ge=0)]
+    favorable: Annotated[int, Field(ge=0)]
+
+    @model_validator(mode="after")
+    def _within_total(self) -> Self:
+        if self.favorable > self.total:
+            raise ValueError("favorable_exceeds_total")
+        return self
+
+
+class AttributeDelta(StrictModel):
+    attribute: Attribute
+    delta: Decimal4 | None = None
+
+
+class PrePostDelta(StrictModel):
+    """`post − pre` de cada agregada y de `model_aggregate` (U9 §3.2)."""
+
+    attributes: list[AttributeDelta]
+    model_aggregate: Decimal4 | None = None
+
+
+class DisparityFilter(StrictModel):
+    """BR-U9-18: versión, atributo y ventana. Sin versión, bias usa la más reciente."""
+
+    version: str | None = None
+    attribute: Attribute | None = None
+    window: int | None = None
+
+    @field_validator("window")
+    @classmethod
+    def _known_window(cls, value: int | None) -> int | None:
+        if value not in (None, 7, 30, 90):
+            raise ValueError("window_not_allowed")
+        return value
+
+
 class DisparityResult(StrictModel):
     population: Population
     model_version_id: str
@@ -161,7 +201,7 @@ class FreezeContext(StrictModel):
     last_7_days: DisparityResult | Literal["sin_datos"]
     trigger_attribute: Attribute
     implicated: list[JsonValue]
-    affected_volume: int
+    affected_volume: AffectedVolume
     truncated: bool
 
 
@@ -224,7 +264,7 @@ class PrePostReport(StrictModel):
     source_id: str
     pre: DisparityResult
     post: DisparityResult
-    delta: Decimal4 | None = None
+    delta: PrePostDelta
     threshold_pp: Decimal4
     n_min: int
     truncated: bool

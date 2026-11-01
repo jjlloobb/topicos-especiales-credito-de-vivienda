@@ -1,0 +1,11 @@
+# Plantilla: el runbook install.md genera la llave y crea encryption-config.yaml, que no va a Git.
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  - resources: [secrets]
+    providers:
+      - aescbc:
+          keys:
+            - name: key1
+              secret: GENERAR_CON_openssl_rand_-base64_32
+      - identity: {}

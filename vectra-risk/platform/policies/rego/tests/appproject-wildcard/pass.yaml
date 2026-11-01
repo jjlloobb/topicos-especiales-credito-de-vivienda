@@ -1,0 +1,4 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata: { name: vectra-prod }
+spec: { sourceRepos: ["https://git.banco.internal/vectra/vectra-risk.git"] }

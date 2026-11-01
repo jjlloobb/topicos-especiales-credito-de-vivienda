@@ -113,7 +113,7 @@ referencian en el Infrastructure Design y en el plan de tareas.
 | `ConsoleBffErrorBudgetFastBurn` | razón de 5xx propios del BFF (sin `dependency_unavailable`) > 14,4 × 0,005 en 1 h **y** en 5 min | 2 min | SEV2 |
 | `ConsoleBffErrorBudgetSlowBurn` | > 6 × 0,005 en 6 h **y** en 30 min | 15 min | SEV3 |
 | `ConsoleBffDown` | ninguna réplica de `console-bff` lista (`absent` o 0) | 5 min | SEV2 |
-| `ConsoleDependencyCircuitOpen` | `max by (dependency) (vectra_circuit_state{service="console-bff"}) == 2` (2 = abierto; codificación de U0 NFR-U0-23 (g)) | 5 min | SEV3 (el destino tiene su propia alerta) |
+| `ConsoleDependencyCircuitOpen` | `max by (dependency) (vectra_circuit_state{job="console-bff"}) == 2` (2 = abierto; codificación de U0 NFR-U0-23 (g); la métrica de U0 solo declara `dependency`; revisión de consistencia entre unidades, 2026-11-01) | 5 min | SEV3 (el destino tiene su propia alerta) |
 | `ConsoleClientErrorsSpike` | `sum(rate(vectra_console_client_errors_total[15m])) * 60 > 1` | 15 min | SEV3 |
 | `ConsoleChunkOrCspError` | `sum(increase(vectra_console_client_errors_total{error_code=~"chunk_load_failed|csp_violation"}[15m])) > 0` | 0 (un solo error dispara; antes estaba dentro de la alerta anterior con `for: 15m` y nunca disparaba; revisión del Infrastructure Design de U10, 2026-10-10) | SEV3 |
 

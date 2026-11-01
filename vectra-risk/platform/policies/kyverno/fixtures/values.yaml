@@ -1,0 +1,82 @@
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Values
+policies:
+- name: require-hpa-bounds
+  resources:
+  - name: with-hpa
+    values:
+      hpas: 1
+  - name: kserve-predictor
+    values:
+      hpas: 1
+  - name: envoy-proxy
+    values:
+      hpas: 1
+  - name: no-hpa
+    values:
+      hpas: 0
+  - name: product-metrics-no-exempt
+    values:
+      hpas: 0
+- name: require-spread-and-pdb
+  resources:
+  - name: exempt-two
+    values:
+      pdbs: 1
+  - name: product-metrics
+    values:
+      pdbs: 1
+  - name: console-spa
+    values:
+      pdbs: 1
+  - name: labelled
+    values:
+      pdbs: 1
+  - name: grafana-in-app
+    values:
+      pdbs: 1
+  - name: exempt-one
+    values:
+      pdbs: 1
+  - name: with-hpa
+    values:
+      pdbs: 1
+  - name: kserve-predictor
+    values:
+      pdbs: 1
+  - name: envoy-proxy
+    values:
+      pdbs: 1
+  - name: no-hpa
+    values:
+      pdbs: 0
+  - name: product-metrics-no-exempt
+    values:
+      pdbs: 0
+namespaceSelector:
+- name: vectra-app
+  labels:
+    vectra.io/mesh: enabled
+- name: vectra-data
+  labels:
+    vectra.io/mesh: enabled
+- name: vectra-identity
+  labels:
+    vectra.io/mesh: enabled
+- name: vectra-mock
+  labels:
+    vectra.io/mesh: enabled
+- name: vectra-edge
+  labels:
+    vectra.io/mesh: enabled
+- name: vectra-observability
+  labels:
+    vectra.io/mesh: enabled
+- name: vectra-restore-drill
+  labels:
+    vectra.io/mesh: enabled
+- name: vectra-serving
+  labels:
+    vectra.io/mesh: enabled
+- name: default
+  labels: {}

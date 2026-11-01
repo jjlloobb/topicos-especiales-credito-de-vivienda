@@ -118,6 +118,82 @@ components:
       - prediction_score
       title: ExplainRequest
       type: object
+    Explanation:
+      additionalProperties: false
+      properties:
+        base_value:
+          pattern: ^-?\d+(\.\d+)?$
+          title: Base Value
+          type: string
+        factuality_check:
+          const: passed
+          title: Factuality Check
+          type: string
+        feature_dictionary_version:
+          title: Feature Dictionary Version
+          type: string
+        method:
+          const: shap
+          title: Method
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        narrative:
+          maxLength: 4000
+          title: Narrative
+          type: string
+        narrative_generator:
+          title: Narrative Generator
+          type: string
+        posthoc_notice:
+          title: Posthoc Notice
+          type: string
+        shap_vector:
+          items:
+            $ref: '#/components/schemas/FeatureContribution'
+          title: Shap Vector
+          type: array
+      required:
+      - model_version_id
+      - method
+      - shap_vector
+      - base_value
+      - narrative
+      - narrative_generator
+      - feature_dictionary_version
+      - posthoc_notice
+      - factuality_check
+      title: Explanation
+      type: object
+    FeatureContribution:
+      additionalProperties: false
+      properties:
+        contribution:
+          pattern: ^-?\d+(\.\d+)?$
+          title: Contribution
+          type: string
+        feature_id:
+          title: Feature Id
+          type: string
+        value:
+          discriminator:
+            mapping:
+              category: '#/components/schemas/CategoryFeature'
+              decimal: '#/components/schemas/DecimalFeature'
+              int: '#/components/schemas/IntFeature'
+            propertyName: type
+          oneOf:
+          - $ref: '#/components/schemas/DecimalFeature'
+          - $ref: '#/components/schemas/IntFeature'
+          - $ref: '#/components/schemas/CategoryFeature'
+          title: Value
+      required:
+      - feature_id
+      - value
+      - contribution
+      title: FeatureContribution
+      type: object
     FeatureVector:
       additionalProperties: false
       properties:
@@ -282,8 +358,12 @@ paths:
               $ref: '#/components/schemas/ExplainRequest'
         required: true
       responses:
-        '204':
-          description: Sin contenido
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Explanation'
+          description: OK
         default:
           content:
             application/problem+json:

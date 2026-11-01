@@ -1,0 +1,90 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-hpa-bounds
+spec:
+  validationFailureAction: Enforce
+  failurePolicy: Fail
+  background: false
+  rules:
+    - name: deployment-needs-hpa-or-exemption
+      match:
+        any:
+          - resources:
+              kinds: [Deployment]
+              operations: [CREATE, UPDATE]
+              namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-mock]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.annotations.\"vectra.io/hpa-exempt\" || '' }}"
+            operator: Equals
+            value: ""
+      context:
+        - name: hpas
+          apiCall:
+            urlPath: "/apis/autoscaling/v2/namespaces/{{ request.namespace }}/horizontalpodautoscalers"
+            jmesPath: "items[?spec.scaleTargetRef.name == '{{ request.object.metadata.name }}'] | length(@)"
+      # Solo auditoria: Argo CD aplica el HPA despues del Deployment y KServe genera los suyos despues,
+      # asi que al admitir aun no existe. `policies/rego/hpa.rego` lo exige sobre el render en el PR.
+      validate:
+        failureAction: Audit
+        message: "Un Deployment necesita HPA o la anotacion vectra.io/hpa-exempt (NFR-U1-12)"
+        deny:
+          conditions:
+            all:
+              - key: "{{ hpas }}"
+                operator: Equals
+                value: 0
+    - name: exempt-needs-two-replicas
+      match:
+        any:
+          - resources:
+              kinds: [Deployment]
+              operations: [CREATE, UPDATE]
+              namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-mock]
+              annotations:
+                vectra.io/hpa-exempt: "?*"
+      # NFR-U1-12: la unica exencion con 1 replica es el InferenceService `inactivo` de U6.
+      exclude:
+        any:
+          - resources:
+              selector: { matchLabels: { vectra.io/serving-state: inactivo } }
+      validate:
+        message: "Una exencion necesita al menos 2 replicas"
+        pattern:
+          spec:
+            replicas: ">=2"
+    - name: active-inference-service-needs-two-replicas
+      match:
+        any:
+          - resources:
+              kinds: [serving.kserve.io/v1beta1/InferenceService]
+              operations: [CREATE, UPDATE]
+              namespaces: [vectra-serving]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.labels.\"vectra.io/serving-state\" || 'activo' }}"
+            operator: NotEquals
+            value: inactivo
+      validate:
+        message: "Un InferenceService activo tiene al menos 2 replicas"
+        pattern:
+          spec:
+            predictor:
+              minReplicas: ">=2"
+    - name: inactive-inference-service-needs-exemption
+      match:
+        any:
+          - resources:
+              kinds: [serving.kserve.io/v1beta1/InferenceService]
+              operations: [CREATE, UPDATE]
+              namespaces: [vectra-serving]
+              selector:
+                matchLabels:
+                  vectra.io/serving-state: inactivo
+      validate:
+        message: "Un InferenceService inactivo con 1 replica necesita vectra.io/hpa-exempt"
+        pattern:
+          metadata:
+            annotations:
+              vectra.io/hpa-exempt: "?*"

@@ -8,6 +8,7 @@ from pydantic import BaseModel, RootModel, TypeAdapter
 from vectra_contracts.catalog import Role, Scope
 from vectra_contracts.models import api as a
 from vectra_contracts.models import application as ap
+from vectra_contracts.models import explanation as e
 from vectra_contracts.models import features as f
 from vectra_contracts.models import governance as g
 from vectra_contracts.models import monitoring as m
@@ -18,6 +19,15 @@ Method = Literal["GET", "POST", "PUT", "DELETE"]
 DEFAULT_MAX_BODY: Final = 32 * 1024
 HARD_MAX_BODY: Final = 128 * 1024
 MFA_MAX_AGE: Final = 900
+
+
+@dataclass(frozen=True)
+class HeaderParam:
+    name: str
+    required: bool = False
+
+
+IDEMPOTENCY: Final = (HeaderParam("Idempotency-Key", required=True),)
 
 
 @dataclass(frozen=True)
@@ -35,6 +45,10 @@ class RouteContract:
     port: int = 8080
     read_only: bool = False
     max_body_bytes: int = DEFAULT_MAX_BODY
+    query_model: type[BaseModel] | None = None
+    headers: tuple[HeaderParam, ...] = ()
+    #: Otros estados de exito: 202 lleva el mismo cuerpo; 304 no lleva cuerpo.
+    alternate_statuses: frozenset[int] = frozenset()
 
     @property
     def operation_id(self) -> str:
@@ -66,9 +80,12 @@ def _case() -> list[RouteContract]:
             ap.ApplicationIn,
             ap.CaseRef,
             scopes=frozenset({Scope.INTAKE_SUBMIT}),
+            headers=IDEMPOTENCY,
         ),
-        RouteContract(s, "POST", "/v1/cases", ap.ApplicationIn, ap.CaseRef, roles=ANALISTA),
-        RouteContract(s, "GET", "/v1/cases", None, a.Page[ap.CaseSummary], roles=ANALISTA_CRO),
+        RouteContract(s, "POST", "/v1/cases", ap.ApplicationIn, ap.CaseRef, roles=ANALISTA, headers=IDEMPOTENCY),
+        RouteContract(
+            s, "GET", "/v1/cases", None, a.Page[ap.CaseSummary], roles=ANALISTA_CRO, query_model=ap.CaseFilter
+        ),
         RouteContract(s, "GET", "/v1/cases/failures", None, _list_of(ap.PersistentFailure), roles=CRO),
         RouteContract(s, "GET", "/v1/cases/{id}", None, a.CaseDetail, roles=ANALISTA_CRO),
         RouteContract(
@@ -97,7 +114,12 @@ def _explainability() -> list[RouteContract]:
     s = "explainability-service"
     return [
         RouteContract(
-            s, "POST", "/v1/explanations", a.ExplainRequest, None, scopes=frozenset({Scope.SCORING_EXPLAIN})
+            s,
+            "POST",
+            "/v1/explanations",
+            a.ExplainRequest,
+            e.Explanation,
+            scopes=frozenset({Scope.SCORING_EXPLAIN}),
         ),
         RouteContract(
             s,
@@ -146,7 +168,15 @@ def _governance() -> list[RouteContract]:
         ),
         RouteContract(s, "POST", "/v1/models/{id}/approval", g.ModelApprovalIn, roles=CRO, mfa=True),
         RouteContract(s, "POST", "/v1/models/{id}/retirement", None, g.ModelVersion, roles=CRO, mfa=True),
-        RouteContract(s, "GET", "/v1/models", None, a.Page[g.ModelVersion], roles=ING_CRO_CUM),
+        RouteContract(
+            s,
+            "GET",
+            "/v1/models",
+            None,
+            a.Page[g.ModelVersion],
+            roles=ING_CRO_CUM,
+            query_model=g.ModelFilter,
+        ),
         RouteContract(s, "GET", "/v1/models/{id}", None, g.ModelVersionDetail, roles=ING_CRO_CUM),
         RouteContract(
             s,
@@ -175,6 +205,8 @@ def _governance() -> list[RouteContract]:
             None,
             g.ServingConfig,
             scopes=frozenset({Scope.GOVERNANCE_READ_SERVING}),
+            headers=(HeaderParam("If-None-Match"),),
+            alternate_statuses=frozenset({304}),
         ),
         RouteContract(
             s,
@@ -194,7 +226,7 @@ def _governance() -> list[RouteContract]:
         ),
         RouteContract(s, "GET", "/v1/policies", None, _list_of(g.PolicyVersion), roles=ANA_CRO_CUM),
         RouteContract(s, "POST", "/v1/policies", g.PolicyDraft, g.PolicyVersion, roles=CRO, mfa=True),
-        RouteContract(s, "POST", "/v1/policies/{id}/approval", roles=CRO, mfa=True),
+        RouteContract(s, "POST", "/v1/policies/{id}/approval", g.PolicyDecisionIn, roles=CRO, mfa=True),
         RouteContract(s, "GET", "/v1/data-sources", None, _list_of(g.DataSource), roles=ING_CRO_CUM),
         RouteContract(
             s, "POST", "/v1/data-sources", g.DataSourceProposal, g.DataSource, roles=INGENIERO, mfa=True
@@ -217,7 +249,15 @@ def _bias() -> list[RouteContract]:
             scopes=frozenset({Scope.BIAS_COMPARE}),
             max_body_bytes=64 * 1024,
         ),
-        RouteContract(s, "GET", "/v1/disparity", None, m.DisparityView, roles=CRO_CUMPLIMIENTO),
+        RouteContract(
+            s,
+            "GET",
+            "/v1/disparity",
+            None,
+            m.DisparityView,
+            roles=CRO_CUMPLIMIENTO,
+            query_model=m.DisparityFilter,
+        ),
         RouteContract(s, "GET", "/v1/freezes", None, _list_of(m.FreezeSummary), roles=CRO_CUMPLIMIENTO),
         RouteContract(s, "GET", "/v1/freezes/{id}", None, m.FreezeRecord, roles=CUMPLIMIENTO),
     ]
@@ -231,7 +271,7 @@ def _registry() -> list[RouteContract]:
             "POST",
             "/v1/entries",
             r.RegistryEntryIn,
-            None,
+            e.RegistryAck,
             any_scopes=frozenset(
                 {Scope.REGISTRY_APPEND_CASE, Scope.REGISTRY_APPEND_SCORING, Scope.REGISTRY_APPEND_GOVERNANCE}
             ),
@@ -242,10 +282,11 @@ def _registry() -> list[RouteContract]:
             "GET",
             "/v1/entries",
             None,
-            a.Page[r.RegistryEntry],
+            a.Page[r.EntryProjection],
             any_scopes=frozenset(
                 {Scope.REGISTRY_READ_EXPLANATION, Scope.REGISTRY_READ_METRICS, Scope.REGISTRY_READ_MONITORING}
             ),
+            query_model=r.EntryFilter,
         ),
         RouteContract(
             s,
@@ -273,6 +314,7 @@ def _registry() -> list[RouteContract]:
             r.IntegrityCheckRef,
             roles=CRO,
             mfa=True,
+            alternate_statuses=frozenset({202}),
         ),
         RouteContract(s, "GET", "/v1/integrity-checks/{id}", None, r.IntegrityCheckStatus, roles=CRO),
     ]
@@ -300,10 +342,12 @@ def _bff() -> list[RouteContract]:
     return [
         RouteContract(s, "GET", f"{p}/me", None, a.SessionInfo, roles=ALL_ROLES),
         RouteContract(s, "POST", f"{p}/client-errors", a.ClientErrorReport, roles=ALL_ROLES),
-        RouteContract(s, "GET", f"{p}/cases", None, a.Page[ap.CaseSummary], roles=ANALISTA_CRO),
+        RouteContract(
+            s, "GET", f"{p}/cases", None, a.Page[ap.CaseSummary], roles=ANALISTA_CRO, query_model=ap.CaseFilter
+        ),
         RouteContract(s, "GET", f"{p}/cases/failures", None, _list_of(ap.PersistentFailure), roles=CRO),
         RouteContract(s, "GET", f"{p}/cases/{{id}}", None, a.CaseDetail, roles=ANALISTA_CRO),
-        RouteContract(s, "POST", f"{p}/cases", ap.ApplicationIn, ap.CaseRef, roles=ANALISTA),
+        RouteContract(s, "POST", f"{p}/cases", ap.ApplicationIn, ap.CaseRef, roles=ANALISTA, headers=IDEMPOTENCY),
         RouteContract(s, "POST", f"{p}/cases/{{id}}/explanation-views", roles=ANALISTA),
         RouteContract(s, "POST", f"{p}/cases/{{id}}/decision", a.DecisionIn, a.DecisionRef, roles=ANALISTA),
         RouteContract(
@@ -319,9 +363,12 @@ def _bff() -> list[RouteContract]:
             r.IntegrityCheckRef,
             roles=CRO,
             mfa=True,
+            alternate_statuses=frozenset({202}),
         ),
         RouteContract(s, "GET", f"{p}/integrity-checks/{{id}}", None, r.IntegrityCheckStatus, roles=CRO),
-        RouteContract(s, "GET", f"{p}/models", None, a.Page[g.ModelVersion], roles=ING_CRO_CUM),
+        RouteContract(
+            s, "GET", f"{p}/models", None, a.Page[g.ModelVersion], roles=ING_CRO_CUM, query_model=g.ModelFilter
+        ),
         RouteContract(s, "GET", f"{p}/models/{{id}}", None, g.ModelVersionDetail, roles=ING_CRO_CUM),
         RouteContract(
             s, "POST", f"{p}/models", g.ModelRegistration, g.ModelVersion, roles=INGENIERO, mfa=True
@@ -350,7 +397,7 @@ def _bff() -> list[RouteContract]:
         RouteContract(s, "POST", f"{p}/models/{{id}}/retirement", None, g.ModelVersion, roles=CRO, mfa=True),
         RouteContract(s, "GET", f"{p}/policies", None, _list_of(g.PolicyVersion), roles=ANA_CRO_CUM),
         RouteContract(s, "POST", f"{p}/policies", g.PolicyDraft, g.PolicyVersion, roles=CRO, mfa=True),
-        RouteContract(s, "POST", f"{p}/policies/{{id}}/approval", roles=CRO, mfa=True),
+        RouteContract(s, "POST", f"{p}/policies/{{id}}/approval", g.PolicyDecisionIn, roles=CRO, mfa=True),
         RouteContract(s, "GET", f"{p}/data-sources", None, _list_of(g.DataSource), roles=ING_CRO_CUM),
         RouteContract(
             s, "POST", f"{p}/data-sources", g.DataSourceProposal, g.DataSource, roles=INGENIERO, mfa=True
@@ -363,7 +410,15 @@ def _bff() -> list[RouteContract]:
             roles=CUMPLIMIENTO,
             mfa=True,
         ),
-        RouteContract(s, "GET", f"{p}/disparity", None, m.DisparityView, roles=CRO_CUMPLIMIENTO),
+        RouteContract(
+            s,
+            "GET",
+            f"{p}/disparity",
+            None,
+            m.DisparityView,
+            roles=CRO_CUMPLIMIENTO,
+            query_model=m.DisparityFilter,
+        ),
         RouteContract(s, "GET", f"{p}/freezes", None, _list_of(m.FreezeSummary), roles=CRO_CUMPLIMIENTO),
         RouteContract(s, "GET", f"{p}/freezes/{{id}}", None, m.FreezeRecord, roles=CUMPLIMIENTO),
     ]
@@ -388,6 +443,7 @@ def all_routes() -> list[RouteContract]:
 __all__ = [
     "DEFAULT_MAX_BODY",
     "HARD_MAX_BODY",
+    "HeaderParam",
     "MFA_MAX_AGE",
     "REGISTRY",
     "RouteContract",

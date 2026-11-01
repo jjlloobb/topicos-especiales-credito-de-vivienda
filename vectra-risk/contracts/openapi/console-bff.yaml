@@ -36,6 +36,24 @@ components:
       - id
       title: Actor
       type: object
+    AffectedVolume:
+      additionalProperties: false
+      description: Recomendaciones de la versión en la ventana y cuántas fueron `favorable`
+        (U9 §3.1).
+      properties:
+        favorable:
+          minimum: 0
+          title: Favorable
+          type: integer
+        total:
+          minimum: 0
+          title: Total
+          type: integer
+      required:
+      - total
+      - favorable
+      title: AffectedVolume
+      type: object
     ApplicantFactor:
       additionalProperties: false
       properties:
@@ -341,6 +359,28 @@ components:
       - channel
       title: ApplicationView
       type: object
+    AttributeDelta:
+      additionalProperties: false
+      properties:
+        attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Attribute
+          type: string
+        delta:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Delta
+      required:
+      - attribute
+      title: AttributeDelta
+      type: object
     AttributeResult:
       additionalProperties: false
       properties:
@@ -495,7 +535,7 @@ components:
           default: null
         recommendation:
           anyOf:
-          - $ref: '#/components/schemas/JsonValue'
+          - $ref: '#/components/schemas/Recommendation'
           - type: 'null'
           default: null
         recommendation_entry_id:
@@ -524,6 +564,57 @@ components:
       - anonymized
       - attempts
       title: CaseDetail
+      type: object
+    CaseFilter:
+      additionalProperties: false
+      properties:
+        channel: &id001
+          anyOf:
+          - maxLength: 40
+            type: string
+          - type: 'null'
+          default: null
+          title: Channel
+        created_from: &id002
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Created From
+        created_to: &id003
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Created To
+        model_frozen_after_recommendation: &id004
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          title: Model Frozen After Recommendation
+        page: &id005
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+        page_size: &id006
+          default: 20
+          maximum: 100
+          minimum: 1
+          title: Page Size
+          type: integer
+        state: &id007
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/CaseState'
+            type: array
+          - type: 'null'
+          default: null
+          title: State
+      title: CaseFilter
       type: object
     CaseIdentifierGroup:
       additionalProperties: false
@@ -1057,6 +1148,36 @@ components:
       - rate
       title: DepartureRate
       type: object
+    DisparityFilter:
+      additionalProperties: false
+      description: 'BR-U9-18: versión, atributo y ventana. Sin versión, bias usa la
+        más reciente.'
+      properties:
+        attribute: &id009
+          anyOf:
+          - enum:
+            - sexo
+            - rango_edad
+            - region
+            - estrato
+            type: string
+          - type: 'null'
+          default: null
+          title: Attribute
+        version: &id010
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Version
+        window: &id011
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Window
+      title: DisparityFilter
+      type: object
     DisparityResult:
       additionalProperties: false
       properties:
@@ -1451,8 +1572,7 @@ components:
       description: '`FreezeContext` mas lo que agrega governance (BR-U9-16).'
       properties:
         affected_volume:
-          title: Affected Volume
-          type: integer
+          $ref: '#/components/schemas/AffectedVolume'
         after:
           $ref: '#/components/schemas/DisparityResult'
         before:
@@ -2106,6 +2226,42 @@ components:
       - details
       title: ModelEventPayload
       type: object
+    ModelFilter:
+      additionalProperties: false
+      description: '`GET /v1/models?state=activo,congelado`: uno o varios estados.'
+      properties:
+        page: &id013
+          default: 1
+          minimum: 1
+          title: Page
+          type: integer
+        page_size: &id014
+          default: 20
+          maximum: 100
+          minimum: 1
+          title: Page Size
+          type: integer
+        state: &id015
+          anyOf:
+          - items:
+              enum:
+              - registrado
+              - en_validacion
+              - validacion_fallida
+              - lista_para_aprobacion
+              - aprobado
+              - rechazado
+              - activo
+              - inactivo
+              - congelado
+              - retirado
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: State
+      title: ModelFilter
+      type: object
     ModelRegistration:
       additionalProperties: false
       properties:
@@ -2594,6 +2750,27 @@ components:
       - since
       title: PersistentFailure
       type: object
+    PolicyDecisionIn:
+      additionalProperties: false
+      description: '`rechazada` exige `justification` (U4 `rejection_justification`).'
+      properties:
+        decision:
+          enum:
+          - aprobada
+          - rechazada
+          title: Decision
+          type: string
+        justification:
+          anyOf:
+          - maxLength: 2000
+            type: string
+          - type: 'null'
+          default: null
+          title: Justification
+      required:
+      - decision
+      title: PolicyDecisionIn
+      type: object
     PolicyDraft:
       additionalProperties: false
       properties:
@@ -2697,16 +2874,31 @@ components:
       - created_at
       title: PolicyVersion
       type: object
-    PrePostReport:
+    PrePostDelta:
       additionalProperties: false
+      description: '`post − pre` de cada agregada y de `model_aggregate` (U9 §3.2).'
       properties:
-        delta:
+        attributes:
+          items:
+            $ref: '#/components/schemas/AttributeDelta'
+          title: Attributes
+          type: array
+        model_aggregate:
           anyOf:
           - pattern: ^-?\d+\.\d{4}$
             type: string
           - type: 'null'
           default: null
-          title: Delta
+          title: Model Aggregate
+      required:
+      - attributes
+      title: PrePostDelta
+      type: object
+    PrePostReport:
+      additionalProperties: false
+      properties:
+        delta:
+          $ref: '#/components/schemas/PrePostDelta'
         disclaimer:
           title: Disclaimer
           type: string
@@ -2731,6 +2923,7 @@ components:
       - source_id
       - pre
       - post
+      - delta
       - threshold_pp
       - n_min
       - truncated
@@ -2833,6 +3026,68 @@ components:
       - parametro_normativo_no_vigente
       title: ReasonCode
       type: string
+    Recommendation:
+      additionalProperties: false
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        confidence:
+          pattern: ^-?\d+\.\d{4}$
+          title: Confidence
+          type: string
+        evaluated_at:
+          format: date-time
+          title: Evaluated At
+          type: string
+        explanation:
+          $ref: '#/components/schemas/Explanation'
+        feature_vector_hash:
+          pattern: ^[0-9a-f]{64}$
+          title: Feature Vector Hash
+          type: string
+        kind:
+          const: recommendation
+          default: recommendation
+          title: Kind
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        outcome:
+          title: Outcome
+          type: string
+        policy_version_id:
+          title: Policy Version Id
+          type: string
+        reasons:
+          items:
+            type: string
+          title: Reasons
+          type: array
+        registry_entry_id:
+          minLength: 1
+          title: Registry Entry Id
+          type: string
+        score:
+          pattern: ^-?\d+\.\d{4}$
+          title: Score
+          type: string
+      required:
+      - case_id
+      - score
+      - confidence
+      - outcome
+      - reasons
+      - model_version_id
+      - policy_version_id
+      - explanation
+      - registry_entry_id
+      - evaluated_at
+      - feature_vector_hash
+      title: Recommendation
+      type: object
     RecommendationPayload:
       additionalProperties: false
       properties:
@@ -3134,6 +3389,35 @@ paths:
   /api/console/cases:
     get:
       operationId: get_api_console_cases
+      parameters:
+      - in: query
+        name: channel
+        required: false
+        schema: *id001
+      - in: query
+        name: created_from
+        required: false
+        schema: *id002
+      - in: query
+        name: created_to
+        required: false
+        schema: *id003
+      - in: query
+        name: model_frozen_after_recommendation
+        required: false
+        schema: *id004
+      - in: query
+        name: page
+        required: false
+        schema: *id005
+      - in: query
+        name: page_size
+        required: false
+        schema: *id006
+      - in: query
+        name: state
+        required: false
+        schema: *id007
       responses:
         '200':
           content:
@@ -3157,6 +3441,12 @@ paths:
       x-vectra-scopes: []
     post:
       operationId: post_api_console_cases
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -3167,7 +3457,7 @@ paths:
         '200':
           content:
             application/json:
-              schema: &id001
+              schema: &id008
                 $ref: '#/components/schemas/CaseRef'
           description: OK
         default:
@@ -3369,7 +3659,7 @@ paths:
         '200':
           content:
             application/json:
-              schema: *id001
+              schema: *id008
           description: OK
         default:
           content:
@@ -3484,7 +3774,7 @@ paths:
         '200':
           content:
             application/json:
-              schema: &id003
+              schema: &id017
                 $ref: '#/components/schemas/ValidationRun'
           description: OK
         default:
@@ -3534,6 +3824,19 @@ paths:
   /api/console/disparity:
     get:
       operationId: get_api_console_disparity
+      parameters:
+      - in: query
+        name: attribute
+        required: false
+        schema: *id009
+      - in: query
+        name: version
+        required: false
+        schema: *id010
+      - in: query
+        name: window
+        required: false
+        schema: *id011
       responses:
         '200':
           content:
@@ -3619,11 +3922,14 @@ paths:
         required: true
       responses:
         '200':
-          content:
+          content: &id012
             application/json:
               schema:
                 $ref: '#/components/schemas/IntegrityCheckRef'
           description: OK
+        '202':
+          content: *id012
+          description: Aceptada
         default:
           content:
             application/problem+json:
@@ -3695,6 +4001,19 @@ paths:
   /api/console/models:
     get:
       operationId: get_api_console_models
+      parameters:
+      - in: query
+        name: page
+        required: false
+        schema: *id013
+      - in: query
+        name: page_size
+        required: false
+        schema: *id014
+      - in: query
+        name: state
+        required: false
+        schema: *id015
       responses:
         '200':
           content:
@@ -3729,7 +4048,7 @@ paths:
         '200':
           content:
             application/json:
-              schema: &id002
+              schema: &id016
                 $ref: '#/components/schemas/ModelVersion'
           description: OK
         default:
@@ -3851,7 +4170,7 @@ paths:
         '200':
           content:
             application/json:
-              schema: *id002
+              schema: *id016
           description: OK
         default:
           content:
@@ -3879,7 +4198,7 @@ paths:
         '200':
           content:
             application/json:
-              schema: *id003
+              schema: *id017
           description: OK
         default:
           content:
@@ -3956,6 +4275,12 @@ paths:
         required: true
         schema:
           type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyDecisionIn'
+        required: true
       responses:
         '204':
           description: Sin contenido

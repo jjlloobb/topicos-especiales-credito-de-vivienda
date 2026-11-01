@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: vectra-observability
+generatorOptions:
+  disableNameSuffixHash: true
+  labels: { vectra.io/dashboard: "1" }
+configMapGenerator:
+  - { name: dashboard-seguridad, files: [seguridad.json], options: { annotations: { grafana_folder: "Vectra / Operación" } } }
+  - { name: dashboard-resiliencia, files: [resiliencia.json], options: { annotations: { grafana_folder: "Vectra / Operación" } } }
+  - { name: dashboard-operacion, files: [operacion.json], options: { annotations: { grafana_folder: "Vectra / Operación" } } }
+  - { name: dashboard-slo, files: [slo.json], options: { annotations: { grafana_folder: "Vectra / Operación" } } }

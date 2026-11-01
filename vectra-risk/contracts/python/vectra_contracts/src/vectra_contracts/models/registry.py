@@ -341,4 +341,80 @@ class EntryFilter(StrictModel):
     recorded_to: Timestamp | None = None
     seq_after: int | None = None
     limit: Annotated[int, Field(ge=1, le=1000)] = 1000
-    projection: str | None = None
+    projection: Literal["full", "explanation", "metrics", "monitoring_freezes"] | None = None
+
+
+class _ExplanationOnly(StrictModel):
+    explanation: Explanation
+
+
+class ExplanationProjection(StrictModel):
+    """Proyección `explanation` (U3 §3; BR-U7-13)."""
+
+    seq: Annotated[int, Field(ge=0)]
+    case_id: UUID
+    model_version_id: str
+    payload: _ExplanationOnly
+
+
+class MetricsRecommendationRef(StrictModel):
+    seq: Annotated[int, Field(ge=0)]
+    outcome: Outcome
+    model_version_id: str
+    evaluated_at: Timestamp
+    received_at: Timestamp
+    channel: Annotated[str, Field(max_length=40)]
+    attempt: Annotated[int, Field(ge=1)]
+    first_evaluation: bool
+
+
+class MetricsProjection(StrictModel):
+    """Proyección `metrics` (U3 §3; U11 BR-U11-01). Sin `feature_vector` ni `justification`."""
+
+    entry_type: Literal["recommendation", "human_decision", "explanation_view"]
+    seq: Annotated[int, Field(ge=0)]
+    recorded_at: Timestamp
+    case_id: UUID
+    outcome: Outcome | None = None
+    decision: Decision | None = None
+    final_outcome: FinalOutcome | None = None
+    used_factors: list[str] | None = None
+    explanation_viewed_before: bool | None = None
+    actor_role: Role | None = None
+    recommendation_entry_id: str | None = None
+    evaluated_at: Timestamp | None = None
+    decided_at: Timestamp | None = None
+    viewed_at: Timestamp | None = None
+    model_version_id: str | None = None
+    channel: Annotated[str, Field(max_length=40)] | None = None
+    received_at: Timestamp | None = None
+    attempt: Annotated[int, Field(ge=1)] | None = None
+    first_evaluation: bool | None = None
+    recommendation: MetricsRecommendationRef | None = None
+    delivery_status: str | None = None
+
+
+class FreezeProjection(StrictModel):
+    """Proyección `monitoring_freezes`, entrada `freeze` (U3 §3)."""
+
+    seq: Annotated[int, Field(ge=0)]
+    freeze_id: str
+    model_version_id: str
+    frozen_at: Timestamp
+    recorded_at: Timestamp
+    context_package: FreezeContextPackage
+
+
+class FrozenResolutionProjection(StrictModel):
+    """Proyección `monitoring_freezes`, entrada `frozen_resolution` (U3 §3)."""
+
+    seq: Annotated[int, Field(ge=0)]
+    model_version_id: str
+    action: Literal["reactivar", "descartar", "investigar"]
+    recorded_at: Timestamp
+
+
+#: `GET /v1/entries` devuelve la forma de la proyección pedida; `full` es la entrada completa.
+EntryProjection = (
+    RegistryEntry | ExplanationProjection | MetricsProjection | FreezeProjection | FrozenResolutionProjection
+)

@@ -42,7 +42,7 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 ## 3. Almacenamiento (Q3)
 
 ### INF-U2-04 — Valkey 8
-- Imagen oficial de Valkey 8, pinneada por digest y firmada; chart propio mínimo en `identity-edge/charts/valkey`.
+- Imagen oficial de Valkey 8, espejada en un registro que admita `restrict-registries` (`registro.banco.internal/vectra`, y `kind-registry:5000` en kind), pinneada por digest y firmada (revisión de consistencia entre unidades, 2026-11-01); chart propio mínimo en `identity-edge/charts/valkey`.
 - StatefulSet de **2 nodos** (primaria + réplica) en zonas distintas y **3 Sentinel** repartidos por zona.
 - **Sin persistencia** (sin RDB ni AOF; `emptyDir`): los contadores son efímeros.
 - ACL: usuario `ratelimit` con permisos mínimos (`+@read +@write +@connection -@dangerous`) y contraseña desde ESO. Usuario `default` deshabilitado. También usuarios de replicación y de Sentinel con los comandos mínimos de cada uno, desde ESO, y sin ellos F92 y F93 no funcionan. PDB: Valkey `minAvailable: 1` y Sentinel `minAvailable: 2` (seguimiento de la quinta revisión de coherencia, 2026-10-31).

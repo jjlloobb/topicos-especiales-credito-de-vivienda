@@ -8,7 +8,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import IntEnum
-from typing import Any, Literal
+from typing import Any, Final, Literal, Protocol
 
 import httpx
 from vectra_contracts.errors import ContractViolation
@@ -16,10 +16,19 @@ from vectra_contracts.errors import ContractViolation
 from vectra_common import deadline as deadline_module
 from vectra_common import process
 from vectra_common.errors import DependencyTimeout, DependencyUnavailable
-from vectra_common.logging import correlation_id_var, span_id_var
+from vectra_common.logging import correlation_id_var, span_id_var, trace_sampled_var
 from vectra_common.metrics import CIRCUIT_STATE
 
 CA_BUNDLE_ENV = "VECTRA_CA_BUNDLE"
+UNAUTHORIZED: Final = 401
+
+
+class TokenSource(Protocol):
+    """Lo que `call` necesita para autenticarse; lo implementa `service_token`."""
+
+    async def token(self) -> str: ...
+
+    def invalidate(self) -> None: ...
 
 
 class CircuitState(IntEnum):
@@ -32,16 +41,22 @@ class CircuitState(IntEnum):
 
 @dataclass(frozen=True)
 class BreakerConfig:
-    """Ventana deslizante, o `consecutive_failures`; declarar los dos es un error (i)."""
+    """Ventana deslizante, o `consecutive_failures`; declarar los dos es un error (i).
+
+    `window_seconds` descarta las llamadas más viejas: «las últimas 20 dentro de 30 s» (NFR-U7-11).
+    """
 
     open_for: float
     window_size: int | None = None
     failure_ratio: float | None = None
+    window_seconds: float | None = None
     consecutive_failures: int | None = None
     close_after: int = 1
 
     def __post_init__(self) -> None:
-        window = self.window_size is not None or self.failure_ratio is not None
+        window = (
+            self.window_size is not None or self.failure_ratio is not None or self.window_seconds is not None
+        )
         if window and self.consecutive_failures is not None:
             raise ContractViolation("ventana y consecutive_failures son excluyentes")
         if not window and self.consecutive_failures is None:
@@ -65,7 +80,7 @@ class CircuitBreaker:
         self._config = config
         self._clock = clock
         self._state = CircuitState.CLOSED
-        self._window: deque[int] = deque(maxlen=config.window_size)  # 1 = fallo, 0 = exito
+        self._window: deque[tuple[float, int]] = deque(maxlen=config.window_size)  # (hora, 1 = fallo)
         self._consecutive = 0
         self._publish()
 
@@ -111,7 +126,7 @@ class CircuitBreaker:
                 self._set(CircuitState.CLOSED)
             return
         self._consecutive = 0
-        self._window.append(0)
+        self._record(0)
 
     def on_failure(self) -> None:
         if self._state is CircuitState.HALF_OPEN:
@@ -123,11 +138,20 @@ class CircuitBreaker:
             if self._consecutive >= limit:
                 self._open()
             return
-        self._window.append(1)
+        self._record(1)
         ratio = self._config.failure_ratio
         assert ratio is not None  # BreakerConfig lo garantiza sin `consecutive_failures`
-        if len(self._window) == self._config.window_size and sum(self._window) / len(self._window) >= ratio:
+        failures = sum(flag for _, flag in self._window)
+        if len(self._window) == self._config.window_size and failures / len(self._window) >= ratio:
             self._open()
+
+    def _record(self, flag: int) -> None:
+        now = self._clock()
+        seconds = self._config.window_seconds
+        if seconds is not None:
+            while self._window and now - self._window[0][0] > seconds:
+                self._window.popleft()
+        self._window.append((now, flag))
 
 
 def _verify_context(base_url: str) -> ssl.SSLContext | bool:
@@ -152,7 +176,9 @@ class DependencyClient:
         clock: Callable[[], float] = time.monotonic,
         wall_clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         transport: httpx.AsyncBaseTransport | None = None,
+        token_source: TokenSource | None = None,
     ) -> None:
+        self.token_source = token_source
         kind = process.current()
         if breaker == "disabled":
             if kind != "batch":
@@ -191,7 +217,8 @@ def _propagated_headers(extra: Mapping[str, str] | None, deadline: datetime | No
     correlation = correlation_id_var.get()
     span = span_id_var.get()
     if correlation and span:
-        headers["traceparent"] = f"00-{correlation}-{span}-01"
+        flags = "01" if trace_sampled_var.get() else "00"
+        headers["traceparent"] = f"00-{correlation}-{span}-{flags}"
     if deadline is not None:
         headers[deadline_module.HEADER] = deadline_module.to_header(deadline)
     return headers
@@ -207,17 +234,38 @@ async def call(
     headers: Mapping[str, str] | None = None,
     content: bytes | None = None,
 ) -> httpx.Response:
-    """`timeout` es obligatorio. Solo cuentan como fallo timeouts, conexion y 5xx (c)."""
+    """`timeout` es obligatorio. Solo cuentan como fallo timeouts, conexion y 5xx (c).
+
+    Con `token_source`, envia el token de servicio; ante un 401 pide otro y reintenta una vez.
+    """
+    source = client.token_source
+    response = await _call_once(client, method, path, timeout, deadline, headers, content)
+    if source is not None and response.status_code == UNAUTHORIZED:
+        source.invalidate()
+        response = await _call_once(client, method, path, timeout, deadline, headers, content)
+    return response
+
+
+async def _call_once(
+    client: DependencyClient,
+    method: str,
+    path: str,
+    timeout: float,
+    deadline: datetime | None,
+    headers: Mapping[str, str] | None,
+    content: bytes | None,
+) -> httpx.Response:
     effective = client.budget(timeout, deadline)
     if effective <= 0:
         raise DependencyTimeout()
     breaker = client.breaker
     if breaker is not None and not breaker.allow():
         raise DependencyUnavailable()
+    outgoing = _propagated_headers(headers, deadline)
+    if client.token_source is not None:
+        outgoing["Authorization"] = f"Bearer {await client.token_source.token()}"
     try:
-        response = await client._send(
-            method, path, effective, _propagated_headers(headers, deadline), content
-        )  # noqa: SLF001
+        response = await client._send(method, path, effective, outgoing, content)  # noqa: SLF001
     except httpx.TimeoutException as exc:
         if breaker is not None:
             breaker.on_failure()
@@ -241,6 +289,21 @@ async def fetch_json_once(url: str, timeout: float, transport: httpx.AsyncBaseTr
             verify=_verify_context(url), transport=transport, timeout=timeout
         ) as client:
             response = await client.get(url)
+            response.raise_for_status()
+            return response.json()
+    except (httpx.HTTPError, ValueError, ssl.SSLError) as exc:
+        raise DependencyUnavailable() from exc
+
+
+async def post_form_once(
+    url: str, data: Mapping[str, str], timeout: float, transport: httpx.AsyncBaseTransport | None = None
+) -> Any:
+    """POST de formulario sin breaker, para el endpoint de tokens: su fallo no abre el del destino."""
+    try:
+        async with httpx.AsyncClient(
+            verify=_verify_context(url), transport=transport, timeout=timeout
+        ) as client:
+            response = await client.post(url, data=dict(data))
             response.raise_for_status()
             return response.json()
     except (httpx.HTTPError, ValueError, ssl.SSLError) as exc:

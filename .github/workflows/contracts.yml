@@ -8,6 +8,7 @@ on:
       - "vectra-risk/uv.lock"
       - "vectra-risk/package-lock.json"
       - ".github/workflows/contracts.yml"
+      - ".github/workflows/supply-chain.yml"
   schedule:
     - cron: "0 4 * * *"
 permissions:
@@ -47,18 +48,23 @@ jobs:
             vectra-risk/benchmark.json
             vectra-risk/.hypothesis/
           include-hidden-files: true
-      - name: Specs sin diff
+      - name: Specs y tipos sin diff
         run: |
-          make -C contracts openapi
-          git diff --exit-code contracts/openapi/
+          make -C contracts ts
+          git diff --exit-code contracts/openapi/ contracts/ts/src/generated/ contracts/ts/src/enums.generated.ts
       - name: Compatibilidad contra la ultima etiqueta
+        env:
+          OASDIFF_VERSION: "1.35.0"
         run: |
           base_tag="$(git tag --list 'contracts-v*' --sort=-v:refname | head -n 1)"
           if [ -z "$base_tag" ]; then
             echo "Sin etiqueta contracts-v*: se omite"
             exit 0
           fi
-          curl -fsSL https://raw.githubusercontent.com/oasdiff/oasdiff/main/install.sh | sh
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C "$HOME/.local/bin" oasdiff
+          export PATH="$HOME/.local/bin:$PATH"
           mkdir -p /tmp/base
           git archive "$base_tag" vectra-risk/contracts/openapi | tar -x -C /tmp/base
           head_version="$(uv run python -c 'import vectra_contracts; print(vectra_contracts.__version__)')"
@@ -77,6 +83,11 @@ jobs:
           uv export --frozen --no-emit-workspace --no-hashes -o /tmp/requirements.txt
           uvx --from pip-audit==2.9.0 pip-audit -r /tmp/requirements.txt
           npm audit --audit-level=high
+  supply-chain:
+    uses: ./.github/workflows/supply-chain.yml
+    with:
+      # Los lockfiles estan en vectra-risk/, no en contracts/.
+      path: vectra-risk
   nightly:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-24.04

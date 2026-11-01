@@ -72,6 +72,29 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AffectedVolume
+         * @description Recomendaciones de la versión en la ventana y cuántas fueron `favorable` (U9 §3.1).
+         */
+        AffectedVolume: {
+            /** Favorable */
+            favorable: number;
+            /** Total */
+            total: number;
+        };
+        /** AttributeDelta */
+        AttributeDelta: {
+            /**
+             * Attribute
+             * @enum {string}
+             */
+            attribute: "sexo" | "rango_edad" | "region" | "estrato";
+            /**
+             * Delta
+             * @default null
+             */
+            delta: string | null;
+        };
         /** AttributeResult */
         AttributeResult: {
             /**
@@ -206,6 +229,27 @@ export interface components {
             /** Rate */
             rate: string;
         };
+        /**
+         * DisparityFilter
+         * @description BR-U9-18: versión, atributo y ventana. Sin versión, bias usa la más reciente.
+         */
+        DisparityFilter: {
+            /**
+             * Attribute
+             * @default null
+             */
+            attribute: ("sexo" | "rango_edad" | "region" | "estrato") | null;
+            /**
+             * Version
+             * @default null
+             */
+            version: string | null;
+            /**
+             * Window
+             * @default null
+             */
+            window: number | null;
+        };
         /** DisparityResult */
         DisparityResult: {
             /** Attributes */
@@ -275,8 +319,7 @@ export interface components {
          * @description `FreezeContext` mas lo que agrega governance (BR-U9-16).
          */
         FreezeContextPackage: {
-            /** Affected Volume */
-            affected_volume: number;
+            affected_volume: components["schemas"]["AffectedVolume"];
             after: components["schemas"]["DisparityResult"];
             /** Before */
             before: components["schemas"]["DisparityResult"] | "sin_datos";
@@ -396,13 +439,22 @@ export interface components {
             reason_code: string;
         };
         JsonValue: unknown;
-        /** PrePostReport */
-        PrePostReport: {
+        /**
+         * PrePostDelta
+         * @description `post − pre` de cada agregada y de `model_aggregate` (U9 §3.2).
+         */
+        PrePostDelta: {
+            /** Attributes */
+            attributes: components["schemas"]["AttributeDelta"][];
             /**
-             * Delta
+             * Model Aggregate
              * @default null
              */
-            delta: string | null;
+            model_aggregate: string | null;
+        };
+        /** PrePostReport */
+        PrePostReport: {
+            delta: components["schemas"]["PrePostDelta"];
             /** Disclaimer */
             disclaimer: string;
             /** N Min */
@@ -474,7 +526,11 @@ export type $defs = Record<string, never>;
 export interface operations {
     get_v1_disparity: {
         parameters: {
-            query?: never;
+            query?: {
+                attribute?: ("sexo" | "rango_edad" | "region" | "estrato") | null;
+                version?: string | null;
+                window?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;

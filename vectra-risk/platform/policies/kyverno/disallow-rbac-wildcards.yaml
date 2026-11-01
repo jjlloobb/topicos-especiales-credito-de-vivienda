@@ -1,0 +1,38 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-rbac-wildcards
+  annotations:
+    policies.kyverno.io/description: RBAC sin comodines (NFR-U1-27)
+spec:
+  validationFailureAction: Enforce
+  failurePolicy: Fail
+  background: false
+  rules:
+    - name: disallow-rbac-wildcards
+      match:
+        any:
+          - resources:
+              kinds: [Role, ClusterRole]
+              operations: [CREATE, UPDATE]
+      # Excepciones por nombre: lo piden los charts de Argo CD (K04, despliega de todo) y de Kyverno.
+      exclude:
+        any:
+          - resources:
+              kinds: [ClusterRole]
+              names: [argo-cd-argocd-application-controller, argo-cd-argocd-server, "kyverno:*"]
+      validate:
+        message: "RBAC sin comodines (NFR-U1-27)"
+        # Con AnyIn, "*" es un comodin que coincide con todo: se compara el literal con contains().
+        deny:
+          conditions:
+            any:
+              - key: "{{ contains(request.object.rules[].verbs[] || `[]`, '*') }}"
+                operator: Equals
+                value: true
+              - key: "{{ contains(request.object.rules[].resources[] || `[]`, '*') }}"
+                operator: Equals
+                value: true
+              - key: "{{ contains(request.object.rules[].apiGroups[] || `[]`, '*') }}"
+                operator: Equals
+                value: true

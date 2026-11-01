@@ -1,0 +1,275 @@
+# Unica fuente de los flujos permitidos (P-U1-01). Refleja component-dependency.md.
+# Extremo: nombre de `workloads`, `ns:<namespace>` (todos sus pods) o `external:<nombre>`.
+meshed_namespaces: [vectra-edge, vectra-app, vectra-serving, vectra-staging, vectra-data, vectra-identity, vectra-mock, vectra-observability, vectra-restore-drill]
+system_namespaces: [cnpg-system, cert-manager, linkerd, kyverno, external-secrets, envoy-gateway-system, argocd, kserve, vault]
+#: En kind F22 se puede deshabilitar para el PR de RT-3 (BR-U12-04); nunca en staging ni en produccion.
+env_disabled: { kind: [], staging: [], prod: [] }
+#: Rango de pods para la NetworkAuthentication de F80. 0.0.0.0/32 no autoriza a nadie hasta que el banco entregue el rango.
+pod_cidr: { kind: 192.168.0.0/16, staging: 0.0.0.0/32, prod: 0.0.0.0/32 }
+#: Destino real de la API de Kubernetes (Calico evalua tras el DNAT). En kind, la red de Docker: compruebalo en el Paso 19.
+api_server_cidr: { kind: 172.18.0.0/16, staging: 0.0.0.0/32, prod: 0.0.0.0/32 }
+#: Origen de las sondas del kubelet, que Linkerd no autoriza solo en un `Server` con rutas.
+node_cidr: { kind: 172.18.0.0/16, staging: 0.0.0.0/32, prod: 0.0.0.0/32 }
+#: Operadores de la plataforma: dentro del namespace se hablan libremente (F125), todos llegan a la API (F126)
+#: y la API llega a sus webhooks (F127). No llevan datos de negocio ni estan mallados.
+system_internal:
+  argocd: { webhooks: [] }
+  cert-manager: { webhooks: [10250] }
+  cnpg-system: { webhooks: [9443] }
+  envoy-gateway-system: { webhooks: [] }
+  external-secrets: { webhooks: [10250] }
+  kserve: { webhooks: [9443] }
+  kyverno: { webhooks: [9443] }
+  linkerd: { webhooks: [8443, 9443] }
+  vault: { webhooks: [8080] }
+#: P-U1-13: lo que cada identidad puede hacer en el Pushgateway.
+http_routes:
+  governance-service:
+    _catch_all: governance-catch-all # sin autorizacion: da 403 del proxy (X04, INF-U12-02)
+    # Linkerd elige una sola ruta por solicitud y autoriza solo contra esa: una ruta por camino, con todos sus clientes,
+    # y sin solapes (lo comprueba test_flows contra las rutas de U0).
+    _routes:
+      serving-config:
+        sources: [scoring-service, case-service, case-worker]
+        matches: [{ methods: [GET], exact: /v1/serving-config }]
+      feature-dictionary:
+        sources: [explainability-service]
+        matches: [{ methods: [GET], regex: "/v1/models/[^/]+/feature-dictionary" }]
+      feature-spec:
+        sources: [case-worker]
+        matches: [{ methods: [GET], regex: "/v1/models/[^/]+/feature-spec" }]
+      freeze:
+        sources: [bias-monitoring-job]
+        matches: [{ methods: [POST], regex: "/v1/models/[^/]+/freeze" }]
+      validation-results:
+        sources: [model-validation-job]
+        matches:
+          - { methods: [PUT], regex: "/v1/validation-runs/[^/]+/source-counts" }
+          - { methods: [PUT], regex: "/v1/models/[^/]+/validation-report" }
+      model-list:
+        sources: [console-bff, api-gateway]
+        matches: [{ methods: [GET], exact: /v1/models }]
+      activation:
+        sources: [api-gateway]
+        matches: [{ methods: [POST], regex: "/v1/models/[^/]+/activation" }]
+      console:
+        sources: [console-bff]
+        matches:
+          - { methods: [POST], exact: /v1/models }
+          - { methods: [GET], regex: "/v1/models/[^/]+" }
+          - { methods: [POST], regex: "/v1/models/[^/]+/(validations|approval|frozen-resolution|retirement)" }
+          - { methods: [GET, POST], group: /v1/policies }
+          - { methods: [GET, POST], group: /v1/data-sources }
+  core-banking-mock:
+    _catch_all: core-mock-catch-all # la serie `route_name` de CoreWriteAttempt (INF-U8-03)
+    case-service: [{ methods: [GET], regex: "/v1/credits/[^/]+" }]
+  prometheus-pushgateway: # etiqueta del chart
+    _probes: ["/-/healthy", "/-/ready"]
+    bias-monitoring-job:
+      - { methods: [PUT, DELETE], group: /metrics/job/bias-monitoring }
+      - { methods: [GET], exact: /api/v1/metrics }
+    restore-drill: [{ methods: [PUT], group: /metrics/job/restore-drill }]
+    realm-drift: [{ methods: [PUT], group: /metrics/job/realm-drift }]
+    signing-key-age: [{ methods: [PUT], group: /metrics/job/signing-key-age }]
+    grafana-folder-check: [{ methods: [PUT], group: /metrics/job/grafana-folder-permissions }]
+    prometheus: [{ methods: [GET], exact: /metrics }]
+workloads:
+  trust-manager: { ns: cert-manager, sa: trust-manager, name: trust-manager }
+  prometheus-operator: { ns: vectra-observability, sa: prometheus-operator, name: kube-prometheus-stack-prometheus-operator }
+  api-gateway: { ns: vectra-edge, sa: api-gateway, name: api-gateway }
+  console-spa: { ns: vectra-edge, sa: console-spa, name: console-spa }
+  rate-limit: { ns: vectra-edge, sa: rate-limit, name: rate-limit }
+  valkey: { ns: vectra-edge, sa: valkey, name: valkey }
+  sentinel: { ns: vectra-edge, sa: sentinel, name: sentinel }
+  console-bff: { ns: vectra-app, sa: console-bff, name: console-bff }
+  case-service: { ns: vectra-app, sa: case-service, name: case-service }
+  case-worker: { ns: vectra-app, sa: case-worker, name: case-worker }
+  case-retention: { ns: vectra-app, sa: case-retention, name: case-retention }
+  scoring-service: { ns: vectra-app, sa: scoring-service, name: scoring-service }
+  explainability-service: { ns: vectra-app, sa: explainability-service, name: explainability-service }
+  governance-service: { ns: vectra-app, sa: governance-service, name: governance-service }
+  model-archive: { ns: vectra-app, sa: model-archive, name: model-archive }
+  bias-monitoring-service: { ns: vectra-app, sa: bias-monitoring-service, name: bias-monitoring-service }
+  bias-monitoring-job: { ns: vectra-app, sa: bias-monitoring-job, workload: bias-monitoring-job }
+  decision-registry-service: { ns: vectra-app, sa: decision-registry-service, name: decision-registry-service }
+  registry-checkpoint: { ns: vectra-app, sa: registry-checkpoint, name: registry-checkpoint }
+  registry-archive: { ns: vectra-app, sa: registry-archive, name: registry-archive }
+  registry-verify: { ns: vectra-app, sa: registry-verify, workload: registry-verify }
+  registry-aggregator: { ns: vectra-app, sa: registry-aggregator, workload: registry-aggregator }
+  registry-aggregator-reset: { ns: vectra-app, sa: registry-aggregator-reset, name: registry-aggregator-reset }
+  x06-probe: { ns: vectra-app, sa: registry-app-probe, name: x06-probe }
+  product-metrics: { ns: vectra-app, sa: product-metrics, name: product-metrics }
+  migration-case: { ns: vectra-app, sa: migration-case, workload: migration-case }
+  migration-governance: { ns: vectra-app, sa: migration-governance, workload: migration-governance }
+  migration-registry: { ns: vectra-app, sa: migration-registry, workload: migration-registry }
+  predictor: { ns: vectra-serving, sa: kserve-model, component: predictor }
+  explainer: { ns: vectra-serving, sa: kserve-model, component: explainer }
+  staging-isvc: { ns: vectra-staging, sa: kserve-model, component: predictor }
+  staging-explainer: { ns: vectra-staging, sa: kserve-model, component: explainer }
+  model-validation-job: { ns: vectra-staging, sa: model-validation-job, name: model-validation-job }
+  case-db: { ns: vectra-data, sa: case-db, cnpg: case-db }
+  governance-db: { ns: vectra-data, sa: governance-db, cnpg: governance-db }
+  registry-db: { ns: vectra-data, sa: registry-db, cnpg: registry-db }
+  keycloak-db: { ns: vectra-data, sa: keycloak-db, cnpg: keycloak-db }
+  minio: { ns: vectra-data, sa: minio-sa, labels: { app: minio } }
+  minio-post-job: { ns: vectra-data, sa: minio-sa, labels: { app: minio-job } }
+  keycloak: { ns: vectra-identity, sa: keycloak, name: keycloak }
+  keycloak-config-cli: { ns: vectra-identity, sa: keycloak-config-cli, name: keycloak-config-cli }
+  realm-drift: { ns: vectra-identity, sa: realm-drift, name: realm-drift }
+  signing-key-age: { ns: vectra-identity, sa: signing-key-age, name: signing-key-age }
+  core-banking-mock: { ns: vectra-mock, sa: core-banking-mock, name: core-banking-mock, envs: [kind, staging] }
+  prometheus: { ns: vectra-observability, sa: prometheus, name: prometheus }
+  alertmanager: { ns: vectra-observability, sa: alertmanager, name: alertmanager }
+  grafana: { ns: vectra-observability, sa: grafana, name: grafana }
+  grafana-folder-permissions: { ns: vectra-observability, sa: grafana-folder-permissions, name: grafana-folder-permissions }
+  grafana-folder-check: { ns: vectra-observability, sa: grafana-folder-permissions, name: grafana-folder-check }
+  loki: { ns: vectra-observability, sa: loki, name: loki }
+  tempo: { ns: vectra-observability, sa: tempo, name: tempo }
+  otel-collector: { ns: vectra-observability, sa: otel-collector, name: opentelemetry-collector }
+  alloy: { ns: vectra-observability, sa: alloy, name: alloy }
+  pushgateway: { ns: vectra-observability, sa: pushgateway, name: prometheus-pushgateway }
+  kube-state-metrics: { ns: vectra-observability, sa: kube-state-metrics, name: kube-state-metrics }
+  restore-drill: { ns: vectra-restore-drill, sa: restore-drill, name: restore-drill }
+  # CloudNativePG le da a cada Cluster una ServiceAccount con su nombre (restore-registry, restore-case).
+  restore-cluster: { ns: vectra-restore-drill, sa: "*", name: restore-cluster }
+  cnpg-operator: { ns: cnpg-system, sa: cnpg-operator, name: cloudnative-pg }
+  cert-manager-webhook: { ns: cert-manager, sa: cert-manager-webhook, name: webhook }
+  linkerd-control: { ns: linkerd, sa: linkerd-control, part: linkerd }
+  kyverno-admission: { ns: kyverno, sa: kyverno-admission-controller, labels: { app.kubernetes.io/part-of: kyverno } }
+  eso: { ns: external-secrets, sa: external-secrets, name: external-secrets }
+  vault: { ns: vault, sa: vault, name: vault, envs: [kind] }
+  envoy-gateway: { ns: envoy-gateway-system, sa: envoy-gateway, name: envoy-gateway }
+  argocd-repo-server: { ns: argocd, sa: argocd-repo-server, name: argocd-repo-server }
+flows:
+  - { id: F01, from: [external:banco], to: [api-gateway], port: 443, target_port: 10443 }
+  - { id: F02, from: [api-gateway], to: [console-spa], port: 8080 }
+  - { id: F03, from: [api-gateway], to: [console-bff], port: 8080 }
+  - { id: F04, from: [api-gateway], to: [case-service], port: 8080 }
+  - { id: F05, from: [api-gateway], to: [keycloak], port: 8443 }
+  - { id: F06, from: [api-gateway], to: [grafana], port: 3000 }
+  - { id: F07, from: [external:channel-simulator], to: [api-gateway], port: 443, target_port: 10443, envs: [kind, staging] }
+  - { id: F08, from: [external:promotion-tool], to: [api-gateway], port: 443, target_port: 10443 }
+  - { id: F08, from: [api-gateway], to: [governance-service], port: 8080 }
+  - { id: F09, from: [external:prometheus-banco], to: [api-gateway], port: 443, target_port: 10443, enabled: false }
+  - { id: F09, from: [api-gateway], to: [prometheus], port: 9090, enabled: false }
+  - { id: F10, from: [console-bff], to: [case-service], port: 8080 }
+  - { id: F11, from: [console-bff], to: [governance-service], port: 8080 }
+  - { id: F12, from: [console-bff], to: [explainability-service], port: 8080 }
+  - { id: F13, from: [console-bff], to: [decision-registry-service], port: 8080 }
+  - { id: F14, from: [console-bff], to: [bias-monitoring-service], port: 8080 }
+  - { id: F15, from: [case-worker], to: [scoring-service], port: 8080 }
+  - { id: F16, from: [case-service], to: [decision-registry-service], port: 8080 }
+  - { id: F17, from: [case-service], to: [core-banking-mock], port: 8080, envs: [kind, staging] }
+  - { id: F18, from: [scoring-service], to: [governance-service], port: 8080 }
+  - { id: F19, from: [scoring-service], to: [predictor], port: 80, target_port: 8080 }
+  - { id: F20, from: [scoring-service], to: [explainability-service], port: 8080 }
+  - { id: F21, from: [scoring-service], to: [decision-registry-service], port: 8080 }
+  - { id: F22, from: [explainability-service], to: [explainer], port: 80, target_port: 8080 }
+  - { id: F23, from: [explainability-service], to: [decision-registry-service], port: 8080 }
+  - { id: F103, from: [explainability-service], to: [governance-service], port: 8080 }
+  - { id: F104, from: [case-worker, case-service], to: [governance-service], port: 8080 }
+  - { id: F24, from: [governance-service], to: [decision-registry-service], port: 8080 }
+  - { id: F25, from: [governance-service], to: [bias-monitoring-service], port: 8080 }
+  - { id: F26, from: [bias-monitoring-service, bias-monitoring-job], to: [decision-registry-service], port: 8080 }
+  - { id: F27, from: [bias-monitoring-job], to: [governance-service], port: 8080 }
+  - { id: F28, from: [product-metrics], to: [decision-registry-service], port: 8080 }
+  - { id: F30, from: [model-validation-job], to: [staging-isvc, staging-explainer], port: 80, target_port: 8080 }
+  - { id: F31, from: [model-validation-job], to: [minio], port: 9000 }
+  - { id: F32, from: [model-validation-job], to: [governance-service], port: 8080 }
+  - { id: F40, from: [case-service, case-worker], to: [case-db], port: 5432 }
+  - { id: F105, from: [case-retention], to: [case-db], port: 5432 }
+  - { id: F41, from: [governance-service], to: [governance-db], port: 5432 }
+  - { id: F42, from: [decision-registry-service], to: [registry-db], port: 5432 }
+  - { id: F43, from: [keycloak], to: [keycloak-db], port: 5432 }
+  - { id: F44, from: [migration-case], to: [case-db], port: 5432, also: [[migration-governance, governance-db], [migration-registry, registry-db]] }
+  - { id: F45, from: [case-db], to: [case-db], port: 5432, also: [[governance-db, governance-db], [registry-db, registry-db], [keycloak-db, keycloak-db]] }
+  - { id: F46, from: [predictor, explainer, staging-isvc, staging-explainer], to: [minio], port: 9000 }
+  - { id: F47, from: [governance-service], to: [minio], port: 9000 }
+  - { id: F96, from: [decision-registry-service], to: [registry-db], port: 5432 }
+  - { id: F97, from: [registry-checkpoint, registry-verify, registry-archive], to: [registry-db], port: 5432 }
+  - { id: F107, from: [registry-aggregator], to: [registry-db], port: 5432 }
+  - { id: F108, from: [registry-aggregator-reset], to: [registry-db], port: 5432 }
+  - { id: F109, from: [grafana], to: [alertmanager], port: 9093 }
+  - { id: F110, from: [grafana-folder-permissions, grafana-folder-check], to: [grafana], port: 3000 }
+  - { id: F111, from: [x06-probe], to: [registry-db], port: 5432, envs: [kind] }
+  - { id: F112, from: [realm-drift, signing-key-age], to: [pushgateway], port: 9091 }
+  - { id: F113, from: [grafana-folder-check], to: [pushgateway], port: 9091 }
+  - { id: F114, from: [restore-drill], to: [restore-cluster], port: 5432 }
+  - { id: F115, from: [minio], to: [minio], port: 9000 }
+  - { id: F116, from: [alertmanager], to: [alertmanager], port: 9094 }
+  - { id: F117, from: [keycloak], to: [keycloak], port: 7800 }
+  - { id: F118, from: [registry-checkpoint, registry-archive, registry-verify, restore-drill, model-archive], to: [minio], port: 9000, envs: [kind] }
+  - { id: F119, from: [prometheus], to: [external:kubelet], port: 10250 }
+  - { id: F120, from: [loki], to: [loki], ports: [7946, 9095] }
+  - { id: F121, from: [tempo], to: [tempo], ports: [7946, 9095] }
+  - { id: F122, from: [prometheus], to: [kube-state-metrics], port: 8080 }
+  - { id: F123, from: [minio-post-job], to: [minio], port: 9000 }
+  - { id: F124, from: ["external:kube-apiserver"], to: [trust-manager], port: 6443 }
+  - { id: F101, from: [model-archive], to: [minio], port: 9000 }
+  - { id: F128, from: [prometheus], to: ["ns:kyverno", "ns:cert-manager"], ports: [8000, 9402] }
+  - { id: F128, from: [prometheus], to: [linkerd-control], port: 9996 }
+  - { id: F129, from: [prometheus], to: [minio], port: 9000 }
+  - { id: F102, from: [model-archive], to: [governance-db], port: 5432 }
+  - { id: F50, from: [api-gateway, console-bff, case-service, case-worker, scoring-service, explainability-service, governance-service, bias-monitoring-service, bias-monitoring-job, decision-registry-service, product-metrics, model-validation-job, grafana, keycloak-config-cli, core-banking-mock], to: [keycloak], port: 8443 }
+  - { id: F60, from: [prometheus], to: ["ns:vectra-app", "ns:vectra-edge", "ns:vectra-serving", "ns:vectra-mock"], port: 8081 }
+  - { id: F60, from: [prometheus], to: [case-db, governance-db, registry-db, keycloak-db], port: 9187 } # exporter de CloudNativePG
+  - { id: F60, from: [prometheus], to: [keycloak], port: 9000 } # puerto de administracion
+  - { id: F61, from: ["ns:vectra-app", "ns:vectra-serving", "ns:vectra-edge", "ns:vectra-staging", "ns:vectra-identity", "ns:vectra-mock", "ns:vectra-data", "ns:vectra-restore-drill"], to: [otel-collector], port: 4317 }
+  - { id: F62, from: [otel-collector], to: [tempo, loki], ports: [4317, 3100] }
+  - { id: F63, from: [alloy], to: [loki], port: 3100 }
+  - { id: F64, from: [prometheus], to: [alertmanager], port: 9093 }
+  - { id: F65, from: [grafana], to: [prometheus, loki, tempo], ports: [9090, 3100, 3200] }
+  - { id: F66, from: [loki], to: [minio], port: 9000 }
+  - { id: F67, from: [tempo], to: [minio], port: 9000 }
+  - { id: F70, from: [case-db, governance-db, registry-db, keycloak-db], to: [external:backups], port: 443, envs: [staging, prod] }
+  - { id: F70, from: [case-db, governance-db, registry-db, keycloak-db], to: [minio], port: 9000, envs: [kind] }
+  - { id: F71, from: [argocd-repo-server], to: [external:git], port: 443 }
+  - { id: F72, from: [alertmanager], to: [external:notificaciones], ports: [443, 587] }
+  - { id: F73, from: [keycloak], to: [external:ldap], ports: [636, 443], envs: [prod] }
+  - { id: F74, from: [eso], to: [external:boveda], port: 443, envs: [staging, prod] }
+  - { id: F75, from: [restore-cluster, restore-drill], to: [external:backups], port: 443, envs: [staging, prod] }
+  - { id: F75, from: [restore-cluster], to: [minio], port: 9000, envs: [kind] }
+  - { id: F76, from: [kyverno-admission], to: [external:registro], port: 443 }
+  - { id: F77, from: [registry-checkpoint], to: [external:backups], port: 443, envs: [staging, prod] }
+  - { id: F78, from: [registry-archive], to: [external:backups], port: 443, envs: [staging, prod] }
+  - { id: F79, from: [registry-verify], to: [external:backups], port: 443, envs: [staging, prod] }
+  - { id: F80, from: [cnpg-operator], to: [case-db, governance-db, registry-db, keycloak-db, restore-cluster], ports: [8000, 5432], unmeshed_source: true }
+  - { id: F81, from: [external:kube-apiserver], to: [cnpg-operator], port: 9443 }
+  - { id: F82, from: [external:kube-apiserver], to: [cert-manager-webhook], port: 10250 }
+  - { id: F83, from: ["ns:vectra-edge", "ns:vectra-app", "ns:vectra-serving", "ns:vectra-staging", "ns:vectra-data", "ns:vectra-identity", "ns:vectra-mock", "ns:vectra-observability", "ns:vectra-restore-drill"], to: [linkerd-control], ports: [8086, 8080, 8090] }
+  - { id: F84, from: [external:kube-apiserver], to: [linkerd-control], port: 8443 }
+  - { id: F85, from: [external:kube-apiserver], to: [kyverno-admission], port: 9443 }
+  - { id: F86, from: [eso], to: [vault], port: 8200, envs: [kind] }
+  - { id: F98, from: [registry-checkpoint, registry-archive, registry-verify, restore-drill], to: [vault], port: 8200, envs: [kind] }
+  - { id: F99, from: [registry-checkpoint, registry-archive, registry-verify, restore-drill], to: [external:boveda], port: 443, envs: [staging, prod] }
+  - { id: F100, from: [model-archive], to: [external:backups], port: 443, envs: [staging, prod] }
+  - { id: F87, from: [restore-drill], to: [pushgateway], port: 9091 }
+  - { id: F88, from: [prometheus], to: [pushgateway], port: 9091 }
+  - { id: F106, from: [bias-monitoring-job], to: [pushgateway], port: 9091 }
+  - { id: F90, from: [api-gateway], to: [rate-limit], port: 8083 }
+  - { id: F91, from: [rate-limit], to: [valkey, sentinel], ports: [26379, 6379] }
+  - { id: F92, from: [valkey], to: [valkey], port: 6379 }
+  - { id: F93, from: [sentinel], to: [valkey, sentinel], ports: [6379, 26379] }
+  - { id: F94, from: [keycloak-config-cli, realm-drift, signing-key-age], to: [keycloak], port: 8443 }
+  - { id: F95, from: [api-gateway], to: [envoy-gateway], port: 18000 }
+#: Bindings K cuyo sujeto corre en un pod. K09 (red del host) y K16 (operador fuera del cluster) no llevan egress.
+k_egress:
+  K01: governance-service
+  K02: prometheus
+  K03: otel-collector
+  K04: { ns: argocd, sa: argocd-application-controller, name: argocd-application-controller }
+  K05: { ns: kserve, sa: kserve-controller-manager, name: kserve }
+  K06: cnpg-operator
+  K07: { ns: cert-manager, sa: cert-manager, name: cert-manager }
+  K08: linkerd-control
+  K10: kyverno-admission
+  K11: eso
+  K12: restore-drill
+  K13: alloy
+  K14: envoy-gateway
+  K17: prometheus-operator
+  K18: { ns: vectra-data, sa: cnpg-instance, cnpg_any: true }
+  K18R: { ns: vectra-restore-drill, sa: "*", name: restore-cluster }
+  K19: grafana
+  K20: kube-state-metrics
+  K21: trust-manager

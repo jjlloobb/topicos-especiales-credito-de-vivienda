@@ -36,6 +36,7 @@ def principal_from_claims(claims: dict[str, Any]) -> Principal:
         acr=claims.get("acr"),
         auth_time=_utc(claims["auth_time"]) if "auth_time" in claims else None,
         token_expiry=_utc(claims["exp"]),
+        client_id=claims.get("azp"),
     )
 
 

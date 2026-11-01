@@ -108,9 +108,9 @@ case-retention (cada corrida)
 | `PodDisruptionBudget` | `minAvailable: 1` | `minAvailable: 1` | — | `minAvailable: 1` |
 | `ServiceAccount` | `case-service` | `case-worker` | `case-retention` | `core-banking-mock` |
 | `ExternalSecret` (llave del cliente de Keycloak) | Sí | Sí | — | — |
-| `ExternalSecret` de la contraseña del rol de base (INF-U1-02) | `case_app` | `case_worker` | `case_retention` | — |
+| Contraseña del rol de base: `pg-role-<rol>`, de U1, sin `ExternalSecret` en este chart (INF-U1-02; revisión de consistencia entre unidades, 2026-11-01) | `case_app` | `case_worker` | `case_retention` | — |
 | `ServiceMonitor` | 8081 | 8081 | — | 8081 |
-| Linkerd `Server`, `HTTPRoute`, `AuthorizationPolicy` | U2 | U2 | — | `GET /v1/credits/{id}` solo desde `case-service`, más la ruta de captura sin autorización (INF-U8-03) |
+| Linkerd `Server`, `HTTPRoute`, `AuthorizationPolicy`, generados por U1 desde `flows.yaml`, no por este chart (revisión de consistencia entre unidades, 2026-11-01) | U2 | U2 | — | `GET /v1/credits/{id}` solo desde `case-service`, más la ruta de captura sin autorización (INF-U8-03) |
 
 - Una `PrometheusRule` del chart reúne las alertas de P-U8-04, 06, 07, 08 e INF-U8-03, todas con `severity` y `runbook_url`. `CoreWriteAttempt` solo se renderiza con `coreMock.enabled = true`. El volumen de `case-db` lo vigila `PostgresVolumeUsageHigh` de U1 (INF-U8-08).
 - El Job de migración usa el rol `case_migrator` y escribe la fila de `retention_settings` desde los values (P-U8-05).

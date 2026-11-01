@@ -98,7 +98,7 @@ sync manual aprobado (flujo S3).
 |---|---|---|---|---|---|
 | `list_policies() -> list[PolicyVersion]` | `GET /api/console/policies` | analista, cro, cumplimiento | — | — (lectura, para transparencia) | governance |
 | `propose_policy(p) -> PolicyVersion` | `POST /api/console/policies` | cro | sí | — | governance `propose_policy` |
-| `approve_policy(pv_id)` | `POST /api/console/policies/{id}/approval` | cro | sí | estado `propuesta` | governance `approve_policy` |
+| `approve_policy(pv_id, decision: PolicyDecisionIn)` | `POST /api/console/policies/{id}/approval` | cro | sí | estado `propuesta`; `rechazada` exige `justification` (2026-11-01) | governance `approve_policy` |
 
 ### Fuentes de datos (E3)
 
@@ -139,7 +139,7 @@ rol × endpoint de US-602 se genera desde esta tabla.
 
 | Operación | Endpoint | Entrada → Salida | Llamado por |
 |---|---|---|---|
-| `recommend(req: ScoringRequest) -> RecommendResult` | `POST /v1/recommendations` | features + `case_id` + etiquetas de monitoreo + `policy_inputs` → recomendación o fail-closed (siempre HTTP 200, BR-U0-06) | case-service |
+| `recommend(req: ScoringRequest) -> RecommendResult` | `POST /v1/recommendations` | features + `case_id` + etiquetas de monitoreo + `policy_inputs` → recomendación o fail-closed (siempre HTTP 200, BR-U0-06) | case-worker (F15, scope `case:recommend`; revisión de consistencia entre unidades, 2026-11-01) |
 | `apply_policy(score: Decimal4, confidence: Decimal4, inputs: PolicyInputs, policy: PolicyVersion) -> PolicyResult` | módulo interno puro | → outcome + `ReasonCode` | interno |
 
 ## C06 `explainability-service`
@@ -184,10 +184,10 @@ En el MVP solo existe `TemplateNarrativeGenerator`. Un futuro `InClusterLLMNarra
 | `freeze_model(mv_id, ctx: FreezeContext)` | `POST /v1/models/{id}/freeze` | **solo** identidad `bias-monitoring-job` (CronJob de U9, scope `governance:freeze`; tercera revisión del FD de U9, 2026-10-10) |
 | `resolve_frozen(mv_id, action: Literal["reactivar","descartar","investigar"], justification, user)` | `POST /v1/models/{id}/frozen-resolution` | BFF (**solo** cumplimiento, con MFA) |
 | `get_active_serving_config() -> ServingConfig` | `GET /v1/serving-config` | scoring-service (lectura: versión activa, estado, política vigente) |
-| `get_feature_spec(mv_id) -> FeatureSpec` | `GET /v1/models/{id}/feature-spec` | case-service (F104, scope `governance:read-feature-spec`; agregado por U8 FD Q1) |
+| `get_feature_spec(mv_id) -> FeatureSpec` | `GET /v1/models/{id}/feature-spec` | case-worker (F104, scope `governance:read-feature-spec`; agregado por U8 FD Q1; revisión de consistencia entre unidades, 2026-11-01) |
 | `get_feature_dictionary(mv_id) -> FeatureDictionary` | `GET /v1/models/{id}/feature-dictionary` | explainability-service (F103, scope `governance:read-dictionary`; agregado por U7 FD Q4) |
 | `propose_policy(p: PolicyDraft, user) -> PolicyVersion` | `POST /v1/policies` | BFF (cro) |
-| `approve_policy(pv_id, user)` | `POST /v1/policies/{id}/approval` | BFF (cro, con MFA) |
+| `approve_policy(pv_id, decision: PolicyDecisionIn, user)` | `POST /v1/policies/{id}/approval` | BFF (cro, con MFA) |
 | `propose_data_source(s: DataSourceProposal, user)` | `POST /v1/data-sources` | BFF (ingeniero_riesgo) |
 | `decide_data_source(ds_id, decision, user)` | `POST /v1/data-sources/{id}/decision` | BFF (cumplimiento) |
 
@@ -224,7 +224,7 @@ def disparity_by_band(counts: CountTable, attribute: str, n_min: int) -> Attribu
 | Operación | Endpoint | Llamado por |
 |---|---|---|
 | `append(entry: RegistryEntryIn) -> RegistryAck` | `POST /v1/entries` | scoring, case, governance (identidades de servicio). bias **no** escribe: el congelamiento lo registra governance (F24) |
-| `query(filter: EntryFilter, principal) -> Page[RegistryEntry]` | `GET /v1/entries` | BFF (filtrado por rol), explainability (F23), product-metrics |
+| `query(filter: EntryFilter, principal) -> Page[EntryProjection]` (revisión de consistencia entre unidades, 2026-11-01) | `GET /v1/entries` | BFF (filtrado por rol), explainability (F23), product-metrics |
 | `monitoring_daily(q: MonitoringQuery) -> MonitoringWindow` | `POST /v1/monitoring/daily:query` (solo lectura e idempotente; la consulta va en el cuerpo porque son hasta 12 rangos; sexta revisión del FD de U9, 2026-10-10) | bias (servicio y CronJob, `registry:read:monitoring`; U3 BR-U3-17; quinta revisión del FD de U9, 2026-10-10) |
 | `monitoring_freezes() -> list[FreezeRecord]` | `GET /v1/monitoring/freezes` | bias (`registry:read:monitoring`) |
 | `get_case_dossier(case_id, principal) -> Dossier` | `GET /v1/dossiers/{case_id}` | BFF (cro, cumplimiento) |

@@ -102,11 +102,11 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 | `BreakGlassLogin` | SEV1 | Evento de login del usuario `break-glass` |
 | `RealmDrift` | SEV2 | `vectra_realm_drift > 0`, que el CronJob de comparación empuja al Pushgateway (F112; cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | `RoleConflict` | SEV2 | Evento de la federación LDAP |
-| `SigningKeyAgeHigh` | SEV3 | Métrica de `signing-key-age`, en el Pushgateway (F112) |
+| `SigningKeyAgeHigh` | SEV3 | Métrica de `signing-key-age`, en el Pushgateway (F112, `/metrics/job/signing-key-age`; revisión de consistencia entre unidades, 2026-11-01) |
 | `LdapUnavailable` | SEV2 | Fallos de conexión de la federación LDAP (solo prod; agregado en INF-U2-07) |
 | `GatewayHighLatency` | SEV3 | Diferencia entre el p95 de la latencia de Envoy hacia el cliente y el p95 hacia el backend > 5 ms sostenida 15 min. Es una aproximación: NFR-U2-11 se mide con la prueba con y sin gateway (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 
-- Keycloak expone métricas en el puerto de gestión (9000); Envoy y el servicio de rate limit, sus estadísticas. Todos llevan `ServiceMonitor` y su flujo de scrape en `flows.yaml`.
+- Keycloak expone métricas en el puerto de gestión (9000); Envoy y el servicio de rate limit, sus estadísticas. Todos llevan `ServiceMonitor`. F60 solo abre el 8081 en `vectra-edge`: U2 agrega por PR a `flows.yaml` el flujo de cada puerto de estadísticas cuando lo fije (revisión de consistencia entre unidades, 2026-11-01).
 - Toda alerta tiene `runbook_url` (P-U1-10).
 - **Verificación**: `promtool test rules identity-edge/observability/rules/tests/*.yaml` (cada alerta se dispara con series sintéticas) y el test de runbooks de U1 (`severity` válida y `runbook_url` hacia un archivo existente).
 

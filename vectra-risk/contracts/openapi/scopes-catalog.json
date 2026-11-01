@@ -46,11 +46,13 @@
     "explainability-service"
   ],
   "registry:read:metrics": [
-    "product-metrics"
+    "product-metrics",
+    "verification-reader"
   ],
   "registry:read:monitoring": [
     "bias-monitoring-service",
-    "bias-monitoring-job"
+    "bias-monitoring-job",
+    "verification-reader"
   ],
   "scoring:explain": [
     "scoring-service"

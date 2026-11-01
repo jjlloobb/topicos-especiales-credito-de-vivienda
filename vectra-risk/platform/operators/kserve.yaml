@@ -1,0 +1,6 @@
+# KServe en modo RawDeployment, sin Knative (U6 tech-stack-decisions). Renderizado con kserve-resources v0.21.0.
+# El chart se llama `kserve-resources` desde v0.17; sus CRD vienen en el chart aparte `kserve-crd`.
+kserve:
+  controller:
+    # v0.21 lo llama `Standard` y acepta este nombre como obsoleto (pkg/constants: LegacyRawDeployment).
+    deploymentMode: RawDeployment

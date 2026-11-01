@@ -1,0 +1,116 @@
+# INF-U1-07; NFR-U1-31, 32, 34. Sin remote-write: lo unico que sale son las notificaciones de F72.
+# Las reglas son solo las de platform/observability/rules: cada alerta tiene runbook (NFR-U1-32).
+crds: { enabled: false } # wave 0
+commonLabels: { vectra.io/criticality: medium }
+defaultRules: { create: false }
+# node-exporter necesita hostNetwork y hostPath, contra `restricted`; no esta en el inventario ni lo usa ninguna regla.
+nodeExporter: { enabled: false }
+kubeApiServer: { enabled: false }
+kubeControllerManager: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeProxy: { enabled: false }
+kubeEtcd: { enabled: false }
+coreDns: { enabled: false }
+kubeDns: { enabled: false }
+prometheus:
+  serviceAccount: { create: true, name: prometheus, createTokenSecret: false }
+  # Token proyectado que el kubelet rota: sin Secret de larga vida.
+  controlPlaneScrapeClass: { enabled: true }
+  prometheusSpec:
+    image: { sha: 451a845bae1d51622b41af1780eb2ad911bbb79a9855bc8e9bb67fabbc03f934 }
+    replicas: 2
+    retention: 30d
+    remoteWrite: []
+    priorityClassName: vectra-normal
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    # Monitores de cualquier namespace (vectra-data, vectra-app...). `{}` es todos; nil seria solo el propio.
+    serviceMonitorNamespaceSelector: {}
+    podMonitorNamespaceSelector: {}
+    # El chart de MinIO publica sus metricas de cluster como Probe, en vectra-data.
+    probeSelectorNilUsesHelmValues: false
+    probeNamespaceSelector: {}
+    resources:
+      requests: { cpu: 500m, memory: 2Gi }
+      limits: { cpu: "2", memory: 4Gi }
+    topologySpreadConstraints:
+      - { maxSkew: 1, topologyKey: topology.kubernetes.io/zone, whenUnsatisfiable: ScheduleAnyway, labelSelector: { matchLabels: { app.kubernetes.io/name: prometheus } } }
+    storageSpec:
+      volumeClaimTemplate:
+        spec: { accessModes: [ReadWriteOnce], resources: { requests: { storage: 100Gi } } }
+alertmanager:
+  serviceAccount: { create: true, name: alertmanager }
+  alertmanagerSpec:
+    image: { sha: 39d8bb3966c694a124428a3a88fbcffd40bd069129ecd47c059f8a3f17c55f3b }
+    replicas: 3 # gossip F116
+    priorityClassName: vectra-normal
+    # La configuracion lleva la URL del relay: la arma External Secrets (grafana/external-secrets.yaml, wave anterior).
+    useExistingSecret: true
+    configSecret: alertmanager-config
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { cpu: 200m, memory: 256Mi }
+    topologySpreadConstraints:
+      - { maxSkew: 1, topologyKey: topology.kubernetes.io/zone, whenUnsatisfiable: ScheduleAnyway, labelSelector: { matchLabels: { app.kubernetes.io/name: alertmanager } } }
+prometheusOperator:
+  image: { sha: c7edf0379b7271ef1705dce258d2bb73820e299cc95559369e9f6fc3321639ec }
+  prometheusConfigReloader:
+    image: { sha: a1897c67478bc23434534e91ad3855280771196b1daf17144db9dbcb655bef71 }
+    # Sin esto, cada pod de Prometheus y Alertmanager toma el LimitRange (500m / 512 MiB) para su recargador.
+    resources:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits: { cpu: 100m, memory: 64Mi }
+  serviceAccount: { create: true, name: prometheus-operator }
+  # Su webhook necesitaria Jobs de certificados y un flujo mas; las reglas ya se prueban con promtool.
+  admissionWebhooks: { enabled: false, patch: { enabled: false } }
+  tls: { enabled: false }
+  priorityClassName: vectra-normal
+  securityContext: { runAsNonRoot: true, runAsUser: 65534, seccompProfile: { type: RuntimeDefault } }
+  containerSecurityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 200m, memory: 256Mi }
+kube-state-metrics:
+  image: { sha: "sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b" }
+  metricLabelsAllowlist: ["nodes=[topology.kubernetes.io/zone]"]
+  serviceAccount: { create: true, name: kube-state-metrics }
+  customLabels: { vectra.io/criticality: medium }
+  priorityClassName: vectra-normal
+  securityContext: { enabled: true, runAsNonRoot: true, runAsUser: 65534, runAsGroup: 65534, fsGroup: 65534, seccompProfile: { type: RuntimeDefault } }
+  containerSecurityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 200m, memory: 256Mi }
+grafana:
+  defaultDashboardsEnabled: false
+  image: { sha: 540b8afb775bf34aefce417e4329039daa5d44b6f2fbda6881397b1b247ca7df }
+  replicas: 1
+  deploymentStrategy: { type: Recreate }
+  persistence: { enabled: true, size: 1Gi } # SQLite: guarda permisos de carpeta y cuenta de servicio
+  initChownData: { enabled: false } # corre como root; `fsGroup` ya da la propiedad del volumen
+  admin: { existingSecret: grafana-admin }
+  serviceAccount: { create: true, name: grafana }
+  extraLabels: { vectra.io/criticality: medium }
+  priorityClassName: vectra-normal
+  securityContext: { runAsNonRoot: true, runAsUser: 472, runAsGroup: 472, fsGroup: 472, seccompProfile: { type: RuntimeDefault } }
+  containerSecurityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+  testFramework: { enabled: false }
+  additionalDataSources:
+    - { name: Loki, uid: loki, type: loki, url: "http://loki-read.vectra-observability.svc:3100", access: proxy }
+    - { name: Tempo, uid: tempo, type: tempo, url: "http://tempo-query-frontend.vectra-observability.svc:3200", access: proxy }
+  sidecar:
+    image: { sha: 092dbe0c335fba9af414a27630ca68f34df6185784fa847d9954187e69dbfdd7 }
+    securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] }, seccompProfile: { type: RuntimeDefault } }
+    resources:
+      requests: { cpu: 25m, memory: 64Mi }
+      limits: { cpu: 100m, memory: 128Mi }
+    dashboards:
+      enabled: true
+      label: vectra.io/dashboard
+      searchNamespace: ALL # K19, INF-U9-05: los dashboards de cada unidad viven en su namespace
+      folderAnnotation: grafana_folder
+      provider: { foldersFromFilesStructure: true }

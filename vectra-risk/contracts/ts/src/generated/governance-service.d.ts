@@ -301,6 +301,29 @@ export interface components {
             /** Evidence */
             evidence: string;
         };
+        /**
+         * AffectedVolume
+         * @description Recomendaciones de la versión en la ventana y cuántas fueron `favorable` (U9 §3.1).
+         */
+        AffectedVolume: {
+            /** Favorable */
+            favorable: number;
+            /** Total */
+            total: number;
+        };
+        /** AttributeDelta */
+        AttributeDelta: {
+            /**
+             * Attribute
+             * @enum {string}
+             */
+            attribute: "sexo" | "rango_edad" | "region" | "estrato";
+            /**
+             * Delta
+             * @default null
+             */
+            delta: string | null;
+        };
         /** AttributeResult */
         AttributeResult: {
             /**
@@ -577,8 +600,7 @@ export interface components {
         };
         /** FreezeContext */
         FreezeContext: {
-            /** Affected Volume */
-            affected_volume: number;
+            affected_volume: components["schemas"]["AffectedVolume"];
             after: components["schemas"]["DisparityResult"];
             /** Before */
             before: components["schemas"]["DisparityResult"] | "sin_datos";
@@ -678,6 +700,27 @@ export interface components {
              * @default null
              */
             justification: string | null;
+        };
+        /**
+         * ModelFilter
+         * @description `GET /v1/models?state=activo,congelado`: uno o varios estados.
+         */
+        ModelFilter: {
+            /**
+             * Page
+             * @default 1
+             */
+            page: number;
+            /**
+             * Page Size
+             * @default 20
+             */
+            page_size: number;
+            /**
+             * State
+             * @default null
+             */
+            state: ("registrado" | "en_validacion" | "validacion_fallida" | "lista_para_aprobacion" | "aprobado" | "rechazado" | "activo" | "inactivo" | "congelado" | "retirado")[] | null;
         };
         /** ModelRegistration */
         ModelRegistration: {
@@ -884,6 +927,22 @@ export interface components {
              */
             total: number | null;
         };
+        /**
+         * PolicyDecisionIn
+         * @description `rechazada` exige `justification` (U4 `rejection_justification`).
+         */
+        PolicyDecisionIn: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "aprobada" | "rechazada";
+            /**
+             * Justification
+             * @default null
+             */
+            justification: string | null;
+        };
         /** PolicyDraft */
         PolicyDraft: {
             /** Channel Rules */
@@ -925,13 +984,22 @@ export interface components {
              */
             state: "propuesta" | "activa" | "rechazada" | "historica";
         };
-        /** PrePostReport */
-        PrePostReport: {
+        /**
+         * PrePostDelta
+         * @description `post − pre` de cada agregada y de `model_aggregate` (U9 §3.2).
+         */
+        PrePostDelta: {
+            /** Attributes */
+            attributes: components["schemas"]["AttributeDelta"][];
             /**
-             * Delta
+             * Model Aggregate
              * @default null
              */
-            delta: string | null;
+            model_aggregate: string | null;
+        };
+        /** PrePostReport */
+        PrePostReport: {
+            delta: components["schemas"]["PrePostDelta"];
             /** Disclaimer */
             disclaimer: string;
             /** N Min */
@@ -1234,7 +1302,11 @@ export interface operations {
     };
     get_v1_models: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                page_size?: number;
+                state?: ("registrado" | "en_validacion" | "validacion_fallida" | "lista_para_aprobacion" | "aprobado" | "rechazado" | "activo" | "inactivo" | "congelado" | "retirado")[] | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1685,7 +1757,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyDecisionIn"];
+            };
+        };
         responses: {
             /** @description Sin contenido */
             204: {
@@ -1708,7 +1784,9 @@ export interface operations {
     "get_v1_serving-config": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -1722,6 +1800,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ServingConfig"];
                 };
+            };
+            /** @description Sin cambios */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Problem */
             default: {

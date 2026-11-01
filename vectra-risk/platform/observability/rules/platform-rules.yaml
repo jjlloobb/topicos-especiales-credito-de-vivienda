@@ -1,0 +1,242 @@
+groups:
+- name: slo-recording
+  rules:
+  - record: vectra:recommendation_availability_errors:ratio_rate5m
+    expr: 1 - (sum(rate(vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations",status="200"}[5m])) / sum(rate(vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations"}[5m])))
+  - record: vectra:recommendation_availability_errors:ratio_rate30m
+    expr: 1 - (sum(rate(vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations",status="200"}[30m])) / sum(rate(vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations"}[30m])))
+  - record: vectra:recommendation_availability_errors:ratio_rate1h
+    expr: 1 - (sum(rate(vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations",status="200"}[1h])) / sum(rate(vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations"}[1h])))
+  - record: vectra:recommendation_availability_errors:ratio_rate6h
+    expr: 1 - (sum(rate(vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations",status="200"}[6h])) / sum(rate(vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations"}[6h])))
+  - record: vectra:recommendation_usable:ratio_rate1h
+    expr: sum(rate(vectra_recommendations_total{outcome!="fail_closed"}[1h])) / sum(rate(vectra_recommendations_total[1h]))
+- name: platform
+  rules:
+  - alert: Watchdog
+    expr: vector(1)
+    labels:
+      severity: none
+    annotations:
+      summary: Latido del sistema de alertas
+      runbook_url: platform/runbooks/watchdog.md
+  - alert: WalArchiveStale
+    expr: time() - cnpg_pg_stat_archiver_last_archived_time > 300
+    labels:
+      severity: SEV1
+    annotations:
+      summary: WalArchiveStale
+      runbook_url: platform/runbooks/wal-archive-stale.md
+    for: 1m
+  - alert: BackupFailed
+    expr: cnpg_collector_last_failed_backup_timestamp > cnpg_collector_last_available_backup_timestamp
+    labels:
+      severity: SEV1
+    annotations:
+      summary: BackupFailed
+      runbook_url: platform/runbooks/backup-failed.md
+    for: 5m
+  - alert: RestoreDrillFailed
+    expr: vectra_restore_drill_success == 0
+    labels:
+      severity: SEV1
+    annotations:
+      summary: RestoreDrillFailed
+      runbook_url: platform/runbooks/restore-drill-failed.md
+    for: 1m
+  - alert: RestoreDrillMissing
+    expr: (time() - push_time_seconds{job="restore-drill"} > 691200) or absent(push_time_seconds{job="restore-drill"})
+    labels:
+      severity: SEV1
+    annotations:
+      summary: RestoreDrillMissing
+      runbook_url: platform/runbooks/restore-drill-missing.md
+    for: 1h
+  - alert: RestoreDrillRetentionViolation
+    expr: vectra_restore_drill_retention_violations > 0
+    labels:
+      severity: SEV2
+    annotations:
+      summary: RestoreDrillRetentionViolation
+      runbook_url: platform/runbooks/restore-drill-retention-violation.md
+    for: 1m
+  - alert: RegistryDbWritesBlocked
+    expr: cnpg_pg_replication_streaming_replicas{cluster="registry-db"} < 1
+    labels:
+      severity: SEV1
+    annotations:
+      summary: RegistryDbWritesBlocked
+      runbook_url: platform/runbooks/registry-db-writes-blocked.md
+    for: 1m
+  - alert: KyvernoUnavailable
+    expr: (sum(up{job="kyverno"}) or vector(0)) == 0
+    labels:
+      severity: SEV1
+    annotations:
+      summary: KyvernoUnavailable
+      runbook_url: platform/runbooks/kyverno-unavailable.md
+    for: 2m
+  - alert: LinkerdControlPlaneDown
+    expr: (sum(up{job="linkerd-controller"}) or vector(0)) == 0
+    labels:
+      severity: SEV1
+    annotations:
+      summary: LinkerdControlPlaneDown
+      runbook_url: platform/runbooks/linkerd-control-plane-down.md
+    for: 2m
+  - alert: SingleZoneOperation
+    expr: count(count by (label_topology_kubernetes_io_zone) (kube_node_labels * on (node) group_left () (kube_node_status_condition{condition="Ready",status="true"} == 1))) < 2
+    labels:
+      severity: SEV2
+    annotations:
+      summary: SingleZoneOperation
+      runbook_url: platform/runbooks/single-zone-operation.md
+    for: 5m
+  - alert: MinioWriteQuorumLost
+    expr: minio_cluster_health_status{quorum="write"} == 0
+    labels:
+      severity: SEV2
+    annotations:
+      summary: MinioWriteQuorumLost
+      runbook_url: platform/runbooks/minio-write-quorum-lost.md
+    for: 2m
+  - alert: PostgresReplicaLag
+    expr: cnpg_pg_replication_lag > 30
+    labels:
+      severity: SEV2
+    annotations:
+      summary: PostgresReplicaLag
+      runbook_url: platform/runbooks/postgres-replica-lag.md
+    for: 5m
+  - alert: CertificateExpiringSoon
+    expr: certmanager_certificate_expiration_timestamp_seconds - time() < 86400
+    labels:
+      severity: SEV1
+    annotations:
+      summary: CertificateExpiringSoon
+      runbook_url: platform/runbooks/certificate-expiring-soon.md
+    for: 5m
+  - alert: CertificateExpiringSoon
+    expr: certmanager_certificate_expiration_timestamp_seconds - time() < 604800
+    labels:
+      severity: SEV2
+    annotations:
+      summary: CertificateExpiringSoon
+      runbook_url: platform/runbooks/certificate-expiring-soon.md
+    for: 5m
+  - alert: RecommendationSLOBurnFast
+    expr: vectra:recommendation_availability_errors:ratio_rate1h > (14.4 * 0.005) and vectra:recommendation_availability_errors:ratio_rate5m > (14.4 * 0.005)
+    labels:
+      severity: SEV2
+    annotations:
+      summary: RecommendationSLOBurnFast
+      runbook_url: platform/runbooks/recommendation-slo-burn-fast.md
+    for: 2m
+  - alert: RecommendationSLOBurnSlow
+    expr: vectra:recommendation_availability_errors:ratio_rate6h > (6 * 0.005) and vectra:recommendation_availability_errors:ratio_rate30m > (6 * 0.005)
+    labels:
+      severity: SEV3
+    annotations:
+      summary: RecommendationSLOBurnSlow
+      runbook_url: platform/runbooks/recommendation-slo-burn-slow.md
+    for: 15m
+  - alert: FailClosedPersistente
+    expr: max(vectra_cases_failclosed_persistent) > 0
+    labels:
+      severity: SEV2
+    annotations:
+      summary: FailClosedPersistente
+      runbook_url: platform/runbooks/fail-closed-persistente.md
+    for: 1m
+  - alert: PostgresConnectionsHigh
+    expr: sum by (cluster) (cnpg_backends_total) / max by (cluster) (cnpg_pg_settings_setting{name="max_connections"}) > 0.8
+    labels:
+      severity: SEV3
+    annotations:
+      summary: PostgresConnectionsHigh
+      runbook_url: platform/runbooks/postgres-connections-high.md
+    for: 10m
+  - alert: PostgresVolumeUsageHigh
+    expr: kubelet_volume_stats_used_bytes{namespace="vectra-data"} / kubelet_volume_stats_capacity_bytes{namespace="vectra-data"} > 0.9
+    labels:
+      severity: SEV2
+    annotations:
+      summary: PostgresVolumeUsageHigh
+      runbook_url: platform/runbooks/postgres-volume-usage-high.md
+    for: 15m
+  - alert: PostgresVolumeUsageHigh
+    expr: kubelet_volume_stats_used_bytes{namespace="vectra-data"} / kubelet_volume_stats_capacity_bytes{namespace="vectra-data"} > 0.8 and kubelet_volume_stats_used_bytes{namespace="vectra-data"} / kubelet_volume_stats_capacity_bytes{namespace="vectra-data"}
+      <= 0.9
+    labels:
+      severity: SEV3
+    annotations:
+      summary: PostgresVolumeUsageHigh
+      runbook_url: platform/runbooks/postgres-volume-usage-high.md
+    for: 15m
+  - alert: PostgresVolumeUsageHigh
+    expr: (count(kubelet_volume_stats_capacity_bytes{namespace="vectra-data",persistentvolumeclaim=~"registry-db-[0-9]+(-wal)?"}) or vector(0)) < 6
+    labels:
+      severity: SEV2
+      cluster: registry-db
+    annotations:
+      summary: PostgresVolumeUsageHigh
+      runbook_url: platform/runbooks/postgres-volume-usage-high.md
+    for: 15m
+  - alert: PostgresVolumeUsageHigh
+    expr: (count(kubelet_volume_stats_capacity_bytes{namespace="vectra-data",persistentvolumeclaim=~"case-db-[0-9]+(-wal)?"}) or vector(0)) < 6
+    labels:
+      severity: SEV2
+      cluster: case-db
+    annotations:
+      summary: PostgresVolumeUsageHigh
+      runbook_url: platform/runbooks/postgres-volume-usage-high.md
+    for: 15m
+  - alert: PostgresVolumeUsageHigh
+    expr: (count(kubelet_volume_stats_capacity_bytes{namespace="vectra-data",persistentvolumeclaim=~"governance-db-[0-9]+(-wal)?"}) or vector(0)) < 6
+    labels:
+      severity: SEV2
+      cluster: governance-db
+    annotations:
+      summary: PostgresVolumeUsageHigh
+      runbook_url: platform/runbooks/postgres-volume-usage-high.md
+    for: 15m
+  - alert: PostgresVolumeUsageHigh
+    expr: (count(kubelet_volume_stats_capacity_bytes{namespace="vectra-data",persistentvolumeclaim=~"keycloak-db-[0-9]+(-wal)?"}) or vector(0)) < 6
+    labels:
+      severity: SEV2
+      cluster: keycloak-db
+    annotations:
+      summary: PostgresVolumeUsageHigh
+      runbook_url: platform/runbooks/postgres-volume-usage-high.md
+    for: 15m
+  - alert: HPAMaxedOut
+    expr: kube_horizontalpodautoscaler_status_current_replicas == kube_horizontalpodautoscaler_spec_max_replicas
+    labels:
+      severity: SEV3
+    annotations:
+      summary: HPAMaxedOut
+      runbook_url: platform/runbooks/hpa-maxed-out.md
+    for: 15m
+  - alert: PushgatewayDown
+    expr: (up{job="pushgateway"} == 0) or absent(up{job="pushgateway"})
+    labels:
+      severity: SEV2
+    annotations:
+      summary: PushgatewayDown
+      runbook_url: platform/runbooks/pushgateway-down.md
+    for: 5m
+  - alert: GrafanaFolderPermissionsDrift
+    expr: vectra_grafana_folder_permissions_drift > 0
+    labels:
+      severity: SEV3
+    annotations:
+      summary: GrafanaFolderPermissionsDrift
+      runbook_url: platform/runbooks/grafana-folder-permissions-drift.md
+    for: 1m
+  - alert: LogFieldsDropped
+    expr: increase(vectra_log_fields_dropped_total[15m]) > 0
+    labels:
+      severity: SEV3
+    annotations:
+      summary: LogFieldsDropped
+      runbook_url: platform/runbooks/log-fields-dropped.md

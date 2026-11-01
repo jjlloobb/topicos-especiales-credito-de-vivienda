@@ -44,7 +44,9 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 | `governance-db` | 10 Gi | 5 Gi | 50 |
 | `keycloak-db` | 10 Gi | 5 Gi | 100 |
 
-- StorageClass de producción y staging: la del banco, con cifrado, `volumeBindingMode: WaitForFirstConsumer` y `allowVolumeExpansion: true`. En kind se usa `local-path`, sin cifrado (documentado como no aplicable a NFR-U1-23).
+Cada `Cluster` se inicializa con `bootstrap.initdb` y su base y dueño (2026-11-01): `registry-db` → `registry`, `registry_migrator`; `case-db` → `case`, `case_migrator`; `governance-db` → `governance`, `gov_migrator`; `keycloak-db` → `keycloak`, `keycloak`. El secreto es el `pg-role-*` del dueño. `case` es palabra reservada de SQL: en una sentencia va entre comillas, en una URL de conexión no.
+
+- StorageClass de producción y staging: la del banco, con cifrado, `volumeBindingMode: WaitForFirstConsumer` y `allowVolumeExpansion: true`. En kind se usa `standard`, la StorageClass que kind trae de fábrica, sin cifrado (documentado como no aplicable a NFR-U1-23).
 - `max_connections` se calcula con P-U1-08: `(réplicas máximas del HPA × 5) × 1,2 + conexiones del operador y de los backups`. Los valores iniciales cubren hasta 12 réplicas por servicio. `case-db` tiene dos Deployments clientes (`case-service` y `case-worker`, 6 réplicas máximas cada uno = 12 × 5 conexiones), más el CronJob `case-retention` y el Job de migración; el valor inicial lo cubre (precisado el 2026-10-06 por U8 NFR Requirements, NFR-U8-14). Para Keycloak se fija un pool máximo de 20 conexiones por pod. Se recalculan con los máximos reales tras la prueba de carga. `registry-db` suma además la conexión del CronJob `registry-aggregator` (F107, 1 conexión a `-rw`): ≈ 47 en total (U3 INF-U3-04; quinta revisión del FD de U9, 2026-10-10).
 - Alertas, para los cuatro `Cluster` (es la única alerta de volumen; U8 la reutiliza para `case-db`, INF-U8-08):
 
@@ -74,10 +76,12 @@ Con el proxy (P-U1-14), 16 pods suman requests de 14,6 CPU / 52,3 GiB y limits d
 
 | Uso | Dónde | Bucket | Protección |
 |---|---|---|---|
-| Backups base y WAL | S3 del banco **fuera del sitio** (F70) | `vectra-backups`, `vectra-wal` | Cifrado del lado del servidor; object lock en los de `registry-db` (NFR-U1-06) |
+| Backups base y WAL | S3 del banco **fuera del sitio** (F70) | `vectra-backups`; base y WAL bajo `<cluster>/` (Barman escribe `<cluster>/<cluster>/base` y `.../wals`; decidido el 2026-11-01) | Cifrado del lado del servidor; object lock en los de `registry-db` (NFR-U1-06) |
 | model-store | **MinIO in-cluster** (`vectra-data`) | `model-store`, `validation-datasets` | Versionado; credenciales de solo lectura para KServe y validación |
 | Logs | MinIO in-cluster | `loki` | Object lock de 90 días; retención por lifecycle (NFR-U1-30) |
 | Trazas | MinIO in-cluster | `tempo` | Lifecycle de 7 días |
+
+Identidades de MinIO, con su política y su Secret por ESO (2026-11-01): `kserve-readonly`, `validation-readonly`, `loki-writer`, `tempo-writer`, `governance-readonly` (F47, solo `model-store`), `model-archive-writer` (F101; lee `model-store`) y `risk-engineer-upload` (NFR-U5-03). Solo en kind, donde MinIO hace de S3 del banco (F118): `registry-checkpoint`, `registry-archive`, `registry-verify`, `restore-drill`, `postgres-backup` y escritura de `model-archive-writer` en `vectra-model-archive`. El bucket `vectra-backups` solo existe en MinIO en kind.
 | Archivo WORM de U3 y U4 (**solo kind**) | MinIO in-cluster (F118) | `vectra-registry-checkpoints`, `vectra-registry-archive`, `vectra-model-archive` | Object lock; en staging y prod son del S3 del banco (cuarta revisión de coherencia entre unidades, 2026-10-31) |
 
 - **MinIO distribuido**: 4 pods en el pool `data` (2 por zona) con erasure coding y un volumen por pod (200 Gi inicial). En kind, 4 pods sobre los 4 workers, con volúmenes `local-path`. Tráfico entre pods por F115 (cuarta revisión de coherencia entre unidades, 2026-10-31).
@@ -137,7 +141,7 @@ Con el proxy (P-U1-14), 16 pods suman requests de 14,6 CPU / 52,3 GiB y limits d
 
 ### INF-U1-09 — Imágenes (Q10)
 - staging/prod: **solo** el registro interno del banco, alimentado desde GHCR por un proceso del banco. kind: `kind-registry`.
-- La política de Kyverno `verify-images` exige la firma Cosign y un registro permitido (`registry.banco.internal/*` en prod; `localhost:5001/*` en kind). Para verificar firmas, Kyverno consulta el registro (F76).
+- La política de Kyverno `verify-images` exige la firma Cosign y un registro permitido (`registro.banco.internal/vectra/*` en prod y staging, `registro.vectra.internal/*` para las imágenes propias; `kind-registry:5000/*` en kind, por `restrict-registries`). `verify-images` se instala solo en staging y prod. Para verificar firmas, Kyverno consulta el registro (F76) (revisión de consistencia entre unidades, 2026-11-01).
 
 ### INF-U1-10 — Secretos
 - ESO + Vault en kind (in-cluster, F86); ESO + la bóveda del banco en staging/prod (egress F74).

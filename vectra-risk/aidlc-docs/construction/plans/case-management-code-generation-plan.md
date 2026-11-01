@@ -15,7 +15,7 @@
 | Unidad | U8 `case-management`: `case-service` (API, barridos, reconciliador de evidencia, lectura del core), `case-worker` (evaluación), CronJob `case-retention` y `core-banking-mock` (solo kind y staging) |
 | Historias (dueña) | US-101, US-102, US-107, US-108, US-112, US-501, US-502, US-603 |
 | Historias (participa) | US-109 (`free_text` tal cual con consultas parametrizadas), US-609 (HPA en su chart) |
-| Ubicación | `vectra-risk/case-management/` (una imagen para los tres procesos de U8 y otra para el mock) y Applications en `vectra-risk-gitops` |
+| Ubicación | `vectra-risk/case-management/` (una imagen para los tres procesos de U8 y otra para el mock) y entradas en `vectra-risk-gitops/components.yaml`, dentro del monorepo (revisión de consistencia entre unidades, 2026-11-01) |
 | Datos propios | `case-db` (CloudNativePG de U1): `cases`, `case_identifiers`, `intake_keys`, `evaluation_jobs`, `evidence_outbox`, `decisions`, `explanation_views`, `retention_runs`, `retention_settings`, `case_transitions` |
 | Depende de | U0 (tipos, validación BR-U0-20..38, `derive`, `create_app`, `authz`, allowlist de logs, `deps` con timeout y circuit breaker), U1 (`case-db`, cuotas, `flows.yaml`, supply chain, `restore-drill`, `PostgresVolumeUsageHigh`), U2 (clientes `case-service`, `case-worker`, `channel`, `channel-simulator`; ruta de intake F04/F07), U3 (append F16 con idempotencia), U4 (`serving-config` y `feature-spec`, F104), U7 (`POST /v1/recommendations`, F15) |
 | Lo consumen | api-gateway (U2, F04/F07), console-bff (U10, F10), `restore-drill` (U1, CLI de retención), U9 y U11 (vía las entradas del registro), U12 (carga, RT-1, RT-5) |
@@ -55,7 +55,7 @@ vectra-risk/case-management/
 |   `-- retention.py                                                   # CLI de case-retention
 |-- migrations/          # Alembic: tablas, grants, permisos por columna, triggers, RLS, filas fijas
 |-- core_banking_mock/   src/core_banking_mock/ {app, auth, metrics}.py  fixtures/credits.json
-|-- chart/               templates/  values-{prod,staging,kind}.yaml
+|-- chart/               templates/  values.yaml  # por entorno: vectra-risk-gitops/values/<env>/case-management.yaml (revisión de consistencia entre unidades, 2026-11-01)
 |-- policies/            conftest/
 |-- observability/       rules/  rules/tests/  runbooks/
 |-- docs/                retention.md  api.md
@@ -107,7 +107,7 @@ vectra-risk/case-management/
   - Tabla `case_transitions (from_state, to_state, db_role)` con las filas de INF-U8-01 y trigger `guard_transition` (`BEFORE INSERT OR UPDATE OF state`, `SECURITY DEFINER`, dueño `case_migrator`, `SET search_path = pg_catalog, public`, compara con `session_user`).
   - Trigger `guard_vencido` (`SECURITY INVOKER`) y tabla `retention_settings` de una fila, escrita con `INSERT … ON CONFLICT (id) DO UPDATE` desde los values, sin tocar `created_at` (P-U8-05).
   - RLS en `evidence_outbox`: `worker_fail_closed_only` (`FOR INSERT TO case_worker WITH CHECK (entry_type = 'fail_closed')`) y `app_all` para `case_app` (INF-U8-01).
-  - Las cadenas de conexión usan `sslmode=verify-full` y cada proceso se conecta con su rol, sin `SET ROLE` ni pooler (P-U1-08; `guard_transition` depende de `session_user`).
+  - Las cadenas de conexión apuntan a la base `case` (revisión de consistencia entre unidades, 2026-11-01) y usan `sslmode=verify-full` y cada proceso se conecta con su rol, sin `SET ROLE` ni pooler (P-U1-08; `guard_transition` depende de `session_user`).
   - Diseño: BR-U8-02, 12, 20; INF-U8-01; P-U8-05; NFR-U8-40, 41.
   - **Aceptación**: `uv run pytest case-management/tests/migrations` (Testcontainers, cada caso con el rol real):
     - `case_worker` lee `decisions`, borra `case_identifiers` o escribe `vencido` → error; `case_app` hace `DELETE` sobre `evaluation_jobs` → error;
@@ -163,7 +163,7 @@ vectra-risk/case-management/
 - [ ] **Paso 9 — `intake`: ingesta y alta manual**
   - `POST /v1/intake/applications` (F04/F07, scope `intake:submit`) y `POST /v1/cases` (F10, solo `analista`):
     - validación de U0 (4xx genérico sin caso, BR-U0-30); `free_text` tal cual, siempre con consultas parametrizadas;
-    - `Idempotency-Key` obligatoria, con alcance `client_id` (ingesta) o `user_id` (alta manual); misma llave y mismo `body_sha256` → el mismo `case_id`; otro cuerpo → 409;
+    - `Idempotency-Key` obligatoria, con alcance `client_id` (ingesta; `Principal.client_id`, el `azp`; revisión de consistencia entre unidades, 2026-11-01) o `user_id` (alta manual); misma llave y mismo `body_sha256` → el mismo `case_id`; otro cuerpo → 409;
     - identificadores en `case_identifiers` y el resto en `cases.application`;
     - caso en `en_evaluacion`, llave y trabajo de evaluación en **una** transacción;
     - `X-Test-Scenario` solo con `azp = channel-simulator` y `allow_test_scenarios = true`; en producción → 422; se guarda como `test_scenario_id` y no sale a scoring, al registro ni a los logs de negocio.
@@ -220,7 +220,7 @@ vectra-risk/case-management/
   - `create_app` de U0 con las rutas de F04 y F10 (`list_cases`, `get_case`, `get_case_identifiers` (`cro` y `cumplimiento`; revisión del Infrastructure Design de U10, 2026-10-10), `create_case`, `record_decision`, `record_explanation_view`, `retry_case`, `list_persistent_failures`); scopes y audiencias de U2; `list_cases` excluye `vencido` salvo con `state=vencido`.
   - Logs `case.viewed` y `case.retry_requested` con la allowlist de U0 §8; `authz.denied` y `vectra_authz_denied_total` en cada 401/403.
   - Readiness (`/readyz`, 8081) solo con `case-db`; liveness solo del proceso.
-  - Apagado: `preStop` de 5 s en el chart, uvicorn con `timeout_graceful_shutdown = 10`; al recibir `SIGTERM`, barridos y reconciliador dejan de tomar trabajo y terminan el lote.
+  - Apagado: `preStop` de 5 s en el chart, arranque con `vectra_common.ops_server.run_service(app)` y espera de ≤ 10 s (revisión de consistencia entre unidades, 2026-11-01); al recibir `SIGTERM`, barridos y reconciliador dejan de tomar trabajo y terminan el lote.
   - Etiquetas de métricas dentro de la allowlist de P-U8-06 y contadores de conjunto cerrado creados en 0.
   - Diseño: BR-U8-13, 13b; P-U8-03, 06; INF-U8-04, 06; NFR-U8-21, 22, 42, 45. Historias: US-107, US-108.
   - **Aceptación**: `uv run pytest case-management/tests/integration/test_app.py tests/integration/test_degradation.py tests/integration/test_service_shutdown.py`:
@@ -239,7 +239,7 @@ vectra-risk/case-management/
 - [ ] **Paso 14 — Clientes y caché de gobierno**
   - Un `httpx.AsyncClient` por dependencia con `deps.call` (P-U8-02): scoring 16 conexiones y 7 s; governance 4 conexiones, 500 ms (`serving-config`) y 1 s (`feature_spec`).
   - `governance_client`: `serving-config` con caché ≤ 5 s e `If-None-Match`; `feature_spec` por versión, sin expiración, LRU de 4.
-  - Fallo del breaker = timeout, conexión o 5xx; un 4xx no cuenta (NFR-U8-32).
+  - Fallo del breaker = timeout, conexión o 5xx; un 4xx no cuenta (NFR-U8-32). NFR-U8-31 se escribe `BreakerConfig(open_for=10, window_size=20, failure_ratio=0.5, window_seconds=30)`, y el token de servicio es `service_token.provider_from_env(audience, scopes)`, pasado como `token_source` (revisión de consistencia entre unidades, 2026-11-01).
   - Diseño: BR-U8-05; P-U8-02, 09; NFR-U8-15, 24, 30, 31, 32, 33.
   - **Aceptación**: `uv run pytest case-management/tests/integration/test_worker_clients.py`:
     - scoring doble de 7 s con 16 trabajos en vuelo → las lecturas de `serving-config` siguen respondiendo en < 50 ms;
@@ -306,19 +306,19 @@ vectra-risk/case-management/
 
 - [ ] **Paso 19 — Dockerfiles y cadena de suministro**
   - Una imagen para `case-service`, `case-worker`, `case-retention` y la migración (P-U8-10), y otra para el mock con sus fixtures; base Python oficial pinneada por digest, `runAsNonRoot` y `readOnlyRootFilesystem`.
-  - Construidas, escaneadas, con SBOM y firmadas por `supply-chain.yml` de U1.
+  - Construidas, escaneadas, con SBOM y firmadas con `sign-image.yml` de U1; el escaneo y el SBOM son de `supply-chain.yml`.
   - Diseño: P-U8-10; NFR-U8-34.
   - **Aceptación**: `hadolint case-management/Dockerfile case-management/core_banking_mock/Dockerfile`; prueba sobre el SBOM: ninguna librería de circuit breaking.
 
 - [ ] **Paso 20 — Chart, values, cuotas y flujos**
-  - `case-service` y `case-worker`: `Deployment`, `Service`, `HorizontalPodAutoscaler` (2–6, CPU 70 %, estabilización 60/300 s), `PodDisruptionBudget`, `ServiceAccount` propia, `ExternalSecret` (llave `private_key_jwt` y contraseña del rol de base, INF-U1-02) y `ServiceMonitor`; recursos y probes de INF-U8-04; spread por zona; `vectra-high`; sidecar nativo de Linkerd.
+  - `case-service` y `case-worker`: `Deployment`, `Service`, `HorizontalPodAutoscaler` (2–6, CPU 70 %, estabilización 60/300 s), `PodDisruptionBudget`, `ServiceAccount` propia, `ExternalSecret` de la llave `private_key_jwt`, la contraseña del rol de base desde `pg-role-case-app` o `pg-role-case-worker`, que entrega U1 (INF-U1-02; revisión de consistencia entre unidades, 2026-11-01), y `ServiceMonitor`; recursos y probes de INF-U8-04; spread por zona; `vectra-high`; sidecar nativo de Linkerd.
     - `case-service`: `preStop.sleep` de 5 s y `terminationGracePeriodSeconds: 20`;
     - `case-worker`: `terminationGracePeriodSeconds: 30`.
-  - `case-retention`: `CronJob` (`schedule` y `timeZone` desde los values, `Forbid`, `startingDeadlineSeconds: 3600`, `activeDeadlineSeconds: 7200`, `backoffLimit: 2`), `vectra-low`, sidecar nativo.
-  - Job de migración como hook de sync (F44), con `case_migrator`, `vectra-low` y la fila de `retention_settings` desde los values.
-  - `core-banking-mock` solo con `coreMock.enabled = true`: 2 réplicas, `vectra.io/hpa-exempt` con su justificación (quinta revisión de coherencia entre unidades, 2026-10-31), PDB, `vectra-low`, namespace `vectra-mock`; `Server`, `HTTPRoute` de `GET /v1/credits/{id}` autorizada solo para `case-service` y `HTTPRoute` `core-mock-catch-all` sin `AuthorizationPolicy` (INF-U8-03).
+  - `case-retention`: `CronJob` (`schedule` y `timeZone` desde los values, `Forbid`, `startingDeadlineSeconds: 3600`, `activeDeadlineSeconds: 7200`, `backoffLimit: 2`), `vectra-low`, sidecar nativo, y `pg-role-case-retention` de U1 (revisión de consistencia entre unidades, 2026-11-01).
+  - Job de migración como hook de sync (F44), con la `ServiceAccount` `migration-case`, la etiqueta `vectra.io/workload: migration-case` y `pg-role-case-migrator` (revisión de consistencia entre unidades, 2026-11-01), con `case_migrator`, `vectra-low` y la fila de `retention_settings` desde los values.
+  - `core-banking-mock` solo con `coreMock.enabled = true`: 2 réplicas, `vectra.io/hpa-exempt` con su justificación (quinta revisión de coherencia entre unidades, 2026-10-31), PDB, `vectra-low`, namespace `vectra-mock`. El chart no crea el `Server` ni las `HTTPRoute`: U1 los genera desde `http_routes.core-banking-mock` de `flows.yaml`, con `GET /v1/credits/{id}` autorizada solo para `case-service` y `core-mock-catch-all` sin `AuthorizationPolicy` (INF-U8-03; revisión de consistencia entre unidades, 2026-11-01).
   - **Job `rt5-demo-<runId>`** (U12; pendientes posteriores al cierre, 2026-10-10): solo con los values de kind y con `probes.runId` (pendientes consolidados, 2026-10-10: ya no en staging), con la `ServiceAccount` `case-service`; envía `POST /v1/credits/{id}/status` al mock y deja en su log el 403 del proxy (INF-U8-03); `backoffLimit: 0`, sidecar nativo, **sin** `ttlSecondsAfterFinished` (se poda al cambiar `probes.runId`). `conftest`: `probes.runId` en los values de staging o de producción → falla; el Job no aparece con ellos ni sin `probes.runId` (pendientes consolidados, 2026-10-10); el selector del `Service` de `case-service` no coincide con las etiquetas del Job (seguimiento de la cuarta revisión de coherencia, 2026-10-31).
-  - Values de producción: `core.enabled = false`, `coreMock.enabled = false`, `allowTestScenarios = false`.
+  - Values de producción, en `vectra-risk-gitops/values/prod/case-management.yaml` (revisión de consistencia entre unidades, 2026-11-01): `core.enabled = false`, `coreMock.enabled = false`, `allowTestScenarios = false`.
   - Aporte de U8 a las cuotas de `vectra-app` y `vectra-mock` en `platform/policies/quotas/` de U1 (INF-U8-05).
   - Comprobar en `platform/network/flows.yaml` F04, F07, F10, F15, F16, F17, F40, F44, F50, F60, F104 y F105, con `case-worker` como origen de F15, F40 y F104, y X01 en la suite de conectividad.
   - Diseño: INF-U8-01, 02, 03, 04, 05, 06, 07; P-U8-07, 10; NFR-U8-10, 12, 14, 20, 26, 43, 44. Historia: US-609.
@@ -351,14 +351,14 @@ vectra-risk/case-management/
   - `case-management/docs/retention.md`: plazos, fuente única (`retention_settings`), riesgo aceptado de los respaldos y los tres **[VERIFICAR]**, con un espacio para la firma de cumplimiento; el despliegue a producción la exige (NFR-U8-47).
   - `case-management/docs/api.md` y el OpenAPI exportado de `case-service` y del mock.
   - Diseño: BR-U8-20; NFR-U8-47.
-  - **Aceptación**: `uv run python case-management/tools/check_openapi.py` (el OpenAPI versionado coincide con el de la app) y una regla de `conftest` sobre la Application de producción que exige la anotación con la referencia a la firma de `retention.md`.
+  - **Aceptación**: `uv run python case-management/tools/check_openapi.py` (el OpenAPI versionado coincide con el de la app) y una regla de `conftest` sobre `vectra-risk-gitops/values/prod/case-management.yaml` que exige el value con la referencia a la firma de `retention.md`: `generate.py` no escribe anotaciones propias en una Application (revisión de consistencia entre unidades, 2026-11-01).
 
 - [ ] **Paso 23 — Applications, especificación de carga y trazabilidad**
-  - Applications en la wave 5 (migración como hook, `case-service`, `case-worker`, CronJob) por entorno y sin auto-sync; la del mock solo en kind y staging.
+  - Entradas en `vectra-risk-gitops/components.yaml` con `wave: 5` (migración como hook, `case-service`, `case-worker`, CronJob): `case-management` en todos los entornos y la del mock con `envs: [kind, staging]`. `generate.py` escribe las Applications, sin auto-sync (revisión de consistencia entre unidades, 2026-11-01).
   - Script k6 para U12: 10 solicitudes/s de ingesta con la consola en paralelo, umbrales de NFR-U8-01 y el histograma de NFR-U8-02.
   - Trazabilidad de cada BR-U8 a una prueba.
   - Diseño: P-U1-12; NFR-U8-01, 02.
-  - **Aceptación**: `uv run python platform/tests/test_waves.py`; `kyverno test` de `disallow-argocd-auto-sync`; `k6 inspect case-management/tests/load/cases.js`; `uv run python platform/tests/test_traceability.py --unit case-management --all`.
+  - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`; `uv run python platform/tests/test_waves.py`; `kyverno test` de `disallow-argocd-auto-sync`; `k6 inspect case-management/tests/load/cases.js`; `uv run python platform/tests/test_traceability.py --unit case-management --all`.
 
 ### Bloque H — Verificación en kind (con aprobación humana)
 
@@ -432,3 +432,14 @@ vectra-risk/case-management/
 | SECURITY-01 / 03 / 05 / 06 / 08 / 11 / 13 / 14 / 15 | Cumple | Pasos 3, 9, 10, 13, 15, 16, 17, 20, 21 (SECURITY-11: casos de abuso de llave reutilizada, `X-Test-Scenario` en producción, `free_text` adversarial, escritura al core, `entry_type` falsificado desde `case_worker` y transición fuera de `case_transitions`) |
 | RESILIENCY-01 / 04 / 05 / 06 / 07 / 08 / 09 / 10 / 14 / 15 | Cumple | Pasos 10, 11, 13, 14, 15, 20, 21, 24 |
 | PBT-01..10 | Cumple | Pasos 5, 6, 7, 9, 10, 15 y 16 (PBT-U8-01..08), Paso 18 (perfil `ci`) y pruebas de ejemplo en los Pasos 4, 6, 9, 10, 11, 13, 15, 16 y 17 |
+
+## Reglas de admisión que este plan debe cumplir (revisión de consistencia entre unidades, 2026-11-01)
+
+Cada chart de esta unidad pasa `make -C platform check-chart CHART=<ruta>` en el PR, con los mismos values que usa Argo CD en cada entorno:
+
+- Imágenes por digest, de un registro que admita `restrict-registries`; las de terceros se espejan.
+- `runAsNonRoot`, `readOnlyRootFilesystem` (con `emptyDir` para lo que escriba en disco), sin `privileged` ni `hostPath`, con recursos y `priorityClassName`.
+- `vectra.io/criticality` en cada `Deployment` y `StatefulSet` que el chart declare.
+- En `vectra-app`, `vectra-edge`, `vectra-identity`, `vectra-serving` y `vectra-mock`: 2 réplicas o más, `topologySpreadConstraints` por zona, PDB por `app.kubernetes.io/name`, y HPA o `vectra.io/hpa-exempt`.
+
+Detalle en `aidlc-docs/construction/shared-infrastructure.md` §2.

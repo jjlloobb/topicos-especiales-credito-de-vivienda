@@ -1,0 +1,166 @@
+{{- range $name, $c := .Values.clusters }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ $name }}
+  namespace: vectra-data
+  labels:
+    vectra.io/criticality: {{ $c.criticality }}
+spec:
+  imageName: {{ $.Values.imageName }}
+  instances: {{ $.Values.instances }}
+  minSyncReplicas: 1
+  maxSyncReplicas: 2
+  primaryUpdateStrategy: unsupervised
+  bootstrap:
+    initdb:
+      database: {{ $c.database }}
+      owner: {{ $c.owner }}
+      secret: { name: pg-role-{{ $c.owner | replace "_" "-" }} }
+  priorityClassName: vectra-critical
+  {{- if $.Values.zoneConstraint }}
+  postgresql:
+    syncReplicaElectionConstraint:
+      enabled: true
+      nodeLabelsAntiAffinity: [topology.kubernetes.io/zone]
+    parameters:
+      max_connections: "{{ $c.maxConnections }}"
+      archive_timeout: 60s
+      ssl_min_protocol_version: TLSv1.2
+  {{- else }}
+  postgresql:
+    parameters:
+      max_connections: "{{ $c.maxConnections }}"
+      archive_timeout: 60s
+      ssl_min_protocol_version: TLSv1.2
+  {{- end }}
+  certificates:
+    serverTLSSecret: postgres-server-tls
+    serverCASecret: postgres-server-tls
+  inheritedMetadata:
+    annotations:
+      config.linkerd.io/skip-inbound-ports: "8000"
+  storage:
+    size: {{ $c.storage }}
+    storageClass: {{ $.Values.storageClass }}
+  walStorage:
+    size: {{ $c.wal }}
+    storageClass: {{ $.Values.storageClass }}
+  resources:
+    {{- toYaml $c.resources | nindent 4 }}
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+    {{- if $.Values.tolerateDataPool }}
+    tolerations:
+      - { key: vectra.io/pool, operator: Equal, value: data, effect: NoSchedule }
+    {{- end }}
+    additionalPodAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: topology.kubernetes.io/zone
+            labelSelector:
+              matchLabels: { cnpg.io/cluster: {{ $name }} }
+  managed:
+    roles:
+      {{- range $c.roles }}
+      {{- if ne . "backup" }}
+      - name: {{ . }}
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-{{ . | replace "_" "-" }} }
+        {{- if eq . "registry_health" }}
+        inRoles: [pg_monitor]
+        {{- end }}
+      {{- end }}
+      {{- end }}
+  backup:
+    target: prefer-standby
+    retentionPolicy: 30d
+    barmanObjectStore:
+      destinationPath: {{ $.Values.backup.destinationPath }}/{{ $name }}
+      endpointURL: {{ $.Values.backup.endpointURL }}
+      s3Credentials:
+        accessKeyId: { name: {{ $.Values.backup.credentialsSecret }}, key: ACCESS_KEY_ID }
+        secretAccessKey: { name: {{ $.Values.backup.credentialsSecret }}, key: SECRET_ACCESS_KEY }
+      {{- if $.Values.backup.encryption }}
+      wal: { compression: gzip, encryption: {{ $.Values.backup.encryption }} }
+      data: { compression: gzip, encryption: {{ $.Values.backup.encryption }} }
+      {{- else }}
+      wal: { compression: gzip }
+      data: { compression: gzip }
+      {{- end }}
+---
+# Metricas cnpg_* de las alertas de PostgreSQL. `cluster` es la etiqueta que usan las reglas.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ $name }}
+  namespace: vectra-data
+spec:
+  selector:
+    matchLabels: { cnpg.io/cluster: {{ $name }}, cnpg.io/podRole: instance }
+  podMetricsEndpoints:
+    - port: metrics
+      relabelings:
+        - { sourceLabels: [__meta_kubernetes_pod_label_cnpg_io_cluster], targetLabel: cluster }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ $name }}-daily
+  namespace: vectra-data
+spec:
+  schedule: "0 0 3 * * *"
+  backupOwnerReference: self
+  cluster: { name: {{ $name }} }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ $name }}-monthly
+  namespace: vectra-data
+spec:
+  schedule: "0 0 4 1 * *"
+  backupOwnerReference: self
+  cluster: { name: {{ $name }} }
+{{- range $role := $c.roles }}
+{{- range $ns := prepend (index $.Values.roleConsumers $role) "vectra-data" }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-{{ $role | replace "_" "-" }}
+  namespace: {{ $ns }}
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: pg-role-{{ $role | replace "_" "-" }}
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - { secretKey: username, remoteRef: { key: postgres/roles/{{ $role }}, property: username } }
+    - { secretKey: password, remoteRef: { key: postgres/roles/{{ $role }}, property: password } }
+{{- end }}
+{{- end }}
+{{- end }}
+{{- range $name, $secret := .Values.extraSecrets }}
+{{- range $ns := $secret.namespaces }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: {{ $name }} }
+  data:
+    {{- range $key, $property := $secret.keys }}
+    - { secretKey: {{ $key }}, remoteRef: { key: {{ $secret.path }}, property: {{ $property }} } }
+    {{- end }}
+{{- end }}
+{{- end }}

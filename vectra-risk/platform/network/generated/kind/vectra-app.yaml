@@ -1,0 +1,3016 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: vectra-app
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F03
+  name: allow-f03-to-console-bff-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: api-gateway
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: console-bff
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: console-bff-8080
+  namespace: vectra-app
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: console-bff
+  port: 8080
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f03-console-bff-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - api-gateway.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f03-console-bff-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f03-console-bff-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: console-bff-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F04
+  name: allow-f04-to-case-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: api-gateway
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: case-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: case-service-8080
+  namespace: vectra-app
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: case-service
+  port: 8080
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f04-case-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - api-gateway.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f04-case-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f04-case-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: case-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F08
+  name: allow-f08-to-governance-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: api-gateway
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: governance-service-8080
+  namespace: vectra-app
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  port: 8080
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: governance-service-serving-config
+  namespace: vectra-app
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: governance-service-8080
+  rules:
+  - matches:
+    - method: GET
+      path:
+        type: Exact
+        value: /v1/serving-config
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: governance-service-serving-config-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - case-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
+  - case-worker.vectra-app.serviceaccount.identity.linkerd.cluster.local
+  - scoring-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: governance-service-serving-config
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: governance-service-serving-config-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: governance-service-serving-config
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: governance-service-feature-dictionary
+  namespace: vectra-app
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: governance-service-8080
+  rules:
+  - matches:
+    - method: GET
+      path:
+        type: RegularExpression
+        value: /v1/models/[^/]+/feature-dictionary
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: governance-service-feature-dictionary-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - explainability-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: governance-service-feature-dictionary
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: governance-service-feature-dictionary-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: governance-service-feature-dictionary
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: governance-service-feature-spec
+  namespace: vectra-app
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: governance-service-8080
+  rules:
+  - matches:
+    - method: GET
+      path:
+        type: RegularExpression
+        value: /v1/models/[^/]+/feature-spec
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: governance-service-feature-spec-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - case-worker.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: governance-service-feature-spec
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: governance-service-feature-spec-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: governance-service-feature-spec
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: governance-service-freeze
+  namespace: vectra-app
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: governance-service-8080
+  rules:
+  - matches:
+    - method: POST
+      path:
+        type: RegularExpression
+        value: /v1/models/[^/]+/freeze
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: governance-service-freeze-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - bias-monitoring-job.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: governance-service-freeze
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: governance-service-freeze-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: governance-service-freeze
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: governance-service-validation-results
+  namespace: vectra-app
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: governance-service-8080
+  rules:
+  - matches:
+    - method: PUT
+      path:
+        type: RegularExpression
+        value: /v1/validation-runs/[^/]+/source-counts
+    - method: PUT
+      path:
+        type: RegularExpression
+        value: /v1/models/[^/]+/validation-report
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: governance-service-validation-results-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - model-validation-job.vectra-staging.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: governance-service-validation-results
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: governance-service-validation-results-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: governance-service-validation-results
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: governance-service-model-list
+  namespace: vectra-app
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: governance-service-8080
+  rules:
+  - matches:
+    - method: GET
+      path:
+        type: Exact
+        value: /v1/models
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: governance-service-model-list-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - api-gateway.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+  - console-bff.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: governance-service-model-list
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: governance-service-model-list-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: governance-service-model-list
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: governance-service-activation
+  namespace: vectra-app
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: governance-service-8080
+  rules:
+  - matches:
+    - method: POST
+      path:
+        type: RegularExpression
+        value: /v1/models/[^/]+/activation
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: governance-service-activation-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - api-gateway.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: governance-service-activation
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: governance-service-activation-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: governance-service-activation
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: governance-service-console
+  namespace: vectra-app
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: governance-service-8080
+  rules:
+  - matches:
+    - method: POST
+      path:
+        type: Exact
+        value: /v1/models
+    - method: GET
+      path:
+        type: RegularExpression
+        value: /v1/models/[^/]+
+    - method: POST
+      path:
+        type: RegularExpression
+        value: /v1/models/[^/]+/(validations|approval|frozen-resolution|retirement)
+    - method: GET
+      path: &id001
+        type: RegularExpression
+        value: /v1/policies(/.*)?
+    - method: POST
+      path: *id001
+    - method: GET
+      path: &id002
+        type: RegularExpression
+        value: /v1/data-sources(/.*)?
+    - method: POST
+      path: *id002
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: governance-service-console-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - console-bff.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: governance-service-console
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: governance-service-console-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: governance-service-console
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: governance-catch-all
+  namespace: vectra-app
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: governance-service-8080
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F10
+  name: allow-f10-console-bff-to-case-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: case-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: console-bff
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F10
+  name: allow-f10-to-case-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: console-bff
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: case-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f10-case-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - console-bff.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f10-case-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f10-case-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: case-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F11
+  name: allow-f11-console-bff-to-governance-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: governance-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: console-bff
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F11
+  name: allow-f11-to-governance-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: console-bff
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F12
+  name: allow-f12-console-bff-to-explainability-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: explainability-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: console-bff
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F12
+  name: allow-f12-to-explainability-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: console-bff
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: explainability-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: explainability-service-8080
+  namespace: vectra-app
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: explainability-service
+  port: 8080
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f12-explainability-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - console-bff.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f12-explainability-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f12-explainability-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: explainability-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F13
+  name: allow-f13-console-bff-to-decision-registry-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: decision-registry-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: console-bff
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F13
+  name: allow-f13-to-decision-registry-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: console-bff
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: decision-registry-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: decision-registry-service-8080
+  namespace: vectra-app
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: decision-registry-service
+  port: 8080
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f13-decision-registry-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - console-bff.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f13-decision-registry-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f13-decision-registry-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: decision-registry-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F14
+  name: allow-f14-console-bff-to-bias-monitoring-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: bias-monitoring-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: console-bff
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F14
+  name: allow-f14-to-bias-monitoring-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: console-bff
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: bias-monitoring-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: bias-monitoring-service-8080
+  namespace: vectra-app
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: bias-monitoring-service
+  port: 8080
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f14-bias-monitoring-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - console-bff.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f14-bias-monitoring-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f14-bias-monitoring-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: bias-monitoring-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F15
+  name: allow-f15-case-worker-to-scoring-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: scoring-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: case-worker
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F15
+  name: allow-f15-to-scoring-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: case-worker
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: scoring-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: scoring-service-8080
+  namespace: vectra-app
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: scoring-service
+  port: 8080
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f15-scoring-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - case-worker.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f15-scoring-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f15-scoring-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: scoring-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F16
+  name: allow-f16-case-service-to-decision-registry-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: decision-registry-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: case-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F16
+  name: allow-f16-to-decision-registry-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: case-service
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: decision-registry-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f16-decision-registry-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - case-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f16-decision-registry-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f16-decision-registry-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: decision-registry-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F17
+  name: allow-f17-case-service-to-core-banking-mock-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-mock
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: core-banking-mock
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: case-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F18
+  name: allow-f18-scoring-service-to-governance-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: governance-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: scoring-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F18
+  name: allow-f18-to-governance-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: scoring-service
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F19
+  name: allow-f19-scoring-service-to-predictor-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-serving
+      podSelector:
+        matchLabels:
+          vectra.io/component: predictor
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: scoring-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F20
+  name: allow-f20-scoring-service-to-explainability-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: explainability-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: scoring-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F20
+  name: allow-f20-to-explainability-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: scoring-service
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: explainability-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f20-explainability-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - scoring-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f20-explainability-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f20-explainability-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: explainability-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F21
+  name: allow-f21-scoring-service-to-decision-registry-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: decision-registry-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: scoring-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F21
+  name: allow-f21-to-decision-registry-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: scoring-service
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: decision-registry-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f21-decision-registry-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - scoring-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f21-decision-registry-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f21-decision-registry-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: decision-registry-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F22
+  name: allow-f22-explainability-service-to-explainer-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-serving
+      podSelector:
+        matchLabels:
+          vectra.io/component: explainer
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: explainability-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F23
+  name: allow-f23-explainability-service-to-decision-registry-service-e
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: decision-registry-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: explainability-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F23
+  name: allow-f23-to-decision-registry-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: explainability-service
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: decision-registry-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f23-decision-registry-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - explainability-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f23-decision-registry-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f23-decision-registry-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: decision-registry-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F103
+  name: allow-f103-explainability-service-to-governance-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: governance-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: explainability-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F103
+  name: allow-f103-to-governance-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: explainability-service
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F104
+  name: allow-f104-case-worker-to-governance-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: governance-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: case-worker
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F104
+  name: allow-f104-case-service-to-governance-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: governance-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: case-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F104
+  name: allow-f104-to-governance-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: case-worker
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: case-service
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F24
+  name: allow-f24-governance-service-to-decision-registry-service-egres
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: decision-registry-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F24
+  name: allow-f24-to-decision-registry-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: governance-service
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: decision-registry-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f24-decision-registry-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - governance-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f24-decision-registry-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f24-decision-registry-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: decision-registry-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F25
+  name: allow-f25-governance-service-to-bias-monitoring-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: bias-monitoring-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F25
+  name: allow-f25-to-bias-monitoring-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: governance-service
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: bias-monitoring-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f25-bias-monitoring-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - governance-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f25-bias-monitoring-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f25-bias-monitoring-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: bias-monitoring-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F26
+  name: allow-f26-bias-monitoring-service-to-decision-registry-service
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: decision-registry-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: bias-monitoring-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F26
+  name: allow-f26-bias-monitoring-job-to-decision-registry-service-egre
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: decision-registry-service
+  podSelector:
+    matchLabels:
+      vectra.io/workload: bias-monitoring-job
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F26
+  name: allow-f26-to-decision-registry-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: bias-monitoring-service
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          vectra.io/workload: bias-monitoring-job
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: decision-registry-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f26-decision-registry-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - bias-monitoring-job.vectra-app.serviceaccount.identity.linkerd.cluster.local
+  - bias-monitoring-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f26-decision-registry-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f26-decision-registry-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: decision-registry-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F27
+  name: allow-f27-bias-monitoring-job-to-governance-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: governance-service
+  podSelector:
+    matchLabels:
+      vectra.io/workload: bias-monitoring-job
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F27
+  name: allow-f27-to-governance-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          vectra.io/workload: bias-monitoring-job
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F28
+  name: allow-f28-product-metrics-to-decision-registry-service-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: decision-registry-service
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: product-metrics
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F28
+  name: allow-f28-to-decision-registry-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: product-metrics
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: decision-registry-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f28-decision-registry-service-8080-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - product-metrics.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f28-decision-registry-service-8080
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f28-decision-registry-service-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: decision-registry-service-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F32
+  name: allow-f32-to-governance-service-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-staging
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: model-validation-job
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F40
+  name: allow-f40-case-service-to-case-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: case-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: case-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F40
+  name: allow-f40-case-worker-to-case-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: case-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: case-worker
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F105
+  name: allow-f105-case-retention-to-case-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: case-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: case-retention
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F41
+  name: allow-f41-governance-service-to-governance-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: governance-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F42
+  name: allow-f42-decision-registry-service-to-registry-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: registry-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: decision-registry-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F44
+  name: allow-f44-migration-case-to-case-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: case-db
+  podSelector:
+    matchLabels:
+      vectra.io/workload: migration-case
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F44
+  name: allow-f44-migration-governance-to-governance-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: governance-db
+  podSelector:
+    matchLabels:
+      vectra.io/workload: migration-governance
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F44
+  name: allow-f44-migration-registry-to-registry-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: registry-db
+  podSelector:
+    matchLabels:
+      vectra.io/workload: migration-registry
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F47
+  name: allow-f47-governance-service-to-minio-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          app: minio
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F96
+  name: allow-f96-decision-registry-service-to-registry-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: registry-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: decision-registry-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F97
+  name: allow-f97-registry-checkpoint-to-registry-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: registry-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: registry-checkpoint
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F97
+  name: allow-f97-registry-verify-to-registry-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: registry-db
+  podSelector:
+    matchLabels:
+      vectra.io/workload: registry-verify
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F97
+  name: allow-f97-registry-archive-to-registry-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: registry-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: registry-archive
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F107
+  name: allow-f107-registry-aggregator-to-registry-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: registry-db
+  podSelector:
+    matchLabels:
+      vectra.io/workload: registry-aggregator
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F108
+  name: allow-f108-registry-aggregator-reset-to-registry-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: registry-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: registry-aggregator-reset
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F111
+  name: allow-f111-x06-probe-to-registry-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: registry-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: x06-probe
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F118
+  name: allow-f118-registry-checkpoint-to-minio-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          app: minio
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: registry-checkpoint
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F118
+  name: allow-f118-registry-archive-to-minio-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          app: minio
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: registry-archive
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F118
+  name: allow-f118-registry-verify-to-minio-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          app: minio
+  podSelector:
+    matchLabels:
+      vectra.io/workload: registry-verify
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F118
+  name: allow-f118-model-archive-to-minio-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          app: minio
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: model-archive
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F101
+  name: allow-f101-model-archive-to-minio-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          app: minio
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: model-archive
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F102
+  name: allow-f102-model-archive-to-governance-db-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: governance-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: model-archive
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F50
+  name: allow-f50-console-bff-to-keycloak-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: console-bff
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F50
+  name: allow-f50-case-service-to-keycloak-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: case-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F50
+  name: allow-f50-case-worker-to-keycloak-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: case-worker
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F50
+  name: allow-f50-scoring-service-to-keycloak-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: scoring-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F50
+  name: allow-f50-explainability-service-to-keycloak-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: explainability-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F50
+  name: allow-f50-governance-service-to-keycloak-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F50
+  name: allow-f50-bias-monitoring-service-to-keycloak-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: bias-monitoring-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F50
+  name: allow-f50-bias-monitoring-job-to-keycloak-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      vectra.io/workload: bias-monitoring-job
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F50
+  name: allow-f50-decision-registry-service-to-keycloak-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: decision-registry-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F50
+  name: allow-f50-product-metrics-to-keycloak-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: product-metrics
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-to-vectra-app-ingress
+  namespace: vectra-app
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - port: 8081
+      protocol: TCP
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: metrics-8081
+  namespace: vectra-app
+spec:
+  podSelector: {}
+  port: 8081
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f60-metrics-8081-mtls
+  namespace: vectra-app
+spec:
+  identities:
+  - prometheus.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f60-metrics-8081
+  namespace: vectra-app
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f60-metrics-8081-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: metrics-8081
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F61
+  name: allow-f61-vectra-app-to-opentelemetry-collector-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 4317
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: opentelemetry-collector
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F83
+  name: allow-f83-vectra-app-to-linkerd-control-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8086
+      protocol: TCP
+    - port: 8080
+      protocol: TCP
+    - port: 8090
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: linkerd
+      podSelector:
+        matchLabels:
+          linkerd.io/control-plane-ns: linkerd
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F98
+  name: allow-f98-registry-checkpoint-to-vault-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8200
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vault
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: vault
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: registry-checkpoint
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F98
+  name: allow-f98-registry-archive-to-vault-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8200
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vault
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: vault
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: registry-archive
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F98
+  name: allow-f98-registry-verify-to-vault-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8200
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vault
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: vault
+  podSelector:
+    matchLabels:
+      vectra.io/workload: registry-verify
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F106
+  name: allow-f106-bias-monitoring-job-to-prometheus-pushgateway-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 9091
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus-pushgateway
+  podSelector:
+    matchLabels:
+      vectra.io/workload: bias-monitoring-job
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: K01
+  name: allow-k8s-api-k01
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.0/16
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  policyTypes:
+  - Egress

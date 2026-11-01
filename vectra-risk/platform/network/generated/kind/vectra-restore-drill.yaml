@@ -1,0 +1,426 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: vectra-restore-drill
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: vectra-restore-drill
+spec:
+  egress:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F114
+  name: allow-f114-restore-drill-to-restore-cluster-egress
+  namespace: vectra-restore-drill
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-restore-drill
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: restore-cluster
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restore-drill
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F114
+  name: allow-f114-to-restore-cluster-ingress
+  namespace: vectra-restore-drill
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-restore-drill
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: restore-drill
+    ports:
+    - port: 5432
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restore-cluster
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: restore-cluster-5432
+  namespace: vectra-restore-drill
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restore-cluster
+  port: 5432
+  proxyProtocol: opaque
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f114-restore-cluster-5432-mtls
+  namespace: vectra-restore-drill
+spec:
+  identities:
+  - restore-drill.vectra-restore-drill.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f114-restore-cluster-5432
+  namespace: vectra-restore-drill
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f114-restore-cluster-5432-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: restore-cluster-5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F118
+  name: allow-f118-restore-drill-to-minio-egress
+  namespace: vectra-restore-drill
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          app: minio
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restore-drill
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F61
+  name: allow-f61-vectra-restore-drill-to-opentelemetry-collector-egres
+  namespace: vectra-restore-drill
+spec:
+  egress:
+  - ports:
+    - port: 4317
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: opentelemetry-collector
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F75
+  name: allow-f75-restore-cluster-to-minio-egress
+  namespace: vectra-restore-drill
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          app: minio
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restore-cluster
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F80
+  name: allow-f80-to-restore-cluster-ingress
+  namespace: vectra-restore-drill
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: cnpg-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: cloudnative-pg
+    ports:
+    - port: 8000
+      protocol: TCP
+    - port: 5432
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restore-cluster
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: restore-cluster-8000
+  namespace: vectra-restore-drill
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restore-cluster
+  port: 8000
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f80-restore-cluster-8000-mtls
+  namespace: vectra-restore-drill
+spec:
+  identities:
+  - cnpg-operator.cnpg-system.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f80-restore-cluster-8000
+  namespace: vectra-restore-drill
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f80-restore-cluster-8000-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: restore-cluster-8000
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f80-restore-cluster-5432-mtls
+  namespace: vectra-restore-drill
+spec:
+  identities:
+  - cnpg-operator.cnpg-system.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f80-restore-cluster-5432
+  namespace: vectra-restore-drill
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f80-restore-cluster-5432-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: restore-cluster-5432
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: f80-restore-cluster-5432-operator-network
+  namespace: vectra-restore-drill
+spec:
+  networks:
+  - cidr: 192.168.0.0/16
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f80-restore-cluster-5432-operator
+  namespace: vectra-restore-drill
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: NetworkAuthentication
+    name: f80-restore-cluster-5432-operator-network
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: restore-cluster-5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F83
+  name: allow-f83-vectra-restore-drill-to-linkerd-control-egress
+  namespace: vectra-restore-drill
+spec:
+  egress:
+  - ports:
+    - port: 8086
+      protocol: TCP
+    - port: 8080
+      protocol: TCP
+    - port: 8090
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: linkerd
+      podSelector:
+        matchLabels:
+          linkerd.io/control-plane-ns: linkerd
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F98
+  name: allow-f98-restore-drill-to-vault-egress
+  namespace: vectra-restore-drill
+spec:
+  egress:
+  - ports:
+    - port: 8200
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vault
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: vault
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restore-drill
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F87
+  name: allow-f87-restore-drill-to-prometheus-pushgateway-egress
+  namespace: vectra-restore-drill
+spec:
+  egress:
+  - ports:
+    - port: 9091
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus-pushgateway
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restore-drill
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: K12
+  name: allow-k8s-api-k12
+  namespace: vectra-restore-drill
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.0/16
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restore-drill
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: K18R
+  name: allow-k8s-api-k18r
+  namespace: vectra-restore-drill
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.0/16
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restore-cluster
+  policyTypes:
+  - Egress

@@ -46,8 +46,8 @@ SCOPE_HOLDERS: Final = MappingProxyType(
         Scope.REGISTRY_APPEND_SCORING: ("scoring-service",),
         Scope.REGISTRY_APPEND_GOVERNANCE: ("governance-service",),
         Scope.REGISTRY_READ_EXPLANATION: ("explainability-service",),
-        Scope.REGISTRY_READ_MONITORING: ("bias-monitoring-service", "bias-monitoring-job"),
-        Scope.REGISTRY_READ_METRICS: ("product-metrics",),
+        Scope.REGISTRY_READ_MONITORING: ("bias-monitoring-service", "bias-monitoring-job", "verification-reader"),
+        Scope.REGISTRY_READ_METRICS: ("product-metrics", "verification-reader"),
         Scope.INTAKE_SUBMIT: ("channel", "channel-simulator"),
         Scope.CORE_READ_CREDIT: ("case-service",),
         Scope.CORE_WRITE_CREDIT: (),
@@ -270,6 +270,7 @@ class LogEvent(StrEnum):
     DISPARITY_VIEWED = "disparity.viewed"
     FREEZE_CONTEXT_VIEWED = "freeze_context.viewed"
     CONSOLE_CLIENT_ERROR = "console.client_error"
+    REGISTRY_IDEMPOTENCY_CONFLICT = "registry.idempotency_conflict"
 
 
 LOG_RECORD_FIELDS: Final = frozenset(

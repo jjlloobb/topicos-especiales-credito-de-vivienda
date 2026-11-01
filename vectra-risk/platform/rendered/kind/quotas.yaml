@@ -1,0 +1,242 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: vectra-quota
+  namespace: vectra-app
+spec:
+  hard:
+    limits.cpu: '125.5'
+    limits.memory: 54.3Gi
+    requests.cpu: '28.23'
+    requests.memory: 23.31Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: vectra-defaults
+  namespace: vectra-app
+spec:
+  limits:
+  - default:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    type: Container
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: vectra-quota
+  namespace: vectra-edge
+spec:
+  hard:
+    limits.cpu: '28.99'
+    limits.memory: 10.15Gi
+    requests.cpu: '6.5'
+    requests.memory: 3.9Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: vectra-defaults
+  namespace: vectra-edge
+spec:
+  limits:
+  - default:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    type: Container
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: vectra-quota
+  namespace: vectra-identity
+spec:
+  hard:
+    limits.cpu: '20.15'
+    limits.memory: 16.25Gi
+    requests.cpu: '4.68'
+    requests.memory: 7.68Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: vectra-defaults
+  namespace: vectra-identity
+spec:
+  limits:
+  - default:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    type: Container
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: vectra-quota
+  namespace: vectra-serving
+spec:
+  hard:
+    limits.cpu: '59.8'
+    limits.memory: 32.2Gi
+    requests.cpu: '17.16'
+    requests.memory: 14.86Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: vectra-defaults
+  namespace: vectra-serving
+spec:
+  limits:
+  - default:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    type: Container
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: vectra-quota
+  namespace: vectra-staging
+spec:
+  hard:
+    limits.cpu: '13.0'
+    limits.memory: 9.45Gi
+    requests.cpu: '3.06'
+    requests.memory: 3.09Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: vectra-defaults
+  namespace: vectra-staging
+spec:
+  limits:
+  - default:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    type: Container
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: vectra-quota
+  namespace: vectra-data
+spec:
+  hard:
+    limits.cpu: '44.2'
+    limits.memory: 137.8Gi
+    requests.cpu: '18.98'
+    requests.memory: 68.0Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: vectra-defaults
+  namespace: vectra-data
+spec:
+  limits:
+  - default:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    type: Container
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: vectra-quota
+  namespace: vectra-mock
+spec:
+  hard:
+    limits.cpu: '2.93'
+    limits.memory: 0.98Gi
+    requests.cpu: '0.59'
+    requests.memory: 0.32Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: vectra-defaults
+  namespace: vectra-mock
+spec:
+  limits:
+  - default:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    type: Container
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: vectra-quota
+  namespace: vectra-observability
+spec:
+  hard:
+    limits.cpu: '44.46'
+    limits.memory: 33.5Gi
+    requests.cpu: '9.3'
+    requests.memory: 14.67Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: vectra-defaults
+  namespace: vectra-observability
+spec:
+  limits:
+  - default:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    type: Container
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: vectra-quota
+  namespace: vectra-restore-drill
+spec:
+  hard:
+    limits.cpu: '5.2'
+    limits.memory: 20.8Gi
+    requests.cpu: '2.6'
+    requests.memory: 10.4Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: vectra-defaults
+  namespace: vectra-restore-drill
+spec:
+  limits:
+  - default:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    type: Container

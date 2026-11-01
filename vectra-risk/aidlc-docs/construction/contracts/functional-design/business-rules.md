@@ -261,7 +261,8 @@ lint pueda verificarla sin interpretar el contexto (revisión del Infrastructure
 La comparación ignora mayúsculas y tildes y usa límites de palabra al principio y al final de la
 frase. `contracts/tools/forbidden_phrases.py` la aplica a los archivos que se le pasen. La usan
 U4 (plantillas del informe de validación), **U7** (plantillas de la narrativa y del resumen para el
-solicitante), U9 (textos de la API y `bias.json`) y U10 (catálogos i18n y `console.json`).
+solicitante), U9 (textos de la API y `bias.json`), U10 (catálogos i18n y `console.json`) y U11
+(dashboards `product-metrics/observability/dashboards/*.json`; revisión de consistencia entre unidades, 2026-11-01).
 Cambiar la lista exige la aprobación de cumplimiento (`CODEOWNERS` del monorepo).
 
 ## 10. Datos del registro (R7)

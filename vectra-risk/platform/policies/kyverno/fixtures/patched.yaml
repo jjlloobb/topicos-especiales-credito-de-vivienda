@@ -1,0 +1,122 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cron-app
+  namespace: vectra-app
+spec:
+  schedule: 0 0 * * *
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            config.alpha.linkerd.io/proxy-enable-native-sidecar: 'true'
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: a
+            image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: join
+  namespace: vectra-data
+  ownerReferences:
+  - apiVersion: postgresql.cnpg.io/v1
+    kind: Cluster
+    name: registry-db
+    uid: '0'
+spec:
+  template:
+    metadata:
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: 'true'
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kcc-hook
+  namespace: vectra-identity
+spec:
+  template:
+    metadata:
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: 'true'
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: realm-drift
+  namespace: vectra-identity
+spec:
+  schedule: 0 0 * * *
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            config.alpha.linkerd.io/proxy-enable-native-sidecar: 'true'
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: a
+            image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mock-job
+  namespace: vectra-mock
+spec:
+  template:
+    metadata:
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: 'true'
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: edge-job
+  namespace: vectra-edge
+spec:
+  template:
+    metadata:
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: 'true'
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: obs-job
+  namespace: vectra-observability
+spec:
+  template:
+    metadata:
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: 'true'
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000

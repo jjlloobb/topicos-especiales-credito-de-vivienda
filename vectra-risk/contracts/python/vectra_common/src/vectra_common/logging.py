@@ -15,6 +15,7 @@ from vectra_common.metrics import LOG_FIELDS_DROPPED
 
 correlation_id_var: Final[ContextVar[str | None]] = ContextVar("correlation_id", default=None)
 span_id_var: Final[ContextVar[str | None]] = ContextVar("span_id", default=None)
+trace_sampled_var: ContextVar[bool] = ContextVar("trace_sampled", default=True)
 _OWN_KEY: Final = "_vectra_own"
 _EVENTS: Final = frozenset(event.value for event in LogEvent)
 _service: dict[str, str] = {"name": "unknown"}

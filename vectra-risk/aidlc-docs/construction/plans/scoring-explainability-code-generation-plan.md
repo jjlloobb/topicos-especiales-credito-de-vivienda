@@ -14,7 +14,7 @@
 |---|---|
 | Unidad | U7 `scoring-explainability`: `scoring-service` (orquesta la recomendación) y `explainability-service` (explicación, narrativa, factualidad y resumen al solicitante) |
 | Historias (dueña) | US-103, US-104, US-105, US-106, US-109, US-110, US-111, US-113, US-207 |
-| Ubicación | `vectra-risk/scoring-explainability/` (dos servicios) y Applications en `vectra-risk-gitops` |
+| Ubicación | `vectra-risk/scoring-explainability/` (dos servicios) y entradas en `vectra-risk-gitops/components.yaml`, dentro del monorepo (revisión de consistencia entre unidades, 2026-11-01) |
 | Datos propios | Ninguno: servicios sin estado, cachés en memoria |
 | Depende de | U0 (tipos, con `received_at` y `first_evaluation` en `ScoringRequest` y en el payload de `recommendation`, `check_preconditions`/`build_outcome`, `create_app`, `deps` con deadline y circuit breaker, `vectra_common.deadline`), U1 (plataforma, cuotas, `flows.yaml`, supply chain), U2 (clientes `scoring-service` y `explainability-service`), U3 (append con idempotencia, proyección `explanation` por `seq`), U4 (`serving-config`, diccionario F103), U5 (conjuntos RT-1/RT-3/RT-4 como fixtures), U6 (`:predict`, `:explain`) |
 | Lo consumen | `case-worker` (U8, F15), console-bff (U10, F12), U11 (métricas de recomendación), U12 (RT y métricas) |
@@ -41,7 +41,7 @@ vectra-risk/scoring-explainability/
 |-- scoring/          src/scoring/  {config, orchestrator, policy, serving_config_client, clients, metrics, app}.py
 |-- explainability/   src/explainability/  {config, explain, dictionary_cache, narrative, factuality, applicant, metrics, app}.py
 |                     templates/  template_v1.txt  applicant_v1.txt
-|-- chart/            templates/  values-{prod,staging,kind}.yaml
+|-- chart/            templates/  values.yaml  # por entorno: vectra-risk-gitops/values/<env>/scoring-explainability.yaml (revisión de consistencia entre unidades, 2026-11-01)
 |-- policies/         conftest/
 |-- observability/    rules/  rules/tests/  runbooks/
 `-- tests/            unit/ property/ integration/ doubles/ fixtures/ load/
@@ -103,6 +103,7 @@ vectra-risk/scoring-explainability/
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest scoring-explainability/tests/property/test_narrative.py tests/unit/test_narrative_examples.py`:
     - PBT-U7-03;
     - narrativa de un caso fijo idéntica al texto esperado;
+    - `uv run python contracts/tools/forbidden_phrases.py` sobre las plantillas de la narrativa (BR-U0-94) (revisión de consistencia entre unidades, 2026-11-01);
     - una sola implementación de `NarrativeGenerator`.
 
 - [ ] **Paso 5 — `factuality`**
@@ -120,7 +121,7 @@ vectra-risk/scoring-explainability/
   - Hasta 3 factores `applicant_safe` con SHAP > 0, plantilla `applicant:v1` y leyenda.
   - Ningún campo prohibido ni número. No se guarda.
   - Diseño: BR-U7-14. Historia: US-110.
-  - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest scoring-explainability/tests/property/test_applicant.py`: PBT-U7-06, más el ejemplo de un rechazo sin campos prohibidos.
+  - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest scoring-explainability/tests/property/test_applicant.py`: PBT-U7-06, más el ejemplo de un rechazo sin campos prohibidos; `uv run python contracts/tools/forbidden_phrases.py` sobre la plantilla `applicant:v1` (BR-U0-94) (revisión de consistencia entre unidades, 2026-11-01).
 
 - [ ] **Paso 7 — Resumen de la lógica pura**
   - Cobertura de ramas **100 %** en `policy`, `narrative` y `factuality`.
@@ -154,7 +155,7 @@ vectra-risk/scoring-explainability/
 
 - [ ] **Paso 9 — `POST /v1/applicant-summaries`**
   - Recibe `ApplicantSummaryRequest` (`case_id`, `recommendation_entry_id`).
-  - Lee la entrada por `seq` en la proyección `explanation` (F23) y comprueba que pertenece al `case_id`. Si no existe o es de otro caso → 409, sin datos parciales.
+  - Lee la entrada por `seq` en la proyección `explanation` (F23; tipo `ExplanationProjection` dentro de `Page[EntryProjection]`; revisión de consistencia entre unidades, 2026-11-01) y comprueba que pertenece al `case_id`. Si no existe o es de otro caso → 409, sin datos parciales.
   - Llama a `applicant.generate` y emite el log `applicant_summary.generated` (solo con `case_id`).
   - Roles del BFF verificados por scope (F12).
   - Diseño: BR-U7-13, 14; P-U7-03; NFR-U7-03. Historia: US-110.
@@ -166,7 +167,7 @@ vectra-risk/scoring-explainability/
 ### Bloque D — `scoring-service`
 
 - [ ] **Paso 10 — Clientes y caché de `serving-config`**
-  - Un `httpx.AsyncClient` por dependencia con `deps.call` (P-U7-04): `:predict` 20, explainability 20, registro 10, `serving-config` 5. Cada uno con su circuit breaker y la causa que le corresponde.
+  - Un `httpx.AsyncClient` por dependencia con `deps.call` (P-U7-04): `:predict` 20, explainability 20, registro 10, `serving-config` 5. Cada uno con su circuit breaker y la causa que le corresponde. NFR-U7-11 se escribe `BreakerConfig(open_for=10, window_size=20, failure_ratio=0.5, window_seconds=30)`, y el token de servicio es `service_token.provider_from_env(audience, scopes)`, pasado como `token_source` a `DependencyClient`; ante un 401, `deps.call` reintenta una vez (revisión de consistencia entre unidades, 2026-11-01).
   - `serving_config_client`:
     - caché ≤ 5 s con `If-None-Match`;
     - revalidación fallida con la entrada vencida → `no_disponible`;
@@ -183,7 +184,7 @@ vectra-risk/scoring-explainability/
     - presupuesto previo al registro de 700 ms, con `deadline=` en cada llamada y `x-vectra-deadline` hacia explainability;
     - append de la `recommendation` con `idempotency_key` = UUID v4 generado al recibir cada `POST /v1/recommendations`, **nunca** derivado de `case_id` ni de `attempt`, y reutilizado solo por el reintento de ese append: 2 intentos, solo ante 503, timeout o error de conexión, sin reintento con el circuito abierto (BR-U7-15; precisado el 2026-10-06, revisión del FD de U8);
     - el payload de la `recommendation` copia de la `ScoringRequest` `received_at`, `policy_inputs.channel` (como `channel`), `attempt` y `first_evaluation`, sin recalcularlos (BR-U7, paso 7; U0 §5.3; los usa U11; revisión de coherencia entre unidades, 2026-10-10);
-    - un 409 de idempotencia → `registry_unavailable` + `registry.idempotency_conflict`;
+    - un 409 de idempotencia → `registry_unavailable` + `registry.idempotency_conflict` (`LogEvent.REGISTRY_IDEMPOTENCY_CONFLICT`; revisión de consistencia entre unidades, 2026-11-01);
     - `fail_closed` best effort de 250 ms, con **otro** UUID v4 de la misma solicitud y solo `cause` (nunca `local_cause` ni `escalated_at`, BR-U7-16, BR-U0-38).
   - Métricas:
     - `vectra_scoring_failclosed_total{cause}`;
@@ -211,7 +212,7 @@ vectra-risk/scoring-explainability/
 - [ ] **Paso 12 — Endpoints, arranque y apagado de los dos servicios**
   - `create_app` de U0 con `POST /v1/recommendations` (F15) y `POST /v1/explanations` / `POST /v1/applicant-summaries` (F20, F12). Scopes y audiencias de U2.
   - Readiness y liveness solo del proceso (8081).
-  - uvicorn con `timeout_graceful_shutdown = 10`.
+  - Arranque con `vectra_common.ops_server.run_service(app)`, con la espera de ≤ 10 s en el apagado (revisión de consistencia entre unidades, 2026-11-01).
   - Diseño: BR-U7-13; INF-U7-01, 03; NFR-U7-21, 30, 31; P-U7-07. Historias: US-103, US-110.
   - **Aceptación**: `uv run pytest scoring-explainability/tests/integration/test_app.py test_shutdown.py`:
     - con governance caído, explainability queda listo y la primera explicación pide el diccionario;
@@ -229,7 +230,7 @@ vectra-risk/scoring-explainability/
 
 - [ ] **Paso 14 — Dockerfiles y cadena de suministro**
   - Una imagen por servicio sobre una base Python oficial pinneada por digest, `runAsNonRoot` y `readOnlyRootFilesystem`. Las plantillas van dentro de la imagen de explainability.
-  - Construidas, escaneadas, con SBOM y firmadas por `supply-chain.yml` de U1.
+  - Construidas, escaneadas, con SBOM y firmadas con `sign-image.yml` de U1; el escaneo y el SBOM son de `supply-chain.yml`.
   - Diseño: NFR-U7-32; P-U7-07.
   - **Aceptación**: `hadolint scoring-explainability/*/Dockerfile`; prueba sobre el SBOM: ningún cliente de LLM y ninguna librería de circuit breaking.
 
@@ -252,11 +253,11 @@ vectra-risk/scoring-explainability/
   - **Aceptación**: `promtool test rules scoring-explainability/observability/rules/tests/*.yaml`; `uv run python platform/tests/test_runbooks.py --root scoring-explainability`; prueba que compara el nombre de la métrica con la expresión de la regla de U4.
 
 - [ ] **Paso 17 — Applications, especificación de carga y trazabilidad**
-  - Application en la wave 5, por entorno y sin auto-sync.
+  - Entrada `scoring-explainability` en `vectra-risk-gitops/components.yaml` con `wave: 5`; `generate.py` escribe una Application por entorno, sin auto-sync, y los values van en `vectra-risk-gitops/values/<env>/scoring-explainability.yaml` (revisión de consistencia entre unidades, 2026-11-01).
   - Script k6 de U7, fuera de `LOAD` de U12 porque F15 no pasa por el gateway (seguimiento de la quinta revisión de coherencia, 2026-10-31): corre en esta unidad contra el servicio, con dobles; 10 solicitudes/s de diseño y 20/s de prueba, con umbrales p95 de 400 ms, 250 ms y 500 ms y p99 de 1 s.
   - Trazabilidad de cada BR-U7 a una prueba.
   - Diseño: P-U1-12; NFR-U7-01, 02, 03.
-  - **Aceptación**: `uv run python platform/tests/test_waves.py`; `kyverno test` de `disallow-argocd-auto-sync`; `k6 inspect scoring-explainability/tests/load/recommendations.js`; `uv run python platform/tests/test_traceability.py --unit scoring-explainability --all`.
+  - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`; `uv run python platform/tests/test_waves.py`; `kyverno test` de `disallow-argocd-auto-sync`; `k6 inspect scoring-explainability/tests/load/recommendations.js`; `uv run python platform/tests/test_traceability.py --unit scoring-explainability --all`.
 
 ### Bloque F — Verificación en kind (con aprobación humana)
 
@@ -328,3 +329,14 @@ vectra-risk/scoring-explainability/
 | SECURITY-03 / 07 / 08 / 11 / 13 / 14 / 15 | Cumple | Pasos 8, 9, 11, 12, 14, 15, 16 (SECURITY-11: casos de abuso RT-1, RT-3, resumen de un caso ajeno y cabecera manipulada en los Pasos 8, 9 y 11) |
 | RESILIENCY-01 / 04 / 05 / 06 / 07 / 08 / 09 / 10 / 14 / 15 | Cumple | Pasos 10, 11, 12, 15, 16, 18 |
 | PBT-01..10 | Cumple | Pasos 3–6 y 11 (PBT-U7-01..08), Paso 7 (perfil `ci`) y pruebas de ejemplo en los Pasos 3, 4, 6, 9 y 11 |
+
+## Reglas de admisión que este plan debe cumplir (revisión de consistencia entre unidades, 2026-11-01)
+
+Cada chart de esta unidad pasa `make -C platform check-chart CHART=<ruta>` en el PR, con los mismos values que usa Argo CD en cada entorno:
+
+- Imágenes por digest, de un registro que admita `restrict-registries`; las de terceros se espejan.
+- `runAsNonRoot`, `readOnlyRootFilesystem` (con `emptyDir` para lo que escriba en disco), sin `privileged` ni `hostPath`, con recursos y `priorityClassName`.
+- `vectra.io/criticality` en cada `Deployment` y `StatefulSet` que el chart declare.
+- En `vectra-app`, `vectra-edge`, `vectra-identity`, `vectra-serving` y `vectra-mock`: 2 réplicas o más, `topologySpreadConstraints` por zona, PDB por `app.kubernetes.io/name`, y HPA o `vectra.io/hpa-exempt`.
+
+Detalle en `aidlc-docs/construction/shared-infrastructure.md` §2.

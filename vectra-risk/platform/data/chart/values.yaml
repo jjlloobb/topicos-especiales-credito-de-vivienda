@@ -1,0 +1,118 @@
+instances: 3
+imageName: ghcr.io/cloudnative-pg/postgresql:17.9-system-trixie@sha256:8fd8db26090e602458269741849e5c9cd7aff577a22af53c8a402c580fd1e729
+storageClass: vectra-encrypted
+# Barman escribe base y WAL bajo el mismo destino: vectra-backups/<cluster>/<cluster>/{base,wals} (decidido el 2026-11-01).
+backup:
+  destinationPath: s3://vectra-backups
+  endpointURL: https://s3.banco.internal
+  credentialsSecret: postgres-backup-credentials
+  encryption: AES256 # cifrado del lado del servidor; vacio lo omite
+zoneConstraint: true
+tolerateDataPool: true
+clusters:
+  registry-db:
+    database: registry
+    owner: registry_migrator
+    storage: 100Gi
+    wal: 20Gi
+    maxConnections: 100
+    criticality: critical
+    resources:
+      requests:
+        cpu: '1'
+        memory: 4Gi
+      limits:
+        cpu: '2'
+        memory: 8Gi
+    roles:
+    - registry_aggregator
+    - registry_app
+    - registry_health
+    - registry_migrator
+    - registry_ondemand
+    - registry_verifier
+  case-db:
+    database: case
+    owner: case_migrator
+    storage: 50Gi
+    wal: 10Gi
+    maxConnections: 100
+    criticality: high
+    resources:
+      requests:
+        cpu: '1'
+        memory: 4Gi
+      limits:
+        cpu: '2'
+        memory: 8Gi
+    roles:
+    - case_app
+    - case_migrator
+    - case_retention
+    - case_worker
+  governance-db:
+    database: governance
+    owner: gov_migrator
+    storage: 10Gi
+    wal: 5Gi
+    maxConnections: 50
+    criticality: high
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: '1'
+        memory: 4Gi
+    roles:
+    - gov_app
+    - gov_archiver
+    - gov_migrator
+  keycloak-db:
+    database: keycloak
+    owner: keycloak
+    storage: 10Gi
+    wal: 5Gi
+    maxConnections: 100
+    criticality: high
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: '1'
+        memory: 4Gi
+    roles:
+    - keycloak
+# INF-U1-02: un ExternalSecret en vectra-data para CloudNativePG y otro, con la misma ruta, por consumidor.
+roleConsumers:
+  case_app: [vectra-app]
+  case_worker: [vectra-app]
+  case_retention: [vectra-app, vectra-restore-drill]
+  case_migrator: [vectra-app]
+  gov_app: [vectra-app]
+  gov_archiver: [vectra-app]
+  gov_migrator: [vectra-app]
+  registry_app: [vectra-app]
+  registry_ondemand: [vectra-app]
+  registry_verifier: [vectra-app, vectra-restore-drill]
+  registry_health: [vectra-app]
+  registry_migrator: [vectra-app]
+  registry_aggregator: [vectra-app]
+  keycloak: [vectra-identity]
+# Los demas secretos de la boveda. `keys` = clave en el Secret: propiedad en la boveda.
+# Cada usuario de MinIO lee su `secretKey` en vectra-data (lo monta el Job posterior del chart) y su consumidor,
+# en su namespace. Los usuarios exclusivos de kind estan en values-kind.yaml.
+extraSecrets:
+  minio-root: { path: minio/root, namespaces: [vectra-data], keys: { rootUser: user, rootPassword: password } }
+  minio-kserve: { path: minio/kserve, namespaces: [vectra-data, vectra-serving, vectra-staging], keys: { secretKey: secretKey, accessKey: accessKey } }
+  minio-validation: { path: minio/validation, namespaces: [vectra-data, vectra-staging], keys: { secretKey: secretKey, accessKey: accessKey } }
+  minio-loki: { path: minio/loki, namespaces: [vectra-data], keys: { secretKey: secretKey, accessKey: accessKey } }
+  minio-tempo: { path: minio/tempo, namespaces: [vectra-data], keys: { secretKey: secretKey, accessKey: accessKey } }
+  minio-governance: { path: minio/governance, namespaces: [vectra-data, vectra-app], keys: { secretKey: secretKey, accessKey: accessKey } } # F47
+  minio-model-archive: { path: minio/model-archive, namespaces: [vectra-data, vectra-app], keys: { secretKey: secretKey, accessKey: accessKey } } # F101
+  minio-engineer-upload: { path: minio/engineer-upload, namespaces: [vectra-data], keys: { secretKey: secretKey, accessKey: accessKey } } # NFR-U5-03: se lee de la boveda, sin consumidor en el cluster
+  loki-s3: { path: minio/loki, namespaces: [vectra-observability], keys: { AWS_ACCESS_KEY_ID: accessKey, AWS_SECRET_ACCESS_KEY: secretKey } }
+  tempo-s3: { path: minio/tempo, namespaces: [vectra-observability], keys: { AWS_ACCESS_KEY_ID: accessKey, AWS_SECRET_ACCESS_KEY: secretKey } }
+  postgres-backup-credentials: { path: postgres/backup, namespaces: [vectra-data], keys: { ACCESS_KEY_ID: accessKey, SECRET_ACCESS_KEY: secretKey } }
+

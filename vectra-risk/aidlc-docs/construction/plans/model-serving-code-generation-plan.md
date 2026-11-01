@@ -14,7 +14,7 @@
 |---|---|
 | Unidad | U6 `model-serving`: sirve predictor y explicador de cada versión en un `InferenceService` propio (azul/verde) |
 | Contribuye a | US-111 (sincronía por plataforma), US-204 (plantilla atómica), US-609 (escalado de KServe) |
-| Ubicación | `vectra-risk/model-serving/` (imágenes, plantilla, políticas) y Applications en `vectra-risk-gitops` |
+| Ubicación | `vectra-risk/model-serving/` (imágenes, plantilla, políticas) y entradas en `vectra-risk-gitops/components.yaml`, dentro del monorepo (revisión de consistencia entre unidades, 2026-11-01) |
 | Datos propios | Ninguno (descarga el paquete de U5 desde el model-store) |
 | Depende de | U0 (puerto 8081, métricas), U1 (KServe, Kyverno, `flows.yaml`, supply chain), U4 (`serving-config.inference_service`, `promotion-tool`), U5 (paquete y `envelope.confidence`) |
 | Lo consumen | scoring y explainability (U7), `model-validation-job` (U4), U12 (carga y RT-3) |
@@ -37,7 +37,7 @@ vectra-risk/model-serving/
 |-- predictor/   src/  Dockerfile        # vector + XGBoost + confidence, :predict
 |-- explainer/   src/  Dockerfile        # pred_contribs, :explain
 |-- common/      package_loader.py  concurrency.py  metrics.py
-|-- chart/       templates/inferenceservice.yaml  values-{prod,inactive,staging}.yaml
+|-- chart/       templates/inferenceservice.yaml  values.yaml  # perfiles prod, inactive y staging; cada isvc se declara en vectra-risk-gitops/values/<env>/model-serving.yaml (revisión de consistencia entre unidades, 2026-11-01)
 |-- policies/    conftest/  kyverno/
 |-- observability/  runbooks/
 `-- tests/       unit/ property/ integration/ fixtures/
@@ -78,14 +78,14 @@ vectra-risk/model-serving/
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest model-serving/tests/property/test_explainer.py`. Propiedad: para todo `FeatureVector` válido generado, la suma de las contribuciones + `base_value` reproduce el margen del predictor (tolerancia 1e-6), y la respuesta lleva el mismo `model_version_id` que `:predict`.
 
 - [ ] **Paso 5 — Dockerfiles y cadena de suministro**
-  - Imágenes del predictor y del explicador sobre una base Python oficial pinneada por digest, `runAsNonRoot`, `readOnlyRootFilesystem`; construidas, escaneadas, con SBOM y firmadas por `supply-chain.yml` de U1.
+  - Imágenes del predictor y del explicador sobre una base Python oficial pinneada por digest, `runAsNonRoot`, `readOnlyRootFilesystem`; construidas, escaneadas, con SBOM y firmadas con `sign-image.yml` de U1; el escaneo y el SBOM son de `supply-chain.yml`.
   - Diseño: NFR-U6-30, 32.
   - **Aceptación**: `hadolint model-serving/*/Dockerfile`; prueba sobre el SBOM: `shap` y `scikit-learn` ausentes; `kyverno test model-serving/policies/kyverno/` (una imagen sin firma → rechazada).
 
 ### Bloque C — Plantilla y políticas
 
 - [ ] **Paso 6 — Plantilla del `InferenceService`**
-  - `isvc-<8 hex>`: predictor y explicador con el mismo `storageUri` y la misma anotación, y etiquetas `vectra.io/component`.
+  - `isvc-<8 hex>`: predictor y explicador con el mismo `storageUri` y la misma anotación, y etiquetas `vectra.io/component` (`predictor` o `explainer`; en staging, `predictor`, que es lo que seleccionan F30 y F46) y la `ServiceAccount` `kserve-model`, como `flows.yaml` (revisión de consistencia entre unidades, 2026-11-01).
   - Values `prod` (HPA por CPU al 60 %, predictor 2–4, explicador 2–6, spread, PDB, `vectra-high`), `inactive` (1 réplica fija, `vectra-normal`) y `staging` (1 réplica, recursos reducidos, `vectra-low`), con la plantilla del predictor de la versión activa para `source_comparison`, solo predictor (INF-U4-05; seguimiento de la cuarta revisión de coherencia, 2026-10-31).
   - Probes de INF-U6-01; `emptyDir` de 1 GiB.
   - Diseño: NFR-U6-02, 11, 20; P-U6-02, 04; INF-U6-01, 02. Historias: US-204, US-609.
@@ -96,28 +96,28 @@ vectra-risk/model-serving/
     - el activo con mínimo 2 réplicas.
 
 - [ ] **Paso 7 — Integración con `promotion-tool`**
-  - `ExternalSecret` de la credencial de solo lectura del model-store para el storage initializer (F46), en `vectra-serving` y `vectra-staging` (quinta revisión de coherencia entre unidades, 2026-10-31).
+  - La credencial de solo lectura del model-store para el storage initializer (F46) es `minio-kserve`, usuario `kserve-readonly` (`platform/data/minio/values.yaml`), que U1 entrega en `vectra-serving` y `vectra-staging`; este chart la monta, sin `ExternalSecret` propio (quinta revisión de coherencia entre unidades, 2026-10-31; revisión de consistencia entre unidades, 2026-11-01).
   - Esquema de values que consume `promotion-tool` (U4, Paso 12) para los cuatro PR: promoción, post-activación, rollback y retiro.
   - Diseño: INF-U6-02; P-U6-02. Historia: US-204.
   - **Aceptación**: `uv run pytest model-serving/tests/unit/test_promotion_renders.py`. Para cada uno de los cuatro tipos de PR, el render con `promotion-tool` produce el cambio esperado y nunca deja el activo con menos de 2 réplicas.
 
 - [ ] **Paso 8 — Flujos por etiqueta**
-  - Actualizar en `platform/network/flows.yaml` de U1 los destinos de F19, F22, F30 y F46 por etiqueta (`vectra.io/component=predictor|explainer`); X08 sin cambios.
+  - Verificar en `platform/network/flows.yaml` de U1 los destinos de F19, F22, F30 y F46 por etiqueta (`vectra.io/component=predictor|explainer`), que ya están; X08 sin cambios (revisión de consistencia entre unidades, 2026-11-01).
   - Diseño: NFR-U6-21, 31.
   - **Aceptación**: `uv run python platform/network/generate.py --check && uv run pytest platform/network/tests` (los selectores por etiqueta están presentes y X08 sigue bloqueado).
 
 ### Bloque D — Operación
 
 - [ ] **Paso 9 — Alertas y runbooks**
-  - `PrometheusRule` con las alertas de P-U6-06 (`InferenceServiceNotReady` con severidad según sea el activo) y sus runbooks; `ServiceMonitor` en 8081.
+  - `PrometheusRule` con las alertas de P-U6-06 (`InferenceServiceNotReady` con severidad según sea el activo; `ServingLatencyHigh` sobre `vectra_serving_request_duration_seconds{component}`, que emiten las imágenes (revisión de consistencia entre unidades, 2026-11-01)) y sus runbooks; `ServiceMonitor` en 8081 con `honorLabels: true`.
   - Diseño: P-U6-06; NFR-U6-03.
   - **Aceptación**: `promtool test rules model-serving/observability/rules/tests/*.yaml`; `uv run python platform/tests/test_runbooks.py --root model-serving`.
 
 - [ ] **Paso 10 — Applications, cobertura y trazabilidad**
-  - Application en la wave 6 (InferenceServices) por entorno.
+  - Entrada `model-serving` en `vectra-risk-gitops/components.yaml` con `wave: 6` (InferenceServices); `generate.py` escribe una Application por entorno, y los PR de `promotion-tool` editan `vectra-risk-gitops/values/<env>/model-serving.yaml` (revisión de consistencia entre unidades, 2026-11-01).
   - Cobertura de ramas ≥ 90 % y 100 % en `package_loader`; resumen en `aidlc-docs/construction/model-serving/code/README.md`.
   - Diseño: P-U1-12.
-  - **Aceptación**: `uv run python platform/tests/test_waves.py`; `kyverno test` de `disallow-argocd-auto-sync`; `uv run pytest model-serving/tests --cov --cov-branch --cov-fail-under=90`; `uv run python platform/tests/test_traceability.py --unit model-serving --all`.
+  - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`; `uv run python platform/tests/test_waves.py`; `kyverno test` de `disallow-argocd-auto-sync`; `uv run pytest model-serving/tests --cov --cov-branch --cov-fail-under=90`; `uv run python platform/tests/test_traceability.py --unit model-serving --all`.
 
 ### Bloque E — Verificación en kind (con aprobación humana)
 
@@ -170,3 +170,14 @@ vectra-risk/model-serving/
 | SECURITY-07 / 09 / 10 / 11 / 13 / 14 / 15 | Cumple | Pasos 2, 5, 6, 8, 9, 11 |
 | RESILIENCY-06 / 08 / 09 / 10 | Cumple | Pasos 2, 6, 11 |
 | PBT-01..10 | Cumple | Paso 4 (propiedad de la suma), Paso 3 (paridad PBT-U5-04), pruebas de ejemplo en los Pasos 2, 3 y 7 |
+
+## Reglas de admisión que este plan debe cumplir (revisión de consistencia entre unidades, 2026-11-01)
+
+Cada chart de esta unidad pasa `make -C platform check-chart CHART=<ruta>` en el PR, con los mismos values que usa Argo CD en cada entorno:
+
+- Imágenes por digest, de un registro que admita `restrict-registries`; las de terceros se espejan.
+- `runAsNonRoot`, `readOnlyRootFilesystem` (con `emptyDir` para lo que escriba en disco), sin `privileged` ni `hostPath`, con recursos y `priorityClassName`.
+- `vectra.io/criticality` en cada `Deployment` y `StatefulSet` que el chart declare.
+- En `vectra-app`, `vectra-edge`, `vectra-identity`, `vectra-serving` y `vectra-mock`: 2 réplicas o más, `topologySpreadConstraints` por zona, PDB por `app.kubernetes.io/name`, y HPA o `vectra.io/hpa-exempt`.
+
+Detalle en `aidlc-docs/construction/shared-infrastructure.md` §2.

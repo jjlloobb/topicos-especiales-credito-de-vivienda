@@ -34,8 +34,8 @@ Los IDs `NFR-U4-xx` se referencian en NFR Design, Infrastructure Design y el pla
 | ID | Requisito | Origen | Verificación |
 |---|---|---|---|
 | NFR-U4-20 | `promotion-tool` sin credenciales de larga duración: Keycloak con PKCE loopback (token en memoria) y Git/GitHub con la identidad del propio ingeniero; ningún token de servicio compartido | Q3, SECURITY-12 | Revisión del código: ningún archivo de configuración guarda tokens; prueba de que el token de Keycloak no se escribe en disco |
-| NFR-U4-21 | Commits firmados (Sigstore `gitsign` o GPG) en `vectra-risk-gitops`; CI verifica la firma | Q3, SECURITY-13 | Check de CI que rechaza un commit sin firma válida |
-| NFR-U4-22 | Protección de rama en `vectra-risk-gitops`: merge solo por PR, ≥ 1 aprobación de una persona distinta del autor (CODEOWNERS), checks obligatorios, sin push directo ni force-push | Q3, AUTONOMIA-01, SECURITY-13 | `gh api repos/{owner}/vectra-risk-gitops/branches/main/protection` muestra la configuración esperada (script versionado) |
+| NFR-U4-21 | Commits firmados (Sigstore `gitsign` o GPG) en los PR que tocan `vectra-risk/vectra-risk-gitops/`; CI verifica la firma (revisión de consistencia entre unidades, 2026-11-01) | Q3, SECURITY-13 | Check de CI que rechaza un commit sin firma válida |
+| NFR-U4-22 | Protección de `main` del monorepo, que contiene `vectra-risk-gitops/`: merge solo por PR, ≥ 1 aprobación de una persona distinta del autor (regla de ruta en `.github/CODEOWNERS`) (revisión de consistencia entre unidades, 2026-11-01), checks obligatorios, sin push directo ni force-push | Q3, AUTONOMIA-01, SECURITY-13 | `gh api repos/{owner}/{repo}/branches/main/protection`, sobre el monorepo, muestra la configuración esperada (script versionado) |
 | NFR-U4-23 | `model-validation-job` aislado: `runAsNonRoot`, `readOnlyRootFilesystem`, `automountServiceAccountToken: false`, sin egress; solo F30, F31 (solo lectura) y F32 | Q6, SECURITY-06, 07 | `conftest` sobre el Job; `flows.yaml` |
 | NFR-U4-24 | Librerías de inferencia (ONNX Runtime, `xgboost`, `lightgbm`) **solo** en la imagen del `model-validation-job`; la imagen de `governance-service` no las incluye (BR-U4-06) | Q5, SECURITY-13 | Prueba sobre el `uv.lock`/SBOM de la imagen del servicio: ninguna de esas librerías presente |
 | NFR-U4-25 | Cliente de Kubernetes con el ServiceAccount de K01 (solo `batch/jobs`, `list` de `pods` y `pods/log` en `vectra-staging`) y timeouts explícitos | Q5, SECURITY-06 | `kubectl auth can-i --list --as=system:serviceaccount:vectra-app:governance-service` en kind |
@@ -65,7 +65,7 @@ Los IDs `NFR-U4-xx` se referencian en NFR Design, Infrastructure Design y el pla
 | RESILIENCY-10 | Cumple | NFR-U4-04 (la copia en memoria sobrevive a la base pausada), NFR-U4-25 (timeouts) |
 | SECURITY-06 | Cumple | NFR-U4-23, 25 |
 | SECURITY-07 | Cumple | NFR-U4-23 |
-| SECURITY-11 | Cumple | NFR-U4-22: la protección de rama (merge solo por PR, aprobador distinto del autor, sin push directo ni force-push, verificada con un script) lleva la prevención de abuso de BR-U4-03 hasta el repositorio GitOps |
+| SECURITY-11 | Cumple | NFR-U4-22: la protección de rama (merge solo por PR, aprobador distinto del autor, sin push directo ni force-push, verificada con un script) lleva la prevención de abuso de BR-U4-03 hasta `vectra-risk-gitops/` (revisión de consistencia entre unidades, 2026-11-01) |
 | SECURITY-12 | Cumple | NFR-U4-20 |
 | SECURITY-13 | Cumple | NFR-U4-21, 22, 24 |
 | SECURITY-15 | Cumple | NFR-U4-02 (sin configuración vencida → fail-closed) |

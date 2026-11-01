@@ -1,0 +1,11 @@
+name: setup-helm-fijado
+description: Instala la version de Helm de vectra-risk/platform/tools.env. Los snapshots de rendered/ dependen de ella.
+runs:
+  using: composite
+  steps:
+    - id: version
+      shell: bash
+      run: grep -E '^HELM_VERSION=' vectra-risk/platform/tools.env >> "$GITHUB_OUTPUT"
+    - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+      with:
+        version: ${{ steps.version.outputs.HELM_VERSION }}

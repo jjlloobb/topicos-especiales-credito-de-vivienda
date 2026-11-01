@@ -28,7 +28,8 @@ check: lint
 	$(UV) python contracts/tools/traceability.py --all
 	$(MAKE) -C $(ROOT)/contracts bench
 	$(MAKE) -C $(ROOT)/contracts openapi
-	cd $(ROOT) && git diff --exit-code contracts/openapi/
+	cd $(ROOT) && npm run -w contracts/ts generate
+	cd $(ROOT) && git diff --exit-code contracts/openapi/ contracts/ts/src/generated/ contracts/ts/src/enums.generated.ts
 	cd $(ROOT) && npm run -w contracts/ts typecheck && npm run -w contracts/ts lint && npm run -w contracts/ts test
 	test ! -d $(ROOT)/contracts/python/vectra_contracts/src/vectra_contracts/repository
 	test ! -d $(ROOT)/contracts/chart && test ! -f $(ROOT)/contracts/Dockerfile

@@ -36,6 +36,46 @@ components:
       - id
       title: Actor
       type: object
+    AffectedVolume:
+      additionalProperties: false
+      description: Recomendaciones de la versión en la ventana y cuántas fueron `favorable`
+        (U9 §3.1).
+      properties:
+        favorable:
+          minimum: 0
+          title: Favorable
+          type: integer
+        total:
+          minimum: 0
+          title: Total
+          type: integer
+      required:
+      - total
+      - favorable
+      title: AffectedVolume
+      type: object
+    AttributeDelta:
+      additionalProperties: false
+      properties:
+        attribute:
+          enum:
+          - sexo
+          - rango_edad
+          - region
+          - estrato
+          title: Attribute
+          type: string
+        delta:
+          anyOf:
+          - pattern: ^-?\d+\.\d{4}$
+            type: string
+          - type: 'null'
+          default: null
+          title: Delta
+      required:
+      - attribute
+      title: AttributeDelta
+      type: object
     AttributeResult:
       additionalProperties: false
       properties:
@@ -450,6 +490,69 @@ components:
       - canonical
       title: DossierEntry
       type: object
+    EntryFilter:
+      additionalProperties: false
+      properties:
+        case_id: &id001
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          default: null
+          title: Case Id
+        entry_type: &id002
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/EntryType'
+            type: array
+          - type: 'null'
+          default: null
+          title: Entry Type
+        limit: &id003
+          default: 1000
+          maximum: 1000
+          minimum: 1
+          title: Limit
+          type: integer
+        projection: &id004
+          anyOf:
+          - enum:
+            - full
+            - explanation
+            - metrics
+            - monitoring_freezes
+            type: string
+          - type: 'null'
+          default: null
+          title: Projection
+        recorded_from: &id005
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Recorded From
+        recorded_to: &id006
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Recorded To
+        seq: &id007
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Seq
+        seq_after: &id008
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Seq After
+      title: EntryFilter
+      type: object
     EntryType:
       enum:
       - recommendation
@@ -512,6 +615,30 @@ components:
       - posthoc_notice
       - factuality_check
       title: Explanation
+      type: object
+    ExplanationProjection:
+      additionalProperties: false
+      description: Proyección `explanation` (U3 §3; BR-U7-13).
+      properties:
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        payload:
+          $ref: '#/components/schemas/_ExplanationOnly'
+        seq:
+          minimum: 0
+          title: Seq
+          type: integer
+      required:
+      - seq
+      - case_id
+      - model_version_id
+      - payload
+      title: ExplanationProjection
       type: object
     ExplanationViewPayload:
       additionalProperties: false
@@ -635,8 +762,7 @@ components:
       description: '`FreezeContext` mas lo que agrega governance (BR-U9-16).'
       properties:
         affected_volume:
-          title: Affected Volume
-          type: integer
+          $ref: '#/components/schemas/AffectedVolume'
         after:
           $ref: '#/components/schemas/DisparityResult'
         before:
@@ -743,6 +869,39 @@ components:
       - context_package
       title: FreezePayload
       type: object
+    FreezeProjection:
+      additionalProperties: false
+      description: Proyección `monitoring_freezes`, entrada `freeze` (U3 §3).
+      properties:
+        context_package:
+          $ref: '#/components/schemas/FreezeContextPackage'
+        freeze_id:
+          title: Freeze Id
+          type: string
+        frozen_at:
+          format: date-time
+          title: Frozen At
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        recorded_at:
+          format: date-time
+          title: Recorded At
+          type: string
+        seq:
+          minimum: 0
+          title: Seq
+          type: integer
+      required:
+      - seq
+      - freeze_id
+      - model_version_id
+      - frozen_at
+      - recorded_at
+      - context_package
+      title: FreezeProjection
+      type: object
     FreezeRecord:
       additionalProperties: false
       properties:
@@ -789,6 +948,36 @@ components:
       - action
       - justification
       title: FrozenResolutionPayload
+      type: object
+    FrozenResolutionProjection:
+      additionalProperties: false
+      description: Proyección `monitoring_freezes`, entrada `frozen_resolution` (U3
+        §3).
+      properties:
+        action:
+          enum:
+          - reactivar
+          - descartar
+          - investigar
+          title: Action
+          type: string
+        model_version_id:
+          title: Model Version Id
+          type: string
+        recorded_at:
+          format: date-time
+          title: Recorded At
+          type: string
+        seq:
+          minimum: 0
+          title: Seq
+          type: integer
+      required:
+      - seq
+      - model_version_id
+      - action
+      - recorded_at
+      title: FrozenResolutionProjection
       type: object
     GenesisPayload:
       additionalProperties: false
@@ -1183,6 +1372,184 @@ components:
       - scoring_rejected
       title: LocalCause
       type: string
+    MetricsProjection:
+      additionalProperties: false
+      description: Proyección `metrics` (U3 §3; U11 BR-U11-01). Sin `feature_vector`
+        ni `justification`.
+      properties:
+        actor_role:
+          anyOf:
+          - $ref: '#/components/schemas/Role'
+          - type: 'null'
+          default: null
+        attempt:
+          anyOf:
+          - minimum: 1
+            type: integer
+          - type: 'null'
+          default: null
+          title: Attempt
+        case_id:
+          format: uuid
+          title: Case Id
+          type: string
+        channel:
+          anyOf:
+          - maxLength: 40
+            type: string
+          - type: 'null'
+          default: null
+          title: Channel
+        decided_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Decided At
+        decision:
+          anyOf:
+          - $ref: '#/components/schemas/Decision'
+          - type: 'null'
+          default: null
+        delivery_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Delivery Status
+        entry_type:
+          enum:
+          - recommendation
+          - human_decision
+          - explanation_view
+          title: Entry Type
+          type: string
+        evaluated_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Evaluated At
+        explanation_viewed_before:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          title: Explanation Viewed Before
+        final_outcome:
+          anyOf:
+          - $ref: '#/components/schemas/FinalOutcome'
+          - type: 'null'
+          default: null
+        first_evaluation:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          title: First Evaluation
+        model_version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Model Version Id
+        outcome:
+          anyOf:
+          - $ref: '#/components/schemas/Outcome'
+          - type: 'null'
+          default: null
+        received_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Received At
+        recommendation:
+          anyOf:
+          - $ref: '#/components/schemas/MetricsRecommendationRef'
+          - type: 'null'
+          default: null
+        recommendation_entry_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Recommendation Entry Id
+        recorded_at:
+          format: date-time
+          title: Recorded At
+          type: string
+        seq:
+          minimum: 0
+          title: Seq
+          type: integer
+        used_factors:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: Used Factors
+        viewed_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Viewed At
+      required:
+      - entry_type
+      - seq
+      - recorded_at
+      - case_id
+      title: MetricsProjection
+      type: object
+    MetricsRecommendationRef:
+      additionalProperties: false
+      properties:
+        attempt:
+          minimum: 1
+          title: Attempt
+          type: integer
+        channel:
+          maxLength: 40
+          title: Channel
+          type: string
+        evaluated_at:
+          format: date-time
+          title: Evaluated At
+          type: string
+        first_evaluation:
+          title: First Evaluation
+          type: boolean
+        model_version_id:
+          title: Model Version Id
+          type: string
+        outcome:
+          $ref: '#/components/schemas/Outcome'
+        received_at:
+          format: date-time
+          title: Received At
+          type: string
+        seq:
+          minimum: 0
+          title: Seq
+          type: integer
+      required:
+      - seq
+      - outcome
+      - model_version_id
+      - evaluated_at
+      - received_at
+      - channel
+      - attempt
+      - first_evaluation
+      title: MetricsRecommendationRef
+      type: object
     ModelEventPayload:
       additionalProperties: false
       properties:
@@ -1429,12 +1796,17 @@ components:
       - revision_requerida
       title: Outcome
       type: string
-    Page_RegistryEntry_:
+    Page_Union_RegistryEntry__ExplanationProjection__MetricsProjection__FreezeProjection__FrozenResolutionProjection__:
       additionalProperties: false
       properties:
         items:
           items:
-            $ref: '#/components/schemas/RegistryEntry'
+            anyOf:
+            - $ref: '#/components/schemas/RegistryEntry'
+            - $ref: '#/components/schemas/ExplanationProjection'
+            - $ref: '#/components/schemas/MetricsProjection'
+            - $ref: '#/components/schemas/FreezeProjection'
+            - $ref: '#/components/schemas/FrozenResolutionProjection'
           title: Items
           type: array
         next_seq_after:
@@ -1457,7 +1829,8 @@ components:
           title: Total
       required:
       - items
-      title: Page[RegistryEntry]
+      title: Page[Union[RegistryEntry, ExplanationProjection, MetricsProjection, FreezeProjection,
+        FrozenResolutionProjection]]
       type: object
     PolicyEventPayload:
       additionalProperties: false
@@ -1478,16 +1851,31 @@ components:
       - policy_version_id
       title: PolicyEventPayload
       type: object
-    PrePostReport:
+    PrePostDelta:
       additionalProperties: false
+      description: '`post − pre` de cada agregada y de `model_aggregate` (U9 §3.2).'
       properties:
-        delta:
+        attributes:
+          items:
+            $ref: '#/components/schemas/AttributeDelta'
+          title: Attributes
+          type: array
+        model_aggregate:
           anyOf:
           - pattern: ^-?\d+\.\d{4}$
             type: string
           - type: 'null'
           default: null
-          title: Delta
+          title: Model Aggregate
+      required:
+      - attributes
+      title: PrePostDelta
+      type: object
+    PrePostReport:
+      additionalProperties: false
+      properties:
+        delta:
+          $ref: '#/components/schemas/PrePostDelta'
         disclaimer:
           title: Disclaimer
           type: string
@@ -1512,6 +1900,7 @@ components:
       - source_id
       - pre
       - post
+      - delta
       - threshold_pp
       - n_min
       - truncated
@@ -1696,6 +2085,26 @@ components:
       - attempt
       - first_evaluation
       title: RecommendationPayload
+      type: object
+    RegistryAck:
+      additionalProperties: false
+      properties:
+        recorded_at:
+          format: date-time
+          title: Recorded At
+          type: string
+        registry_entry_id:
+          title: Registry Entry Id
+          type: string
+        seq:
+          minimum: 0
+          title: Seq
+          type: integer
+      required:
+      - registry_entry_id
+      - seq
+      - recorded_at
+      title: RegistryAck
       type: object
     RegistryDossier:
       additionalProperties: false
@@ -1925,6 +2334,15 @@ components:
       - last_day
       title: VersionWindow
       type: object
+    _ExplanationOnly:
+      additionalProperties: false
+      properties:
+        explanation:
+          $ref: '#/components/schemas/Explanation'
+      required:
+      - explanation
+      title: _ExplanationOnly
+      type: object
 info:
   title: decision-registry-service
   version: 0.1.0
@@ -1963,12 +2381,45 @@ paths:
   /v1/entries:
     get:
       operationId: get_v1_entries
+      parameters:
+      - in: query
+        name: case_id
+        required: false
+        schema: *id001
+      - in: query
+        name: entry_type
+        required: false
+        schema: *id002
+      - in: query
+        name: limit
+        required: false
+        schema: *id003
+      - in: query
+        name: projection
+        required: false
+        schema: *id004
+      - in: query
+        name: recorded_from
+        required: false
+        schema: *id005
+      - in: query
+        name: recorded_to
+        required: false
+        schema: *id006
+      - in: query
+        name: seq
+        required: false
+        schema: *id007
+      - in: query
+        name: seq_after
+        required: false
+        schema: *id008
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Page_RegistryEntry_'
+                $ref: '#/components/schemas/Page_Union_RegistryEntry__ExplanationProjection__MetricsProjection__FreezeProjection__FrozenResolutionProjection__'
           description: OK
         default:
           content:
@@ -1994,8 +2445,12 @@ paths:
               $ref: '#/components/schemas/RegistryEntryIn'
         required: true
       responses:
-        '204':
-          description: Sin contenido
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistryAck'
+          description: OK
         default:
           content:
             application/problem+json:
@@ -2022,11 +2477,14 @@ paths:
         required: true
       responses:
         '200':
-          content:
+          content: &id009
             application/json:
               schema:
                 $ref: '#/components/schemas/IntegrityCheckRef'
           description: OK
+        '202':
+          content: *id009
+          description: Aceptada
         default:
           content:
             application/problem+json:

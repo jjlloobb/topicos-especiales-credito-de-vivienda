@@ -105,7 +105,7 @@ vectra-risk/reference-model/
   - `.github/workflows/reference-model.yml`, que usa los workflows reutilizables de U1:
     - dos ejecuciones en paralelo de `make release`, con comparación del SHA-256 del manifiesto;
     - un paso que falla si la entrega supera 30 min (timeout del job de 60 min);
-    - publicación OCI con `oras`, firma Cosign *keyless*, SBOM con Syft y attestation de procedencia (commit, `generator_version`, semilla);
+    - publicación OCI con `oras`, firma Cosign con llave (`sign-image.yml`) (revisión de consistencia entre unidades, 2026-11-01), SBOM con Syft y attestation de procedencia (commit, `generator_version`, semilla);
     - `cosign verify` y `cosign verify-attestation` sobre lo publicado.
   - Sin secretos del clúster ni del almacenamiento.
   - Diseño: NFR-U5-01, 02, 10, 20.

@@ -1,0 +1,41 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: add-native-sidecar-to-jobs
+  annotations:
+    policies.kyverno.io/description: Agrega el sidecar nativo de Linkerd; nunca rechaza (P-U1-05)
+spec:
+  failurePolicy: Ignore
+  rules:
+    - name: job
+      match:
+        any:
+          - resources:
+              kinds: [Job]
+              namespaceSelector:
+                matchLabels:
+                  vectra.io/mesh: enabled
+      mutate:
+        patchStrategicMerge:
+          spec:
+            template:
+              metadata:
+                annotations:
+                  config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+    - name: cronjob
+      match:
+        any:
+          - resources:
+              kinds: [CronJob]
+              namespaceSelector:
+                matchLabels:
+                  vectra.io/mesh: enabled
+      mutate:
+        patchStrategicMerge:
+          spec:
+            jobTemplate:
+              spec:
+                template:
+                  metadata:
+                    annotations:
+                      config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"

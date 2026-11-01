@@ -122,7 +122,7 @@ Tipo: **S** = llamada síncrona request/response · **R** = lectura · **A** = a
 | F41 | governance-service | PostgreSQL `governance-db` | 5432 | W | Versiones, políticas, fuentes, aprobaciones |
 | F42 | decision-registry-service | PostgreSQL `registry-db` | 5432 | A | Registro encadenado |
 | F43 | Keycloak | PostgreSQL `keycloak-db` | 5432 | W | Realm y usuarios |
-| F44 | Jobs de migración (uno por servicio, hook de sync de Argo CD) | Su propia base (`case-db` / `governance-db` / `registry-db`) | 5432 | DDL | Migraciones de esquema aprobadas |
+| F44 | Jobs de migración (uno por servicio, hook de sync de Argo CD; `ServiceAccount` y `vectra.io/workload`: `migration-case`, `migration-governance` y `migration-registry`, 2026-11-01) | Su propia base (`case-db` / `governance-db` / `registry-db`) | 5432 | DDL | Migraciones de esquema aprobadas |
 | F45 | PostgreSQL primario | PostgreSQL réplica (otra zona) | 5432 | Replicación | Réplica síncrona (RPO 0 ante fallo de zona) |
 | F46 | Pods de KServe (storage initializer), prod y staging | model-store | 9000 | R | Descarga de artefactos de la versión |
 | F47 | governance-service | model-store | 9000 | R | Verificar el checksum de artefactos registrados |
@@ -131,7 +131,7 @@ Tipo: **S** = llamada síncrona request/response · **R** = lectura · **A** = a
 | F107 | CronJob `registry-aggregator` y Job `registry-aggregator-rebuild-<runId>` (Application `decision-registry-rebuild`; lo crea Argo CD, K04, tras un PR y un sync manual con prune; aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10) | `registry-db-rw` | 5432 | R / W | Lee `registry_entries` y escribe solo las tablas derivadas de monitoreo (rol `registry_aggregator`, U3 BR-U3-17; U9 FD, 2026-10-08; rebuild en la octava revisión del FD de U9, 2026-10-10) |
 | F108 | Job `registry-aggregator-reset-<runId>` (runbook `monitoring-rebuild`; Application `decision-registry-rebuild`; lo crea Argo CD, K04, tras un PR y un sync manual con prune; aclaración del NFR Requirements de U9 (Q1 = A), 2026-10-10) | `registry-db-rw` | 5432 | W | `aggregator reset`: vacía las tablas derivadas y fija la marca de agua (rol `registry_migrator`; no es F44, que es solo del Job de migración del sync; octava revisión del FD de U9, 2026-10-10) |
 | F109 | Grafana (`vectra-observability`) | Alertmanager (`vectra-observability`) | 9093 | W | Silencios creados por un operador desde la UI de Grafana (equipo `operacion`), con autor y comentario obligatorios y vencimiento ≤ 4 h; lectura de silencios y alertas; solo el rol de Grafana `operacion` (OIDC) (revisión del Infrastructure Design de U10, 2026-10-10) |
-| F110 | Job `grafana-folder-permissions` y su CronJob de comprobación (`vectra-observability`) | Grafana (`vectra-observability`) | 3000 | W / R | Aplicar y comprobar los permisos de las carpetas `Vectra / Sesgo` y `Vectra / Producto` por la API de Grafana, con una cuenta de servicio de Grafana cuyo token llega por ESO; solo el Job (escritura) y el CronJob (lectura) (FD de U11, 2026-10-10) |
+| F110 | Job `grafana-folder-permissions` y su CronJob de comprobación (`vectra-observability`) | Grafana (`vectra-observability`) | 3000 | W / R | Aplicar y comprobar los permisos de las carpetas `Vectra / Sesgo` y `Vectra / Producto` por la API de Grafana, con una cuenta de servicio de Grafana cuyo token llega por ESO (la crea el operador con Grafana ya en marcha: `install.md`; el Job crea los equipos que falten, 2026-11-01); solo el Job (escritura) y el CronJob (lectura) (FD de U11, 2026-10-10) |
 | F111 | Job `x06-probe-<runId>` (`vectra-app`; Application `decision-registry-rebuild`; **solo kind**, con `probes.runId`) | `registry-db-rw` (`vectra-data`) | 5432 | W | Intenta un `UPDATE` con `registry_app` para que U12 verifique X06 (`permission denied`) (revisión del Infrastructure Design de U12, 2026-10-10) |
 | F112 | `realm-drift` y `signing-key-age` (`vectra-identity`) | Pushgateway (`vectra-observability`) | 9091 | O | Push de `vectra_realm_drift` y de la antigüedad de la llave de firma (seguimiento de la quinta revisión de coherencia, 2026-10-31; cuarta revisión de coherencia entre unidades, 2026-10-31) |
 | F113 | CronJob de comprobación de `grafana-folder-permissions` (`vectra-observability`) | Pushgateway (`vectra-observability`) | 9091 | O | Push de `vectra_grafana_folder_permissions_drift` (cuarta revisión de coherencia entre unidades, 2026-10-31) |
@@ -143,6 +143,14 @@ Tipo: **S** = llamada síncrona request/response · **R** = lectura · **A** = a
 | F119 | Prometheus | Kubelet de cada nodo | 10250 | O | `kubelet_volume_stats_*` para `PostgresVolumeUsageHigh`; el destino es el nodo, no un pod (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 | F120 | Loki (cada componente) | Loki (los demás componentes) | 7946 / 9095 | O | Anillo (memberlist) y gRPC interno (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 | F121 | Tempo (cada componente) | Tempo (los demás componentes) | 7946 / 9095 | O | Anillo (memberlist) y gRPC interno (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
+| F122 | Prometheus | `kube-state-metrics` (`vectra-observability`) | 8080 | O | Estado de nodos y HPA para `SingleZoneOperation` y `HPAMaxedOut` (Code Generation de U1, 2026-10-31) |
+| F123 | Job posterior de MinIO | MinIO | 9000 | W | Crea buckets, usuarios, políticas, retención y lifecycle (Code Generation de U1, 2026-10-31) |
+| F124 | API de Kubernetes | `trust-manager` | 6443 | O | Webhook de validación de `Bundle` (Code Generation de U1, 2026-10-31) |
+| F125 | Pods de un namespace de operadores (`argocd`, `cert-manager`, `cnpg-system`, `envoy-gateway-system`, `external-secrets`, `kserve`, `kyverno`, `linkerd`, `vault`) | Los del mismo namespace | Todos | O | Comunicación interna de cada operador; sin datos de negocio (revisión de consistencia entre unidades, 2026-11-01) |
+| F126 | Pods de esos namespaces | API de Kubernetes | 443 / 6443 | O | Sus controladores y `cert-controller`; el acceso lo limita su RBAC (2026-11-01) |
+| F127 | API de Kubernetes | Webhooks de esos namespaces | 8080, 8443, 9443, 10250 | O | Sin ellos, con `failurePolicy: Fail`, se rechaza la admisión (2026-11-01) |
+| F128 | Prometheus | Kyverno, cert-manager y la destination de Linkerd | 8000, 9402, 9996 | O | Métricas de `KyvernoUnavailable`, `CertificateExpiringSoon` y `LinkerdControlPlaneDown` (2026-11-01) |
+| F129 | Prometheus | MinIO | 9000 | O | `/minio/v2/metrics/cluster` para `MinioWriteQuorumLost` (2026-11-01) |
 | F101 | `model-archive` (U4) | MinIO, bucket `model-store` | 9000 | R | Leer artefactos y explicadores para archivarlos |
 | F102 | `model-archive` (U4) | `governance-db` | 5432 | W | Registrar `archived_uri`/`archived_at` (rol `gov_archiver`, permiso por columna) |
 
@@ -156,7 +164,7 @@ Tipo: **S** = llamada síncrona request/response · **R** = lectura · **A** = a
 
 | ID | Origen | Destino | Puerto | Tipo | Propósito |
 |---|---|---|---|---|---|
-| F60 | Prometheus | Todos los pods de `vectra-app`, `vectra-edge`, `vectra-serving`, `vectra-mock`, Keycloak, PostgreSQL (exporter), Argo CD | 8081 (o puerto de métricas del componente) | O | Scrape de métricas; incluye el gauge `vectra_registry_monitoring_lag_seconds` de `decision-registry-service` (U3 BR-U3-17, INF-U3-06; quinta revisión del FD de U9, 2026-10-10) |
+| F60 | Prometheus | Todos los pods de `vectra-app`, `vectra-edge`, `vectra-serving`, `vectra-mock` (8081); PostgreSQL (exporter, 9187) y Keycloak (administración, 9000) (2026-11-01; Argo CD se dejó de raspar: ninguna alerta lo usa) | 8081 (o puerto de métricas del componente) | O | Scrape de métricas; incluye el gauge `vectra_registry_monitoring_lag_seconds` de `decision-registry-service` (U3 BR-U3-17, INF-U3-06; quinta revisión del FD de U9, 2026-10-10) |
 | F61 | Todos los pods de aplicación | OpenTelemetry Collector | 4317 | O | Trazas (y logs si se usa OTLP) |
 | F62 | OpenTelemetry Collector | Tempo / Loki | 4317 / 3100 | O | Almacenamiento de trazas y logs |
 | F63 | Agente de logs: Grafana Alloy (DaemonSet) | Loki | 3100 | O | Logs de stdout de los contenedores |
@@ -216,13 +224,15 @@ Role ni RoleBinding.
 | K09 | `linkerd-cni` | nodos | `get`, `list`, `watch` sobre `pods`, `nodes` | Configurar iptables sin `NET_ADMIN` en los pods |
 | K10 | Kyverno | todo el clúster | Lectura de recursos admitidos; escritura solo de sus `PolicyReport` | Admisión y reportes |
 | K11 | External Secrets Operator | namespaces de Vectra que declaran `ExternalSecret` | `create`, `update`, `get` sobre `secrets` | Materializar secretos desde la bóveda |
-| K12 | `restore-drill` | `vectra-restore-drill` | `create`, `get`, `delete` sobre `clusters.postgresql.cnpg.io`; `get` sobre `pods/log` | Crear y destruir el cluster efímero del simulacro |
+| K12 | `restore-drill` | `vectra-restore-drill` | `create`, `get`, `list`, `watch`, `delete` sobre `clusters.postgresql.cnpg.io`; `get` sobre `pods/log`; `get` sobre `pods` y `create`, `get` sobre `pods/exec`, solo `restore-registry-1` y `restore-case-1`, para leer el LSN alcanzado (2026-11-01) | Crear y destruir el cluster efímero del simulacro |
 | K13 | Grafana Alloy | todo el clúster | `get`, `list`, `watch` sobre `pods`, `namespaces`, `nodes` | Descubrir contenedores y leer sus logs del nodo |
 | K14 | Controlador de Envoy Gateway | `vectra-edge` y `envoy-gateway-system` | Lectura de recursos de Gateway API y de Envoy Gateway; gestión de los Deployments, Services y ConfigMaps del data plane | Reconciliar el gateway (INF-U2-02) |
 | K16 | Operador de verificación (rol `vectra-verification-operator`; **solo** kind y staging) | `ClusterRole` para `nodes`; `Role` en `vectra-app`, `vectra-edge`, `vectra-serving`, `vectra-identity`, `vectra-data` y `vectra-observability` | `get`, `list` sobre `nodes`; `get`, `list`, `watch` sobre `pods` (estado y digests), `jobs` (`vectra-app`), `horizontalpodautoscalers` (`vectra-app`, `vectra-edge`, `vectra-serving`) e `inferenceservices` (`vectra-serving`); `get` sobre `pods/log` (`vectra-app`); `create` sobre `pods/portforward` (`vectra-app`, `vectra-observability`) | Lectura y `port-forward` de U12 (INF-U12-03; Infrastructure Design de U12 y su revisión del Infrastructure Design de U12, 2026-10-10). K15 se descartó antes y no se reutiliza |
 | K17 | Prometheus Operator | `vectra-observability` y namespaces con `ServiceMonitor` o `PrometheusRule` | Lectura de sus CRDs; gestión de los StatefulSets, Secrets y ConfigMaps de Prometheus y Alertmanager | Reconciliar el stack de observabilidad (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 | K18 | Instance manager de CloudNativePG | `vectra-data`, `vectra-restore-drill` | Los que crea el operador para cada `Cluster` (lectura de su `Cluster`, actualización de su estado) | Cada instancia informa su estado (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
 | K19 | Sidecar de dashboards de Grafana | Namespaces con `ConfigMap` de dashboards | `get`, `list`, `watch` sobre `configmaps` | Cargar los dashboards como código (seguimiento de la quinta revisión de coherencia, 2026-10-31) |
+| K20 | `kube-state-metrics` | todo el clúster | `get`, `list`, `watch` sobre `nodes` y `horizontalpodautoscalers` | Métricas de estado para las alertas de U1 (Code Generation de U1, 2026-10-31) |
+| K21 | `trust-manager` | `cert-manager`, `linkerd` y los namespaces con `vectra.io/mesh: enabled` | `get`, `list`, `watch` sobre `secrets` de `cert-manager`; gestión del `ConfigMap` de raíces en `linkerd` y de `vectra-internal-ca` (`ca.crt`) en los de Vectra, para `sslmode=verify-full` (2026-11-01) | Publicar la raíz de confianza de Linkerd (Code Generation de U1, 2026-10-31) |
 
 **Explícitamente sin acceso a la API de Kubernetes:** scoring-service,
 explainability-service, bias-monitoring-service, case-service, case-worker,
@@ -236,6 +246,8 @@ componentes (AUTONOMIA-03, AUTONOMIA-04, Q7=A).
 ## 4. Roles de base de datos
 
 **Quién los crea** (cuarta revisión de coherencia entre unidades, 2026-10-31): todos son roles gestionados de CloudNativePG, declarados en `managed.roles` de cada `Cluster` (U1, INF-U1-02). La migración de cada unidad se conecta con su `*_migrator` y solo crea objetos y da los grants.
+
+Bases y dueños, creados con `bootstrap.initdb` (2026-11-01): `registry-db` → `registry`, `registry_migrator`; `case-db` → `case`, `case_migrator`; `governance-db` → `governance`, `gov_migrator`; `keycloak-db` → `keycloak`, `keycloak`.
 
 | Base | Rol | Privilegios | Usado por |
 |---|---|---|---|
@@ -253,7 +265,7 @@ componentes (AUTONOMIA-03, AUTONOMIA-04, Q7=A).
 | `registry-db` | `registry_migrator` | DDL; en runtime solo lo usan el Job de migración (F44) y el Job `registry-aggregator-reset-<runId>` del runbook `monitoring-rebuild` (F108; lo crea Argo CD), que vacía las tablas derivadas (`aggregator reset`, U3 BR-U3-17) | Job de migración (F44); Job de reconstrucción con `runId` `registry-aggregator-reset` (F108) (octava revisión del FD de U9, 2026-10-10) |
 | `registry-db` | `registry_aggregator` | `SELECT` sobre `registry_entries`; escritura solo sobre las tablas derivadas de monitoreo (U3 domain-entities §1.3); sin `TRUNCATE` (revisión del FD de U9, 2026-10-08) | CronJob `registry-aggregator` y Job de reconstrucción con `runId` `registry-aggregator-rebuild` (F107) (octava revisión del FD de U9, 2026-10-10) |
 | `keycloak-db` | `keycloak` | Propietario de su esquema | Keycloak |
-| todas | `backup` | Replicación y archivado de WAL | Operador de PostgreSQL (F45, F70) |
+| todas | `streaming_replica` | Replicación; lo crea CloudNativePG, no es un rol gestionado. El archivado de WAL corre en el instance manager, sin rol propio (revisión de consistencia entre unidades, 2026-11-01) | Operador de PostgreSQL (F45, F70) |
 
 Ningún servicio tiene credenciales de una base que no sea la suya. bias-monitoring y
 product-metrics **no** tienen rol de base de datos: leen por API (F26, F28).
@@ -264,12 +276,12 @@ product-metrics **no** tienen rol de base de datos: leen por API (F26, F28).
 
 | ID | Origen | Destino | Puerto | Contenido | Justificación |
 |---|---|---|---|---|---|
-| F70 | Operador de PostgreSQL (backup) | Almacenamiento de backup del banco **fuera del sitio** | 443 | Backups base y WAL **cifrados** | R1/R2, NFR-RES-12. Contiene PII cifrada; destino dentro de la infraestructura del banco (Principio 2) |
-| F71 | Argo CD (repo-server) | Servidor Git del repositorio GitOps | 443 | Pull de manifiestos, sin datos de solicitantes | GitOps (Q19). **GitHub en kind; espejo Git interno del banco en staging y prod** (INF-U1, Q11) |
+| F70 | Operador de PostgreSQL (backup) | Almacenamiento de backup del banco **fuera del sitio** (en kind, MinIO en el 9000, para poder probar el restore; 2026-11-01) | 443 | Backups base y WAL **cifrados** | R1/R2, NFR-RES-12. Contiene PII cifrada; destino dentro de la infraestructura del banco (Principio 2) |
+| F71 | Argo CD (repo-server) | Servidor Git del monorepo (`vectra-risk-gitops/`) | 443 | Pull de manifiestos, sin datos de solicitantes | GitOps (Q19). **GitHub en kind; espejo Git interno del banco en staging y prod** (INF-U1, Q11) |
 | F72 | Alertmanager | Canal de notificación del banco (relay SMTP o chat interno) | 443/587 | Nombre de la alerta, severidad, `runbook_url`, IDs técnicos. **Sin PII** | R9, RESILIENCY-15 |
 | F73 | Keycloak (solo en producción real) | IdP/LDAP corporativo del banco | 636/443 | Federación de identidad | En el MVP Keycloak es el IdP simulado y este flujo no existe |
 | F74 | External Secrets Operator (staging y prod) | Bóveda de secretos del banco | 443 | Lectura de secretos; **sin datos de solicitantes** | NFR-U1-24 (Q9 de NFR Requirements de U1) |
-| F75 | Cluster efímero de `restore-drill` y, para los checkpoints, `restore-drill` (quinta revisión de coherencia entre unidades, 2026-10-31) | Almacenamiento de backup del banco fuera del sitio | 443 | **Solo lectura** de backups y WAL cifrados de `registry-db` y de `case-db` (este contiene PII cifrada, como F70), y de los checkpoints de `vectra-registry-checkpoints` para verificar la cadena restaurada (U3) | P-U1-05; credencial distinta de la de escritura de F70, limitada a los prefijos de `registry-db` y `case-db` en `vectra-backups` y `vectra-wal` y a `vectra-registry-checkpoints`. La restauración de `case-db` (BR-U8-20) va al mismo destino que F70 y no necesita un flujo nuevo (precisado el 2026-10-06, revisión del FD de U8) |
+| F75 | Cluster efímero de `restore-drill` y, para los checkpoints, `restore-drill` (quinta revisión de coherencia entre unidades, 2026-10-31) | Almacenamiento de backup del banco (en kind, MinIO; 2026-11-01) fuera del sitio | 443 | **Solo lectura** de backups y WAL cifrados de `registry-db` y de `case-db` (este contiene PII cifrada, como F70), y de los checkpoints de `vectra-registry-checkpoints` para verificar la cadena restaurada (U3) | P-U1-05; credencial distinta de la de escritura de F70, limitada a los prefijos de `registry-db` y `case-db` en `vectra-backups`, donde también va el WAL (decidido el 2026-11-01), y a `vectra-registry-checkpoints`. La restauración de `case-db` (BR-U8-20) va al mismo destino que F70 y no necesita un flujo nuevo (precisado el 2026-10-06, revisión del FD de U8) |
 | F76 | Kyverno | Registro interno de imágenes del banco | 443 | Firmas y attestations de Cosign | INF-U1-09; sin datos de solicitantes |
 | F77 | `registry-checkpoint` | S3 del banco fuera del sitio, bucket `vectra-registry-checkpoints` (WORM COMPLIANCE) | 443 | Checkpoints firmados; sin datos de solicitantes | INF-U3-01 |
 | F78 | `registry-archive` | S3 del banco fuera del sitio, bucket `vectra-registry-archive` (WORM COMPLIANCE, 10 años) | 443 | Segmentos de la cadena: **datos seudonimizados, cifrados** | NFR-U3-04, INF-U3-01; precedente de F70 |
@@ -338,7 +350,7 @@ flowchart LR
     CORE["core-banking-mock"]
     K8S["API de Kubernetes"]
     BKP[("backup fuera del sitio")]
-    GIT["repositorio GitOps"]
+    GIT["vectra-risk-gitops en el monorepo"]
     ARGO["Argo CD"]
 
     BR --> GW
@@ -432,5 +444,5 @@ Evaluación:   case-worker -> {case-db, scoring (F15), governance (F104)} (U8 IN
 1. **Red del banco → api-gateway** (F01): único ingress. TLS, JWT y rate limiting (X09).
 2. **Namespaces**: NetworkPolicy deny-all por defecto (ingress y egress). Solo existen los flujos de §2 y el egress a la API de Kubernetes de los bindings de §3 (cuarta revisión de coherencia entre unidades, 2026-10-31).
 3. **Egress**: solo F70–F79, F99 y F100 (§5); nunca desde scoring, explainability ni bias.
-4. **API de Kubernetes**: solo K01–K14 y K16–K19 (§3; K16 es el operador de verificación de U12, solo en kind y staging; pendientes posteriores al cierre, 2026-10-10); ningún servicio de negocio, salvo el alcance acotado de K01.
-5. **Fuera del runtime**: CI (GitHub Actions), repositorio GitOps y `promotion-tool` operan sobre Git. El único cambio al clúster es el sync manual de Argo CD aprobado por un humano (K04, AUTONOMIA-01).
+4. **API de Kubernetes**: solo K01–K14 y K16–K21 (§3; K16 es el operador de verificación de U12, solo en kind y staging; pendientes posteriores al cierre, 2026-10-10); ningún servicio de negocio, salvo el alcance acotado de K01.
+5. **Fuera del runtime**: CI (GitHub Actions), `vectra-risk-gitops/` en el monorepo y `promotion-tool` operan sobre Git. El único cambio al clúster es el sync manual de Argo CD aprobado por un humano (K04, AUTONOMIA-01).

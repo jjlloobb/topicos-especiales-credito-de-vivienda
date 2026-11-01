@@ -124,14 +124,14 @@ el log de la corrida (sin datos del solicitante).
 | `truncated` | `true` si se quitaron celdas para no superar 48 KiB (BR-U9-15) |
 | `trigger_attribute` | — |
 | `implicated` | Grupos y bandas cuya diferencia supera el umbral |
-| `affected_volume` | Recomendaciones de la versión en la ventana y cuántas fueron `favorable` |
+| `affected_volume` | Recomendaciones de la versión en la ventana y cuántas fueron `favorable` (tipo `AffectedVolume` de U0: `total`, `favorable`) (revisión de consistencia entre unidades, 2026-11-01) |
 
 Solo agregados: una celda insuficiente lleva solo su tamaño. Governance agrega
 `data_sources` e `initial_disparity` (BR-U9-16).
 
 ### 3.2 `CompareSourceRequest` y `PrePostReport` (F25, BR-U9-17)
 - Solicitud: `source_id`, `pre: list[CountTable]`, `post: list[CountTable]`, con los cuatro atributos en cada lista y sin atributos repetidos (como U0 §9.4; cuarta revisión del FD de U9, 2026-10-10).
-- Respuesta: `source_id`, `pre: DisparityResult`, `post: DisparityResult`, `delta` (post − pre de cada agregada y de `model_aggregate`), `threshold_pp`, `n_min`, `truncated: bool`, `disclaimer`. JCS ≤ 48 KiB (BR-U9-17).
+- Respuesta: `source_id`, `pre: DisparityResult`, `post: DisparityResult`, `delta` (post − pre de cada agregada y de `model_aggregate`; tipo `PrePostDelta` de U0; revisión de consistencia entre unidades, 2026-11-01), `threshold_pp`, `n_min`, `truncated: bool`, `disclaimer`. JCS ≤ 48 KiB (BR-U9-17).
 
 ### 3.3 `DisparityView` (F14, BR-U9-18)
 `model_version_id`, `window`, `computed_at`, `model: DisparityResult`, `human:

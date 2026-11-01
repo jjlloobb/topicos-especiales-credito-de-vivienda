@@ -1,0 +1,16 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-post-job
+  namespace: vectra-data
+spec:
+  template:
+    metadata:
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: 'true'
+    spec:
+      priorityClassName: vectra-normal
+      restartPolicy: Never
+      containers:
+      - name: a
+        image: registro.vectra.internal/mc@sha256:0000000000000000000000000000000000000000000000000000000000000000

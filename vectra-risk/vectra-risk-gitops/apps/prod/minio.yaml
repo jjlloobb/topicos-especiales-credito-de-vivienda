@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minio
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '2'
+spec:
+  project: vectra-prod
+  sources:
+  - repoURL: https://charts.banco.internal/vectra
+    chart: minio
+    targetRevision: 5.4.0
+    helm:
+      valueFiles:
+      - $values/vectra-risk/platform/data/minio/values.yaml
+  - repoURL: https://git.banco.internal/vectra/vectra-risk.git
+    targetRevision: main
+    ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-data
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

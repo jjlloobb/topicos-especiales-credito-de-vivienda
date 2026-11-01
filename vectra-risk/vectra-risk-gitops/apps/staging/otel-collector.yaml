@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: otel-collector
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '4'
+spec:
+  project: vectra-staging
+  sources:
+  - repoURL: https://charts.banco.internal/vectra
+    chart: opentelemetry-collector
+    targetRevision: 0.178.1
+    helm:
+      valueFiles:
+      - $values/vectra-risk/platform/observability/values/otel-collector.yaml
+  - repoURL: https://git.banco.internal/vectra/vectra-risk.git
+    targetRevision: main
+    ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-observability
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

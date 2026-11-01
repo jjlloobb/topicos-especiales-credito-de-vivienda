@@ -189,7 +189,7 @@ vectra-risk/system-verification/
 - [ ] **Paso 15 — Imagen**
   - Python oficial por digest, sin privilegios; incluye `kubectl`, Playwright y su Chromium por versión fijada (el Chromium sin interfaz del login del Paso 5). **k6 no va en esta imagen** (pendientes posteriores al cierre, 2026-10-10): corre en su propio contenedor (`grafana/k6` por digest), con límites de 2 CPU y 2 GiB, que **el operador** lanza en la red de kind con el comando que imprime la sección `load` (Paso 11, INF-U12-05; pendientes consolidados, segunda tanda, 2026-10-10);
   - **sandbox de Chromium** (pendientes posteriores al cierre, 2026-10-10): el contenedor corre como usuario no root con el perfil `seccomp` que publica Playwright para Chromium (`chrome.json`) y espacios de nombres de usuario sin privilegios; **nunca** con `--no-sandbox`. Si el host no los permite, la sección que necesita login termina con un error claro;
-  - la imagen se construye, se escanea, lleva SBOM y se firma con `supply-chain.yml` de U1 (frase separada, pendientes consolidados, 2026-10-10).
+  - la imagen se construye, se escanea, lleva SBOM y se firma con `sign-image.yml` de U1 (frase separada, pendientes consolidados, 2026-10-10).
   - Diseño: INF-U12-01.
   - **Aceptación**: `hadolint system-verification/Dockerfile`; el SBOM lista `kubectl`, Playwright y Chromium con su versión y **no** `k6`; prueba de humo: Chromium arranca con el sandbox activo bajo el perfil `seccomp` (`chrome://sandbox` sin errores).
 
@@ -210,7 +210,7 @@ vectra-risk/system-verification/
   - **Requisito previo**: un PR con los Pasos 1–17 aprobado por un humano, con U1–U11 instalados en kind, el modelo de referencia activo y el binding K16 presente.
   - **Orden** (revisión del plan de tareas de U12, 2026-10-10):
     1. el operador ejecuta `prepare`, que fija el `runId` y el `started_at`;
-    2. abre el PR de los Jobs de prueba con el parche que produjo `prepare` (values de kind de `bias-monitoring`, `decision-registry-rebuild` y `case-management`) y sincroniza las **tres Applications** con prune (pendientes consolidados, 2026-10-10);
+    2. abre el PR de los Jobs de prueba con el parche que produjo `prepare` (`vectra-risk-gitops/values/kind/` de `bias-monitoring`, `decision-registry-rebuild` y `case-management`; revisión de consistencia entre unidades, 2026-11-01) y sincroniza las **tres Applications** con prune (pendientes consolidados, 2026-10-10);
     3. ejecuta las demás secciones en orden, empezando por `network`, que lee los Jobs ya terminados (con `completionTime` posterior a `started_at`).
   - El operador ejecuta todas las secciones en orden, con los PRs preparados de RT-3 y RT-2 y sus reversiones, y el día siguiente la sección `u11`; genera el informe y abre el PR de verificación.
   - Diseño: BR-U12-04..13; NFR-U12-30, 31; INF-U12-01..05. Historias: US-609 y las de domain-entities §4.2.
@@ -263,3 +263,14 @@ vectra-risk/system-verification/
 | SECURITY-03 / 11 / 12 | Cumple | Pasos 2, 6, 10 |
 | RESILIENCY-09 | Cumple | Paso 11 |
 | PBT-01..10 | Cumple | PBT-U12-01..04 (Pasos 3, 6), perfiles `ci` y `nightly` (Paso 16) y pruebas de ejemplo (Pasos 3, 6–11) |
+
+## Reglas de admisión que este plan debe cumplir (revisión de consistencia entre unidades, 2026-11-01)
+
+Cada chart de esta unidad pasa `make -C platform check-chart CHART=<ruta>` en el PR, con los mismos values que usa Argo CD en cada entorno:
+
+- Imágenes por digest, de un registro que admita `restrict-registries`; las de terceros se espejan.
+- `runAsNonRoot`, `readOnlyRootFilesystem` (con `emptyDir` para lo que escriba en disco), sin `privileged` ni `hostPath`, con recursos y `priorityClassName`.
+- `vectra.io/criticality` en cada `Deployment` y `StatefulSet` que el chart declare.
+- En `vectra-app`, `vectra-edge`, `vectra-identity`, `vectra-serving` y `vectra-mock`: 2 réplicas o más, `topologySpreadConstraints` por zona, PDB por `app.kubernetes.io/name`, y HPA o `vectra.io/hpa-exempt`.
+
+Detalle en `aidlc-docs/construction/shared-infrastructure.md` §2.

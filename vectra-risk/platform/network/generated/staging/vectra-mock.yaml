@@ -1,0 +1,259 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: vectra-mock
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: vectra-mock
+spec:
+  egress:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F17
+  name: allow-f17-to-core-banking-mock-ingress
+  namespace: vectra-mock
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: case-service
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: core-banking-mock
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: core-banking-mock-8080
+  namespace: vectra-mock
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: core-banking-mock
+  port: 8080
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: core-banking-mock-case-service
+  namespace: vectra-mock
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: core-banking-mock-8080
+  rules:
+  - matches:
+    - method: GET
+      path:
+        type: RegularExpression
+        value: /v1/credits/[^/]+
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: core-banking-mock-case-service-mtls
+  namespace: vectra-mock
+spec:
+  identities:
+  - case-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: core-banking-mock-case-service
+  namespace: vectra-mock
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: core-banking-mock-case-service-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: core-banking-mock-case-service
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: core-mock-catch-all
+  namespace: vectra-mock
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: core-banking-mock-8080
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F50
+  name: allow-f50-core-banking-mock-to-keycloak-egress
+  namespace: vectra-mock
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: core-banking-mock
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-to-vectra-mock-ingress
+  namespace: vectra-mock
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - port: 8081
+      protocol: TCP
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: metrics-8081
+  namespace: vectra-mock
+spec:
+  podSelector: {}
+  port: 8081
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f60-metrics-8081-mtls
+  namespace: vectra-mock
+spec:
+  identities:
+  - prometheus.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f60-metrics-8081
+  namespace: vectra-mock
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f60-metrics-8081-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: metrics-8081
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F61
+  name: allow-f61-vectra-mock-to-opentelemetry-collector-egress
+  namespace: vectra-mock
+spec:
+  egress:
+  - ports:
+    - port: 4317
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: opentelemetry-collector
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F83
+  name: allow-f83-vectra-mock-to-linkerd-control-egress
+  namespace: vectra-mock
+spec:
+  egress:
+  - ports:
+    - port: 8086
+      protocol: TCP
+    - port: 8080
+      protocol: TCP
+    - port: 8090
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: linkerd
+      podSelector:
+        matchLabels:
+          linkerd.io/control-plane-ns: linkerd
+  podSelector: {}
+  policyTypes:
+  - Egress

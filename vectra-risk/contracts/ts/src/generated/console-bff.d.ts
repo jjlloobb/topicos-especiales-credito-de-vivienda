@@ -446,6 +446,16 @@ export interface components {
             /** @default null */
             role: components["schemas"]["Role"] | null;
         };
+        /**
+         * AffectedVolume
+         * @description Recomendaciones de la versión en la ventana y cuántas fueron `favorable` (U9 §3.1).
+         */
+        AffectedVolume: {
+            /** Favorable */
+            favorable: number;
+            /** Total */
+            total: number;
+        };
         /** ApplicantFactor */
         ApplicantFactor: {
             /**
@@ -600,6 +610,19 @@ export interface components {
             /** Term Months */
             term_months: number;
         };
+        /** AttributeDelta */
+        AttributeDelta: {
+            /**
+             * Attribute
+             * @enum {string}
+             */
+            attribute: "sexo" | "rango_edad" | "region" | "estrato";
+            /**
+             * Delta
+             * @default null
+             */
+            delta: string | null;
+        };
         /** AttributeResult */
         AttributeResult: {
             /**
@@ -691,7 +714,7 @@ export interface components {
             /** @default null */
             outcome: components["schemas"]["Outcome"] | null;
             /** @default null */
-            recommendation: components["schemas"]["JsonValue"] | null;
+            recommendation: components["schemas"]["Recommendation"] | null;
             /**
              * Recommendation Entry Id
              * @default null
@@ -703,6 +726,44 @@ export interface components {
              */
             score: string | null;
             state: components["schemas"]["CaseState"];
+        };
+        /** CaseFilter */
+        CaseFilter: {
+            /**
+             * Channel
+             * @default null
+             */
+            channel: string | null;
+            /**
+             * Created From
+             * @default null
+             */
+            created_from: string | null;
+            /**
+             * Created To
+             * @default null
+             */
+            created_to: string | null;
+            /**
+             * Model Frozen After Recommendation
+             * @default null
+             */
+            model_frozen_after_recommendation: boolean | null;
+            /**
+             * Page
+             * @default 1
+             */
+            page: number;
+            /**
+             * Page Size
+             * @default 20
+             */
+            page_size: number;
+            /**
+             * State
+             * @default null
+             */
+            state: components["schemas"]["CaseState"][] | null;
         };
         /**
          * CaseIdentifierGroup
@@ -999,6 +1060,27 @@ export interface components {
             /** Rate */
             rate: string;
         };
+        /**
+         * DisparityFilter
+         * @description BR-U9-18: versión, atributo y ventana. Sin versión, bias usa la más reciente.
+         */
+        DisparityFilter: {
+            /**
+             * Attribute
+             * @default null
+             */
+            attribute: ("sexo" | "rango_edad" | "region" | "estrato") | null;
+            /**
+             * Version
+             * @default null
+             */
+            version: string | null;
+            /**
+             * Window
+             * @default null
+             */
+            window: number | null;
+        };
         /** DisparityResult */
         DisparityResult: {
             /** Attributes */
@@ -1207,8 +1289,7 @@ export interface components {
          * @description `FreezeContext` mas lo que agrega governance (BR-U9-16).
          */
         FreezeContextPackage: {
-            /** Affected Volume */
-            affected_volume: number;
+            affected_volume: components["schemas"]["AffectedVolume"];
             after: components["schemas"]["DisparityResult"];
             /** Before */
             before: components["schemas"]["DisparityResult"] | "sin_datos";
@@ -1579,6 +1660,27 @@ export interface components {
              */
             event: "registrado" | "validacion_iniciada" | "informe_validacion" | "validacion_fallida" | "aprobado" | "rechazado" | "activado" | "inactivado" | "retirado" | "transicion_descartada";
         };
+        /**
+         * ModelFilter
+         * @description `GET /v1/models?state=activo,congelado`: uno o varios estados.
+         */
+        ModelFilter: {
+            /**
+             * Page
+             * @default 1
+             */
+            page: number;
+            /**
+             * Page Size
+             * @default 20
+             */
+            page_size: number;
+            /**
+             * State
+             * @default null
+             */
+            state: ("registrado" | "en_validacion" | "validacion_fallida" | "lista_para_aprobacion" | "aprobado" | "rechazado" | "activo" | "inactivo" | "congelado" | "retirado")[] | null;
+        };
         /** ModelRegistration */
         ModelRegistration: {
             /**
@@ -1861,6 +1963,22 @@ export interface components {
              */
             since: string;
         };
+        /**
+         * PolicyDecisionIn
+         * @description `rechazada` exige `justification` (U4 `rejection_justification`).
+         */
+        PolicyDecisionIn: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "aprobada" | "rechazada";
+            /**
+             * Justification
+             * @default null
+             */
+            justification: string | null;
+        };
         /** PolicyDraft */
         PolicyDraft: {
             /** Channel Rules */
@@ -1912,13 +2030,22 @@ export interface components {
              */
             state: "propuesta" | "activa" | "rechazada" | "historica";
         };
-        /** PrePostReport */
-        PrePostReport: {
+        /**
+         * PrePostDelta
+         * @description `post − pre` de cada agregada y de `model_aggregate` (U9 §3.2).
+         */
+        PrePostDelta: {
+            /** Attributes */
+            attributes: components["schemas"]["AttributeDelta"][];
             /**
-             * Delta
+             * Model Aggregate
              * @default null
              */
-            delta: string | null;
+            model_aggregate: string | null;
+        };
+        /** PrePostReport */
+        PrePostReport: {
+            delta: components["schemas"]["PrePostDelta"];
             /** Disclaimer */
             disclaimer: string;
             /** N Min */
@@ -1976,6 +2103,42 @@ export interface components {
          * @enum {string}
          */
         ReasonCode: "score_bajo_corte" | "score_sobre_corte" | "baja_confianza" | "vis" | "no_vis" | "tasa_sobre_usura" | "parametro_normativo_no_vigente";
+        /** Recommendation */
+        Recommendation: {
+            /**
+             * Case Id
+             * Format: uuid
+             */
+            case_id: string;
+            /** Confidence */
+            confidence: string;
+            /**
+             * Evaluated At
+             * Format: date-time
+             */
+            evaluated_at: string;
+            explanation: components["schemas"]["Explanation"];
+            /** Feature Vector Hash */
+            feature_vector_hash: string;
+            /**
+             * Kind
+             * @default recommendation
+             * @constant
+             */
+            kind: "recommendation";
+            /** Model Version Id */
+            model_version_id: string;
+            /** Outcome */
+            outcome: string;
+            /** Policy Version Id */
+            policy_version_id: string;
+            /** Reasons */
+            reasons: string[];
+            /** Registry Entry Id */
+            registry_entry_id: string;
+            /** Score */
+            score: string;
+        };
         /** RecommendationPayload */
         RecommendationPayload: {
             /** Attempt */
@@ -2152,7 +2315,15 @@ export type $defs = Record<string, never>;
 export interface operations {
     get_api_console_cases: {
         parameters: {
-            query?: never;
+            query?: {
+                channel?: string | null;
+                created_from?: string | null;
+                created_to?: string | null;
+                model_frozen_after_recommendation?: boolean | null;
+                page?: number;
+                page_size?: number;
+                state?: components["schemas"]["CaseState"][] | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2182,7 +2353,9 @@ export interface operations {
     post_api_console_cases: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2592,7 +2765,11 @@ export interface operations {
     };
     get_api_console_disparity: {
         parameters: {
-            query?: never;
+            query?: {
+                attribute?: ("sexo" | "rango_edad" | "region" | "estrato") | null;
+                version?: string | null;
+                window?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2701,6 +2878,15 @@ export interface operations {
                     "application/json": components["schemas"]["IntegrityCheckRef"];
                 };
             };
+            /** @description Aceptada */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrityCheckRef"];
+                };
+            };
             /** @description Problem */
             default: {
                 headers: {
@@ -2774,7 +2960,11 @@ export interface operations {
     };
     get_api_console_models: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                page_size?: number;
+                state?: ("registrado" | "en_validacion" | "validacion_fallida" | "lista_para_aprobacion" | "aprobado" | "rechazado" | "activo" | "inactivo" | "congelado" | "retirado")[] | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3064,7 +3254,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyDecisionIn"];
+            };
+        };
         responses: {
             /** @description Sin contenido */
             204: {

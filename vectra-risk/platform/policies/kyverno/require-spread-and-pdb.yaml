@@ -1,0 +1,62 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-spread-and-pdb
+  annotations:
+    policies.kyverno.io/description: Al menos 2 replicas y reparto por zona
+spec:
+  validationFailureAction: Enforce
+  failurePolicy: Fail
+  background: false
+  rules:
+    - name: require-spread-and-pdb
+      match:
+        any:
+          - resources:
+              kinds: [Deployment]
+              namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-mock]
+      # El InferenceService inactivo de U6 (INF-U6-02) lleva 1 replica y no tiene PDB.
+      exclude:
+        all:
+          - resources:
+              selector: { matchLabels: { vectra.io/serving-state: inactivo } }
+              annotations: { vectra.io/hpa-exempt: "?*" }
+      validate:
+        message: "Al menos 2 replicas y reparto por zona"
+        pattern:
+          spec:
+            replicas: ">=2"
+            template:
+              spec:
+                topologySpreadConstraints:
+                  - topologyKey: topology.kubernetes.io/zone
+    # Argo CD aplica el PDB antes que el Deployment (kindOrder), asi que un chart completo se admite.
+    # El PDB se relaciona por app.kubernetes.io/name, la etiqueta que usan flows.yaml y los charts.
+    - name: require-pdb
+      match:
+        any:
+          - resources:
+              kinds: [Deployment]
+              namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-mock]
+              operations: [CREATE, UPDATE]
+      exclude:
+        any:
+          - resources:
+              selector: { matchLabels: { vectra.io/serving-state: inactivo } }
+              annotations: { vectra.io/hpa-exempt: "?*" }
+          # El PDB del data plane lo crea Envoy Gateway con sus propias etiquetas (`envoyPDB`, lo exige el plan de U2).
+          - resources:
+              selector: { matchExpressions: [{ key: gateway.envoyproxy.io/owning-gateway-name, operator: Exists }] }
+      context:
+        - name: pdbs
+          apiCall:
+            urlPath: "/apis/policy/v1/namespaces/{{ request.namespace }}/poddisruptionbudgets"
+            jmesPath: "items[?spec.selector.matchLabels.\"app.kubernetes.io/name\" == '{{ request.object.spec.template.metadata.labels.\"app.kubernetes.io/name\" }}'] | length(@)"
+      validate:
+        message: "El Deployment necesita un PodDisruptionBudget con su app.kubernetes.io/name (US-605, NFR-U1-12)"
+        deny:
+          conditions:
+            all:
+              - key: "{{ pdbs }}"
+                operator: Equals
+                value: 0

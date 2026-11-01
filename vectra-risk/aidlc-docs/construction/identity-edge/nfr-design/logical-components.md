@@ -12,8 +12,8 @@
 | Valkey (primaria + réplica + 3 Sentinel) | `vectra-edge` | Contadores efímeros | P-U2-04; NFR-U2-27 | `vectra-high` |
 | Keycloak (2–4 réplicas) | `vectra-identity` | IdP: realm `vectra`, MFA, sesiones, eventos | P-U2-04, 05, 08 | `vectra-high` |
 | `keycloak-config-cli` (Job, hook de sync) | `vectra-identity` | Aplica `realm.{env}.yaml` | BR-U2-12 | `vectra-normal` |
-| `realm-drift` (CronJob diario) | `vectra-identity` | Compara el realm exportado con Git | BR-U2-12 | `vectra-low` |
-| `signing-key-age` (CronJob horario; antes exportador) | `vectra-identity` | Empuja al Pushgateway la métrica de `SigningKeyAgeHigh` (F94, F112; seguimiento de la quinta revisión de coherencia, 2026-10-31) | P-U2-05 | `vectra-low` |
+| `realm-drift` (CronJob diario) | `vectra-identity` | Compara el realm exportado con Git y empuja al Pushgateway (F112, `/metrics/job/realm-drift`; revisión de consistencia entre unidades, 2026-11-01) | BR-U2-12 | `vectra-low` |
+| `signing-key-age` (CronJob horario; antes exportador) | `vectra-identity` | Empuja al Pushgateway, en `/metrics/job/signing-key-age`, la métrica de `SigningKeyAgeHigh` (F94, F112; seguimiento de la quinta revisión de coherencia, 2026-10-31; revisión de consistencia entre unidades, 2026-11-01) | P-U2-05 | `vectra-low` |
 | Tema `vectra` | Imagen de Keycloak | Login en español | P-U2-08 | — |
 | `routes.yaml` + `route-gen` | CI | Genera los recursos de Gateway API y Envoy Gateway | BR-U2-10 | — |
 | `realm-lint` | CI | Valida el realm | BR-U2-01, 09 | — |

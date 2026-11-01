@@ -1,0 +1,32 @@
+# espera: sin sin PodDisruptionBudget
+# espera: otro-ns sin PodDisruptionBudget
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: sin, namespace: vectra-app }
+spec:
+  replicas: 2
+  template:
+    metadata: { labels: { app.kubernetes.io/name: sin } }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: sin, namespace: vectra-app }
+spec: { scaleTargetRef: { kind: Deployment, name: sin } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: otro-ns, namespace: vectra-app }
+spec:
+  replicas: 2
+  template:
+    metadata: { labels: { app.kubernetes.io/name: otro-ns } }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: otro-ns, namespace: vectra-app }
+spec: { scaleTargetRef: { kind: Deployment, name: otro-ns } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: otro-ns, namespace: vectra-edge }
+spec: { selector: { matchLabels: { app.kubernetes.io/name: otro-ns } } }

@@ -1,0 +1,2754 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: vectra-observability
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F06
+  name: allow-f06-to-grafana-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: api-gateway
+    ports:
+    - port: 3000
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: grafana-3000
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  port: 3000
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f06-grafana-3000-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - api-gateway.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f06-grafana-3000
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f06-grafana-3000-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: grafana-3000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F109
+  name: allow-f109-grafana-to-alertmanager-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9093
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: alertmanager
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F109
+  name: allow-f109-to-alertmanager-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana
+    ports:
+    - port: 9093
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: alertmanager-9093
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  port: 9093
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f109-alertmanager-9093-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - grafana.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f109-alertmanager-9093
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f109-alertmanager-9093-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: alertmanager-9093
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F110
+  name: allow-f110-grafana-folder-permissions-to-grafana-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 3000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana-folder-permissions
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F110
+  name: allow-f110-grafana-folder-check-to-grafana-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 3000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana-folder-check
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F110
+  name: allow-f110-to-grafana-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana-folder-permissions
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana-folder-check
+    ports:
+    - port: 3000
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f110-grafana-3000-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - grafana-folder-permissions.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f110-grafana-3000
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f110-grafana-3000-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: grafana-3000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F112
+  name: allow-f112-to-prometheus-pushgateway-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: realm-drift
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: signing-key-age
+    ports:
+    - port: 9091
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-pushgateway
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: prometheus-pushgateway-9091
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-pushgateway
+  port: 9091
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: prometheus-pushgateway-realm-drift
+  namespace: vectra-observability
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: prometheus-pushgateway-9091
+  rules:
+  - matches:
+    - method: PUT
+      path:
+        type: RegularExpression
+        value: /metrics/job/realm-drift(/.*)?
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: prometheus-pushgateway-realm-drift-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - realm-drift.vectra-identity.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: prometheus-pushgateway-realm-drift
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: prometheus-pushgateway-realm-drift-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: prometheus-pushgateway-realm-drift
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: prometheus-pushgateway-signing-key-age
+  namespace: vectra-observability
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: prometheus-pushgateway-9091
+  rules:
+  - matches:
+    - method: PUT
+      path:
+        type: RegularExpression
+        value: /metrics/job/signing-key-age(/.*)?
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: prometheus-pushgateway-signing-key-age-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - signing-key-age.vectra-identity.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: prometheus-pushgateway-signing-key-age
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: prometheus-pushgateway-signing-key-age-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: prometheus-pushgateway-signing-key-age
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: prometheus-pushgateway-probes
+  namespace: vectra-observability
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: prometheus-pushgateway-9091
+  rules:
+  - matches:
+    - method: GET
+      path:
+        type: Exact
+        value: /-/healthy
+    - method: GET
+      path:
+        type: Exact
+        value: /-/ready
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: prometheus-pushgateway-probes-nodes
+  namespace: vectra-observability
+spec:
+  networks:
+  - cidr: 172.18.0.0/16
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: prometheus-pushgateway-probes
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: NetworkAuthentication
+    name: prometheus-pushgateway-probes-nodes
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: prometheus-pushgateway-probes
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F113
+  name: allow-f113-grafana-folder-check-to-prometheus-pushgateway-egres
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9091
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus-pushgateway
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana-folder-check
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F113
+  name: allow-f113-to-prometheus-pushgateway-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana-folder-check
+    ports:
+    - port: 9091
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-pushgateway
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: prometheus-pushgateway-grafana-folder-check
+  namespace: vectra-observability
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: prometheus-pushgateway-9091
+  rules:
+  - matches:
+    - method: PUT
+      path:
+        type: RegularExpression
+        value: /metrics/job/grafana-folder-permissions(/.*)?
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: prometheus-pushgateway-grafana-folder-check-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - grafana-folder-permissions.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: prometheus-pushgateway-grafana-folder-check
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: prometheus-pushgateway-grafana-folder-check-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: prometheus-pushgateway-grafana-folder-check
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F116
+  name: allow-f116-alertmanager-to-alertmanager-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9094
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: alertmanager
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F116
+  name: allow-f116-to-alertmanager-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: alertmanager
+    ports:
+    - port: 9094
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: alertmanager-9094
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  port: 9094
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f116-alertmanager-9094-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - alertmanager.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f116-alertmanager-9094
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f116-alertmanager-9094-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: alertmanager-9094
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F119
+  name: allow-f119-prometheus-to-kubelet-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 10250
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F120
+  name: allow-f120-loki-to-loki-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 7946
+      protocol: TCP
+    - port: 9095
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: loki
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F120
+  name: allow-f120-to-loki-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: loki
+    ports:
+    - port: 7946
+      protocol: TCP
+    - port: 9095
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: loki-7946
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  port: 7946
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f120-loki-7946-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - loki.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f120-loki-7946
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f120-loki-7946-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: loki-7946
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: loki-9095
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  port: 9095
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f120-loki-9095-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - loki.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f120-loki-9095
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f120-loki-9095-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: loki-9095
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F121
+  name: allow-f121-tempo-to-tempo-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 7946
+      protocol: TCP
+    - port: 9095
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: tempo
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F121
+  name: allow-f121-to-tempo-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: tempo
+    ports:
+    - port: 7946
+      protocol: TCP
+    - port: 9095
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: tempo-7946
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  port: 7946
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f121-tempo-7946-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - tempo.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f121-tempo-7946
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f121-tempo-7946-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: tempo-7946
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: tempo-9095
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  port: 9095
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f121-tempo-9095-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - tempo.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f121-tempo-9095
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f121-tempo-9095-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: tempo-9095
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F122
+  name: allow-f122-prometheus-to-kube-state-metrics-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: kube-state-metrics
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F122
+  name: allow-f122-to-kube-state-metrics-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: kube-state-metrics-8080
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics
+  port: 8080
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f122-kube-state-metrics-8080-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - prometheus.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f122-kube-state-metrics-8080
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f122-kube-state-metrics-8080-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: kube-state-metrics-8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F128
+  name: allow-f128-prometheus-to-kyverno-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 8000
+      protocol: TCP
+    - port: 9402
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kyverno
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F128
+  name: allow-f128-prometheus-to-cert-manager-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 8000
+      protocol: TCP
+    - port: 9402
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: cert-manager
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F128
+  name: allow-f128-prometheus-to-linkerd-control-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9996
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: linkerd
+      podSelector:
+        matchLabels:
+          linkerd.io/control-plane-ns: linkerd
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F129
+  name: allow-f129-prometheus-to-minio-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          app: minio
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F50
+  name: allow-f50-grafana-to-keycloak-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 8443
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-prometheus-to-vectra-app-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 8081
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-prometheus-to-vectra-edge-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 8081
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-prometheus-to-vectra-serving-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 8081
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-serving
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-prometheus-to-vectra-mock-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 8081
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-mock
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-prometheus-to-case-db-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9187
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: case-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-prometheus-to-governance-db-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9187
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: governance-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-prometheus-to-registry-db-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9187
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: registry-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-prometheus-to-keycloak-db-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9187
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          cnpg.io/cluster: keycloak-db
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-prometheus-to-keycloak-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloak
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F61
+  name: allow-f61-to-opentelemetry-collector-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-serving
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-staging
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-identity
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-mock
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-restore-drill
+    ports:
+    - port: 4317
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: opentelemetry-collector-4317
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+  port: 4317
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f61-opentelemetry-collector-4317-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - '*.vectra-app.serviceaccount.identity.linkerd.cluster.local'
+  - '*.vectra-data.serviceaccount.identity.linkerd.cluster.local'
+  - '*.vectra-edge.serviceaccount.identity.linkerd.cluster.local'
+  - '*.vectra-identity.serviceaccount.identity.linkerd.cluster.local'
+  - '*.vectra-mock.serviceaccount.identity.linkerd.cluster.local'
+  - '*.vectra-restore-drill.serviceaccount.identity.linkerd.cluster.local'
+  - '*.vectra-serving.serviceaccount.identity.linkerd.cluster.local'
+  - '*.vectra-staging.serviceaccount.identity.linkerd.cluster.local'
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f61-opentelemetry-collector-4317
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f61-opentelemetry-collector-4317-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: opentelemetry-collector-4317
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F62
+  name: allow-f62-opentelemetry-collector-to-tempo-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 4317
+      protocol: TCP
+    - port: 3100
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: tempo
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F62
+  name: allow-f62-to-tempo-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: opentelemetry-collector
+    ports:
+    - port: 4317
+      protocol: TCP
+    - port: 3100
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: tempo-4317
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  port: 4317
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f62-tempo-4317-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - otel-collector.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f62-tempo-4317
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f62-tempo-4317-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: tempo-4317
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: tempo-3100
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  port: 3100
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f62-tempo-3100-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - otel-collector.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f62-tempo-3100
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f62-tempo-3100-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: tempo-3100
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F62
+  name: allow-f62-opentelemetry-collector-to-loki-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 4317
+      protocol: TCP
+    - port: 3100
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: loki
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F62
+  name: allow-f62-to-loki-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: opentelemetry-collector
+    ports:
+    - port: 4317
+      protocol: TCP
+    - port: 3100
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: loki-4317
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  port: 4317
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f62-loki-4317-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - otel-collector.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f62-loki-4317
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f62-loki-4317-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: loki-4317
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: loki-3100
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  port: 3100
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f62-loki-3100-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - otel-collector.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f62-loki-3100
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f62-loki-3100-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: loki-3100
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F63
+  name: allow-f63-alloy-to-loki-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 3100
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: loki
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alloy
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F63
+  name: allow-f63-to-loki-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: alloy
+    ports:
+    - port: 3100
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f63-loki-3100-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - alloy.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f63-loki-3100
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f63-loki-3100-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: loki-3100
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F64
+  name: allow-f64-prometheus-to-alertmanager-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9093
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: alertmanager
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F64
+  name: allow-f64-to-alertmanager-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - port: 9093
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f64-alertmanager-9093-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - prometheus.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f64-alertmanager-9093
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f64-alertmanager-9093-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: alertmanager-9093
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F65
+  name: allow-f65-grafana-to-prometheus-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9090
+      protocol: TCP
+    - port: 3100
+      protocol: TCP
+    - port: 3200
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F65
+  name: allow-f65-to-prometheus-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana
+    ports:
+    - port: 9090
+      protocol: TCP
+    - port: 3100
+      protocol: TCP
+    - port: 3200
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: prometheus-9090
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  port: 9090
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f65-prometheus-9090-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - grafana.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f65-prometheus-9090
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f65-prometheus-9090-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: prometheus-9090
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: prometheus-3100
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  port: 3100
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f65-prometheus-3100-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - grafana.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f65-prometheus-3100
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f65-prometheus-3100-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: prometheus-3100
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: prometheus-3200
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  port: 3200
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f65-prometheus-3200-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - grafana.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f65-prometheus-3200
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f65-prometheus-3200-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: prometheus-3200
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F65
+  name: allow-f65-grafana-to-loki-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9090
+      protocol: TCP
+    - port: 3100
+      protocol: TCP
+    - port: 3200
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: loki
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F65
+  name: allow-f65-to-loki-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana
+    ports:
+    - port: 9090
+      protocol: TCP
+    - port: 3100
+      protocol: TCP
+    - port: 3200
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: loki-9090
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  port: 9090
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f65-loki-9090-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - grafana.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f65-loki-9090
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f65-loki-9090-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: loki-9090
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f65-loki-3100-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - grafana.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f65-loki-3100
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f65-loki-3100-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: loki-3100
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: loki-3200
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  port: 3200
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f65-loki-3200-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - grafana.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f65-loki-3200
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f65-loki-3200-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: loki-3200
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F65
+  name: allow-f65-grafana-to-tempo-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9090
+      protocol: TCP
+    - port: 3100
+      protocol: TCP
+    - port: 3200
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: tempo
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F65
+  name: allow-f65-to-tempo-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana
+    ports:
+    - port: 9090
+      protocol: TCP
+    - port: 3100
+      protocol: TCP
+    - port: 3200
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: tempo-9090
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  port: 9090
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f65-tempo-9090-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - grafana.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f65-tempo-9090
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f65-tempo-9090-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: tempo-9090
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f65-tempo-3100-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - grafana.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f65-tempo-3100
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f65-tempo-3100-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: tempo-3100
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: tempo-3200
+  namespace: vectra-observability
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  port: 3200
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f65-tempo-3200-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - grafana.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f65-tempo-3200
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f65-tempo-3200-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: tempo-3200
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F66
+  name: allow-f66-loki-to-minio-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          app: minio
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F67
+  name: allow-f67-tempo-to-minio-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9000
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-data
+      podSelector:
+        matchLabels:
+          app: minio
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F72
+  name: allow-f72-alertmanager-to-notificaciones-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 587
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F83
+  name: allow-f83-vectra-observability-to-linkerd-control-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 8086
+      protocol: TCP
+    - port: 8080
+      protocol: TCP
+    - port: 8090
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: linkerd
+      podSelector:
+        matchLabels:
+          linkerd.io/control-plane-ns: linkerd
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F87
+  name: allow-f87-to-prometheus-pushgateway-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-restore-drill
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: restore-drill
+    ports:
+    - port: 9091
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-pushgateway
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: prometheus-pushgateway-restore-drill
+  namespace: vectra-observability
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: prometheus-pushgateway-9091
+  rules:
+  - matches:
+    - method: PUT
+      path:
+        type: RegularExpression
+        value: /metrics/job/restore-drill(/.*)?
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: prometheus-pushgateway-restore-drill-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - restore-drill.vectra-restore-drill.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: prometheus-pushgateway-restore-drill
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: prometheus-pushgateway-restore-drill-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: prometheus-pushgateway-restore-drill
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F88
+  name: allow-f88-prometheus-to-prometheus-pushgateway-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9091
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus-pushgateway
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F88
+  name: allow-f88-to-prometheus-pushgateway-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - port: 9091
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-pushgateway
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: prometheus-pushgateway-prometheus
+  namespace: vectra-observability
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: prometheus-pushgateway-9091
+  rules:
+  - matches:
+    - method: GET
+      path:
+        type: Exact
+        value: /metrics
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: prometheus-pushgateway-prometheus-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - prometheus.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: prometheus-pushgateway-prometheus
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: prometheus-pushgateway-prometheus-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: prometheus-pushgateway-prometheus
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F106
+  name: allow-f106-to-prometheus-pushgateway-ingress
+  namespace: vectra-observability
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-app
+      podSelector:
+        matchLabels:
+          vectra.io/workload: bias-monitoring-job
+    ports:
+    - port: 9091
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-pushgateway
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: prometheus-pushgateway-bias-monitoring-job
+  namespace: vectra-observability
+spec:
+  parentRefs:
+  - group: policy.linkerd.io
+    kind: Server
+    name: prometheus-pushgateway-9091
+  rules:
+  - matches:
+    - method: PUT
+      path: &id001
+        type: RegularExpression
+        value: /metrics/job/bias-monitoring(/.*)?
+    - method: DELETE
+      path: *id001
+    - method: GET
+      path:
+        type: Exact
+        value: /api/v1/metrics
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: prometheus-pushgateway-bias-monitoring-job-mtls
+  namespace: vectra-observability
+spec:
+  identities:
+  - bias-monitoring-job.vectra-app.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: prometheus-pushgateway-bias-monitoring-job
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: prometheus-pushgateway-bias-monitoring-job-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: prometheus-pushgateway-bias-monitoring-job
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: K02
+  name: allow-k8s-api-k02
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.0/16
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: K03
+  name: allow-k8s-api-k03
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.0/16
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: K13
+  name: allow-k8s-api-k13
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.0/16
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alloy
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: K17
+  name: allow-k8s-api-k17
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.0/16
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: K19
+  name: allow-k8s-api-k19
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.0/16
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: K20
+  name: allow-k8s-api-k20
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.0/16
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics
+  policyTypes:
+  - Egress

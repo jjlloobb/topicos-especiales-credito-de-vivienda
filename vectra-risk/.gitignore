@@ -16,3 +16,6 @@ mutants/
 .benchmarks/
 .import_linter_cache/
 coverage.json
+platform/.tools/
+platform/kind/encryption-config.yaml
+platform/.charts/

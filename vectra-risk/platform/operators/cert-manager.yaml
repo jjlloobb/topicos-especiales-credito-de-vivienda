@@ -1,0 +1,6 @@
+crds: { enabled: true }
+# El chart usa kube-system por defecto para las Role de leader election, y el AppProject no admite ese namespace.
+global: { leaderElection: { namespace: cert-manager } }
+replicaCount: 2
+webhook: { replicaCount: 2 }
+cainjector: { replicaCount: 2 }

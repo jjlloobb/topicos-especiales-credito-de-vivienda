@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minio
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '2'
+spec:
+  project: vectra-kind
+  sources:
+  - repoURL: https://charts.min.io
+    chart: minio
+    targetRevision: 5.4.0
+    helm:
+      valueFiles:
+      - $values/vectra-risk/platform/data/minio/values.yaml
+      - $values/vectra-risk/platform/data/minio/values-kind.yaml
+  - repoURL: https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda.git
+    targetRevision: main
+    ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-data
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

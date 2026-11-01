@@ -14,9 +14,9 @@
 |---|---|
 | Unidad | U11 `product-metrics`: proceso `asyncio` sin API de negocio que lee la proyección `metrics` del registro, calcula las métricas de producto en memoria y las publica en `/metrics`; reglas de Prometheus y dashboards como código |
 | Historias (dueña) | US-503 (North Star), US-504 (métrica de ruido con alerta), US-505 (métricas operativas y de producto) |
-| Ubicación | `vectra-risk/product-metrics/` y Applications en `vectra-risk-gitops` |
+| Ubicación | `vectra-risk/product-metrics/` y entradas en `vectra-risk-gitops/components.yaml`, dentro del monorepo (revisión de consistencia entre unidades, 2026-11-01) |
 | Datos propios | Ninguno: estado en memoria, reconstruido con la pasada completa al arrancar |
-| Depende de | U0 (`vectra_common.ops_server` con predicado de readiness, `process.init`, `deps.call`, `FailClosedCause.category`, tipos de la proyección), U1 (malla, cuotas, `flows.yaml`, Job `grafana-folder-permissions`, carpeta de operación, exención de HPA), U2 (cliente `product-metrics` con un solo scope, equipos de Grafana), U3 (proyección `metrics` con la recomendación resuelta, `first_evaluation` y paginación por `seq`), U7 (`vectra_recommendations_total`, `vectra_scoring_failclosed_total`, y la copia de `received_at`, `channel`, `attempt` y `first_evaluation` al payload), U8 (`received_at` y `first_evaluation` en la `ScoringRequest`) |
+| Depende de | U0 (`vectra_common.ops_server` con predicado de readiness, `process.init`, `deps.call`, `FailClosedCause.category`, `MetricsProjection`; revisión de consistencia entre unidades, 2026-11-01), U1 (malla, cuotas, `flows.yaml`, Job `grafana-folder-permissions`, carpeta de operación, exención de HPA), U2 (cliente `product-metrics` con un solo scope, equipos de Grafana), U3 (proyección `metrics` con la recomendación resuelta, `first_evaluation` y paginación por `seq`), U7 (`vectra_recommendations_total`, `vectra_scoring_failclosed_total`, y la copia de `received_at`, `channel`, `attempt` y `first_evaluation` al payload), U8 (`received_at` y `first_evaluation` en la `ScoringRequest`) |
 | Lo consumen | CRO, cumplimiento e ingeniería de riesgo en Grafana; U12 (demostración del dashboard) |
 
 **Diseño de entrada:**
@@ -44,9 +44,9 @@ vectra-risk/product-metrics/
 |   |-- compute.py  noise.py              # puros
 |   |-- state.py  reader.py  scheduler.py  collector.py  main.py
 |-- tools/gen_rules.py
-|-- chart/   templates/  values-{prod,staging,kind}.yaml  values-product-metrics-policy.yaml
+|-- chart/   templates/  values-product-metrics-policy.yaml  # por entorno: vectra-risk-gitops/values/<env>/product-metrics.yaml (revisión de consistencia entre unidades, 2026-11-01)
 |-- policies/conftest/
-|-- observability/  rules/  rules/tests/  runbooks/  dashboards/{product.json, operation.json}
+|-- observability/  rules/  rules/tests/  runbooks/  dashboards/product.json  # el panel de operación está en platform/observability/dashboards/operacion.json (revisión de consistencia entre unidades, 2026-11-01)
 `-- tests/  unit/ property/ integration/ doubles/ volume/
 ```
 
@@ -98,7 +98,7 @@ vectra-risk/product-metrics/
 - [ ] **Paso 6 — `scheduler`, `collector` y `main`**
   - `scheduler`: pasada completa al arrancar y diaria; ciclo incremental cada 5 min, omitido (y contado) si el candado está tomado; plazo y reintentos de la pasada.
   - `collector`: `Collector` de `prometheus-client` sobre la instantánea inmutable; sin instantánea, sin series de producto; series de operación siempre.
-  - `main`: `vectra_common.process.init(kind="service")`, `ops_server` con el **predicado de readiness** (instantánea o breaker abierto o semiabierto), apagado con `SIGTERM` (no toma ciclos nuevos, termina la página en curso).
+  - `main`: `vectra_common.process.init(kind="service")`, `ops_server.create_ops_app(readiness)`, servida sin `run_service` porque no hay API (revisión de consistencia entre unidades, 2026-11-01), con el **predicado de readiness** (instantánea o breaker abierto o semiabierto), apagado con `SIGTERM` (no toma ciclos nuevos, termina la página en curso).
   - Allowlist de series y etiquetas de domain-entities §5 (producto y operación).
   - Diseño: P-U11-02, 03; INF-U11-01; NFR-U11-07, 08, 40.
   - **Aceptación**: `uv run pytest product-metrics/tests/integration/test_process.py tests/integration/test_collector.py`:
@@ -132,18 +132,18 @@ vectra-risk/product-metrics/
 ### Bloque E — Despliegue y operación
 
 - [ ] **Paso 10 — Imagen**
-  - Python oficial por digest, `runAsNonRoot`, `readOnlyRootFilesystem`; construida, escaneada, con SBOM y firmada por `supply-chain.yml` de U1.
-  - **Aceptación**: `hadolint product-metrics/Dockerfile`; el SBOM no contiene FastAPI.
+  - Python oficial por digest, `runAsNonRoot`, `readOnlyRootFilesystem`; construida, escaneada, con SBOM y firmada con `sign-image.yml` de U1; el escaneo y el SBOM son de `supply-chain.yml`.
+  - **Aceptación**: `hadolint product-metrics/Dockerfile`; ningún módulo de `product-metrics` importa FastAPI (import-linter). El SBOM sí lo lista, como dependencia de `vectra_common` (revisión de consistencia entre unidades, 2026-11-01).
 
 - [ ] **Paso 11 — Chart, cuotas y flujos**
   - `Deployment` de 2 réplicas fijas con `vectra.io/hpa-exempt` y su justificación, `RollingUpdate` con `maxSurge: 1` y `maxUnavailable: 0`, `progressDeadlineSeconds: 4800`, PDB, spread por zona, `vectra-normal`, `terminationGracePeriodSeconds: 10`.
   - Sondas del `Deployment` (revisión del plan de tareas de U11, 2026-10-10): `livenessProbe` HTTP sobre `/healthz` y `readinessProbe` HTTP sobre `/readyz`, las dos en 8081; sin `startupProbe` larga (INF-U11-01).
   - `Service` solo con 8081 y `publishNotReadyAddresses: true`; `ServiceMonitor`.
-  - Linkerd `Server` en 8081 y `AuthorizationPolicy` que admite solo la identidad de Prometheus (F60); las sondas del kubelet pasan por la autorización automática de sondas de Linkerd (INF-U11-04; revisión del plan de tareas de U11, 2026-10-10).
+  - Sin `Server` ni `AuthorizationPolicy` en el chart: 8081 lo cubre el `Server` `metrics-8081` del namespace, que U1 genera desde F60 y solo admite la identidad de Prometheus (revisión de consistencia entre unidades, 2026-11-01); las sondas del kubelet pasan por la autorización automática de sondas de Linkerd (INF-U11-04; revisión del plan de tareas de U11, 2026-10-10).
   - `ServiceAccount` con `automountServiceAccountToken: false`; `ExternalSecret` de la llave del cliente.
-  - `ConfigMap` de `values-product-metrics-policy.yaml` sin `subPath` y con `checksum/config`; `CODEOWNERS` de producto y riesgo en el monorepo y en GitOps.
+  - `ConfigMap` de `values-product-metrics-policy.yaml` sin `subPath` y con `checksum/config`; regla de ruta en `.github/CODEOWNERS`, el único del monorepo, para producto y riesgo (revisión de consistencia entre unidades, 2026-11-01).
   - Aporte a la cuota de `vectra-app` (NFR-U11-14) en `platform/policies/quotas/` de U1.
-  - Flujos F28, F50 y F60 en `platform/network/flows.yaml`, con los casos bloqueados de INF-U11-04.
+  - Flujos F28, F50 y F60 a verificar en `platform/network/flows.yaml`, donde ya están (revisión de consistencia entre unidades, 2026-11-01), con los casos bloqueados de INF-U11-04.
   - Diseño: INF-U11-01..04; NFR-U11-05, 14, 20, 21.
   - **Aceptación**: `helm template` con cada values + `kubeconform` + `conftest test product-metrics/policies/conftest/` (réplicas, exención, estrategia, plazos, `livenessProbe` en `/healthz` y `readinessProbe` en `/readyz` en 8081 presentes, `publishNotReadyAddresses`, sin token montado, sin `subPath`, `checksum/config`, `Server` y `AuthorizationPolicy` de Linkerd en 8081 solo para Prometheus, rangos de los parámetros dentro y fuera; revisión del plan de tareas de U11, 2026-10-10); `kyverno test` de U1 (`require-hpa-bounds`); `conftest test platform/policies/quotas/`; `uv run python platform/network/generate.py --check`; `CODEOWNERS` con la línea del archivo.
 
@@ -163,7 +163,7 @@ vectra-risk/product-metrics/
 
 - [ ] **Paso 13 — Dashboards y runbooks**
   - `product.json` (carpeta `Vectra / Producto`): North Star con desglose, tasa de consulta con el piso y los días bajo el piso, sostenida con la nota de aproximación, originación con el target, respuesta completa y fail-closed, no atribuibles, excluidas y degradado; solo series `:dedup`; targets como líneas.
-  - `operation.json` (carpeta de operación de U1): ciclo, entradas leídas, pasada, ciclos omitidos, breaker.
+  - Sin `operation.json` propio: `platform/observability/dashboards/operacion.json` de U1 (carpeta `Vectra / Operación`) es el dueño de ciclo, entradas leídas, recomputación diaria y breaker (plan de U1, Paso 12). U11 le agrega por PR el panel que falta, ciclos omitidos (`vectra_product_cycles_skipped_total`), y solo `product.json` queda en su chart, como `ConfigMap` con la etiqueta `vectra.io/dashboard` y la anotación `grafana_folder` (revisión de consistencia entre unidades, 2026-11-01).
   - Runbooks `product-noise`, `product-metrics-degraded`, `product-metrics-stale`, `product-metrics-full-recompute-missing` y `product-metrics-parameter-change`.
   - Diseño: BR-U11-12, 13; INF-U11-05; NFR-U11-33, 41.
   - **Aceptación**: `uv run pytest product-metrics/tests/unit/test_dashboards.py` (ninguna referencia a series `vectra_product_*` crudas salvo en las dos alertas por réplica; ninguna razón calculada como promedio de razones; la nota de aproximación y «sin target acordado» presentes); `uv run python contracts/tools/forbidden_phrases.py product-metrics/observability/dashboards/*.json`; `uv run python platform/tests/test_runbooks.py --root product-metrics`.
@@ -174,9 +174,9 @@ vectra-risk/product-metrics/
   - **Aceptación**: `actionlint .github/workflows/product-metrics.yml`; `! grep -E "kubectl|helm (install|upgrade)|terraform apply" .github/workflows/product-metrics.yml`; una prueba sobre el YAML: el disparador incluye `contracts/**`.
 
 - [ ] **Paso 15 — Application y trazabilidad**
-  - Application en la wave 5 por entorno, sin auto-sync.
+  - Entrada `product-metrics` en `vectra-risk-gitops/components.yaml` con `wave: 5` y `values: [product-metrics/chart/values-product-metrics-policy.yaml]`; `generate.py` escribe una Application por entorno, sin auto-sync (revisión de consistencia entre unidades, 2026-11-01).
   - Trazabilidad de cada BR-U11 a una prueba.
-  - **Aceptación**: `uv run python platform/tests/test_waves.py`; `kyverno test` de `disallow-argocd-auto-sync`; `uv run python platform/tests/test_traceability.py --unit product-metrics --all`.
+  - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`; `uv run python platform/tests/test_waves.py`; `kyverno test` de `disallow-argocd-auto-sync`; `uv run python platform/tests/test_traceability.py --unit product-metrics --all`.
 
 ### Bloque F — Verificación en kind (con aprobación humana)
 
@@ -236,3 +236,14 @@ vectra-risk/product-metrics/
 | SECURITY-03 / 06 / 08 / 11 / 12 | Cumple | Pasos 6, 11, 13, 16 |
 | RESILIENCY-01 / 05 / 07 / 08 / 09 / 10 / 14 / 15 | Cumple | Pasos 4, 6, 7, 11–13, 16 |
 | PBT-01..10 | Cumple | PBT-U11-01..07 (Pasos 3, 4, 6), perfiles `ci` y `nightly` (Paso 14) y pruebas de ejemplo (Pasos 3, 7) |
+
+## Reglas de admisión que este plan debe cumplir (revisión de consistencia entre unidades, 2026-11-01)
+
+Cada chart de esta unidad pasa `make -C platform check-chart CHART=<ruta>` en el PR, con los mismos values que usa Argo CD en cada entorno:
+
+- Imágenes por digest, de un registro que admita `restrict-registries`; las de terceros se espejan.
+- `runAsNonRoot`, `readOnlyRootFilesystem` (con `emptyDir` para lo que escriba en disco), sin `privileged` ni `hostPath`, con recursos y `priorityClassName`.
+- `vectra.io/criticality` en cada `Deployment` y `StatefulSet` que el chart declare.
+- En `vectra-app`, `vectra-edge`, `vectra-identity`, `vectra-serving` y `vectra-mock`: 2 réplicas o más, `topologySpreadConstraints` por zona, PDB por `app.kubernetes.io/name`, y HPA o `vectra.io/hpa-exempt`.
+
+Detalle en `aidlc-docs/construction/shared-infrastructure.md` §2.

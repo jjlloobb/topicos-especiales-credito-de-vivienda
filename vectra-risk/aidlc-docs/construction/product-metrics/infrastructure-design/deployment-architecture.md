@@ -66,8 +66,8 @@ terminar -> SIGTERM: no toma ciclos nuevos, termina la página en curso (<= 10 s
 | `ConfigMap` | `values-product-metrics-policy.yaml` (con `checksum/config`) |
 | `ServiceMonitor` | 8081 |
 | `PrometheusRule` | `:dedup`, reglas generadas y alertas (INF-U11-05) |
-| Dashboards (`ConfigMap` de Grafana) | `product.json` y el panel de operación |
-| Linkerd `Server`, `AuthorizationPolicy` | 8081 solo para Prometheus; sondas del kubelet |
+| Dashboards (`ConfigMap` de Grafana, con `vectra.io/dashboard` y `grafana_folder`) | `product.json`; el panel de operación está en `operacion.json` de U1 (revisión de consistencia entre unidades, 2026-11-01) |
+| Linkerd `Server`, `AuthorizationPolicy` | Ninguno en el chart: 8081 solo para Prometheus y sondas del kubelet por `metrics-8081`, que genera U1 (revisión de consistencia entre unidades, 2026-11-01) |
 
 - `Application` de Argo CD en la wave 5, sin auto-sync (AUTONOMIA-01).
 - `NetworkPolicy` y `AuthorizationPolicy` vienen de U1, desde `flows.yaml`.

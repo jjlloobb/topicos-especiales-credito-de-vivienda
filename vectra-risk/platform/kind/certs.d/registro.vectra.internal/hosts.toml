@@ -1,0 +1,5 @@
+# containerd: en kind, las imagenes propias de registro.vectra.internal se sirven desde el registro local (registry.md).
+server = "http://kind-registry:5000"
+
+[host."http://kind-registry:5000"]
+  capabilities = ["pull", "resolve"]

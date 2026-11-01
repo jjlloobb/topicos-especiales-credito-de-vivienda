@@ -129,4 +129,4 @@ Holgura: U5/U6 pueden adelantarse tras U0/U1; U9 y U11 se pueden reordenar
 | Stack de observabilidad | U1 | Todas | Cada unidad versiona sus propias alertas, dashboards y runbooks junto a su chart |
 | Librería de disparidad | U9 | U4 (validation-job), U5 (informe del modelo) | Hasta que U9 exista, el validation-job de U4 y U5 se planifican contra la interfaz de U0, con un doble |
 | Datasets y artefactos de referencia | U5 | U4, U6, U7 (fixtures), U9, U12 | Versionados; se referencian por hash |
-| Repositorio `vectra-risk-gitops` | U1 (estructura) | Todas (values), U4 (`promotion-tool`) | Solo PR con aprobación; nunca auto-sync |
+| Directorio `vectra-risk-gitops/` del monorepo (revisión de consistencia entre unidades, 2026-11-01) | U1 (estructura) | Todas (values), U4 (`promotion-tool`) | Solo PR con aprobación; nunca auto-sync |

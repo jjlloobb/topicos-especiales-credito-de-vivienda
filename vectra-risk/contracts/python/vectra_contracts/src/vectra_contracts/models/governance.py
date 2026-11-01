@@ -182,6 +182,27 @@ class DataSource(DataSourceProposal):
     decided_by: str | None = None
 
 
+class ModelFilter(StrictModel):
+    """`GET /v1/models?state=activo,congelado`: uno o varios estados."""
+
+    state: list[ModelState] | None = None
+    page: Annotated[int, Field(ge=1)] = 1
+    page_size: Annotated[int, Field(ge=1, le=100)] = 20
+
+
+class PolicyDecisionIn(StrictModel):
+    """`rechazada` exige `justification` (U4 `rejection_justification`)."""
+
+    decision: Literal["aprobada", "rechazada"]
+    justification: Annotated[str, Field(max_length=2000)] | None = None
+
+    @model_validator(mode="after")
+    def _justified(self) -> Self:
+        if self.decision == "rechazada" and not (self.justification and self.justification.strip()):
+            raise ValueError("justification_required")
+        return self
+
+
 class ModelApprovalIn(StrictModel):
     decision: Literal["aprobado", "rechazado"]
     justification: Annotated[str, Field(max_length=2000)] | None = None

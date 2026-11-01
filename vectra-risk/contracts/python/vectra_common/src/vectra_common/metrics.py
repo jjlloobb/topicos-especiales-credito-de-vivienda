@@ -3,10 +3,21 @@
 from collections.abc import Sequence
 from typing import Final
 
-from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
+from prometheus_client import (
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    GCCollector,
+    Histogram,
+    PlatformCollector,
+    ProcessCollector,
+)
 from vectra_contracts.errors import ContractViolation
 
 REGISTRY: Final = CollectorRegistry()
+ProcessCollector(registry=REGISTRY)  # series estandar que usa U11
+PlatformCollector(registry=REGISTRY)
+GCCollector(registry=REGISTRY)
 
 #: Incluyen los umbrales de los SLO y de las alertas.
 HTTP_BUCKETS: Final = (

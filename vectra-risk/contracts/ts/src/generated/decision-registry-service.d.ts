@@ -126,6 +126,29 @@ export interface components {
             /** @default null */
             role: components["schemas"]["Role"] | null;
         };
+        /**
+         * AffectedVolume
+         * @description Recomendaciones de la versión en la ventana y cuántas fueron `favorable` (U9 §3.1).
+         */
+        AffectedVolume: {
+            /** Favorable */
+            favorable: number;
+            /** Total */
+            total: number;
+        };
+        /** AttributeDelta */
+        AttributeDelta: {
+            /**
+             * Attribute
+             * @enum {string}
+             */
+            attribute: "sexo" | "rango_edad" | "region" | "estrato";
+            /**
+             * Delta
+             * @default null
+             */
+            delta: string | null;
+        };
         /** AttributeResult */
         AttributeResult: {
             /**
@@ -366,6 +389,49 @@ export interface components {
             /** Seq */
             seq: number;
         };
+        /** EntryFilter */
+        EntryFilter: {
+            /**
+             * Case Id
+             * @default null
+             */
+            case_id: string | null;
+            /**
+             * Entry Type
+             * @default null
+             */
+            entry_type: components["schemas"]["EntryType"][] | null;
+            /**
+             * Limit
+             * @default 1000
+             */
+            limit: number;
+            /**
+             * Projection
+             * @default null
+             */
+            projection: ("full" | "explanation" | "metrics" | "monitoring_freezes") | null;
+            /**
+             * Recorded From
+             * @default null
+             */
+            recorded_from: string | null;
+            /**
+             * Recorded To
+             * @default null
+             */
+            recorded_to: string | null;
+            /**
+             * Seq
+             * @default null
+             */
+            seq: number | null;
+            /**
+             * Seq After
+             * @default null
+             */
+            seq_after: number | null;
+        };
         /**
          * EntryType
          * @enum {string}
@@ -397,6 +463,22 @@ export interface components {
             posthoc_notice: string;
             /** Shap Vector */
             shap_vector: components["schemas"]["FeatureContribution"][];
+        };
+        /**
+         * ExplanationProjection
+         * @description Proyección `explanation` (U3 §3; BR-U7-13).
+         */
+        ExplanationProjection: {
+            /**
+             * Case Id
+             * Format: uuid
+             */
+            case_id: string;
+            /** Model Version Id */
+            model_version_id: string;
+            payload: components["schemas"]["_ExplanationOnly"];
+            /** Seq */
+            seq: number;
         };
         /** ExplanationViewPayload */
         ExplanationViewPayload: {
@@ -456,8 +538,7 @@ export interface components {
          * @description `FreezeContext` mas lo que agrega governance (BR-U9-16).
          */
         FreezeContextPackage: {
-            /** Affected Volume */
-            affected_volume: number;
+            affected_volume: components["schemas"]["AffectedVolume"];
             after: components["schemas"]["DisparityResult"];
             /** Before */
             before: components["schemas"]["DisparityResult"] | "sin_datos";
@@ -511,6 +592,29 @@ export interface components {
              */
             frozen_at: string;
         };
+        /**
+         * FreezeProjection
+         * @description Proyección `monitoring_freezes`, entrada `freeze` (U3 §3).
+         */
+        FreezeProjection: {
+            context_package: components["schemas"]["FreezeContextPackage"];
+            /** Freeze Id */
+            freeze_id: string;
+            /**
+             * Frozen At
+             * Format: date-time
+             */
+            frozen_at: string;
+            /** Model Version Id */
+            model_version_id: string;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Seq */
+            seq: number;
+        };
         /** FreezeRecord */
         FreezeRecord: {
             context_package: components["schemas"]["FreezeContextPackage"];
@@ -535,6 +639,26 @@ export interface components {
             action: "reactivar" | "descartar" | "investigar";
             /** Justification */
             justification: string;
+        };
+        /**
+         * FrozenResolutionProjection
+         * @description Proyección `monitoring_freezes`, entrada `frozen_resolution` (U3 §3).
+         */
+        FrozenResolutionProjection: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "reactivar" | "descartar" | "investigar";
+            /** Model Version Id */
+            model_version_id: string;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Seq */
+            seq: number;
         };
         /** GenesisPayload */
         GenesisPayload: {
@@ -769,6 +893,123 @@ export interface components {
          * @enum {string}
          */
         LocalCause: "serving_config_unavailable" | "scoring_unreachable" | "scoring_rejected";
+        /**
+         * MetricsProjection
+         * @description Proyección `metrics` (U3 §3; U11 BR-U11-01). Sin `feature_vector` ni `justification`.
+         */
+        MetricsProjection: {
+            /** @default null */
+            actor_role: components["schemas"]["Role"] | null;
+            /**
+             * Attempt
+             * @default null
+             */
+            attempt: number | null;
+            /**
+             * Case Id
+             * Format: uuid
+             */
+            case_id: string;
+            /**
+             * Channel
+             * @default null
+             */
+            channel: string | null;
+            /**
+             * Decided At
+             * @default null
+             */
+            decided_at: string | null;
+            /** @default null */
+            decision: components["schemas"]["Decision"] | null;
+            /**
+             * Delivery Status
+             * @default null
+             */
+            delivery_status: string | null;
+            /**
+             * Entry Type
+             * @enum {string}
+             */
+            entry_type: "recommendation" | "human_decision" | "explanation_view";
+            /**
+             * Evaluated At
+             * @default null
+             */
+            evaluated_at: string | null;
+            /**
+             * Explanation Viewed Before
+             * @default null
+             */
+            explanation_viewed_before: boolean | null;
+            /** @default null */
+            final_outcome: components["schemas"]["FinalOutcome"] | null;
+            /**
+             * First Evaluation
+             * @default null
+             */
+            first_evaluation: boolean | null;
+            /**
+             * Model Version Id
+             * @default null
+             */
+            model_version_id: string | null;
+            /** @default null */
+            outcome: components["schemas"]["Outcome"] | null;
+            /**
+             * Received At
+             * @default null
+             */
+            received_at: string | null;
+            /** @default null */
+            recommendation: components["schemas"]["MetricsRecommendationRef"] | null;
+            /**
+             * Recommendation Entry Id
+             * @default null
+             */
+            recommendation_entry_id: string | null;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Seq */
+            seq: number;
+            /**
+             * Used Factors
+             * @default null
+             */
+            used_factors: string[] | null;
+            /**
+             * Viewed At
+             * @default null
+             */
+            viewed_at: string | null;
+        };
+        /** MetricsRecommendationRef */
+        MetricsRecommendationRef: {
+            /** Attempt */
+            attempt: number;
+            /** Channel */
+            channel: string;
+            /**
+             * Evaluated At
+             * Format: date-time
+             */
+            evaluated_at: string;
+            /** First Evaluation */
+            first_evaluation: boolean;
+            /** Model Version Id */
+            model_version_id: string;
+            outcome: components["schemas"]["Outcome"];
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Seq */
+            seq: number;
+        };
         /** ModelEventPayload */
         ModelEventPayload: {
             /** Details */
@@ -895,10 +1136,10 @@ export interface components {
          * @enum {string}
          */
         Outcome: "favorable" | "desfavorable" | "revision_requerida";
-        /** Page[RegistryEntry] */
-        Page_RegistryEntry_: {
+        /** Page[Union[RegistryEntry, ExplanationProjection, MetricsProjection, FreezeProjection, FrozenResolutionProjection]] */
+        Page_Union_RegistryEntry__ExplanationProjection__MetricsProjection__FreezeProjection__FrozenResolutionProjection__: {
             /** Items */
-            items: components["schemas"]["RegistryEntry"][];
+            items: (components["schemas"]["RegistryEntry"] | components["schemas"]["ExplanationProjection"] | components["schemas"]["MetricsProjection"] | components["schemas"]["FreezeProjection"] | components["schemas"]["FrozenResolutionProjection"])[];
             /**
              * Next Seq After
              * @default null
@@ -925,13 +1166,22 @@ export interface components {
             /** Policy Version Id */
             policy_version_id: string;
         };
-        /** PrePostReport */
-        PrePostReport: {
+        /**
+         * PrePostDelta
+         * @description `post − pre` de cada agregada y de `model_aggregate` (U9 §3.2).
+         */
+        PrePostDelta: {
+            /** Attributes */
+            attributes: components["schemas"]["AttributeDelta"][];
             /**
-             * Delta
+             * Model Aggregate
              * @default null
              */
-            delta: string | null;
+            model_aggregate: string | null;
+        };
+        /** PrePostReport */
+        PrePostReport: {
+            delta: components["schemas"]["PrePostDelta"];
             /** Disclaimer */
             disclaimer: string;
             /** N Min */
@@ -1028,6 +1278,18 @@ export interface components {
             received_at: string;
             /** Score */
             score: string;
+        };
+        /** RegistryAck */
+        RegistryAck: {
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Registry Entry Id */
+            registry_entry_id: string;
+            /** Seq */
+            seq: number;
         };
         /** RegistryDossier */
         RegistryDossier: {
@@ -1162,6 +1424,10 @@ export interface components {
              */
             population: "modelo" | "humana";
         };
+        /** _ExplanationOnly */
+        _ExplanationOnly: {
+            explanation: components["schemas"]["Explanation"];
+        };
     };
     responses: never;
     parameters: never;
@@ -1204,7 +1470,16 @@ export interface operations {
     };
     get_v1_entries: {
         parameters: {
-            query?: never;
+            query?: {
+                case_id?: string | null;
+                entry_type?: components["schemas"]["EntryType"][] | null;
+                limit?: number;
+                projection?: ("full" | "explanation" | "metrics" | "monitoring_freezes") | null;
+                recorded_from?: string | null;
+                recorded_to?: string | null;
+                seq?: number | null;
+                seq_after?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1217,7 +1492,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_RegistryEntry_"];
+                    "application/json": components["schemas"]["Page_Union_RegistryEntry__ExplanationProjection__MetricsProjection__FreezeProjection__FrozenResolutionProjection__"];
                 };
             };
             /** @description Problem */
@@ -1244,12 +1519,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Sin contenido */
-            204: {
+            /** @description OK */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RegistryAck"];
+                };
             };
             /** @description Problem */
             default: {
@@ -1277,6 +1554,15 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrityCheckRef"];
+                };
+            };
+            /** @description Aceptada */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

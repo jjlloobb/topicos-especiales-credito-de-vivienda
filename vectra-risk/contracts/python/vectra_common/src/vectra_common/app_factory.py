@@ -5,7 +5,7 @@ import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Final, cast
+from typing import Any, Final, cast, get_args, get_origin
 
 from fastapi import FastAPI, Request, Security
 from fastapi.responses import Response
@@ -57,6 +57,7 @@ class RequestContext:
     request: Request
     principal: Principal
     body: BaseModel | None
+    query: BaseModel | None
     path_params: Mapping[str, str]
     correlation_id: str
     deadline: datetime | None
@@ -90,17 +91,22 @@ class TelemetryMiddleware:
             await self.app(scope, receive, send)
             return
         headers = dict(scope["headers"])
-        incoming = telemetry.parse_traceparent(headers.get(b"traceparent", b"").decode("latin-1"))
+        header = headers.get(b"traceparent", b"").decode("latin-1")
+        incoming = telemetry.parse_traceparent(header)
         trace_id = incoming[0] if incoming else telemetry.new_trace_id()
         span_id = telemetry.new_span_id()
-        parent = incoming[1] if incoming else telemetry.new_span_id()
+        wanted = telemetry.traceparent_sampled(header)
+        span = telemetry.start_span(
+            f"{scope['method']}", trace_id, incoming[1] if incoming else None, span_id, wanted
+        )
+        sampled = bool(span.get_span_context().trace_flags.sampled) if span is not None else wanted
         correlation_token = vlog.correlation_id_var.set(trace_id)
         span_token = vlog.span_id_var.set(span_id)
-        span = telemetry.start_span(f"{scope['method']}", trace_id, parent)
+        sampled_token = vlog.trace_sampled_var.set(sampled)
 
         async def send_with_trace(message: Message) -> None:
             if message["type"] == "http.response.start":
-                value = telemetry.format_traceparent(trace_id, span_id).encode("latin-1")
+                value = telemetry.format_traceparent(trace_id, span_id, sampled).encode("latin-1")
                 message.setdefault("headers", []).append((b"traceparent", value))
             await send(message)
 
@@ -112,6 +118,7 @@ class TelemetryMiddleware:
                 span.end()
             vlog.correlation_id_var.reset(correlation_token)
             vlog.span_id_var.reset(span_token)
+            vlog.trace_sampled_var.reset(sampled_token)
 
 
 class AccessLogMiddleware:
@@ -256,17 +263,49 @@ async def _body_guard(request: Request, contract: RouteContract) -> BaseModel | 
         raise validation_failed(exc) from exc
 
 
+def _is_list(annotation: Any) -> bool:
+    return any(get_origin(arg) is list for arg in (annotation, *get_args(annotation)))
+
+
+def parse_query(request: Request, model: type[BaseModel]) -> BaseModel:
+    """Los parametros llegan como texto: se convierten con el esquema; lo que sobra es 422.
+
+    Un filtro de lista admite `state=a&state=b` y `state=a,b` (`GET /v1/models?state=activo,congelado`).
+    """
+    values: dict[str, Any] = {}
+    for name in set(request.query_params.keys()):
+        raw = request.query_params.getlist(name)
+        field = model.model_fields.get(name)
+        if field is not None and _is_list(field.annotation):
+            values[name] = [part for item in raw for part in item.split(",")]
+        else:
+            values[name] = raw[-1] if len(raw) == 1 else raw
+    try:
+        return model.model_validate(values, strict=False)
+    except ValidationError as exc:
+        raise validation_failed(exc) from exc
+
+
+def respond(model: BaseModel | None, status: int) -> Response:
+    """Para un estado alterno del contrato: 202 con cuerpo, o 304 sin el."""
+    if model is None:
+        return Response(status_code=status)
+    return Response(model.model_dump_json(exclude_none=True), status_code=status, media_type="application/json")
+
+
 def _endpoint(contract: RouteContract, handler: Handler) -> Callable[[Request], Awaitable[Response]]:
     async def endpoint(request: Request) -> Response:
         now: datetime = request.app.state.clock()
         deadline = deadline_module.read(request.headers, now)
         token = deadline_module.current_deadline.set(deadline)
         try:
+            query = parse_query(request, contract.query_model) if contract.query_model else None
             body = await _body_guard(request, contract)
             context = RequestContext(
                 request=request,
                 principal=cast(Principal, request.scope["vectra_principal"]),
                 body=body,
+                query=query,
                 path_params=request.path_params,
                 correlation_id=vlog.correlation_id_var.get() or "",
                 deadline=deadline,

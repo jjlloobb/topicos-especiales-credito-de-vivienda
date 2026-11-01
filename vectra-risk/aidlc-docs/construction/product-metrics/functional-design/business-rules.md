@@ -67,7 +67,7 @@ las métricas de U7, sin leer el registro:
 
 **BR-U11-09 — Parámetros y targets** (Q5, Q9).
 - Un archivo `values-product-metrics-policy.yaml` del chart contiene F, S y N, y los targets del PRD §10: 100 % de respuesta completa, < 1 h en el 80 %, > 70 % sostenidas al mes 6 y la North Star «sin target acordado». Todos marcados **[INTERNO]**.
-- `CODEOWNERS` del monorepo y de GitOps lo asignan a los equipos de producto y de riesgo, con la protección de rama de U4 (`branch-protection-check`).
+- `.github/CODEOWNERS`, el único del monorepo, lo asigna con una regla de ruta (revisión de consistencia entre unidades, 2026-11-01) a los equipos de producto y de riesgo, con la protección de rama de U4 (`branch-protection-check`).
 - Rangos validados por `conftest`: 0 < F < 1, 1 ≤ S ≤ 14, N ≥ 30, targets entre 0 y 1 o en horas > 0.
 - El dashboard dibuja los targets como líneas de referencia; un target sin definir se muestra como «sin target acordado».
 

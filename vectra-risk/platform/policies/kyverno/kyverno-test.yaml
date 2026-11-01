@@ -1,0 +1,390 @@
+# `kyverno test platform/policies/kyverno`. verify-images se prueba en el Paso 20: necesita firmas reales.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: vectra-policies
+policies:
+- add-native-sidecar-to-jobs.yaml
+- disallow-argocd-auto-sync.yaml
+- disallow-host-path.yaml
+- disallow-latest.yaml
+- disallow-plain-secrets.yaml
+- disallow-privileged.yaml
+- disallow-rbac-wildcards.yaml
+- require-criticality-label.yaml
+- require-hpa-bounds.yaml
+- require-priority-class.yaml
+- require-resources.yaml
+- require-ro-rootfs.yaml
+- require-run-as-non-root.yaml
+- require-spread-and-pdb.yaml
+- restrict-loadbalancer.yaml
+- restrict-registries.yaml
+- add-priority-to-minio-job.yaml
+- add-criticality-to-generated.yaml
+resources:
+- fixtures/resources.yaml
+variables: fixtures/values.yaml
+results:
+- policy: disallow-latest
+  rule: disallow-latest
+  resources:
+  - bad-latest
+  kind: Pod
+  result: fail
+- policy: disallow-latest
+  rule: disallow-latest
+  resources:
+  - good-digest
+  kind: Pod
+  result: pass
+- policy: require-priority-class
+  rule: require-priority-class
+  resources:
+  - bad-latest
+  kind: Pod
+  result: fail
+- policy: require-priority-class
+  rule: require-priority-class
+  resources:
+  - good-digest
+  kind: Pod
+  result: pass
+- policy: disallow-argocd-auto-sync
+  rule: disallow-argocd-auto-sync
+  resources:
+  - auto
+  kind: Application
+  result: fail
+- policy: disallow-argocd-auto-sync
+  rule: disallow-argocd-auto-sync
+  resources:
+  - manual
+  kind: Application
+  result: pass
+- policy: disallow-rbac-wildcards
+  rule: disallow-rbac-wildcards
+  resources:
+  - wild
+  kind: ClusterRole
+  result: fail
+- policy: disallow-rbac-wildcards
+  rule: disallow-rbac-wildcards
+  resources:
+  - vectra-verification-operator-nodes
+  kind: ClusterRole
+  result: pass
+- policy: disallow-plain-secrets
+  rule: disallow-plain-secrets
+  resources:
+  - plain
+  kind: Secret
+  result: fail
+- policy: require-spread-and-pdb
+  rule: require-spread-and-pdb
+  resources:
+  - grafana-in-app
+  kind: Deployment
+  result: fail
+- policy: require-hpa-bounds
+  rule: deployment-needs-hpa-or-exemption
+  resources:
+  - no-hpa
+  - product-metrics-no-exempt
+  kind: Deployment
+  result: fail
+- policy: require-hpa-bounds
+  rule: exempt-needs-two-replicas
+  resources:
+  - exempt-two
+  - product-metrics
+  - console-spa
+  kind: Deployment
+  result: pass
+- policy: require-hpa-bounds
+  rule: exempt-needs-two-replicas
+  resources:
+  - exempt-one
+  kind: Deployment
+  result: fail
+- policy: require-hpa-bounds
+  rule: active-inference-service-needs-two-replicas
+  resources:
+  - serving-one
+  - active-exempt
+  kind: InferenceService
+  result: fail
+- policy: require-hpa-bounds
+  rule: inactive-inference-service-needs-exemption
+  resources:
+  - inactive-exempt
+  kind: InferenceService
+  result: pass
+- policy: add-native-sidecar-to-jobs
+  rule: cronjob
+  resources:
+  - cron-app
+  kind: CronJob
+  result: pass
+  patchedResources: fixtures/patched.yaml
+- policy: add-native-sidecar-to-jobs
+  rule: job
+  resources:
+  - join
+  kind: Job
+  result: pass
+  patchedResources: fixtures/patched.yaml
+- policy: add-native-sidecar-to-jobs
+  rule: job
+  resources:
+  - kcc-hook
+  kind: Job
+  result: pass
+  patchedResources: fixtures/patched.yaml
+- policy: add-native-sidecar-to-jobs
+  rule: cronjob
+  resources:
+  - realm-drift
+  kind: CronJob
+  result: pass
+  patchedResources: fixtures/patched.yaml
+- policy: add-native-sidecar-to-jobs
+  rule: job
+  resources:
+  - mock-job
+  kind: Job
+  result: pass
+  patchedResources: fixtures/patched.yaml
+- policy: add-native-sidecar-to-jobs
+  rule: job
+  resources:
+  - edge-job
+  kind: Job
+  result: pass
+  patchedResources: fixtures/patched.yaml
+- policy: add-native-sidecar-to-jobs
+  rule: job
+  resources:
+  - obs-job
+  kind: Job
+  result: pass
+  patchedResources: fixtures/patched.yaml
+- policy: disallow-rbac-wildcards
+  rule: disallow-rbac-wildcards
+  resources:
+  - wild-verbs
+  - wild-groups
+  kind: Role
+  result: fail
+- policy: disallow-plain-secrets
+  rule: disallow-plain-secrets
+  resources:
+  - eso-managed
+  kind: Secret
+  result: pass
+- policy: require-spread-and-pdb
+  rule: require-spread-and-pdb
+  resources:
+  - exempt-two
+  kind: Deployment
+  result: pass
+- policy: require-run-as-non-root
+  rule: require-run-as-non-root
+  resources:
+  - hardened
+  kind: Pod
+  result: pass
+- policy: require-run-as-non-root
+  rule: require-run-as-non-root
+  resources:
+  - insecure
+  kind: Pod
+  result: fail
+- policy: disallow-privileged
+  rule: disallow-privileged
+  resources:
+  - hardened
+  kind: Pod
+  result: pass
+- policy: disallow-privileged
+  rule: disallow-privileged
+  resources:
+  - insecure
+  kind: Pod
+  result: fail
+- policy: disallow-host-path
+  rule: disallow-host-path
+  resources:
+  - hardened
+  kind: Pod
+  result: pass
+- policy: disallow-host-path
+  rule: disallow-host-path
+  resources:
+  - insecure
+  kind: Pod
+  result: fail
+- policy: require-ro-rootfs
+  rule: require-ro-rootfs
+  resources:
+  - hardened
+  kind: Pod
+  result: pass
+- policy: require-ro-rootfs
+  rule: require-ro-rootfs
+  resources:
+  - insecure
+  kind: Pod
+  result: fail
+- policy: require-resources
+  rule: require-resources
+  resources:
+  - hardened
+  kind: Pod
+  result: pass
+- policy: require-resources
+  rule: require-resources
+  resources:
+  - insecure
+  kind: Pod
+  result: fail
+- policy: restrict-registries
+  rule: restrict-registries
+  resources:
+  - hardened
+  kind: Pod
+  result: pass
+- policy: restrict-registries
+  rule: restrict-registries
+  resources:
+  - insecure
+  kind: Pod
+  result: fail
+- policy: require-criticality-label
+  rule: require-criticality-label
+  resources:
+  - labelled
+  kind: Deployment
+  result: pass
+- policy: require-criticality-label
+  rule: require-criticality-label
+  resources:
+  - no-hpa
+  kind: Deployment
+  result: fail
+- policy: restrict-loadbalancer
+  rule: restrict-loadbalancer
+  resources:
+  - gw
+  kind: Service
+  result: pass
+- policy: restrict-loadbalancer
+  rule: restrict-loadbalancer
+  resources:
+  - other-lb
+  kind: Service
+  result: fail
+- policy: require-spread-and-pdb
+  rule: require-spread-and-pdb
+  resources:
+  - grafana
+  - pushgateway
+  kind: Deployment
+  result: skip
+- policy: add-native-sidecar-to-jobs
+  rule: job
+  resources:
+  - unmeshed
+  kind: Job
+  result: skip
+- policy: require-spread-and-pdb
+  rule: require-pdb
+  resources:
+  - exempt-two
+  - product-metrics
+  - console-spa
+  kind: Deployment
+  result: pass
+- policy: require-spread-and-pdb
+  rule: require-pdb
+  resources:
+  - no-hpa
+  - product-metrics-no-exempt
+  kind: Deployment
+  result: fail
+- policy: require-spread-and-pdb
+  rule: require-pdb
+  resources:
+  - grafana
+  - pushgateway
+  kind: Deployment
+  result: skip
+- policy: add-priority-to-minio-job
+  rule: add-priority-to-minio-job
+  resources:
+  - minio-post-job
+  kind: Job
+  result: pass
+  patchedResources: fixtures/patched-minio.yaml
+- policy: add-priority-to-minio-job
+  rule: add-priority-to-minio-job
+  resources:
+  - other-job
+  kind: Job
+  result: skip
+- policy: require-hpa-bounds
+  rule: deployment-needs-hpa-or-exemption
+  resources:
+  - with-hpa
+  kind: Deployment
+  result: pass
+- policy: require-hpa-bounds
+  rule: active-inference-service-needs-two-replicas
+  resources:
+  - serving-two
+  kind: InferenceService
+  result: pass
+- policy: require-hpa-bounds
+  rule: inactive-inference-service-needs-exemption
+  resources:
+  - inactive-no-exempt
+  kind: InferenceService
+  result: fail
+- policy: restrict-registries
+  rule: restrict-registries-restore-drill
+  resources:
+  - drill-postgres
+  kind: Pod
+  result: pass
+- policy: restrict-registries
+  rule: restrict-registries-restore-drill
+  resources:
+  - drill-other
+  kind: Pod
+  result: fail
+- policy: add-criticality-to-generated
+  rule: kserve
+  resources:
+  - kserve-predictor
+  kind: Deployment
+  result: pass
+  patchedResources: fixtures/patched-criticality.yaml
+- policy: add-criticality-to-generated
+  rule: envoy-gateway
+  resources:
+  - envoy-proxy
+  kind: Deployment
+  result: pass
+  patchedResources: fixtures/patched-criticality.yaml
+- policy: add-criticality-to-generated
+  rule: kserve
+  resources:
+  - labelled
+  kind: Deployment
+  result: skip
+- policy: require-spread-and-pdb
+  rule: require-pdb
+  resources:
+  - envoy-generado
+  kind: Deployment
+  result: skip

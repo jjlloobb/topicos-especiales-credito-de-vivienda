@@ -36,7 +36,7 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
   - model-store;
   - instalación del controlador de KServe (K05);
   - observability stack: Prometheus, Alertmanager (con receptor F72), Grafana, Loki, Tempo, OTel Collector y agente de logs (F60–F65, K02, K03);
-  - Argo CD con **sync manual** (K04, F71) y la estructura inicial del repositorio `vectra-risk-gitops`;
+  - Argo CD con **sync manual** (K04, F71) y la estructura inicial de `vectra-risk-gitops/`, dentro del monorepo (revisión de consistencia entre unidades, 2026-11-01);
   - workflows reutilizables de GitHub Actions: pruebas con semilla de PBT, escaneo de dependencias e imágenes, SBOM, evidencia `helm template` y `kubectl diff`, y **verificación de pasos prohibidos** (`apply`/`install`/`sync`);
   - runbooks de restore y failover de zona.
 - **Datos propios**: la infraestructura de las bases de datos (los esquemas pertenecen a cada unidad).
@@ -69,7 +69,7 @@ agrupación lógica dentro de un servicio. **Unidad** = agrupación para planifi
   - esquema de `governance-db`;
   - CronJob `model-archive` (archivo de artefactos de modelo, F100–F102);
   - `model-validation-job` (modos `validacion` y `source_comparison`; depende de la librería `vectra_disparity` de U9; tercera revisión del FD de U9, 2026-10-10);
-  - CLI `promotion-tool`, que genera un PR de un solo commit con evidencia en `vectra-risk-gitops`.
+  - CLI `promotion-tool`, que genera un PR de un solo commit con evidencia sobre `vectra-risk-gitops/` (revisión de consistencia entre unidades, 2026-11-01).
 - **Datos propios**: `governance-db`.
 - **Flujos**: F11, F18, F24, F25, F27, F32 (destino), F41, F47, F101, F102, F103 y F104 (destino; U7 FD Q4 y U8 FD Q1); egress F100; **K01**; X03, X04 (ver U4 Infrastructure Design).
 - **Criticidad**: High.
@@ -249,20 +249,23 @@ vectra-risk/
 `-- aidlc-docs/                   #   SOLO documentación
 ```
 
-### 3.2 Repositorio GitOps separado: `vectra-risk-gitops`
+### 3.2 GitOps dentro del monorepo: `vectra-risk/vectra-risk-gitops/`
+
+Vive en el monorepo, y las rutas de las `Application` llevan el prefijo `vectra-risk/` (revisión de consistencia entre unidades, 2026-11-01).
 
 ```text
 vectra-risk-gitops/
-|-- apps/            # Applications de Argo CD (sin syncPolicy.automated)
-|-- environments/
-|   |-- staging/     # values por unidad + InferenceServices de staging
-|   `-- prod/        # values por unidad + InferenceService activo
-`-- README.md        # proceso de cambio: PR + evidencia + aprobación + sync manual
+|-- components.yaml  # unica fuente: una entrada por componente
+|-- generate.py      # escribe apps/ y envs/; --check falla si difieren
+|-- apps/            # Applications de Argo CD (sin syncPolicy.automated), generadas
+|-- envs/            # values comunes por entorno, generados
+|-- values/<env>/    # values por unidad, <componente>.yaml; se agregan solos
+`-- README.md
 ```
 
-- Solo contiene values y manifiestos desplegables que referencian imágenes por digest y charts versionados del monorepo.
-- Tienen permiso de merge solo los aprobadores de despliegue (separación de funciones, SECURITY-13). `promotion-tool` abre PRs aquí; **nunca** hace merge ni sync.
-- Argo CD solo lee este repositorio (F71).
+- Solo contiene values y manifiestos desplegables que referencian imágenes por digest y charts del monorepo.
+- Los cambios bajo esta ruta los aprueban solo los aprobadores de despliegue, con una regla de ruta en `.github/CODEOWNERS` (separación de funciones, SECURITY-13; revisión de consistencia entre unidades, 2026-11-01). `promotion-tool` abre PRs aquí; **nunca** hace merge ni sync.
+- Argo CD solo lee el monorepo (F71) (revisión de consistencia entre unidades, 2026-11-01).
 
 ---
 

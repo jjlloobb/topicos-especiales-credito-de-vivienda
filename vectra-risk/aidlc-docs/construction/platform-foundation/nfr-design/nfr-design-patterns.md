@@ -9,7 +9,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 ## 1. Seguridad
 
 ### P-U1-01 — Red generada desde un inventario de flujos (Q1)
-- `platform/network/flows.yaml` es la única fuente de los flujos permitidos. Refleja las tablas de `component-dependency.md` (hoy F01–F121: los flujos de INCEPTION, los que agregó el Infrastructure Design de U1 y los de las unidades siguientes; precisado el 2026-10-08). La prueba de completitud extrae los IDs del Markdown, sin un rango fijo.
+- `platform/network/flows.yaml` es la única fuente de los flujos permitidos. Refleja las tablas de `component-dependency.md` (hoy F01–F124: los flujos de INCEPTION, los que agregó el Infrastructure Design de U1 y los de las unidades siguientes; precisado el 2026-10-08). La prueba de completitud extrae los IDs del Markdown, sin un rango fijo.
 - Cada entrada tiene `id`, `from` (namespace + ServiceAccount), `to` (namespace + ServiceAccount + puerto), `protocol` y `justification`. El puerto del inventario es el del Service; si el pod escucha en otro, como KServe o Envoy, la entrada declara además `target_port`, que es el que usan la NetworkPolicy y el `Server` de Linkerd (seguimiento de la quinta revisión de coherencia, 2026-10-31).
 - `platform/network/generate.py` produce, para cada namespace de Vectra:
   - la NetworkPolicy `deny-all` de ingress y egress;
@@ -64,7 +64,7 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 - **Satisface**: NFR-RES-07 (precisado); RESILIENCY-06; NFR-U1-32.
 
 ### P-U1-05 — Simulacro de restore semanal (Q6)
-- `CronJob restore-drill` (semanal) en el namespace aislado `vectra-restore-drill`, cuyas NetworkPolicies permiten solo los flujos de INF-U1-06 (quinta revisión de coherencia entre unidades, 2026-10-31); entre ellos, leer del almacenamiento de backups (F75, con una credencial de solo lectura limitada a los backups y WAL de `registry-db` y `case-db` y a los checkpoints; precisado el 2026-10-06, revisión del FD de U8) y empujar métricas al Pushgateway (F87):
+- `CronJob restore-drill` (semanal) en el namespace aislado `vectra-restore-drill`, cuyas NetworkPolicies permiten solo los flujos de INF-U1-06 (quinta revisión de coherencia entre unidades, 2026-10-31); entre ellos, leer del almacenamiento de backups (F75, con una credencial de solo lectura limitada a los backups y WAL de `registry-db` y `case-db` y a los checkpoints; precisado el 2026-10-06, revisión del FD de U8. El WAL está bajo `vectra-backups/<cluster>/<cluster>/wals` y, en kind, los backups van a MinIO; revisión de consistencia entre unidades, 2026-11-01) y empujar métricas al Pushgateway (F87):
   1. crea un `Cluster` efímero de CloudNativePG desde el último backup base + WAL;
   2. corre `verify_chain` (CLI de U3) sobre la copia de `registry-db`;
   2b. crea un segundo `Cluster` efímero desde el último backup de `case-db`, ejecuta `case-retention` (CLI de U8, BR-U8-20) **conectado con el rol real `case_retention`** (no con un superusuario, para que el simulacro pruebe también sus permisos; revisión del Infrastructure Design de U10, 2026-10-10) y cuenta las filas de `case_identifiers` con la retención vencida, que deben ser **0** (precisado el 2026-10-06, revisión del FD de U8);
@@ -177,14 +177,14 @@ verificaciones corren en kind o sobre manifiestos renderizados (AUTONOMIA-01).
 ## 5. Estructura GitOps
 
 ### P-U1-12 — App-of-apps por entorno con sync waves (Q10)
-- Repositorio `vectra-risk-gitops`: `apps/{kind,staging,prod}/root.yaml`, una `Application` por componente y values por entorno en `envs/{env}/`.
+- Directorio `vectra-risk-gitops/` dentro del monorepo, con el prefijo `vectra-risk/` en las rutas: `apps/{kind,staging,prod}/root.yaml`, una `Application` por componente, generada desde `components.yaml` por `generate.py`, y values en `envs/{env}/` (generados) y `values/{env}/<componente>.yaml` (de cada unidad) (revisión de consistencia entre unidades, 2026-11-01).
 - Sync waves:
 
 | Wave | Contenido |
 |---|---|
 | 0 | CRDs y operadores (CloudNativePG, cert-manager, ESO, Kyverno, Linkerd CRDs, KServe, Argo CD, Gateway API y controlador de Envoy Gateway) |
 | 1 | Políticas de Kyverno y plano de control de Linkerd; PriorityClasses; namespaces y NetworkPolicies |
-| 2 | Datos: clusters de PostgreSQL, MinIO (kind); Valkey + Sentinel del rate limit (U2) |
+| 2 | Datos: clusters de PostgreSQL, MinIO (en todos los entornos; revisión de consistencia entre unidades, 2026-11-01); Valkey + Sentinel del rate limit (U2) |
 | 3 | Identidad: Keycloak; `Gateway`, rutas, políticas y servicio de rate limit (U2) (el controlador de Envoy Gateway y los CRDs de Gateway API van en la wave 0; revisión del Infrastructure Design de U10, 2026-10-10) |
 | 4 | Observabilidad |
 | 5 | Servicios de Vectra |

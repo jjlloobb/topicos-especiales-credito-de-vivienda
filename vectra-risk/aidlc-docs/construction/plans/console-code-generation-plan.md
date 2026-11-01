@@ -15,7 +15,7 @@
 | Unidad | U10 `console`: `console-bff` (FastAPI, 30 endpoints de C03, sin estado) y `console-spa` (React + TypeScript, estática) |
 | Historias (dueña) | US-602 |
 | Contribuye a | US-102, 104, 106, 107, 108, 109, 110, 112, 201, 203, 205, 206, 304, 305, 306, 307, 402, 403, 501, 502, 609, 611 (`unit-of-work-story-map.md`) |
-| Ubicación | `vectra-risk/console/` (`bff/`, `spa/`, `chart/`) y Applications en `vectra-risk-gitops` |
+| Ubicación | `vectra-risk/console/` (`bff/`, `spa/`, `chart/`) y entradas en `vectra-risk-gitops/components.yaml`, dentro del monorepo (revisión de consistencia entre unidades, 2026-11-01) |
 | Datos propios | Ninguno: el BFF compone respuestas de los servicios de destino; la SPA guarda todo en memoria |
 | Depende de | U0 (`RouteContract` con `max_body_bytes`, `create_app`, `deps.call`, tipos de §9.2, §9.5 y §9.6, `contracts/ts`, `forbidden_phrases.py`, catálogo de eventos), U1 (malla, cuotas, `flows.yaml`, `require-hpa-bounds`, PriorityClasses), U2 (cliente `vectra-console` con `/stepup-callback`, rutas, CSP con Trusted Types, COOP, afinidad por cookie, usuarios de prueba, equipos de Grafana), U3 (expediente, verificación bajo demanda), U4 (modelos, políticas, fuentes, congelamientos), U7 (resumen para el solicitante), U8 (casos, decisión, `get_case_identifiers`), U9 (dashboard, congelamientos, `bias.json`) |
 | Lo consumen | Las cuatro personas por el navegador; U12 (pruebas de extremo a extremo y de carga) |
@@ -57,7 +57,7 @@ vectra-risk/console/
 |   |   |-- views/cases/  views/governance/  views/bias/  views/shared/
 |   |   `-- stepup-callback.ts
 |   `-- tests/  unit/ property/ e2e/ a11y/ csp/ poc/
-|-- chart/   templates/  values-{prod,staging,kind}.yaml
+|-- chart/   templates/  values.yaml  # por entorno: vectra-risk-gitops/values/<env>/console-bff.yaml y console-spa.yaml (revisión de consistencia entre unidades, 2026-11-01)
 |-- policies/conftest/
 `-- observability/  rules/  rules/tests/  runbooks/  dashboards/console.json
 ```
@@ -125,7 +125,7 @@ vectra-risk/console/
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest console/bff/tests/property/test_role_matrix.py tests/integration/test_api_examples.py`; `uv run python console/bff/tools/role_matrix.py --check` (la matriz generada coincide con C03 y con `role-endpoint-matrix.md` versionado).
 
 - [ ] **Paso 8 — Arranque, apagado y resumen de la API**
-  - Readiness y liveness solo del proceso (8081); `preStop` de 5 s; uvicorn con `timeout_graceful_shutdown = 10`.
+  - Readiness y liveness solo del proceso (8081); `preStop` de 5 s; arranque con `vectra_common.ops_server.run_service(app)` y espera de ≤ 10 s en el apagado (revisión de consistencia entre unidades, 2026-11-01).
   - Cobertura ≥ 90 % en el resto del BFF; resumen en `aidlc-docs/construction/console/code/bff-api.md`.
   - Diseño: INF-U10-01; NFR-U10-60.
   - **Aceptación**: `uv run pytest console/bff/tests --cov=console_bff --cov-branch --cov-fail-under=90`; prueba de que `/readyz` responde 200 con todos los destinos caídos.
@@ -187,7 +187,7 @@ vectra-risk/console/
   - BFF: Python oficial por digest, `runAsNonRoot`, `readOnlyRootFilesystem`.
   - SPA (INF-U10-02): etapas `build`, `no-previous` (`FROM scratch`, manifiesto vacío), `previous` (`FROM ${PREVIOUS_IMAGE}`, por omisión `no-previous`) y final `nginx-unprivileged` por digest; copia los recursos de `previous` listados en su `manifest.json`; etiqueta OCI `vectra.io/previous-digest` (`none` en el primer release).
   - `nginx.conf`: `no-store` en `index.html`, `version.json` y `config.json`; `immutable` en `assets/`; fallback a `index.html` solo para rutas sin extensión; sin `server_tokens`.
-  - Construidas, escaneadas, con SBOM y firmadas por `supply-chain.yml` de U1; `npm ci --ignore-scripts`.
+  - Construidas, escaneadas, con SBOM y firmadas con `sign-image.yml` de U1; el escaneo y el SBOM son de `supply-chain.yml`; `npm ci --ignore-scripts`.
   - Diseño: INF-U10-02; NFR-U10-44, 45; P-U10-06.
   - **Aceptación**: `hadolint console/bff/Dockerfile console/spa/Dockerfile`; prueba sobre la imagen de la SPA construida con un `PREVIOUS_IMAGE` de fixture (contiene los recursos de las dos versiones y ninguno más viejo; la etiqueta tiene el digest) y sin él (etiqueta `none`, sin recursos anteriores); prueba de `nginx.conf` con `nginx -t` y `curl` en un contenedor local (`/cases/123` → `index.html`; `/assets/no-existe.js` → 404; cabeceras de caché).
 
@@ -195,32 +195,32 @@ vectra-risk/console/
   - BFF: `Deployment` con HPA de 2 a 6 (en kind, `minReplicas = maxReplicas = 2`), `maxSurge: 1` y `maxUnavailable: 0`, PDB, spread por zona, `vectra-high`, `ServiceMonitor` 8081, `ConfigMap` de URLs y audiencias.
   - SPA: 2 réplicas fijas con `vectra.io/hpa-exempt`, `maxSurge: 100%` y `maxUnavailable: 0`, PDB, spread, `vectra-normal`, `ConfigMap` de `config.json` montado sin `subPath` y anotación `checksum/config`.
   - Aporte a las cuotas de `vectra-app` y `vectra-edge` con los pods del rollout y el proxy (INF-U10-01) en `platform/policies/quotas/` de U1.
-  - Flujos en `platform/network/flows.yaml`: F02, F03, F10–F14, F50 y F60, con los casos bloqueados de INF-U10-04.
+  - Flujos a verificar en `platform/network/flows.yaml`, donde ya están (revisión de consistencia entre unidades, 2026-11-01): F02, F03, F10–F14, F50 y F60, con los casos bloqueados de INF-U10-04.
   - Diseño: INF-U10-01, 03, 04; NFR-U10-10..12, 20, 22.
   - **Aceptación**: `helm template` con cada values + `kubeconform` + `conftest test console/policies/conftest/` (réplicas, HPA de kind, exención, estrategias, PDB, spread, PriorityClass, sin `subPath`, `checksum/config`, `config.json` sin secretos y con los `redirect_uri` del realm del entorno); `kyverno test` de U1 (`require-hpa-bounds`); `conftest test platform/policies/quotas/`; `uv run python platform/network/generate.py --check`.
 
 - [ ] **Paso 19 — Alertas, runbooks y dashboard**
   - `PrometheusRule` con las **seis** alertas de P-U10-10 y sus recording rules, cada una con `severity` y `runbook_url`.
   - Runbooks `console-bff-error-budget`, `console-bff-down`, `console-dependency-circuit-open`, `console-client-errors-spike` (con la sección de `csp_violation`) y `console-spa-emergency-rollback`.
-  - Dashboard `observability/dashboards/console.json`.
+  - Dashboard `observability/dashboards/console.json`, como `ConfigMap` con la etiqueta `vectra.io/dashboard` y la anotación `grafana_folder` (revisión de consistencia entre unidades, 2026-11-01).
   - Diseño: P-U10-10; INF-U10-05.
   - **Aceptación**: `promtool test rules console/observability/rules/tests/*.yaml` (cada alerta a los dos lados del umbral; un 503 `dependency_unavailable` no cuenta para el presupuesto; `ConsoleChunkOrCspError` dispara con una serie que pasa de 0 a 1); `uv run python platform/tests/test_runbooks.py --root console`; `uv run python contracts/tools/forbidden_phrases.py console/observability/dashboards/console.json`.
 
 - [ ] **Paso 20 — Workflows de CI y de release**
-  - `.github/workflows/console.yml` en cada PR que toca `console/`: `uv sync --frozen`, ruff, mypy, import-linter, `npm ci --ignore-scripts`, ESLint, typecheck, pruebas con perfil `ci` y semilla impresa, cobertura, matriz rol × endpoint, `size-limit`, Playwright con dobles, `helm template`, `conftest`, `promtool`; reutiliza `tests.yml`, `supply-chain.yml` y `policies.yml` de U1.
+  - `.github/workflows/console.yml` en cada PR que toca `console/`: `uv sync --frozen`, ruff, mypy, import-linter, `npm ci --ignore-scripts`, ESLint, typecheck, pruebas con perfil `ci` y semilla impresa, cobertura, matriz rol × endpoint, `size-limit`, Playwright con dobles, `helm template`, `conftest`, `promtool`; reutiliza `tests.yml`, `supply-chain.yml` y `policies.yml` de U1, este con `path: console/chart` (revisión de consistencia entre unidades, 2026-11-01).
   - Workflow nocturno: perfiles `nightly`, `mutmut` y Stryker.
-  - `.github/workflows/console-spa-release.yml`: lee el digest de `console-spa` de los values de producción en `vectra-risk-gitops`, lo verifica con `cosign verify`, construye con `PREVIOUS_IMAGE` (o sin él si producción no tiene digest) y abre el PR a **staging**.
-  - En `vectra-risk-gitops`: `spa-previous-digest-check` (obligatorio en la protección de `main`) en los PR de promoción a producción: la etiqueta `vectra.io/previous-digest` coincide con el digest actual de producción (o es `none` sin digest en producción) y el digest a promover figura en el historial de staging.
+  - `.github/workflows/console-spa-release.yml`: lee el digest de `console-spa` de `vectra-risk-gitops/values/prod/console-spa.yaml` (revisión de consistencia entre unidades, 2026-11-01), lo verifica con `cosign verify`, construye con `PREVIOUS_IMAGE` (o sin él si producción no tiene digest) y abre el PR a **staging**.
+  - `spa-previous-digest-check`, workflow de `.github/workflows/` del monorepo (obligatorio en la protección de `main`, con el filtro de ruta dentro del job; revisión de consistencia entre unidades, 2026-11-01), en los PR de promoción a producción, los que tocan `vectra-risk-gitops/values/prod/console-spa.yaml`: la etiqueta `vectra.io/previous-digest` coincide con el digest actual de producción (o es `none` sin digest en producción) y el digest a promover figura en el historial de staging.
   - **AUTONOMIA-01**: ningún paso `kubectl`, `helm install`/`upgrade` ni `terraform apply`.
   - Diseño: NFR-U10-44, 60..63; INF-U10-02.
   - **Aceptación**: `actionlint .github/workflows/console*.yml`; `! grep -E "kubectl|helm (install|upgrade)|terraform apply" .github/workflows/console*.yml`; `uv run pytest console/bff/tests/unit/test_previous_digest_check.py` (etiqueta distinta → falla; `none` con producción vacía → pasa; `none` con producción con digest → falla; digest que no estuvo en staging → falla; caso correcto → pasa).
 
 - [ ] **Paso 21 — Applications, especificaciones de carga y trazabilidad**
-  - Applications del BFF y de la SPA en la wave 5, por entorno y sin auto-sync.
+  - Entradas `console-bff` y `console-spa` en `vectra-risk-gitops/components.yaml` con `wave: 5`; `generate.py` escribe una Application por entorno, sin auto-sync (revisión de consistencia entre unidades, 2026-11-01).
   - Script k6 con el perfil por rol de P-U10-11 (200 usuarios, 30 min) y configuración de Lighthouse CI con el perfil de red del banco.
   - Trazabilidad de cada BR-U10 a una prueba.
   - Diseño: P-U1-12; P-U10-11; NFR-U10-01, 02, 04.
-  - **Aceptación**: `uv run python platform/tests/test_waves.py`; `kyverno test` de `disallow-argocd-auto-sync`; `k6 inspect console/bff/tests/load/console.js`; `npx lhci healthcheck --config console/spa/lighthouserc.json`; `uv run python platform/tests/test_traceability.py --unit console --all`.
+  - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`; `uv run python platform/tests/test_waves.py`; `kyverno test` de `disallow-argocd-auto-sync`; `k6 inspect console/bff/tests/load/console.js`; `npx lhci healthcheck --config console/spa/lighthouserc.json`; `uv run python platform/tests/test_traceability.py --unit console --all`.
 
 ### Bloque G — Verificación en kind (con aprobación humana)
 
@@ -291,3 +291,14 @@ vectra-risk/console/
 | SECURITY-04 / 05 / 08 / 10 / 12 / 14 / 15 | Cumple | Pasos 1, 3, 5–7, 10–12, 15, 17, 20 |
 | RESILIENCY-01 / 04 / 05 / 07 / 08 / 09 / 10 / 14 / 15 | Cumple | Pasos 5, 8, 17–19, 22 |
 | PBT-01..10 | Cumple | PBT-U10-01..06 (Pasos 3, 7, 11–13), perfiles `ci` y `nightly` (Paso 20) y pruebas de ejemplo (Pasos 7, 13, 14) |
+
+## Reglas de admisión que este plan debe cumplir (revisión de consistencia entre unidades, 2026-11-01)
+
+Cada chart de esta unidad pasa `make -C platform check-chart CHART=<ruta>` en el PR, con los mismos values que usa Argo CD en cada entorno:
+
+- Imágenes por digest, de un registro que admita `restrict-registries`; las de terceros se espejan.
+- `runAsNonRoot`, `readOnlyRootFilesystem` (con `emptyDir` para lo que escriba en disco), sin `privileged` ni `hostPath`, con recursos y `priorityClassName`.
+- `vectra.io/criticality` en cada `Deployment` y `StatefulSet` que el chart declare.
+- En `vectra-app`, `vectra-edge`, `vectra-identity`, `vectra-serving` y `vectra-mock`: 2 réplicas o más, `topologySpreadConstraints` por zona, PDB por `app.kubernetes.io/name`, y HPA o `vectra.io/hpa-exempt`.
+
+Detalle en `aidlc-docs/construction/shared-infrastructure.md` §2.

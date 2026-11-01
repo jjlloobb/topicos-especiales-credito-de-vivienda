@@ -2,7 +2,8 @@ import Decimal from "decimal.js";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { fromDecimal, parseDecimal4, toDecimal } from "../src/decimal";
-import { CREDIT_STATUSES, PROBLEM_CODES, PROBLEM_REASONS } from "../src/enums.generated";
+import { CASE_STATES, CREDIT_STATUSES, OUTCOMES, PROBLEM_CODES, PROBLEM_REASONS } from "../src/enums.generated";
+import type { paths as consolePaths } from "../src/generated/console-bff";
 import { parseRecommendResult, type FeatureValueWire, type RecommendResultWire } from "../src/wire";
 
 const seed = Date.now() % 2147483647;
@@ -89,5 +90,19 @@ describe("catalogos generados", () => {
     expect(PROBLEM_REASONS).toHaveLength(7);
     expect(CREDIT_STATUSES).toContain("no_integrado");
     expect(PROBLEM_CODES).toContain("deadline_exceeded");
+  });
+});
+
+describe("Filtros del cliente generado (U10)", () => {
+  it("los filtros de consulta tienen tipo", () => {
+    const filter: NonNullable<consolePaths["/api/console/cases"]["get"]["parameters"]["query"]> = {
+      state: ["listo"],
+      page: 1,
+    };
+    expect(filter.page).toBe(1);
+  });
+  it("los enumerados del catalogo llegan a TypeScript", () => {
+    expect(CASE_STATES.length).toBeGreaterThan(0);
+    expect(OUTCOMES).toContain("favorable");
   });
 });

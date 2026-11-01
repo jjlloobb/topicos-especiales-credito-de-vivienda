@@ -1,0 +1,3 @@
+# Lee la raiz del namespace de cert-manager y la publica en `linkerd` (Bundle de certificates.yaml).
+app: { trust: { namespace: cert-manager } }
+crds: { enabled: true }

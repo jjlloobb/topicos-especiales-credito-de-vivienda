@@ -3682,3 +3682,162 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: P17 de cross-unit-review5-followup-questions.md.
 
 ---
+
+## Code Generation Part 2 de U1: archivos escritos, verificación parcial
+**Timestamp**: 2026-10-31T20:45:49Z
+**AI Response**: Pasos 1–18 escritos; `make -C platform check-local` en verde. `check-tools` falla: kyverno, conftest y promtool no están instalados porque se denegó su descarga. Pasos marcados: 2, 3, 12, 14, 18, 21, 22. Pasos 19–20 a cargo de un operador. Sin commit. Queda a decisión del usuario.
+**Context**: Plan de U1, §5.
+
+---
+
+## Autorización para instalar las herramientas de verificación de U1
+**Timestamp**: 2026-10-31T20:47:50Z
+**User Input**: "sí, instala las herramientas y corre make check"
+**AI Response**: Se ejecuta `platform/install-tools.sh` y `make -C platform check`.
+**Context**: Revisión de Code Generation Part 2 de U1. Sin acceso a clústeres.
+
+---
+
+## Resultado de make check en U1
+**Timestamp**: 2026-10-31T21:00:55Z
+**AI Response**: Herramientas instaladas con checksum correcto; `make -C platform check` termina en 0. Corregidos `disallow-rbac-wildcards` (rechazaba todo RBAC) y las pruebas de alertas (de 3 a 21 alertas); agregada `restrict-registries`. Abiertos los Pasos 5, 10, 16, 19, 20 y 23. Sin commit ni acceso a clústeres.
+**Context**: Plan de U1, §5.
+
+---
+
+## Decisión sobre el PDB y Testcontainers en U1
+**Timestamp**: 2026-10-31T22:46:44Z
+**User Input**: "sí, exige el PDB con la política y corre Testcontainers"
+**AI Response**: Se exige el PDB con una política de admisión y se prueba el Job de carpetas contra un Grafana real con Testcontainers.
+**Context**: Pasos 5 y 10 del plan de U1. Docker local; sin acceso a clústeres.
+
+---
+
+## PDB exigido y Grafana real en U1
+**Timestamp**: 2026-10-31T23:06:15Z
+**AI Response**: Regla `require-pdb` agregada, con su RBAC de consulta; reglas `deny` limitadas a CREATE y UPDATE. Prueba de carpetas contra Grafana 13.3.0 real sobre Podman sin root, sin credenciales del usuario. `make -C platform check` termina en 0. Pasos 5 y 10 marcados. Abiertos: 16, 19, 20 y 23. Sin commit ni acceso a clústeres.
+**Context**: Plan de U1, §5.
+
+---
+
+## Nota de configuración vacía para la prueba de Grafana
+**Timestamp**: 2026-10-31T23:21:13Z
+**User Input**: "si, agregalo"
+**AI Response**: Agregados a `platform/tests/test_grafana_folder_permissions.py` los comandos para descargar la imagen pública sin consultar el almacén de credenciales. Sin commit.
+**Context**: Revisión de Code Generation Part 2 de U1.
+
+---
+
+## Pregunta sobre defectos restantes en U1
+**Timestamp**: 2026-10-31T23:22:41Z
+**User Input**: "hay mas defectos?"
+**AI Response**: Revisión de solo lectura de la integración entre charts upstream, políticas y flujos.
+**Context**: Revisión de Code Generation Part 2 de U1. Sin acceso a clústeres.
+
+---
+
+## Corrección de los defectos de integración de U1
+**Timestamp**: 2026-10-31T23:27:43Z
+**User Input**: "corregir los puntos 1–10 y agregar la prueba de integración; luego A"
+**AI Response**: Se corrigen los diez puntos y se agrega una prueba de integración. Opción A: los charts cumplen las políticas, con excepción explícita y namespace propio para node-exporter.
+**Context**: Revisión de Code Generation Part 2 de U1. Sin acceso a clústeres.
+
+---
+
+## Puntos 1–10 corregidos y prueba de integración en U1
+**Timestamp**: 2026-11-01T00:07:40Z
+**AI Response**: Corregidos los diez puntos con la opción A y agregada `platform/tests/test_integration.py`. Hallazgos nuevos: faltaba `restore-cluster.sh` y las imágenes oficiales de MinIO no responden sin autenticación. Denegada la compilación de MinIO desde su código: su Dockerfile queda sin verificar. Sin commit ni acceso a clústeres.
+**Context**: Plan de U1, §5.
+
+---
+
+## Resultado de make check tras la corrección de integración
+**Timestamp**: 2026-11-01T00:14:44Z
+**AI Response**: `make -C platform check` termina en 0: 195 pruebas de pytest, 58 casos de Kyverno, 184 comprobaciones de políticas contra lo renderizado y sin hallazgos de promtool, conftest ni actionlint. U0: 379 pruebas. Pendiente la decisión del usuario sobre MinIO.
+**Context**: Plan de U1, §5.
+
+---
+
+## Consulta del usuario sobre más defectos en U1
+**Timestamp**: 2026-11-01T03:27:31Z
+**User Input**: "hay mas defectos?"
+**AI Response**: Se revisa de nuevo U1 buscando defectos que `make check` no cubre: comportamiento en ejecución, CI y trazabilidad con los requisitos. Solo lectura y sin acceso a clústeres.
+**Context**: Revisión de Code Generation Part 2 de U1. Pendiente la decisión sobre la imagen de MinIO.
+
+---
+
+## Resultado de la revisión adicional de defectos de U1
+**Timestamp**: 2026-11-01T04:05:00Z
+**AI Response**: Se encontraron defectos que `make check` no cubre: la instalación en kind no puede completarse (AppProject, NetworkPolicies de namespaces de sistema, Vault), las alertas de CloudNativePG, cert-manager, Kyverno, Linkerd y MinIO no tienen métricas, el simulacro de restore no puede funcionar y el CI no puede correr (`tools.env` ignorado, permisos de `id-token`). Se recomienda no aprobar U1. Sin cambios de código, sin commit ni acceso a clústeres.
+**Context**: Revisión de Code Generation Part 2 de U1. Pendiente la decisión del usuario.
+
+---
+
+## Consulta del usuario sobre la consistencia del código con las unidades
+**Timestamp**: 2026-11-01T04:20:00Z
+**User Input**: "es consistente el codigo generado con las unidades?"
+**AI Response**: Se compara el código generado de U0 y U1 con los diseños de U0–U12. Solo lectura, sin commit ni acceso a clústeres.
+**Context**: Revisión de Code Generation Part 2 de U1.
+
+---
+
+## Resultado de la consistencia del código con las unidades
+**Timestamp**: 2026-11-01T04:50:00Z
+**AI Response**: Coinciden los inventarios y catálogos (102 de 102 flujos por ID, 76 rutas sin rutas fantasma, 18 scopes, 14 de 14 roles), pero no el comportamiento. U0: respuestas 204 en `POST /v1/entries` y `POST /v1/explanations`, sin parámetros de consulta, nada sirve el puerto 8081 y falta la obtención de tokens de servicio. U1: F60 sin `Server` de Linkerd, F08 sin segundo salto, sin `bootstrap.initdb`, políticas que rechazan lo que U6 y otras unidades planean, generador GitOps sin espacio para valores de unidad y comandos de aceptación inexistentes o que no prueban la unidad. Se recomienda no aprobar U1 y reabrir U0. Sin cambios de código, sin commit ni acceso a clústeres.
+**Context**: Revisión de Code Generation Part 2 de U1. Pendiente la decisión del usuario.
+
+---
+
+## Corrección de U0, U1 y planes de las unidades
+**Timestamp**: 2026-11-01T04:00:36Z
+**User Input**: "corrige en ese orden a las unidades"
+**AI Response**: Se aplica el orden propuesto: decisiones estructurales, U0, U1 (incluidos los bloques 1 a 5 de la revisión anterior) y alineación de los planes de U2 a U12, sin generar código de esas unidades. Decisiones: GitOps sigue en el monorepo; U0 sirve el puerto 8081 y aporta el cliente de tokens; U1 es dueña de los secretos de plataforma. MinIO: se mantiene la opción A recomendada, sin verificar la compilación, porque el usuario no eligió otra.
+**Context**: Reabre U0, aprobada antes. Sin commit ni acceso a clústeres.
+
+---
+
+## Nueva consulta sobre la consistencia del código con las unidades
+**Timestamp**: 2026-11-01T05:28:26Z
+**User Input**: "es consistente el codigo generado con las unidades?"
+**AI Response**: Se aplican los últimos ajustes de la corrección y se vuelve a verificar antes de responder. Sin commit ni acceso a clústeres.
+**Context**: Corrección de U0, U1 y planes de U2 a U12.
+
+---
+
+## Resultado de la corrección y de la consistencia con las unidades
+**Timestamp**: 2026-11-01T05:47:20Z
+**AI Response**: `make -C platform check` y las verificaciones de U0 terminan en 0 (541 pruebas de U1; 435 de U0, cobertura 98 %). Una comparación independiente encontró inventarios y nombres consistentes y varios puntos abiertos; se corrigió el solape de rutas de Linkerd en `governance-service`. Quedan hallazgos abiertos: `check-chart` no renderiza lo mismo que Argo CD, reglas de Kyverno no reflejadas en los planes, identidad del gateway de U2, firma con llave contra U5 y textos desactualizados. Sin commit ni acceso a clústeres. MinIO: imagen sin construir.
+**Context**: Revisión de U0 y U1. Pendiente la aprobación del usuario.
+
+---
+
+## Corrección de los puntos 1 a 5 de la consistencia
+**Timestamp**: 2026-11-01T05:51:13Z
+**User Input**: "corrige los puntos 1 a 5 y acepto tus recomendaciones"
+**AI Response**: Se corrigen los puntos 1 a 5 y se aplican las recomendaciones: firma con llave también en U5; histograma propio en U6; aceptación de SBOM de U11 relajada; flujos de puertos de métricas de U2 por PR; separación de funciones con CODEOWNERS y revisión obligatoria. Crear equipos y proteger la rama queda a cargo de un humano. Sin commit ni acceso a clústeres.
+**Context**: Revisión de U0 y U1.
+
+---
+
+## Consulta del usuario sobre pasar a la siguiente etapa
+**Timestamp**: 2026-11-01T05:56:38Z
+**User Input**: "puedo continuar con la siguiente etapa o debo corregir algo mas?"
+**AI Response**: Se revisa el resultado de la verificación en curso antes de responder.
+**Context**: Revisión de U0 y U1.
+
+---
+
+## Resultado de la corrección de los puntos 1 a 5
+**Timestamp**: 2026-11-01T06:03:53Z
+**AI Response**: Puntos 1 a 5 corregidos y recomendaciones aplicadas. Se ajustó el caso de prueba `deployment-hpa`, que no llevaba PDB. Sin commit ni acceso a clústeres.
+**Context**: Revisión de U0 y U1. Pendiente la aprobación del usuario.
+
+---
+
+## Aprobación de U0 y U1
+**Timestamp**: 2026-11-01T06:06:04Z
+**User Input**: "sí, apruebo U0 y U1, haz el commit y la etiqueta"
+**AI Response**: Se registra la aprobación, se hace el commit en `docs/audit-status-check` y se crea la etiqueta `contracts-v0.1.0`. Sin push ni acceso a clústeres. Los Pasos 19 y 20 quedan para un operador tras un PR aprobado.
+**Context**: Code Generation Part 2 de U0 (reabierta) y de U1.
+
+---
