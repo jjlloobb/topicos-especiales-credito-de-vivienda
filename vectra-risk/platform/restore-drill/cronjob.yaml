@@ -25,7 +25,7 @@ spec:
           securityContext: { runAsNonRoot: true, runAsUser: 65532, seccompProfile: { type: RuntimeDefault } }
           containers:
             - name: drill
-              image: registro.vectra.internal/restore-drill@sha256:0000000000000000000000000000000000000000000000000000000000000000
+              image: registro.vectra.internal/restore-drill@sha256:d4eebbcef0c8dc0e04d969bd66fda9605bff4d57bf9db170158e1f673580d8c2
               command: [python, /app/drill.py]
               env:
                 - { name: PUSHGATEWAY_URL, value: "http://pushgateway.vectra-observability.svc:9091" }

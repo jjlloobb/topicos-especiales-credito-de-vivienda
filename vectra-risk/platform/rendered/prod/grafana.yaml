@@ -34,7 +34,7 @@ spec:
       securityContext: { runAsNonRoot: true, runAsUser: 65532, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: apply
-          image: registro.vectra.internal/grafana-folder-permissions@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          image: registro.vectra.internal/grafana-folder-permissions@sha256:f7610a22893c9b39e29f2851aae50c90422054262321060ce3e9fe4152eec7d9
           command: [python, /app/folder_permissions.py, apply]
           env:
             - { name: FOLDER_PERMISSIONS, value: /app/folder-permissions.yaml }
@@ -69,7 +69,7 @@ spec:
           securityContext: { runAsNonRoot: true, runAsUser: 65532, seccompProfile: { type: RuntimeDefault } }
           containers:
             - name: check
-              image: registro.vectra.internal/grafana-folder-permissions@sha256:0000000000000000000000000000000000000000000000000000000000000000
+              image: registro.vectra.internal/grafana-folder-permissions@sha256:f7610a22893c9b39e29f2851aae50c90422054262321060ce3e9fe4152eec7d9
               command: [python, /app/folder_permissions.py, check]
               env:
                 - { name: FOLDER_PERMISSIONS, value: /app/folder-permissions.yaml }

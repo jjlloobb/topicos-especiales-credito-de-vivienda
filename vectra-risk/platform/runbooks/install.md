@@ -27,6 +27,7 @@ Todos los comandos corren desde la carpeta `vectra-risk/` del repositorio, salvo
   sudo usermod -aG docker "$USER"   # cierra sesión y vuelve a entrar, o usa newgrp docker
   ```
   Para comprobarlo: `docker context use default`; `docker version --format '{{.Server.Version}}'` debe dar la misma versión que `dpkg-query -W -f='${Version}' docker-ce`, y `ss -ltn | grep ':5001 '` no debe mostrar nada. Si `ip -br addr | grep fc00:f853` muestra un puente, es la red `kind` que dejó el motor de snap: usa la misma subred IPv6 que kind por omisión y podría chocar al crear la red (no se ha probado). Con el snap ya desactivado, se quita con `sudo ip link delete <puente>`.
+- **Credenciales de Docker:** si `~/.docker/config.json` conserva `"credsStore": "desktop"` de una instalación de Docker Desktop, las descargas pueden fallar con `docker-credential-desktop` y un error de `gpg`. Haz una copia del archivo y quita esa clave.
 - **Otro clúster:** Docker puede levantar el clúster `kind` que ya exista. Antes de instalar, `kind get clusters`: si `kind` aparece y no lo necesitas, elimínalo con `kind delete cluster --name kind`; si lo necesitas, detén sus contenedores. Compruebas el contexto antes de cada comando: `kubectl config current-context` debe decir `kind-vectra`.
 - **Si se queda sin memoria:** detente y no sigas con la siguiente wave. Puedes dejar para el final `loki`, `tempo` y `alloy`.
 

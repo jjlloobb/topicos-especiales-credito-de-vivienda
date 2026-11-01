@@ -4454,3 +4454,55 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Preparación del tramo B, issue 7.
 
 ---
+
+## Commit del ensayo anotado en el issue 7
+**Timestamp**: 2026-11-01T15:21:30Z
+**AI Response**: El PR 11 ya estaba fusionado. Con CI en verde, se anota `8e1628f` en el issue 7 y se deja la copia local en `main`. Entre `d764cbb` y `8e1628f` solo cambia documentación. `credsStore` sigue pendiente del usuario.
+**Context**: Preparación del tramo B, issue 7.
+
+---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-01T15:22:16Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se revisa la máquina y el runbook, solo lectura, y se recomienda quitar `credsStore`, comprobarlo con las pruebas de Grafana y ejecutar el tramo B como operador.
+**Context**: Preparación del tramo B, issue 7.
+
+---
+
+## Quitar credsStore y comprobar
+**Timestamp**: 2026-11-01T15:23:19Z
+**User Input**: "realiza el punto 1 y luego el 3"
+**AI Response**: Con el pedido explícito del usuario, se quita `credsStore` de `~/.docker/config.json`, con copia de respaldo, y se ejecutan las pruebas de Grafana. Sin acceso a clústeres.
+**Context**: Preparación del tramo B, issue 7.
+
+---
+
+## Resultado de quitar credsStore
+**Timestamp**: 2026-11-01T15:23:59Z
+**AI Response**: `credsStore` quitado; respaldo en `~/.docker/config.json.bak`. Las 4 pruebas de Grafana pasan en Docker Engine. Quedan en Docker las imágenes `grafana/grafana:13.3.0` y `testcontainers/ryuk:0.8.1`.
+**Context**: Preparación del tramo B, issue 7.
+
+---
+
+## Pedido de ejecutar el tramo B
+**Timestamp**: 2026-11-01T15:25:30Z
+**User Input**: "realiza el tramo B"
+**AI Response**: Se revisa AUTONOMIA-01 y el runbook antes de actuar.
+**Context**: Issue 7.
+
+---
+
+## Tramo B ejecutado por el agente
+**Timestamp**: 2026-11-01T15:25:57Z
+**AI Response**: A pedido explícito del usuario, responsable del ensayo, el agente ejecuta el tramo B en el clúster kind `vectra`, dentro de la aprobación humana del issue 7. Esto se aparta de lo previsto en el issue, que asignaba la ejecución a un operador, y se deja constancia allí. Se detiene en el primer fallo y antes de Argo CD. No toca otros contextos.
+**Context**: Issue 7, tramo B, AUTONOMIA-01.
+
+---
+
+## Tramo B: clúster, imágenes y digests
+**Timestamp**: 2026-11-01T15:36:08Z
+**AI Response**: Ejecutado por el agente hasta la sección 5 del runbook, desde `8e1628f`. Clúster `vectra` con Calico v3.33.0; conformidad NetworkPolicy con 51 pruebas superadas y 0 fallidas; `kind-registry` activo; cuatro imágenes construidas en Docker y publicadas. Se abre el PR con los digests. No se levanta `cloud-provider-kind` ni se instala Argo CD, que quedan para el tramo C. Pruebas locales: 447 superadas. Evidencia en `~/vectra-ensayo/`.
+**Context**: Issue 7, tramo B. Termina cuando el PR de digests entre en `main`.
+
+---
