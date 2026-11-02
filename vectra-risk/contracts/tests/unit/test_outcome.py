@@ -33,7 +33,7 @@ def ready():
 
 def test_br_u0_01_direct_construction_forbidden():
     with pytest.raises(ContractViolation):
-        Recommendation(case_id=CASE, score="0.5000", confidence="0.5000", outcome="favorable", reasons=[], model_version_id="m", policy_version_id="p", explanation=explanation("m"), registry_entry_id="1", evaluated_at=NOW, feature_vector_hash=SHA)
+        Recommendation(case_id=CASE, score="0.5000", confidence="0.5000", outcome=Outcome.FAVORABLE, reasons=[], model_version_id="m", policy_version_id="p", explanation=explanation("m"), registry_entry_id="1", evaluated_at=NOW, feature_vector_hash=SHA)
     with pytest.raises(ContractViolation):
         Ready(case_id=CASE, prediction=PRED, policy_result=POL, explanation=explanation(), feature_vector_hash=SHA, evaluated_at=NOW)
     with pytest.raises(ContractViolation):
@@ -84,6 +84,22 @@ def test_p_u0_03_from_wire_with_different_versions_fails():
     empty["registry_entry_id"] = ""
     with pytest.raises(ValidationError):
         RecommendResult.from_wire(json.dumps(empty))
+
+
+def test_from_wire_outcome_outside_catalog():
+    """BR-U0-20, NFR-U0-14, P-U0-03 capa 1: `outcome` fuera del catalogo se rechaza."""
+    rec = json.loads(build_outcome(ready(), ACK, NOW).model_dump_json())
+    rec["outcome"] = "aprobado_a_ciegas"
+    with pytest.raises(ValidationError):
+        RecommendResult.from_wire(json.dumps(rec))
+
+
+def test_from_wire_reasons_outside_catalog():
+    """BR-U0-20, NFR-U0-14, P-U0-03 capa 1: `reasons` fuera del catalogo se rechaza."""
+    rec = json.loads(build_outcome(ready(), ACK, NOW).model_dump_json())
+    rec["reasons"] = ["cualquier_cosa"]
+    with pytest.raises(ValidationError):
+        RecommendResult.from_wire(json.dumps(rec))
 
 
 @pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf, -0.1, 1.0001])

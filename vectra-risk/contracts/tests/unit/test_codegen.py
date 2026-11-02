@@ -28,3 +28,15 @@ def test_recommend_result_discriminated():
 def test_matrix_and_enums():
     assert "`/api/console/models/{id}/retirement`" in role_matrix()
     assert 'export const PROBLEM_REASONS = ["decision_already_recorded"' in ts_enums()
+
+
+def test_recommendation_spec_has_enums():
+    """Domain-entities 3.3: la spec lleva los enumerados cerrados de `Recommendation`."""
+    spec = spec_for("scoring-service", REGISTRY["scoring-service"])
+    props = spec["components"]["schemas"]["Recommendation"]["properties"]
+    outcome = props["outcome"]
+    if "$ref" in outcome:
+        outcome = spec["components"]["schemas"][outcome["$ref"].rsplit("/", 1)[1]]
+    assert sorted(outcome["enum"]) == ["desfavorable", "favorable", "revision_requerida"]
+    assert props["reasons"]["items"] == {"$ref": "#/components/schemas/ReasonCode"}
+    assert spec["components"]["schemas"]["ReasonCode"]["enum"]
