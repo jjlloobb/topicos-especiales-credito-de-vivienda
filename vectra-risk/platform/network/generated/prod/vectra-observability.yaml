@@ -2324,6 +2324,8 @@ spec:
       protocol: TCP
     - port: 587
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - ipBlock:
         cidr: 0.0.0.0/0

@@ -75,6 +75,20 @@ def peer(ep: dict[str, Any]) -> dict[str, Any]:
     return selector
 
 
+# Puertos opacos por omision de Linkerd (`proxy.opaquePorts`). Su trafico entre proxies no usa el puerto de la
+# aplicacion: va siempre al 4143, tambien con `outboundTransportMode: transparent`. El `Server` sigue autorizando
+# por identidad y puerto de destino.
+LINKERD_OPAQUE_PORTS = {25, 587, 3306, 4444, 5432, 6379, 9300, 11211}
+LINKERD_INBOUND_PORT = 4143
+
+
+def network_ports(flow: dict[str, Any], ports: list[int]) -> list[int]:
+    """Los puertos que la NetworkPolicy debe abrir para que el flujo funcione a traves de la malla."""
+    if flow.get("unmeshed_source") or not LINKERD_OPAQUE_PORTS.intersection(ports):
+        return ports
+    return [*ports, LINKERD_INBOUND_PORT]
+
+
 def pod_selector(ep: dict[str, Any]) -> dict[str, Any]:
     return {"matchLabels": labels_of(ep)} if ep["kind"] == "workload" else {}
 
@@ -297,7 +311,7 @@ def build(env: str, data: dict[str, Any], forbidden: dict[str, Any]) -> tuple[di
             sources = [s for s in sources if exists_in(s, env)]
             dests = [d for d in dests if exists_in(d, env)]
             ports = ports_of(flow)
-            port_rules = [{"protocol": "TCP", "port": p} for p in ports]
+            port_rules = [{"protocol": "TCP", "port": p} for p in network_ports(flow, ports)]
             for dest in dests:
                 for src in sources:
                     allowed.append({"flow": flow["id"], "from": src.get("name") or src.get("ns"), "to": dest.get("name") or dest.get("ns"), "ports": ports})
