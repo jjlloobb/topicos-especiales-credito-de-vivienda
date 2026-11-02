@@ -5175,3 +5175,24 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: PR del loop.
 
 ---
+## PR 46 fusionado
+**Timestamp**: 2026-11-02T17:34:49Z
+**User Input**: "ya approve el PR 46"
+**AI Response**: El usuario aprobó y fusionó el PR 46. No quedan PR abiertos; main contiene U02-T02, U00-T01, U00-T02, U01-T07 y la revisión de conformidad. Esta entrada queda sin commit en main y entra en el próximo PR.
+**Context**: PR del loop.
+
+---
+## Pregunta sobre seguir con las siguientes unidades
+**Timestamp**: 2026-11-02T17:36:27Z
+**User Input**: "podemos seguir con las siguientes unidades del proyecto?"
+**AI Response**: Se responde: U2 sigue abierta (Paso 1 cerrado); lo siguiente según su plan son los Pasos 2 y 3, estáticos. U3–U12 siguen restringidas. Se recomienda poner antes las reglas de denegación para kubectl y docker.
+**Context**: Alcance del proyecto.
+
+---
+## Reglas de denegación y tareas U02-T03 y U02-T04
+**Timestamp**: 2026-11-02T17:40:49Z
+**User Input**: "pon las reglas de denegación y prepara U02-T03 y U02-T04"
+**AI Response**: Se crea `.claude/settings.json` con 32 reglas `deny` para comandos que mutan el clúster o los contenedores (kubectl apply/create/delete/patch/edit/replace/scale/rollout/annotate/label, también con flags antes del verbo; helm install/upgrade/uninstall; argocd app sync/delete; docker start/stop/restart/rm/kill; kind create/delete). Se probó: `kubectl apply --help` queda denegado. Las lecturas (`kubectl get`, `describe`) siguen permitidas, y el usuario opera el clúster con `!`. Se redactan `tareas/U02-T03-realm-lint.md` (Paso 3) y `tareas/U02-T04-realm-como-codigo.md` (Paso 2) con el texto del plan sin recortes; el Paso 3 se despacha primero porque la aceptación del Paso 2 es correr `realm_lint.py`.
+**Context**: Construcción de U2.
+
+---
