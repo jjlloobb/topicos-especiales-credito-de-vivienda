@@ -5161,3 +5161,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Correcciones de diseño en U0.
 
 ---
+## Revisión y resolución de los PR abiertos
+**Timestamp**: 2026-11-02T17:13:21Z
+**User Input**: "revisa los PR, resuelve y fusiona"
+**AI Response**: Se revisan los PR 45, 46, 47 y 49 (el 48 ya estaba fusionado). Los 47 y 49 tenían conflicto con main en `CANDIDATAS.md` (solo añadidos de ambos lados); se resuelve con un merge de main que conserva las dos partes, y las pruebas de contracts pasan (502). Los 45 y 46 fusionan sin conflicto. No se fusiona: la protección de main exige una aprobación de un code owner y aplica a administradores, el agente no puede aprobar su propio PR, y AUTONOMIA-01 y el contrato del loop reservan la fusión a una persona.
+**Context**: PR del loop.
+
+---
