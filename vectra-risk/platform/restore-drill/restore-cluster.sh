@@ -41,6 +41,9 @@ spec:
       vectra.io/criticality: medium
     annotations:
       config.linkerd.io/skip-inbound-ports: "8000"
+  certificates:
+    serverTLSSecret: restore-postgres-server-tls
+    serverCASecret: restore-postgres-server-tls
   storage: { size: $size }
   resources:
     requests: { cpu: 500m, memory: 1Gi }

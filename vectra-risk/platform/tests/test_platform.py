@@ -122,6 +122,24 @@ def test_postgres_clusters():
         assert spec["inheritedMetadata"]["annotations"]["config.linkerd.io/skip-inbound-ports"] == "8000"
 
 
+@pytest.mark.parametrize("env", ["kind", "staging", "prod"])
+def test_postgres_requires_tls(env):
+    """NFR-U1-22: sin `host` en texto plano; lee el YAML renderizado, no los values."""
+    extra = ["-f", str(PLATFORM / "data/chart/values-kind.yaml")] if env == "kind" else []
+    rendered = helm(PLATFORM / "data/chart", "-f", str(GITOPS / f"envs/{env}/values.yaml"), *extra)
+    found = {d["metadata"]["name"]: d for d in rendered if d and d["kind"] == "Cluster"}
+    assert len(found) == 4
+    for name, cluster in found.items():
+        parameters = cluster["spec"]["postgresql"]
+        rules = [line.split() for line in parameters["pg_hba"]]
+        assert rules, name
+        for rule in rules:
+            assert rule[0] in {"hostssl", "hostnossl"}, (name, rule)
+            assert rule[0] == "hostssl" or rule[-1] == "reject", (name, rule)
+        assert any(r[0] == "hostssl" and r[-1] == "scram-sha-256" for r in rules), name
+        assert parameters["parameters"]["ssl_min_protocol_version"] == "TLSv1.2"
+
+
 def test_every_inventory_role_is_managed():
     found = clusters()
     for database, roles in inventory_roles().items():

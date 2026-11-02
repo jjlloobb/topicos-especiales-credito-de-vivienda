@@ -21,22 +21,21 @@ spec:
       owner: {{ $c.owner }}
       secret: { name: pg-role-{{ $c.owner | replace "_" "-" }} }
   priorityClassName: vectra-critical
-  {{- if $.Values.zoneConstraint }}
   postgresql:
+    {{- if $.Values.zoneConstraint }}
     syncReplicaElectionConstraint:
       enabled: true
       nodeLabelsAntiAffinity: [topology.kubernetes.io/zone]
+    {{- end }}
     parameters:
       max_connections: "{{ $c.maxConnections }}"
       archive_timeout: 60s
       ssl_min_protocol_version: TLSv1.2
-  {{- else }}
-  postgresql:
-    parameters:
-      max_connections: "{{ $c.maxConnections }}"
-      archive_timeout: 60s
-      ssl_min_protocol_version: TLSv1.2
-  {{- end }}
+    # NFR-U1-22: solo TLS. CloudNativePG agrega al final `host all all all scram-sha-256`; el rechazo de
+    # `hostnossl` va antes, asi que esa regla por defecto solo alcanza conexiones que ya usan TLS.
+    pg_hba:
+      - hostnossl all all all reject
+      - hostssl all all all scram-sha-256
   certificates:
     serverTLSSecret: postgres-server-tls
     serverCASecret: postgres-server-tls
