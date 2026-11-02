@@ -93,6 +93,7 @@ argocd repo add docker.io/envoyproxy --type helm --name envoyproxy --enable-oci
 
 ### 7. Sincronizar en orden
 Sin auto-sync, las waves no se ordenan solas: este orden es el del operador.
+`argocd app wait --health` termina en cuanto ve `Degraded`, y una aplicación puede pasar por ese estado al arrancar, como `kube-prometheus-stack`. Si falla ahí, mira los pods antes de darlo por fallo. También al revés: una aplicación puede verse `Healthy` antes de que un pod empiece a fallar, como `linkerd-cni`.
 ```bash
 sync() { for app in "$@"; do argocd app sync "$app" && argocd app wait "$app" --health --timeout 900 || return 1; done; }
 sync root argo-cd

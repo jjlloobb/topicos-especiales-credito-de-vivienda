@@ -4694,3 +4694,18 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, tramo C, wave 4.
 
 ---
+
+## PR 18, fin de la wave 4 y wave 5
+**Timestamp**: 2026-11-01T19:35:36Z
+**User Input**: "realiza los pasos 1, 2 y 3 y actualiza el issue"
+**AI Response**: Se fusiona el PR 18 si sigue abierto con la aprobación de un revisor humano, sin permisos de administrador. Se termina la wave 4, se verifican logs y métricas, y se pasa a la wave 5.
+**Context**: Issue 7, tramo C.
+
+---
+
+## Tramo C terminado
+**Timestamp**: 2026-11-02T00:20:48Z
+**AI Response**: PR 18 ya fusionado por el usuario. Waves 4 y 5 sincronizadas: 41 aplicaciones `Healthy`, 5 de ellas `OutOfSync`; logs en Loki y métricas en Prometheus. `KyvernoUnavailable` y `LinkerdControlPlaneDown` no disparan. Disparan `WalArchiveStale` (base inactiva, 0 fallos) y `RegistryDbWritesBlocked` (kind sin réplicas), y hay 3 targets sin flujo declarado; quedan como decisión del usuario. La máquina se suspendió unas 4,5 horas durante la verificación y el clúster sobrevivió. Se corrige `seed-vault.sh grafana-token`.
+**Context**: Issue 7, tramo C.
+
+---
