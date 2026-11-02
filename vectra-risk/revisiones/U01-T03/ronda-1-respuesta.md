@@ -1,0 +1,2 @@
+F-01: Corregido en el commit de la ronda 2 (ver `git log`): la prueba F130 ata, por destino, selectores de destino y origen, puerto, Server, AuthorizationPolicy y MeshTLSAuthentication con la identidad `prometheus`; M1, M2 y M3 repetidas en copia privada dan 3 failed cada una, la copia sin mutar 3 passed.
+F-02: Corregido: regeneré con `make -C platform generate`; `git status` no muestra cambios en `generated/`, resultado idéntico byte a byte.

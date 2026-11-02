@@ -423,11 +423,38 @@ def test_only_opaque_meshed_flows_open_the_proxy_port(env):
     assert 4143 not in ports_in(named["allow-f80-to-registry-db-ingress"])
 
 
+F130_TARGETS = {
+    "alertmanager": ("alertmanager", 8080),
+    "kube-prometheus-stack-prometheus-operator": ("kube-prometheus-stack-prometheus-operator", 8080),
+    "grafana": ("grafana", 3000),
+}
+
+
+def _f130_peers(rule):
+    return {(e["namespaceSelector"]["matchLabels"]["kubernetes.io/metadata.name"], e["podSelector"]["matchLabels"]["app.kubernetes.io/name"]) for e in rule}
+
+
 @pytest.mark.parametrize("env", ENVS)
 def test_f130_prometheus_scrapes_the_observability_targets(env):
-    """F130: alertmanager (8080), grafana (3000) y prometheus-operator (8080) dejan de dar 504; sin el 4143."""
-    found = [p for p in policies(env, "vectra-observability") if p["metadata"].get("labels", {}).get("vectra.io/flow") == "F130"]
-    ingress = sorted(sorted(ports_in(p)) for p in found if p["spec"]["policyTypes"] == ["Ingress"])
-    egress = sorted(sorted(ports_in(p)) for p in found if p["spec"]["policyTypes"] == ["Egress"])
-    assert ingress == [[3000], [8080], [8080]]
-    assert egress == [[3000], [8080], [8080]]
+    """F130: cada destino recibe de prometheus SOLO su puerto (ingress y egress) y Linkerd lo autoriza con la identidad `prometheus`."""
+    current = docs(env)["vectra-observability"]
+    found = [p for p in current if p["kind"] == "NetworkPolicy" and p["metadata"].get("labels", {}).get("vectra.io/flow") == "F130"]
+    assert len(found) == 2 * len(F130_TARGETS)
+    for target, (label, port) in F130_TARGETS.items():
+        ingress = [p for p in found if p["spec"]["policyTypes"] == ["Ingress"] and p["spec"]["podSelector"]["matchLabels"] == {"app.kubernetes.io/name": label}]
+        egress = [p for p in found if p["spec"]["policyTypes"] == ["Egress"] and p["spec"]["egress"][0]["to"] == [
+            {"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "vectra-observability"}}, "podSelector": {"matchLabels": {"app.kubernetes.io/name": label}}}]]
+        assert len(ingress) == 1 and len(egress) == 1, target
+        rule = ingress[0]["spec"]["ingress"]
+        assert len(rule) == 1 and rule[0]["ports"] == [{"port": port, "protocol": "TCP"}], target
+        assert _f130_peers(rule[0]["from"]) == {("vectra-observability", "prometheus")}, target
+        out = egress[0]
+        assert out["spec"]["podSelector"]["matchLabels"] == {"app.kubernetes.io/name": "prometheus"}, target
+        assert len(out["spec"]["egress"]) == 1 and out["spec"]["egress"][0]["ports"] == [{"port": port, "protocol": "TCP"}], target
+        auth = next(d for d in current if d["kind"] == "AuthorizationPolicy" and d["metadata"]["name"] == f"f130-{target}-{port}")
+        assert auth["spec"]["targetRef"]["name"] == f"{target}-{port}"
+        mtls = next(d for d in current if d["kind"] == "MeshTLSAuthentication" and d["metadata"]["name"] == f"f130-{target}-{port}-mtls")
+        assert auth["spec"]["requiredAuthenticationRefs"][0]["name"] == mtls["metadata"]["name"]
+        assert mtls["spec"]["identities"] == ["prometheus.vectra-observability.serviceaccount.identity.linkerd.cluster.local"], target
+        assert any(d["kind"] == "Server" and d["metadata"]["name"] == f"{target}-{port}" for d in current), target
+    assert 4143 not in {pt["port"] for p in found for r in (p["spec"].get("ingress") or p["spec"].get("egress")) for pt in r["ports"]}
