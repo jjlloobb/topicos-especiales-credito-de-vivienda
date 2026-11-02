@@ -99,6 +99,7 @@ grafana:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { cpu: 500m, memory: 512Mi }
   testFramework: { enabled: false }
+  env: { GF_PLUGINS_PREINSTALL_DISABLED: "true" } # dentro del banco nada sale a Internet: sin descarga de plugins al arrancar
   additionalDataSources:
     - { name: Loki, uid: loki, type: loki, url: "http://loki-read.vectra-observability.svc:3100", access: proxy }
     - { name: Tempo, uid: tempo, type: tempo, url: "http://tempo-query-frontend.vectra-observability.svc:3200", access: proxy }

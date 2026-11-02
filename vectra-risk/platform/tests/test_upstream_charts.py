@@ -72,6 +72,13 @@ def test_grafana_is_recreate_with_persistence_and_kube_state_metrics_labels():
     assert "topology.kubernetes.io/zone" in " ".join(metrics["spec"]["template"]["spec"]["containers"][0]["args"])
 
 
+def test_grafana_does_not_preinstall_plugins():
+    grafana = next(d for d in of(render("kube-prometheus-stack"), "Deployment") if d["metadata"]["name"].endswith("grafana"))
+    container = next(c for c in grafana["spec"]["template"]["spec"]["containers"] if c["name"] == "grafana")
+    env = {e["name"]: e.get("value") for e in container.get("env", [])}
+    assert env.get("GF_PLUGINS_PREINSTALL_DISABLED") == "true"
+
+
 def test_loki_keeps_retention_out_of_the_compactor():
     documents = render("loki")
     config = next(d for d in of(documents, "ConfigMap") if "config.yaml" in d.get("data", {}))["data"]["config.yaml"]
