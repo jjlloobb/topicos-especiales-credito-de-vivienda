@@ -25,3 +25,6 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
 - Imponer por configuración el límite de la regla 8 del codificador: reglas de denegación de Claude Code para `kubectl apply|create|delete|patch` y `docker start|stop` en los subagentes, y definir qué es «entorno local de pruebas». En la prueba de cambio de modelo, los dos modelos actuaron sobre `kind-vectra` (caso 9).
 - CI no ejecuta `make -C identity-edge check` ni `identity-edge/tests`: hace falta un workflow para que el `check` de U2 bloquee PR (revisor, U02-T01, ronda 1).
 - Exponer en `contracts/tests/conftest.py` una constante pública con el perfil de Hypothesis por defecto, para que `identity-edge` no mute `os.environ` ni lea `_profile` (revisor, U02-T01, ronda 2, F-04).
+- §1 del plan de U2 no lista directorios que crean sus propios pasos: `tests/strategies/` (Paso 3) y `observability/rules/tests/` (P-U2-08). Decisión del usuario: alinear §1 antes de hacer bidireccional la prueba de esqueleto (revisor, U02-T02, ronda 1).
+- `make -C identity-edge check` recogerá las pruebas e2e del Paso 13, que necesitan clúster; hay que excluirlas o marcarlas del `check` estático (revisor, U02-T02, ronda 1).
+- `test_skeleton.py` descarta la primera línea del bloque de §1 sin comprobar que sea la raíz (revisor, U02-T02, ronda 2, F-03).
