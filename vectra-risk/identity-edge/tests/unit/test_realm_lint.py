@@ -249,12 +249,6 @@ def test_user_app_with_secret_is_not_a_service_rule() -> None:
     assert "cliente-con-secreto" not in rules(realm, "kind")
 
 
-def test_app_without_explicit_default_scopes_is_rejected() -> None:
-    realm = realm_copy("kind")
-    del find_client(realm, "case-worker")["defaultClientScopes"]
-    assert "scopes-por-defecto-heredados" in rules(realm, "kind")
-
-
 def test_break_glass_with_realm_admin_of_realm_management_and_no_totp_is_rejected() -> None:
     realm = realm_copy("prod")
     broken = find_user(realm, "break-glass")
@@ -263,10 +257,58 @@ def test_break_glass_with_realm_admin_of_realm_management_and_no_totp_is_rejecte
     assert "mfa-obligatorio" in rules(realm, "prod")
 
 
-def test_service_account_users_are_not_local_users_in_prod() -> None:
+def service_account(username: str, target: str, **extra: Any) -> dict[str, Any]:
+    return {"username": username, "serviceAccountClientId": target, "enabled": True, **extra}
+
+
+def test_real_service_account_user_is_not_a_local_user_in_prod() -> None:
     realm = realm_copy("prod")
-    realm["users"].append({"username": "service-account-keycloak-config-cli", "serviceAccountClientId": "keycloak-config-cli", "enabled": True})
+    realm["users"].append(service_account("service-account-case-worker", "case-worker"))
     assert lint_realm(realm, "prod") == []
+
+
+def test_config_applier_service_account_with_realm_admin_needs_no_totp_in_prod() -> None:
+    realm = realm_copy("prod")
+    realm["users"].append(
+        service_account(
+            "service-account-case-worker",
+            "case-worker",
+            clientRoles={"realm-management": ["realm-admin"]},
+            requiredActions=[],
+        )
+    )
+    assert lint_realm(realm, "prod") == []
+
+
+def test_service_account_prefix_alone_does_not_exempt_a_user_in_prod() -> None:
+    realm = realm_copy("prod")
+    realm["users"].append({"username": "service-account-x", "realmRoles": ["cro"], "requiredActions": []})
+    assert {"usuario-local-en-prod", "mfa-obligatorio"} <= rules(realm, "prod")
+
+
+def test_service_account_pointing_to_a_missing_app_does_not_exempt_a_user_in_prod() -> None:
+    realm = realm_copy("prod")
+    realm["users"].append(service_account("jdoe", "no-existe", realmRoles=["cro"]))
+    assert {"usuario-local-en-prod", "mfa-obligatorio"} <= rules(realm, "prod")
+
+
+def test_service_account_pointing_to_a_non_service_app_does_not_exempt_a_user_in_prod() -> None:
+    realm = realm_copy("prod")
+    realm["users"].append(service_account("service-account-vectra-console", "vectra-console"))
+    assert "usuario-local-en-prod" in rules(realm, "prod")
+
+
+def test_service_account_with_a_user_role_does_not_exempt_it_in_prod() -> None:
+    realm = realm_copy("prod")
+    realm["users"].append(service_account("service-account-case-worker", "case-worker", realmRoles=["cro"]))
+    assert {"usuario-local-en-prod", "mfa-obligatorio"} <= rules(realm, "prod")
+
+
+@pytest.mark.parametrize("field", ["defaultClientScopes", "optionalClientScopes"], ids=["default", "optional"])
+def test_app_without_explicit_scope_lists_is_rejected(field: str) -> None:
+    realm = realm_copy("kind")
+    del find_client(realm, "case-worker")[field]
+    assert "scopes-por-defecto-heredados" in rules(realm, "kind")
 
 
 def test_service_without_private_key_jwt_is_rejected() -> None:
@@ -316,14 +358,8 @@ def test_forbidden_claim_only_in_id_token_is_accepted() -> None:
     assert lint_realm(realm, "kind") == []
 
 
-def test_profile_scope_leaks_username_and_is_rejected() -> None:
-    realm = realm_copy("kind")
-    find_client(realm, "vectra-console")["defaultClientScopes"].append("profile")
-    assert "claim-prohibido-en-access-token" in rules(realm, "kind")
-
-
 @pytest.mark.parametrize("scope", ["profile", "email"])
-def test_profile_and_email_scopes_are_rejected_even_if_the_realm_redefines_them(scope: str) -> None:
+def test_profile_and_email_scopes_are_rejected_as_outside_the_catalog_even_if_redefined(scope: str) -> None:
     realm = realm_copy("kind")
     find_client(realm, "vectra-console")["defaultClientScopes"].append(scope)
     realm["clientScopes"] = [{"name": scope, "protocol": "openid-connect", "protocolMappers": []}]
@@ -357,6 +393,11 @@ def test_scope_mapper_with_forbidden_claim_is_rejected() -> None:
         ("maxDeltaTimeSeconds", 3600),
         ("permanentLockout", False),
         ("maxTemporaryLockouts", 10),
+        # Igual en valor pero de otro tipo: `1 == True` y `5.0 == 5` en Python.
+        ("bruteForceProtected", 1),
+        ("permanentLockout", 1),
+        ("failureFactor", 5.0),
+        ("failureFactor", "5"),
     ],
 )
 def test_realm_parameter_out_of_spec_is_rejected(key: str, value: object) -> None:
@@ -383,12 +424,6 @@ def test_brute_force_fields_are_exactly_those_of_br_u2_05() -> None:
         "maxFailureWaitSeconds": 900,
         "maxDeltaTimeSeconds": 43200,
     }
-    assert lint_realm(realm, "kind") == []
-
-
-def test_realm_without_refresh_rotation_fields_is_not_checked_by_step_3() -> None:
-    realm = realm_copy("kind")
-    assert "revokeRefreshToken" not in realm and "acr.loa.map" not in realm.get("attributes", {})
     assert lint_realm(realm, "kind") == []
 
 

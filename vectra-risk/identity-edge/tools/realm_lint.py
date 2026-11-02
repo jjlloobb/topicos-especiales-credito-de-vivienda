@@ -41,8 +41,6 @@ TOTP_ACTION = "CONFIGURE_TOTP"
 BREAK_GLASS = "break-glass"
 
 CATALOG_SCOPES = frozenset(s.value for s in Scope)
-# Client scopes de Keycloak que emiten claims prohibidos en el access token (ademas de ser scopes fuera del catalogo).
-LEAKY_BUILTIN_SCOPES = frozenset({"profile", "email"})
 FORBIDDEN_ACCESS_CLAIMS = frozenset({"preferred_username", "email", "name"})
 
 
@@ -122,14 +120,29 @@ def _items(realm: Mapping[str, Any], key: str, out: list[Violation]) -> Iterator
 # --- usuarios (BR-U2-01, 03; domain-entities §1.1, §3) ---------------------------------------
 
 
+def _is_service_account(user: Mapping[str, Any], service_clients: frozenset[str]) -> bool:
+    """Cuenta de servicio legitima: apunta a un cliente del realm con `serviceAccountsEnabled` y no tiene
+    roles de usuario (domain-entities §2: los clientes de servicio no tienen roles de usuario)."""
+    target = user.get("serviceAccountClientId")
+    if not isinstance(target, str) or target not in service_clients:
+        return False
+    roles = set(_str_list(user.get("realmRoles")))
+    return not (roles & (BUSINESS_ROLES | {OPERACION}))
+
+
 def _check_users(realm: Mapping[str, Any], env: str, out: list[Violation]) -> None:
+    service_clients = frozenset(
+        str(c.get("clientId"))
+        for c in _list(realm.get("clients"))
+        if isinstance(c, dict) and c.get("serviceAccountsEnabled") is True
+    )
     for user in _items(realm, "users", out):
         name = str(user.get("username", "?"))
         where = f"usuario {name}"
         roles = _str_list(user.get("realmRoles"))
         if REALM_ADMIN in _str_list(_dict(user.get("clientRoles")).get(REALM_MANAGEMENT)):
             roles.append(REALM_ADMIN)
-        service_account = name.startswith("service-account-") or "serviceAccountClientId" in user
+        service_account = _is_service_account(user, service_clients)
         business = [r for r in roles if r in BUSINESS_ROLES]
         if len(business) > 1:
             out.append(
@@ -226,14 +239,15 @@ def _check_client(client: Mapping[str, Any], env: str, out: list[Violation]) -> 
             out.append(Violation("cliente-con-secreto", where, "un cliente de servicio no debe tener `secret` (BR-U2-09)"))
         if client.get("clientAuthenticatorType") != "client-jwt":
             out.append(Violation("servicio-sin-private-key-jwt", where, "un cliente de servicio usa `clientAuthenticatorType: client-jwt` (BR-U2-09)"))
-    if not isinstance(client.get("defaultClientScopes"), list):
-        out.append(
-            Violation(
-                "scopes-por-defecto-heredados",
-                where,
-                "falta `defaultClientScopes` explicito (puede ser []): Keycloak aplicaria los scopes por defecto del realm",
+    for field in ("defaultClientScopes", "optionalClientScopes"):
+        if not isinstance(client.get(field), list):
+            out.append(
+                Violation(
+                    "scopes-por-defecto-heredados",
+                    where,
+                    f"falta `{field}` explicito (puede ser []): Keycloak aplicaria los scopes por defecto del realm",
+                )
             )
-        )
 
     # Redirect URIs exactas, sin comodines.
     uris = _str_list(client.get("redirectUris")) + _str_list(client.get("webOrigins"))
@@ -271,15 +285,6 @@ def _check_claims(realm: Mapping[str, Any], out: list[Violation]) -> None:
     for client in _items(realm, "clients", []):
         client_id = str(client.get("clientId", "?"))
         _forbidden_claim_mappers(f"cliente {client_id}", _list(client.get("protocolMappers")), out)
-        for scope in _client_scopes(client):
-            if scope in LEAKY_BUILTIN_SCOPES:
-                out.append(
-                    Violation(
-                        "claim-prohibido-en-access-token",
-                        f"cliente {client_id}",
-                        f"el client scope `{scope}` de Keycloak emite username/email/name en el access token",
-                    )
-                )
 
 
 # --- parametros del realm (domain-entities §6, NFR-U2-24) ----------------------------------
