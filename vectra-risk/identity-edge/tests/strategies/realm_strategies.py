@@ -3,7 +3,6 @@
 import string
 
 from hypothesis import strategies as st
-from realm_lint import KEYCLOAK_BUILTIN_SCOPES
 from vectra_contracts.catalog import Role, Scope
 
 BUSINESS = [r.value for r in Role]
@@ -47,8 +46,11 @@ def ldap_assignments(draw: st.DrawFn) -> tuple[dict[str, str], list[str]]:
     return mapping, list(groups)
 
 
-outside_catalog_scopes = st.text(alphabet=string.ascii_lowercase + ":-", min_size=1, max_size=24).filter(
-    lambda s: s not in CATALOG_SCOPES and s not in KEYCLOAK_BUILTIN_SCOPES
+# Client scopes propios de Keycloak: tampoco pasan (PBT-U2-03 enmendada, 2026-11-02). No se filtran.
+KEYCLOAK_OWN_SCOPES = ["openid", "profile", "email", "roles", "web-origins", "acr", "offline_access", "microprofile-jwt"]
+outside_catalog_scopes = st.one_of(
+    st.sampled_from(KEYCLOAK_OWN_SCOPES),
+    st.text(alphabet=string.ascii_lowercase + ":-", min_size=1, max_size=24).filter(lambda s: s not in CATALOG_SCOPES),
 )
 client_scope_lists = st.lists(
     st.one_of(st.sampled_from(CATALOG_SCOPES), outside_catalog_scopes), unique=True, max_size=8

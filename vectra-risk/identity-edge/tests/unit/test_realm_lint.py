@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 import yaml
 from realm_builders import find_client, find_user, realm_copy, user
-from realm_lint import lint_group_role_map, lint_realm
+from realm_lint import lint_group_role_map, lint_realm, resolve_ldap_role
 
 TOOL = Path(__file__).resolve().parents[2] / "tools" / "realm_lint.py"
 
@@ -108,7 +108,7 @@ def test_break_glass_rule_does_not_apply_to_synthetic_users_in_staging() -> None
 # --- scopes (AUTONOMIA-03) ------------------------------------------------------------------
 
 
-def test_client_with_core_write_credit_is_rejected() -> None:
+def test_service_with_core_write_credit_is_rejected() -> None:
     realm = realm_copy("kind")
     scopes_of(find_client(realm, "case-service")).append("core:write-credit")
     assert "core-write-credit-prohibido" in rules(realm, "kind")
@@ -120,13 +120,14 @@ def test_scope_outside_the_u0_catalog_is_rejected() -> None:
     assert "scope-fuera-del-catalogo" in rules(realm, "kind")
 
 
-def test_keycloak_builtin_scopes_are_not_catalog_violations() -> None:
+@pytest.mark.parametrize("scope", ["openid", "offline_access", "web-origins", "roles", "acr", "microprofile-jwt"])
+def test_keycloak_own_scopes_are_outside_the_catalog_and_rejected(scope: str) -> None:
     realm = realm_copy("kind")
-    find_client(realm, "vectra-console")["defaultClientScopes"] += ["openid", "web-origins"]
-    assert lint_realm(realm, "kind") == []
+    find_client(realm, "vectra-console")["defaultClientScopes"].append(scope)
+    assert "scope-fuera-del-catalogo" in rules(realm, "kind")
 
 
-def test_client_other_than_bias_monitoring_job_with_governance_freeze_is_rejected() -> None:
+def test_service_other_than_bias_monitoring_job_with_governance_freeze_is_rejected() -> None:
     realm = realm_copy("kind")
     scopes_of(find_client(realm, "bias-monitoring-service")).append("governance:freeze")
     violations = [v for v in lint_realm(realm, "kind") if v.rule == "governance-freeze-solo-en-el-job"]
@@ -180,8 +181,10 @@ def test_case_service_without_core_in_prod_is_accepted() -> None:
 
 
 def test_channel_simulator_in_prod_is_rejected() -> None:
-    realm = realm_copy("kind")  # el kind trae al simulador
-    assert "cliente-solo-no-productivo" in rules(realm, "prod")
+    realm = realm_copy("prod")
+    realm["clients"] = [*realm["clients"], find_client(realm_copy("kind"), "channel-simulator")]
+    violations = [v for v in lint_realm(realm, "prod") if v.rule == "cliente-solo-no-productivo"]
+    assert [v.where for v in violations] == ["cliente channel-simulator"]
 
 
 def test_channel_simulator_in_kind_and_staging_is_accepted() -> None:
@@ -234,22 +237,48 @@ def test_product_metrics_with_only_its_scope_is_accepted() -> None:
 # --- clientes de servicio (BR-U2-09) --------------------------------------------------------
 
 
-def test_service_client_with_client_secret_is_rejected() -> None:
+def test_service_with_shared_secret_is_rejected() -> None:
     realm = realm_copy("kind")
     find_client(realm, "case-worker")["secret"] = "algo"  # noqa: S105
     assert "cliente-con-secreto" in rules(realm, "kind")
 
 
-def test_service_client_without_private_key_jwt_is_rejected() -> None:
+def test_user_app_with_secret_is_not_a_service_rule() -> None:
+    realm = realm_copy("kind")
+    find_client(realm, "vectra-console")["secret"] = "algo"  # noqa: S105
+    assert "cliente-con-secreto" not in rules(realm, "kind")
+
+
+def test_app_without_explicit_default_scopes_is_rejected() -> None:
+    realm = realm_copy("kind")
+    del find_client(realm, "case-worker")["defaultClientScopes"]
+    assert "scopes-por-defecto-heredados" in rules(realm, "kind")
+
+
+def test_break_glass_with_realm_admin_of_realm_management_and_no_totp_is_rejected() -> None:
+    realm = realm_copy("prod")
+    broken = find_user(realm, "break-glass")
+    assert broken["clientRoles"] == {"realm-management": ["realm-admin"]}
+    broken["requiredActions"] = []
+    assert "mfa-obligatorio" in rules(realm, "prod")
+
+
+def test_service_account_users_are_not_local_users_in_prod() -> None:
+    realm = realm_copy("prod")
+    realm["users"].append({"username": "service-account-keycloak-config-cli", "serviceAccountClientId": "keycloak-config-cli", "enabled": True})
+    assert lint_realm(realm, "prod") == []
+
+
+def test_service_without_private_key_jwt_is_rejected() -> None:
     realm = realm_copy("kind")
     find_client(realm, "case-worker")["clientAuthenticatorType"] = "client-secret"
     assert "servicio-sin-private-key-jwt" in rules(realm, "kind")
 
 
-@pytest.mark.parametrize("client_id", ["vectra-console", "promotion-tool", "grafana"])
-def test_wildcard_redirect_uri_is_rejected(client_id: str) -> None:
+@pytest.mark.parametrize("app", ["vectra-console", "promotion-tool", "grafana"])
+def test_wildcard_redirect_uri_is_rejected(app: str) -> None:
     realm = realm_copy("kind")
-    find_client(realm, client_id)["redirectUris"].append("https://vectra.example.org/*")
+    find_client(realm, app)["redirectUris"].append("https://vectra.example.org/*")
     assert "redirect-uri-con-comodin" in rules(realm, "kind")
 
 
@@ -287,20 +316,21 @@ def test_forbidden_claim_only_in_id_token_is_accepted() -> None:
     assert lint_realm(realm, "kind") == []
 
 
-def test_profile_scope_without_override_leaks_username_and_is_rejected() -> None:
+def test_profile_scope_leaks_username_and_is_rejected() -> None:
     realm = realm_copy("kind")
     find_client(realm, "vectra-console")["defaultClientScopes"].append("profile")
     assert "claim-prohibido-en-access-token" in rules(realm, "kind")
 
 
-def test_profile_scope_redefined_without_the_claims_is_accepted() -> None:
+@pytest.mark.parametrize("scope", ["profile", "email"])
+def test_profile_and_email_scopes_are_rejected_even_if_the_realm_redefines_them(scope: str) -> None:
     realm = realm_copy("kind")
-    find_client(realm, "vectra-console")["defaultClientScopes"].append("profile")
-    realm["clientScopes"] = [{"name": "profile", "protocol": "openid-connect", "protocolMappers": []}]
-    assert lint_realm(realm, "kind") == []
+    find_client(realm, "vectra-console")["defaultClientScopes"].append(scope)
+    realm["clientScopes"] = [{"name": scope, "protocol": "openid-connect", "protocolMappers": []}]
+    assert "scope-fuera-del-catalogo" in rules(realm, "kind")
 
 
-def test_client_scope_mapper_with_forbidden_claim_is_rejected() -> None:
+def test_scope_mapper_with_forbidden_claim_is_rejected() -> None:
     realm = realm_copy("kind")
     realm["clientScopes"] = [
         {
@@ -320,14 +350,12 @@ def test_client_scope_mapper_with_forbidden_claim_is_rejected() -> None:
         ("accessTokenLifespan", 600),
         ("ssoSessionIdleTimeout", 3600),
         ("ssoSessionMaxLifespan", 72000),
-        ("revokeRefreshToken", False),
-        ("refreshTokenMaxReuse", 1),
         ("bruteForceProtected", False),
         ("failureFactor", 10),
         ("waitIncrementSeconds", 30),
         ("maxFailureWaitSeconds", 1800),
         ("maxDeltaTimeSeconds", 3600),
-        ("permanentLockout", True),
+        ("permanentLockout", False),
         ("maxTemporaryLockouts", 10),
     ],
 )
@@ -337,17 +365,31 @@ def test_realm_parameter_out_of_spec_is_rejected(key: str, value: object) -> Non
     assert "parametro-del-realm" in rules(realm, "kind")
 
 
-@pytest.mark.parametrize("key", ["accessTokenLifespan", "failureFactor", "revokeRefreshToken"])
+@pytest.mark.parametrize("key", ["accessTokenLifespan", "failureFactor", "permanentLockout"])
 def test_missing_realm_parameter_is_rejected(key: str) -> None:
     realm = realm_copy("kind")
     del realm[key]
     assert "parametro-del-realm" in rules(realm, "kind")
 
 
-def test_wrong_acr_loa_map_is_rejected() -> None:
+def test_brute_force_fields_are_exactly_those_of_br_u2_05() -> None:
     realm = realm_copy("kind")
-    realm["attributes"]["acr.loa.map"] = '{"pwd": 1, "mfa": 3}'
-    assert "parametro-del-realm" in rules(realm, "kind")
+    assert {k: realm[k] for k in ("bruteForceProtected", "permanentLockout", "maxTemporaryLockouts", "failureFactor", "waitIncrementSeconds", "maxFailureWaitSeconds", "maxDeltaTimeSeconds")} == {
+        "bruteForceProtected": True,
+        "permanentLockout": True,
+        "maxTemporaryLockouts": 3,
+        "failureFactor": 5,
+        "waitIncrementSeconds": 60,
+        "maxFailureWaitSeconds": 900,
+        "maxDeltaTimeSeconds": 43200,
+    }
+    assert lint_realm(realm, "kind") == []
+
+
+def test_realm_without_refresh_rotation_fields_is_not_checked_by_step_3() -> None:
+    realm = realm_copy("kind")
+    assert "revokeRefreshToken" not in realm and "acr.loa.map" not in realm.get("attributes", {})
+    assert lint_realm(realm, "kind") == []
 
 
 @pytest.mark.parametrize(
@@ -397,7 +439,7 @@ def test_group_role_map_with_realm_admin_is_rejected() -> None:
 
 @pytest.mark.parametrize("bad", [{}, {"groups": []}, {"groups": {"": "cro"}}, [], "x"])
 def test_malformed_group_role_map_is_rejected(bad: object) -> None:
-    assert lint_group_role_map(bad)  # type: ignore[arg-type]
+    assert lint_group_role_map(bad)
 
 
 # --- CLI ------------------------------------------------------------------------------------
@@ -473,3 +515,10 @@ def test_cli_fails_on_missing_file_and_on_invalid_yaml(tmp_path: Path) -> None:
 
 def test_cli_without_arguments_is_a_usage_error() -> None:
     assert run_cli().returncode != 0
+
+
+def test_resolve_ldap_role_uses_the_same_validation_as_the_table_lint() -> None:
+    bad = {"cn=x,ou=g": "superusuario"}
+    assert lint_group_role_map({"groups": bad})
+    with pytest.raises(ValueError, match="superusuario"):
+        resolve_ldap_role(["cn=x,ou=g"], bad)

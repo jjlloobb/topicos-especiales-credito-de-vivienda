@@ -56,6 +56,15 @@ def audience_mapper(audience: str) -> dict[str, Any]:
     }
 
 
+def roles_mapper() -> dict[str, Any]:
+    return {
+        "name": "roles",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-usermodel-realm-role-mapper",
+        "config": {"claim.name": "roles", "multivalued": "true", "access.token.claim": "true"},
+    }
+
+
 def service_client(client_id: str, scopes: list[str], audiences: list[str]) -> dict[str, Any]:
     return {
         "clientId": client_id,
@@ -105,9 +114,10 @@ def user_clients() -> list[dict[str, Any]]:
             "https://vectra.example.org/stepup-callback",
         ],
         "webOrigins": ["https://vectra.example.org"],
-        "defaultClientScopes": ["roles", "acr"],
+        "defaultClientScopes": [],
         "optionalClientScopes": [],
         "protocolMappers": [audience_mapper(a) for a in USER_AUDIENCES]
+        + [roles_mapper()]
         + [
             {  # `name` solo en el ID token, que consume la SPA (domain-entities §1.3).
                 "name": "name-id-token",
@@ -129,9 +139,9 @@ def user_clients() -> list[dict[str, Any]]:
         "standardFlowEnabled": True,
         "attributes": {"pkce.code.challenge.method": "S256"},
         "redirectUris": ["http://127.0.0.1"],
-        "defaultClientScopes": ["roles", "acr"],
+        "defaultClientScopes": [],
         "optionalClientScopes": [Scope.GOVERNANCE_PROMOTION.value],
-        "protocolMappers": [audience_mapper("governance-service")],
+        "protocolMappers": [audience_mapper("governance-service"), roles_mapper()],
     }
     grafana = {
         "clientId": "grafana",
@@ -140,8 +150,9 @@ def user_clients() -> list[dict[str, Any]]:
         "standardFlowEnabled": True,
         "clientAuthenticatorType": "client-jwt",
         "redirectUris": ["https://vectra.example.org/grafana/login/generic_oauth"],
-        "defaultClientScopes": ["roles"],
+        "defaultClientScopes": [],
         "optionalClientScopes": [],
+        "protocolMappers": [roles_mapper()],
     }
     return [console, promotion, grafana]
 
@@ -150,6 +161,17 @@ def user(username: str, roles: list[str], *, totp: bool | None = None) -> dict[s
     needs_totp = any(r in MFA_ROLES or r in ("operacion", "realm-admin") for r in roles)
     actions = [TOTP] if (needs_totp if totp is None else totp) else []
     return {"username": username, "enabled": True, "realmRoles": roles, "requiredActions": actions}
+
+
+def break_glass() -> dict[str, Any]:
+    """`realm-admin` es un rol de cliente de `realm-management` en Keycloak."""
+    return {
+        "username": "break-glass",
+        "enabled": True,
+        "realmRoles": [],
+        "clientRoles": {"realm-management": ["realm-admin"]},
+        "requiredActions": [TOTP],
+    }
 
 
 def synthetic_users() -> list[dict[str, Any]]:
@@ -161,14 +183,13 @@ def synthetic_users() -> list[dict[str, Any]]:
 
 def valid_realm(env: str) -> dict[str, Any]:
     """Un realm que `realm-lint` acepta, para `env` en {kind, staging, prod}."""
-    users = [user("break-glass", ["realm-admin"])] if env == "prod" else synthetic_users()
+    users = [break_glass()] if env == "prod" else synthetic_users()
     return {
         "realm": "vectra",
         "enabled": True,
-        "attributes": {"acr.loa.map": '{"pwd": 1, "mfa": 2}'},
         "passwordPolicy": "length(14) and notUsername and notEmail and passwordHistory(5) and hashAlgorithm(argon2)",
         "bruteForceProtected": True,
-        "permanentLockout": False,
+        "permanentLockout": True,
         "failureFactor": 5,
         "waitIncrementSeconds": 60,
         "maxFailureWaitSeconds": 900,
@@ -177,8 +198,6 @@ def valid_realm(env: str) -> dict[str, Any]:
         "accessTokenLifespan": 300,
         "ssoSessionIdleTimeout": 1800,
         "ssoSessionMaxLifespan": 36000,
-        "revokeRefreshToken": True,
-        "refreshTokenMaxReuse": 0,
         "users": users,
         "clients": user_clients() + service_clients(env),
     }

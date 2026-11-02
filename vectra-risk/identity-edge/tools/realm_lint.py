@@ -12,17 +12,15 @@ Entradas:
 Los scopes validos salen del catalogo de U0 (`vectra_contracts.catalog`), no de una lista aqui.
 """
 
-import json
 import re
 import sys
-from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
-from vectra_contracts.catalog import Role, Scope
+from vectra_contracts.catalog import SCOPE_HOLDERS, Role, Scope
 
 ENVIRONMENTS = ("kind", "staging", "prod")
 NON_PROD = ("kind", "staging")
@@ -30,6 +28,8 @@ NON_PROD = ("kind", "staging")
 BUSINESS_ROLES = frozenset(r.value for r in Role)
 OPERACION = "operacion"
 REALM_ADMIN = "realm-admin"
+# En Keycloak `realm-admin` es un rol de cliente de `realm-management`.
+REALM_MANAGEMENT = "realm-management"
 # Roles que no pueden salir de LDAP: `realm-admin` es solo de break-glass y del keycloak-config-cli.
 LDAP_ROLES = BUSINESS_ROLES | {OPERACION}
 # MFA obligatorio (TOTP como required action): BR-U2-03, `operacion` (domain-entities §1.1) y break-glass.
@@ -41,55 +41,40 @@ TOTP_ACTION = "CONFIGURE_TOTP"
 BREAK_GLASS = "break-glass"
 
 CATALOG_SCOPES = frozenset(s.value for s in Scope)
-# Client scopes propios de Keycloak/OIDC: no son scopes del catalogo de U0.
-KEYCLOAK_BUILTIN_SCOPES = frozenset(
-    {
-        "openid",
-        "profile",
-        "email",
-        "roles",
-        "web-origins",
-        "acr",
-        "basic",
-        "offline_access",
-        "address",
-        "phone",
-        "microprofile-jwt",
-        "role_list",
-    }
-)
-# Client scopes de Keycloak que, sin redefinir en el realm, emiten claims prohibidos en el access token.
+# Client scopes de Keycloak que emiten claims prohibidos en el access token (ademas de ser scopes fuera del catalogo).
 LEAKY_BUILTIN_SCOPES = frozenset({"profile", "email"})
 FORBIDDEN_ACCESS_CLAIMS = frozenset({"preferred_username", "email", "name"})
 
-FREEZE_ONLY_CLIENT = "bias-monitoring-job"
-# Clientes con scopes exactos (Paso 2, NFR-U11-20, INF-U12-03).
-EXACT_SCOPES = {
-    "verification-reader": frozenset({Scope.REGISTRY_READ_METRICS.value, Scope.REGISTRY_READ_MONITORING.value}),
-    "product-metrics": frozenset({Scope.REGISTRY_READ_METRICS.value}),
-}
+
+
+def _scopes_held_by(client: str) -> frozenset[str]:
+    return frozenset(scope.value for scope, holders in SCOPE_HOLDERS.items() if client in holders)
+
+
+# El unico titular de `governance:freeze` en el catalogo de U0 (revision del FD de U9, 2026-10-08).
+(FREEZE_ONLY_CLIENT,) = SCOPE_HOLDERS[Scope.GOVERNANCE_FREEZE]
+# Clientes con scopes exactos (Paso 2, NFR-U11-20, INF-U12-03): los que el catalogo les asigna.
+EXACT_SCOPES = {client: _scopes_held_by(client) for client in ("verification-reader", "product-metrics")}
 # Clientes que no existen en produccion.
 NON_PROD_ONLY_CLIENTS = ("channel-simulator", "verification-reader")
 CORE_SCOPE = Scope.CORE_READ_CREDIT.value
 CORE_AUDIENCE = "core-banking-mock"
 
-# domain-entities §6 y BR-U2-05, 06. `maxTemporaryLockouts = 3` + `failureFactor = 5` => el 4.o
-# bloqueo (fallo 20) es permanente, dentro de la ventana `maxDeltaTimeSeconds` de 12 h.
+# domain-entities §6 y BR-U2-05, 06. Campos exactos de BR-U2-05: con `permanentLockout: true`,
+# `maxTemporaryLockouts = 3` y `failureFactor = 5`, el 4.o bloqueo (fallo 20 en `maxDeltaTimeSeconds`,
+# 12 h) es permanente; la espera crece `waitIncrementSeconds` por serie hasta `maxFailureWaitSeconds`.
 REALM_PARAMETERS: Mapping[str, Any] = {
     "accessTokenLifespan": 300,
     "ssoSessionIdleTimeout": 1800,
     "ssoSessionMaxLifespan": 36000,
-    "revokeRefreshToken": True,
-    "refreshTokenMaxReuse": 0,
     "bruteForceProtected": True,
     "failureFactor": 5,
     "waitIncrementSeconds": 60,
     "maxFailureWaitSeconds": 900,
     "maxDeltaTimeSeconds": 43200,
-    "permanentLockout": False,
+    "permanentLockout": True,
     "maxTemporaryLockouts": 3,
 }
-ACR_LOA_MAP = {"pwd": 1, "mfa": 2}
 # NFR-U2-24.
 PASSWORD_MIN_LENGTH = 14
 PASSWORD_MIN_HISTORY = 5
@@ -142,6 +127,9 @@ def _check_users(realm: Mapping[str, Any], env: str, out: list[Violation]) -> No
         name = str(user.get("username", "?"))
         where = f"usuario {name}"
         roles = _str_list(user.get("realmRoles"))
+        if REALM_ADMIN in _str_list(_dict(user.get("clientRoles")).get(REALM_MANAGEMENT)):
+            roles.append(REALM_ADMIN)
+        service_account = name.startswith("service-account-") or "serviceAccountClientId" in user
         business = [r for r in roles if r in BUSINESS_ROLES]
         if len(business) > 1:
             out.append(
@@ -152,13 +140,13 @@ def _check_users(realm: Mapping[str, Any], env: str, out: list[Violation]) -> No
                 Violation("operacion-con-rol-de-negocio", where, f"`{OPERACION}` no puede ir con {sorted(business)}")
             )
         required = sorted(set(roles) & MFA_REQUIRED_ROLES)
-        if required and TOTP_ACTION not in _str_list(user.get("requiredActions")):
+        if required and not service_account and TOTP_ACTION not in _str_list(user.get("requiredActions")):
             out.append(
                 Violation(
                     "mfa-obligatorio", where, f"el rol {required} exige la required action {TOTP_ACTION} (BR-U2-03)"
                 )
             )
-        if env == "prod" and name != BREAK_GLASS:
+        if env == "prod" and name != BREAK_GLASS and not service_account:
             out.append(
                 Violation(
                     "usuario-local-en-prod",
@@ -191,7 +179,7 @@ def _check_scopes(client_id: str, scopes: Sequence[str], out: list[Violation]) -
     for scope in scopes:
         if scope == Scope.CORE_WRITE_CREDIT.value:
             out.append(Violation("core-write-credit-prohibido", where, f"ningun cliente puede tener `{scope}` (AUTONOMIA-03)"))
-        elif scope not in CATALOG_SCOPES and scope not in KEYCLOAK_BUILTIN_SCOPES:
+        elif scope not in CATALOG_SCOPES:
             out.append(Violation("scope-fuera-del-catalogo", where, f"`{scope}` no esta en el catalogo de scopes de U0"))
     if Scope.GOVERNANCE_FREEZE.value in scopes and client_id != FREEZE_ONLY_CLIENT:
         out.append(
@@ -217,7 +205,7 @@ def _check_client(client: Mapping[str, Any], env: str, out: list[Violation]) -> 
     if env == "prod" and client_id in NON_PROD_ONLY_CLIENTS:
         out.append(Violation("cliente-solo-no-productivo", where, f"`{client_id}` solo existe en kind y staging"))
     if client_id in EXACT_SCOPES:
-        held = {s for s in scopes if s not in KEYCLOAK_BUILTIN_SCOPES}
+        held = set(scopes)
         if held != EXACT_SCOPES[client_id]:
             out.append(
                 Violation(
@@ -233,10 +221,19 @@ def _check_client(client: Mapping[str, Any], env: str, out: list[Violation]) -> 
             out.append(Violation("case-service-core-en-prod", where, f"no puede tener la audiencia `{CORE_AUDIENCE}` en produccion"))
 
     # Autenticacion (BR-U2-09): sin secretos compartidos; los de servicio con private_key_jwt.
-    if "secret" in client:
-        out.append(Violation("cliente-con-secreto", where, "no debe tener `secret`: Keycloak no guarda secretos compartidos (BR-U2-09)"))
-    if client.get("serviceAccountsEnabled") is True and client.get("clientAuthenticatorType") != "client-jwt":
-        out.append(Violation("servicio-sin-private-key-jwt", where, "un cliente de servicio usa `clientAuthenticatorType: client-jwt` (BR-U2-09)"))
+    if client.get("serviceAccountsEnabled") is True:
+        if "secret" in client:
+            out.append(Violation("cliente-con-secreto", where, "un cliente de servicio no debe tener `secret` (BR-U2-09)"))
+        if client.get("clientAuthenticatorType") != "client-jwt":
+            out.append(Violation("servicio-sin-private-key-jwt", where, "un cliente de servicio usa `clientAuthenticatorType: client-jwt` (BR-U2-09)"))
+    if not isinstance(client.get("defaultClientScopes"), list):
+        out.append(
+            Violation(
+                "scopes-por-defecto-heredados",
+                where,
+                "falta `defaultClientScopes` explicito (puede ser []): Keycloak aplicaria los scopes por defecto del realm",
+            )
+        )
 
     # Redirect URIs exactas, sin comodines.
     uris = _str_list(client.get("redirectUris")) + _str_list(client.get("webOrigins"))
@@ -267,9 +264,7 @@ def _forbidden_claim_mappers(owner: str, mappers: Iterable[Any], out: list[Viola
 
 
 def _check_claims(realm: Mapping[str, Any], out: list[Violation]) -> None:
-    redefined = set()
     for definition in _items(realm, "clientScopes", out):
-        redefined.add(definition.get("name"))
         _forbidden_claim_mappers(
             f"client scope {definition.get('name', '?')}", _list(definition.get("protocolMappers")), out
         )
@@ -277,12 +272,12 @@ def _check_claims(realm: Mapping[str, Any], out: list[Violation]) -> None:
         client_id = str(client.get("clientId", "?"))
         _forbidden_claim_mappers(f"cliente {client_id}", _list(client.get("protocolMappers")), out)
         for scope in _client_scopes(client):
-            if scope in LEAKY_BUILTIN_SCOPES and scope not in redefined:
+            if scope in LEAKY_BUILTIN_SCOPES:
                 out.append(
                     Violation(
                         "claim-prohibido-en-access-token",
                         f"cliente {client_id}",
-                        f"el client scope `{scope}` de Keycloak emite username/email/name en el access token; redefinelo en `clientScopes` sin esos claims",
+                        f"el client scope `{scope}` de Keycloak emite username/email/name en el access token",
                     )
                 )
 
@@ -296,14 +291,6 @@ def _check_parameters(realm: Mapping[str, Any], out: list[Violation]) -> None:
         # `1 == True` en Python: comparar tambien el tipo para no aceptar `true` donde va un numero.
         if actual != expected or type(actual) is not type(expected):
             out.append(Violation("parametro-del-realm", f"realm {key}", f"debe ser {expected!r}, es {actual!r}"))
-    loa: Any = _dict(realm.get("attributes")).get("acr.loa.map")
-    if isinstance(loa, str):
-        try:
-            loa = json.loads(loa)
-        except ValueError:
-            loa = None
-    if loa != ACR_LOA_MAP:
-        out.append(Violation("parametro-del-realm", "realm attributes.acr.loa.map", f"debe ser {ACR_LOA_MAP}, es {loa!r}"))
 
 
 _TERM = re.compile(r"^\s*(\w+)(?:\((.*)\))?\s*$")
@@ -378,11 +365,16 @@ def lint_group_role_map(mapping: Any) -> list[Violation]:
 
 
 def resolve_ldap_role(groups: Iterable[str], group_role_map: Mapping[str, str]) -> str | None:
-    """El rol que recibe un usuario LDAP (BR-U2-01, 15): el de su unico grupo mapeado, o ninguno.
+    """El rol que recibe un usuario LDAP segun la tabla (BR-U2-01, 15): el de su unico grupo mapeado, o ninguno.
 
-    Con dos o mas grupos mapeados hay `ROLE_CONFLICT`: no recibe ningun rol.
+    Con dos o mas grupos mapeados no recibe ningun rol. La tabla se valida con el mismo codigo que la CLI
+    (`lint_group_role_map`); una tabla invalida lanza `ValueError`. Es el modelo de referencia de PBT-U2-02:
+    el cumplimiento en Keycloak (`ROLE_CONFLICT`) queda fuera de esta tarea.
     """
-    mapped = Counter(g for g in set(groups) if g in group_role_map)
+    violations = lint_group_role_map({"groups": dict(group_role_map)})
+    if violations:
+        raise ValueError("; ".join(v.message for v in violations))
+    mapped = {g for g in groups if g in group_role_map}
     if len(mapped) != 1:
         return None
     return group_role_map[next(iter(mapped))]
