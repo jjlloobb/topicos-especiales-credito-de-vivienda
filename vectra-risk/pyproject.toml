@@ -9,7 +9,7 @@ dependencies = ["vectra-contracts", "vectra-common"]
 package = false
 
 [tool.uv.workspace]
-members = ["contracts/python/vectra_contracts", "contracts/python/vectra_common"]
+members = ["contracts/python/vectra_contracts", "contracts/python/vectra_common", "identity-edge"]
 
 [tool.uv.sources]
 vectra-contracts = { workspace = true }
@@ -67,6 +67,7 @@ ignore = ["S101", "E501"]
 "platform/**" = ["T201", "S603", "S607", "S107"]
 "vectra-risk-gitops/**" = ["T201"]
 "contracts/tests/**" = ["S", "B", "E501", "BLE", "T20", "I001"]
+"identity-edge/tests/**" = ["S", "B", "E501", "BLE", "T20", "I001"]
 "contracts/tools/**" = ["T20", "S603", "S607", "E501"]
 "contracts/python/vectra_contracts/src/vectra_contracts/routes/__init__.py" = ["E501"]
 
