@@ -1173,6 +1173,16 @@ requires-dist = [{ name = "pydantic", specifier = "==2.14.2" }]
 name = "vectra-identity-edge"
 version = "0.1.0"
 source = { virtual = "identity-edge" }
+dependencies = [
+    { name = "pyyaml" },
+    { name = "vectra-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pyyaml", specifier = "==6.0.3" },
+    { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
+]
 
 [[package]]
 name = "vectra-risk"

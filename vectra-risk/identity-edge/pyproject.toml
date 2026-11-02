@@ -3,4 +3,8 @@ name = "vectra-identity-edge"
 version = "0.1.0"
 description = "U2 identity-edge: identidad (Keycloak) y borde (Envoy Gateway)"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+# `realm_lint.py` lee YAML y toma el catalogo de scopes de U0.
+dependencies = ["pyyaml==6.0.3", "vectra-contracts"]
+
+[tool.uv.sources]
+vectra-contracts = { workspace = true }
