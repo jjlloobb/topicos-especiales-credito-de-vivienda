@@ -60,7 +60,7 @@ vectra-risk/identity-edge/
 
 ### Bloque A — Estructura
 
-- [ ] **Paso 1 — Esqueleto de `identity-edge/`**
+- [x] **Paso 1 — Esqueleto de `identity-edge/`** (U02-T01)
   - Directorios de §1; `pyproject.toml` como miembro del workspace `uv` de U0; `Makefile` con el objetivo `check`; perfiles de Hypothesis importados de `contracts/tests/conftest.py`.
   - **Aceptación**: `uv sync --frozen && make -C identity-edge check` termina en 0 sobre el esqueleto.
 

@@ -9,7 +9,7 @@ dependencies = ["vectra-contracts", "vectra-common"]
 package = false
 
 [tool.uv.workspace]
-members = ["contracts/python/vectra_contracts", "contracts/python/vectra_common"]
+members = ["contracts/python/vectra_contracts", "contracts/python/vectra_common", "identity-edge"]
 
 [tool.uv.sources]
 vectra-contracts = { workspace = true }

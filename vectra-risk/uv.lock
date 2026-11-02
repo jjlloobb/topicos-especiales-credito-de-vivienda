@@ -6,6 +6,7 @@ requires-python = "==3.12.*"
 members = [
     "vectra-common",
     "vectra-contracts",
+    "vectra-identity-edge",
     "vectra-risk",
 ]
 
@@ -1167,6 +1168,11 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "pydantic", specifier = "==2.14.2" }]
+
+[[package]]
+name = "vectra-identity-edge"
+version = "0.1.0"
+source = { virtual = "identity-edge" }
 
 [[package]]
 name = "vectra-risk"
