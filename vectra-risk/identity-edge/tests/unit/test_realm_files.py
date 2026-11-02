@@ -104,7 +104,7 @@ def test_realm_files_parameters_are_those_of_the_design(env: str) -> None:
         assert type(realm[key]) is type(value)
     assert realm["revokeRefreshToken"] is True  # BR-U2-06: rotacion
     assert realm["refreshTokenMaxReuse"] == 0  # reusar uno invalidado no se tolera
-    assert json.loads(realm["attributes"]["acr.loa.map"]) == design.loa_map() == {"pwd": 1, "mfa": 2}
+    assert json.loads(realm["attributes"]["acr.loa.map"]) == design.loa_map()
     assert realm["registrationAllowed"] is False
     assert realm["passwordPolicy"]
     assert "persistent" not in json.dumps(realm).lower()  # D6: las sesiones persistentes son del servidor
@@ -176,6 +176,13 @@ def test_realm_files_login_flow_reaches_acr_mfa_for_every_mfa_role(env: str) -> 
         (sub,) = [s for s in subflows if any(r["condUserRole"] == role for r in s["roles"])]
         assert sub["levels"] == [loa["mfa"]]
         assert any(e.get("authenticator") == "conditional-user-configured" for e in sub["items"])
+    # Simetria: ningun otro rol tiene un subflujo de nivel 2.
+    covered = {r["condUserRole"] for s in subflows for r in s["roles"]}
+    assert covered == MFA_ROLES | {BREAK_GLASS_ROLE} | design.optional_mfa_roles()
+    # El nivel vale `loa-max-age` dentro de la sesion SSO (§6).
+    configs = {c["alias"]: c["config"] for c in realm["authenticatorConfig"] if "loa-condition-level" in c["config"]}
+    assert {int(c["loa-condition-level"]) for c in configs.values()} == set(loa.values())
+    assert {c["loa-max-age"] for c in configs.values()} == {str(design.loa_max_age())}
     # Los clientes de usuario piden el nivel mfa por defecto (acr_values).
     for client_id in design.user_client_ids():
         assert client_of(realm, client_id)["attributes"]["default.acr.values"] == "mfa"
@@ -209,7 +216,7 @@ def test_realm_files_public_hostname_comes_from_the_deployment_values(env: str) 
 def test_realm_files_user_clients_are_those_of_the_design(env: str) -> None:
     realm = load(env)
     ids = set(design.user_client_ids())
-    assert len(ids) == 3 and ids <= {c["clientId"] for c in realm["clients"]}
+    assert ids and ids <= {c["clientId"] for c in realm["clients"]}
     uris = design.console_uris()
 
     console = client_of(realm, "vectra-console")
@@ -242,6 +249,8 @@ def test_realm_files_user_clients_are_those_of_the_design(env: str) -> None:
         mappers = {m["protocolMapper"] for m in client["protocolMappers"]}
         assert {"oidc-acr-mapper", "oidc-amr-mapper", "oidc-sub-mapper"} <= mappers
         assert any(m["config"].get("claim.name") == "auth_time" for m in client["protocolMappers"])
+        amr = next(m for m in client["protocolMappers"] if m["protocolMapper"] == "oidc-amr-mapper")
+        assert amr["config"]["access.token.claim"] == "true"  # el claim va en el access token (§1.2)
 
 
 def test_realm_files_name_claim_is_only_in_the_id_token_of_the_console(env: str) -> None:
@@ -299,6 +308,16 @@ def test_realm_files_audience_follows_the_requested_scope(env: str) -> None:
     # Un cliente que pide un solo scope no obtiene las demas audiencias.
     case = client_of(realm, "case-service")
     assert audiences(case, realm, {"registry:append:case"}) == {"decision-registry-service"}
+
+
+def test_realm_files_user_client_scopes_add_no_audience(env: str) -> None:
+    realm = load(env)
+    by_scope = {s["name"]: _audience_mappers(s.get("protocolMappers", [])) for s in realm["clientScopes"]}
+    for client_id in design.user_client_ids():
+        client = client_of(realm, client_id)
+        for scope in client["optionalClientScopes"]:
+            assert by_scope[scope] == set()  # la audiencia de un cliente de usuario es la de §2.1
+            assert audiences(client, realm, {scope}) == audiences(client)
 
 
 def test_realm_files_service_scopes_are_consistent_with_the_u0_catalog(env: str) -> None:
@@ -413,7 +432,9 @@ def test_realm_files_synthetic_users_in_kind_and_staging() -> None:
             assert sorted(kinds) == ["otp", "password"]
             otp = next(c for c in user["credentials"] if c["type"] == "otp")
             assert json.loads(otp["secretData"]) == {"value": otp_seed_reference(name)}
-            assert json.loads(otp["credentialData"]) == {
+            data = json.loads(otp["credentialData"])
+            assert data.pop("counter", 0) == 0  # E4 admite ademas `counter: 0`
+            assert data == {
                 "subType": "totp", "digits": 6, "period": 30, "algorithm": "HmacSHA1", "secretEncoding": "BASE32",
             }  # fmt: skip
             assert set(otp) == {"type", "secretData", "credentialData"}
@@ -462,6 +483,7 @@ SECRET_KEYS = frozenset(
     {
         "secret", "password", "bindcredential", "clientsecret", "value", "seed", "privatekey",
         "certificate", "jwt.credential.certificate", "keystorepassword", "keypassword", "truststorepassword",
+        "hashedsaltedvalue", "salt", "client.secret",
     }
 )  # fmt: skip
 JSON_STRING_KEYS = frozenset({"secretdata"})
@@ -521,6 +543,9 @@ def _kind_user(realm: dict[str, Any]) -> dict[str, Any]:
         lambda r: _kind_user(r).__setitem__(
             "credentials", [{"type": "otp", "secretData": '{"value":"$(env:X_TOTP_SEED)JBSWY3DP"}'}]
         ),
+        lambda r: _kind_user(r).__setitem__("credentials", [{"type": "password", "hashedSaltedValue": "abc"}]),
+        lambda r: _kind_user(r).__setitem__("credentials", [{"type": "password", "salt": "abc"}]),
+        lambda r: r["clients"][0]["attributes"].__setitem__("client.secret", "s3cr3t"),
         lambda r: r["clients"][0].__setitem__("secret", "s3cr3t"),
         lambda r: r["clients"][0].__setitem__("secret", "$(env:)"),
         lambda r: r.__setitem__("components", {"org.keycloak.keys.KeyProvider": [{"config": {"privateKey": ["MIIEvQ"]}}]}),

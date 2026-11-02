@@ -235,18 +235,25 @@ def grafana_callback() -> str:
     raise LookupError("domain-entities §4 sin `/grafana/**`")
 
 
-# El diseno no fija que audiencia sigue a que scope (§2.2 solo da las uniones por cliente). Regla: el
-# dominio del scope es el servicio al que apunta. Se valida contra §2.2 en `test_realm_files_*audience*`.
-DOMAIN_AUDIENCE = {
-    "registry": "decision-registry-service",
-    "governance": "governance-service",
-    "core": "core-banking-mock",
-    "bias": "bias-monitoring-service",
-    "intake": "case-service",
-    "case": "scoring-service",
-    "scoring": "explainability-service",
-}
+def loa_max_age() -> int:
+    """domain-entities §6: validez del nivel de autenticacion dentro de la sesion SSO."""
+    for row in table_rows(section(DOMAIN_ENTITIES, "## 6. Parámetros versionados")):
+        if row[0].startswith("`loa-max-age`"):
+            return _seconds(row[1])
+    raise LookupError("domain-entities §6 sin `loa-max-age`")
+
+
+def domain_audience() -> dict[str, str]:
+    """domain-entities §2.2: tabla prefijo del scope -> audiencia."""
+    body = section(DOMAIN_ENTITIES, "### 2.2 Identidades de servicio (client credentials, `private_key_jwt`)")
+    out = {
+        row[0].strip("`").rstrip(":"): row[1].strip("`")
+        for row in table_rows(body)
+        if re.fullmatch(r"`[a-z]+:`", row[0])
+    }
+    assert out, "domain-entities §2.2 sin la tabla prefijo -> audiencia"
+    return out
 
 
 def scope_audience(scope: str) -> str:
-    return DOMAIN_AUDIENCE[scope.split(":")[0]]
+    return domain_audience()[scope.split(":")[0]]
