@@ -27,8 +27,8 @@ spec:
       max_connections: "100"
       archive_timeout: 60s
       ssl_min_protocol_version: TLSv1.2
-    # NFR-U1-22: solo TLS. CloudNativePG agrega al final `host all all all scram-sha-256`; el rechazo de
-    # `hostnossl` va antes, asi que esa regla por defecto solo alcanza conexiones que ya usan TLS.
+    # NFR-U1-22: solo TLS. Se supone que CloudNativePG agrega al final `host all all all scram-sha-256`, de modo que
+    # el rechazo de `hostnossl` la deja sin efecto sobre texto plano. POR VERIFICAR en el Paso 19 (`pg_hba_file_rules`).
     pg_hba:
       - hostnossl all all all reject
       - hostssl all all all scram-sha-256
@@ -123,8 +123,8 @@ spec:
       max_connections: "50"
       archive_timeout: 60s
       ssl_min_protocol_version: TLSv1.2
-    # NFR-U1-22: solo TLS. CloudNativePG agrega al final `host all all all scram-sha-256`; el rechazo de
-    # `hostnossl` va antes, asi que esa regla por defecto solo alcanza conexiones que ya usan TLS.
+    # NFR-U1-22: solo TLS. Se supone que CloudNativePG agrega al final `host all all all scram-sha-256`, de modo que
+    # el rechazo de `hostnossl` la deja sin efecto sobre texto plano. POR VERIFICAR en el Paso 19 (`pg_hba_file_rules`).
     pg_hba:
       - hostnossl all all all reject
       - hostssl all all all scram-sha-256
@@ -215,8 +215,8 @@ spec:
       max_connections: "100"
       archive_timeout: 60s
       ssl_min_protocol_version: TLSv1.2
-    # NFR-U1-22: solo TLS. CloudNativePG agrega al final `host all all all scram-sha-256`; el rechazo de
-    # `hostnossl` va antes, asi que esa regla por defecto solo alcanza conexiones que ya usan TLS.
+    # NFR-U1-22: solo TLS. Se supone que CloudNativePG agrega al final `host all all all scram-sha-256`, de modo que
+    # el rechazo de `hostnossl` la deja sin efecto sobre texto plano. POR VERIFICAR en el Paso 19 (`pg_hba_file_rules`).
     pg_hba:
       - hostnossl all all all reject
       - hostssl all all all scram-sha-256
@@ -299,8 +299,8 @@ spec:
       max_connections: "100"
       archive_timeout: 60s
       ssl_min_protocol_version: TLSv1.2
-    # NFR-U1-22: solo TLS. CloudNativePG agrega al final `host all all all scram-sha-256`; el rechazo de
-    # `hostnossl` va antes, asi que esa regla por defecto solo alcanza conexiones que ya usan TLS.
+    # NFR-U1-22: solo TLS. Se supone que CloudNativePG agrega al final `host all all all scram-sha-256`, de modo que
+    # el rechazo de `hostnossl` la deja sin efecto sobre texto plano. POR VERIFICAR en el Paso 19 (`pg_hba_file_rules`).
     pg_hba:
       - hostnossl all all all reject
       - hostssl all all all scram-sha-256

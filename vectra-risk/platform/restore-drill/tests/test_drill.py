@@ -14,7 +14,7 @@ import yaml
 
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
-from drill import DrillResult, KubectlCommands, main, metrics_body, run_drill  # noqa: E402
+from drill import INTERNAL_CA, DrillResult, KubectlCommands, main, metrics_body, run_drill  # noqa: E402
 
 
 class Fake:
@@ -197,7 +197,7 @@ def test_lsn_is_read_over_f114_with_the_verifier_role(monkeypatch):
     assert KubectlCommands().reached_lsn("restore-registry") == 1234
     assert seen["host"] == "restore-registry-rw.vectra-restore-drill.svc" and seen["dbname"] == "registry"
     assert seen["user"] == "registry_verifier" and seen["sslmode"] == "verify-full"
-    assert seen["sslrootcert"] == "/etc/vectra/ca/ca.crt"
+    assert seen["sslrootcert"] == INTERNAL_CA
     assert "COALESCE(pg_last_wal_replay_lsn(), pg_current_wal_lsn())" in seen["query"]
 
 
@@ -274,7 +274,10 @@ def test_the_drill_mounts_the_internal_ca_and_the_ephemeral_cluster_serves_a_cer
     volume = next(v for v in pod["volumes"] if v["name"] == "internal-ca")
     assert volume["configMap"]["name"] == "vectra-internal-ca"
     mount = next(m for m in pod["containers"][0]["volumeMounts"] if m["name"] == "internal-ca")
-    assert mount["mountPath"] == "/etc/vectra/ca" and mount["readOnly"] is True
+    assert mount["readOnly"] is True
+    bundles = yaml.safe_load_all((HERE.parent / "mesh/certificates.yaml").read_text(encoding="utf-8"))
+    bundle = next(d for d in bundles if d and d["kind"] == "Bundle" and d["metadata"]["name"] == "vectra-internal-ca")
+    assert f"{mount['mountPath']}/{bundle['spec']['target']['configMap']['key']}" == INTERNAL_CA
     certificate = next(d for d in documents if d["kind"] == "Certificate")
     assert certificate["spec"]["issuerRef"] == {"name": "vectra-internal-ca", "kind": "ClusterIssuer"}
     assert certificate["metadata"]["namespace"] == "vectra-restore-drill"
@@ -282,3 +285,10 @@ def test_the_drill_mounts_the_internal_ca_and_the_ephemeral_cluster_serves_a_cer
     script = (HERE / "restore-cluster.sh").read_text(encoding="utf-8")
     assert f"serverTLSSecret: {certificate['spec']['secretName']}" in script
     assert f"serverCASecret: {certificate['spec']['secretName']}" in script
+
+
+def test_the_ephemeral_cluster_rejects_plain_text_connections():
+    script = (HERE / "restore-cluster.sh").read_text(encoding="utf-8")
+    assert "      - hostnossl all all all reject\n" in script
+    assert "      - hostssl all all all scram-sha-256\n" in script
+    assert "      - host " not in script
