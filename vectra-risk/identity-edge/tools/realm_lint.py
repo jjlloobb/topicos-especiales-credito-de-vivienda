@@ -39,10 +39,12 @@ MFA_REQUIRED_ROLES = frozenset({Role.INGENIERO_RIESGO.value, Role.CRO.value, Rol
     REALM_ADMIN,
 }
 TOTP_ACTION = "CONFIGURE_TOTP"
-# Credencial OTP con la semilla por referencia (U02-T05): `credentials: [{type: otp, secretData: '{"value": "$(env:NOMBRE)"}'}]`.
-# `secretData` es un String JSON (CredentialRepresentation de Keycloak); keycloak-config-cli sustituye `$(env:NOMBRE)`.
+# Credencial OTP con la semilla por referencia (U02-T05, forma unica de domain-entities §3):
+# `credentials: [{type: otp, secretData: '{"value":"$(env:SYNTH_<USUARIO>_TOTP_SEED)"}', credentialData: '{...,"secretEncoding":"BASE32"}'}]`.
+# `secretData` y `credentialData` son String JSON (CredentialRepresentation de Keycloak); `<USUARIO>` es el nombre del
+# usuario en mayusculas con `_` en vez de `-`. Cualquier otra forma es invalida.
 OTP_CREDENTIAL = "otp"
-ENV_REFERENCE = re.compile(r"\$\(env:[A-Za-z_][A-Za-z0-9_]*\)")
+OTP_SECRET_ENCODING = "BASE32"  # noqa: S105
 BREAK_GLASS = "break-glass"
 # Clientes de administracion de INF-U2-05a (enmienda del 2026-11-02): sus cuentas de servicio son las unicas
 # con roles de `realm-management`. `keycloak-config-cli` escribe (`realm-admin`); `keycloak-reader` solo lee.
@@ -138,18 +140,34 @@ def _is_service_account(user: Mapping[str, Any], service_clients: frozenset[str]
     return isinstance(target, str) and target in service_clients
 
 
+def otp_seed_reference(username: str) -> str:
+    return f"$(env:SYNTH_{username.upper().replace('-', '_')}_TOTP_SEED)"
+
+
+def _json_object(raw: Any) -> dict[str, Any]:
+    """El objeto de un String JSON; `{}` si no es un String, no es JSON o no es un objeto."""
+    if not isinstance(raw, str):
+        return {}
+    try:
+        return _dict(json.loads(raw))
+    except ValueError:
+        return {}
+
+
 def _has_referenced_otp(user: Mapping[str, Any]) -> bool:
-    """Una credencial `otp` cuyo secreto es exactamente una referencia `$(env:NOMBRE)`, nunca un literal."""
+    """Alguna credencial `otp` con la forma unica: semilla `$(env:SYNTH_<USUARIO>_TOTP_SEED)` del propio usuario
+    en `secretData` y `secretEncoding: BASE32` en `credentialData`. Se miran todas las credenciales."""
+    username = user.get("username")
+    if not isinstance(username, str):
+        return False
+    expected = otp_seed_reference(username)
     for credential in _list(user.get("credentials")):
-        if _dict(credential).get("type") != OTP_CREDENTIAL:
+        credential = _dict(credential)
+        if credential.get("type") != OTP_CREDENTIAL:
             continue
-        raw = _dict(credential).get("secretData")
-        try:
-            secret = json.loads(raw) if isinstance(raw, str) else None
-        except ValueError:
-            continue
-        value = _dict(secret).get("value")
-        if isinstance(value, str) and ENV_REFERENCE.fullmatch(value):
+        seed = _json_object(credential.get("secretData")).get("value")
+        encoding = _json_object(credential.get("credentialData")).get("secretEncoding")
+        if seed == expected and encoding == OTP_SECRET_ENCODING:
             return True
     return False
 
@@ -207,7 +225,7 @@ def _check_users(realm: Mapping[str, Any], env: str, out: list[Violation]) -> No
                     "mfa-obligatorio",
                     where,
                     f"el rol {required} exige la required action {TOTP_ACTION} o una credencial `{OTP_CREDENTIAL}` "
-                    f"con secreto `$(env:NOMBRE)` (BR-U2-03)",
+                    f"con la forma de domain-entities §3 (BR-U2-03)",
                 )
             )
         if env == "prod" and name != BREAK_GLASS and not service_account:
