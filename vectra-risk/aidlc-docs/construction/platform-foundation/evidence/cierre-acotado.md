@@ -33,8 +33,8 @@ Los puntos 20.5, 20.6 y 20.8 ya están asignados a U12 en el plan.
 
 ## Bloqueos para staging y prod
 
-- **K11:** ESO necesita leer todos los `Secret`, concedido solo en kind. Decide cumplimiento.
-- **AGPL-3.0 de MinIO:** sin revisar. La versión reporta `DEVELOPMENT.GOGET`.
+- **K11:** ESO necesita leer todos los `Secret`, concedido solo en kind. Decidido en el issue 26: una instancia por namespace en staging y prod, sin implementar ni probar.
+- **MinIO:** archivado y sin mantenimiento. Decidido en el issue 26: el S3 del banco en staging y prod, sin implementar. Falta validar que ese S3 ofrezca lo necesario.
 - **Digests:** apuntan a compilaciones locales de kind.
 - **CloudNativePG 1.31.0:** elimina el soporte nativo de Barman usado aquí.
 

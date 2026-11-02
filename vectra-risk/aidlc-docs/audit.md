@@ -4917,3 +4917,42 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, cierre de U1.
 
 ---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-02T03:58:12Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda fusionar el PR 27, abrir un issue con los pendientes, quitar el permiso `workflow` y dejar el clúster hasta después del examen.
+**Context**: Cierre de U1.
+
+---
+
+## Siguiente paso del proyecto sin contar el examen
+**Timestamp**: 2026-11-02T04:02:46Z
+**User Input**: "si omitimos el examen cual es el paso a seguir para el proyecto?"
+**AI Response**: Se revisa la guía de sustentación, solo lectura, para recomendar el siguiente paso.
+**Context**: Después del cierre de U1.
+
+---
+
+## Resolver el issue abierto
+**Timestamp**: 2026-11-02T04:04:31Z
+**User Input**: "primero resuelve el issue que esta abierto"
+**AI Response**: Se revisan los issues abiertos y las alternativas técnicas, solo lectura.
+**Context**: Issue 26.
+
+---
+
+## Análisis del issue 26
+**Timestamp**: 2026-11-02T04:05:30Z
+**AI Response**: `minio/minio` y `minio/mc` están archivados: además de la licencia, hay un componente sin parches. Se publica un análisis con opciones. Recomendación: en prod, usar el S3 del banco en vez de MinIO, y una instancia de ESO por namespace, sin probar. El issue sigue abierto: la decisión y el riesgo son de una persona.
+**Context**: Issue 26.
+
+---
+
+## Decisión sobre MinIO y K11
+**Timestamp**: 2026-11-02T04:07:06Z
+**User Input**: "realiza las recomendaciones de los puntos 1 y 2"
+**AI Response**: Se interpreta como decisión del usuario: en staging y prod, S3 del banco en vez de MinIO, y una instancia de ESO por namespace. Se registra en el diseño por PR, con revisión de `joseluisjedi`. La implementación queda en un issue aparte; no se cambia ningún manifiesto.
+**Context**: Issue 26.
+
+---

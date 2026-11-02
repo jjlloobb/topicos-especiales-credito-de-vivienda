@@ -42,6 +42,8 @@
 |---|---|---|
 | Pruebas de resiliencia (RESILIENCY-14, NFR-RES-14) | C: diferir la ejecución a Operations; cada unidad con runtime documenta sus escenarios en NFR Design o Infrastructure Design (escenarios mínimos en `construction/contracts/nfr-design/nfr-design-patterns.md` P-U0-08). La sección `resilience` de U12 ejecuta en kind lo que piden US-608 y US-610; la ejecución a escala sigue en Operations (2026-10-31) | U0 NFR Design, 2026-10-03T09:20:34Z |
 | Evidencia de AUTONOMIA-03 y AUTONOMIA-06 | Por unidad, con lo que exista en ese momento (dobles y X01), y la demostración completa de RT-3 y RT-5 en U12. Una unidad puede cerrar sin esa demostración, pero la historia no pasa hasta que U12 la entregue (BR-U12-13) | seguimiento de la cuarta revisión de coherencia, 2026-10-31 |
+| MinIO en staging y prod | Se reemplaza por el S3 del banco, si ofrece object lock, versionado y lifecycle; MinIO queda solo en kind. Sin implementar | issue 26, 2026-11-02 |
+| K11: permisos de ESO en staging y prod | Una instancia de ESO por namespace; en kind sigue el permiso de lectura. Sin implementar ni probar | issue 26, 2026-11-02 |
 
 ## Execution Plan Summary
 - **Stages to Execute**: Application Design, Units Generation; por unidad: Functional Design, NFR Requirements, NFR Design, Infrastructure Design, Code Generation Part 1 (Planning)
@@ -71,7 +73,7 @@
 ## Current Status
 - **Lifecycle Phase**: CONSTRUCTION
 - **Current Stage**: CONSTRUCTION cerrada en los planes de tareas de U0–U12
-- **Next Stage**: U1 cerrada con alcance acotado a kind (Pasos 19, 20 y 23; `construction/platform-foundation/evidence/cierre-acotado.md`). El failover de zona sigue inconcluso. K11 y AGPL-3.0 bloquean staging y prod (issue 26). U2 a U12 siguen en plan de tareas.
+- **Next Stage**: U1 cerrada con alcance acotado a kind (Pasos 19, 20 y 23; `construction/platform-foundation/evidence/cierre-acotado.md`). El failover de zona sigue inconcluso. K11 y MinIO ya tienen decisión (issue 26), sin implementar, y bloquean staging y prod hasta entonces. U2 a U12 siguen en plan de tareas.
 
 ## Per-Unit Progress (CONSTRUCTION)
 | Unidad | FD | NFR Req | NFR Design | Infra Design | Plan de tareas |
