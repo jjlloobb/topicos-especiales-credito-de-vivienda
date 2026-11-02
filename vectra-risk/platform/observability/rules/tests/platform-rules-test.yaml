@@ -125,6 +125,36 @@ tests:
     exp_alerts: []
 - interval: 1m
   input_series:
+  - series: cnpg_pg_stat_archiver_last_archived_time{cluster="registry-db"}
+    values: 0+60x20
+  - series: cnpg_pg_stat_archiver_failed_count{cluster="registry-db"}
+    values: 0+1x20
+  - series: cnpg_collector_pg_wal_archive_status{cluster="registry-db",value="ready"}
+    values: 0x20
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: WalArchiveStale
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        cluster: registry-db
+      exp_annotations:
+        summary: WalArchiveStale
+        runbook_url: platform/runbooks/wal-archive-stale.md
+- interval: 1m
+  input_series:
+  - series: cnpg_pg_stat_archiver_last_archived_time{cluster="registry-db"}
+    values: '0x20'
+  - series: cnpg_pg_stat_archiver_failed_count{cluster="registry-db"}
+    values: 3x20
+  - series: cnpg_collector_pg_wal_archive_status{cluster="registry-db",value="ready"}
+    values: 0x20
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: WalArchiveStale
+    exp_alerts: []
+- interval: 1m
+  input_series:
   - series: cnpg_collector_last_failed_backup_timestamp{cluster="case-db"}
     values: 200x10
   - series: cnpg_collector_last_available_backup_timestamp{cluster="case-db"}
