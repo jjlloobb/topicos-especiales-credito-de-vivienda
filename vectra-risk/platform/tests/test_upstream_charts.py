@@ -129,10 +129,21 @@ def test_minio_buckets_lock_and_lifecycle():
         assert bucket in data["initialize"]
     assert "retention set --default GOVERNANCE 90d myminio/loki" in data["custom-command"]
     assert "ilm rule add --expire-days 7 myminio/tempo" in data["custom-command"]
-    script = data["custom-command"]
-    for bucket in ("loki", "tempo"):  # `add` repetido acumula reglas; ver tests/ilm_idempotente.sh
-        removal = script.index(f"ilm rule rm --all --force myminio/{bucket} || true")
-        assert removal < script.index("ilm rule add", removal)
+
+
+@pytest.mark.parametrize("overlay", [[], ["-f", str(ROOT / "platform/data/minio/values-kind.yaml")]], ids=["base", "kind"])
+def test_minio_ilm_rules_are_replaced_not_accumulated(overlay):
+    """`ilm rule add` repetido acumula reglas: cada una va precedida de su `rm` (tolerante) en el mismo bucket.
+
+    Helm reemplaza las listas: en kind `customCommands` sale entero de values-kind.yaml. Ver tests/ilm_idempotente.sh.
+    """
+    documents = render("minio", *overlay, "--set-string", "rootUser=x,rootPassword=y")
+    data = next(d for d in of(documents, "ConfigMap") if "initialize" in d.get("data", {}))["data"]
+    lines = [line.strip() for line in data["custom-command"].splitlines() if line.startswith("runCommand ilm rule ")]
+    for bucket in ("loki", "tempo"):
+        mine = [line for line in lines if line.endswith(f"myminio/{bucket}") or line.endswith(f"myminio/{bucket} || true")]
+        assert [line.split()[3] for line in mine] == ["rm", "add"], mine
+        assert mine[0] == f"runCommand ilm rule rm --all --force myminio/{bucket} || true"
 
 
 def test_minio_kind_has_worm_buckets():
