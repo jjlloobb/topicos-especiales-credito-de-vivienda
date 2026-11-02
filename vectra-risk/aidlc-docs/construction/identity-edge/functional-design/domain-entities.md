@@ -130,4 +130,4 @@ banco; su login genera una alerta SEV1 (BR-U2-12).
 | `mfa_max_age` | 900 s | BR-U2-04 / BR-U0-72 |
 | Access token | 300 s | BR-U2-06 |
 | SSO idle / max | 1 800 s / 36 000 s | BR-U2-06 |
-| Fuerza bruta | 5 fallos → 60 s ×2 hasta 900 s; 20 en 12 h → permanente | BR-U2-05 |
+| Fuerza bruta | 5 fallos → 60 s, +60 s por serie hasta 900 s; 20 en 12 h → permanente (campos en BR-U2-05) | BR-U2-05 |

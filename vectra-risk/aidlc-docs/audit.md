@@ -5196,3 +5196,24 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## PR 50 fusionado
+**Timestamp**: 2026-11-02T17:53:39Z
+**User Input**: "ya approve el PR 50"
+**AI Response**: El PR 50 está fusionado: las reglas de denegación y las tareas U02-T03 y U02-T04 quedan en main. Siguiente paso propuesto: despachar U02-T03. Esta entrada queda sin commit y entra en el próximo PR.
+**Context**: Construcción de U2.
+
+---
+## Despacho de U02-T03
+**Timestamp**: 2026-11-02T17:54:30Z
+**User Input**: "despacha U02-T03"
+**AI Response**: Se despacha U02-T03 (Paso 3 de U2, `realm-lint`) al loop: codificador sonnet en su worktree desde main, revisor opus después. Las reglas de denegación del proyecto aplican al subagente.
+**Context**: Construcción de U2.
+
+---
+## Decisiones de diseño de U2 tras la ronda 1 de U02-T03
+**Timestamp**: 2026-11-02T18:19:23Z
+**User Input**: Respuestas a tres preguntas del orquestador: fuerza bruta = "Campos nativos (Recomendado)"; mapeo LDAP = "Formato simple + lint (Recomendado)"; scopes = "Estricta (Recomendado)".
+**AI Response**: Se enmienda el diseño de U2: BR-U2-05 y domain-entities §6 (espera lineal de 60 s por serie hasta 900 s y bloqueo permanente al 4.º bloqueo, con los campos de Keycloak); BR-U2-15 (formato de `group-role-map.yaml`); BR-U2-01 (el mecanismo de `ROLE_CONFLICT` en ejecución queda por diseñar, fuera de U02-T03); PBT-U2-02 (se prueba sobre la tabla) y PBT-U2-03 (estricta: tampoco pasan los client scopes propios de Keycloak). U02-T03 vuelve al codificador con el informe de la ronda 1.
+**Context**: Construcción de U2.
+
+---
