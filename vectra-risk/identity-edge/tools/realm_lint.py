@@ -127,13 +127,10 @@ def _items(realm: Mapping[str, Any], key: str, out: list[Violation]) -> Iterator
 
 
 def _is_service_account(user: Mapping[str, Any], service_clients: frozenset[str]) -> bool:
-    """Cuenta de servicio legitima: apunta a un cliente del realm con `serviceAccountsEnabled` y no tiene
-    roles de usuario (domain-entities §2: los clientes de servicio no tienen roles de usuario)."""
+    """Cuenta de servicio: el usuario cuyo `serviceAccountClientId` apunta a un cliente del mismo realm con
+    `serviceAccountsEnabled: true`, y nada mas (ni el prefijo del nombre ni sus roles). CA-5."""
     target = user.get("serviceAccountClientId")
-    if not isinstance(target, str) or target not in service_clients:
-        return False
-    roles = set(_str_list(user.get("realmRoles")))
-    return not (roles & (BUSINESS_ROLES | {OPERACION}))
+    return isinstance(target, str) and target in service_clients
 
 
 def _check_users(realm: Mapping[str, Any], env: str, out: list[Violation]) -> None:
@@ -150,6 +147,15 @@ def _check_users(realm: Mapping[str, Any], env: str, out: list[Violation]) -> No
             roles.append(REALM_ADMIN)
         service_account = _is_service_account(user, service_clients)
         if service_account:
+            user_roles = sorted(set(_str_list(user.get("realmRoles"))) & (BUSINESS_ROLES | {OPERACION}))
+            if user_roles:
+                out.append(
+                    Violation(
+                        "cuenta-de-servicio-con-rol-de-usuario",
+                        where,
+                        f"la cuenta de servicio de `{user['serviceAccountClientId']}` no puede tener roles de usuario {user_roles} (domain-entities §2)",
+                    )
+                )
             management = set(_str_list(_dict(user.get("clientRoles")).get(REALM_MANAGEMENT)))
             if REALM_ADMIN in _str_list(user.get("realmRoles")):
                 management.add(REALM_ADMIN)

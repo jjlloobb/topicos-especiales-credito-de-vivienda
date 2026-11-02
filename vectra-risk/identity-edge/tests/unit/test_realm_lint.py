@@ -257,14 +257,11 @@ def test_break_glass_with_realm_admin_of_realm_management_and_no_totp_is_rejecte
     assert "mfa-obligatorio" in rules(realm, "prod")
 
 
+ENVS = ["kind", "staging", "prod"]
+
+
 def service_account(username: str, target: str, **extra: Any) -> dict[str, Any]:
     return {"username": username, "serviceAccountClientId": target, "enabled": True, **extra}
-
-
-def test_real_service_account_user_is_not_a_local_user_in_prod() -> None:
-    realm = realm_copy("prod")
-    realm["users"].append(service_account("service-account-case-worker", "case-worker"))
-    assert lint_realm(realm, "prod") == []
 
 
 def admin_account(target: str, *roles: str, realm_roles: list[str] | None = None) -> dict[str, Any]:
@@ -277,72 +274,116 @@ def admin_account(target: str, *roles: str, realm_roles: list[str] | None = None
     )
 
 
-def test_config_applier_service_account_with_realm_admin_needs_no_totp_in_prod() -> None:
-    realm = realm_copy("prod")
-    realm["users"].append(admin_account("keycloak-config-cli", "realm-admin"))
-    assert lint_realm(realm, "prod") == []
+# --- CA-5, regla 1: cuenta de servicio = `serviceAccountClientId` hacia un cliente de servicio del realm ---
 
 
-def test_reader_service_account_with_only_view_realm_is_accepted_in_prod() -> None:
-    realm = realm_copy("prod")
-    realm["users"].append(admin_account("keycloak-reader", "view-realm"))
-    assert lint_realm(realm, "prod") == []
+@pytest.mark.parametrize("env", ENVS)
+def test_real_service_account_is_not_a_local_user_nor_needs_totp(env: str) -> None:
+    realm = realm_copy(env)
+    realm["users"].append(service_account("service-account-case-worker", "case-worker"))
+    assert lint_realm(realm, env) == []
 
 
-@pytest.mark.parametrize("role", ["realm-admin", "manage-users", "manage-realm", "view-users"])
-def test_reader_service_account_with_any_role_other_than_view_realm_is_rejected(role: str) -> None:
-    realm = realm_copy("prod")
-    realm["users"].append(admin_account("keycloak-reader", "view-realm", role))
-    assert "rol-de-administracion-no-permitido" in rules(realm, "prod")
-
-
-def test_config_applier_service_account_with_an_extra_role_is_rejected() -> None:
-    realm = realm_copy("prod")
-    realm["users"].append(admin_account("keycloak-config-cli", "realm-admin", "manage-users"))
-    assert "rol-de-administracion-no-permitido" in rules(realm, "prod")
-
-
-@pytest.mark.parametrize("role", ["realm-admin", "manage-users", "manage-realm"])
-def test_business_service_account_with_realm_management_role_is_rejected(role: str) -> None:
-    realm = realm_copy("prod")
-    realm["users"].append(admin_account("case-worker", role))
-    assert "rol-de-administracion-no-permitido" in rules(realm, "prod")
-
-
-def test_business_service_account_with_realm_admin_as_realm_role_is_rejected() -> None:
-    realm = realm_copy("prod")
-    realm["users"].append(admin_account("scoring-service", realm_roles=["realm-admin"]))
-    assert "rol-de-administracion-no-permitido" in rules(realm, "prod")
-
-
-def test_admin_roles_are_also_rejected_in_non_production_realms() -> None:
-    realm = realm_copy("staging")
-    realm["users"].append(admin_account("case-worker", "realm-admin"))
-    assert "rol-de-administracion-no-permitido" in rules(realm, "staging")
-
-
-def test_service_account_prefix_alone_does_not_exempt_a_user_in_prod() -> None:
-    realm = realm_copy("prod")
+@pytest.mark.parametrize("env", ENVS)
+def test_service_account_name_prefix_alone_is_a_normal_user(env: str) -> None:
+    realm = realm_copy(env)
     realm["users"].append({"username": "service-account-x", "realmRoles": ["cro"], "requiredActions": []})
-    assert {"usuario-local-en-prod", "mfa-obligatorio"} <= rules(realm, "prod")
+    assert "mfa-obligatorio" in rules(realm, env)
+    assert ("usuario-local-en-prod" in rules(realm, env)) == (env == "prod")
 
 
-def test_service_account_pointing_to_a_missing_app_does_not_exempt_a_user_in_prod() -> None:
-    realm = realm_copy("prod")
+@pytest.mark.parametrize("env", ENVS)
+def test_service_account_pointing_to_a_missing_target_is_a_normal_user(env: str) -> None:
+    realm = realm_copy(env)
     realm["users"].append(service_account("jdoe", "no-existe", realmRoles=["cro"]))
-    assert {"usuario-local-en-prod", "mfa-obligatorio"} <= rules(realm, "prod")
+    assert "mfa-obligatorio" in rules(realm, env)
 
 
-def test_service_account_pointing_to_a_non_service_app_does_not_exempt_a_user_in_prod() -> None:
-    realm = realm_copy("prod")
-    realm["users"].append(service_account("service-account-vectra-console", "vectra-console"))
-    assert "usuario-local-en-prod" in rules(realm, "prod")
+@pytest.mark.parametrize("env", ENVS)
+def test_service_account_pointing_to_a_non_service_target_is_a_normal_user(env: str) -> None:
+    realm = realm_copy(env)
+    realm["users"].append(service_account("service-account-vectra-console", "vectra-console", realmRoles=["cro"]))
+    assert "mfa-obligatorio" in rules(realm, env)
+    assert "cuenta-de-servicio-con-rol-de-usuario" not in rules(realm, env)
 
 
-def test_service_account_with_a_user_role_does_not_exempt_it_in_prod() -> None:
-    realm = realm_copy("prod")
-    realm["users"].append(service_account("service-account-case-worker", "case-worker", realmRoles=["cro"]))
-    assert {"usuario-local-en-prod", "mfa-obligatorio"} <= rules(realm, "prod")
+# --- CA-5, regla 2: una cuenta de servicio nunca tiene roles de usuario ---
+
+
+@pytest.mark.parametrize("env", ENVS)
+@pytest.mark.parametrize("role", ["analista", "ingeniero_riesgo", "cro", "cumplimiento", "operacion"])
+def test_service_account_with_a_user_role_is_rejected(env: str, role: str) -> None:
+    realm = realm_copy(env)
+    realm["users"].append(service_account("service-account-case-worker", "case-worker", realmRoles=[role]))
+    assert "cuenta-de-servicio-con-rol-de-usuario" in rules(realm, env)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_service_account_without_user_roles_is_accepted(env: str) -> None:
+    realm = realm_copy(env)
+    realm["users"].append(service_account("service-account-case-worker", "case-worker", realmRoles=[]))
+    assert "cuenta-de-servicio-con-rol-de-usuario" not in rules(realm, env)
+
+
+# --- CA-5, regla 3: solo keycloak-config-cli (realm-admin) y keycloak-reader (view-realm) ---
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_config_applier_service_account_with_realm_admin_is_accepted(env: str) -> None:
+    realm = realm_copy(env)
+    realm["users"].append(admin_account("keycloak-config-cli", "realm-admin"))
+    assert lint_realm(realm, env) == []
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_reader_service_account_with_only_view_realm_is_accepted(env: str) -> None:
+    realm = realm_copy(env)
+    realm["users"].append(admin_account("keycloak-reader", "view-realm"))
+    assert lint_realm(realm, env) == []
+
+
+@pytest.mark.parametrize("env", ENVS)
+@pytest.mark.parametrize("role", ["realm-admin", "manage-users", "manage-realm", "view-users"])
+def test_reader_service_account_with_any_role_other_than_view_realm_is_rejected(env: str, role: str) -> None:
+    realm = realm_copy(env)
+    realm["users"].append(admin_account("keycloak-reader", "view-realm", role))
+    assert "rol-de-administracion-no-permitido" in rules(realm, env)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_config_applier_service_account_with_an_extra_role_is_rejected(env: str) -> None:
+    realm = realm_copy(env)
+    realm["users"].append(admin_account("keycloak-config-cli", "realm-admin", "manage-users"))
+    assert "rol-de-administracion-no-permitido" in rules(realm, env)
+
+
+@pytest.mark.parametrize("env", ENVS)
+@pytest.mark.parametrize("role", ["realm-admin", "manage-users", "manage-realm", "view-realm"])
+def test_other_service_account_with_realm_management_role_is_rejected(env: str, role: str) -> None:
+    realm = realm_copy(env)
+    realm["users"].append(admin_account("case-worker", role))
+    assert "rol-de-administracion-no-permitido" in rules(realm, env)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_other_service_account_with_realm_admin_as_realm_role_is_rejected(env: str) -> None:
+    realm = realm_copy(env)
+    realm["users"].append(admin_account("scoring-service", realm_roles=["realm-admin"]))
+    assert "rol-de-administracion-no-permitido" in rules(realm, env)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_case_worker_service_account_with_realm_admin_and_cro_fails_both_rules(env: str) -> None:
+    realm = realm_copy(env)
+    realm["users"].append(admin_account("case-worker", "realm-admin", realm_roles=["cro"]))
+    assert {"rol-de-administracion-no-permitido", "cuenta-de-servicio-con-rol-de-usuario"} <= rules(realm, env)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_config_applier_service_account_with_realm_admin_and_cro_is_rejected(env: str) -> None:
+    realm = realm_copy(env)
+    realm["users"].append(admin_account("keycloak-config-cli", "realm-admin", realm_roles=["cro"]))
+    assert "cuenta-de-servicio-con-rol-de-usuario" in rules(realm, env)
 
 
 @pytest.mark.parametrize("field", ["defaultClientScopes", "optionalClientScopes"], ids=["default", "optional"])
