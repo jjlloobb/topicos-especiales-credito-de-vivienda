@@ -1,4 +1,4 @@
-"""Cada modulo publico se importa como primer import de un proceso limpio (US-111)."""
+"""Cada modulo (publico o privado) se importa como primer import de un proceso limpio (US-111)."""
 
 import importlib.util
 import pkgutil
@@ -14,7 +14,7 @@ _ROOTS = ("vectra_contracts", "vectra_common")
 def _walk(package: str, locations: list[str]) -> list[str]:
     names: list[str] = []
     for info in pkgutil.iter_modules(locations):
-        if info.name.startswith("_"):
+        if info.name.startswith("__"):
             continue
         full = f"{package}.{info.name}"
         names.append(full)
@@ -42,3 +42,5 @@ def test_each_module_imports_in_isolation(module: str) -> None:
         check=False,
     )
     assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+    assert result.stderr == ""
