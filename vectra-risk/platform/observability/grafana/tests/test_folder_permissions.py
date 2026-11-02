@@ -59,6 +59,9 @@ def server():
                     return
                 fake.teams[body["name"]] = len(fake.teams) + 1
             elif self.path == "/api/folders":
+                if body["uid"] in fake.folders:
+                    self.send(409, {"message": "folder exists"})
+                    return
                 fake.folders[body["uid"]] = [{"role": "Viewer", "permission": 1}, {"role": "Editor", "permission": 2}]
             else:
                 fake.folders[self.path.split("/")[3]] = [{"teamId": i["teamId"], "permission": i["permission"]} for i in body["items"]]
@@ -202,33 +205,99 @@ def slow_server():
     httpd.shutdown()
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def fast_timeouts(monkeypatch):
     monkeypatch.setattr(fp, "TIMEOUT", 0.2)
-    monkeypatch.setattr(fp, "BACKOFF", 0.01, raising=False)
+    monkeypatch.setattr(fp, "BACKOFF", 0.01)
 
 
-def fast_client(url):
-    return fp.Grafana(url, "t")
+@pytest.fixture
+def sleeps(monkeypatch):
+    """Registra las esperas entre intentos sin dormir de verdad."""
+    recorded = []
+    monkeypatch.setattr(fp.time, "sleep", recorded.append)
+    return recorded
 
 
-def test_request_retries_on_timeout(slow_server):
+def failing_urlopen(monkeypatch, error):
+    calls = []
+
+    def urlopen(request, timeout):
+        calls.append(request.full_url)
+        raise error
+
+    monkeypatch.setattr(fp.urllib.request, "urlopen", urlopen)
+    return calls
+
+
+def test_request_retries_on_timeout(slow_server, fast_timeouts):
     state, url = slow_server
-    assert fast_client(url).request("GET", "/api/x") == {"ok": True}
+    assert fp.Grafana(url, "t").request("GET", "/api/x") == {"ok": True}
     assert len(state["seen"]) == 3
 
 
-def test_request_fails_clearly_after_three_timeouts(slow_server):
+def test_request_fails_clearly_after_three_timeouts(slow_server, fast_timeouts):
     state, url = slow_server
     state["slow"] = 99
-    with pytest.raises(fp.RequestTimeoutError, match="3"):
-        fast_client(url).request("GET", "/api/x")
+    with pytest.raises(fp.RequestTimeoutError, match=r"GET /api/x agoto el tiempo de espera en 3 intentos"):
+        fp.Grafana(url, "t").request("GET", "/api/x")
     assert len(state["seen"]) == 3
 
 
-def test_forbidden_is_not_retried(slow_server):
+def test_forbidden_is_not_retried(slow_server, fast_timeouts):
     state, url = slow_server
     state["slow"], state["status"] = 0, 403
     with pytest.raises(HTTPError):
-        fast_client(url).request("GET", "/api/x")
+        fp.Grafana(url, "t").request("GET", "/api/x")
     assert len(state["seen"]) == 1
+
+
+def test_request_waits_between_attempts_with_growing_backoff(monkeypatch, sleeps):
+    calls = failing_urlopen(monkeypatch, TimeoutError())
+    with pytest.raises(fp.RequestTimeoutError):
+        fp.Grafana("http://x", "t").request("GET", "/api/x")
+    assert len(calls) == 3
+    assert sleeps == [fp.BACKOFF, fp.BACKOFF * 2]
+    assert all(wait > 0 for wait in sleeps)
+
+
+def test_connect_timeout_is_retried(monkeypatch, sleeps):
+    calls = failing_urlopen(monkeypatch, fp.urllib.error.URLError(TimeoutError("timed out")))
+    with pytest.raises(fp.RequestTimeoutError, match=r"GET /api/x"):
+        fp.Grafana("http://x", "t").request("GET", "/api/x")
+    assert len(calls) == 3
+    assert len(sleeps) == 2
+
+
+def test_refused_connection_is_not_retried(monkeypatch, sleeps):
+    calls = failing_urlopen(monkeypatch, fp.urllib.error.URLError(ConnectionRefusedError()))
+    with pytest.raises(fp.urllib.error.URLError) as raised:
+        fp.Grafana("http://x", "t").request("GET", "/api/x")
+    assert not isinstance(raised.value, fp.RequestTimeoutError)
+    assert len(calls) == 1
+    assert sleeps == []
+
+
+def test_real_refused_connection_is_not_retried(sleeps):
+    import socket
+
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    with pytest.raises(fp.urllib.error.URLError) as raised:
+        fp.Grafana(f"http://127.0.0.1:{port}", "t").request("GET", "/api/x")
+    assert not isinstance(raised.value, fp.RequestTimeoutError)
+    assert sleeps == []
+
+
+def test_folder_created_by_a_timed_out_attempt_is_not_an_error(server):
+    fake, url = server
+
+    class Late(fp.Grafana):
+        def folder_exists(self, uid):
+            return False
+
+    fake.folders["vectra-sesgo"] = [{"role": "Viewer", "permission": 1}]
+    fp.apply(Late(url, "t"), FOLDERS)
+    assert fake.writes.count("/api/folders") == 1
+    assert fake.folders["vectra-sesgo"] == [{"teamId": 1, "permission": 1}, {"teamId": 2, "permission": 1}]

@@ -56,7 +56,9 @@ class Grafana:
         data = None if body is None else json.dumps(body).encode()
         headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
         request = urllib.request.Request(self.url + path, data=data, method=method, headers=headers)  # noqa: S310
-        for attempt in range(1, ATTEMPTS + 1):
+        attempt = 0
+        while True:
+            attempt += 1
             try:
                 with urllib.request.urlopen(request, timeout=TIMEOUT) as response:  # noqa: S310
                     raw = response.read()
@@ -64,12 +66,11 @@ class Grafana:
                 # HTTPError (4xx/5xx) es un URLError con respuesta: no se reintenta.
                 if isinstance(exc, urllib.error.HTTPError) or not is_timeout(exc):
                     raise
-                if attempt == ATTEMPTS:
+                if attempt >= ATTEMPTS:
                     raise RequestTimeoutError(method, path, ATTEMPTS) from exc
                 time.sleep(BACKOFF * attempt)
             else:
                 return json.loads(raw) if raw else None
-        raise AssertionError("inalcanzable")  # pragma: no cover
 
     def folder_exists(self, uid: str) -> bool:
         try:
@@ -79,6 +80,14 @@ class Grafana:
                 return False
             raise
         return True
+
+    def ensure_folder(self, uid: str, title: str) -> None:
+        """Idempotente, tambien si un intento anterior que agoto el tiempo ya creo la carpeta (409)."""
+        try:
+            self.request("POST", "/api/folders", {"uid": uid, "title": title})
+        except urllib.error.HTTPError as exc:
+            if exc.code != HTTP_CONFLICT:
+                raise
 
     def find_team(self, name: str) -> int | None:
         query = urllib.parse.urlencode({"name": name})
@@ -127,7 +136,7 @@ def apply(grafana: Grafana, folders: list[dict[str, Any]]) -> None:
         grafana.ensure_team(name)
     for folder in folders:
         if not grafana.folder_exists(folder["uid"]):
-            grafana.request("POST", "/api/folders", {"uid": folder["uid"], "title": folder["title"]})
+            grafana.ensure_folder(folder["uid"], folder["title"])
         desired = desired_items(grafana, folder)
         if current_items(grafana, folder["uid"]) != normalized(desired):
             grafana.request("POST", f"/api/folders/{folder['uid']}/permissions", {"items": desired})
