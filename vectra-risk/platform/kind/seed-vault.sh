@@ -27,7 +27,7 @@ seed() {
 }
 
 grafana_token() {
-  local namespace=vectra-observability port=13000 password forward url id body key
+  local namespace=vectra-observability port=13000 password url id body key
   password="$(kube get secret grafana-admin -n "$namespace" -o 'jsonpath={.data.admin-password}' | base64 -d)"
   kube port-forward -n "$namespace" svc/kube-prometheus-stack-grafana "$port:80" >/dev/null &
   forward=$!
@@ -45,7 +45,10 @@ print(accounts[0] if accounts else "")')"
   body="{\"name\":\"job-$(date +%s)\"}"
   key="$(api -X POST "$url/api/serviceaccounts/$id/tokens" -d "$body" | python3 -c 'import json, sys; print(json.load(sys.stdin)["key"])')"
   printf '{"token":"%s"}' "$key" | kube exec -i -n vault vault-0 -- env "VAULT_TOKEN=$token" vault kv put secret/grafana/folder-permissions -
-  kube annotate externalsecret grafana-folder-permissions-token -n "$namespace" "force-sync=$(date +%s)" --overwrite
+  # El ExternalSecret llega con grafana-config, despues de este paso; al crearse ya lee el token.
+  if kube get externalsecret grafana-folder-permissions-token -n "$namespace" >/dev/null 2>&1; then
+    kube annotate externalsecret grafana-folder-permissions-token -n "$namespace" "force-sync=$(date +%s)" --overwrite
+  fi
 }
 
 case "${1:-seed}" in
