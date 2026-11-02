@@ -247,6 +247,20 @@ tests:
     exp_alerts: []
 - interval: 1m
   input_series:
+  - series: cnpg_pg_replication_streaming_replicas{cluster="registry-db",pod="registry-db-1"}
+    values: 1x5
+  - series: cnpg_pg_replication_streaming_replicas{cluster="registry-db",pod="registry-db-2"}
+    values: '0x5'
+  - series: cnpg_collector_sync_replicas{cluster="registry-db",pod="registry-db-1",value="expected"}
+    values: 1x5
+  - series: cnpg_collector_sync_replicas{cluster="registry-db",pod="registry-db-2",value="expected"}
+    values: 1x5
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: RegistryDbWritesBlocked
+    exp_alerts: []
+- interval: 1m
+  input_series:
   - series: up{job="kyverno"}
     values: '0x5'
   alert_rule_test:
