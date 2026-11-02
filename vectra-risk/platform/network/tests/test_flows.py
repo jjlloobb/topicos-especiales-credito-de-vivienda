@@ -345,10 +345,11 @@ def test_core_mock_has_read_route_and_catch_all():
     assert route_rules("kind", "vectra-mock", "core-banking-mock-case-service")[0]["method"] == "GET"
 
 
-def test_pushgateway_probes_are_authorized_for_the_nodes_only():
+def test_pushgateway_probes_are_authorized_for_kubelet_sources_only():
+    """Nodos y red de pods: tras reiniciar un nodo, kubelet llego desde tunl0 y Linkerd respondio 403 (issue 7)."""
     assert {m["path"]["value"] for m in route_rules("prod", "vectra-observability", "prometheus-pushgateway-probes")} == {"/-/healthy", "/-/ready"}
     authn = named("kind", "vectra-observability", "NetworkAuthentication")["prometheus-pushgateway-probes-nodes"]
-    assert authn["spec"]["networks"] == [{"cidr": "172.18.0.0/16"}]
+    assert authn["spec"]["networks"] == [{"cidr": "172.18.0.0/16"}, {"cidr": "192.168.0.0/16"}]
 
 
 @pytest.mark.parametrize("ns", sorted(DATA["system_internal"]))

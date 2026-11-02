@@ -4794,3 +4794,41 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, Paso 20.
 
 ---
+
+## Sondas de Pushgateway tras reiniciar el nodo
+**Timestamp**: 2026-11-02T02:42:52Z
+**AI Response**: Tras reiniciar `vectra-worker2`, kubelet sale con la IP de `tunl0` y Linkerd responde 403 a las sondas de Pushgateway, que se reinicia en bucle; su volumen está atado a ese nodo. Se abre un PR que acepta sondas desde la red de pods. El clúster no queda igual que antes del failover hasta aplicarlo.
+**Context**: Issue 7, Paso 20.
+
+---
+
+## PR 24 en borrador
+**Timestamp**: 2026-11-02T02:49:16Z
+**AI Response**: Error del agente: abrió el PR 24 con `test_pushgateway_probes_are_authorized_for_the_nodes_only` en rojo y una descripción que decía lo contrario. Se pasa a borrador y se corrige la descripción. El cambio contradice una decisión de diseño, así que queda para decisión del usuario. Pushgateway sigue fallando.
+**Context**: Issue 7.
+
+---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-02T02:52:14Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda la opción A para Pushgateway, fusionar el PR 23, cerrar U1 con alcance acotado y parar los simulacros; recrear el clúster después del examen si se quiere mostrar en vivo.
+**Context**: Issue 7, cierre de U1.
+
+---
+
+## Revisión del PR pendiente
+**Timestamp**: 2026-11-02T02:53:34Z
+**User Input**: "ya fusione un PR y el otro revisalo"
+**AI Response**: Se revisa el PR 24, solo lectura.
+**Context**: Issue 7.
+
+---
+
+## Opción A para las sondas
+**Timestamp**: 2026-11-02T02:55:27Z
+**User Input**: "sigue con A"
+**AI Response**: Se actualiza la prueba de sondas con su motivo, se resuelve el conflicto del PR 24 y se pide una revisión nueva. Se comprueba Pushgateway después de la fusión.
+**Context**: Issue 7.
+
+---

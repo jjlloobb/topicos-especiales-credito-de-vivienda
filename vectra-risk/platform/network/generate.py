@@ -236,7 +236,7 @@ def catch_all_route(name: str, dest: dict[str, Any], port: int) -> list[dict[str
     return [http_route(name, dest, port, [{"path": {"type": "PathPrefix", "value": "/"}}])]
 
 
-def probe_routes(dest: dict[str, Any], port: int, paths: list[str], node_cidr: str) -> list[dict[str, Any]]:
+def probe_routes(dest: dict[str, Any], port: int, paths: list[str], node_cidr: str, pod_cidr: str) -> list[dict[str, Any]]:
     """En un `Server` con rutas, Linkerd deja de autorizar solo las sondas del kubelet."""
     name = f"{dest['name']}-probes"
     matches = [{"path": {"type": "Exact", "value": p}, "method": "GET"} for p in paths]
@@ -246,7 +246,8 @@ def probe_routes(dest: dict[str, Any], port: int, paths: list[str], node_cidr: s
             "apiVersion": "policy.linkerd.io/v1alpha1",
             "kind": "NetworkAuthentication",
             "metadata": {"name": f"{name}-nodes", "namespace": dest["ns"]},
-            "spec": {"networks": [{"cidr": node_cidr}]},
+            # kubelet puede salir con la IP de tunl0 de Calico, dentro de la red de pods.
+            "spec": {"networks": [{"cidr": node_cidr}, {"cidr": pod_cidr}]},
         },
         {
             "apiVersion": "policy.linkerd.io/v1alpha1",
@@ -351,7 +352,7 @@ def build(env: str, data: dict[str, Any], forbidden: dict[str, Any]) -> tuple[di
                         if "_catch_all" in routed:
                             docs[dest["ns"]].extend(catch_all_route(routed["_catch_all"], dest, port))
                         if "_probes" in routed:
-                            docs[dest["ns"]].extend(probe_routes(dest, port, routed["_probes"], data["node_cidr"][env]))
+                            docs[dest["ns"]].extend(probe_routes(dest, port, routed["_probes"], data["node_cidr"][env], data["pod_cidr"][env]))
     for key, subject in sorted(data["k_egress"].items()):
         workload = data["workloads"][subject] if isinstance(subject, str) else subject
         docs[workload["ns"]].append(
