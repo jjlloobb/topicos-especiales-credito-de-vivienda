@@ -90,7 +90,7 @@ vectra-risk/
 
 ### Bloque B — Lógica de negocio (`vectra_contracts`)
 
-- [x] **Paso 3 — Catálogos y tipos de dominio**
+- [ ] **Paso 3 — Catálogos y tipos de dominio** (reabierto el 2026-11-02: `Recommendation.outcome` y `reasons` no son enumerados cerrados, R1 de `construction/contracts/conformidad-2026-11-02.md`; lo corrige U00-T01)
   - `catalog.py`: `Scope` (domain-entities §7.2, incluidos `core:read-credit` y `core:write-credit`), `Role`, `ReasonCode`, `FailClosedCause` (10, en el orden de BR-U0-02), `ProblemCode`, `ProblemReason` (los 7 de §6, incluidos `no_active_version` y `active_version_frozen`) y `CreditStatus` (8 valores, incluido `no_integrado`) (revisión del FD de U10, 2026-10-10, B2).
   - `models/`: todos los tipos de domain-entities §1–§9 en Pydantic v2 `strict`, `extra="forbid"`; `Decimal4`/`Decimal` como cadena con patrón (BR-U0-15); `FeatureValue` discriminado; `RecommendResult` discriminado por `kind`; `LogRecord`.
   - Reglas: BR-U0-15, 20..38, 95. Historias: US-111, US-602.
