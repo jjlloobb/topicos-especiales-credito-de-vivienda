@@ -5251,3 +5251,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## Decisiones de diseño de U2 tras la ronda 1 de U02-T04
+**Timestamp**: 2026-11-02T19:55:03Z
+**User Input**: Respuestas a ocho preguntas del orquestador: D1 grupos LDAP = "Tarea aparte (Recomendado)"; D2 conexión LDAP = "Desde ESO/values (Recomendado)"; D3 hostnames = "Variable + nombres OK (Recomendado)"; D4 URIs = "Raíz y ruta estándar (Recomendado)"; D5 TOTP = "Semilla de ESO (Recomendado)"; D6 sesiones = "Pasos 4 y 5 (Recomendado)"; D7 eventos = "Filtro en Alloy (Recomendado)"; D8 Grafana = "Grafana de U1 (Recomendado)".
+**AI Response**: U02-T04 salió NO-VERDE en la ronda 1 (un ROJO por `group-role-map.yaml` bloqueado y siete NARANJA). Se enmiendan domain-entities (URIs de post-logout y de Grafana, Grafana en U1, TOTP desde ESO sin `CONFIGURE_TOTP`), BR-U2-16 (filtro en Alloy), INF-U2-01 (`$(env:PUBLIC_HOSTNAME)` y contrato de variables) e INF-U2-07 (parámetros LDAP desde ESO; sin caché de contraseñas no es `NO_CACHE`), y el Paso 2 del plan y la tarea U02-T04 (`group-role-map.yaml` a tarea propia; sesiones persistentes a los Pasos 4 y 5). Se crea `tareas/U02-T05-lint-credencial-otp.md` para el ajuste del lint de D5, que va antes de la ronda 2 de U02-T04. Lo que queda fuera pasa a `CANDIDATAS.md`.
+**Context**: Construcción de U2.
+
+---

@@ -52,9 +52,9 @@ consume la SPA, lleva `name` para mostrarlo en pantalla.
 
 | Client ID | Tipo | Flujo | Audiencias / scopes | Notas |
 |---|---|---|---|---|
-| `vectra-console` | Público | Authorization Code + **PKCE (S256)** | Mapper de audiencias de §1.3 | Redirect URIs exactas (sin comodines): la de login y `/stepup-callback` del step-up en ventana emergente (U10 BR-U10-06; revisión del FD de U10, 2026-10-10); `post_logout_redirect_uris` exactas; orígenes web = el host del gateway |
+| `vectra-console` | Público | Authorization Code + **PKCE (S256)** | Mapper de audiencias de §1.3 | Redirect URIs exactas (sin comodines): la de login y `/stepup-callback` del step-up en ventana emergente (U10 BR-U10-06; revisión del FD de U10, 2026-10-10); `post_logout_redirect_uris` exactas: `https://<host>/`; orígenes web = el host del gateway (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04) |
 | `promotion-tool` | Público | Authorization Code + PKCE con *loopback redirect* (`http://127.0.0.1:{puerto}`) | `aud = governance-service`; scope opcional `governance:promotion`, asignable solo al rol `ingeniero_riesgo` | Exige `acr = mfa` (F08) |
-| `grafana` | Confidencial (`private_key_jwt`) | Authorization Code | Mapper `roles` → rol y **equipo** de Grafana en la organización `Vectra`: `cro` y `cumplimiento` → Viewer, equipos `cro` y `cumplimiento` (carpeta `Vectra / Sesgo` de U9 y dashboards de negocio); `ingeniero_riesgo` → Viewer de operación; **`operacion`** → Editor de la carpeta de operación, equipo `operacion`, con permiso de silencios de Alertmanager (F109); `analista` → sin acceso (segunda revisión del Infrastructure Design de U10, 2026-10-10) | F06 |
+| `grafana` | Confidencial (`private_key_jwt`) | Authorization Code | El realm solo entrega el claim `roles`; el mapeo a rol de Grafana vive en la configuración `generic_oauth` de Grafana de U1 (`role_attribute_path`) y los equipos los asigna el Job `grafana-folder-permissions` de U1 (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04). Mapper `roles` → rol y **equipo** de Grafana en la organización `Vectra`: `cro` y `cumplimiento` → Viewer, equipos `cro` y `cumplimiento` (carpeta `Vectra / Sesgo` de U9 y dashboards de negocio); `ingeniero_riesgo` → Viewer de operación; **`operacion`** → Editor de la carpeta de operación, equipo `operacion`, con permiso de silencios de Alertmanager (F109); `analista` → sin acceso (segunda revisión del Infrastructure Design de U10, 2026-10-10) | F06 |
 
 ### 2.2 Identidades de servicio (client credentials, `private_key_jwt`)
 
@@ -85,7 +85,7 @@ sus scopes (*optional client scopes* restringidos) y la audiencia correspondient
 
 | Entorno | Fuente | Contenido |
 |---|---|---|
-| kind / staging | `realm.{env}.yaml` | 2 usuarios sintéticos por rol, para probar aprobador ≠ proponente: `analista-1`, `analista-2`, `ingeniero-1`, `ingeniero-2`, `cro-1`, `cro-2`, `cumplimiento-1`, `cumplimiento-2`, cada uno con un solo rol y TOTP; contraseña y semilla TOTP desde ESO (Vault de kind o la bóveda de staging), nunca en Git (revisión del Infrastructure Design de U10, 2026-10-10) |
+| kind / staging | `realm.{env}.yaml` | Los sintéticos traen la credencial OTP con la semilla desde ESO y **no** llevan la acción `CONFIGURE_TOTP`; `realm-lint` acepta `CONFIGURE_TOTP` o una credencial OTP referenciada (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04). 2 usuarios sintéticos por rol, para probar aprobador ≠ proponente: `analista-1`, `analista-2`, `ingeniero-1`, `ingeniero-2`, `cro-1`, `cro-2`, `cumplimiento-1`, `cumplimiento-2`, cada uno con un solo rol y TOTP; contraseña y semilla TOTP desde ESO (Vault de kind o la bóveda de staging), nunca en Git (revisión del Infrastructure Design de U10, 2026-10-10) |
 | prod | Federación LDAP (F73) | Rol por **grupo** de LDAP según la tabla `group-role-map` versionada en el realm; sin usuarios locales salvo `break-glass`. `realm-lint` falla si `realm.prod.yaml` tiene cualquier otro usuario local, en particular los de kind y staging |
 
 `break-glass`: un usuario local con `realm-admin` y MFA, credencial en sobre sellado del
@@ -100,7 +100,7 @@ banco; su login genera una alerta SEV1 (BR-U2-12).
 | `/api/intake/**` (solo `POST /v1/intake/applications`) | F04, F07 | case-service | JWT con `intake:submit` y `azp` = `channel` (F04) o `channel-simulator` (F07, solo en los realms que no son de producción) | Por `azp`: `channel` 10 req/s, ráfaga 20; `channel-simulator` 30 req/s, ráfaga 60 (cubre los 20/s de NFR-U1-11), solo fuera de producción | 32 KiB | Perfil `api` |
 | `/api/promotion/**` (solo `GET /v1/models?state=aprobado` y `POST /v1/models/{id}/activation`) | F08 | governance-service | JWT de `promotion-tool`, rol `ingeniero_riesgo`, `governance:promotion`, `acr = mfa` | 1 req/s por `sub` | 16 KiB | Perfil `api` |
 | `/auth/realms/vectra/**` (solo endpoints públicos: autorización, token, JWKS, logout, cuenta) | F05 | Keycloak | Pública | 600 req/min por IP en login y token (antes 10: detrás del NAT del banco todos los usuarios comparten IP y 10 bloquearía a todos; el freno por usuario es el bloqueo de Keycloak de BR-U2-05; revisión del Infrastructure Design de U10, 2026-10-10) | Por defecto | Perfil `auth` |
-| `/grafana/**` | F06 | Grafana | Grafana hace su propio OIDC | Global | 64 KiB | Perfil `grafana` |
+| `/grafana/**` | F06 | Grafana | Grafana hace su propio OIDC, con callback `https://<host>/grafana/login/generic_oauth` (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04) | Global | 64 KiB | Perfil `grafana` |
 | `/federate` | F09 | Prometheus | Basic auth del usuario de solo lectura del banco | 1 req/s | — | Perfil `api` |
 
 - F09 está **deshabilitada por defecto** (`enabled: false` en los values).

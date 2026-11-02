@@ -15,7 +15,7 @@ Paso 2 del plan de U2. Se despacha después del Paso 3 (`U02-T03`) porque su ace
     - los 4 roles de negocio y el mapeo de ACR (`pwd` = 1, `mfa` = 2);
     - el flujo de login con OTP **condicional por rol** (obligatorio para `ingeniero_riesgo`, `cro` y `cumplimiento`) y TOTP como *required action*;
     - WebAuthn opcional;
-    - fuerza bruta (BR-U2-05), vidas de tokens y sesiones con rotación de refresh (BR-U2-06), sesiones persistentes y política de contraseñas (NFR-U2-24);
+    - fuerza bruta (BR-U2-05), vidas de tokens y sesiones con rotación de refresh (BR-U2-06) y política de contraseñas (NFR-U2-24); las sesiones persistentes son opción del servidor y pasan a los Pasos 4 y 5 (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04);
     - eventos de login y de administración sin username ni email (BR-U2-16).
   - Clientes de domain-entities §2:
     - `vectra-console` y `promotion-tool` (PKCE S256, redirect URIs exactas; `vectra-console` con la de login y `/stepup-callback`, U10 BR-U10-06, revisión del FD de U10, 2026-10-10);
@@ -29,7 +29,7 @@ Paso 2 del plan de U2. Se despacha después del Paso 3 (`U02-T03`) porque su ace
     - clientes de administración de INF-U2-05a: `keycloak-config-cli` (cuenta de servicio con `realm-admin`) y `keycloak-reader` (cuenta de servicio con solo `view-realm`), ambos con `private_key_jwt` (enmienda del 2026-11-02, decisión del usuario tras la ronda 3 de U02-T03);
     - mapper de audiencias y mapper `roles`;
     - access token sin `preferred_username`, `email` ni `name`.
-  - kind y staging: ≥ 2 usuarios sintéticos por rol. prod: federación LDAPS `READ_ONLY` con `group-role-map.yaml` (INF-U2-07) y el usuario `break-glass`.
+  - kind y staging: ≥ 2 usuarios sintéticos por rol. prod: federación LDAPS `READ_ONLY` (INF-U2-07) y el usuario `break-glass`. `group-role-map.yaml` y los mappers de grupo LDAP a rol pasan a una tarea propia, que se despacha cuando el banco dé los nombres de los grupos; hasta entonces, en prod los usuarios LDAP no reciben rol (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04).
   - Diseño: BR-U2-01, 03..07, 09, 12, 15, 16; NFR-U2-24; INF-U2-07. Historia: US-601.
   - **Aceptación**: `uv run python identity-edge/tools/realm_lint.py identity-edge/keycloak/realm/realm.*.yaml` termina en 0 (Paso 3).
 

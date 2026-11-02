@@ -36,3 +36,9 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
 - Contrato o prueba estática (grimp o import-linter) que impida el ciclo `outcome → … → outcome` aun si el guard de `TYPE_CHECKING` se reescribe de forma que grimp no reconozca (revisor, U00-T02, ronda 4).
 - Diseñar e implementar el mecanismo de Keycloak que, para un usuario LDAP con dos grupos mapeados, no asigne ningún rol y emita `ROLE_CONFLICT` (BR-U2-01). Keycloak no lo hace de forma nativa (decisión del usuario tras la ronda 1 de U02-T03).
 - Usuarios locales (no cuentas de servicio) con roles de `realm-management` en kind y staging pasan `realm-lint` (por ejemplo, `admin-1` con `realm-admin`). domain-entities reserva `realm-admin` para `break-glass` y `keycloak-config-cli`; decidir si el lint lo verifica en usuarios locales (revisor, U02-T03, ronda 4).
+- `group-role-map.yaml` y los mappers de grupo LDAP a rol en `realm.prod.yaml`: tarea propia cuando el banco dé los nombres de los 5 grupos (D1 del usuario tras la ronda 1 de U02-T04). Hasta entonces, en prod los usuarios LDAP no reciben rol.
+- Filtro en el pipeline de logs de U1 (Alloy) que descarte `username` y `email` de los eventos de Keycloak antes de Loki, con su prueba (BR-U2-16, D7 del usuario).
+- Configuración `generic_oauth` de Grafana en U1 (`role_attribute_path` desde el claim `roles`) y asignación de equipos en el Job `grafana-folder-permissions` (domain-entities §2.1, D8 del usuario).
+- Sesiones persistentes de Keycloak como opción del servidor en los Pasos 4 y 5 de U2 (NFR-U2-02, D6 del usuario).
+- Prueba de extremo a extremo en kind que lea el token real: `acr`/`amr`/`auth_time` por rol, `break-glass` con MFA, `aud` por scope pedido, validez de 60 s y `jti` de las aserciones (revisor, U02-T04, ronda 1).
+- `REALM_PARAMETERS` y `MFA_REQUIRED_ROLES` de `realm_lint.py` están escritos a mano; deberían leerse del diseño (revisor, U02-T04, ronda 1).
