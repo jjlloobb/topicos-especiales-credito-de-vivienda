@@ -141,7 +141,7 @@ vectra-risk-gitops/
 
 ### Bloque D — Datos y secretos
 
-- [ ] **Paso 7 — CloudNativePG y los 4 clusters** (reabierto el 2026-11-02: no se exige `sslmode`, N1 de `platform-foundation/evidence/conformidad-2026-11-02.md`; lo corrige U01-T07)
+- [x] **Paso 7 — CloudNativePG y los 4 clusters** (reabierto el 2026-11-02 por N1 de `platform-foundation/evidence/conformidad-2026-11-02.md`; cerrado en lo estático por U01-T07. El orden real de `pg_hba` en CloudNativePG se verifica en el Paso 19: `bitacoras/U01-T07.md`, puntos (a) a (e))
   - Operador (2 réplicas). Por cluster:
     - 3 instancias, anti-afinidad obligatoria por nodo y reparto preferido por zona;
     - `minSyncReplicas: 1`, `maxSyncReplicas: 2`; `syncReplicaElectionConstraint` por `topology.kubernetes.io/zone`, para que la síncrona esté en otra zona (US-605; seguimiento de la quinta revisión de coherencia, 2026-10-31);

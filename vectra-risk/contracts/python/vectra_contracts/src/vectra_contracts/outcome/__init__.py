@@ -8,7 +8,14 @@ from uuid import UUID
 
 from pydantic import Field, RootModel, ValidationInfo, model_validator
 
-from vectra_contracts.catalog import ExplainerError, FailClosedCause, RegistryError, ServingState
+from vectra_contracts.catalog import (
+    ExplainerError,
+    FailClosedCause,
+    Outcome,
+    ReasonCode,
+    RegistryError,
+    ServingState,
+)
 from vectra_contracts.decimal_ctx import VECTRA_DECIMAL_CTX
 from vectra_contracts.dictionary import covers
 from vectra_contracts.errors import ContractViolation
@@ -54,8 +61,8 @@ class Recommendation(_Guarded):
     case_id: UUID
     score: UnitDecimal4
     confidence: UnitDecimal4
-    outcome: str
-    reasons: list[str]
+    outcome: Outcome
+    reasons: list[ReasonCode]
     model_version_id: str
     policy_version_id: str
     explanation: Explanation
@@ -218,8 +225,8 @@ def build_outcome(
             "case_id": ready.case_id,
             "score": ready.prediction.score,
             "confidence": ready.prediction.confidence,
-            "outcome": ready.policy_result.outcome.value,
-            "reasons": [reason.value for reason in ready.policy_result.reasons],
+            "outcome": ready.policy_result.outcome,
+            "reasons": list(ready.policy_result.reasons),
             "model_version_id": ready.prediction.model_version_id,
             "policy_version_id": ready.policy_result.policy_version_id,
             "explanation": ready.explanation,

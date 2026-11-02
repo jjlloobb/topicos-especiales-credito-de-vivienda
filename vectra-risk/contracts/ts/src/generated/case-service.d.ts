@@ -639,6 +639,11 @@ export interface components {
          * @enum {string}
          */
         ProblemReason: "decision_already_recorded" | "transition_pending" | "version_mismatch" | "feature_dictionary_incomplete" | "factuality_failed" | "no_active_version" | "active_version_frozen";
+        /**
+         * ReasonCode
+         * @enum {string}
+         */
+        ReasonCode: "score_bajo_corte" | "score_sobre_corte" | "baja_confianza" | "vis" | "no_vis" | "tasa_sobre_usura" | "parametro_normativo_no_vigente";
         /** Recommendation */
         Recommendation: {
             /**
@@ -664,12 +669,11 @@ export interface components {
             kind: "recommendation";
             /** Model Version Id */
             model_version_id: string;
-            /** Outcome */
-            outcome: string;
+            outcome: components["schemas"]["Outcome"];
             /** Policy Version Id */
             policy_version_id: string;
             /** Reasons */
-            reasons: string[];
+            reasons: components["schemas"]["ReasonCode"][];
             /** Registry Entry Id */
             registry_entry_id: string;
             /** Score */

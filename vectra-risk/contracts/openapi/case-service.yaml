@@ -912,6 +912,17 @@ components:
       - active_version_frozen
       title: ProblemReason
       type: string
+    ReasonCode:
+      enum:
+      - score_bajo_corte
+      - score_sobre_corte
+      - baja_confianza
+      - vis
+      - no_vis
+      - tasa_sobre_usura
+      - parametro_normativo_no_vigente
+      title: ReasonCode
+      type: string
     Recommendation:
       additionalProperties: false
       properties:
@@ -942,14 +953,13 @@ components:
           title: Model Version Id
           type: string
         outcome:
-          title: Outcome
-          type: string
+          $ref: '#/components/schemas/Outcome'
         policy_version_id:
           title: Policy Version Id
           type: string
         reasons:
           items:
-            type: string
+            $ref: '#/components/schemas/ReasonCode'
           title: Reasons
           type: array
         registry_entry_id:

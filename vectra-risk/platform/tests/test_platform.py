@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 from forbidden_steps import dockerfile_violations, workflow_violations
+from pg_hba_rules import assert_postgres_requires_tls
 from rollback_note import has_rollback_note
 from test_runbooks import template_sections
 
@@ -120,6 +121,19 @@ def test_postgres_clusters():
         assert spec["priorityClassName"] == "vectra-critical" and spec["affinity"]["podAntiAffinityType"] == "required"
         assert spec["affinity"]["tolerations"][0]["value"] == "data"
         assert spec["inheritedMetadata"]["annotations"]["config.linkerd.io/skip-inbound-ports"] == "8000"
+
+
+@pytest.mark.parametrize("env", ["kind", "staging", "prod"])
+def test_postgres_requires_tls(env):
+    """NFR-U1-22: sin `host` en texto plano; lee el YAML renderizado, no los values."""
+    extra = ["-f", str(PLATFORM / "data/chart/values-kind.yaml")] if env == "kind" else []
+    rendered = helm(PLATFORM / "data/chart", "-f", str(GITOPS / f"envs/{env}/values.yaml"), *extra)
+    found = {d["metadata"]["name"]: d for d in rendered if d and d["kind"] == "Cluster"}
+    assert len(found) == 4
+    for name, cluster in found.items():
+        assert_postgres_requires_tls(cluster, name)
+        parameters = cluster["spec"]["postgresql"]
+        assert parameters["parameters"]["ssl_min_protocol_version"] == "TLSv1.2"
 
 
 def test_every_inventory_role_is_managed():
