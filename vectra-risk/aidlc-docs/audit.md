@@ -5168,3 +5168,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: PR del loop.
 
 ---
+## PR aprobados y fusionados
+**Timestamp**: 2026-11-02T17:20:52Z
+**User Input**: "ya approve los PRs"
+**AI Response**: Los PR 47 y 49 los fusionó el usuario; con ellos entró a main también el contenido del 45 (GitHub lo marca fusionado) y del 46 hasta d95782a. Las aprobaciones de 45 y 46 se habían descartado por la regla de revisiones obsoletas. Al 46 solo le quedan entradas de `audit.md`; necesita una aprobación más para fusionarse.
+**Context**: PR del loop.
+
+---
