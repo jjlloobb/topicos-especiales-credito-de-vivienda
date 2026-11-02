@@ -27,7 +27,7 @@ spec:
         summary: Latido del sistema de alertas
         runbook_url: platform/runbooks/watchdog.md
     - alert: WalArchiveStale
-      expr: '(time() - cnpg_pg_stat_archiver_last_archived_time > 300) and on (cluster) (cnpg_collector_pg_wal_archive_status{value="ready"} > 0)'
+      expr: '((time() - cnpg_pg_stat_archiver_last_archived_time > 300) and on (cluster) (cnpg_collector_pg_wal_archive_status{value="ready"} > 0)) or (increase(cnpg_pg_stat_archiver_failed_count[5m]) > 0)'
       labels:
         severity: SEV1
       annotations:
