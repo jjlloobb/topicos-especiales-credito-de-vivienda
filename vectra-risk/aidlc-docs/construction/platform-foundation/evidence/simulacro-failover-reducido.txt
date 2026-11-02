@@ -1,0 +1,69 @@
+### Failover reducido: solo registry-db, 3 instancias, kind-vectra de 14 GiB. Mon Nov  2 01:25:34 AM UTC 2026
+Warning: Native support for Barman Cloud backups and recovery is deprecated and will be co
+cluster.postgresql.cnpg.io/registry-db patched
+error: timed out waiting for the condition on clusters/registry-db
+3 instancias listas en 439 s
+fase=Creating a new replica primaria=registry-db-1 listas=1
+registry-db-1 2/2 Running vectra-worker2
+registry-db-2-join-6pc2r 2/2 Running vectra-worker
+registry-db-2-join Running 0/1
+
+--- metricas tras 90 s
+cnpg_collector_sync_replicas registry-db-1 0
+cnpg_pg_replication_streaming_replicas registry-db-1 0
+--- diagnostico del Job join, Mon Nov  2 01:39:04 AM UTC 2026
+Using opaque transport target_port=5432 opaque_port=4143
+Connecting server.addr=192.168.204.82:4143
+connect timed out after 1s
+Failover NO ejecutado: el Job join no puede replicar hasta abrir el 4143.
+--- tras PR 22, Mon Nov  2 01:57:10 AM UTC 2026: 420 s hasta el resultado
+fase=Creating a new replica primaria=registry-db-1 listas=2
+registry-db-1 2/2 Running 7h12m vectra-worker2
+registry-db-2 2/2 Running 8m17s vectra-worker
+registry-db-2-join-6pc2r 0/2 Completed 30m vectra-worker
+registry-db-3-join-4tk5v 0/2 Pending 7m19s <none>
+registry-db-2-join Complete 1/1
+registry-db-3-join Running 0/1
+ANY 1 ("registry-db-2")
+registry-db-2|quorum|streaming
+--- metricas
+cnpg_collector_sync_replicas registry-db-1 expected 1
+cnpg_collector_sync_replicas registry-db-1 max 2
+cnpg_collector_sync_replicas registry-db-1 min 1
+cnpg_collector_sync_replicas registry-db-1 observed 1
+cnpg_collector_sync_replicas registry-db-2 expected 1
+cnpg_collector_sync_replicas registry-db-2 max 2
+cnpg_collector_sync_replicas registry-db-2 min 1
+cnpg_pg_replication_streaming_replicas registry-db-1  1
+cnpg_pg_replication_streaming_replicas registry-db-2  0
+alertas ['PostgresVolumeUsageHigh', 'RegistryDbWritesBlocked', 'RestoreDrillMissing', 'Watchdog']
+=== FAILOVER REDUCIDO 2 instancias, Mon Nov  2 02:02:16 AM UTC 2026. primaria registry-db-1 en vectra-worker2
+registry-db-1 vectra-worker2
+registry-db-2 vectra-worker
+CREATE TABLE
+ANY 1 ("registry-db-2")
+escrituras previas correctas: 3/3
+docker stop vectra-worker2 en t=0 (02:02:19)
+t=4 registry-db-1 falla
+--- t=307 antes de reiniciar el nodo
+registry-db   7h23m   3     2     Creating a new replica   registry-db-1
+Error from server: error dialing backend: dial tcp 172.18.0.4:10250: connect: no
+      7 Running 
+linkerd-destination-86794ff76f-kgr7l Running vectra-worker
+linkerd-identity-d76c46887-nf92j Running vectra-worker2
+linkerd-proxy-injector-5ffff6fc9c-6tczp Running vectra-worker
+kyverno:       1 Completed       4 Running 
+docker start vectra-worker2 en t=307
+nodo Ready en 3 s
+--- recuperacion: 3 s tras reiniciar el nodo (02:07:36)
+registry-db   7h23m   3     2     Creating a new replica   registry-db-1
+registry-db-1 2/2 Running vectra-worker2
+registry-db-2 2/2 Running vectra-worker
+registry-db-2-join-6pc2r 0/2 Completed vectra-worker
+registry-db-3-join-4tk5v 0/2 Pending <none>
+error: unable to upgrade connection: container not found ("postgres")
+--- PRUEBA ANTERIOR INVALIDA: el parche a 2 instancias fue rechazado; seguia en 3 con una pendiente. Sin promocion en 307 s.
+=== resultado de la segunda lectura, Mon Nov  2 02:21:03 AM UTC 2026
+primaria registry-db-2 timeline 2 target_ts 2026-11-02T02:09:54.852274Z current_ts 2026-11-02T02:11:13.807691Z
+Nodo detenido 02:02:19 a 02:07:26. Sin promocion durante la caida, con una tercera instancia Pending. Promocion despues de volver el nodo. Filas conservadas: 3. INCONCLUSO: no mide un failover limpio.
+--- estado final, Mon Nov  2 02:26:10 AM UTC 2026: registry-db en 1 instancia, primaria registry-db-2. Parche revertido; Job y volumenes de la instancia 3 borrados.

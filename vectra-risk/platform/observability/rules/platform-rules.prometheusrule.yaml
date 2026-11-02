@@ -67,7 +67,7 @@ spec:
         runbook_url: platform/runbooks/restore-drill-retention-violation.md
       for: 1m
     - alert: RegistryDbWritesBlocked
-      expr: 'cnpg_pg_replication_streaming_replicas{cluster="registry-db"} < 1 and on (cluster) cnpg_collector_sync_replicas{cluster="registry-db",value="expected"} > 0'
+      expr: 'max by (cluster) (cnpg_pg_replication_streaming_replicas{cluster="registry-db"}) < 1 and on (cluster) max by (cluster) (cnpg_collector_sync_replicas{cluster="registry-db",value="expected"}) > 0'
       labels:
         severity: SEV1
       annotations:
