@@ -5033,3 +5033,23 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Loop de agentes.
 
 ---
+## Cierre de la ola 2 y despacho de U01-T04 y U01-T02
+**Timestamp**: 2026-11-02T13:26:06Z
+**User Input**: "realiza el punto 1, 2, e y luego actualiza el issue"
+**AI Response**: Punto 1: los PR 34 y 35 ya los fusionó una persona; la copia local pasa a `main`. Punto 2: se despachan U01-T04 y U01-T02 en paralelo, un codificador por worktree, con los contratos por instrucción y sin tocar un clúster. Punto 3: se escribe `DECISIONES-LOOP.md`. No hay issue del loop abierto, así que se crea uno para registrar su avance.
+**Context**: Loop de agentes.
+
+---
+## Tercera tanda del loop terminada
+**Timestamp**: 2026-11-02T13:52:53Z
+**AI Response**: U01-T02 VERDE en 2 rondas (PR 36) y U01-T04 VERDE en 2 rondas (PR 37), despachadas en paralelo. Arbitraje: en U01-T04 el codificador empujó de vuelta porque CA-2 destapó un defecto en `seed-vault.sh` (el port-forward quedaba huérfano), y el orquestador lo metió en el alcance (`revisiones/U01-T04/arbitraje-ronda-1.md`). Los AMARILLO restantes pasan a `CANDIDATAS.md`. Se escribe `DECISIONES-LOOP.md`. Nada se aplicó a un clúster; los PR los fusiona una persona.
+**Context**: Loop de agentes.
+
+---
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-02T13:54:44Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Fusionar los PR 36, 37 y 38 y limpiar los worktrees; después cerrar los entregables pendientes fuera del loop (README, moat, 10 casos con cambio de modelo y tabla comparativa), recrear el clúster desde main para ensayar la demo, y confirmar la fecha con el profesor.
+**Context**: Loop de agentes.
+
+---
