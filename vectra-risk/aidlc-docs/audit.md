@@ -5224,3 +5224,9 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## U02-T03 detenida tras 4 rondas
+**Timestamp**: 2026-11-02T18:57:38Z
+**AI Response**: U02-T03 sale NO-VERDE en la ronda 4 con un NARANJA: en kind y staging, una cuenta de servicio con un rol de negocio deja de contar como cuenta de servicio y esquiva la regla de roles de administración. El arreglo no exige datos nuevos del diseño. Por la regla del loop (4 rondas), la tarea se detiene y se lleva al usuario. Diagnóstico del orquestador: la tarea no definía con un criterio cómo se identifica una cuenta de servicio, y cada ronda destapó un borde de esa misma definición. Rama `tarea/U02-T03` publicada, sin PR.
+**Context**: Construcción de U2.
+
+---
