@@ -10,3 +10,9 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
 - Implementar el S3 del banco y ESO por namespace (issue 28).
 - Grafana sigue intentando salir a Internet al arrancar: `grafana.update.checker` y `plugin.angulardetectorsprovider.dynamic` (revisor, U01-T01).
 - Prueba de render con el overlay de kind, en los charts con `kind_values` (revisor, U01-T01, F-01).
+- `push_metric` sin reintentos: un tiempo agotado contra Pushgateway tumba el `check` (revisor, U01-T06).
+- Publicar imagen y digest nuevos de `folder_permissions`: los reintentos no llegan al clúster hasta entonces (revisor, U01-T06).
+- Prueba genérica que ate cada flujo a sus destinos declarados, y `kind` en las referencias de autorización (revisor, U01-T03, F-04 y F-07).
+- `prometheus` hacia sí mismo en 8080 y 9090 sin declarar, sin comprobar (revisor, U01-T03).
+- Tareas de flujos con `test_integration.py` entre sus criterios: `U01-T03` los cumplía y rompía esa prueba (revisor, U01-T03).
+- Decidir si un solo fallo de archivado debe disparar un SEV1, fijar la ventana de 5 minutos con una prueba y actualizar el diseño de U1 (revisor, U01-T05).
