@@ -4855,3 +4855,65 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, cierre de U1.
 
 ---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-02T03:38:48Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda ejecutar `linkerd check`, cerrar U1, consultar a cumplimiento y dejar el clúster quieto hasta después del examen.
+**Context**: Issue 7, cierre de U1.
+
+---
+
+## Linkerd check y consulta a cumplimiento
+**Timestamp**: 2026-11-02T03:42:52Z
+**User Input**: "realiza el punto 1 y 2, luego actualiza el issue"
+**AI Response**: Se revisa si la CLI de `linkerd` ya está instalada; el agente tiene denegada su descarga y no la reintenta. Se abre un issue con la consulta a cumplimiento y se actualiza el issue 7.
+**Context**: Issue 7, cierre de U1.
+
+---
+
+## Consulta a cumplimiento abierta
+**Timestamp**: 2026-11-02T03:43:10Z
+**AI Response**: Consulta sobre K11 y AGPL-3.0 abierta en el issue 26, asignada a `jjlloobb` y `joseluisjedi`. `linkerd check` sigue sin ejecutar: la CLI no está instalada y el agente tiene denegada su descarga.
+**Context**: Issue 7, cierre de U1.
+
+---
+
+## Revisión de linkerd check
+**Timestamp**: 2026-11-02T03:45:22Z
+**User Input**: "ya ejecute el comando, revisa"
+**AI Response**: Se revisa el resultado de `linkerd check`, solo lectura.
+**Context**: Issue 7, cierre de U1.
+
+---
+
+## Ejecutar linkerd check
+**Timestamp**: 2026-11-02T03:46:59Z
+**User Input**: "linkerd check"
+**AI Response**: Se ejecuta `linkerd check` si la CLI está instalada. No se reintenta su descarga.
+**Context**: Issue 7, cierre de U1.
+
+---
+
+## Instalar la CLI de linkerd
+**Timestamp**: 2026-11-02T03:47:40Z
+**User Input**: "instalar linkerd, te doy permiso"
+**AI Response**: Con el permiso explícito del usuario, se instala la CLI `edge-26.10.2` en `~/.local/bin`, con suma de verificación y sin `sudo`, y se ejecuta `linkerd check`.
+**Context**: Issue 7, cierre de U1.
+
+---
+
+## linkerd check correcto
+**Timestamp**: 2026-11-02T03:48:56Z
+**AI Response**: CLI `edge-26.10.2` instalada; el resumen coincide con el de la API de GitHub, porque la versión no publica `.sha256`. `linkerd check`: 49 correctas, 0 fallos y 1 aviso esperado, porque el emisor dura 48 h. El sistema de permisos deniega el comando que abría el PR de cierre y comentaba el issue; no se reintenta y queda a la espera del usuario.
+**Context**: Issue 7, cierre de U1.
+
+---
+
+## PR de cierre de U1
+**Timestamp**: 2026-11-02T03:51:12Z
+**User Input**: "realiza el punto 1, 2 y 3"
+**AI Response**: Se abre el PR con la evidencia de `linkerd check`, los Pasos 19, 20 y 23 con alcance acotado, `aidlc-state.md` y el cierre del issue 7 al fusionarse. No se abre el issue del failover, que no se incluyó en la lista. No se fusiona.
+**Context**: Issue 7, cierre de U1.
+
+---

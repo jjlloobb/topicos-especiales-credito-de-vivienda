@@ -71,7 +71,7 @@
 ## Current Status
 - **Lifecycle Phase**: CONSTRUCTION
 - **Current Stage**: CONSTRUCTION cerrada en los planes de tareas de U0–U12
-- **Next Stage**: U0 y U1 ya están en `main`. El ensayo de U1 en kind (issue 7) terminó sus tramos A a D con hallazgos corregidos por PR y el failover de zona inconcluso. Propuesta de cierre con alcance acotado en `construction/platform-foundation/evidence/cierre-acotado.md`, pendiente de aprobación humana y de `linkerd check`; el Paso 23 cierra después. U2 a U12 siguen en plan de tareas.
+- **Next Stage**: U1 cerrada con alcance acotado a kind (Pasos 19, 20 y 23; `construction/platform-foundation/evidence/cierre-acotado.md`). El failover de zona sigue inconcluso. K11 y AGPL-3.0 bloquean staging y prod (issue 26). U2 a U12 siguen en plan de tareas.
 
 ## Per-Unit Progress (CONSTRUCTION)
 | Unidad | FD | NFR Req | NFR Design | Infra Design | Plan de tareas |

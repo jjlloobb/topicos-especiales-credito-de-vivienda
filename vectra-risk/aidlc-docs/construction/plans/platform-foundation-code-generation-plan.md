@@ -233,14 +233,14 @@ vectra-risk-gitops/
 
 ### Bloque I — Verificación en kind (con aprobación humana)
 
-> **Ensayo en kind (2026-11-02, issue 7):** resultado y propuesta de cierre con alcance acotado en `../platform-foundation/evidence/cierre-acotado.md`. Los Pasos 19, 20 y 23 siguen sin marcar hasta su aprobación.
+> **Ensayo en kind (2026-11-02, issue 7):** los Pasos 19, 20 y 23 se marcan **con alcance acotado**, aprobado en el PR 25: ver `../platform-foundation/evidence/cierre-acotado.md`. El failover de zona, X01–X10 y otros puntos siguen pendientes allí; NFR-U1-03 y NFR-U1-08 quedan solo parcialmente comprobados.
 
-- [ ] **Paso 19 — Puerta de aprobación e instalación en kind**
+- [x] **Paso 19 — Puerta de aprobación e instalación en kind** (alcance acotado)
   - **Requisito previo**: un PR con los Pasos 1–18 aprobado por un humano. La aprobación queda registrada en el PR.
   - El **operador** crea el clúster kind (`kind create cluster --config platform/kind/cluster.yaml`), corre la suite de conformidad del CNI y sincroniza manualmente las waves 0–6 en Argo CD, siguiendo `runbooks/install.md`.
   - **Aceptación**: evidencia adjunta al PR: salida de la suite de conformidad, `argocd app list -o json` (todas `Synced`/`Healthy`, ninguna con `automated`), `linkerd check` y `kubectl get clusters.postgresql.cnpg.io -A`.
 
-- [ ] **Paso 20 — Simulacros en kind**
+- [x] **Paso 20 — Simulacros en kind** (alcance acotado: failover inconcluso)
   - El operador ejecuta, con evidencia:
     1. la suite de conectividad (permitidos y bloqueados, X01–X10);
     2. el rechazo de un Pod con `latest` y de otro sin firma;
@@ -265,7 +265,7 @@ vectra-risk-gitops/
   - U1 no tiene capa de repositorio, migraciones (los esquemas son de cada unidad, F44) ni frontend.
   - **Aceptación**: `test ! -d platform/migrations && test ! -d platform/frontend`.
 
-- [ ] **Paso 23 — Cierre de la unidad**
+- [x] **Paso 23 — Cierre de la unidad** (alcance acotado)
   - Verificación final de cumplimiento (RESILIENCY, SECURITY, AUTONOMIA).
   - **Aceptación**: `make -C platform check`, que corre en orden todas las verificaciones **estáticas** de los Pasos 2–18 y termina en 0. Las de kind (Pasos 19–20) se revisan como evidencia en el PR, no en `check`.
 

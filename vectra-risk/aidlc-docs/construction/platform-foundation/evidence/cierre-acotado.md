@@ -1,6 +1,6 @@
-# Propuesta de cierre de U1 con alcance acotado (issue 7)
+# Cierre de U1 con alcance acotado (issue 7)
 
-**Estado: propuesta.** Rebaja criterios de aceptación de los Pasos 19 y 20, así que solo vale con la aprobación de un revisor humano en su PR. Los Pasos 19, 20 y 23 siguen sin marcar hasta entonces.
+**Estado: aprobado en el PR 25,** con la condición de `linkerd check`, ya cumplida. Esto rebaja criterios de aceptación de los Pasos 19 y 20: U1 queda cerrada **para kind**, no comprobada para staging ni prod.
 
 ## Comprobado en `kind-vectra` (perfil de 14 GiB)
 
@@ -12,13 +12,13 @@
 | `make -C platform check` | Termina en 0 |
 | Restore parcial | `registry-db` 144 s y `case-db` 110 s, con `registry_verifier` y lectura del LSN |
 | Rechazos | `latest` por Kyverno; borrado de un objeto bloqueado por WORM |
+| `linkerd check` | 49 correctas, 0 fallos, 1 aviso esperado: el emisor dura 48 h |
 | Réplica síncrona | `join` termina con el 4143 abierto; `expected` vale 1 |
 
 ## No comprobado o incompleto
 
 | Punto | Situación | Destino propuesto |
 |---|---|---|
-| `linkerd check` (Paso 19) | Sin ejecutar: falta la CLI en la máquina | **Condición de cierre**: lo ejecuta el operador |
 | 5 aplicaciones `OutOfSync` (Paso 19) | Linkerd: certificados distintos en cada render. `kyverno`: `labels: {}`. `kyverno-policies`, `postgres` y `observability-monitors`: sin causa identificada; `argocd app diff` no muestra diferencias | Aceptar con esta nota |
 | Suite X01–X10 (Paso 20.1) | Solo verificada de forma estática en `flows.yaml`; no hay suite que corra contra el clúster | U12 |
 | Pod sin firma (20.2) | `verify-images` no se instala en kind | Staging, con la llave real |
@@ -40,4 +40,4 @@ Los puntos 20.5, 20.6 y 20.8 ya están asignados a U12 en el plan.
 
 ## Quién ejecutó
 
-AUTONOMIA-01 preveía un operador humano. Los tramos B, C y D los ejecutó el agente a pedido explícito del responsable, dentro de la aprobación del issue 7 y solo en `kind-vectra`. Los cambios al repositorio pasaron por PR con revisión humana. Aprobar este PR también acepta esa desviación para el ensayo.
+AUTONOMIA-01 preveía un operador humano. Los tramos B, C y D, y `linkerd check`, los ejecutó el agente a pedido explícito del responsable, dentro de la aprobación del issue 7 y solo en `kind-vectra`. Los cambios al repositorio pasaron por PR con revisión humana. Aprobar este PR también acepta esa desviación para el ensayo.
