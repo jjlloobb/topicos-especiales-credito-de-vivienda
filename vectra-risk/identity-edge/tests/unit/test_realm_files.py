@@ -170,6 +170,7 @@ def test_realm_files_login_flow_reaches_acr_mfa_for_every_mfa_role(env: str) -> 
         assert all(r["negate"] == "false" for r in sub["roles"])
         assert sub["factors"] == [second_factor]
         assert all(e["requirement"] == "REQUIRED" for e in sub["items"])
+        assert not any(e.get("authenticator") == "conditional-user-configured" for e in sub["items"])  # siempre
     # Los roles con MFA opcional (analista): solo si ya configuraron el factor.
     for role in design.optional_mfa_roles():
         (sub,) = [s for s in subflows if any(r["condUserRole"] == role for r in s["roles"])]
