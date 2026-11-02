@@ -1,0 +1,2 @@
+### Conformidad NetworkPolicy (sonobuoy)
+Ran 51 of 3206 Specs; 51 Passed, 0 Failed, 3155 Skipped. Paquete completo fuera del repositorio.

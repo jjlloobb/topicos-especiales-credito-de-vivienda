@@ -1,0 +1,10 @@
+### Pod con latest: Mon Nov  2 12:51:38 AM UTC 2026
+Error from server: error when creating "latest.yaml": admission webhook "validate.kyverno.svc-fail" denied the request: 
+
+resource Pod/vectra-app/simulacro-latest was blocked due to the following policies 
+
+disallow-latest:
+  disallow-latest: 'validation error: Imagen sin etiqueta latest: se exige digest. rule disallow-latest failed at path /spec/containers/0/image/'
+require-priority-class:
+  require-priority-class: 'validation error: priorityClassName obligatorio. rule require-priority-class failed at path /spec/priorityClassName/'
+exit 1
