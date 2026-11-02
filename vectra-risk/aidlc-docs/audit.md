@@ -5148,3 +5148,9 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Correcciones de diseño en U0 y U1.
 
 ---
+## U00-T02 detenida tras 3 rondas
+**Timestamp**: 2026-11-02T16:49:34Z
+**AI Response**: U00-T01 VERDE en 1 ronda (PR 47) y U01-T07 VERDE en 3 (PR 48). U00-T02 sale NO-VERDE en la ronda 3: el código cumple (ciclo roto en ejecución, API pública de `models` igual a c656de2, `make check` en 0), pero la prueba nueva no detecta regresiones de `__dir__` ni de `models.api` porque corre en proceso con `api` precargado. Por la regla del loop, la tarea se detiene y se lleva al usuario. Causa en la especificación (orquestador): la tarea pedía «sin cambiar la API pública» sin un criterio con comando que lo comprobara. Rama `tarea/U00-T02` publicada, sin PR.
+**Context**: Correcciones de diseño en U0.
+
+---
