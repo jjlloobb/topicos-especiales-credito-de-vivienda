@@ -176,8 +176,9 @@ echo "$*" >> "$FAKE_DIR/kubectl.log"
 case "$*" in
   *"get secret grafana-admin"*) printf 'clave-admin' | base64 ;;
   *"port-forward"*)
-    sleep 60 >/dev/null 2>&1 & child=$!
     trap 'echo terminated >> "$FAKE_DIR/forward.log"; kill "$child" 2>/dev/null; exit 0' TERM
+    sleep 60 >/dev/null 2>&1 & child=$!
+    echo $$ > "$FAKE_DIR/forward.pid"
     echo started >> "$FAKE_DIR/forward.log"
     wait "$child" ;;
   *" exec "*) cat > "$FAKE_DIR/vault-stdin" ;;
@@ -189,13 +190,24 @@ CURL = r"""#!/usr/bin/env bash
 case "$*" in
   *"/api/health"*) ;;
   *"serviceaccounts/search"*) echo '{"serviceAccounts":[]}' ;;
-  *"/tokens"*) echo '{"key":"glsa-falso"}' ;;
+  *"/tokens"*) [ -n "$FAKE_TOKEN_FAILS" ] && exit 22; echo '{"key":"glsa-falso"}' ;;
   *"/api/serviceaccounts"*) echo '{"id":7}' ;;
 esac
 """
 
 
-def run_grafana_token(tmp_path, external_secret):
+@pytest.fixture
+def fakes(tmp_path):
+    """Carpeta de los falsos; al terminar, aunque la prueba falle, mata el port-forward falso y su `sleep`."""
+    yield tmp_path
+    pid_file = tmp_path / "forward.pid"
+    if pid_file.exists():
+        pid = pid_file.read_text(encoding="utf-8").strip()
+        subprocess.run(["pkill", "-P", pid], check=False)
+        subprocess.run(["kill", pid], check=False, stderr=subprocess.DEVNULL)
+
+
+def run_grafana_token(tmp_path, external_secret, token_fails=False):
     """Corre `seed-vault.sh grafana-token` con kubectl y curl falsos y devuelve su código de salida y su stderr."""
     for name, body in (("kubectl", KUBECTL), ("curl", CURL)):
         tool = tmp_path / name
@@ -205,7 +217,7 @@ def run_grafana_token(tmp_path, external_secret):
     with (tmp_path / "stderr").open("w", encoding="utf-8") as stderr:
         result = subprocess.run(
             [str(SEED_VAULT), "grafana-token"],
-            env={"PATH": f"{tmp_path}:/usr/bin:/bin", "FAKE_DIR": str(tmp_path), "FAKE_EXTERNAL_SECRET": "si" if external_secret else ""},
+            env={"PATH": f"{tmp_path}:/usr/bin:/bin", "FAKE_DIR": str(tmp_path), "FAKE_EXTERNAL_SECRET": "si" if external_secret else "", "FAKE_TOKEN_FAILS": "si" if token_fails else ""},
             stdout=subprocess.DEVNULL,
             stderr=stderr,
             timeout=30,
@@ -214,31 +226,40 @@ def run_grafana_token(tmp_path, external_secret):
     return SimpleNamespace(returncode=result.returncode, stderr=(tmp_path / "stderr").read_text(encoding="utf-8"))
 
 
-def test_grafana_token_without_external_secret(tmp_path):
-    result = run_grafana_token(tmp_path, external_secret=False)
-    assert result.returncode == 0, result.stderr
-    log = (tmp_path / "kubectl.log").read_text(encoding="utf-8")
-    assert "get externalsecret grafana-folder-permissions-token" in log
-    assert "annotate" not in log
-    assert json.loads((tmp_path / "vault-stdin").read_text(encoding="utf-8")) == {"token": "glsa-falso"}
-
-
-def test_grafana_token_annotates_when_external_secret_exists(tmp_path):
-    result = run_grafana_token(tmp_path, external_secret=True)
-    assert result.returncode == 0, result.stderr
-    assert "annotate externalsecret grafana-folder-permissions-token" in (tmp_path / "kubectl.log").read_text(encoding="utf-8")
-
-
-def test_grafana_token_stops_port_forward(tmp_path):
-    result = run_grafana_token(tmp_path, external_secret=False)
-    assert "unbound variable" not in result.stderr, result.stderr
-    forward = tmp_path / "forward.log"
+def forward_events(directory):
+    """Espera (hasta 10 s) a que el port-forward falso registre `terminated` y devuelve sus eventos."""
+    forward = directory / "forward.log"
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline and "terminated" not in (forward.read_text(encoding="utf-8") if forward.exists() else ""):
         time.sleep(0.1)
-    assert forward.read_text(encoding="utf-8").split() == ["started", "terminated"]
+    return forward.read_text(encoding="utf-8").split() if forward.exists() else []
 
 
+def test_grafana_token_without_external_secret(fakes):
+    result = run_grafana_token(fakes, external_secret=False)
+    assert result.returncode == 0, result.stderr
+    log = (fakes / "kubectl.log").read_text(encoding="utf-8")
+    assert "get externalsecret grafana-folder-permissions-token" in log
+    assert "annotate" not in log
+    assert json.loads((fakes / "vault-stdin").read_text(encoding="utf-8")) == {"token": "glsa-falso"}
+
+
+def test_grafana_token_annotates_when_external_secret_exists(fakes):
+    result = run_grafana_token(fakes, external_secret=True)
+    assert result.returncode == 0, result.stderr
+    assert "annotate externalsecret grafana-folder-permissions-token" in (fakes / "kubectl.log").read_text(encoding="utf-8")
+
+
+def test_grafana_token_stops_port_forward(fakes):
+    result = run_grafana_token(fakes, external_secret=False)
+    assert "unbound variable" not in result.stderr, result.stderr
+    assert forward_events(fakes) == ["started", "terminated"]
+
+
+def test_grafana_token_kills_port_forward_on_error(fakes):
+    result = run_grafana_token(fakes, external_secret=False, token_fails=True)
+    assert result.returncode != 0
+    assert forward_events(fakes) == ["started", "terminated"]
 
 
 
