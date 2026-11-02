@@ -21,22 +21,21 @@ spec:
       owner: {{ $c.owner }}
       secret: { name: pg-role-{{ $c.owner | replace "_" "-" }} }
   priorityClassName: vectra-critical
-  {{- if $.Values.zoneConstraint }}
   postgresql:
+    {{- if $.Values.zoneConstraint }}
     syncReplicaElectionConstraint:
       enabled: true
       nodeLabelsAntiAffinity: [topology.kubernetes.io/zone]
+    {{- end }}
     parameters:
       max_connections: "{{ $c.maxConnections }}"
       archive_timeout: 60s
       ssl_min_protocol_version: TLSv1.2
-  {{- else }}
-  postgresql:
-    parameters:
-      max_connections: "{{ $c.maxConnections }}"
-      archive_timeout: 60s
-      ssl_min_protocol_version: TLSv1.2
-  {{- end }}
+    # NFR-U1-22: solo TLS. Se supone que CloudNativePG agrega al final `host all all all scram-sha-256`, de modo que
+    # el rechazo de `hostnossl` la deja sin efecto sobre texto plano. POR VERIFICAR en el Paso 19 (`pg_hba_file_rules`).
+    pg_hba:
+      - hostnossl all all all reject
+      - hostssl all all all scram-sha-256
   certificates:
     serverTLSSecret: postgres-server-tls
     serverCASecret: postgres-server-tls

@@ -14,7 +14,9 @@ import yaml
 
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
-from drill import DrillResult, KubectlCommands, main, metrics_body, run_drill  # noqa: E402
+sys.path.insert(0, str(HERE.parent / "tests"))
+from drill import INTERNAL_CA, DrillResult, KubectlCommands, main, metrics_body, run_drill  # noqa: E402
+from pg_hba_rules import assert_postgres_requires_tls  # noqa: E402
 
 
 class Fake:
@@ -196,7 +198,8 @@ def test_lsn_is_read_over_f114_with_the_verifier_role(monkeypatch):
     monkeypatch.setenv("LSN_PASSWORD", "x")
     assert KubectlCommands().reached_lsn("restore-registry") == 1234
     assert seen["host"] == "restore-registry-rw.vectra-restore-drill.svc" and seen["dbname"] == "registry"
-    assert seen["user"] == "registry_verifier" and seen["sslmode"] == "require"
+    assert seen["user"] == "registry_verifier" and seen["sslmode"] == "verify-full"
+    assert seen["sslrootcert"] == INTERNAL_CA
     assert "COALESCE(pg_last_wal_replay_lsn(), pg_current_wal_lsn())" in seen["query"]
 
 
@@ -265,3 +268,27 @@ def test_f75_policy_lists_only_on_buckets_and_reads_only_objects():
 def test_metrics_names():
     body = metrics_body(DrillResult(True, 1.5, 0, 9)).decode()
     assert "vectra_restore_drill_success 1" in body and "vectra_restore_drill_duration_seconds 1.500" in body and "vectra_restore_drill_lsn 9" in body
+
+
+def test_the_drill_mounts_the_internal_ca_and_the_ephemeral_cluster_serves_a_cert_signed_by_it():
+    documents = [d for d in yaml.safe_load_all((HERE / "cronjob.yaml").read_text(encoding="utf-8")) if d]
+    pod = next(d for d in documents if d["kind"] == "CronJob")["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+    volume = next(v for v in pod["volumes"] if v["name"] == "internal-ca")
+    assert volume["configMap"]["name"] == "vectra-internal-ca"
+    mount = next(m for m in pod["containers"][0]["volumeMounts"] if m["name"] == "internal-ca")
+    assert mount["readOnly"] is True
+    bundles = yaml.safe_load_all((HERE.parent / "mesh/certificates.yaml").read_text(encoding="utf-8"))
+    bundle = next(d for d in bundles if d and d["kind"] == "Bundle" and d["metadata"]["name"] == "vectra-internal-ca")
+    assert f"{mount['mountPath']}/{bundle['spec']['target']['configMap']['key']}" == INTERNAL_CA
+    certificate = next(d for d in documents if d["kind"] == "Certificate")
+    assert certificate["spec"]["issuerRef"] == {"name": "vectra-internal-ca", "kind": "ClusterIssuer"}
+    assert certificate["metadata"]["namespace"] == "vectra-restore-drill"
+    assert "*.vectra-restore-drill.svc" in certificate["spec"]["dnsNames"]
+    script = (HERE / "restore-cluster.sh").read_text(encoding="utf-8")
+    assert f"serverTLSSecret: {certificate['spec']['secretName']}" in script
+    assert f"serverCASecret: {certificate['spec']['secretName']}" in script
+
+
+def test_the_ephemeral_cluster_rejects_plain_text_connections(tmp_path, monkeypatch):
+    for name, source in (("restore-registry", "registry-db"), ("restore-case", "case-db")):
+        assert_postgres_requires_tls(manifest(tmp_path, monkeypatch, name, source), name)
