@@ -45,7 +45,9 @@ class RequestTimeoutError(TimeoutError):
 
 
 def is_timeout(exc: BaseException) -> bool:
-    return isinstance(exc, TimeoutError) or (isinstance(exc, urllib.error.URLError) and isinstance(exc.reason, TimeoutError))
+    if isinstance(exc, urllib.error.URLError):
+        return isinstance(exc.reason, TimeoutError)
+    return isinstance(exc, TimeoutError)
 
 
 class Grafana:

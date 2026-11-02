@@ -2,6 +2,7 @@
 
 import json
 import re
+import socket
 import sys
 import threading
 import time
@@ -278,19 +279,33 @@ def test_refused_connection_is_not_retried(monkeypatch, sleeps):
     assert sleeps == []
 
 
-def test_real_refused_connection_is_not_retried(sleeps):
-    import socket
-
+def test_real_refused_connection_is_not_retried(monkeypatch, sleeps):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
+    real_urlopen, calls = fp.urllib.request.urlopen, []
+
+    def counting_urlopen(request, timeout):
+        calls.append(request.full_url)
+        return real_urlopen(request, timeout=timeout)
+
+    monkeypatch.setattr(fp.urllib.request, "urlopen", counting_urlopen)
     with pytest.raises(fp.urllib.error.URLError) as raised:
         fp.Grafana(f"http://127.0.0.1:{port}", "t").request("GET", "/api/x")
     assert not isinstance(raised.value, fp.RequestTimeoutError)
+    assert len(calls) == 1
     assert sleeps == []
 
 
-def test_folder_created_by_a_timed_out_attempt_is_not_an_error(server):
+def test_server_errors_are_not_retried(slow_server, fast_timeouts):
+    state, url = slow_server
+    state["slow"], state["status"] = 0, 500
+    with pytest.raises(HTTPError):
+        fp.Grafana(url, "t").request("GET", "/api/x")
+    assert len(state["seen"]) == 1
+
+
+def test_folder_conflict_on_create_is_tolerated(server):
     fake, url = server
 
     class Late(fp.Grafana):
@@ -301,3 +316,36 @@ def test_folder_created_by_a_timed_out_attempt_is_not_an_error(server):
     fp.apply(Late(url, "t"), FOLDERS)
     assert fake.writes.count("/api/folders") == 1
     assert fake.folders["vectra-sesgo"] == [{"teamId": 1, "permission": 1}, {"teamId": 2, "permission": 1}]
+
+
+def test_folder_created_by_a_timed_out_post_is_not_an_error(server, sleeps, monkeypatch):
+    """Grafana crea la carpeta pero responde tarde; el reintento del POST recibe 409 y apply termina bien."""
+    fake, url = server
+    real_urlopen, timed_out = fp.urllib.request.urlopen, []
+
+    def late_first_folder_post(request, timeout):
+        response = real_urlopen(request, timeout=timeout)
+        if request.get_method() == "POST" and request.full_url.endswith("/api/folders") and not timed_out:
+            timed_out.append(True)
+            response.close()
+            raise TimeoutError("timed out")
+        return response
+
+    monkeypatch.setattr(fp.urllib.request, "urlopen", late_first_folder_post)
+    fp.apply(fp.Grafana(url, "t"), FOLDERS)
+    assert timed_out == [True]
+    assert fake.writes.count("/api/folders") == 2
+    assert len(sleeps) == 1
+    assert fake.folders["vectra-sesgo"] == [{"teamId": 1, "permission": 1}, {"teamId": 2, "permission": 1}]
+
+
+def test_other_folder_errors_are_raised(server):
+    _, url = server
+
+    class Denied(fp.Grafana):
+        def request(self, method, path, body=None):
+            raise HTTPError(path, 403, "denegado", None, None)
+
+    with pytest.raises(HTTPError) as raised:
+        Denied(url, "t").ensure_folder("vectra-sesgo", "Vectra / Sesgo")
+    assert raised.value.code == 403
