@@ -5141,3 +5141,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Verificación de diseño.
 
 ---
+## Despacho de las correcciones de conformidad
+**Timestamp**: 2026-11-02T16:05:46Z
+**User Input**: "despacha U00-T01, U00-T02 y U01-T07"
+**AI Response**: Se despachan U00-T01 y U01-T07 en paralelo, cada una en su worktree; U00-T02 va después de U00-T01 porque tocan los mismos archivos de `contracts/`. Base: la rama del PR 46, que contiene las tareas.
+**Context**: Correcciones de diseño en U0 y U1.
+
+---
