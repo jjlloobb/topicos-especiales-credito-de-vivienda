@@ -345,10 +345,11 @@ def test_core_mock_has_read_route_and_catch_all():
     assert route_rules("kind", "vectra-mock", "core-banking-mock-case-service")[0]["method"] == "GET"
 
 
-def test_pushgateway_probes_are_authorized_for_the_nodes_only():
+def test_pushgateway_probes_are_authorized_for_kubelet_sources_only():
+    """Nodos y red de pods: tras reiniciar un nodo, kubelet llego desde tunl0 y Linkerd respondio 403 (issue 7)."""
     assert {m["path"]["value"] for m in route_rules("prod", "vectra-observability", "prometheus-pushgateway-probes")} == {"/-/healthy", "/-/ready"}
     authn = named("kind", "vectra-observability", "NetworkAuthentication")["prometheus-pushgateway-probes-nodes"]
-    assert authn["spec"]["networks"] == [{"cidr": "172.18.0.0/16"}]
+    assert authn["spec"]["networks"] == [{"cidr": "172.18.0.0/16"}, {"cidr": "192.168.0.0/16"}]
 
 
 @pytest.mark.parametrize("ns", sorted(DATA["system_internal"]))
@@ -420,12 +421,3 @@ def test_only_opaque_meshed_flows_open_the_proxy_port(env):
     named = {d["metadata"]["name"]: d for d in policies(env, "vectra-data")}
     assert 4143 not in ports_in(named["allow-f123-to-minio-ingress"])
     assert 4143 not in ports_in(named["allow-f80-to-registry-db-ingress"])
-
-
-def test_probe_auth_accepts_kubelet_from_the_calico_tunnel():
-    """En kind, tras reiniciar un nodo, la sonda llego desde tunl0 y Linkerd respondio 403 (issue 7)."""
-    auths = [d for d in all_docs("kind") if d["kind"] == "NetworkAuthentication" and d["metadata"]["name"].endswith("-nodes")]
-    assert auths
-    for auth in auths:
-        assert {n["cidr"] for n in auth["spec"]["networks"]} == {DATA["node_cidr"]["kind"], DATA["pod_cidr"]["kind"]}
-

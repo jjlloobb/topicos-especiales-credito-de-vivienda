@@ -9,6 +9,7 @@ pod_cidr: { kind: 192.168.0.0/16, staging: 0.0.0.0/32, prod: 0.0.0.0/32 }
 #: Destino real de la API de Kubernetes (Calico evalua tras el DNAT). En kind, la red de Docker: compruebalo en el Paso 19.
 api_server_cidr: { kind: 172.18.0.0/16, staging: 0.0.0.0/32, prod: 0.0.0.0/32 }
 #: Origen de las sondas del kubelet, que Linkerd no autoriza solo en un `Server` con rutas.
+#: Tambien se admite pod_cidr: kubelet puede salir con la IP de tunl0 de Calico (issue 7).
 node_cidr: { kind: 172.18.0.0/16, staging: 0.0.0.0/32, prod: 0.0.0.0/32 }
 #: Operadores de la plataforma: dentro del namespace se hablan libremente (F125), todos llegan a la API (F126)
 #: y la API llega a sus webhooks (F127). No llevan datos de negocio ni estan mallados.
