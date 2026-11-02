@@ -4979,3 +4979,26 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Proyecto final, módulo 6.
 
 ---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-02T04:27:29Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda fusionar el PR 30, detener el clúster y despachar U01-T01 sola antes de la ola.
+**Context**: Proyecto final, loop de agentes.
+
+---
+
+## Despacho de U01-T01
+**Timestamp**: 2026-11-02T04:28:45Z
+**User Input**: "despacha U01-T01"
+**AI Response**: Se despacha una sola tarea, con codificador y revisor separados, en su worktree. El PR lo fusiona una persona.
+**Context**: Loop de agentes.
+
+---
+
+## U01-T01 en verde
+**Timestamp**: 2026-11-02T04:40:01Z
+**AI Response**: Codificador y revisor en sesiones separadas, con `sonnet` y `opus`, como agentes generales con sus contratos, porque los subagentes no estaban registrados en esta sesión. Ronda 1 VERDE, con 2 hallazgos AMARILLO y 2 candidatas. Se abre el PR; no se fusiona. No se sincroniza el clúster.
+**Context**: Loop de agentes, U01-T01.
+
+---
