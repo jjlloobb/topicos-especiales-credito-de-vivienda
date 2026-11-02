@@ -5002,3 +5002,34 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Loop de agentes, U01-T01.
 
 ---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-02T04:47:32Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda detener el clúster, abrir una sesión nueva y despachar la ola de U01-T03, U01-T05 y U01-T06.
+**Context**: Loop de agentes.
+
+---
+
+## Despacho de la ola 2
+**Timestamp**: 2026-11-02T04:48:41Z
+**User Input**: "despacha la ola"
+**AI Response**: Se despachan U01-T03, U01-T05 y U01-T06 en paralelo, un codificador por worktree, en esta sesión y con los contratos por instrucción. El clúster sigue encendido. Los PR los fusiona una persona.
+**Context**: Loop de agentes.
+
+---
+
+## Clúster detenido
+**Timestamp**: 2026-11-02T05:14:38Z
+**User Input**: "si necesitas detener el cluster para implementar todo, esta bien"
+**AI Response**: Con el permiso del usuario, se detienen `vectra-control-plane`, `vectra-worker`, `vectra-worker2` y `cloud-provider-kind`, sin borrarlos. `kind-registry` sigue activo.
+**Context**: Loop de agentes.
+
+---
+
+## Ola 2 terminada
+**Timestamp**: 2026-11-02T06:11:29Z
+**AI Response**: U01-T05 VERDE en 1 ronda (PR 32), U01-T06 VERDE en 3 (PR 33) y U01-T03 VERDE en 3 (PR 34, abierto). Los PR 32 y 33 los fusionó `joseluisjedi`. Arbitraje: F-03 de U01-T03 entra en el alcance por ser regresión del diff; F-04 pasa a candidatas. Sin aplicar nada a un clúster. Unos 989.000 tokens de subagentes en la ola.
+**Context**: Loop de agentes.
+
+---
