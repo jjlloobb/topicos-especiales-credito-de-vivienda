@@ -22,6 +22,7 @@ CASE = ("restore-case", "case-db")
 NAMESPACE = "vectra-restore-drill"
 REGISTRY_DATABASE = "registry"
 LSN_QUERY = "SELECT (COALESCE(pg_last_wal_replay_lsn(), pg_current_wal_lsn()) - '0/0')::bigint"
+INTERNAL_CA = "/etc/vectra/ca/ca.crt"
 LOG = logging.getLogger("restore-drill")
 
 
@@ -122,7 +123,8 @@ class KubectlCommands:
     def reached_lsn(self, cluster: str) -> int:
         """Por F114, sin `kubectl exec`. Tras promover, CloudNativePG reinicia la instancia y
         `pg_last_wal_replay_lsn()` puede ser NULL; entonces vale el LSN actual, justo despues de lo reproducido.
-        El trafico va por mTLS de Linkerd: la CA del Cluster efimero no existe antes de crearlo, asi que no se verifica.
+        Se verifica el certificado del Cluster efimero (NFR-U1-22): lo firma la CA interna (`restore-postgres-server`
+        en cronjob.yaml) y la CA se monta desde el Bundle `vectra-internal-ca`.
         """
         import psycopg  # solo en la imagen del simulacro
 
@@ -132,7 +134,8 @@ class KubectlCommands:
                 dbname=REGISTRY_DATABASE,
                 user=os.environ["LSN_USER"],
                 password=os.environ["LSN_PASSWORD"],
-                sslmode="require",
+                sslmode="verify-full",
+                sslrootcert=INTERNAL_CA,
                 connect_timeout=TIMEOUT,
             ) as connection,
             connection.cursor() as cursor,

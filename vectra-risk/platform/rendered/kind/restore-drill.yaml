@@ -41,6 +41,11 @@ spec:
               resources:
                 requests: { cpu: 100m, memory: 256Mi }
                 limits: { cpu: 500m, memory: 512Mi }
+              volumeMounts:
+                - { name: internal-ca, mountPath: /etc/vectra/ca, readOnly: true }
+          volumes:
+            # La CA interna (Bundle `vectra-internal-ca`) para `sslmode=verify-full` (NFR-U1-22).
+            - { name: internal-ca, configMap: { name: vectra-internal-ca } }
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -70,3 +75,14 @@ spec:
   data:
     - { secretKey: ACCESS_KEY_ID, remoteRef: { key: backups/restore-readonly, property: access_key_id } }
     - { secretKey: SECRET_ACCESS_KEY, remoteRef: { key: backups/restore-readonly, property: secret_access_key } }
+---
+# Certificado de servidor de los Clusters efimeros (restore-cluster.sh), firmado por la CA interna (NFR-U1-22).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: { name: restore-postgres-server, namespace: vectra-restore-drill }
+spec:
+  secretName: restore-postgres-server-tls
+  duration: 2160h
+  renewBefore: 720h
+  dnsNames: ["*.vectra-restore-drill.svc", "*.vectra-restore-drill.svc.cluster.local"]
+  issuerRef: { name: vectra-internal-ca, kind: ClusterIssuer }

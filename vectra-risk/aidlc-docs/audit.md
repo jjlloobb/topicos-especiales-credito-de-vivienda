@@ -5135,3 +5135,16 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción y verificación de diseño.
 
 ---
+## Resultado de la revisión de conformidad con el diseño
+**Timestamp**: 2026-11-02T15:58:16Z
+**AI Response**: U0 NO-CONFORME (R1: `Recommendation.outcome`/`reasons` sin enumerados cerrados; N1: import circular de `vectra_contracts.outcome`), reproducidos por el orquestador. U1 CONFORME con un NARANJA (no se exige `sslmode=verify-full`, NFR-U1-22, Paso 7), reproducido. U2 conforme con su plan tras U02-T02. Se reabren U0 Paso 3 y U1 Paso 7, y se crean U00-T01, U00-T02 y U01-T07. Los AMARILLO pasan a `CANDIDATAS.md`; los cambios de diseño los decide el usuario.
+**Context**: Verificación de diseño.
+
+---
+## Despacho de las correcciones de conformidad
+**Timestamp**: 2026-11-02T16:05:46Z
+**User Input**: "despacha U00-T01, U00-T02 y U01-T07"
+**AI Response**: Se despachan U00-T01 y U01-T07 en paralelo, cada una en su worktree; U00-T02 va después de U00-T01 porque tocan los mismos archivos de `contracts/`. Base: la rama del PR 46, que contiene las tareas.
+**Context**: Correcciones de diseño en U0 y U1.
+
+---
