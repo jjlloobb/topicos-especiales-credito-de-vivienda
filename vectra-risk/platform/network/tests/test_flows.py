@@ -424,9 +424,9 @@ def test_only_opaque_meshed_flows_open_the_proxy_port(env):
 
 
 F130_TARGETS = {
-    "alertmanager": ("alertmanager", 8080),
-    "kube-prometheus-stack-prometheus-operator": ("kube-prometheus-stack-prometheus-operator", 8080),
-    "grafana": ("grafana", 3000),
+    "alertmanager": 8080,
+    "kube-prometheus-stack-prometheus-operator": 8080,
+    "grafana": 3000,
 }
 
 
@@ -440,7 +440,8 @@ def test_f130_prometheus_scrapes_the_observability_targets(env):
     current = docs(env)["vectra-observability"]
     found = [p for p in current if p["kind"] == "NetworkPolicy" and p["metadata"].get("labels", {}).get("vectra.io/flow") == "F130"]
     assert len(found) == 2 * len(F130_TARGETS)
-    for target, (label, port) in F130_TARGETS.items():
+    for target, port in F130_TARGETS.items():
+        label = target
         ingress = [p for p in found if p["spec"]["policyTypes"] == ["Ingress"] and p["spec"]["podSelector"]["matchLabels"] == {"app.kubernetes.io/name": label}]
         egress = [p for p in found if p["spec"]["policyTypes"] == ["Egress"] and p["spec"]["egress"][0]["to"] == [
             {"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "vectra-observability"}}, "podSelector": {"matchLabels": {"app.kubernetes.io/name": label}}}]]
@@ -454,7 +455,7 @@ def test_f130_prometheus_scrapes_the_observability_targets(env):
         auth = next(d for d in current if d["kind"] == "AuthorizationPolicy" and d["metadata"]["name"] == f"f130-{target}-{port}")
         assert auth["spec"]["targetRef"]["name"] == f"{target}-{port}"
         mtls = next(d for d in current if d["kind"] == "MeshTLSAuthentication" and d["metadata"]["name"] == f"f130-{target}-{port}-mtls")
-        assert auth["spec"]["requiredAuthenticationRefs"][0]["name"] == mtls["metadata"]["name"]
+        assert [r["name"] for r in auth["spec"]["requiredAuthenticationRefs"]] == [mtls["metadata"]["name"]], target
         assert mtls["spec"]["identities"] == ["prometheus.vectra-observability.serviceaccount.identity.linkerd.cluster.local"], target
         assert any(d["kind"] == "Server" and d["metadata"]["name"] == f"{target}-{port}" for d in current), target
     assert 4143 not in {pt["port"] for p in found for r in (p["spec"].get("ingress") or p["spec"].get("egress")) for pt in r["ports"]}
