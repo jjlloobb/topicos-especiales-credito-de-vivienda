@@ -31,7 +31,7 @@ dos usuarios sintéticos, `operacion-1` y `operacion-2`.
 | `pwd` | Solo contraseña (o LDAP) | Login sin segundo factor (`analista` sin MFA) |
 | `mfa` | Contraseña + TOTP o WebAuthn | Login con segundo factor; obligatorio para los tres roles aprobadores |
 
-Mapeo de LoA de Keycloak: `pwd` = 1, `mfa` = 2. El token incluye `acr`, `amr` y `auth_time`. `amr` lleva los valores de RFC 8176, configurados como referencia en cada paso del flujo: `pwd` en la contraseña, `otp` en TOTP y `hwk` en WebAuthn; el mapper emite el claim en el access token. El nivel vale dentro de la sesión SSO durante `loa-max-age` = 36 000 s (§6) (enmienda del 2026-11-02, decisiones D-A a D-C del usuario tras la ronda 2 de U02-T04).
+Mapeo de LoA de Keycloak: `pwd` = 1, `mfa` = 2. El token incluye `acr`, `amr` y `auth_time`. `amr` lleva los valores de RFC 8176, configurados como referencia en cada paso del flujo: `pwd` en la contraseña, `otp` en TOTP y `hwk` en WebAuthn; el mapper emite el claim en el access token. En Keycloak 26, la referencia va en el `authenticatorConfig` de cada ejecución con las claves `default.reference.value` y `default.reference.maxAge` (verificado en `org.keycloak.models.Constants` y `AmrUtils`, 26.0.0 a 26.2.0); `default.reference.maxAge` = 36 000 s, igual que `loa-max-age` (decisión D-D del usuario, 2026-11-02). El nivel vale dentro de la sesión SSO durante `loa-max-age` = 36 000 s (§6) (enmienda del 2026-11-02, decisiones D-A a D-C del usuario tras la ronda 2 de U02-T04).
 
 ### 1.3 Claims del token de usuario
 
@@ -139,6 +139,7 @@ banco; su login genera una alerta SEV1 (BR-U2-12).
 | Parámetro | Valor | Regla |
 |---|---|---|
 | `mfa_max_age` | 900 s | BR-U2-04 / BR-U0-72 |
+| `default.reference.maxAge` (validez de la referencia `amr`) | 36 000 s | §1.2, decisión D-D del usuario (2026-11-02) |
 | `loa-max-age` (nivel en la sesión SSO, `pwd` y `mfa`) | 36 000 s | BR-U2-07 (enmienda del 2026-11-02, decisiones D-A a D-C del usuario tras la ronda 2 de U02-T04) |
 | Access token | 300 s | BR-U2-06 |
 | SSO idle / max | 1 800 s / 36 000 s | BR-U2-06 |

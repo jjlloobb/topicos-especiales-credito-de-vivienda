@@ -5283,3 +5283,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## Decisión D-D sobre la referencia amr
+**Timestamp**: 2026-11-02T20:42:31Z
+**User Input**: Respuesta a la pregunta del orquestador: D-D = "36 000 s (Recomendado)".
+**AI Response**: El codificador se detuvo en la ronda 3 de U02-T04 por no conocer sin red la clave de la referencia `amr`. El orquestador la verificó en el código fuente de Keycloak (`server-spi-private/.../Constants.java` y `AmrUtils.java`, tags 26.0.0 y 26.2.0): `default.reference.value` y `default.reference.maxAge` en el `authenticatorConfig` de cada ejecución; con `maxAge` 0 la referencia caduca al instante. Se fija en domain-entities la clave y `default.reference.maxAge` = 36 000 s. Se reanuda la ronda 3 para cerrar F-01.
+**Context**: Construcción de U2.
+
+---
