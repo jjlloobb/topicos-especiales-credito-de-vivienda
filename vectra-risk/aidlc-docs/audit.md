@@ -5217,3 +5217,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## Decisión sobre el cliente de administración tras la ronda 3 de U02-T03
+**Timestamp**: 2026-11-02T18:46:06Z
+**User Input**: Respuesta a la pregunta del orquestador sobre el cliente de administración: "Dos clientes (Recomendado)". La respuesta autoriza una cuarta ronda con la tarea enmendada.
+**AI Response**: U02-T03 salió NO-VERDE en la ronda 3: el lint aceptaba `realm-admin` sin MFA en cualquier cuenta de servicio de prod, porque el diseño no nombraba el cliente de administración. Se enmienda INF-U2-05a y domain-entities: `keycloak-config-cli` con `realm-admin` (escribe) y `keycloak-reader` con solo `view-realm` (lo usan `realm-drift` y `signing-key-age`); `realm-lint` rechaza roles de `realm-management` en cualquier otra cuenta de servicio. El Paso 2 del plan y `tareas/U02-T04-realm-como-codigo.md` suman los dos clientes. Se despacha la ronda 4.
+**Context**: Construcción de U2.
+
+---
