@@ -257,3 +257,19 @@ def domain_audience() -> dict[str, str]:
 
 def scope_audience(scope: str) -> str:
     return domain_audience()[scope.split(":")[0]]
+
+
+def amr_reference_max_age() -> int:
+    """domain-entities §6: validez de la referencia `amr` en el `authenticatorConfig`."""
+    for row in table_rows(section(DOMAIN_ENTITIES, "## 6. Parámetros versionados")):
+        if row[0].startswith("`default.reference.maxAge`"):
+            return _seconds(row[1])
+    raise LookupError("domain-entities §6 sin `default.reference.maxAge`")
+
+
+def amr_references() -> dict[str, str]:
+    """domain-entities §1.2: el `authenticator` de Keycloak -> su valor `amr` (RFC 8176)."""
+    found = re.search(r"`(\w+)` en la contraseña, `(\w+)` en TOTP y `(\w+)` en WebAuthn", DOMAIN_ENTITIES)
+    assert found is not None
+    password, totp, webauthn = found.groups()
+    return {"auth-username-password-form": password, "auth-otp-form": totp, "webauthn-authenticator": webauthn}

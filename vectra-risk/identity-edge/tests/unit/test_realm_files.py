@@ -188,6 +188,25 @@ def test_realm_files_login_flow_reaches_acr_mfa_for_every_mfa_role(env: str) -> 
         assert client_of(realm, client_id)["attributes"]["default.acr.values"] == "mfa"
 
 
+def test_realm_files_amr_references_are_configured_in_every_step_of_the_flow(env: str) -> None:
+    """F-01: la referencia `amr` (RFC 8176) va en el `authenticatorConfig` de cada ejecucion del flujo."""
+    realm = load(env)
+    configs = {c["alias"]: c["config"] for c in realm["authenticatorConfig"]}
+    expected = design.amr_references()
+    max_age = str(design.amr_reference_max_age())
+    seen = set()
+    for flow in realm["authenticationFlows"]:
+        for execution in flow["authenticationExecutions"]:
+            authenticator = execution.get("authenticator")
+            if authenticator in expected:
+                seen.add(authenticator)
+                config = configs[execution["authenticatorConfig"]]  # sin config -> KeyError
+                assert config["default.reference.value"] == expected[authenticator]
+                assert config["default.reference.maxAge"] == max_age
+    assert seen == set(expected)
+    assert set(expected.values()) == {"pwd", "otp", "hwk"}
+
+
 def test_realm_files_break_glass_requires_mfa_through_its_realm_admin_role() -> None:
     prod = load("prod")
     (glass,) = [u for u in prod["users"] if u["username"] == BREAK_GLASS]

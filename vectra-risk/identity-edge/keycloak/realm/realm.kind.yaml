@@ -378,6 +378,7 @@ authenticationFlows:
     authenticator: auth-username-password-form
     requirement: REQUIRED
     priority: 20
+    authenticatorConfig: amr-pwd
 - alias: vectra-mfa-ingeniero_riesgo factor
   description: 'Segundo factor: TOTP o WebAuthn'
   providerId: basic-flow
@@ -389,11 +390,13 @@ authenticationFlows:
     authenticator: auth-otp-form
     requirement: ALTERNATIVE
     priority: 10
+    authenticatorConfig: amr-otp
   - userSetupAllowed: false
     authenticatorFlow: false
     authenticator: webauthn-authenticator
     requirement: ALTERNATIVE
     priority: 20
+    authenticatorConfig: amr-hwk
 - alias: vectra-mfa-ingeniero_riesgo
   description: Nivel 2 (mfa) obligatorio para ingeniero_riesgo (BR-U2-03)
   providerId: basic-flow
@@ -428,11 +431,13 @@ authenticationFlows:
     authenticator: auth-otp-form
     requirement: ALTERNATIVE
     priority: 10
+    authenticatorConfig: amr-otp
   - userSetupAllowed: false
     authenticatorFlow: false
     authenticator: webauthn-authenticator
     requirement: ALTERNATIVE
     priority: 20
+    authenticatorConfig: amr-hwk
 - alias: vectra-mfa-cro
   description: Nivel 2 (mfa) obligatorio para cro (BR-U2-03)
   providerId: basic-flow
@@ -467,11 +472,13 @@ authenticationFlows:
     authenticator: auth-otp-form
     requirement: ALTERNATIVE
     priority: 10
+    authenticatorConfig: amr-otp
   - userSetupAllowed: false
     authenticatorFlow: false
     authenticator: webauthn-authenticator
     requirement: ALTERNATIVE
     priority: 20
+    authenticatorConfig: amr-hwk
 - alias: vectra-mfa-cumplimiento
   description: Nivel 2 (mfa) obligatorio para cumplimiento (BR-U2-03)
   providerId: basic-flow
@@ -506,11 +513,13 @@ authenticationFlows:
     authenticator: auth-otp-form
     requirement: ALTERNATIVE
     priority: 10
+    authenticatorConfig: amr-otp
   - userSetupAllowed: false
     authenticatorFlow: false
     authenticator: webauthn-authenticator
     requirement: ALTERNATIVE
     priority: 20
+    authenticatorConfig: amr-hwk
 - alias: vectra-mfa-operacion
   description: Nivel 2 (mfa) obligatorio para operacion (BR-U2-03)
   providerId: basic-flow
@@ -545,11 +554,13 @@ authenticationFlows:
     authenticator: auth-otp-form
     requirement: ALTERNATIVE
     priority: 10
+    authenticatorConfig: amr-otp
   - userSetupAllowed: false
     authenticatorFlow: false
     authenticator: webauthn-authenticator
     requirement: ALTERNATIVE
     priority: 20
+    authenticatorConfig: amr-hwk
 - alias: vectra-mfa-break-glass
   description: Nivel 2 (mfa) obligatorio para break-glass (BR-U2-03)
   providerId: basic-flow
@@ -584,11 +595,13 @@ authenticationFlows:
     authenticator: auth-otp-form
     requirement: ALTERNATIVE
     priority: 10
+    authenticatorConfig: amr-otp
   - userSetupAllowed: false
     authenticatorFlow: false
     authenticator: webauthn-authenticator
     requirement: ALTERNATIVE
     priority: 20
+    authenticatorConfig: amr-hwk
 - alias: vectra-mfa-analista
   description: 'Nivel 2 (mfa) opcional: analista con factor configurado'
   providerId: basic-flow
@@ -626,6 +639,18 @@ authenticatorConfig:
   config:
     loa-condition-level: '2'
     loa-max-age: '36000'
+- alias: amr-pwd
+  config:
+    default.reference.value: pwd
+    default.reference.maxAge: '36000'
+- alias: amr-otp
+  config:
+    default.reference.value: otp
+    default.reference.maxAge: '36000'
+- alias: amr-hwk
+  config:
+    default.reference.value: hwk
+    default.reference.maxAge: '36000'
 - alias: cond-role-ingeniero_riesgo
   config:
     condUserRole: ingeniero_riesgo
