@@ -93,6 +93,8 @@ tests:
   input_series:
   - series: cnpg_pg_stat_archiver_last_archived_time{cluster="registry-db"}
     values: '0x20'
+  - series: cnpg_collector_pg_wal_archive_status{cluster="registry-db",value="ready"}
+    values: 2x20
   alert_rule_test:
   - eval_time: 10m
     alertname: WalArchiveStale
@@ -107,6 +109,16 @@ tests:
   input_series:
   - series: cnpg_pg_stat_archiver_last_archived_time{cluster="registry-db"}
     values: 0+60x20
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: WalArchiveStale
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: cnpg_pg_stat_archiver_last_archived_time{cluster="registry-db"}
+    values: '0x20'
+  - series: cnpg_collector_pg_wal_archive_status{cluster="registry-db",value="ready"}
+    values: 0x20
   alert_rule_test:
   - eval_time: 10m
     alertname: WalArchiveStale
@@ -199,6 +211,8 @@ tests:
   input_series:
   - series: cnpg_pg_replication_streaming_replicas{cluster="registry-db"}
     values: '0x5'
+  - series: cnpg_collector_sync_replicas{cluster="registry-db",value="expected"}
+    values: 1x5
   alert_rule_test:
   - eval_time: 2m
     alertname: RegistryDbWritesBlocked
@@ -215,6 +229,18 @@ tests:
     values: 1x5
   - series: cnpg_pg_replication_streaming_replicas{cluster="case-db"}
     values: '0x5'
+  - series: cnpg_collector_sync_replicas{cluster="registry-db",value="expected"}
+    values: 1x5
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: RegistryDbWritesBlocked
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: cnpg_pg_replication_streaming_replicas{cluster="registry-db"}
+    values: '0x5'
+  - series: cnpg_collector_sync_replicas{cluster="registry-db",value="expected"}
+    values: 0x5
   alert_rule_test:
   - eval_time: 2m
     alertname: RegistryDbWritesBlocked
@@ -387,6 +413,28 @@ tests:
   - eval_time: 6m
     alertname: CertificateExpiringSoon
     exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: certmanager_certificate_expiration_timestamp_seconds{name="linkerd-identity-issuer"}
+    values: 172800x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: CertificateExpiringSoon
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: certmanager_certificate_expiration_timestamp_seconds{name="linkerd-identity-issuer"}
+    values: 3600x10
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: CertificateExpiringSoon
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        name: linkerd-identity-issuer
+      exp_annotations:
+        summary: CertificateExpiringSoon
+        runbook_url: platform/runbooks/certificate-expiring-soon.md
 - interval: 1m
   input_series:
   - series: vectra_http_request_duration_seconds_count{service="scoring-service",route_template="/v1/recommendations",status="200"}
