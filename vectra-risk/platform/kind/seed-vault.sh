@@ -29,7 +29,8 @@ seed() {
 grafana_token() {
   local namespace=vectra-observability port=13000 password url id body key
   password="$(kube get secret grafana-admin -n "$namespace" -o 'jsonpath={.data.admin-password}' | base64 -d)"
-  kube port-forward -n "$namespace" svc/kube-prometheus-stack-grafana "$port:80" >/dev/null &
+  # exec: que $! sea kubectl y no el subshell de kube(), o el kill del trap no llega al port-forward.
+  (exec kubectl --context "$context" port-forward -n "$namespace" svc/kube-prometheus-stack-grafana "$port:80" >/dev/null) &
   forward=$!
   trap 'kill "$forward" 2>/dev/null || true' EXIT
   url="http://127.0.0.1:$port"
