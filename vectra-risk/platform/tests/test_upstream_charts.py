@@ -129,6 +129,10 @@ def test_minio_buckets_lock_and_lifecycle():
         assert bucket in data["initialize"]
     assert "retention set --default GOVERNANCE 90d myminio/loki" in data["custom-command"]
     assert "ilm rule add --expire-days 7 myminio/tempo" in data["custom-command"]
+    script = data["custom-command"]
+    for bucket in ("loki", "tempo"):  # `add` repetido acumula reglas; ver tests/ilm_idempotente.sh
+        removal = script.index(f"ilm rule rm --all --force myminio/{bucket} || true")
+        assert removal < script.index("ilm rule add", removal)
 
 
 def test_minio_kind_has_worm_buckets():
