@@ -5237,3 +5237,17 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## PR 51 fusionado
+**Timestamp**: 2026-11-02T19:26:17Z
+**User Input**: "ya approve el PR 51"
+**AI Response**: El PR 51 (U02-T03, `realm-lint`, con las enmiendas de diseño de U2) está fusionado. Paso 3 de U2 cerrado. Siguiente: U02-T04 (Paso 2, realm como código), ya con los dos clientes de administración en su texto. Esta entrada queda sin commit y entra en el próximo PR.
+**Context**: Construcción de U2.
+
+---
+## Despacho de U02-T04
+**Timestamp**: 2026-11-02T19:26:43Z
+**User Input**: "despacha U02-T04"
+**AI Response**: Se despacha U02-T04 (Paso 2 de U2, realm como código) al loop: codificador sonnet en su worktree desde main, revisor opus después.
+**Context**: Construcción de U2.
+
+---
