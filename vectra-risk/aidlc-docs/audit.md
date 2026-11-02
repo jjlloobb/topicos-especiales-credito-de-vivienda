@@ -4771,3 +4771,26 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, Paso 20.
 
 ---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-02T01:45:43Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda fusionar el PR 22, comprobar `join` y la métrica con réplica síncrona, y hacer el failover reducido solo después de eso.
+**Context**: Issue 7, Paso 20.
+
+---
+
+## Comprobar la réplica, failover reducido y volver al estado inicial
+**Timestamp**: 2026-11-02T01:47:19Z
+**User Input**: "realiza los puntos 1, 2, 3 y 4, luego actualiza el issue"
+**AI Response**: Se aplica el PR 22, se comprueban `join` y la métrica, y solo si salen bien se ejecuta el failover reducido en `kind-vectra`. Después se revierte el parche y se actualiza el issue 7.
+**Context**: Issue 7, Paso 20.
+
+---
+
+## Failover reducido inconcluso
+**Timestamp**: 2026-11-02T02:37:22Z
+**AI Response**: Con PR 22, `join` termina y la réplica es síncrona; `expected` vale 1. `RegistryDbWritesBlocked` disparaba con la réplica sana porque cuenta por pod: se corrige por PR. Primera prueba inválida por un parche rechazado que el script no detectó. Nodo detenido 5 min: sin promoción durante la caída, con una tercera instancia `Pending`; promoción después de volver, sin perder filas. No se repite por la carga y los daños colaterales. `registry-db` vuelve a 1 instancia, con primaria `registry-db-2`.
+**Context**: Issue 7, Paso 20.
+
+---

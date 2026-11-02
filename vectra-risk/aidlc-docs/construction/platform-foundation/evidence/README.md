@@ -11,3 +11,4 @@ Ejecutado por el agente a pedido del responsable, con su aprobación registrada 
 | `simulacro-latest.txt` | Rechazo de un Pod con `latest` |
 | `simulacro-objeto-bloqueado.txt` | Borrado rechazado de un objeto bloqueado |
 | `simulacro-ilm.txt` | Regla `ilm` repetida: se acumula, sin corregir |
+| `simulacro-failover-reducido.txt` | Failover reducido de `registry-db`: **inconcluso** |
