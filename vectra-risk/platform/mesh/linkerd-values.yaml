@@ -12,6 +12,7 @@ disableHeartBeat: true
 proxy:
   defaultInboundPolicy: deny
   # Con `transport-header`, por omision, los proxies se conectan al 4143 y una NetworkPolicy por puerto de aplicacion los corta.
+  # Los puertos opacos, como el 5432, van al 4143 en cualquier modo: network/generate.py lo abre solo para esos flujos.
   outboundTransportMode: transparent
   nativeSidecar: true
   resources: # P-U1-14

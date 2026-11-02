@@ -44,6 +44,8 @@ spec:
   - ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -75,6 +77,8 @@ spec:
           app.kubernetes.io/name: restore-drill
     ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:

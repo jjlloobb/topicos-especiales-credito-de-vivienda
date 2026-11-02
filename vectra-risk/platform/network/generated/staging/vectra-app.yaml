@@ -1997,6 +1997,8 @@ spec:
   - ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -2021,6 +2023,8 @@ spec:
   egress:
   - ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
     to:
     - namespaceSelector:
@@ -2047,6 +2051,8 @@ spec:
   - ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -2071,6 +2077,8 @@ spec:
   egress:
   - ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
     to:
     - namespaceSelector:
@@ -2097,6 +2105,8 @@ spec:
   - ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -2121,6 +2131,8 @@ spec:
   egress:
   - ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
     to:
     - namespaceSelector:
@@ -2147,6 +2159,8 @@ spec:
   - ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -2171,6 +2185,8 @@ spec:
   egress:
   - ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
     to:
     - namespaceSelector:
@@ -2222,6 +2238,8 @@ spec:
   - ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -2246,6 +2264,8 @@ spec:
   egress:
   - ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
     to:
     - namespaceSelector:
@@ -2272,6 +2292,8 @@ spec:
   - ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -2296,6 +2318,8 @@ spec:
   egress:
   - ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
     to:
     - namespaceSelector:
@@ -2322,6 +2346,8 @@ spec:
   - ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -2346,6 +2372,8 @@ spec:
   egress:
   - ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
     to:
     - namespaceSelector:
@@ -2396,6 +2424,8 @@ spec:
   egress:
   - ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
     to:
     - namespaceSelector:

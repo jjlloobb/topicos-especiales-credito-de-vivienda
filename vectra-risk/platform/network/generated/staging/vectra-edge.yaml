@@ -529,6 +529,8 @@ spec:
       protocol: TCP
     - port: 6379
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -562,6 +564,8 @@ spec:
     - port: 26379
       protocol: TCP
     - port: 6379
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -655,6 +659,8 @@ spec:
       protocol: TCP
     - port: 6379
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -688,6 +694,8 @@ spec:
     - port: 26379
       protocol: TCP
     - port: 6379
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -779,6 +787,8 @@ spec:
   - ports:
     - port: 6379
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -810,6 +820,8 @@ spec:
           app.kubernetes.io/name: valkey
     ports:
     - port: 6379
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -855,6 +867,8 @@ spec:
       protocol: TCP
     - port: 26379
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -888,6 +902,8 @@ spec:
     - port: 6379
       protocol: TCP
     - port: 26379
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -957,6 +973,8 @@ spec:
       protocol: TCP
     - port: 26379
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -990,6 +1008,8 @@ spec:
     - port: 6379
       protocol: TCP
     - port: 26379
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:

@@ -118,6 +118,8 @@ spec:
     ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
   podSelector:
     matchLabels:
       cnpg.io/cluster: case-db
@@ -180,6 +182,8 @@ spec:
     ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
   podSelector:
     matchLabels:
       cnpg.io/cluster: case-db
@@ -228,6 +232,8 @@ spec:
           app.kubernetes.io/name: governance-service
     ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -290,6 +296,8 @@ spec:
     ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
   podSelector:
     matchLabels:
       cnpg.io/cluster: registry-db
@@ -350,6 +358,8 @@ spec:
           app.kubernetes.io/name: keycloak
     ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -412,6 +422,8 @@ spec:
     ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
   podSelector:
     matchLabels:
       cnpg.io/cluster: case-db
@@ -460,6 +472,8 @@ spec:
           vectra.io/workload: migration-governance
     ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -510,6 +524,8 @@ spec:
     ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
   podSelector:
     matchLabels:
       cnpg.io/cluster: registry-db
@@ -552,6 +568,8 @@ spec:
   - ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -583,6 +601,8 @@ spec:
           cnpg.io/cluster: case-db
     ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -626,6 +646,8 @@ spec:
   - ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -657,6 +679,8 @@ spec:
           cnpg.io/cluster: governance-db
     ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -700,6 +724,8 @@ spec:
   - ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -731,6 +757,8 @@ spec:
           cnpg.io/cluster: registry-db
     ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -774,6 +802,8 @@ spec:
   - ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
@@ -805,6 +835,8 @@ spec:
           cnpg.io/cluster: keycloak-db
     ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -972,6 +1004,8 @@ spec:
     ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
   podSelector:
     matchLabels:
       cnpg.io/cluster: registry-db
@@ -1033,6 +1067,8 @@ spec:
     ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
   podSelector:
     matchLabels:
       cnpg.io/cluster: registry-db
@@ -1084,6 +1120,8 @@ spec:
     ports:
     - port: 5432
       protocol: TCP
+    - port: 4143
+      protocol: TCP
   podSelector:
     matchLabels:
       cnpg.io/cluster: registry-db
@@ -1132,6 +1170,8 @@ spec:
           app.kubernetes.io/name: registry-aggregator-reset
     ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -1427,6 +1467,8 @@ spec:
           app.kubernetes.io/name: model-archive
     ports:
     - port: 5432
+      protocol: TCP
+    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:

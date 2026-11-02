@@ -4764,3 +4764,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, Paso 20.
 
 ---
+
+## Failover reducido detenido por el puerto 4143
+**Timestamp**: 2026-11-02T01:39:04Z
+**AI Response**: Evidencia en un PR. Se sube `registry-db` a 3 instancias con un parche fuera de GitOps. El Job `join` no replica: el proxy usa `opaque_port=4143` para el 5432, también en modo `transparent`, y ninguna NetworkPolicy lo permite. Afectaría a todo acceso a PostgreSQL con malla. Se abre un PR que abre el 4143 solo en flujos opacos. No se detiene ningún nodo; el failover sigue sin ejecutar.
+**Context**: Issue 7, Paso 20.
+
+---

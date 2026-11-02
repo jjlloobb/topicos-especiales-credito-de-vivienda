@@ -399,3 +399,24 @@ def test_catalogue_has_the_cases_of_the_units():
     assert ("X08", "predictor", "staging-isvc") in cases
     assert ("U9", "bias-monitoring-service", "pushgateway") in cases
     assert ("U8", "case-service", "scoring-service") in cases
+
+
+def ports_in(policy):
+    rules = policy["spec"].get("ingress") or policy["spec"].get("egress")
+    return {p["port"] for rule in rules for p in rule["ports"]}
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_opaque_postgres_flows_open_the_proxy_port(env):
+    """Linkerd envia el 5432 por el 4143 en cualquier modo: lo comprobo el Job `join` en kind (issue 7)."""
+    named = {d["metadata"]["name"]: d for d in policies(env, "vectra-data")}
+    assert ports_in(named["allow-f45-to-registry-db-ingress"]) == {5432, 4143}
+    assert ports_in(named["allow-f45-registry-db-to-registry-db-egress"]) == {5432, 4143}
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_only_opaque_meshed_flows_open_the_proxy_port(env):
+    """El resto sigue limitado a su puerto, y el operador sin malla llega directo al 5432."""
+    named = {d["metadata"]["name"]: d for d in policies(env, "vectra-data")}
+    assert 4143 not in ports_in(named["allow-f123-to-minio-ingress"])
+    assert 4143 not in ports_in(named["allow-f80-to-registry-db-ingress"])
