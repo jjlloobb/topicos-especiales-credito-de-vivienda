@@ -74,6 +74,8 @@ Con el proxy (P-U1-14), 16 pods suman requests de 14,6 CPU / 52,3 GiB y limits d
 
 ### INF-U1-03 — Almacenamiento de objetos (Q4)
 
+> **Decisión (issue 26, 2026-11-02), sin implementar:** `minio/minio` y `minio/mc` están archivados y sin mantenimiento. En staging y prod, `model-store`, `validation-datasets`, `loki` y `tempo` pasarán al S3 del banco, si ofrece object lock, versionado y lifecycle; hay que validarlo con el banco. MinIO queda solo en kind. La tabla siguiente describe lo implementado hoy.
+
 | Uso | Dónde | Bucket | Protección |
 |---|---|---|---|
 | Backups base y WAL | S3 del banco **fuera del sitio** (F70) | `vectra-backups`; base y WAL bajo `<cluster>/` (Barman escribe `<cluster>/<cluster>/base` y `.../wals`; decidido el 2026-11-01) | Cifrado del lado del servidor; object lock en los de `registry-db` (NFR-U1-06) |
@@ -146,7 +148,7 @@ Identidades de MinIO, con su política y su Secret por ESO (2026-11-01): `kserve
 ### INF-U1-10 — Secretos
 - ESO + Vault en kind (in-cluster, F86); ESO + la bóveda del banco en staging/prod (egress F74).
 - ESO solo escribe Secrets en los namespaces de Vectra que lo declaran (binding K11). Ningún servicio de negocio lee Secrets por la API.
-- **Decisión abierta (issue 7, 2026-11-01):** el controlador de ESO necesita `list` y `watch` sobre `secrets` en todo el clúster, y K11 no los da. En kind se concede con `platform/secrets/eso-rbac-secrets-read-kind.yaml`, que lee todos los Secret. En staging y prod ESO no arranca hasta que cumplimiento decida.
+- **Decisión (issue 26, 2026-11-02), sin implementar:** el controlador de ESO necesita `list` y `watch` sobre `secrets` en todo el clúster, y K11 no los da. En staging y prod se usará **una instancia de ESO por namespace**, con `scopedRBAC` y un `SecretStore` por namespace en vez de `vectra-store`. Este modo no se ha probado: si tampoco arranca, la decisión se revisa. En kind sigue `platform/secrets/eso-rbac-secrets-read-kind.yaml`, que lee todos los Secret. Hasta implementarla, ESO no arranca en staging ni prod.
 
 ## 7. Cambios aplicados a `component-dependency.md`
 

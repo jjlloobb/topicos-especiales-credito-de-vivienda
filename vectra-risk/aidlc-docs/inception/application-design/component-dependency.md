@@ -223,7 +223,7 @@ Role ni RoleBinding.
 | K08 | Plano de control de Linkerd | todo el clúster | `get`, `list`, `watch` sobre `pods`, `services`, `endpoints`, CRDs de política; `create` de `tokenreviews` | Descubrimiento, identidad y políticas |
 | K09 | `linkerd-cni` | nodos | `get`, `list`, `watch` sobre `pods`, `nodes` | Configurar iptables sin `NET_ADMIN` en los pods |
 | K10 | Kyverno | todo el clúster | Lectura de recursos admitidos; escritura solo de sus `PolicyReport` | Admisión y reportes |
-| K11 | External Secrets Operator | namespaces de Vectra que declaran `ExternalSecret` | `create`, `update`, `get` sobre `secrets` | Materializar secretos desde la bóveda |
+| K11 | External Secrets Operator | namespaces de Vectra que declaran `ExternalSecret` | `create`, `update`, `get` sobre `secrets` | Materializar secretos desde la bóveda. ESO necesita además `list` y `watch`: ver la decisión del issue 26 en el Infrastructure Design de U1 |
 | K12 | `restore-drill` | `vectra-restore-drill` | `create`, `get`, `list`, `watch`, `delete` sobre `clusters.postgresql.cnpg.io`; `get` sobre `pods/log`; el LSN alcanzado se lee por F114, sin `pods/exec` (2026-11-01) | Crear y destruir el cluster efímero del simulacro |
 | K13 | Grafana Alloy | todo el clúster | `get`, `list`, `watch` sobre `pods`, `namespaces`, `nodes` | Descubrir contenedores y leer sus logs del nodo |
 | K14 | Controlador de Envoy Gateway | `vectra-edge` y `envoy-gateway-system` | Lectura de recursos de Gateway API y de Envoy Gateway; gestión de los Deployments, Services y ConfigMaps del data plane | Reconciliar el gateway (INF-U2-02) |
