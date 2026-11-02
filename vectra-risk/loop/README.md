@@ -18,6 +18,7 @@ En este proyecto, `tareas/` reemplaza a `unidades-y-tareas.md`. Las tareas `U01-
 | 4 | `U02-T01`, sola | Primer paso de U2: el esqueleto de `identity-edge/` |
 | 5 | `U02-T02`, sola | Completa el Paso 1 con los directorios de §1 que faltaron |
 | 6 | `U00-T01`, `U00-T02` y `U01-T07` | Desvíos frente al diseño hallados en la revisión de conformidad del 2026-11-02. `U00-T01` y `U00-T02` tocan `contracts/`: van en serie |
+| 7 | `U02-T03` y luego `U02-T04` | Pasos 3 y 2 del plan de U2: `realm-lint` antes que los realms, porque la aceptación del Paso 2 es correr `realm_lint.py` |
 
 Máximo 3 en paralelo, y no más de 5 PR esperando revisión. Si una tarea llega a 4 rondas, se para y se lleva a la persona.
 
