@@ -44,7 +44,15 @@ TOTP_ACTION = "CONFIGURE_TOTP"
 # `secretData` y `credentialData` son String JSON (CredentialRepresentation de Keycloak); `<USUARIO>` es el nombre del
 # usuario en mayusculas con `_` en vez de `-`. Cualquier otra forma es invalida.
 OTP_CREDENTIAL = "otp"
-OTP_SECRET_ENCODING = "BASE32"  # noqa: S105
+# `credentialData` exacto (E4): estos cinco campos y, ademas, solo `counter: 0` (que escribe U02-T04).
+OTP_CREDENTIAL_DATA: Mapping[str, Any] = {
+    "subType": "totp",
+    "digits": 6,
+    "period": 30,
+    "algorithm": "HmacSHA1",
+    "secretEncoding": "BASE32",
+}
+OTP_OPTIONAL_DATA: Mapping[str, Any] = {"counter": 0}
 BREAK_GLASS = "break-glass"
 # Clientes de administracion de INF-U2-05a (enmienda del 2026-11-02): sus cuentas de servicio son las unicas
 # con roles de `realm-management`. `keycloak-config-cli` escribe (`realm-admin`); `keycloak-reader` solo lee.
@@ -154,11 +162,23 @@ def _json_object(raw: Any) -> dict[str, Any]:
         return {}
 
 
+def _same_json(actual: Mapping[str, Any], expected: Mapping[str, Any]) -> bool:
+    """Igualdad con el tipo (`1 == True` y `6 == 6.0` en Python), clave por clave."""
+    return actual.keys() == expected.keys() and all(
+        type(actual[k]) is type(v) and actual[k] == v for k, v in expected.items()
+    )
+
+
+def _is_otp_credential_data(data: Mapping[str, Any]) -> bool:
+    required = dict(OTP_CREDENTIAL_DATA)
+    return _same_json(data, required) or _same_json(data, {**required, **OTP_OPTIONAL_DATA})
+
+
 def _has_referenced_otp(user: Mapping[str, Any]) -> bool:
     """Alguna credencial `otp` con la forma unica: semilla `$(env:SYNTH_<USUARIO>_TOTP_SEED)` del propio usuario
-    en `secretData` y `secretEncoding: BASE32` en `credentialData`. Se miran todas las credenciales."""
+    en `secretData` y `credentialData` exacto (cinco campos, `counter: 0` opcional). Se miran todas las credenciales."""
     username = user.get("username")
-    if not isinstance(username, str):
+    if not isinstance(username, str) or not username:
         return False
     expected = otp_seed_reference(username)
     for credential in _list(user.get("credentials")):
@@ -166,8 +186,8 @@ def _has_referenced_otp(user: Mapping[str, Any]) -> bool:
         if credential.get("type") != OTP_CREDENTIAL:
             continue
         seed = _json_object(credential.get("secretData")).get("value")
-        encoding = _json_object(credential.get("credentialData")).get("secretEncoding")
-        if seed == expected and encoding == OTP_SECRET_ENCODING:
+        data = _json_object(credential.get("credentialData"))
+        if seed == expected and _is_otp_credential_data(data):
             return True
     return False
 
