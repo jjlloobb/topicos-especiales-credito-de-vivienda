@@ -5108,3 +5108,30 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Sustentación.
 
 ---
+## Inicio de U2 identity-edge
+**Timestamp**: 2026-11-02T14:49:40Z
+**AI Response**: Con la instrucción del usuario («termina la prueba de cambio de modelo y luego empieza la siguiente unidad») se levanta la restricción de alcance solo para U2 en `aidlc-state.md` y en su plan. El Paso 1 (esqueleto) pasa a la tarea `tareas/U02-T01-esqueleto-identity-edge.md` y se despacha al loop. U3–U12 siguen sin código.
+**Context**: Construcción de U2.
+
+---
+## Consulta del usuario tras fusionar los PR 41 a 43
+**Timestamp**: 2026-11-02T15:38:13Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Los PR 42 y 43 se fusionaron en sus ramas base, no en main, por un error del orquestador al apilarlos. Se abre un PR que lleva U2 (alcance y U02-T01) a main. Se recomienda fusionarlo, añadir reglas de denegación para kubectl y docker antes de seguir con U2, limpiar worktrees y preparar la sustentación.
+**Context**: Construcción de U2.
+
+---
+## Instrucción: implementar según las unidades
+**Timestamp**: 2026-11-02T15:42:06Z
+**User Input**: "siempre implementa de acuerdo a lo que se definio en las unidades"
+**AI Response**: Se adopta como regla para las tareas del loop: cada tarea copia el alcance y la aceptación del paso del plan de su unidad sin recortes. Revisando U02-T01 contra el plan de U2, su CA-2 omitió `tests/e2e/` y `tests/load/` de la estructura de §1, error del orquestador. Se desmarca el Paso 1 y se agrega `tareas/U02-T02-esqueleto-completo.md` para completarlo, con una prueba que lee la estructura desde el plan.
+**Context**: Construcción de U2.
+
+---
+## Despacho de U02-T02 y revisión contra el diseño
+**Timestamp**: 2026-11-02T15:44:42Z
+**User Input**: "despacha U02-T02 y revisa la implementacion hasta ahora este de acuerdo al diseno"
+**AI Response**: Se despacha U02-T02 al loop. En paralelo, revisores de solo lectura contrastan lo implementado en U0, U1 y U2 con el plan de code generation y los diseños de cada unidad; los hallazgos se registran y lo que sea corrección se convierte en tareas.
+**Context**: Construcción y verificación de diseño.
+
+---
