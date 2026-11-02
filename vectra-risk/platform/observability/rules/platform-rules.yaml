@@ -21,7 +21,7 @@ groups:
       summary: Latido del sistema de alertas
       runbook_url: platform/runbooks/watchdog.md
   - alert: WalArchiveStale
-    expr: time() - cnpg_pg_stat_archiver_last_archived_time > 300
+    expr: '(time() - cnpg_pg_stat_archiver_last_archived_time > 300) and on (cluster) (cnpg_collector_pg_wal_archive_status{value="ready"} > 0)'
     labels:
       severity: SEV1
     annotations:
@@ -61,7 +61,7 @@ groups:
       runbook_url: platform/runbooks/restore-drill-retention-violation.md
     for: 1m
   - alert: RegistryDbWritesBlocked
-    expr: cnpg_pg_replication_streaming_replicas{cluster="registry-db"} < 1
+    expr: 'cnpg_pg_replication_streaming_replicas{cluster="registry-db"} < 1 and on (cluster) cnpg_collector_sync_replicas{cluster="registry-db",value="expected"} > 0'
     labels:
       severity: SEV1
     annotations:
@@ -117,7 +117,7 @@ groups:
       runbook_url: platform/runbooks/certificate-expiring-soon.md
     for: 5m
   - alert: CertificateExpiringSoon
-    expr: certmanager_certificate_expiration_timestamp_seconds - time() < 604800
+    expr: 'certmanager_certificate_expiration_timestamp_seconds{name!="linkerd-identity-issuer"} - time() < 604800'
     labels:
       severity: SEV2
     annotations:

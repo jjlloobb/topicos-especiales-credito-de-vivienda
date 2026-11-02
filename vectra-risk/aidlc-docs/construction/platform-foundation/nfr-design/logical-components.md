@@ -108,10 +108,10 @@ Wave 5:   restore-drill -> lee S3, crea cluster efímero, verify_chain, empuja m
 
 | Alerta | Severidad | Patrón |
 |---|---|---|
-| `WalArchiveStale` (> 5 min) | SEV1 | NFR-U1-05 |
+| `WalArchiveStale` (> 5 min con segmentos pendientes) | SEV1 | NFR-U1-05 |
 | `BackupFailed` | SEV1 | NFR-U1-05 |
 | `RestoreDrillFailed` / `RestoreDrillMissing` | SEV1 | P-U1-05 |
-| `RegistryDbWritesBlocked` (sin réplica síncrona) | SEV1 | NFR-U1-03 |
+| `RegistryDbWritesBlocked` (sin réplica síncrona, si el clúster la espera) | SEV1 | NFR-U1-03 |
 | `KyvernoUnavailable` / `LinkerdControlPlaneDown` | SEV1 | P-U1-06 |
 | `SingleZoneOperation` | SEV2 | NFR-U1-32 |
 | `MinioWriteQuorumLost` | SEV2 | INF-U1-03: MinIO sin quórum de escritura (seguimiento de la quinta revisión de coherencia, 2026-10-31) |

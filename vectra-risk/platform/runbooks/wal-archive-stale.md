@@ -4,7 +4,7 @@
 - **Alerta**: `WalArchiveStale` (U1)
 
 ## Síntoma
-El último WAL archivado tiene más de 5 min.
+El último WAL archivado tiene más de 5 min y hay segmentos esperando archivarse. Una base sin escrituras no produce WAL y no dispara.
 
 ## Impacto
 El RPO ante pérdida del sitio deja de cumplirse.
