@@ -6,7 +6,7 @@ Contratos del módulo 6: el orquestador despacha y arbitra, el codificador imple
 - `.claude/agents/`, en la raíz del repositorio: codificador y revisor.
 - `plantilla-tarea.md`: plantilla de los archivos de `tareas/`.
 
-En este proyecto, `tareas/` reemplaza a `unidades-y-tareas.md`. Todas las tareas son de U1, ya cerrada para kind, y salen de sus pendientes.
+En este proyecto, `tareas/` reemplaza a `unidades-y-tareas.md`. Las tareas `U01-*` salen de los pendientes de U1, ya cerrada para kind; las `U02-*` salen del plan de U2.
 
 ## Orden de despacho
 
@@ -15,6 +15,7 @@ En este proyecto, `tareas/` reemplaza a `unidades-y-tareas.md`. Todas las tareas
 | 1 | `U01-T01`, sola y observada | Para ver una ronda completa |
 | 2 | Ola en paralelo: `U01-T03`, `U01-T05`, `U01-T06` | No comparten archivos |
 | 3 | `U01-T04` y `U01-T02` | `U01-T02` es la más difícil y puede tomar varias rondas |
+| 4 | `U02-T01`, sola | Primer paso de U2: el esqueleto de `identity-edge/` |
 
 Máximo 3 en paralelo, y no más de 5 PR esperando revisión. Si una tarea llega a 4 rondas, se para y se lleva a la persona.
 

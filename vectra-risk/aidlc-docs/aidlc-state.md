@@ -23,7 +23,8 @@
 
 ## Scope Constraint (instrucción del usuario)
 - **Restricción levantada solo para U0 y U1** (P17 de `cross-unit-review5-followup-questions.md`, 2026-10-31): se ejecuta su Code Generation Part 2 y la comprobación de la plataforma en kind, después de la aprobación del conjunto de cambios (P18). Ningún operador humano queda reemplazado: AUTONOMIA-01 sigue vigente.
-- **Para U2–U12 sigue sin escribirse código**: el trabajo se detiene en su plan de tareas.
+- **Restricción levantada para U2 `identity-edge`** (instrucción del usuario, 2026-11-02: «termina la prueba de cambio de modelo y luego empieza la siguiente unidad»): su Code Generation Part 2 se ejecuta por tareas del loop (`tareas/U02-*`), cada una en un PR que fusiona una persona. AUTONOMIA-01 sigue vigente: lo que necesite un clúster lo ejecuta un operador después de un PR aprobado (Paso 16).
+- **Para U3–U12 sigue sin escribirse código**: el trabajo se detiene en su plan de tareas.
 
 ## Source Inputs
 - `entradas/prd.md` — fuente autoritativa de requisitos
