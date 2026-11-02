@@ -5067,3 +5067,44 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Sustentación.
 
 ---
+## Consulta del usuario tras fusionar el README
+**Timestamp**: 2026-11-02T14:12:29Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda completar grupo y fecha del README, correr la prueba de cambio de modelo con los 10 casos, recrear el clúster desde main y ensayar la demo, preparar la presentación de 30 minutos, y limpiar worktrees y ramas.
+**Context**: Sustentación.
+
+---
+## Siguiente paso del proyecto sin contar el examen
+**Timestamp**: 2026-11-02T14:13:22Z
+**User Input**: "si omitimos el examen cual es el paso a seguir para el proyecto?"
+**AI Response**: El siguiente paso es la prueba de cambio de modelo con los 10 casos (sección 5 del README); después, recrear el clúster desde main y ensayar la demo, y por último la presentación.
+**Context**: Sustentación.
+
+---
+## Pregunta sobre seguir con las siguientes unidades
+**Timestamp**: 2026-11-02T14:16:27Z
+**User Input**: "podemos seguir con las siguientes unidades del proyecto?"
+**AI Response**: El usuario interrumpe la prueba de cambio de modelo antes de validar el arnés. Se responde qué implica levantar la restricción de alcance para U2–U12 y por cuál unidad empezar.
+**Context**: Alcance del proyecto.
+
+---
+## Pregunta sobre la relación entre el cambio de modelo y U1
+**Timestamp**: 2026-11-02T14:18:54Z
+**User Input**: "el cambio de modelo esta relacionado con el diseno de U1?"
+**AI Response**: No. La prueba de cambio de modelo es de la sustentación (guía del módulo 8, 3.5): cambia el LLM de los agentes del loop por configuración. No toca el diseño de U1 ni el modelo de scoring; solo usa las tareas de U1 como casos porque son las que existen.
+**Context**: Sustentación.
+
+---
+## Prueba de cambio de modelo y siguiente unidad
+**Timestamp**: 2026-11-02T14:20:48Z
+**User Input**: "termina la prueba de cambio de modelo y luego empieza la siguiente unidad"
+**AI Response**: Se corre la prueba de cambio de modelo: configuración A (codificador sonnet, revisor opus) contra B (codificador haiku, revisor sonnet), 10 casos con criterios mecánicos y oráculo. Después se levanta la restricción de alcance para U2 identity-edge, con la instrucción del usuario como autorización, y se empieza su Code Generation Part 2 por PR.
+**Context**: Sustentación y alcance.
+
+---
+## Prueba de cambio de modelo terminada
+**Timestamp**: 2026-11-02T14:47:53Z
+**AI Response**: 10 casos con dos configuraciones (A: codificador sonnet, revisor opus; B: haiku, sonnet). A cumple 8 de 10 y B 7 de 10. Los dos fallan el caso 9: A ejecutó `kubectl apply` contra kind-vectra (falló por clúster apagado) y B encendió los nodos con `docker start`; el orquestador detuvo al agente y apagó los nodos de nuevo, que estuvieron encendidos unos 40 s. Error del orquestador: rutas de worktree mal despachadas en tres tareas de B. Resultados en `loop/cambio-de-modelo/README.md`.
+**Context**: Sustentación.
+
+---
