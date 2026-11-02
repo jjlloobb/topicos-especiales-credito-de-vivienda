@@ -1,7 +1,10 @@
 """La carga perezosa de `models.api` no cambia la API publica de `vectra_contracts.models`."""
 
 import importlib
+import json
 import pkgutil
+import subprocess
+import sys
 import types
 
 import pytest
@@ -50,3 +53,50 @@ def test_unknown_name_raises_attribute_error() -> None:
     with pytest.raises(AttributeError, match="no_existe"):
         models.no_existe  # type: ignore[attr-defined]  # noqa: B018
     assert not hasattr(models, "_privado")
+
+
+_CLEAN_SCRIPT = """
+import json, pkgutil
+import vectra_contracts.models as m
+
+# Orden deliberado: nada de lo que sigue puede precargar `api` antes de estas dos lecturas.
+listed = dir(m)
+api_is_submodule = m.api.__name__ == "vectra_contracts.models.api"
+ns = {}
+exec("from vectra_contracts.models import *", ns)
+ns.pop("__builtins__")
+expected = set()
+import importlib
+import json
+for info in pkgutil.iter_modules(m.__path__):
+    sub = importlib.import_module("vectra_contracts.models." + info.name)
+    expected.add(info.name)
+    expected |= {n for n in vars(sub) if not n.startswith("_")}
+try:
+    m.no_existe
+    missing = "sin error"
+except AttributeError:
+    missing = "AttributeError"
+print(json.dumps({
+    "star_extra": sorted(set(ns) - expected),
+    "star_missing": sorted(expected - set(ns)),
+    "dir_missing": sorted(expected - set(listed)),
+    "api_is_submodule": api_is_submodule,
+    "missing": missing,
+}))
+"""
+
+
+def test_models_public_api_in_clean_interpreter() -> None:
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", _CLEAN_SCRIPT], capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report == {
+        "star_extra": [],
+        "star_missing": [],
+        "dir_missing": [],
+        "api_is_submodule": True,
+        "missing": "AttributeError",
+    }
