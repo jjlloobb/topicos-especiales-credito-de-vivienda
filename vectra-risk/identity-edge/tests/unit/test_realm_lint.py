@@ -1,5 +1,6 @@
 """Casos nombrados de `realm-lint` (Pasos 2 y 3 del plan de U2; BR-U2-01, 03, 09, 15; AUTONOMIA-03)."""
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -76,6 +77,248 @@ def test_operacion_with_totp_required_is_accepted() -> None:
     realm = realm_copy("staging")
     assert find_user(realm, "operacion-1")["requiredActions"] == ["CONFIGURE_TOTP"]
     assert lint_realm(realm, "staging") == []
+
+
+# --- MFA por credencial OTP referenciada (U02-T05; domain-entities §3, tabla de usuarios por entorno) ---
+# Forma unica (enmienda del 2026-11-02, E1-E3): `credentials: [{type: otp, secretData: '{"value":"$(env:SYNTH_<USUARIO>_TOTP_SEED)"}',
+# credentialData: '{...,"secretEncoding":"BASE32"}'}]`; ambos campos son String JSON; `<USUARIO>` en mayusculas, `-` -> `_`.
+
+OTP_ENVS = ("kind", "staging", "prod")
+OTP_ROLES = ("ingeniero_riesgo", "cro", "cumplimiento", "operacion")
+OTP_USER = "mfa-prueba-1"
+OTP_SEED = "$(env:SYNTH_MFA_PRUEBA_1_TOTP_SEED)"
+OTP_DATA = {"subType": "totp", "digits": 6, "period": 30, "algorithm": "HmacSHA1", "secretEncoding": "BASE32"}
+UNSET: Any = object()
+
+
+def otp_credential(
+    seed: str = OTP_SEED, kind: str = "otp", *, secret_data: Any = UNSET, credential_data: Any = UNSET
+) -> dict[str, Any]:
+    credential: dict[str, Any] = {"type": kind}
+    secret = json.dumps({"value": seed}) if secret_data is UNSET else secret_data
+    data = json.dumps(OTP_DATA) if credential_data is UNSET else credential_data
+    if secret is not None:
+        credential["secretData"] = secret
+    if data is not None:
+        credential["credentialData"] = data
+    return credential
+
+
+def mfa_user(role: str, *, actions: list[str], credentials: Any) -> dict[str, Any]:
+    u = user(OTP_USER, [role], totp=False)
+    u["requiredActions"] = actions
+    if credentials is not None:
+        u["credentials"] = credentials
+    return u
+
+
+def mfa_rejected(role: str, env: str, **kwargs: Any) -> bool:
+    realm = realm_copy(env)
+    realm["users"].append(mfa_user(role, **kwargs))
+    return "mfa-obligatorio" in rules(realm, env)
+
+
+def password_credential() -> dict[str, Any]:
+    return {"type": "password", "secretData": json.dumps({"value": "$(env:SYNTH_MFA_PRUEBA_1_PASSWORD)"})}
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("role", OTP_ROLES)
+def test_otp_credential_referenced_without_totp_action_is_accepted(env: str, role: str) -> None:
+    assert not mfa_rejected(role, env, actions=[], credentials=[otp_credential()])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("role", OTP_ROLES)
+def test_totp_action_without_otp_credential_is_accepted(env: str, role: str) -> None:
+    assert not mfa_rejected(role, env, actions=["CONFIGURE_TOTP"], credentials=None)
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("role", OTP_ROLES)
+def test_no_totp_action_and_no_otp_credential_is_rejected(env: str, role: str) -> None:
+    assert mfa_rejected(role, env, actions=[], credentials=None)
+    assert mfa_rejected(role, env, actions=[], credentials=[])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("role", OTP_ROLES)
+@pytest.mark.parametrize(
+    "seed",
+    [
+        "JBSWY3DPEHPK3PXP",
+        "",
+        "$(env:)",
+        "$(env:A B)",
+        f"x{OTP_SEED}",
+        f"{OTP_SEED}x",
+        f"{OTP_SEED} ",
+        "${SYNTH_MFA_PRUEBA_1_TOTP_SEED}",
+    ],
+)
+def test_otp_credential_with_a_literal_secret_is_rejected(env: str, role: str, seed: str) -> None:
+    assert mfa_rejected(role, env, actions=[], credentials=[otp_credential(seed)])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("role", OTP_ROLES)
+@pytest.mark.parametrize("kind", ["password", "webauthn", "OTP", "totp"])
+def test_otp_credential_of_another_type_referenced_is_rejected(env: str, role: str, kind: str) -> None:
+    assert mfa_rejected(role, env, actions=[], credentials=[otp_credential(kind=kind)])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+def test_malformed_otp_credentials_do_not_crash_and_are_rejected(env: str) -> None:
+    for credentials in ("otp", {"type": "otp"}, ["otp"], [None], [{"type": "otp"}]):
+        assert mfa_rejected("cro", env, actions=[], credentials=credentials)
+
+
+# --- CA-3: la forma unica de la credencial OTP --------------------------------------------------
+
+BAD_FORMS: dict[str, dict[str, Any]] = {
+    "secret_data_as_mapping": {"secret_data": {"value": OTP_SEED}},
+    "secret_data_missing": {"secret_data": None},
+    "secret_data_not_json": {"secret_data": "no es json"},
+    "secret_data_not_an_object": {"secret_data": "[]"},
+    "secret_data_without_value": {"secret_data": json.dumps({"valor": OTP_SEED})},
+    "secret_data_value_not_a_string": {"secret_data": json.dumps({"value": 1})},
+    "other_variable": {"seed": "$(env:SEED)"},
+    "other_synth_variable": {"seed": "$(env:SYNTH_MFA_PRUEBA_1_PASSWORD)"},
+    "other_users_variable": {"seed": "$(env:SYNTH_MFA_PRUEBA_2_TOTP_SEED)"},
+    "lowercase_variable": {"seed": "$(env:synth_mfa_prueba_1_totp_seed)"},
+    "hyphen_variable": {"seed": "$(env:SYNTH_MFA-PRUEBA-1_TOTP_SEED)"},
+    "credential_data_missing": {"credential_data": None},
+    "credential_data_as_mapping": {"credential_data": OTP_DATA},
+    "credential_data_not_json": {"credential_data": "no es json"},
+    "credential_data_not_an_object": {"credential_data": "[]"},
+    "no_secret_encoding": {
+        "credential_data": json.dumps({k: v for k, v in OTP_DATA.items() if k != "secretEncoding"})
+    },
+    "base64_encoding": {"credential_data": json.dumps({**OTP_DATA, "secretEncoding": "BASE64"})},
+    "lowercase_encoding": {"credential_data": json.dumps({**OTP_DATA, "secretEncoding": "base32"})},
+    "utf8_encoding": {"credential_data": json.dumps({**OTP_DATA, "secretEncoding": "UTF8"})},
+    "null_encoding": {"credential_data": json.dumps({**OTP_DATA, "secretEncoding": None})},
+    "encoding_only_inside_secret_data": {
+        "secret_data": json.dumps({"value": OTP_SEED, "secretEncoding": "BASE32"}),
+        "credential_data": json.dumps({k: v for k, v in OTP_DATA.items() if k != "secretEncoding"}),
+    },
+    "seed_only_inside_credential_data": {
+        "secret_data": json.dumps({"valor": "-"}),
+        "credential_data": json.dumps({**OTP_DATA, "value": OTP_SEED}),
+    },
+}
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("form", sorted(BAD_FORMS))
+def test_otp_credential_form_other_than_the_single_one_is_rejected(env: str, form: str) -> None:
+    assert mfa_rejected("cro", env, actions=[], credentials=[otp_credential(**BAD_FORMS[form])])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+def test_otp_credential_form_with_top_level_encoding_is_rejected(env: str) -> None:
+    data = {k: v for k, v in OTP_DATA.items() if k != "secretEncoding"}
+    credential = otp_credential(credential_data=json.dumps(data))
+    credential["secretEncoding"] = "BASE32"
+    assert mfa_rejected("cro", env, actions=[], credentials=[credential])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+def test_otp_credential_form_with_top_level_value_is_rejected(env: str) -> None:
+    credential = {"type": "otp", "value": OTP_SEED, "credentialData": json.dumps(OTP_DATA)}
+    assert mfa_rejected("cro", env, actions=[], credentials=[credential])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+def test_otp_credential_form_is_taken_from_the_users_own_name(env: str) -> None:
+    realm = realm_copy(env)
+    other = mfa_user("cro", actions=[], credentials=[otp_credential("$(env:SYNTH_CRO_1_TOTP_SEED)")])
+    other["username"] = "cro-1-copia"
+    realm["users"].append(other)
+    assert "mfa-obligatorio" in rules(realm, env)
+    other["username"] = "cro-1"
+    other["credentials"] = [otp_credential("$(env:SYNTH_CRO_1_TOTP_SEED)")]
+    assert "mfa-obligatorio" not in rules(realm, env)
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("order", ["password_then_otp", "otp_then_password", "bad_otp_then_good_otp"])
+def test_otp_credential_form_looks_at_every_credential_not_only_the_first(env: str, order: str) -> None:
+    credentials = {
+        "password_then_otp": [password_credential(), otp_credential()],
+        "otp_then_password": [otp_credential(), password_credential()],
+        "bad_otp_then_good_otp": [otp_credential("JBSWY3DPEHPK3PXP"), otp_credential()],
+    }[order]
+    assert not mfa_rejected("cro", env, actions=[], credentials=credentials)
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+def test_otp_credential_form_password_alone_or_with_a_bad_otp_is_rejected(env: str) -> None:
+    assert mfa_rejected("cro", env, actions=[], credentials=[password_credential()])
+    assert mfa_rejected(
+        "cro", env, actions=[], credentials=[password_credential(), otp_credential("JBSWY3DPEHPK3PXP")]
+    )
+
+
+# --- CA-4: `credentialData` completo, sitios de cada campo y usuario sin `username` -------------
+
+DATA_WITH_COUNTER = {**OTP_DATA, "counter": 0}
+BAD_DATA: dict[str, dict[str, Any]] = {
+    **{
+        f"{key}_other_value": {**OTP_DATA, key: other}
+        for key, other in (
+            ("subType", "hotp"),
+            ("digits", 8),
+            ("period", 60),
+            ("algorithm", "HmacSHA256"),
+            ("secretEncoding", "BASE64"),
+        )
+    },
+    **{f"{key}_missing": {k: v for k, v in OTP_DATA.items() if k != key} for key in OTP_DATA},
+    "digits_as_string": {**OTP_DATA, "digits": "6"},
+    "digits_as_float": {**OTP_DATA, "digits": 6.0},
+    "period_as_bool": {**OTP_DATA, "period": True},
+    "counter_other_value": {**OTP_DATA, "counter": 1},
+    "counter_as_string": {**OTP_DATA, "counter": "0"},
+    "counter_as_bool": {**OTP_DATA, "counter": False},
+    "counter_as_float": {**OTP_DATA, "counter": 0.0},
+    "extra_key": {**OTP_DATA, "extra": 1},
+    "extra_key_with_counter": {**DATA_WITH_COUNTER, "extra": 1},
+    "extra_user_label": {**OTP_DATA, "userLabel": "x"},
+}
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("variant", sorted(BAD_DATA))
+def test_otp_credential_data_other_than_the_single_one_is_rejected(env: str, variant: str) -> None:
+    credential = otp_credential(credential_data=json.dumps(BAD_DATA[variant]))
+    assert mfa_rejected("cro", env, actions=[], credentials=[credential])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize(
+    "data", [OTP_DATA, DATA_WITH_COUNTER], ids=["five_fields", "five_fields_and_counter_0"]
+)
+def test_otp_credential_data_with_the_five_fields_is_accepted(env: str, data: dict[str, Any]) -> None:
+    credential = otp_credential(credential_data=json.dumps(data))
+    assert not mfa_rejected("cro", env, actions=[], credentials=[credential])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("username", [UNSET, None, "", 123])
+def test_otp_credential_data_of_a_user_without_a_valid_username_is_rejected(env: str, username: Any) -> None:
+    realm = realm_copy(env)
+    candidate = mfa_user(
+        "cro",
+        actions=[],
+        credentials=[otp_credential("$(env:SYNTH__TOTP_SEED)"), otp_credential("$(env:SYNTH_123_TOTP_SEED)")],
+    )
+    if username is UNSET:
+        del candidate["username"]
+    else:
+        candidate["username"] = username
+    realm["users"].append(candidate)
+    assert "mfa-obligatorio" in rules(realm, env)
 
 
 # --- usuarios locales por entorno -----------------------------------------------------------

@@ -42,3 +42,6 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
 - Sesiones persistentes de Keycloak como opción del servidor en los Pasos 4 y 5 de U2 (NFR-U2-02, D6 del usuario).
 - Prueba de extremo a extremo en kind que lea el token real: `acr`/`amr`/`auth_time` por rol, `break-glass` con MFA, `aud` por scope pedido, validez de 60 s y `jti` de las aserciones (revisor, U02-T04, ronda 1).
 - `REALM_PARAMETERS` y `MFA_REQUIRED_ROLES` de `realm_lint.py` están escritos a mano; deberían leerse del diseño (revisor, U02-T04, ronda 1).
+- Verificar con un login real en kind (Paso 16) que Keycloak lee la semilla TOTP en Base32 y que keycloak-config-cli aplica `credentials` (contraseña y OTP) también a usuarios que ya existen, para que rotar la semilla en ESO llegue al realm (revisor, U02-T05, ronda 1).
+- Decisión pendiente del usuario: ¿`secretData` de la credencial OTP debe ser exactamente `{"value":"$(env:SYNTH_<USUARIO>_TOTP_SEED)"}`, sin claves extra, igual que `credentialData` con E4? Hoy el lint acepta claves extra en `secretData` (revisor, U02-T05, ronda 3, F-01).
+- Decidir si `make -C identity-edge check` incluye `ruff format --check` y formatear los archivos de `identity-edge` (revisor, U02-T05, ronda 3).
