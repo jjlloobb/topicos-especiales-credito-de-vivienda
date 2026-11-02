@@ -5,6 +5,6 @@ import os
 from hypothesis import settings
 
 
-def test_hypothesis_profile_is_the_one_set_by_env() -> None:
-    expected = os.environ.get("HYPOTHESIS_PROFILE", "dev")
+def test_hypothesis_profile_is_the_one_set_by_env(u0_default_profile: str) -> None:
+    expected = os.environ.get("HYPOTHESIS_PROFILE", u0_default_profile)
     assert settings.get_current_profile_name() == expected
