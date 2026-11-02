@@ -4771,3 +4771,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, Paso 20.
 
 ---
+
+## Sondas de Pushgateway tras reiniciar el nodo
+**Timestamp**: 2026-11-02T02:42:52Z
+**AI Response**: Tras reiniciar `vectra-worker2`, kubelet sale con la IP de `tunl0` y Linkerd responde 403 a las sondas de Pushgateway, que se reinicia en bucle; su volumen está atado a ese nodo. Se abre un PR que acepta sondas desde la red de pods. El clúster no queda igual que antes del failover hasta aplicarlo.
+**Context**: Issue 7, Paso 20.
+
+---

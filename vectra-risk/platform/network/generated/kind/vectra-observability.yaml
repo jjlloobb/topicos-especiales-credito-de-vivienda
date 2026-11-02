@@ -438,6 +438,7 @@ metadata:
 spec:
   networks:
   - cidr: 172.18.0.0/16
+  - cidr: 192.168.0.0/16
 ---
 apiVersion: policy.linkerd.io/v1alpha1
 kind: AuthorizationPolicy
