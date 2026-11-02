@@ -122,3 +122,131 @@ def brute_force_fields() -> dict[str, object]:
     for key, value in re.findall(r"`(\w+): (\w+)`", line):
         fields[key] = {"true": True, "false": False}.get(value, int(value) if value.isdigit() else value)
     return fields
+
+
+# --- agregados de la ronda 2: todo sale del diseno enmendado --------------------------------
+
+PUBLIC_HOSTNAME = "$(env:PUBLIC_HOSTNAME)"  # INF-U2-01 (enmienda D3): el realm no repite los hostnames
+
+
+def public_hostname_contract() -> bool:
+    return PUBLIC_HOSTNAME in INFRASTRUCTURE
+
+
+def _seconds(text: str) -> int:
+    return int(re.sub(r"\D", "", text))
+
+
+def token_and_session_parameters() -> dict[str, int]:
+    """domain-entities §6 (vidas de BR-U2-06) con el nombre del campo de Keycloak."""
+    out: dict[str, int] = {}
+    for row in table_rows(section(DOMAIN_ENTITIES, "## 6. Parámetros versionados")):
+        if row[0] == "Access token":
+            out["accessTokenLifespan"] = _seconds(row[1])
+        elif row[0] == "SSO idle / max":
+            idle, maximum = row[1].split("/")
+            out["ssoSessionIdleTimeout"] = _seconds(idle)
+            out["ssoSessionMaxLifespan"] = _seconds(maximum)
+    return out
+
+
+def mfa_max_age() -> int:
+    for row in table_rows(section(DOMAIN_ENTITIES, "## 6. Parámetros versionados")):
+        if row[0] == "`mfa_max_age`":
+            return _seconds(row[1])
+    raise LookupError("domain-entities §6 sin `mfa_max_age`")
+
+
+def loa_map() -> dict[str, int]:
+    found = re.search(r"Mapeo de LoA de Keycloak: `(\w+)` = (\d), `(\w+)` = (\d)", DOMAIN_ENTITIES)
+    assert found is not None
+    return {found.group(1): int(found.group(2)), found.group(3): int(found.group(4))}
+
+
+def mfa_required_roles() -> set[str]:
+    """Roles con MFA obligatorio: la columna MFA de §1.1 y `operacion` (su parrafo dice «MFA obligatorio»)."""
+    roles = {
+        row[0].strip("`")
+        for row in table_rows(section(DOMAIN_ENTITIES, "### 1.1 Roles de negocio (realm roles)"))
+        if "Obligatorio" in row[1]
+    }
+    paragraph = section(DOMAIN_ENTITIES, "### 1.1 Roles de negocio (realm roles)")
+    start = paragraph.index("**`operacion`**")
+    if "MFA obligatorio" in paragraph[start : start + 400]:
+        roles.add("operacion")
+    return roles
+
+
+def optional_mfa_roles() -> set[str]:
+    return {
+        row[0].strip("`")
+        for row in table_rows(section(DOMAIN_ENTITIES, "### 1.1 Roles de negocio (realm roles)"))
+        if row[0].startswith("`") and "Obligatorio" not in row[1] and "Disponible" in row[1]
+    }
+
+
+def users_per_role() -> int:
+    found = re.search(r"(\d+) usuarios sintéticos por rol", DOMAIN_ENTITIES)
+    assert found is not None
+    return int(found.group(1))
+
+
+def _client_row(client_id: str) -> list[str]:
+    body = section(DOMAIN_ENTITIES, "### 2.1 Clientes de usuario")
+    return next(r for r in table_rows(body) if r[0] == f"`{client_id}`")
+
+
+def console_uris() -> dict[str, list[str]]:
+    """Redirect URIs, post-logout y origenes de `vectra-console` (§2.1 y rutas de §4), con `<host>`."""
+    notes = _client_row("vectra-console")[4]
+    spa = section(DOMAIN_ENTITIES, "## 4. Rutas del gateway (Envoy Gateway)")
+    login = re.search(r"`(/callback)` del login", spa)
+    step_up = re.search(r"`(/stepup-callback)`", notes)
+    post_logout = re.search(r"exactas: `(https://<host>/)`", notes)
+    assert login and step_up and post_logout
+    host = PUBLIC_HOSTNAME
+    return {
+        "redirectUris": [f"https://{host}{login.group(1)}", f"https://{host}{step_up.group(1)}"],
+        "post_logout": [post_logout.group(1).replace("<host>", host)],
+        "webOrigins": [f"https://{host}"],
+    }
+
+
+def promotion_tool() -> dict[str, object]:
+    row = _client_row("promotion-tool")
+    loopback = re.search(r"`(http://127\.0\.0\.1):\{puerto\}`", row[2])
+    audience = re.search(r"aud = ([\w-]+)`?", row[3].replace("`", ""))
+    scope = re.search(r"scope opcional `([^`]+)`, asignable solo al rol `([^`]+)`", row[3])
+    assert loopback and audience and scope
+    return {
+        "redirectUris": [loopback.group(1)],
+        "audience": audience.group(1),
+        "scope": scope.group(1),
+        "role": scope.group(2),
+    }
+
+
+def grafana_callback() -> str:
+    for row in table_rows(section(DOMAIN_ENTITIES, "## 4. Rutas del gateway (Envoy Gateway)")):
+        if row[0] == "`/grafana/**`":
+            found = re.search(r"callback `(https://<host>[^`]+)`", row[3])
+            assert found
+            return found.group(1).replace("<host>", PUBLIC_HOSTNAME)
+    raise LookupError("domain-entities §4 sin `/grafana/**`")
+
+
+# El diseno no fija que audiencia sigue a que scope (§2.2 solo da las uniones por cliente). Regla: el
+# dominio del scope es el servicio al que apunta. Se valida contra §2.2 en `test_realm_files_*audience*`.
+DOMAIN_AUDIENCE = {
+    "registry": "decision-registry-service",
+    "governance": "governance-service",
+    "core": "core-banking-mock",
+    "bias": "bias-monitoring-service",
+    "intake": "case-service",
+    "case": "scoring-service",
+    "scoring": "explainability-service",
+}
+
+
+def scope_audience(scope: str) -> str:
+    return DOMAIN_AUDIENCE[scope.split(":")[0]]
