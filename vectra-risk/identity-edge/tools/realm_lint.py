@@ -39,6 +39,12 @@ MFA_REQUIRED_ROLES = frozenset({Role.INGENIERO_RIESGO.value, Role.CRO.value, Rol
 }
 TOTP_ACTION = "CONFIGURE_TOTP"
 BREAK_GLASS = "break-glass"
+# Clientes de administracion de INF-U2-05a (enmienda del 2026-11-02): sus cuentas de servicio son las unicas
+# con roles de `realm-management`. `keycloak-config-cli` escribe (`realm-admin`); `keycloak-reader` solo lee.
+ADMIN_CLIENT_ROLES: Mapping[str, frozenset[str]] = {
+    "keycloak-config-cli": frozenset({REALM_ADMIN}),
+    "keycloak-reader": frozenset({"view-realm"}),
+}
 
 CATALOG_SCOPES = frozenset(s.value for s in Scope)
 FORBIDDEN_ACCESS_CLAIMS = frozenset({"preferred_username", "email", "name"})
@@ -143,6 +149,20 @@ def _check_users(realm: Mapping[str, Any], env: str, out: list[Violation]) -> No
         if REALM_ADMIN in _str_list(_dict(user.get("clientRoles")).get(REALM_MANAGEMENT)):
             roles.append(REALM_ADMIN)
         service_account = _is_service_account(user, service_clients)
+        if service_account:
+            management = set(_str_list(_dict(user.get("clientRoles")).get(REALM_MANAGEMENT)))
+            if REALM_ADMIN in _str_list(user.get("realmRoles")):
+                management.add(REALM_ADMIN)
+            allowed = ADMIN_CLIENT_ROLES.get(str(user["serviceAccountClientId"]), frozenset())
+            if management - allowed:
+                out.append(
+                    Violation(
+                        "rol-de-administracion-no-permitido",
+                        where,
+                        f"la cuenta de servicio de `{user['serviceAccountClientId']}` no puede tener "
+                        f"{sorted(management - allowed)} de `{REALM_MANAGEMENT}`; admitido: {sorted(allowed)} (INF-U2-05a)",
+                    )
+                )
         business = [r for r in roles if r in BUSINESS_ROLES]
         if len(business) > 1:
             out.append(

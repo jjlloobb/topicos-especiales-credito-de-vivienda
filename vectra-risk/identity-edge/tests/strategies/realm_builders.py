@@ -96,6 +96,8 @@ def service_clients(env: str) -> list[dict[str, Any]]:
         if client_id == "case-service" and env != "prod":
             audiences.append("core-banking-mock")
         clients.append(service_client(client_id, scopes, audiences))
+    # Clientes de administracion de INF-U2-05a: sin scopes del catalogo ni audiencias de servicio.
+    clients += [service_client("keycloak-config-cli", [], []), service_client("keycloak-reader", [], [])]
     return clients
 
 

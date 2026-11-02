@@ -267,17 +267,58 @@ def test_real_service_account_user_is_not_a_local_user_in_prod() -> None:
     assert lint_realm(realm, "prod") == []
 
 
+def admin_account(target: str, *roles: str, realm_roles: list[str] | None = None) -> dict[str, Any]:
+    return service_account(
+        f"service-account-{target}",
+        target,
+        clientRoles={"realm-management": list(roles)},
+        realmRoles=realm_roles or [],
+        requiredActions=[],
+    )
+
+
 def test_config_applier_service_account_with_realm_admin_needs_no_totp_in_prod() -> None:
     realm = realm_copy("prod")
-    realm["users"].append(
-        service_account(
-            "service-account-case-worker",
-            "case-worker",
-            clientRoles={"realm-management": ["realm-admin"]},
-            requiredActions=[],
-        )
-    )
+    realm["users"].append(admin_account("keycloak-config-cli", "realm-admin"))
     assert lint_realm(realm, "prod") == []
+
+
+def test_reader_service_account_with_only_view_realm_is_accepted_in_prod() -> None:
+    realm = realm_copy("prod")
+    realm["users"].append(admin_account("keycloak-reader", "view-realm"))
+    assert lint_realm(realm, "prod") == []
+
+
+@pytest.mark.parametrize("role", ["realm-admin", "manage-users", "manage-realm", "view-users"])
+def test_reader_service_account_with_any_role_other_than_view_realm_is_rejected(role: str) -> None:
+    realm = realm_copy("prod")
+    realm["users"].append(admin_account("keycloak-reader", "view-realm", role))
+    assert "rol-de-administracion-no-permitido" in rules(realm, "prod")
+
+
+def test_config_applier_service_account_with_an_extra_role_is_rejected() -> None:
+    realm = realm_copy("prod")
+    realm["users"].append(admin_account("keycloak-config-cli", "realm-admin", "manage-users"))
+    assert "rol-de-administracion-no-permitido" in rules(realm, "prod")
+
+
+@pytest.mark.parametrize("role", ["realm-admin", "manage-users", "manage-realm"])
+def test_business_service_account_with_realm_management_role_is_rejected(role: str) -> None:
+    realm = realm_copy("prod")
+    realm["users"].append(admin_account("case-worker", role))
+    assert "rol-de-administracion-no-permitido" in rules(realm, "prod")
+
+
+def test_business_service_account_with_realm_admin_as_realm_role_is_rejected() -> None:
+    realm = realm_copy("prod")
+    realm["users"].append(admin_account("scoring-service", realm_roles=["realm-admin"]))
+    assert "rol-de-administracion-no-permitido" in rules(realm, "prod")
+
+
+def test_admin_roles_are_also_rejected_in_non_production_realms() -> None:
+    realm = realm_copy("staging")
+    realm["users"].append(admin_account("case-worker", "realm-admin"))
+    assert "rol-de-administracion-no-permitido" in rules(realm, "staging")
 
 
 def test_service_account_prefix_alone_does_not_exempt_a_user_in_prod() -> None:
