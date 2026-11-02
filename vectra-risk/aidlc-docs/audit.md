@@ -5121,3 +5121,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## Instrucción: implementar según las unidades
+**Timestamp**: 2026-11-02T15:42:06Z
+**User Input**: "siempre implementa de acuerdo a lo que se definio en las unidades"
+**AI Response**: Se adopta como regla para las tareas del loop: cada tarea copia el alcance y la aceptación del paso del plan de su unidad sin recortes. Revisando U02-T01 contra el plan de U2, su CA-2 omitió `tests/e2e/` y `tests/load/` de la estructura de §1, error del orquestador. Se desmarca el Paso 1 y se agrega `tareas/U02-T02-esqueleto-completo.md` para completarlo, con una prueba que lee la estructura desde el plan.
+**Context**: Construcción de U2.
+
+---
