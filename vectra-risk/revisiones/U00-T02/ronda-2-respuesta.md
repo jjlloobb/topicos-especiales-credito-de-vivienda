@@ -1,0 +1,3 @@
+F-01: Corregido en 8df3479: la línea y su comentario ya no están en `vectra_contracts/__init__.py` (verificado con `git show HEAD:` y `git diff --stat 901e437..HEAD`); `import vectra_contracts.catalog` en ese sha: 7 ms, 2 módulos, sin pydantic.
+F-02: Corregido en 8df3479: `models/__init__.py` define `__all__` (los 207 nombres de c656de2, sin `TYPE_CHECKING` ni `import_module`) y `__getattr__`/`__dir__` resuelven también `models.api`.
+F-03: Corregido en 8df3479: `tests/unit/test_models_lazy_api.py`, en proceso, compara `import *`, `dir()`, `models.api`, identidad de nombres y `AttributeError` contra el conjunto derivado de los submódulos; cobertura de `models/__init__.py` 46 % -> 89 %.
