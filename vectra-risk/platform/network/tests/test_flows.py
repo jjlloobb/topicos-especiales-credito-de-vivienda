@@ -421,3 +421,13 @@ def test_only_opaque_meshed_flows_open_the_proxy_port(env):
     named = {d["metadata"]["name"]: d for d in policies(env, "vectra-data")}
     assert 4143 not in ports_in(named["allow-f123-to-minio-ingress"])
     assert 4143 not in ports_in(named["allow-f80-to-registry-db-ingress"])
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_f130_prometheus_scrapes_the_observability_targets(env):
+    """F130: alertmanager (8080), grafana (3000) y prometheus-operator (8080) dejan de dar 504; sin el 4143."""
+    found = [p for p in policies(env, "vectra-observability") if p["metadata"].get("labels", {}).get("vectra.io/flow") == "F130"]
+    ingress = sorted(sorted(ports_in(p)) for p in found if p["spec"]["policyTypes"] == ["Ingress"])
+    egress = sorted(sorted(ports_in(p)) for p in found if p["spec"]["policyTypes"] == ["Egress"])
+    assert ingress == [[3000], [8080], [8080]]
+    assert egress == [[3000], [8080], [8080]]

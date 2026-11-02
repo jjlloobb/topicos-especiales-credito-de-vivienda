@@ -151,6 +151,7 @@ Tipo: **S** = llamada síncrona request/response · **R** = lectura · **A** = a
 | F127 | API de Kubernetes | Webhooks de esos namespaces | 8080, 8443, 9443, 10250 | O | Sin ellos, con `failurePolicy: Fail`, se rechaza la admisión (2026-11-01) |
 | F128 | Prometheus | Kyverno, cert-manager y la destination de Linkerd | 8000, 9402, 9996 | O | Métricas de `KyvernoUnavailable`, `CertificateExpiringSoon` y `LinkerdControlPlaneDown` (2026-11-01) |
 | F129 | Prometheus | MinIO | 9000 | O | `/minio/v2/metrics/cluster` para `MinioWriteQuorumLost` (2026-11-01) |
+| F130 | Prometheus | Alertmanager, Grafana y `prometheus-operator` (`vectra-observability`) | 8080 / 3000 / 8080 | O | Sus targets de métricas daban 504 (2026-11-01) |
 | F101 | `model-archive` (U4) | MinIO, bucket `model-store` | 9000 | R | Leer artefactos y explicadores para archivarlos |
 | F102 | `model-archive` (U4) | `governance-db` | 5432 | W | Registrar `archived_uri`/`archived_at` (rol `gov_archiver`, permiso por columna) |
 

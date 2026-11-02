@@ -210,6 +210,8 @@ flows:
   - { id: F128, from: [prometheus], to: ["ns:kyverno", "ns:cert-manager"], ports: [8000, 9402] }
   - { id: F128, from: [prometheus], to: [linkerd-control], port: 9996 }
   - { id: F129, from: [prometheus], to: [minio], port: 9000 }
+  - { id: F130, from: [prometheus], to: [alertmanager, prometheus-operator], port: 8080 }
+  - { id: F130, from: [prometheus], to: [grafana], port: 3000 }
   - { id: F102, from: [model-archive], to: [governance-db], port: 5432 }
   - { id: F50, from: [api-gateway, console-bff, case-service, case-worker, scoring-service, explainability-service, governance-service, bias-monitoring-service, bias-monitoring-job, decision-registry-service, product-metrics, model-validation-job, grafana, keycloak-config-cli, core-banking-mock], to: [keycloak], port: 8443 }
   - { id: F60, from: [prometheus], to: ["ns:vectra-app", "ns:vectra-edge", "ns:vectra-serving", "ns:vectra-mock"], port: 8081 }
