@@ -52,7 +52,9 @@ users:
 # Corren en cada sync; ver la nota sobre `ilm rule add` en values.yaml.
 customCommands:
   - { command: "retention set --default GOVERNANCE 90d myminio/loki" }
+  - { command: "ilm rule rm --all --force myminio/loki || true" }
   - { command: "ilm rule add --expire-days 90 --noncurrent-expire-days 1 myminio/loki" }
+  - { command: "ilm rule rm --all --force myminio/tempo || true" }
   - { command: "ilm rule add --expire-days 7 myminio/tempo" }
   - { command: "retention set --default COMPLIANCE 3650d myminio/vectra-registry-checkpoints" }
   - { command: "retention set --default COMPLIANCE 3650d myminio/vectra-registry-archive" }

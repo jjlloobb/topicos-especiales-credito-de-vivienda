@@ -56,11 +56,16 @@ users:
   - { accessKey: model-archive-writer, existingSecret: minio-model-archive, existingSecretKey: secretKey, policy: model-archive }
   - { accessKey: risk-engineer-upload, existingSecret: minio-engineer-upload, existingSecretKey: secretKey, policy: model-store-upload }
 # Estos comandos corren en cada hook post-upgrade, es decir, en cada sync.
-# `retention set` reemplaza la configuracion del bucket. Sin verificar: si repetir `ilm rule add` deja reglas duplicadas
-# (cada una con su ID) y si importa, porque todas expiran igual.
+# `retention set` reemplaza la configuracion del bucket. `ilm rule add` no: cada repeticion agrega una regla con otro ID
+# (verificado: platform/data/minio/tests/ilm_idempotente.sh). Por eso cada `add` va precedido de `ilm rule rm --all --force`.
+# El chart pega el texto del comando en un script `sh` con `set -e`: `|| true` hace falta porque `rm` sale con 1 si el
+# bucket no tiene reglas (primera sync). Limitacion aceptada: `|| true` tambien tolera otro fallo del `rm` (permisos,
+# red); entonces el `add` sigue y puede quedar una regla duplicada. Con `customCommands` no se distingue el error.
 # NFR-U1-30: el lock de 90 dias protege; el lifecycle borra. Las dos banderas existen en `cmd/ilm-rule-add.go` del tag
 # RELEASE.2025-08-13T08-35-41Z de mc; sin verificar contra un MinIO real que borre chunks vencidos sobre un bucket con lock.
 customCommands:
   - { command: "retention set --default GOVERNANCE 90d myminio/loki" }
+  - { command: "ilm rule rm --all --force myminio/loki || true" }
   - { command: "ilm rule add --expire-days 90 --noncurrent-expire-days 1 myminio/loki" }
+  - { command: "ilm rule rm --all --force myminio/tempo || true" }
   - { command: "ilm rule add --expire-days 7 myminio/tempo" }
