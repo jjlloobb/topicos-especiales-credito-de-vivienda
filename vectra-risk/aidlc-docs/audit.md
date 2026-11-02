@@ -5154,3 +5154,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Correcciones de diseño en U0.
 
 ---
+## Enmienda de U00-T02
+**Timestamp**: 2026-11-02T16:56:26Z
+**User Input**: "enmienda U00-T02 y sigue"
+**AI Response**: Se agrega a la tarea el CA-4: la API pública de `vectra_contracts.models` se compara contra c656de2 en un intérprete limpio, con un conjunto derivado y tres mutaciones registradas. Se despacha la ronda 4 al mismo codificador.
+**Context**: Correcciones de diseño en U0.
+
+---
