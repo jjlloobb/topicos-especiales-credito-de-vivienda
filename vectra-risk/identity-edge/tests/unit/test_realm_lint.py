@@ -1,5 +1,6 @@
 """Casos nombrados de `realm-lint` (Pasos 2 y 3 del plan de U2; BR-U2-01, 03, 09, 15; AUTONOMIA-03)."""
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -76,6 +77,87 @@ def test_operacion_with_totp_required_is_accepted() -> None:
     realm = realm_copy("staging")
     assert find_user(realm, "operacion-1")["requiredActions"] == ["CONFIGURE_TOTP"]
     assert lint_realm(realm, "staging") == []
+
+
+# --- MFA por credencial OTP referenciada (U02-T05; domain-entities §3, tabla de usuarios por entorno) ---
+# Supuesto: en la representacion de keycloak-config-cli la credencial es
+# `{"type": "otp", "secretData": "{\"value\":\"<semilla>\"}", "credentialData": "..."}`; `secretData` es un
+# String JSON (CredentialRepresentation de Keycloak) y la semilla va en su campo `value`.
+
+OTP_ENVS = ("kind", "staging", "prod")
+OTP_ROLES = ("ingeniero_riesgo", "cro", "cumplimiento", "operacion")
+
+
+def otp_credential(seed: str, kind: str = "otp") -> dict[str, Any]:
+    return {
+        "type": kind,
+        "secretData": json.dumps({"value": seed}),
+        "credentialData": json.dumps({"subType": "totp", "digits": 6, "period": 30, "algorithm": "HmacSHA1"}),
+    }
+
+
+def mfa_user(role: str, *, actions: list[str], credentials: list[Any] | None) -> dict[str, Any]:
+    u = user("mfa-prueba-1", [role], totp=False)
+    u["requiredActions"] = actions
+    if credentials is not None:
+        u["credentials"] = credentials
+    return u
+
+
+def mfa_rejected(role: str, env: str, **kwargs: Any) -> bool:
+    realm = realm_copy(env)
+    realm["users"].append(mfa_user(role, **kwargs))
+    return "mfa-obligatorio" in rules(realm, env)
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("role", OTP_ROLES)
+def test_otp_credential_referenced_without_totp_action_is_accepted(env: str, role: str) -> None:
+    assert not mfa_rejected(role, env, actions=[], credentials=[otp_credential("$(env:CRO_1_TOTP_SEED)")])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("role", OTP_ROLES)
+def test_totp_action_without_otp_credential_is_accepted(env: str, role: str) -> None:
+    assert not mfa_rejected(role, env, actions=["CONFIGURE_TOTP"], credentials=None)
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("role", OTP_ROLES)
+def test_no_totp_action_and_no_otp_credential_is_rejected(env: str, role: str) -> None:
+    assert mfa_rejected(role, env, actions=[], credentials=None)
+    assert mfa_rejected(role, env, actions=[], credentials=[])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("role", OTP_ROLES)
+@pytest.mark.parametrize(
+    "seed", ["JBSWY3DPEHPK3PXP", "", "$(env:)", "$(env:A B)", "x$(env:SEED)", "$(env:SEED)x", "$(env:SEED) ", "${SEED}"]
+)
+def test_otp_credential_with_a_literal_secret_is_rejected(env: str, role: str, seed: str) -> None:
+    assert mfa_rejected(role, env, actions=[], credentials=[otp_credential(seed)])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize("role", OTP_ROLES)
+@pytest.mark.parametrize("kind", ["password", "webauthn", "OTP", "totp"])
+def test_otp_credential_of_another_type_referenced_is_rejected(env: str, role: str, kind: str) -> None:
+    assert mfa_rejected(role, env, actions=[], credentials=[otp_credential("$(env:SEED)", kind)])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+@pytest.mark.parametrize(
+    "secret_data", [None, "no es json", "[]", '{"valor": "$(env:SEED)"}', '{"value": 1}', {"value": "$(env:SEED)"}]
+)
+def test_otp_credential_with_malformed_secret_data_is_rejected(env: str, secret_data: Any) -> None:
+    credential = {"type": "otp", "secretData": secret_data}
+    assert mfa_rejected("cro", env, actions=[], credentials=[credential])
+
+
+@pytest.mark.parametrize("env", OTP_ENVS)
+def test_malformed_otp_credentials_do_not_crash_and_are_rejected(env: str) -> None:
+    for credentials in ("otp", {"type": "otp"}, ["otp"], [None]):
+        assert mfa_rejected("cro", env, actions=[], credentials=credentials)
 
 
 # --- usuarios locales por entorno -----------------------------------------------------------

@@ -12,6 +12,7 @@ Entradas:
 Los scopes validos salen del catalogo de U0 (`vectra_contracts.catalog`), no de una lista aqui.
 """
 
+import json
 import re
 import sys
 from collections.abc import Iterable, Iterator, Mapping, Sequence
@@ -38,6 +39,10 @@ MFA_REQUIRED_ROLES = frozenset({Role.INGENIERO_RIESGO.value, Role.CRO.value, Rol
     REALM_ADMIN,
 }
 TOTP_ACTION = "CONFIGURE_TOTP"
+# Credencial OTP con la semilla por referencia (U02-T05): `credentials: [{type: otp, secretData: '{"value": "$(env:NOMBRE)"}'}]`.
+# `secretData` es un String JSON (CredentialRepresentation de Keycloak); keycloak-config-cli sustituye `$(env:NOMBRE)`.
+OTP_CREDENTIAL = "otp"
+ENV_REFERENCE = re.compile(r"\$\(env:[A-Za-z_][A-Za-z0-9_]*\)")
 BREAK_GLASS = "break-glass"
 # Clientes de administracion de INF-U2-05a (enmienda del 2026-11-02): sus cuentas de servicio son las unicas
 # con roles de `realm-management`. `keycloak-config-cli` escribe (`realm-admin`); `keycloak-reader` solo lee.
@@ -133,6 +138,22 @@ def _is_service_account(user: Mapping[str, Any], service_clients: frozenset[str]
     return isinstance(target, str) and target in service_clients
 
 
+def _has_referenced_otp(user: Mapping[str, Any]) -> bool:
+    """Una credencial `otp` cuyo secreto es exactamente una referencia `$(env:NOMBRE)`, nunca un literal."""
+    for credential in _list(user.get("credentials")):
+        if _dict(credential).get("type") != OTP_CREDENTIAL:
+            continue
+        raw = _dict(credential).get("secretData")
+        try:
+            secret = json.loads(raw) if isinstance(raw, str) else None
+        except ValueError:
+            continue
+        value = _dict(secret).get("value")
+        if isinstance(value, str) and ENV_REFERENCE.fullmatch(value):
+            return True
+    return False
+
+
 def _check_users(realm: Mapping[str, Any], env: str, out: list[Violation]) -> None:
     service_clients = frozenset(
         str(c.get("clientId"))
@@ -179,10 +200,14 @@ def _check_users(realm: Mapping[str, Any], env: str, out: list[Violation]) -> No
                 Violation("operacion-con-rol-de-negocio", where, f"`{OPERACION}` no puede ir con {sorted(business)}")
             )
         required = sorted(set(roles) & MFA_REQUIRED_ROLES)
-        if required and not service_account and TOTP_ACTION not in _str_list(user.get("requiredActions")):
+        has_totp = TOTP_ACTION in _str_list(user.get("requiredActions")) or _has_referenced_otp(user)
+        if required and not service_account and not has_totp:
             out.append(
                 Violation(
-                    "mfa-obligatorio", where, f"el rol {required} exige la required action {TOTP_ACTION} (BR-U2-03)"
+                    "mfa-obligatorio",
+                    where,
+                    f"el rol {required} exige la required action {TOTP_ACTION} o una credencial `{OTP_CREDENTIAL}` "
+                    f"con secreto `$(env:NOMBRE)` (BR-U2-03)",
                 )
             )
         if env == "prod" and name != BREAK_GLASS and not service_account:
