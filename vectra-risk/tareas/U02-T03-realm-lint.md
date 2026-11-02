@@ -72,6 +72,19 @@ Reglas de `realm-lint` que fija el Paso 2 (citadas del plan):
   ```
   Esperado: termina en 0.
 
+- [ ] **CA-5** — Cuentas de servicio, en **kind, staging y prod** por igual:
+  - una cuenta de servicio es el usuario cuyo `serviceAccountClientId` apunta a un cliente del mismo realm con `serviceAccountsEnabled: true`, y nada más (ni el prefijo del nombre ni otro campo);
+  - una cuenta de servicio nunca tiene roles de usuario (roles de negocio ni `operacion`), domain-entities §2;
+  - solo las cuentas de `keycloak-config-cli` (`realm-admin`) y `keycloak-reader` (solo `view-realm`) tienen roles de `realm-management`; cualquier otro rol de `realm-management`, o `realm-admin` como rol de realm, en cualquier otra cuenta de servicio falla (INF-U2-05a).
+
+  Lectura de vuelta: para cada una de las tres reglas hay un caso que falla y uno que pasa en **cada** entorno (pruebas parametrizadas por kind, staging y prod), entre ellos la cuenta de servicio de `case-worker` con `realm-admin` y `cro` en kind.
+  ```bash
+  uv run pytest identity-edge/tests/unit/test_realm_lint.py -q -k service_account
+  ```
+  Esperado: pasa, con casos de los tres entornos.
+
+> **Enmienda del 2026-11-02 (orquestador, con aprobación del usuario):** se agrega CA-5. La tarea no definía con un criterio qué es una cuenta de servicio ni en qué entornos aplican sus reglas, y eso llevó la tarea a 4 rondas (`revisiones/U02-T03/ronda-4.md`). Los usuarios locales con `realm-admin` en kind y staging quedan fuera (candidata).
+
 ## Plan de pruebas
 
 **Rojo primero:** escribe los casos nombrados antes que el validador y registra que fallan.

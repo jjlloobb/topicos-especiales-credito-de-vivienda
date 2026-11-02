@@ -5230,3 +5230,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## Enmienda de U02-T03
+**Timestamp**: 2026-11-02T19:03:21Z
+**User Input**: "enmienda U02-T03 y sigue"
+**AI Response**: Se agrega a la tarea el CA-5: definición de cuenta de servicio (`serviceAccountClientId` → cliente con `serviceAccountsEnabled`), sin roles de usuario, y roles de `realm-management` solo en `keycloak-config-cli` y `keycloak-reader`, en kind, staging y prod, con pruebas parametrizadas por entorno. La regla para usuarios locales con `realm-admin` en kind y staging no se incluye: pasa a `CANDIDATAS.md`. Se despacha la ronda 5.
+**Context**: Construcción de U2.
+
+---
