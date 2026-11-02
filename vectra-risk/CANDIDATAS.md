@@ -23,3 +23,5 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
 - Instalar shellcheck en `platform/.tools/bin` y correrlo sobre `platform/**/tests/*.sh`; aplicar `ruff format` a `test_upstream_charts.py`, que ya fallaba en `main` (codificador y revisor, U01-T02).
 - La nota de `tareas/U01-T02-ilm-idempotente.md` dice que el chart ejecuta los comandos sin shell; es falso, corren dentro de `/bin/sh` (revisor, U01-T02, F-04). Error de especificación del orquestador.
 - Imponer por configuración el límite de la regla 8 del codificador: reglas de denegación de Claude Code para `kubectl apply|create|delete|patch` y `docker start|stop` en los subagentes, y definir qué es «entorno local de pruebas». En la prueba de cambio de modelo, los dos modelos actuaron sobre `kind-vectra` (caso 9).
+- CI no ejecuta `make -C identity-edge check` ni `identity-edge/tests`: hace falta un workflow para que el `check` de U2 bloquee PR (revisor, U02-T01, ronda 1).
+- Exponer en `contracts/tests/conftest.py` una constante pública con el perfil de Hypothesis por defecto, para que `identity-edge` no mute `os.environ` ni lea `_profile` (revisor, U02-T01, ronda 2, F-04).

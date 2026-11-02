@@ -2,9 +2,9 @@
 
 **Este plan es la única fuente de verdad para generar el código de U2.**
 
-> **Alcance del trabajo actual (instrucción del usuario, `aidlc-state.md`):** aquí se
-> detiene U2. Code Generation Part 2 y Build and Test **no** se ejecutan. Las casillas
-> quedan en `[ ]` para quien implemente.
+> **Alcance del trabajo actual (instrucción del usuario, `aidlc-state.md`, 2026-11-02):**
+> la restricción se levantó para U2. Code Generation Part 2 se ejecuta por tareas del loop
+> (`tareas/U02-*`); cada casilla se marca cuando su PR se fusiona.
 
 ---
 
@@ -60,7 +60,7 @@ vectra-risk/identity-edge/
 
 ### Bloque A — Estructura
 
-- [ ] **Paso 1 — Esqueleto de `identity-edge/`**
+- [x] **Paso 1 — Esqueleto de `identity-edge/`** (U02-T01)
   - Directorios de §1; `pyproject.toml` como miembro del workspace `uv` de U0; `Makefile` con el objetivo `check`; perfiles de Hypothesis importados de `contracts/tests/conftest.py`.
   - **Aceptación**: `uv sync --frozen && make -C identity-edge check` termina en 0 sobre el esqueleto.
 

@@ -5108,3 +5108,9 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Sustentación.
 
 ---
+## Inicio de U2 identity-edge
+**Timestamp**: 2026-11-02T14:49:40Z
+**AI Response**: Con la instrucción del usuario («termina la prueba de cambio de modelo y luego empieza la siguiente unidad») se levanta la restricción de alcance solo para U2 en `aidlc-state.md` y en su plan. El Paso 1 (esqueleto) pasa a la tarea `tareas/U02-T01-esqueleto-identity-edge.md` y se despacha al loop. U3–U12 siguen sin código.
+**Context**: Construcción de U2.
+
+---
