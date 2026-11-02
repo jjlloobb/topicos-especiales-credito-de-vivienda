@@ -5276,3 +5276,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## Decisiones D-A a D-C tras la ronda 2 de U02-T04
+**Timestamp**: 2026-11-02T20:38:06Z
+**User Input**: Respuestas a tres preguntas del orquestador: D-A amr = "RFC 8176 (Recomendado)"; D-B loa-max-age = "36 000 s (Recomendado)"; D-C audiencia = "Regla por dominio (Recomendado)".
+**AI Response**: U02-T04 salió NO-VERDE en la ronda 2 (dos NARANJA que dependían de datos del diseño y AMARILLO de pruebas). Se enmienda domain-entities: valores de `amr` de RFC 8176 por referencia en el flujo, `loa-max-age` = 36 000 s en §6, y la tabla scope → audiencia en §2.2. El orquestador corrige además el texto de BR-U2-16, que su enmienda anterior había dejado cortado. Se despacha la ronda 3.
+**Context**: Construcción de U2.
+
+---
