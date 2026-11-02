@@ -4,7 +4,8 @@ import json
 import re
 import sys
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import unquote_plus
@@ -171,3 +172,63 @@ def test_check_counts_a_missing_team_as_drift_and_pushes_the_metric(server, monk
     assert fp.main(["folder_permissions.py", "check"]) == 0
     assert fake.pushed == [("/metrics/job/grafana-folder-permissions", "vectra_grafana_folder_permissions_drift 1\n")]
     assert len(fake.writes) == writes
+
+
+@pytest.fixture
+def slow_server():
+    """Servidor que no responde a tiempo las primeras `slow` peticiones; registra cada peticion recibida."""
+    state = {"slow": 2, "seen": [], "status": 200}
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            state["seen"].append(self.path)
+            if len(state["seen"]) <= state["slow"]:
+                time.sleep(0.6)
+            raw = b'{"ok": true}'
+            self.send_response(state["status"])
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            try:
+                self.wfile.write(raw)
+            except OSError:
+                pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    yield state, f"http://127.0.0.1:{httpd.server_port}"
+    httpd.shutdown()
+
+
+@pytest.fixture(autouse=True)
+def fast_timeouts(monkeypatch):
+    monkeypatch.setattr(fp, "TIMEOUT", 0.2)
+    monkeypatch.setattr(fp, "BACKOFF", 0.01, raising=False)
+
+
+def fast_client(url):
+    return fp.Grafana(url, "t")
+
+
+def test_request_retries_on_timeout(slow_server):
+    state, url = slow_server
+    assert fast_client(url).request("GET", "/api/x") == {"ok": True}
+    assert len(state["seen"]) == 3
+
+
+def test_request_fails_clearly_after_three_timeouts(slow_server):
+    state, url = slow_server
+    state["slow"] = 99
+    with pytest.raises(fp.RequestTimeoutError, match="3"):
+        fast_client(url).request("GET", "/api/x")
+    assert len(state["seen"]) == 3
+
+
+def test_forbidden_is_not_retried(slow_server):
+    state, url = slow_server
+    state["slow"], state["status"] = 0, 403
+    with pytest.raises(HTTPError):
+        fast_client(url).request("GET", "/api/x")
+    assert len(state["seen"]) == 1

@@ -12,6 +12,7 @@ paso del operador: platform/runbooks/install.md.
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -22,6 +23,8 @@ import yaml
 
 LEVELS = {"View": 1, "Edit": 2, "Admin": 4}
 TIMEOUT = 5
+ATTEMPTS = 3
+BACKOFF = 2.0
 HTTP_NOT_FOUND = 404
 HTTP_CONFLICT = 409
 
@@ -34,6 +37,17 @@ class TeamMissingError(LookupError):
         self.name = name
 
 
+class RequestTimeoutError(TimeoutError):
+    """La peticion agoto el tiempo en todos los intentos."""
+
+    def __init__(self, method: str, path: str, attempts: int) -> None:
+        super().__init__(f"{method} {path} agoto el tiempo de espera en {attempts} intentos")
+
+
+def is_timeout(exc: BaseException) -> bool:
+    return isinstance(exc, TimeoutError) or (isinstance(exc, urllib.error.URLError) and isinstance(exc.reason, TimeoutError))
+
+
 class Grafana:
     def __init__(self, url: str, token: str) -> None:
         self.url, self.token = url.rstrip("/"), token
@@ -42,9 +56,20 @@ class Grafana:
         data = None if body is None else json.dumps(body).encode()
         headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
         request = urllib.request.Request(self.url + path, data=data, method=method, headers=headers)  # noqa: S310
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:  # noqa: S310
-            raw = response.read()
-        return json.loads(raw) if raw else None
+        for attempt in range(1, ATTEMPTS + 1):
+            try:
+                with urllib.request.urlopen(request, timeout=TIMEOUT) as response:  # noqa: S310
+                    raw = response.read()
+            except (TimeoutError, urllib.error.URLError) as exc:
+                # HTTPError (4xx/5xx) es un URLError con respuesta: no se reintenta.
+                if isinstance(exc, urllib.error.HTTPError) or not is_timeout(exc):
+                    raise
+                if attempt == ATTEMPTS:
+                    raise RequestTimeoutError(method, path, ATTEMPTS) from exc
+                time.sleep(BACKOFF * attempt)
+            else:
+                return json.loads(raw) if raw else None
+        raise AssertionError("inalcanzable")  # pragma: no cover
 
     def folder_exists(self, uid: str) -> bool:
         try:
