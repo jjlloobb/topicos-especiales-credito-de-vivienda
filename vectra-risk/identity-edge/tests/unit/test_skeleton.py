@@ -17,10 +17,13 @@ def _plan_directories() -> set[str]:
     block = section.split("```text", 1)[1].split("```", 1)[0]
     dirs: set[str] = set()
     stack: list[str] = []
-    for line in block.splitlines():
+    lines = [ln.rstrip() for ln in block.splitlines() if ln.strip()]
+    # La primera linea no vacia es la raiz (`vectra-risk/identity-edge/`); el resto son entradas.
+    for line in lines[1:]:
         m = _ENTRY.match(line)
         if m is None:
-            continue
+            # Nunca se descarta en silencio: una linea que no se entiende rompe la prueba.
+            raise AssertionError(f"linea de §1 que la prueba no sabe interpretar: {line!r}")
         depth = len(m["prefix"]) // 4
         name = m["name"]
         stack = stack[:depth]
@@ -35,6 +38,8 @@ def _plan_directories() -> set[str]:
 
 
 def test_skeleton_matches_plan() -> None:
+    """§1 ⊆ arbol real. Es un subconjunto a proposito: §1 aun no lista directorios que
+    crean otros pasos (p. ej. tests/strategies/), asi que los sobrantes no se reprochan."""
     expected = _plan_directories()
     # Sanidad: la lectura del plan debe encontrar la estructura completa.
     assert {"keycloak/themes/vectra", "tests/e2e", "tests/load", "charts/valkey"} <= expected
