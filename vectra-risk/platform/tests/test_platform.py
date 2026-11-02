@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 from forbidden_steps import dockerfile_violations, workflow_violations
+from pg_hba_rules import assert_postgres_requires_tls
 from rollback_note import has_rollback_note
 from test_runbooks import template_sections
 
@@ -130,15 +131,8 @@ def test_postgres_requires_tls(env):
     found = {d["metadata"]["name"]: d for d in rendered if d and d["kind"] == "Cluster"}
     assert len(found) == 4
     for name, cluster in found.items():
+        assert_postgres_requires_tls(cluster, name)
         parameters = cluster["spec"]["postgresql"]
-        rules = [line.split() for line in parameters["pg_hba"]]
-        assert rules, name
-        for rule in rules:
-            assert rule[0] in {"hostssl", "hostnossl"}, (name, rule)
-            assert rule[0] == "hostssl" or rule[-1] == "reject", (name, rule)
-        # Sin este rechazo, la regla `host ... scram-sha-256` que el operador agrega al final admite texto plano.
-        assert ["hostnossl", "all", "all", "all", "reject"] in rules, name
-        assert any(r[0] == "hostssl" and r[-1] == "scram-sha-256" for r in rules), name
         assert parameters["parameters"]["ssl_min_protocol_version"] == "TLSv1.2"
 
 

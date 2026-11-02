@@ -14,7 +14,9 @@ import yaml
 
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent / "tests"))
 from drill import INTERNAL_CA, DrillResult, KubectlCommands, main, metrics_body, run_drill  # noqa: E402
+from pg_hba_rules import assert_postgres_requires_tls  # noqa: E402
 
 
 class Fake:
@@ -287,8 +289,6 @@ def test_the_drill_mounts_the_internal_ca_and_the_ephemeral_cluster_serves_a_cer
     assert f"serverCASecret: {certificate['spec']['secretName']}" in script
 
 
-def test_the_ephemeral_cluster_rejects_plain_text_connections():
-    script = (HERE / "restore-cluster.sh").read_text(encoding="utf-8")
-    assert "      - hostnossl all all all reject\n" in script
-    assert "      - hostssl all all all scram-sha-256\n" in script
-    assert "      - host " not in script
+def test_the_ephemeral_cluster_rejects_plain_text_connections(tmp_path, monkeypatch):
+    for name, source in (("restore-registry", "registry-db"), ("restore-case", "case-db")):
+        assert_postgres_requires_tls(manifest(tmp_path, monkeypatch, name, source), name)
