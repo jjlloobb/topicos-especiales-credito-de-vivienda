@@ -12,6 +12,7 @@ Entradas:
 Los scopes validos salen del catalogo de U0 (`vectra_contracts.catalog`), no de una lista aqui.
 """
 
+import json
 import re
 import sys
 from collections.abc import Iterable, Iterator, Mapping, Sequence
@@ -38,6 +39,20 @@ MFA_REQUIRED_ROLES = frozenset({Role.INGENIERO_RIESGO.value, Role.CRO.value, Rol
     REALM_ADMIN,
 }
 TOTP_ACTION = "CONFIGURE_TOTP"
+# Credencial OTP con la semilla por referencia (U02-T05, forma unica de domain-entities §3):
+# `credentials: [{type: otp, secretData: '{"value":"$(env:SYNTH_<USUARIO>_TOTP_SEED)"}', credentialData: '{...,"secretEncoding":"BASE32"}'}]`.
+# `secretData` y `credentialData` son String JSON (CredentialRepresentation de Keycloak); `<USUARIO>` es el nombre del
+# usuario en mayusculas con `_` en vez de `-`. Cualquier otra forma es invalida.
+OTP_CREDENTIAL = "otp"
+# `credentialData` exacto (E4): estos cinco campos y, ademas, solo `counter: 0` (que escribe U02-T04).
+OTP_CREDENTIAL_DATA: Mapping[str, Any] = {
+    "subType": "totp",
+    "digits": 6,
+    "period": 30,
+    "algorithm": "HmacSHA1",
+    "secretEncoding": "BASE32",
+}
+OTP_OPTIONAL_DATA: Mapping[str, Any] = {"counter": 0}
 BREAK_GLASS = "break-glass"
 # Clientes de administracion de INF-U2-05a (enmienda del 2026-11-02): sus cuentas de servicio son las unicas
 # con roles de `realm-management`. `keycloak-config-cli` escribe (`realm-admin`); `keycloak-reader` solo lee.
@@ -133,6 +148,50 @@ def _is_service_account(user: Mapping[str, Any], service_clients: frozenset[str]
     return isinstance(target, str) and target in service_clients
 
 
+def otp_seed_reference(username: str) -> str:
+    return f"$(env:SYNTH_{username.upper().replace('-', '_')}_TOTP_SEED)"
+
+
+def _json_object(raw: Any) -> dict[str, Any]:
+    """El objeto de un String JSON; `{}` si no es un String, no es JSON o no es un objeto."""
+    if not isinstance(raw, str):
+        return {}
+    try:
+        return _dict(json.loads(raw))
+    except ValueError:
+        return {}
+
+
+def _same_json(actual: Mapping[str, Any], expected: Mapping[str, Any]) -> bool:
+    """Igualdad con el tipo (`1 == True` y `6 == 6.0` en Python), clave por clave."""
+    return actual.keys() == expected.keys() and all(
+        type(actual[k]) is type(v) and actual[k] == v for k, v in expected.items()
+    )
+
+
+def _is_otp_credential_data(data: Mapping[str, Any]) -> bool:
+    required = dict(OTP_CREDENTIAL_DATA)
+    return _same_json(data, required) or _same_json(data, {**required, **OTP_OPTIONAL_DATA})
+
+
+def _has_referenced_otp(user: Mapping[str, Any]) -> bool:
+    """Alguna credencial `otp` con la forma unica: semilla `$(env:SYNTH_<USUARIO>_TOTP_SEED)` del propio usuario
+    en `secretData` y `credentialData` exacto (cinco campos, `counter: 0` opcional). Se miran todas las credenciales."""
+    username = user.get("username")
+    if not isinstance(username, str) or not username:
+        return False
+    expected = otp_seed_reference(username)
+    for credential in _list(user.get("credentials")):
+        credential = _dict(credential)
+        if credential.get("type") != OTP_CREDENTIAL:
+            continue
+        seed = _json_object(credential.get("secretData")).get("value")
+        data = _json_object(credential.get("credentialData"))
+        if seed == expected and _is_otp_credential_data(data):
+            return True
+    return False
+
+
 def _check_users(realm: Mapping[str, Any], env: str, out: list[Violation]) -> None:
     service_clients = frozenset(
         str(c.get("clientId"))
@@ -179,10 +238,14 @@ def _check_users(realm: Mapping[str, Any], env: str, out: list[Violation]) -> No
                 Violation("operacion-con-rol-de-negocio", where, f"`{OPERACION}` no puede ir con {sorted(business)}")
             )
         required = sorted(set(roles) & MFA_REQUIRED_ROLES)
-        if required and not service_account and TOTP_ACTION not in _str_list(user.get("requiredActions")):
+        has_totp = TOTP_ACTION in _str_list(user.get("requiredActions")) or _has_referenced_otp(user)
+        if required and not service_account and not has_totp:
             out.append(
                 Violation(
-                    "mfa-obligatorio", where, f"el rol {required} exige la required action {TOTP_ACTION} (BR-U2-03)"
+                    "mfa-obligatorio",
+                    where,
+                    f"el rol {required} exige la required action {TOTP_ACTION} o una credencial `{OTP_CREDENTIAL}` "
+                    f"con la forma de domain-entities §3 (BR-U2-03)",
                 )
             )
         if env == "prod" and name != BREAK_GLASS and not service_account:

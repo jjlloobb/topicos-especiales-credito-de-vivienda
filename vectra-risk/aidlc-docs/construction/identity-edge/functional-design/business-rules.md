@@ -105,6 +105,7 @@ rechazaría (defensa en profundidad; revisión del Infrastructure Design de U10,
 
 **BR-U2-16 — Eventos sin identificadores personales directos.** Los eventos de login y de
 administración se emiten con `userId` (UUID) y nunca con `username` ni `email`. La
+El realm usa el listener `jboss-logging`; el pipeline de logs de U1 (Alloy) descarta `username` y `email` de los eventos de Keycloak antes de Loki, con su prueba (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04). La
 correlación con los logs de los servicios se hace por `userId` = `sub` =
 `principal_subject`. Retención: la de Loki (90 días, U1).
 

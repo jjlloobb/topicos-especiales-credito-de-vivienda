@@ -18,7 +18,8 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 
 - Un solo origen para la SPA, `/api/**`, `/auth/**`, `/grafana/**` y `/federate`. Esto sostiene la CSP con `'self'` y el embebido de Grafana (BR-U2-13).
 - Keycloak: `hostname` = el público con el path `/auth`; `hostname-admin` = `keycloak-admin.vectra-identity.svc.cluster.local`, que no está en el gateway (X10).
-- Los nombres de staging y prod son de ejemplo y se fijan con el banco en los values de cada entorno.
+- Los nombres de staging y prod son de ejemplo y se fijan con el banco en los values de cada entorno. El realm no los repite: usa `$(env:PUBLIC_HOSTNAME)`, que sale de esos values (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04).
+- Contrato de variables del realm con el despliegue (Paso 5): `PUBLIC_HOSTNAME`, `CLIENT_<ID>_JWKS`, `SYNTH_<USUARIO>_*`, `BREAK_GLASS_PASSWORD` y `LDAP_*` (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04).
 
 ## 2. Gateway (Q2)
 
@@ -89,7 +90,8 @@ las cuotas de U1 (NFR-U1-13).
 - **LDAPS (636)** hacia el LDAP del banco (F73), verificando su certificado con la CA del banco (truststore desde ESO).
 - Cuenta de *bind* de solo lectura, desde ESO.
 - Modo de edición `READ_ONLY`; importación de usuarios habilitada; sincronización de cambios cada 15 min; mapper de grupos → roles según `group-role-map` (BR-U2-15).
-- Sin caché de contraseñas: si el LDAP no responde, los usuarios no pueden autenticarse. Alerta **`LdapUnavailable` (SEV2)**, que se agrega a las alertas de P-U2-09.
+- Host, base DN, atributos y vendor del LDAP salen de ESO o de los values como `$(env:LDAP_*)`; los demás parámetros de la federación quedan con el valor por defecto de Keycloak (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04).
+- Sin caché de contraseñas: si el LDAP no responde, los usuarios no pueden autenticarse. Esto no es `cachePolicy: NO_CACHE` (caché de usuarios), que no se exige (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04). Alerta **`LdapUnavailable` (SEV2)**, que se agrega a las alertas de P-U2-09.
 - F73 ya existe en el inventario de egress («solo en producción real»).
 
 ## 6. Imagen de Keycloak (Q6)
