@@ -233,6 +233,8 @@ vectra-risk-gitops/
 
 ### Bloque I — Verificación en kind (con aprobación humana)
 
+> **Ensayo en kind (2026-11-02, issue 7):** resultado y propuesta de cierre con alcance acotado en `../platform-foundation/evidence/cierre-acotado.md`. Los Pasos 19, 20 y 23 siguen sin marcar hasta su aprobación.
+
 - [ ] **Paso 19 — Puerta de aprobación e instalación en kind**
   - **Requisito previo**: un PR con los Pasos 1–18 aprobado por un humano. La aprobación queda registrada en el PR.
   - El **operador** crea el clúster kind (`kind create cluster --config platform/kind/cluster.yaml`), corre la suite de conformidad del CNI y sincroniza manualmente las waves 0–6 en Argo CD, siguiendo `runbooks/install.md`.

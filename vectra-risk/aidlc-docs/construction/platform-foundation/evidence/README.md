@@ -12,3 +12,5 @@ Ejecutado por el agente a pedido del responsable, con su aprobación registrada 
 | `simulacro-objeto-bloqueado.txt` | Borrado rechazado de un objeto bloqueado |
 | `simulacro-ilm.txt` | Regla `ilm` repetida: se acumula, sin corregir |
 | `simulacro-failover-reducido.txt` | Failover reducido de `registry-db`: **inconcluso** |
+| `make-check.txt` | Final de `make -C platform check` |
+| `cierre-acotado.md` | Propuesta de cierre con alcance acotado |

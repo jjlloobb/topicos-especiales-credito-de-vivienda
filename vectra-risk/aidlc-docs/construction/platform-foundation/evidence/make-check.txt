@@ -1,0 +1,32 @@
+### make -C platform check, Mon Nov  2 03:17:37 AM UTC 2026, ba84402
+  SUCCESS: 33 rules found
+
+cd vectra-risk && uv run python platform/tests/rego_fixtures.py
+10 reglas de conftest con su caso bueno y su caso malo
+vectra-risk/platform/.tools/bin/conftest test --policy vectra-risk/platform/policies/rego vectra-risk/platform/rendered/prod
+
+700 tests, 700 passed, 0 warnings, 0 failures, 0 exceptions
+vectra-risk/platform/.tools/bin/conftest test --combine --namespace hpa --policy vectra-risk/platform/policies/rego vectra-risk/platform/rendered/prod
+
+3 tests, 3 passed, 0 warnings, 0 failures, 0 exceptions
+vectra-risk/platform/.tools/bin/conftest test --policy vectra-risk/platform/policies/rego vectra-risk-gitops/apps/prod
+
+273 tests, 273 passed, 0 warnings, 0 failures, 0 exceptions
+vectra-risk/platform/.tools/bin/kyverno apply vectra-risk/platform/policies/kyverno/disallow-argocd-auto-sync.yaml --resource vectra-risk-gitops/apps/prod
+Warning: vectra-risk/platform/policies/kyverno/disallow-argocd-auto-sync.yaml: kyverno.io/v1 ClusterPolicy is deprecated and will be removed in a future release; migrate to ValidatingPolicy, MutatingP
+
+Applying 1 policy rule(s) to 39 resource(s)...
+
+pass: 38, fail: 0, warn: 0, error: 0, skip: 0 
+cd vectra-risk/.. && vectra-risk/platform/.tools/bin/actionlint .github/workflows/*.yml
+make -f vectra-risk/platform/Makefile check-integration
+make[1]: Entering directory 'vectra-risk/platform'
+rm -rf vectra-risk/platform/.tools/integration && mkdir -p vectra-risk/platform/.tools/integration/policies
+cd vectra-risk && uv run python platform/tests/integration.py --out vectra-risk/platform/.tools/integration/resources
+cd vectra-risk/platform/policies/kyverno && cp disallow-latest.yaml require-run-as-non-root.yaml disallow-privileged.yaml disallow-host-path.yaml require-ro-rootfs.yaml require-resources.yaml require-
+vectra-risk/platform/.tools/bin/kyverno apply vectra-risk/platform/.tools/integration/policies --resource vectra-risk/platform/.tools/integration/resources > vectra-risk/platform/.tools/integration/re
+grep -E 'pass: [1-9][0-9]*, fail: 0, warn: 0, error: 0' vectra-risk/platform/.tools/integration/report.txt || { grep -E 'failed:|-> resource|fail:|^[0-9]+\.' vectra-risk/platform/.tools/integration/re
+pass: 239, fail: 0, warn: 0, error: 0, skip: 0 
+make[1]: Leaving directory 'vectra-risk/platform'
+make: Leaving directory 'vectra-risk/platform'
+exit 0

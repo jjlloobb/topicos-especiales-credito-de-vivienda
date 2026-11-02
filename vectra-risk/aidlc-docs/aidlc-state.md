@@ -71,7 +71,7 @@
 ## Current Status
 - **Lifecycle Phase**: CONSTRUCTION
 - **Current Stage**: CONSTRUCTION cerrada en los planes de tareas de U0–U12
-- **Next Stage**: U0 y U1 aprobadas por el usuario el 2026-11-01. Ya están en `main`. Los Pasos 19 y 20 de U1 los ejecuta un operador en el issue 7 (AUTONOMIA-01): tramo A terminado, sigue el tramo B; el failover de zona necesita una máquina de al menos 32 GiB. El Paso 23 cierra después. U2 a U12 siguen en plan de tareas.
+- **Next Stage**: U0 y U1 ya están en `main`. El ensayo de U1 en kind (issue 7) terminó sus tramos A a D con hallazgos corregidos por PR y el failover de zona inconcluso. Propuesta de cierre con alcance acotado en `construction/platform-foundation/evidence/cierre-acotado.md`, pendiente de aprobación humana y de `linkerd check`; el Paso 23 cierra después. U2 a U12 siguen en plan de tareas.
 
 ## Per-Unit Progress (CONSTRUCTION)
 | Unidad | FD | NFR Req | NFR Design | Infra Design | Plan de tareas |
