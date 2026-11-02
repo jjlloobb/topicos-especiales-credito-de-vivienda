@@ -2128,12 +2128,11 @@ export interface components {
             kind: "recommendation";
             /** Model Version Id */
             model_version_id: string;
-            /** Outcome */
-            outcome: string;
+            outcome: components["schemas"]["Outcome"];
             /** Policy Version Id */
             policy_version_id: string;
             /** Reasons */
-            reasons: string[];
+            reasons: components["schemas"]["ReasonCode"][];
             /** Registry Entry Id */
             registry_entry_id: string;
             /** Score */
