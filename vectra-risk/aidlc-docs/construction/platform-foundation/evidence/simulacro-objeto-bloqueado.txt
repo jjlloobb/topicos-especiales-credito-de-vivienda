@@ -1,0 +1,11 @@
+### objeto bloqueado: Mon Nov  2 12:51:54 AM UTC 2026
+loki/ model-store/ tempo/ validation-datasets/ vectra-backups/ vectra-model-archive/ vectra-registry-archive/ vectra-registry-checkpoints/ 
+Object locking 'GOVERNANCE' is configured for 90DAYS.
+ 0 B / ?  0 B / ?  0 B / ?  0 B / ?  0 B / ?  0 B / ?  18 B / ?  22 B/s 18 B / ?  19 B/s 18 B / ?  16 B/s 18 B / ?  15 B/s 18 B / ?  13 B/s18 bytes -> `s/loki/simulacro/lock-test.txt`
+{'versionID': '2d7ba7d5-7911-4a18-a540-efb6434af1f3'} GOVERNANCE 2027-01-31T00:52:01.536Z
+--- borrar con version-id 2d7ba7d5-7911-4a18-a540-efb6434af1f3
+mc: <ERROR> Failed to remove `s/loki/simulacro/lock-test.txt`. Object, 'simulacro/lock-test.txt (Version ID=2d7ba7d5-7911-4a18-a540-efb6434af1f3)' is WORM protected and cannot be overwritten
+exit 1
+Name      : lock-test.txt
+Date      : 2026-11-02 00:52:02 UTC 
+Size      : 18 B   

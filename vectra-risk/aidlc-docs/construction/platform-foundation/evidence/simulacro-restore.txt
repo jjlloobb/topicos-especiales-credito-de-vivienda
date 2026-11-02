@@ -1,0 +1,15 @@
+### restore parcial: Mon Nov  2 12:55:38 AM UTC 2026, main 2dbc896
+--- registry-db -> restore-registry (mem disponible 3 GiB)
+Warning: Native support for Barman Cloud backups and recovery is deprecated and will be completely removed in CloudNativePG 1.31.0. Found us
+cluster.postgresql.cnpg.io/restore-registry created
+cluster.postgresql.cnpg.io/restore-registry condition met
+create exit 0 en 144 s
+restore-registry   2m22s   1     1     Cluster in healthy state   restore-registry-1
+registry_verifier|f|167808088
+psql exit 0
+--- case-db -> restore-case (mem disponible 4 GiB)
+Warning: Native support for Barman Cloud backups and recovery is deprecated and will be completely removed in CloudNativePG 1.31.0. Found us
+cluster.postgresql.cnpg.io/restore-case created
+cluster.postgresql.cnpg.io/restore-case condition met
+create exit 0 en 110 s
+restore-case   112s   1     1     Cluster in healthy state   restore-case-1

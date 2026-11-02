@@ -4725,3 +4725,42 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Issue 7, tramo D.
 
 ---
+
+## Tramo D terminado
+**Timestamp**: 2026-11-02T01:07:04Z
+**AI Response**: PR 19 y PR 20 ya fusionados por el usuario. Restore de `registry-db` (144 s, LSN 167808088 con `registry_verifier`) y `case-db` (110 s). `latest` rechazado y objeto bloqueado protegido. La regla `ilm` repetida se acumula: sin corregir. Alertas falsas resueltas en el clúster. `grafana-folder-check` falla bajo carga y pasa con carga baja, sin causa confirmada. Falta el failover de zona; el Paso 20 sigue incompleto.
+**Context**: Issue 7, tramo D.
+
+---
+
+## Consulta del usuario sobre el siguiente paso
+**Timestamp**: 2026-11-02T01:16:49Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Se recomienda cerrar U1 como parcial con la evidencia en un PR, consultar a cumplimiento y fijar la fecha de sustentación antes de decidir sobre U2.
+**Context**: Issue 7, cierre de U1.
+
+---
+
+## Failover en esta máquina
+**Timestamp**: 2026-11-02T01:17:59Z
+**User Input**: "puedo realizar el failover en esta misma maquina?"
+**AI Response**: Se revisa, solo lectura, qué pide el simulacro y qué permite el perfil liviano.
+**Context**: Issue 7, Paso 20.
+
+---
+
+## Failover reducido y cierre de U1
+**Timestamp**: 2026-11-02T01:20:31Z
+**User Input**: "puedo manejar una version reducida del failover para tener U1 completo?"
+**AI Response**: Se revisan, solo lectura, los criterios de aceptación de los Pasos 19, 20 y 23 de U1.
+**Context**: Issue 7, cierre de U1.
+
+---
+
+## Evidencia y failover reducido
+**Timestamp**: 2026-11-02T01:24:54Z
+**User Input**: "realiza los pasos 1, 2, 3 y 4"
+**AI Response**: Se guarda la evidencia en un PR y se revisa la máquina. A pedido del usuario se ejecuta un failover reducido solo con `registry-db` en `kind-vectra`, que se registra como reducido. La casilla del failover completo queda sin marcar.
+**Context**: Issue 7, Paso 20.
+
+---

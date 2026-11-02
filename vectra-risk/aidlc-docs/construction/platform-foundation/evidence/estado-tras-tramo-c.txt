@@ -1,0 +1,52 @@
+Mon Nov  2 01:24:55 AM UTC 2026
+main 695760a
+alloy Synced Healthy
+argo-cd Synced Healthy
+cert-manager Synced Healthy
+cloudnative-pg Synced Healthy
+envoy-gateway Synced Healthy
+external-secrets Synced Healthy
+external-secrets-rbac Synced Healthy
+external-secrets-rbac-kind Synced Healthy
+grafana-config Synced Healthy
+grafana-dashboards Synced Healthy
+grafana-secrets Synced Healthy
+kserve Synced Healthy
+kserve-crd Synced Healthy
+kube-prometheus-stack Synced Healthy
+kyverno OutOfSync Healthy
+kyverno-context-rbac Synced Healthy
+kyverno-policies OutOfSync Healthy
+linkerd-cni Synced Healthy
+linkerd-control-plane OutOfSync Healthy
+linkerd-crds Synced Healthy
+loki Synced Healthy
+mesh-certificates Synced Healthy
+minio Synced Healthy
+namespaces Synced Healthy
+network Synced Healthy
+observability-monitors OutOfSync Healthy
+observability-rules Synced Healthy
+otel-collector Synced Healthy
+postgres OutOfSync Healthy
+priority-classes Synced Healthy
+prometheus-operator-crds Synced Healthy
+pushgateway Synced Healthy
+quotas Synced Healthy
+restore-drill Synced Healthy
+root Synced Healthy
+secret-store Synced Healthy
+secret-store-env Synced Healthy
+tempo Synced Healthy
+trust-manager Synced Healthy
+vault Synced Healthy
+verification-operator Synced Healthy
+
+vectra-data   case-db         6h41m   1     1     Cluster in healthy state   case-db-1
+vectra-data   governance-db   6h40m   1     1     Cluster in healthy state   governance-db-1
+vectra-data   keycloak-db     6h40m   1     1     Cluster in healthy state   keycloak-db-1
+vectra-data   registry-db     6h40m   1     1     Cluster in healthy state   registry-db-1
+
+vectra-control-plane Ready v1.37.0
+vectra-worker Ready zone-a
+vectra-worker2 Ready zone-b
