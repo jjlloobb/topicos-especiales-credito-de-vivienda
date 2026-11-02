@@ -5244,3 +5244,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## Decisión sobre credentialData tras la ronda 2 de U02-T05
+**Timestamp**: 2026-11-02T20:10:17Z
+**User Input**: Respuesta a la pregunta del orquestador: E4 = "Los cinco exactos (Recomendado)".
+**AI Response**: U02-T05 salió NO-VERDE en la ronda 2 (sobreviven mutantes de campos en sitio equivocado). Se fija en domain-entities que los cinco campos de `credentialData` son obligatorios con sus valores exactos, con `"counter":0` como única clave extra, y se agrega a la tarea el CA-4. Se despacha la ronda 3. Además, se liberaron unos 4,5 GB del scratchpad borrando copias de revisiones de tareas ya fusionadas.
+**Context**: Construcción de U2.
+
+---

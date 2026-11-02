@@ -42,6 +42,14 @@ Ajuste del Paso 3 del plan de U2, por la decisión D5 del usuario tras la ronda 
 
 > **Enmienda del 2026-11-02 (orquestador, con aprobación del usuario, decisiones E1–E3):** se agrega CA-3 con la forma única de la credencial OTP que fija domain-entities.
 
+- [ ] **CA-4** — `credentialData` exige exactamente `subType: totp`, `digits: 6`, `period: 30`, `algorithm: HmacSHA1` y `secretEncoding: BASE32`, y solo admite además `counter: 0`; `secretEncoding` fuera de `credentialData` o la semilla fuera de `secretData` fallan; un usuario sin `username` no tiene credencial válida. Lectura de vuelta: un caso por campo con otro valor, por clave extra, por campo en sitio equivocado y sin `username`, en kind, staging y prod.
+  ```bash
+  uv run pytest identity-edge/tests/unit/test_realm_lint.py -q -k otp_credential_data
+  ```
+  Esperado: pasa.
+
+> **Enmienda del 2026-11-02 (orquestador, con aprobación del usuario, decisión E4):** se agrega CA-4.
+
 ## Plan de pruebas
 
 **Rojo primero:** escribe los casos de CA-1 y registra que el caso válido con credencial `otp` referenciada falla con el validador actual.
