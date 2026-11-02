@@ -5148,3 +5148,30 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Correcciones de diseño en U0 y U1.
 
 ---
+## U00-T02 detenida tras 3 rondas
+**Timestamp**: 2026-11-02T16:49:34Z
+**AI Response**: U00-T01 VERDE en 1 ronda (PR 47) y U01-T07 VERDE en 3 (PR 48). U00-T02 sale NO-VERDE en la ronda 3: el código cumple (ciclo roto en ejecución, API pública de `models` igual a c656de2, `make check` en 0), pero la prueba nueva no detecta regresiones de `__dir__` ni de `models.api` porque corre en proceso con `api` precargado. Por la regla del loop, la tarea se detiene y se lleva al usuario. Causa en la especificación (orquestador): la tarea pedía «sin cambiar la API pública» sin un criterio con comando que lo comprobara. Rama `tarea/U00-T02` publicada, sin PR.
+**Context**: Correcciones de diseño en U0.
+
+---
+## Enmienda de U00-T02
+**Timestamp**: 2026-11-02T16:56:26Z
+**User Input**: "enmienda U00-T02 y sigue"
+**AI Response**: Se agrega a la tarea el CA-4: la API pública de `vectra_contracts.models` se compara contra c656de2 en un intérprete limpio, con un conjunto derivado y tres mutaciones registradas. Se despacha la ronda 4 al mismo codificador.
+**Context**: Correcciones de diseño en U0.
+
+---
+## Revisión y resolución de los PR abiertos
+**Timestamp**: 2026-11-02T17:13:21Z
+**User Input**: "revisa los PR, resuelve y fusiona"
+**AI Response**: Se revisan los PR 45, 46, 47 y 49 (el 48 ya estaba fusionado). Los 47 y 49 tenían conflicto con main en `CANDIDATAS.md` (solo añadidos de ambos lados); se resuelve con un merge de main que conserva las dos partes, y las pruebas de contracts pasan (502). Los 45 y 46 fusionan sin conflicto. No se fusiona: la protección de main exige una aprobación de un code owner y aplica a administradores, el agente no puede aprobar su propio PR, y AUTONOMIA-01 y el contrato del loop reservan la fusión a una persona.
+**Context**: PR del loop.
+
+---
+## PR aprobados y fusionados
+**Timestamp**: 2026-11-02T17:20:52Z
+**User Input**: "ya approve los PRs"
+**AI Response**: Los PR 47 y 49 los fusionó el usuario; con ellos entró a main también el contenido del 45 (GitHub lo marca fusionado) y del 46 hasta d95782a. Las aprobaciones de 45 y 46 se habían descartado por la regla de revisiones obsoletas. Al 46 solo le quedan entradas de `audit.md`; necesita una aprobación más para fusionarse.
+**Context**: PR del loop.
+
+---
