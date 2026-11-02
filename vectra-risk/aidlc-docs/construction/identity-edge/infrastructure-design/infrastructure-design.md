@@ -51,7 +51,10 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 - Prioridad `vectra-high`; NetworkPolicy que solo admite al servicio de rate limit, a la réplica y a los Sentinel (F91–F93).
 
 ### INF-U2-05a — Credencial de administración (seguimiento de la quinta revisión de coherencia, 2026-10-31)
-- `keycloak-config-cli`, `realm-drift` y `signing-key-age` usan un cliente de administración del realm por F94, con `private_key_jwt` desde ESO. `realm-drift` y `signing-key-age` solo leen; solo `keycloak-config-cli` escribe.
+- Dos clientes de administración del realm `vectra`, por F94, con `private_key_jwt` desde ESO (enmienda del 2026-11-02, decisión del usuario tras la ronda 3 de U02-T03):
+  - `keycloak-config-cli`: su cuenta de servicio tiene el rol `realm-admin` de `realm-management`; es el único que escribe;
+  - `keycloak-reader`: su cuenta de servicio tiene solo `view-realm` de `realm-management`; lo usan `realm-drift` y `signing-key-age`, que solo leen.
+- `realm-lint` rechaza cualquier rol de `realm-management` en otra cuenta de servicio, y cualquier rol distinto de `view-realm` en la de `keycloak-reader`.
 
 ### INF-U2-05b — Certificado interno de Keycloak (quinta revisión de coherencia entre unidades, 2026-10-31)
 - `Certificate` `keycloak-tls` en `vectra-identity`, con SAN `keycloak.vectra-identity.svc`, emitido por la CA de INF-U2-01 de cada entorno; 90 días, se renueva a los 60 (P-U1-03).

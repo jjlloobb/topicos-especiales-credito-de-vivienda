@@ -12,7 +12,7 @@ realm y el gateway aportan.
 usuario tiene como máximo un elemento de {`analista`, `ingeniero_riesgo`, `cro`,
 `cumplimiento`}. Un usuario con dos roles de negocio es inválido:
 - en el realm como código, la validación del `realm.yaml` falla en CI;
-- en la federación LDAP, un usuario que pertenece a dos grupos mapeados **no recibe ningún rol** y se emite el evento `ROLE_CONFLICT` (alerta SEV2). Así, un error de LDAP nunca da acceso de más.
+- en la federación LDAP, un usuario que pertenece a dos grupos mapeados **no recibe ningún rol** y se emite el evento `ROLE_CONFLICT` (alerta SEV2). Así, un error de LDAP nunca da acceso de más. Keycloak no hace esto de forma nativa: el mecanismo en ejecución queda **por diseñar**, en una tarea propia fuera de U02-T03 (enmienda del 2026-11-02, decisión del usuario en la ronda 1 de U02-T03).
 
 **BR-U2-02 — Aprobador ≠ proponente.** U2 garantiza la identidad (`sub`) en el token.
 Que quien aprueba no sea quien propuso lo verifica governance (U4) comparando `sub`.
@@ -36,8 +36,10 @@ La entrada del registro guarda el `acr` y el `auth_time` de la firma.
 ## 3. Fuerza bruta (Q4; US-601)
 
 **BR-U2-05 — Bloqueo.** Detección de fuerza bruta de Keycloak:
-- 5 fallos consecutivos → bloqueo temporal de 60 s, que se duplica en cada nueva serie hasta un máximo de 900 s;
-- 20 fallos en 12 h → bloqueo permanente, que solo levanta un administrador.
+- 5 fallos consecutivos → bloqueo temporal; la espera empieza en 60 s y crece 60 s en cada nueva serie (60, 120, 180 s), con un máximo de 900 s;
+- 20 fallos en 12 h (el 4.º bloqueo) → bloqueo permanente, que solo levanta un administrador.
+
+Campos de Keycloak: `bruteForceProtected: true`, `permanentLockout: true`, `maxTemporaryLockouts: 3`, `failureFactor: 5`, `waitIncrementSeconds: 60`, `maxFailureWaitSeconds: 900`, `maxDeltaTimeSeconds: 43200`. La espera crece de forma lineal porque Keycloak no la duplica de forma nativa; antes el diseño decía «se duplica» (enmienda del 2026-11-02, decisión del usuario en la ronda 1 de U02-T03).
 
 Cada bloqueo emite un evento que alimenta la alerta `AuthDeniedBurst` (SEV2). El rate
 limit de `/auth/**` (BR-U2-08) actúa antes.
@@ -93,7 +95,7 @@ de enrutamiento ni de versión del proxy. Se ocultan las cabeceras `server` y `x
 - Un CronJob diario exporta el realm y lo compara con Git (sin secretos); cualquier diferencia emite `RealmDrift` (SEV2).
 - El login de `break-glass` emite `BreakGlassLogin` (SEV1).
 
-**BR-U2-15 — Mapeo LDAP.** En producción, el rol sale de la tabla `group-role-map`.
+**BR-U2-15 — Mapeo LDAP.** En producción, el rol sale de la tabla `group-role-map`. Formato de `identity-edge/keycloak/realm/group-role-map.yaml`: `groups: {<grupo LDAP>: <rol>}`, con un solo rol (de negocio u `operacion`) por grupo; `realm-lint` lo valida (enmienda del 2026-11-02, decisión del usuario en la ronda 1 de U02-T03).
 Cambiar esa tabla es un cambio de realm (PR + sync manual). Un usuario LDAP sin grupo
 mapeado puede autenticarse, pero no tiene rol: el **gateway** le responde 403 en
 `/api/console/**`, que exige un rol de negocio (domain-entities §4), y el BFF también lo

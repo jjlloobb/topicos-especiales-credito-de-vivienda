@@ -2,9 +2,17 @@
 
 import importlib.util
 import os
+import sys
 from pathlib import Path
 
 import pytest
+
+# `realm_lint` (tools/) y los generadores (tests/strategies/) no son paquetes: se importan por nombre.
+# `tests/strategies/` no puede ser un paquete `strategies`, que ya es el de contracts/tests.
+_EDGE = Path(__file__).resolve().parents[1]
+for _dir in (_EDGE / "tools", _EDGE / "tests" / "strategies"):
+    if str(_dir) not in sys.path:
+        sys.path.insert(0, str(_dir))
 
 _U0_CONFTEST = Path(__file__).resolve().parents[2] / "contracts" / "tests" / "conftest.py"
 

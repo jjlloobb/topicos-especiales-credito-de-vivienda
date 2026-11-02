@@ -17,7 +17,7 @@ compartidos (`Principal`, scopes, `Problem`) son de U0 y no se redefinen aquí.
 | `cumplimiento` | **Obligatorio** (TOTP) | P4 | — |
 
 **Un solo rol de negocio por usuario** (Q1, BR-U2-01). Roles técnicos fuera de este
-conjunto: `realm-admin` (solo la cuenta *break-glass* y el `keycloak-config-cli`) y **`operacion`**
+conjunto: `realm-admin` (solo la cuenta *break-glass* y la cuenta de servicio del cliente `keycloak-config-cli`; `keycloak-reader` solo tiene `view-realm`, INF-U2-05a (enmienda del 2026-11-02, decisión del usuario tras la ronda 3 de U02-T03)) y **`operacion`**
 (segunda revisión del Infrastructure Design de U10, 2026-10-10): el equipo de operación de la plataforma; MFA obligatorio; solo sirve en Grafana (dashboards de
 operación y silencios de Alertmanager por F109, U1 P-U1-10); no es un rol de negocio, así que el
 gateway le niega `/api/console/**`; `realm-lint` rechaza un usuario con `operacion` y un rol de negocio
@@ -130,4 +130,4 @@ banco; su login genera una alerta SEV1 (BR-U2-12).
 | `mfa_max_age` | 900 s | BR-U2-04 / BR-U0-72 |
 | Access token | 300 s | BR-U2-06 |
 | SSO idle / max | 1 800 s / 36 000 s | BR-U2-06 |
-| Fuerza bruta | 5 fallos → 60 s ×2 hasta 900 s; 20 en 12 h → permanente | BR-U2-05 |
+| Fuerza bruta | 5 fallos → 60 s, +60 s por serie hasta 900 s; 20 en 12 h → permanente (campos en BR-U2-05) | BR-U2-05 |

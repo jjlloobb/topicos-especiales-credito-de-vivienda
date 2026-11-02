@@ -5196,3 +5196,44 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## PR 50 fusionado
+**Timestamp**: 2026-11-02T17:53:39Z
+**User Input**: "ya approve el PR 50"
+**AI Response**: El PR 50 está fusionado: las reglas de denegación y las tareas U02-T03 y U02-T04 quedan en main. Siguiente paso propuesto: despachar U02-T03. Esta entrada queda sin commit y entra en el próximo PR.
+**Context**: Construcción de U2.
+
+---
+## Despacho de U02-T03
+**Timestamp**: 2026-11-02T17:54:30Z
+**User Input**: "despacha U02-T03"
+**AI Response**: Se despacha U02-T03 (Paso 3 de U2, `realm-lint`) al loop: codificador sonnet en su worktree desde main, revisor opus después. Las reglas de denegación del proyecto aplican al subagente.
+**Context**: Construcción de U2.
+
+---
+## Decisiones de diseño de U2 tras la ronda 1 de U02-T03
+**Timestamp**: 2026-11-02T18:19:23Z
+**User Input**: Respuestas a tres preguntas del orquestador: fuerza bruta = "Campos nativos (Recomendado)"; mapeo LDAP = "Formato simple + lint (Recomendado)"; scopes = "Estricta (Recomendado)".
+**AI Response**: Se enmienda el diseño de U2: BR-U2-05 y domain-entities §6 (espera lineal de 60 s por serie hasta 900 s y bloqueo permanente al 4.º bloqueo, con los campos de Keycloak); BR-U2-15 (formato de `group-role-map.yaml`); BR-U2-01 (el mecanismo de `ROLE_CONFLICT` en ejecución queda por diseñar, fuera de U02-T03); PBT-U2-02 (se prueba sobre la tabla) y PBT-U2-03 (estricta: tampoco pasan los client scopes propios de Keycloak). U02-T03 vuelve al codificador con el informe de la ronda 1.
+**Context**: Construcción de U2.
+
+---
+## Decisión sobre el cliente de administración tras la ronda 3 de U02-T03
+**Timestamp**: 2026-11-02T18:46:06Z
+**User Input**: Respuesta a la pregunta del orquestador sobre el cliente de administración: "Dos clientes (Recomendado)". La respuesta autoriza una cuarta ronda con la tarea enmendada.
+**AI Response**: U02-T03 salió NO-VERDE en la ronda 3: el lint aceptaba `realm-admin` sin MFA en cualquier cuenta de servicio de prod, porque el diseño no nombraba el cliente de administración. Se enmienda INF-U2-05a y domain-entities: `keycloak-config-cli` con `realm-admin` (escribe) y `keycloak-reader` con solo `view-realm` (lo usan `realm-drift` y `signing-key-age`); `realm-lint` rechaza roles de `realm-management` en cualquier otra cuenta de servicio. El Paso 2 del plan y `tareas/U02-T04-realm-como-codigo.md` suman los dos clientes. Se despacha la ronda 4.
+**Context**: Construcción de U2.
+
+---
+## U02-T03 detenida tras 4 rondas
+**Timestamp**: 2026-11-02T18:57:38Z
+**AI Response**: U02-T03 sale NO-VERDE en la ronda 4 con un NARANJA: en kind y staging, una cuenta de servicio con un rol de negocio deja de contar como cuenta de servicio y esquiva la regla de roles de administración. El arreglo no exige datos nuevos del diseño. Por la regla del loop (4 rondas), la tarea se detiene y se lleva al usuario. Diagnóstico del orquestador: la tarea no definía con un criterio cómo se identifica una cuenta de servicio, y cada ronda destapó un borde de esa misma definición. Rama `tarea/U02-T03` publicada, sin PR.
+**Context**: Construcción de U2.
+
+---
+## Enmienda de U02-T03
+**Timestamp**: 2026-11-02T19:03:21Z
+**User Input**: "enmienda U02-T03 y sigue"
+**AI Response**: Se agrega a la tarea el CA-5: definición de cuenta de servicio (`serviceAccountClientId` → cliente con `serviceAccountsEnabled`), sin roles de usuario, y roles de `realm-management` solo en `keycloak-config-cli` y `keycloak-reader`, en kind, staging y prod, con pruebas parametrizadas por entorno. La regla para usuarios locales con `realm-admin` en kind y staging no se incluye: pasa a `CANDIDATAS.md`. Se despacha la ronda 5.
+**Context**: Construcción de U2.
+
+---

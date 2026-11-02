@@ -82,13 +82,14 @@ vectra-risk/identity-edge/
     - `product-metrics` (`private_key_jwt`) con **solo** `registry:read:metrics`; `realm-lint` falla si tiene otro scope (NFR-U11-20; NFR Requirements de U11, 2026-10-10);
     - `channel-simulator` (`private_key_jwt`, `intake:submit`, audiencia `case-service`) solo en `realm.kind.yaml` y `realm.staging.yaml`; `realm-lint` falla si aparece en `realm.prod.yaml` (precisado el 2026-10-06, revisión del FD de U8);
     - `case-service` con `core:read-credit` y la audiencia `core-banking-mock` solo en `realm.kind.yaml` y `realm.staging.yaml`; `realm-lint` falla si aparecen en `realm.prod.yaml`, y una prueba sobre el realm de producción comprueba que `case-service` no obtiene un token con ese scope ni con esa audiencia (precisado el 2026-10-08 por U8 INF-U8-02, core deshabilitado en producción);
+    - clientes de administración de INF-U2-05a: `keycloak-config-cli` (cuenta de servicio con `realm-admin`) y `keycloak-reader` (cuenta de servicio con solo `view-realm`), ambos con `private_key_jwt` (enmienda del 2026-11-02, decisión del usuario tras la ronda 3 de U02-T03);
     - mapper de audiencias y mapper `roles`;
     - access token sin `preferred_username`, `email` ni `name`.
   - kind y staging: ≥ 2 usuarios sintéticos por rol. prod: federación LDAPS `READ_ONLY` con `group-role-map.yaml` (INF-U2-07) y el usuario `break-glass`.
   - Diseño: BR-U2-01, 03..07, 09, 12, 15, 16; NFR-U2-24; INF-U2-07. Historia: US-601.
   - **Aceptación**: `uv run python identity-edge/tools/realm_lint.py identity-edge/keycloak/realm/realm.*.yaml` termina en 0 (Paso 3).
 
-- [ ] **Paso 3 — `realm-lint` y sus pruebas**
+- [x] **Paso 3 — `realm-lint` y sus pruebas** (U02-T03)
   - El validador verifica:
     - separación de funciones (BR-U2-01) y mapeo de grupos LDAP (BR-U2-15);
     - scopes solo del catálogo de U0 y **ningún cliente con `core:write-credit`**;
