@@ -421,6 +421,20 @@ allowed:
   ports:
   - 9000
   to: minio
+- flow: F130
+  from: prometheus
+  ports: &id011
+  - 8080
+  to: alertmanager
+- flow: F130
+  from: prometheus
+  ports: *id011
+  to: kube-prometheus-stack-prometheus-operator
+- flow: F130
+  from: prometheus
+  ports:
+  - 3000
+  to: grafana
 - flow: F102
   from: model-archive
   ports:
@@ -428,98 +442,98 @@ allowed:
   to: governance-db
 - flow: F50
   from: api-gateway
-  ports: &id011
+  ports: &id012
   - 8443
   to: keycloak
 - flow: F50
   from: console-bff
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F50
   from: case-service
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F50
   from: case-worker
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F50
   from: scoring-service
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F50
   from: explainability-service
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F50
   from: governance-service
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F50
   from: bias-monitoring-service
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F50
   from: bias-monitoring-job
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F50
   from: decision-registry-service
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F50
   from: product-metrics
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F50
   from: model-validation-job
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F50
   from: grafana
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F50
   from: keycloak-config-cli
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F50
   from: core-banking-mock
-  ports: *id011
+  ports: *id012
   to: keycloak
 - flow: F60
   from: prometheus
-  ports: &id012
+  ports: &id013
   - 8081
   to: vectra-app
 - flow: F60
   from: prometheus
-  ports: *id012
+  ports: *id013
   to: vectra-edge
 - flow: F60
   from: prometheus
-  ports: *id012
+  ports: *id013
   to: vectra-serving
 - flow: F60
   from: prometheus
-  ports: *id012
+  ports: *id013
   to: vectra-mock
 - flow: F60
   from: prometheus
-  ports: &id013
+  ports: &id014
   - 9187
   to: case-db
 - flow: F60
   from: prometheus
-  ports: *id013
+  ports: *id014
   to: governance-db
 - flow: F60
   from: prometheus
-  ports: *id013
+  ports: *id014
   to: registry-db
 - flow: F60
   from: prometheus
-  ports: *id013
+  ports: *id014
   to: keycloak-db
 - flow: F60
   from: prometheus
@@ -528,46 +542,46 @@ allowed:
   to: keycloak
 - flow: F61
   from: vectra-app
-  ports: &id014
+  ports: &id015
   - 4317
   to: opentelemetry-collector
 - flow: F61
   from: vectra-serving
-  ports: *id014
+  ports: *id015
   to: opentelemetry-collector
 - flow: F61
   from: vectra-edge
-  ports: *id014
+  ports: *id015
   to: opentelemetry-collector
 - flow: F61
   from: vectra-staging
-  ports: *id014
+  ports: *id015
   to: opentelemetry-collector
 - flow: F61
   from: vectra-identity
-  ports: *id014
+  ports: *id015
   to: opentelemetry-collector
 - flow: F61
   from: vectra-mock
-  ports: *id014
+  ports: *id015
   to: opentelemetry-collector
 - flow: F61
   from: vectra-data
-  ports: *id014
+  ports: *id015
   to: opentelemetry-collector
 - flow: F61
   from: vectra-restore-drill
-  ports: *id014
+  ports: *id015
   to: opentelemetry-collector
 - flow: F62
   from: opentelemetry-collector
-  ports: &id015
+  ports: &id016
   - 4317
   - 3100
   to: tempo
 - flow: F62
   from: opentelemetry-collector
-  ports: *id015
+  ports: *id016
   to: loki
 - flow: F63
   from: alloy
@@ -581,18 +595,18 @@ allowed:
   to: alertmanager
 - flow: F65
   from: grafana
-  ports: &id016
+  ports: &id017
   - 9090
   - 3100
   - 3200
   to: prometheus
 - flow: F65
   from: grafana
-  ports: *id016
+  ports: *id017
   to: loki
 - flow: F65
   from: grafana
-  ports: *id016
+  ports: *id017
   to: tempo
 - flow: F66
   from: loki
@@ -606,20 +620,20 @@ allowed:
   to: minio
 - flow: F70
   from: case-db
-  ports: &id017
+  ports: &id018
   - 9000
   to: minio
 - flow: F70
   from: governance-db
-  ports: *id017
+  ports: *id018
   to: minio
 - flow: F70
   from: registry-db
-  ports: *id017
+  ports: *id018
   to: minio
 - flow: F70
   from: keycloak-db
-  ports: *id017
+  ports: *id018
   to: minio
 - flow: F71
   from: argocd-repo-server
@@ -644,25 +658,25 @@ allowed:
   to: registro
 - flow: F80
   from: cloudnative-pg
-  ports: &id018
+  ports: &id019
   - 8000
   - 5432
   to: case-db
 - flow: F80
   from: cloudnative-pg
-  ports: *id018
+  ports: *id019
   to: governance-db
 - flow: F80
   from: cloudnative-pg
-  ports: *id018
+  ports: *id019
   to: registry-db
 - flow: F80
   from: cloudnative-pg
-  ports: *id018
+  ports: *id019
   to: keycloak-db
 - flow: F80
   from: cloudnative-pg
-  ports: *id018
+  ports: *id019
   to: restore-cluster
 - flow: F81
   from: kube-apiserver
@@ -676,42 +690,42 @@ allowed:
   to: webhook
 - flow: F83
   from: vectra-edge
-  ports: &id019
+  ports: &id020
   - 8086
   - 8080
   - 8090
   to: linkerd-control
 - flow: F83
   from: vectra-app
-  ports: *id019
+  ports: *id020
   to: linkerd-control
 - flow: F83
   from: vectra-serving
-  ports: *id019
+  ports: *id020
   to: linkerd-control
 - flow: F83
   from: vectra-staging
-  ports: *id019
+  ports: *id020
   to: linkerd-control
 - flow: F83
   from: vectra-data
-  ports: *id019
+  ports: *id020
   to: linkerd-control
 - flow: F83
   from: vectra-identity
-  ports: *id019
+  ports: *id020
   to: linkerd-control
 - flow: F83
   from: vectra-mock
-  ports: *id019
+  ports: *id020
   to: linkerd-control
 - flow: F83
   from: vectra-observability
-  ports: *id019
+  ports: *id020
   to: linkerd-control
 - flow: F83
   from: vectra-restore-drill
-  ports: *id019
+  ports: *id020
   to: linkerd-control
 - flow: F84
   from: kube-apiserver
@@ -730,20 +744,20 @@ allowed:
   to: vault
 - flow: F98
   from: registry-checkpoint
-  ports: &id020
+  ports: &id021
   - 8200
   to: vault
 - flow: F98
   from: registry-archive
-  ports: *id020
+  ports: *id021
   to: vault
 - flow: F98
   from: registry-verify
-  ports: *id020
+  ports: *id021
   to: vault
 - flow: F98
   from: restore-drill
-  ports: *id020
+  ports: *id021
   to: vault
 - flow: F87
   from: restore-drill
@@ -767,13 +781,13 @@ allowed:
   to: rate-limit
 - flow: F91
   from: rate-limit
-  ports: &id021
+  ports: &id022
   - 26379
   - 6379
   to: valkey
 - flow: F91
   from: rate-limit
-  ports: *id021
+  ports: *id022
   to: sentinel
 - flow: F92
   from: valkey
@@ -782,26 +796,26 @@ allowed:
   to: valkey
 - flow: F93
   from: sentinel
-  ports: &id022
+  ports: &id023
   - 6379
   - 26379
   to: valkey
 - flow: F93
   from: sentinel
-  ports: *id022
+  ports: *id023
   to: sentinel
 - flow: F94
   from: keycloak-config-cli
-  ports: &id023
+  ports: &id024
   - 8443
   to: keycloak
 - flow: F94
   from: realm-drift
-  ports: *id023
+  ports: *id024
   to: keycloak
 - flow: F94
   from: signing-key-age
-  ports: *id023
+  ports: *id024
   to: keycloak
 - flow: F95
   from: api-gateway

@@ -12,7 +12,7 @@ PLATFORM = ROOT / "platform"
 FLOWS = yaml.safe_load((PLATFORM / "network/flows.yaml").read_text(encoding="utf-8"))
 VECTRA = set(FLOWS["meshed_namespaces"])
 ENVS = ["kind", "prod"]
-OPERATOR_PORTS = {"prometheus": {9090}, "alertmanager": {9093, 9094}}
+OPERATOR_PORTS = {"prometheus": {9090}, "alertmanager": {8080, 9093, 9094}}  # 8080 = reloader-web, F130
 
 
 def in_vectra(env="prod"):
