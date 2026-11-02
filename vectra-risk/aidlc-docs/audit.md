@@ -5053,3 +5053,17 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Loop de agentes.
 
 ---
+## Consulta del usuario tras fusionar los PR 36 a 38
+**Timestamp**: 2026-11-02T14:01:34Z
+**User Input**: "que me recomiendas?"
+**AI Response**: Los PR 36, 37 y 38 están fusionados y el issue 39 queda con todos los entregables del loop marcados. Se recomienda limpiar worktrees y ramas, confirmar la fecha con el profesor, escribir README y moat, preparar los 10 casos con cambio de modelo, y recrear el clúster desde main para ensayar.
+**Context**: Loop de agentes.
+
+---
+## README de la sustentación
+**Timestamp**: 2026-11-02T14:06:21Z
+**User Input**: "realiza el punto 3"
+**AI Response**: Se reescribe el README.md de la raíz con las 8 secciones de `modulo8/guia-entrega-proyecto-final.md`, a partir de entradas/, la evidencia de U1 y el loop. Declara que solo U0 y U1 tienen código, que U1 está comprobada solo en kind, que no hay MCP ni agente en el clúster, y que la prueba de cambio de modelo con 10 casos está pendiente. Grupo y fecha quedan como marcadores para el usuario.
+**Context**: Sustentación.
+
+---
