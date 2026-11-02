@@ -5237,3 +5237,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## Decisiones sobre la credencial OTP tras la ronda 1 de U02-T05
+**Timestamp**: 2026-11-02T20:02:09Z
+**User Input**: Respuestas a tres preguntas del orquestador: E1 forma = "Sí, y el lint estricto (Recomendado)"; E2 codificación = "Base32 exigido (Recomendado)"; E3 nombre = "Exigir SYNTH_<USUARIO>_TOTP_SEED (Recomendado)".
+**AI Response**: U02-T05 salió NO-VERDE en la ronda 1 porque la forma de la credencial OTP se supuso. Se fija en domain-entities la forma única (`secretData` String JSON con `value` = `$(env:SYNTH_<USUARIO>_TOTP_SEED)`, `credentialData` con `"secretEncoding":"BASE32"`) y se agrega a la tarea el CA-3. Se despacha la ronda 2.
+**Context**: Construcción de U2.
+
+---

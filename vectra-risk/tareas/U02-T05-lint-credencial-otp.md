@@ -34,6 +34,14 @@ Ajuste del Paso 3 del plan de U2, por la decisión D5 del usuario tras la ronda 
   ```
   Esperado: todo pasa y termina en 0.
 
+- [ ] **CA-3** — La credencial OTP referenciada solo es válida con la forma única de domain-entities: `secretData` String JSON con `value` = `$(env:SYNTH_<USUARIO>_TOTP_SEED)` del propio usuario, y `credentialData` String JSON con `"secretEncoding":"BASE32"`. Lectura de vuelta: casos que fallan con `secretData` como mapa, con un `value` de primer nivel, con otra variable o la de otro usuario, sin `secretEncoding` o con otra codificación; con varias credenciales (`password` y `otp`), la regla mira la `otp` y no solo la primera; en kind, staging y prod.
+  ```bash
+  uv run pytest identity-edge/tests/unit/test_realm_lint.py -q -k otp_credential_form
+  ```
+  Esperado: pasa.
+
+> **Enmienda del 2026-11-02 (orquestador, con aprobación del usuario, decisiones E1–E3):** se agrega CA-3 con la forma única de la credencial OTP que fija domain-entities.
+
 ## Plan de pruebas
 
 **Rojo primero:** escribe los casos de CA-1 y registra que el caso válido con credencial `otp` referenciada falla con el validador actual.
