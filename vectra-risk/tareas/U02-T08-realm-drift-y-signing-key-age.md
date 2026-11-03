@@ -10,6 +10,8 @@
 
 > **Enmienda del 2026-11-03 (orquestador, decisión T1 del usuario tras la ronda 3):** `supply-chain / scan` del PR 59 falla por KSV-0109 (HIGH) de Trivy en el ConfigMap del realm, un falso positivo por claves que contienen «token». El ConfigMap se renderiza en su propio archivo y solo ese archivo entra en `skip-files` de `supply-chain.yml`. El alcance suma ese workflow y el comentario de `.trivyignore`, y se agrega CA-8.
 
+> **Enmienda del 2026-11-03 (orquestador, consecuencia de T1 tras la ronda 4):** en el PR 59 fallan `tests`, `policies` y `evidence` por `platform/tests/test_platform.py::test_trivy_skips_only_the_kind_secret_read`, la guarda de U1 que exige que `skip-files` tenga solo el archivo de ESO. El alcance suma esa prueba, que pasa a exigir la lista exacta de cuatro archivos (sin comodines), y CA-7 suma `make -C platform check-local`.
+
 Paso 6 del plan de U2. Al preparar la tarea (2026-11-03) el orquestador comprobó en el código de Keycloak 26.8.1 que `view-realm` no permite leer clientes, client scopes ni usuarios, y que `partial-export` exige `manage-realm`. Las decisiones R1–R4 del usuario fijaron:
 - R1: los roles de `keycloak-reader` (INF-U2-05a);
 - R2: la comparación por proyección sobre Git;
@@ -75,7 +77,7 @@ Precisiones del diseño enmendado que la tarea aplica. Todas salen de INF-U2-09 
 - Las entradas de `vectra-risk-gitops/components.yaml`: Paso de integración del plan.
 - Construir la imagen. Cualquier cosa contra un clúster.
 - El Job de `keycloak-config-cli` (tarea propia, bloqueada).
-- Cambios en `contracts/`, `platform/`, `.github/workflows/` (salvo `skip-files` de `supply-chain.yml`, por T1), el tema y los values de Keycloak de U02-T07.
+- Cambios en `contracts/`, `platform/` (salvo `test_trivy_skips_only_the_kind_secret_read`, por T1), `.github/workflows/` (salvo `skip-files` de `supply-chain.yml`, por T1), el tema y los values de Keycloak de U02-T07.
 
 ## Archivos de contexto
 
@@ -149,7 +151,7 @@ Precisiones del diseño enmendado que la tarea aplica. Todas salen de INF-U2-09 
   Esperado: sin hallazgos. `policy-jobs-u1` aplica a `rendered/<env>/` las políticas de Kyverno y Rego de U1 que alcanzan a `vectra-identity`, y evalúa reglas: en U02-T07, `kyverno apply` sobre un directorio aplicaba 0 reglas. Si una política de U1 exige algo que el diseño de U2 no fija, detente y repórtalo.
 - [ ] **CA-7** — Lo anterior sigue cumpliendo.
   ```bash
-  uv sync --frozen && make -C identity-edge check && make -C platform check-tools
+  uv sync --frozen && make -C identity-edge check && make -C platform check-tools && make -C platform check-local
   ```
   Esperado: todo pasa y termina en 0. `check` incluye `render-jobs` (el render coincide con `rendered/`), `policy-jobs` y `policy-jobs-u1`.
 
