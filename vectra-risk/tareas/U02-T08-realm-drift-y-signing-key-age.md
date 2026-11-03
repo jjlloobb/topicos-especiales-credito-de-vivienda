@@ -6,6 +6,8 @@
 
 > **Enmienda del 2026-11-03 (orquestador, decisiones S1 y S2 del usuario tras la ronda 1):** en los usuarios no se comparan `requiredActions` ni `credentials` (S1), y en las listas con `$(env:…)` solo se excluyen esos elementos (S2). INF-U2-09 queda enmendado y CA-2 suma sus casos.
 
+> **Enmienda del 2026-11-03 (orquestador, decisión S3 del usuario tras la ronda 2):** un valor con marcador conserva el texto literal que lo rodea en Git (prefijo y sufijo exactos). INF-U2-09 queda enmendado y CA-2 suma el caso.
+
 Paso 6 del plan de U2. Al preparar la tarea (2026-11-03) el orquestador comprobó en el código de Keycloak 26.8.1 que `view-realm` no permite leer clientes, client scopes ni usuarios, y que `partial-export` exige `manage-realm`. Las decisiones R1–R4 del usuario fijaron:
 - R1: los roles de `keycloak-reader` (INF-U2-05a);
 - R2: la comparación por proyección sobre Git;
@@ -47,6 +49,7 @@ Precisiones del diseño enmendado que la tarea aplica. Todas salen de INF-U2-09 
   - Cada entidad de Git que falta en Keycloak, y cada una de Keycloak que no está en Git, es una diferencia.
   - Los usuarios se leen uno a uno por su `username` de Git. Nunca se listan.
   - Un campo escalar cuyo valor en Git contiene `$(env:…)` se excluye. En una lista de valores solo se excluyen los elementos con marcador: los demás se comparan, y cada elemento de Keycloak que no está en Git cuenta, salvo uno por cada elemento de Git con marcador (decisión S2).
+  - Un valor con marcador debe empezar con el texto literal anterior al primer marcador y terminar con el posterior al último, comparados como prefijo y sufijo exactos (decisión S3).
   - En los usuarios no se comparan `requiredActions` ni `credentials`, porque los cambia el login. Sí se comparan la existencia, `enabled`, los atributos y los roles (decisión S1).
   - La normalización quita secretos, IDs internos y timestamps, y es idempotente.
   - `vectra_realm_drift` es el número de diferencias.
@@ -100,6 +103,7 @@ Precisiones del diseño enmendado que la tarea aplica. Todas salen de INF-U2-09 
   - un campo escalar con `$(env:…)` en Git y cualquier valor en Keycloak da 0;
   - en una lista con elementos `$(env:…)` (por ejemplo, `redirectUris` de `vectra-console`), un valor resuelto por marcador da 0, un elemento de más da 1 y un elemento literal de Git que falta da 1;
   - `break-glass` sin `CONFIGURE_TOTP` y con una credencial `otp` da 0; `break-glass` deshabilitado o con otro rol da 1;
+  - `connectionUrl` del LDAP de prod con `ldap://otro:389` da 1; con `ldaps://<cualquier host>:636` da 0 (S3);
   - el orden distinto de una lista de entidades da 0;
   - un secreto (por ejemplo, `secret` de un cliente o el valor de una credencial) distinto da 0.
 
