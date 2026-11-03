@@ -207,9 +207,16 @@ def test_css_relative_url_is_accepted(theme):
     assert tc.theme_problems(theme, ALLOWED) == []
 
 
-def test_css_escaped_relative_url_is_decoded_before_the_rule(theme):
+def test_css_escape_outside_a_string_does_not_tokenize_cleanly(theme):
     _append(theme / CSS, "\n.x { background: url(\\2e\\2e/img/vectra-logo.svg); }\n")
+    assert tc.theme_problems(theme, ALLOWED)
+
+
+def test_css_escape_inside_a_string_url_is_decoded(theme):
+    _append(theme / CSS, '\n.x { background: url("\\2e\\2e/img/vectra-logo.svg"); }\n')
     assert tc.theme_problems(theme, ALLOWED) == []
+    _append(theme / CSS, '\n.x { background: url("\\2f \\2f evil.example/a.png"); }\n')
+    assert tc.theme_problems(theme, ALLOWED)
 
 
 def test_css_script_is_detected(theme):
@@ -378,7 +385,10 @@ CSS_COLOR_MUTATIONS = [
 def test_brand_css_other_colors_are_detected(theme, decl):
     """T14, T15, T16, N27, N27b, N28."""
     _append(theme / CSS, f"\n.x {{ {decl} }}\n")
-    assert [p for p in tc.theme_problems(theme, ALLOWED) if ": color:" in p], decl
+    problems = tc.theme_problems(theme, ALLOWED)
+    assert problems, decl
+    if "\\" not in decl:  # un escape fuera de una cadena ni siquiera tokeniza
+        assert [p for p in problems if ": color:" in p], decl
 
 
 def test_brand_css_lowercase_hex_of_the_brand_is_the_same_color(theme):
@@ -405,3 +415,52 @@ SVG_COLOR_MUTATIONS = [
 def test_brand_logo_other_colors_are_detected(theme, old, new):
     _replace(theme / LOGO, old, new)
     assert [p for p in tc.theme_problems(theme, ALLOWED) if ": color:" in p]
+
+
+CSS_CLASS_MUTATIONS = {
+    "C1 comentario dentro de cadenas": '.x { content: "/*"; color: red; content: "*/"; }',
+    "C2 llave dentro de cadena": '.x { content: "}"; color: red; }',
+    "C3 URL externa tras cadenas": '.x { content: "/*"; background: url(https://evil.example/a.png); content: "*/"; }',
+    "C4 opacity": ".pf-v5-c-button.pf-m-primary { opacity: 0.2; }",
+    "punto y coma en cadena": '.x { content: ";"; color: red; }',
+    "cadena con comillas simples": ".x { content: '/*'; color: red; content: '*/'; }",
+    "cadena no vacia": '.x { content: "hola"; }',
+    "cadena sin cerrar": '.x { content: "abc; }',
+    "comentario sin cerrar": ".x { color: #0B3D5C; } /* x",
+    "llave sin cerrar": ".x { color: #0B3D5C;",
+    "llave de mas": ".x { color: #0B3D5C; } }",
+    "llave anidada": ".x { .y { color: #0B3D5C; } }",
+    "media": "@media print { .x { color: #0B3D5C; } }",
+    "filter": ".x { filter: invert(1); }",
+    "visibility": ".x { visibility: hidden; }",
+    "mix-blend-mode": ".x { mix-blend-mode: difference; }",
+    "propiedad en mayusculas": ".x { OPACITY: 0.2; }",
+    "cadena vacia en un selector": 'a[x=""] { color: #0B3D5C; }',
+    "cadena no vacia en un selector": 'a[x="y"] { color: #0B3D5C; }',
+    "unidad rara": ".x { width: 10vw; }",
+    "signo de exclamacion": ".x { color: #0B3D5C !important; }",
+    "comentario que oculta ; en la declaracion": ".x { color: /* a */ red; }",
+}
+
+
+@pytest.mark.parametrize("name", CSS_CLASS_MUTATIONS)
+def test_css_class_mutations_are_detected(theme, name):
+    css = CSS_CLASS_MUTATIONS[name]
+    if name == "cadena vacia en un selector":
+        assert tc.theme_problems(theme, ALLOWED) == []
+        _append(theme / CSS, "\n" + css + "\n")
+        assert tc.theme_problems(theme, ALLOWED) == []  # la unica cadena admitida es la vacia
+        return
+    _append(theme / CSS, "\n" + css + "\n")
+    assert tc.theme_problems(theme, ALLOWED), name
+
+
+def test_css_comment_inside_a_string_is_not_a_comment():
+    rules, strings, errors = tc._tokenize_css('.x { content: "/*"; color: red; content: "*/"; }')
+    assert errors == [] and strings == ["/*", "*/"] and len(rules[0][1]) == 4
+
+
+def test_css_property_whitelist_is_what_vectra_css_uses():
+    rules, _, errors = tc._tokenize_css((tc.THEME_DIR / CSS).read_text(encoding="utf-8"))
+    used = {d.partition(":")[0].strip() for _, decls in rules for d in decls if d.strip()}
+    assert errors == [] and used == tc.CSS_PROPERTIES

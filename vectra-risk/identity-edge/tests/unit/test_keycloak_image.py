@@ -88,8 +88,8 @@ def test_env_contradicting_an_option_is_detected(env):
     assert problems(TEXT.replace("USER 1000", f"ENV {env}\nUSER 1000"))
 
 
-def test_env_equal_to_the_option_is_accepted():
-    assert problems(TEXT.replace("USER 1000", "ENV KC_DB=postgres\nUSER 1000")) == []
+def test_env_even_equal_to_the_option_is_not_in_the_whitelist():
+    assert problems(TEXT.replace("USER 1000", "ENV KC_DB=postgres\nUSER 1000"))
 
 
 def test_missing_user_is_detected():
@@ -123,12 +123,18 @@ def test_second_kc_build_in_any_form_is_detected(name):
     assert problems(TEXT.replace("USER 1000", SECOND_BUILD[name] + "\nUSER 1000")), name
 
 
-def test_kc_build_in_exec_form_with_the_design_options_is_accepted():
+def test_kc_build_in_exec_form_is_not_the_whitelisted_form():
     exec_form = TEXT.replace(
         TEXT[TEXT.index("RUN "):TEXT.index("# Usuario")],
         'RUN ["/opt/keycloak/bin/kc.sh", "build", ' + ", ".join(f'"{o}"' for o in OPTIONS) + "]\n\n",
     )
-    assert problems(exec_form) == []
+    assert problems(exec_form)
+
+
+def test_build_options_in_any_order_are_accepted():
+    run = TEXT[TEXT.index("RUN "):TEXT.index("# Usuario")]
+    reordered = "RUN /opt/keycloak/bin/kc.sh build " + " ".join(reversed(OPTIONS)) + "\n\n"
+    assert problems(TEXT.replace(run, reordered)) == []
 
 
 def test_lowercase_instructions_are_equivalent():
@@ -162,3 +168,48 @@ def test_user_1000_then_another_user_is_detected():
 @pytest.mark.parametrize("env", ["ENV KC_DB dev-file", "env KC_DB=dev-file", "ARG KC_CACHE=local", "RUN KC_HEALTH_ENABLED=false true"])
 def test_env_forms_contradicting_an_option_are_detected(env):
     assert problems(TEXT.replace("USER 1000", env + "\nUSER 1000")), env
+
+
+EXACT_SEQUENCE = {
+    "D10 USER con tab": TEXT.replace("USER 1000", "USER\t0"),
+    "D11 FROM final con tab": TEXT + "FROM\tbusybox:1.36\n",
+    "D12 heredoc": TEXT.replace("USER 1000", "RUN <<EOF\n/opt/keycloak/bin/kc.sh build --db=dev-file\nEOF\nUSER 1000"),
+    "D13 sh -c": TEXT.replace("USER 1000", 'RUN sh -c "/opt/keycloak/bin/kc.sh build --db=dev-file"\nUSER 1000'),
+    "D15 variable": TEXT.replace("USER 1000", "RUN K=/opt/keycloak/bin/kc.sh; $K build --db=dev-file\nUSER 1000"),
+    "D14 directiva escape": "# escape=`\n" + TEXT.replace("USER 1000", "RUN echo x \\\nUSER 0\nUSER 1000"),
+    "directiva syntax": "# syntax=docker/dockerfile:1\n" + TEXT,
+    "directiva con espacios": "#   escape = `\n" + TEXT,
+    "instruccion de mas": TEXT + "LABEL a=b\n",
+    "instruccion de menos": TEXT.replace("USER 1000\n", ""),
+    "orden distinto": TEXT.replace("USER 1000\n\n", "").replace("RUN ", "USER 1000\nRUN ", 1),
+    "argumento de mas en build": TEXT.replace("--cache=ispn", "--cache=ispn --verbose"),
+    "token de mas en COPY": TEXT.replace("COPY ", "COPY --link "),
+    "sin chown": TEXT.replace("--chown=keycloak:keycloak ", ""),
+    "RUN en forma exec": TEXT.replace("RUN /opt/keycloak/bin/kc.sh build", 'RUN ["/opt/keycloak/bin/kc.sh", "build"]'),
+    "ENTRYPOINT shell": TEXT.replace('["/opt/keycloak/bin/kc.sh"]', "/opt/keycloak/bin/kc.sh"),
+    "CMD distinto": TEXT.replace('"--optimized"', '"--optimized", "--verbose"'),
+    "heredoc en COPY": TEXT.replace("COPY ", "COPY <<EOF /x\nEOF\nCOPY "),
+    "vertical tab": TEXT.replace("USER 1000", "USER\x0b0"),
+    "espacio unicode": TEXT.replace("USER 1000", "USER\u00a01000"),
+}
+
+
+@pytest.mark.parametrize("name", EXACT_SEQUENCE)
+def test_anything_outside_the_exact_sequence_is_detected(name):
+    assert problems(EXACT_SEQUENCE[name]), name
+
+
+def test_comments_blank_lines_and_odd_blanks_do_not_change_the_sequence():
+    noisy = TEXT.replace("USER 1000", "\n# otro comentario\n  USER \t 1000  \n").replace("FROM ", "FROM\t")
+    assert problems(noisy) == []
+
+
+def test_continuation_with_a_comment_line_inside_is_joined():
+    run = TEXT[TEXT.index("RUN "):TEXT.index("# Usuario")]
+    joined = run.replace("    --metrics-enabled=true", "    # nota\n    --metrics-enabled=true")
+    assert problems(TEXT.replace(run, joined)) == []
+
+
+def test_instruction_names_are_case_insensitive_but_arguments_are_not():
+    assert problems(TEXT.replace("FROM", "from").replace("RUN", "run")) == []
+    assert problems(TEXT.replace("kc.sh build", "KC.SH build"))

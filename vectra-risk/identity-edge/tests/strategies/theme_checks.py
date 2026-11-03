@@ -7,7 +7,6 @@ import hashlib
 import html
 import json
 import re
-import shlex
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -295,48 +294,146 @@ def svg_problems(text: str, allowed: set[str]) -> list[str]:
     return sorted(set(bad))
 
 
-def _css_unescape(css: str) -> str:
-    css = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
-    css = re.sub(r"\\\r?\n", "", css)
+CSS_PROPERTIES = {
+    "background-color", "color", "content", "display", "width", "height", "margin",
+    "background", "outline", "outline-offset",
+}  # las que usa vectra.css
+CSS_UNITS = {"", "px", "rem", "em", "%"}
 
+
+def _decode_escapes(text: str) -> str:
     def decode(m: re.Match) -> str:
         if m.group(1):
             return chr(min(int(m.group(1), 16) or 0xFFFD, 0x10FFFF))
         return m.group(2)
 
-    return re.sub(r"\\(?:([0-9a-fA-F]{1,6})[ \t\n\r\f]?|(.))", decode, css, flags=re.DOTALL)
+    text = re.sub(r"\\\r?\n", "", text)
+    return re.sub(r"\\(?:([0-9a-fA-F]{1,6})[ \t\n\r\f]?|(.))", decode, text, flags=re.DOTALL)
+
+
+def _tokenize_css(css: str) -> tuple[list[tuple[str, list[str]]], list[str], list[str]]:
+    """(reglas, cadenas, errores). Las cadenas y los `url()` sin comillas son tokens: dentro de ellos no hay comentarios, llaves ni `;`.
+
+    Cada regla es (preludio, declaraciones) con las cadenas sustituidas por `\\x00S<n>\\x00` y los url sin comillas por `\\x00U<n>\\x00`.
+    No admite `@`, `\\` fuera de cadenas, llaves anidadas ni comentarios sin cerrar: lo que no tokeniza limpio es un error.
+    """
+    rules: list[tuple[str, list[str]]] = []
+    strings: list[str] = []
+    errors: list[str] = []
+    prelude, cur, decls, depth, i, n = "", "", [], 0, 0, len(css)
+    while i < n:
+        c = css[i]
+        if css.startswith("/*", i):
+            j = css.find("*/", i + 2)
+            if j < 0:
+                errors.append("structure: comentario sin cerrar")
+                break
+            cur += " "
+            i = j + 2
+        elif c in "\"'":
+            j, body = i + 1, ""
+            while j < n and css[j] != c:
+                if css[j] in "\n\r\f":
+                    break
+                if css[j] == "\\":
+                    body += css[j : j + 2]
+                    j += 2
+                else:
+                    body += css[j]
+                    j += 1
+            if j >= n or css[j] != c:
+                errors.append("structure: cadena sin cerrar")
+                break
+            strings.append(_decode_escapes(body))
+            cur += f"\x00S{len(strings) - 1}\x00"
+            i = j + 1
+        elif depth == 1 and css[i : i + 4].lower() == "url(" and not re.match(r"\s*[\"']", css[i + 4 :]):
+            j = css.find(")", i)
+            if j < 0:
+                errors.append("structure: url( sin cerrar")
+                break
+            strings.append(css[i + 4 : j])
+            cur += f"\x00U{len(strings) - 1}\x00"
+            i = j + 1
+        elif c == "\\" or c == "@" or c == "\x00":
+            errors.append(f"structure: carácter {c!r} fuera de una cadena")
+            break
+        elif c == "{":
+            if depth:
+                errors.append("structure: llave anidada")
+                break
+            depth, prelude, cur = 1, cur, ""
+            i += 1
+        elif c == "}":
+            if not depth:
+                errors.append("structure: llave de cierre sin abrir")
+                break
+            decls.append(cur)
+            rules.append((prelude, decls))
+            depth, decls, cur = 0, [], ""
+            i += 1
+        elif c == ";" and depth:
+            decls.append(cur)
+            cur = ""
+            i += 1
+        else:
+            cur += c
+            i += 1
+    else:
+        if depth or cur.strip():
+            errors.append("structure: el CSS no termina en una regla completa")
+    return rules, strings, errors
+
+
+_PLACEHOLDER = re.compile(r"\x00([SU])(\d+)\x00")
 
 
 def css_problems(css: str, allowed: set[str]) -> list[str]:
-    """CSS con los escapes decodificados: URL relativas, y en cada declaración solo los hex de la marca, números y palabras de lista cerrada."""
-    text = _css_unescape(css)
-    bad = []
-    for rule in re.findall(r"@[\w-]+", text):
-        if rule.lower() != "@media":
-            bad.append(f"structure: regla {rule}")
-    for url in re.findall(r"url\(\s*(?:\"([^\"]*)\"|'([^']*)'|([^)\"']*))\s*\)", text, re.IGNORECASE):
-        found = "".join(url).strip()
-        problem = _url_problem(found) if found else "url: vacia"
-        if problem:
-            bad.append(problem)
-    bad += _javascript_in(text)
-    for body in re.findall(r"\{([^{}]*)\}", text):
-        for decl in body.split(";"):
-            prop, sep, value = decl.partition(":")
-            if not sep:
+    """CSS tokenizado: propiedades de una lista blanca; valores solo con hex de la marca, números, palabras sin color de una lista cerrada, `url()` relativos y la cadena vacía."""
+    rules, strings, bad = _tokenize_css(css)
+    used_as_url: set[int] = set()
+    for prelude, decls in rules:
+        for m in _PLACEHOLDER.finditer(prelude):
+            if strings[int(m[2])] != "":
+                bad.append("structure: cadena no vacía en un selector")
+        for decl in decls:
+            if not decl.strip():
                 continue
-            value = re.sub(r"url\([^)]*\)", " ", value, flags=re.IGNORECASE)
-            value = re.sub(r"\"[^\"]*\"|'[^']*'", " ", value)
+            prop, sep, value = decl.partition(":")
+            prop = prop.strip().lower()
+            if not sep or prop not in CSS_PROPERTIES:
+                bad.append(f"structure: propiedad no permitida: {prop or decl.strip()}")
+            for m in re.finditer(r"url\(\s*\x00S(\d+)\x00\s*\)|\x00U(\d+)\x00", value, re.IGNORECASE):
+                idx = int(m[1] or m[2])
+                used_as_url.add(idx)
+                url = strings[idx].strip() if m[2] else strings[idx]
+                bad += [p for p in (_url_problem(url) if url else "url: vacia",) if p]
+            value = re.sub(r"url\(\s*\x00S\d+\x00\s*\)|\x00U\d+\x00", " ", value, flags=re.IGNORECASE)
+            for m in _PLACEHOLDER.finditer(value):
+                if strings[int(m[2])] != "":
+                    bad.append(f"structure: cadena no vacía en {prop}")
+            value = _PLACEHOLDER.sub(" ", value)
             for hexa in re.findall(r"#[\w-]+", value):
                 if hexa.upper() not in allowed:
                     bad.append(f"color: {hexa}")
             value = re.sub(r"#[\w-]+", " ", value)
             for fn in re.findall(r"([A-Za-z_-][\w-]*)\(", value):
                 bad.append(f"color: función {fn}()")
+            value = re.sub(r"[A-Za-z_-][\w-]*\(", " ", value)
+            for num in re.finditer(r"[-+]?(?:\d+\.?\d*|\.\d+)([A-Za-z%]*)", value):
+                if num[1].lower() not in CSS_UNITS:
+                    bad.append(f"color: unidad no permitida: {num[0]}")
             value = re.sub(r"[-+]?(?:\d+\.?\d*|\.\d+)[A-Za-z%]*", " ", value)
             for word in re.findall(r"[A-Za-z_-][\w-]*", value):
-                if word.lower() not in CSS_KEYWORDS and f"color: función {word}()" not in bad:
-                    bad.append(f"color: palabra no permitida en {prop.strip()}: {word}")
+                if word.lower() not in CSS_KEYWORDS:
+                    bad.append(f"color: palabra no permitida en {prop}: {word}")
+            leftover = re.sub(r"[A-Za-z_-][\w-]*|[/,\s]", "", value)
+            if leftover:
+                bad.append(f"color: resto no permitido en {prop}: {leftover!r}")
+    for idx, text in enumerate(strings):
+        if idx not in used_as_url and text != "" and not any(f"\x00S{idx}\x00" in p or f"\x00U{idx}\x00" in p for p, _ in rules):
+            bad.append("structure: cadena no vacía")
+    bad += _javascript_in("".join(f"{p}{{{';'.join(d)}}}" for p, d in rules).replace("\x00", " ") + " ".join(strings))
     return sorted(set(bad))
 
 
@@ -401,7 +498,8 @@ def message_problems(theme: Path, ref: Path, templates: list[str]) -> list[str]:
 # --- marca ----------------------------------------------------------------------------------
 
 def css_hex_colors(css: str) -> set[str]:
-    return {h.upper() for h in re.findall(r"#[0-9A-Fa-f]{6}\b", _css_unescape(css))}
+    rules, _, _ = _tokenize_css(css)
+    return {h.upper() for _, decls in rules for d in decls for h in re.findall(r"#[0-9A-Fa-f]{6}\b", d)}
 
 
 def _lin(c: int) -> float:
@@ -422,108 +520,70 @@ def contrast(a: str, b: str) -> float:
 # --- Dockerfile -----------------------------------------------------------------------------
 
 THEME_TARGET = "/opt/keycloak/themes/vectra"
-_SEPARATORS = {"&&", ";", "||", "|", "&"}
+KC = "/opt/keycloak/bin/kc.sh"
+_BLANKS = re.compile(r"[ \t\v\f\r]+")
 
 
-def _instructions(text: str) -> list[tuple[str, str]]:
-    """(INSTRUCCIÓN en mayúsculas, resto) con continuaciones de línea; los comentarios se descartan."""
+def _instructions(text: str) -> list[list[str]]:
+    """Instrucciones normalizadas: sin líneas vacías ni comentarios, con continuaciones unidas, separadas por blancos y con el nombre en mayúsculas."""
     logical, current = [], ""
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not current and (not line or line.startswith("#")):
-            continue
-        if current and line.startswith("#"):
+    for raw in text.split("\n"):
+        line = raw.strip(" \t\v\f\r")
+        if line.startswith("#") or not line:
+            if not current:
+                continue
             continue
         if line.endswith("\\"):
             current += line[:-1] + " "
             continue
-        logical.append((current + line).strip())
+        logical.append(current + line)
         current = ""
     if current.strip():
-        logical.append(current.strip())
-    out = []
+        logical.append(current)
+    steps = []
     for line in logical:
-        head, _, rest = line.partition(" ")
-        out.append((head.upper(), rest.strip()))
-    return out
-
-
-def _argv(rest: str) -> list[str]:
-    """Argumentos de una instrucción, en forma exec (JSON) o shell."""
-    if rest.startswith("["):
-        try:
-            parsed = json.loads(rest)
-            if isinstance(parsed, list) and all(isinstance(a, str) for a in parsed):
-                return parsed
-        except json.JSONDecodeError:
-            pass
-    lexer = shlex.shlex(rest, posix=True, punctuation_chars=True)
-    lexer.whitespace_split = True
-    try:
-        return list(lexer)
-    except ValueError:
-        return rest.split()
-
-
-def _kc_invocations(argv: list[str]) -> list[list[str]]:
-    """Argumentos que siguen a cada `kc.sh` de la línea de comandos."""
-    commands, current = [], []
-    for token in argv:
-        if token in _SEPARATORS:
-            commands.append(current)
-            current = []
-        else:
-            current.append(token)
-    commands.append(current)
-    found = []
-    for command in commands:
-        for i, token in enumerate(command):
-            if token.rsplit("/", 1)[-1] == "kc.sh":
-                found.append(command[i + 1 :])
-    return found
+        tokens = [t for t in _BLANKS.split(line.strip()) if t]
+        steps.append([tokens[0].upper(), *tokens[1:]])
+    return steps
 
 
 def dockerfile_problems(text: str, image: str, digest: str, options: list[str], start: list[str]) -> list[str]:
-    """Incumplimientos del Dockerfile frente a INF-U2-08 (y `USER 1000` por el escaneo de U1)."""
+    """Lista blanca exacta: el Dockerfile normalizado es FROM, COPY, RUN kc.sh build, USER 1000, ENTRYPOINT, CMD y nada más."""
     problems = []
+    if "<<" in text:
+        problems.append("heredoc no permitido")
+    for raw in text.split("\n"):
+        line = raw.strip()
+        if line and not line.startswith("#"):
+            break
+        if re.match(r"#\s*[A-Za-z]+\s*=", line):
+            problems.append(f"directiva de parser no permitida: {line}")
     steps = _instructions(text)
-    froms = [_argv(rest) for kw, rest in steps if kw == "FROM"]
-    if len(froms) != 1 or [a for a in froms[0] if not a.startswith("--")][:1] != [f"{image}@{digest}"]:
-        problems.append(f"debe haber un único FROM y ser la imagen exacta con su digest: {froms}")
-    copies = [[a for a in _argv(rest) if not a.startswith("--")] for kw, rest in steps if kw == "COPY"]
-    if ["themes/vectra", THEME_TARGET] not in copies:
-        problems.append(f"el tema no se copia a {THEME_TARGET}: {copies}")
-    builds = []
-    for kw, rest in steps:
-        if kw in {"RUN", "CMD", "ENTRYPOINT", "ONBUILD", "HEALTHCHECK"}:
-            builds += [args for args in _kc_invocations(_argv(rest)) if "build" in args]
-    if len(builds) != 1:
-        problems.append(f"debe haber una única invocación de kc.sh build, hay {len(builds)}")
+    expected = ["FROM", "COPY", "RUN", "USER", "ENTRYPOINT", "CMD"]
+    if [s[0] for s in steps] != expected:
+        return problems + [f"las instrucciones deben ser exactamente {expected}: {[s[0] for s in steps]}"]
+    by_name = {s[0]: s[1:] for s in steps}
+    if by_name["FROM"] != [f"{image}@{digest}"]:
+        problems.append(f"FROM no es la imagen exacta con su digest: {by_name['FROM']}")
+    if by_name["COPY"] != ["--chown=keycloak:keycloak", "themes/vectra", THEME_TARGET]:
+        problems.append(f"el tema no se copia a {THEME_TARGET}: {by_name['COPY']}")
+    run = by_name["RUN"]
+    if run[:2] != [KC, "build"]:
+        problems.append(f"RUN debe ser {KC} build con las opciones del diseño: {run}")
     else:
+        args = run[2:]
         for option in options:
             name = option.split("=", 1)[0]
-            same = [g for g in builds[0] if g == name or g.startswith(name + "=")]
+            same = [g for g in args if g == name or g.startswith(name + "=")]
             if same != [option]:
                 problems.append(f"kc.sh build debe llevar {option} una sola vez: {same}")
-    assigned: list[tuple[str, str]] = []
-    for kw, rest in steps:
-        argv = _argv(rest)
-        for token in argv:
-            m = re.fullmatch(r"(KC_[A-Z_]+)=(.*)", token, re.DOTALL)
-            if m:
-                assigned.append((m.group(1), m.group(2)))
-        if kw in {"ENV", "ARG"} and len(argv) >= 2 and "=" not in argv[0]:
-            assigned.append((argv[0], " ".join(argv[1:])))
-    for option in options:
-        name, value = option.lstrip("-").split("=", 1)
-        env = "KC_" + name.upper().replace("-", "_")
-        problems += [f"{env}={v} contradice {option}" for k, v in assigned if k == env and v.strip("\"'") != value]
-    users = [(i, _argv(rest)) for i, (kw, rest) in enumerate(steps) if kw == "USER"]
-    entry = [i for i, (kw, _) in enumerate(steps) if kw == "ENTRYPOINT"]
-    if not users or any(a != ["1000"] for _, a in users) or (entry and users[-1][0] > entry[-1]):
-        problems.append("falta `USER 1000` antes del arranque, o hay otro USER")
-    cmd = [_argv(rest) for kw, rest in steps if kw == "CMD"]
-    entrypoint = [_argv(rest) for kw, rest in steps if kw == "ENTRYPOINT"]
-    if not cmd or cmd[-1] != start or not entrypoint or entrypoint[-1][:1] == [] or entrypoint[-1][0].rsplit("/", 1)[-1] != "kc.sh":
-        problems.append(f"el arranque no es `{' '.join(start)}` con kc.sh: {cmd} {entrypoint}")
+        extra = [g for g in args if g not in options]
+        if extra:
+            problems.append(f"kc.sh build lleva argumentos de más: {extra}")
+    if by_name["USER"] != ["1000"]:
+        problems.append(f"USER debe ser 1000: {by_name['USER']}")
+    if " ".join(by_name["ENTRYPOINT"]) != json.dumps([KC]):
+        problems.append(f"ENTRYPOINT debe ser {json.dumps([KC])}: {by_name['ENTRYPOINT']}")
+    if " ".join(by_name["CMD"]) != json.dumps(start):
+        problems.append(f"CMD debe ser {json.dumps(start)}: {by_name['CMD']}")
     return problems
