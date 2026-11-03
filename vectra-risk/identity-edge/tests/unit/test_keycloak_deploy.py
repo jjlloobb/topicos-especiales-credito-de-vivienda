@@ -273,6 +273,18 @@ def _spec_del(kind: str, name: str, key: str) -> Callable[[Docs], None]:
     return mutate
 
 
+
+def _annotate(kind: str, name: str, annotations: dict[str, str]) -> Callable[[Docs], None]:
+    def mutate(docs: Docs) -> None:
+        kd.find(docs, kind, name)["metadata"]["annotations"] = annotations
+
+    return mutate
+
+
+SKIP = {"argocd.argoproj.io/hook": "Skip"}
+POST_SYNC = {"argocd.argoproj.io/hook": "PostSync", "argocd.argoproj.io/hook-delete-policy": "HookSucceeded"}
+
+
 PLAIN_SECRET = {"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "keycloak-plain", "namespace": "vectra-identity"}, "data": {"password": "cGFzcw=="}}
 ROUTE = {"apiVersion": "gateway.networking.k8s.io/v1", "kind": "HTTPRoute", "metadata": {"name": "keycloak-admin", "namespace": "vectra-identity"}, "spec": {}}
 STRANGER = {"apiVersion": "external-secrets.io/v1", "kind": "ExternalSecret", "metadata": {"name": "other", "namespace": "vectra-identity"}, "spec": {}}
@@ -382,6 +394,16 @@ MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
     ("present", "sin credencial de reader", _drop("ExternalSecret", "keycloak-reader-client")),
     ("hpa-targets-statefulset", "sin StatefulSet", _drop("StatefulSet", "keycloak")),
     # F-07: el conjunto de documentos del render es exactamente el esperado.
+    # F-09: ningun documento lleva anotaciones (metadata.annotations igual al render versionado).
+    ("metadata-annotations", "Skip en el StatefulSet", _annotate("StatefulSet", "keycloak", SKIP)),
+    ("metadata-annotations", "Skip en el PDB", _annotate("PodDisruptionBudget", "keycloak", SKIP)),
+    ("metadata-annotations", "Skip en keycloak-tls", _annotate("Certificate", "keycloak-tls", SKIP)),
+    ("metadata-annotations", "Skip en identity-ca", _annotate("ExternalSecret", "identity-ca", SKIP)),
+    ("metadata-annotations", "PostSync y HookSucceeded en la BackendTLSPolicy", _annotate("BackendTLSPolicy", "keycloak", POST_SYNC)),
+    ("metadata-annotations", "helm.sh/hook test en el HPA", _annotate("HorizontalPodAutoscaler", "keycloak", {"helm.sh/hook": "test"})),
+    ("metadata-annotations", "anotacion cualquiera en un Service", _annotate("Service", "keycloak", {"x": "y"})),
+    ("metadata-annotations", "anotacion en la ServiceAccount", _annotate("ServiceAccount", "keycloak", {"x": "y"})),
+    ("metadata-annotations", "anotaciones vacias", _annotate("Service", "keycloak-admin", {})),
     ("documents-exact", "Deployment kc-extra", _extra_workload("Deployment", "kc-extra")),
     ("documents-exact", "StatefulSet keycloak-b", _extra_workload("StatefulSet", "keycloak-b")),
     ("documents-exact", "NetworkPolicy abierta", _add_doc(NETWORK_POLICY)),

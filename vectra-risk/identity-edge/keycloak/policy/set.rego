@@ -127,3 +127,12 @@ deny contains msg if {
 	count(actual_documents) != count(expected_documents)
 	msg := "documents-exact: documento repetido o de mas"
 }
+
+# regla: metadata-annotations
+# Ningun documento lleva anotaciones (como el render versionado): una de hook de Argo CD (`Skip`, `PostSync`) quita piezas del diseno.
+# El pod template solo admite los dos checksum del chart (regla `template-metadata`).
+deny contains msg if {
+	some document in documents
+	"annotations" in object.keys(document.metadata)
+	msg := sprintf("metadata-annotations: %s %s lleva anotaciones", [document.kind, document.metadata.name])
+}
