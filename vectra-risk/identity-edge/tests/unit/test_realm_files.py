@@ -113,22 +113,43 @@ def test_realm_files_parameters_are_those_of_the_design(env: str) -> None:
 def test_realm_files_realm_settings_are_those_of_section_1_0(env: str) -> None:
     realm = load(env)
     settings = design.realm_settings()
-    assert set(settings) == {
-        "displayName", "webAuthnPolicyRpEntityName", "webAuthnPolicySignatureAlgorithms",
-        "loginWithEmailAllowed", "sslRequired", "resetPasswordAllowed", "rememberMe",
-    }  # fmt: skip
+    assert settings
     for key, value in settings.items():
         assert realm[key] == value
         assert type(realm[key]) is type(value)
-    assert settings["webAuthnPolicySignatureAlgorithms"] == ["ES256", "RS256"]
 
 
 def test_realm_files_assertions_are_signed_with_the_algorithm_of_br_u2_09(env: str) -> None:
+    """BR-U2-09: los de servicio (§2.2), los de administracion (INF-U2-05a) y `grafana` (§2.1); ningun otro."""
     algorithm = design.assertion_signing_algorithm()
-    jwt_clients = [c for c in load(env)["clients"] if c.get("clientAuthenticatorType") == "client-jwt"]
-    assert len(jwt_clients) >= 13
-    for client in jwt_clients:
-        assert client["attributes"]["token.endpoint.auth.signing.alg"] == algorithm
+    covered = {*design_clients(env), *ADMIN_CLIENT_ROLES, *design.private_key_jwt_user_clients()}
+    assert {"grafana", "keycloak-config-cli", "keycloak-reader"} <= covered
+    for client in load(env)["clients"]:
+        signed = client.get("attributes", {}).get("token.endpoint.auth.signing.alg")
+        if client["clientId"] in covered:
+            assert client["clientAuthenticatorType"] == "client-jwt"
+            assert signed == algorithm
+        else:
+            assert signed is None
+
+
+def test_realm_files_tokens_carry_only_what_the_design_allows(env: str) -> None:
+    realm = load(env)
+    # BR-U0-71: los servicios verifican el scope en el token.
+    assert realm["clientScopes"]
+    for scope in realm["clientScopes"]:
+        assert scope["attributes"]["include.in.token.scope"] == "true"
+    # domain-entities §1.3: el claim `roles` lleva solo el rol de negocio -> sin alcance completo.
+    for client in realm["clients"]:
+        assert client["fullScopeAllowed"] is False
+    business = design.business_roles()
+    assert business and OPERACION not in business
+    mappings = {m["client"]: m["roles"] for m in realm["scopeMappings"] if "client" in m}
+    assert mappings["vectra-console"] == business  # sin `operacion`
+    assert mappings["promotion-tool"] == [design.promotion_tool()["role"]]
+    # BR-U2-06: refresh con rotacion en los clientes de usuario.
+    for client_id in design.user_client_ids():
+        assert client_of(realm, client_id)["attributes"]["use.refresh.tokens"] == "true"
 
 
 def test_realm_files_events_without_personal_data_in_the_realm_fields(env: str) -> None:

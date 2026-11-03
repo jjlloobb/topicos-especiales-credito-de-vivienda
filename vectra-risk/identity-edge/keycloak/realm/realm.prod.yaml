@@ -880,6 +880,7 @@ clients:
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_GRAFANA_JWKS)
     default.acr.values: mfa
+    use.refresh.tokens: 'true'
   redirectUris:
   - https://$(env:PUBLIC_HOSTNAME)/grafana/login/generic_oauth
   webOrigins:

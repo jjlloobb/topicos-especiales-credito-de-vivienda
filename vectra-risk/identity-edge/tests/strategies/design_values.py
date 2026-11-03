@@ -300,3 +300,15 @@ def realm_settings() -> dict[str, object]:
         for name in names:
             out[name] = value
     return out
+
+
+def business_roles() -> list[str]:
+    """domain-entities §1.1: los roles de negocio (las filas de la tabla)."""
+    body = section(DOMAIN_ENTITIES, "### 1.1 Roles de negocio (realm roles)")
+    return [r[0].strip("`") for r in table_rows(body) if re.fullmatch(r"`\w+`", r[0])]
+
+
+def private_key_jwt_user_clients() -> list[str]:
+    """domain-entities §2.1: clientes de usuario confidenciales con `private_key_jwt`."""
+    body = section(DOMAIN_ENTITIES, "### 2.1 Clientes de usuario")
+    return [r[0].strip("`") for r in table_rows(body) if re.match(r"`[\w-]+`", r[0]) and "private_key_jwt" in r[1]]
