@@ -176,6 +176,65 @@ def _hpa_metric_memory(docs: Docs) -> None:
     kd.find(docs, "HorizontalPodAutoscaler", "keycloak")["spec"]["metrics"][0]["resource"]["name"] = "memory"
 
 
+POD = ["spec", "template", "spec"]
+CON = [*POD, "containers", 0]
+
+
+def _vol_add(volume: dict[str, Any], mount: dict[str, Any] | None = None) -> Callable[[Docs], None]:
+    def mutate(docs: Docs) -> None:
+        _pod(docs)["volumes"].append(volume)
+        if mount is not None:
+            _container(docs)["volumeMounts"].append(mount)
+
+    return mutate
+
+
+def _vol_edit(name: str, **change: Any) -> Callable[[Docs], None]:
+    def mutate(docs: Docs) -> None:
+        (volume,) = [v for v in _pod(docs)["volumes"] if v["name"] == name]
+        volume.pop("secret", None) if "secret" in change else None
+        volume.pop("configMap", None) if "configMap" in change else None
+        volume.pop("emptyDir", None) if "emptyDir" in change else None
+        volume.update(change)
+
+    return mutate
+
+
+def _mount_edit(name: str, **change: Any) -> Callable[[Docs], None]:
+    def mutate(docs: Docs) -> None:
+        (mount,) = [m for m in _container(docs)["volumeMounts"] if m["name"] == name]
+        mount.update(change)
+
+    return mutate
+
+
+def _mount_drop(name: str) -> Callable[[Docs], None]:
+    def mutate(docs: Docs) -> None:
+        _container(docs)["volumeMounts"][:] = [m for m in _container(docs)["volumeMounts"] if m["name"] != name]
+
+    return mutate
+
+
+def _probe_edit(probe: str, key: str, value: Any, inner: bool = True) -> Callable[[Docs], None]:
+    def mutate(docs: Docs) -> None:
+        node = _container(docs)[probe]
+        (node["httpGet"] if inner else node)[key] = value
+
+    return mutate
+
+
+def _sa_automount(docs: Docs) -> None:
+    kd.find(docs, "ServiceAccount", "keycloak")["automountServiceAccountToken"] = True
+
+
+def _annotation(docs: Docs) -> None:
+    _sts(docs)["spec"]["template"]["metadata"]["annotations"]["linkerd.io/inject"] = "disabled"
+
+
+def _label(docs: Docs) -> None:
+    _sts(docs)["spec"]["template"]["metadata"]["labels"]["extra"] = "x"
+
+
 PLAIN_SECRET = {"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "keycloak-plain", "namespace": "vectra-identity"}, "data": {"password": "cGFzcw=="}}
 ROUTE = {"apiVersion": "gateway.networking.k8s.io/v1", "kind": "HTTPRoute", "metadata": {"name": "keycloak-admin", "namespace": "vectra-identity"}, "spec": {}}
 STRANGER = {"apiVersion": "external-secrets.io/v1", "kind": "ExternalSecret", "metadata": {"name": "other", "namespace": "vectra-identity"}, "spec": {}}
@@ -284,6 +343,69 @@ MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
     ("present", "sin credencial de config-cli", _drop("ExternalSecret", "keycloak-config-cli-client")),
     ("present", "sin credencial de reader", _drop("ExternalSecret", "keycloak-reader-client")),
     ("hpa-targets-statefulset", "sin StatefulSet", _drop("StatefulSet", "keycloak")),
+    # F-06: el pod template entero contra una lista exacta (sondas del revisor y una variante por campo).
+    ("volumes", "keycloak.conf desde un ConfigMap con subPath", _vol_add({"name": "conf", "configMap": {"name": "x"}}, {"name": "conf", "mountPath": "/opt/keycloak/conf/keycloak.conf", "subPath": "keycloak.conf"})),
+    ("volumes", "quarkus.properties montado", _vol_add({"name": "conf", "configMap": {"name": "x"}}, {"name": "conf", "mountPath": "/opt/keycloak/conf/quarkus.properties", "subPath": "quarkus.properties"})),
+    ("volumes", "internal-ca desde otro ConfigMap", _vol_edit("internal-ca", configMap={"name": "otro"})),
+    ("volumes", "tls desde otro Secret", _vol_edit("tls", secret={"secretName": "otro"})),
+    ("volumes", "volumen de mas sin montar", _vol_add({"name": "extra", "emptyDir": {}})),
+    ("volumes", "hostPath", _vol_edit("data", hostPath={"path": "/"})),
+    ("volumes", "internal-ca como Secret", _vol_edit("internal-ca", secret={"secretName": "vectra-internal-ca"})),
+    ("volumes", "sin el volumen tmp", lambda d: _pod(d)["volumes"].pop(2)),
+    ("volume-mounts", "volumen tls montado en otra ruta", _mount_edit("tls", mountPath="/etc/otro")),
+    ("volume-mounts", "tls escribible", _mount_edit("tls", readOnly=False)),
+    ("volume-mounts", "internal-ca escribible", _mount_edit("internal-ca", readOnly=False)),
+    ("volume-mounts", "subPath en tmp", _mount_edit("tmp", subPath="x")),
+    ("volume-mounts", "internal-ca en otra ruta", _mount_edit("internal-ca", mountPath="/opt/keycloak/conf")),
+    ("volume-mounts", "sin el montaje data", _mount_drop("data")),
+    ("volume-mounts", "montaje de mas", lambda d: _container(d)["volumeMounts"].append({"name": "tmp", "mountPath": "/opt/keycloak/conf"})),
+    ("pod-spec", "initContainers", _sts_set([*POD, "initContainers"], [{"name": "init", "image": "x"}])),
+    ("pod-spec", "hostNetwork", _sts_set([*POD, "hostNetwork"], True)),
+    ("pod-spec", "hostPID", _sts_set([*POD, "hostPID"], True)),
+    ("pod-spec", "hostIPC", _sts_set([*POD, "hostIPC"], True)),
+    ("pod-spec", "shareProcessNamespace", _sts_set([*POD, "shareProcessNamespace"], True)),
+    ("pod-spec", "automountServiceAccountToken en el pod", _sts_set([*POD, "automountServiceAccountToken"], True)),
+    ("pod-spec", "otra cuenta de servicio", _sts_set([*POD, "serviceAccountName"], "default")),
+    ("pod-spec", "nodeSelector", _sts_set([*POD, "nodeSelector"], {"x": "y"})),
+    ("pod-spec", "tolerations", _sts_set([*POD, "tolerations"], [{"operator": "Exists"}])),
+    ("pod-spec", "dnsPolicy", _sts_set([*POD, "dnsPolicy"], "None")),
+    ("pod-spec", "hostAliases", _sts_set([*POD, "hostAliases"], [{"ip": "1.2.3.4", "hostnames": ["x"]}])),
+    ("pod-spec", "gracia de terminacion", _sts_set([*POD, "terminationGracePeriodSeconds"], 0)),
+    ("pod-spec", "restartPolicy", _sts_set([*POD, "restartPolicy"], "Never")),
+    ("pod-spec", "enableServiceLinks", _sts_set([*POD, "enableServiceLinks"], False)),
+    ("pod-spec", "afinidad distinta", _sts_set([*POD, "affinity", "podAntiAffinity", "requiredDuringSchedulingIgnoredDuringExecution"], [])),
+    ("pod-security", "fsGroup distinto", _sts_set([*POD, "securityContext", "fsGroup"], 0)),
+    ("pod-security", "runAsUser 0 en el pod", _sts_set([*POD, "securityContext", "runAsUser"], 0)),
+    ("pod-security", "sysctls", _sts_set([*POD, "securityContext", "sysctls"], [{"name": "net.ipv4.ip_forward", "value": "1"}])),
+    ("pod-security", "seccomp Unconfined", _sts_set([*POD, "securityContext", "seccompProfile", "type"], "Unconfined")),
+    ("container-spec", "command", _sts_set([*CON, "command"], ["sh"])),
+    ("container-spec", "workingDir", _sts_set([*CON, "workingDir"], "/")),
+    ("container-spec", "lifecycle", _sts_set([*CON, "lifecycle"], {"postStart": {"exec": {"command": ["sh"]}}})),
+    ("container-spec", "imagePullPolicy Always", _sts_set([*CON, "imagePullPolicy"], "Always")),
+    ("container-spec", "otro nombre", _sts_set([*CON, "name"], "otro")),
+    ("container-spec", "stdin", _sts_set([*CON, "stdin"], True)),
+    ("container-spec", "sin startupProbe", lambda d: _container(d).pop("startupProbe")),
+    ("container-security", "privileged", _sts_set([*CON, "securityContext", "privileged"], True)),
+    ("container-security", "runAsUser 0", _sts_set([*CON, "securityContext", "runAsUser"], 0)),
+    ("container-security", "raiz escribible", _sts_set([*CON, "securityContext", "readOnlyRootFilesystem"], False)),
+    ("container-security", "escalada de privilegios", _sts_set([*CON, "securityContext", "allowPrivilegeEscalation"], True)),
+    ("container-security", "capacidad NET_ADMIN", _sts_set([*CON, "securityContext", "capabilities", "add"], ["NET_ADMIN"])),
+    ("container-security", "sin drop ALL", _sts_set([*CON, "securityContext", "capabilities", "drop"], ["NET_RAW"])),
+    ("ports", "puerto de mas", lambda d: _container(d)["ports"].append({"name": "x", "containerPort": 9999, "protocol": "TCP"})),
+    ("ports", "hostPort", lambda d: _container(d)["ports"][2].update({"hostPort": 8443})),
+    ("ports", "sin jgroups", lambda d: _container(d)["ports"].pop()),
+    ("ports", "9000 en otro numero", lambda d: _container(d)["ports"][1].update({"containerPort": 9001})),
+    ("probes", "path de liveness", _probe_edit("livenessProbe", "path", "/auth/otro")),
+    ("probes", "esquema HTTP", _probe_edit("readinessProbe", "scheme", "HTTP")),
+    ("probes", "retraso de readiness", _probe_edit("readinessProbe", "initialDelaySeconds", 600, inner=False)),
+    ("probes", "failureThreshold de startup", _probe_edit("startupProbe", "failureThreshold", 1, inner=False)),
+    ("probes", "sonda exec", _sts_set([*CON, "livenessProbe"], {"exec": {"command": ["true"]}})),
+    ("template-metadata", "anotacion de mas", _annotation),
+    ("template-metadata", "etiqueta de mas", _label),
+    ("statefulset-spec", "volumeClaimTemplates", _sts_set(["spec", "volumeClaimTemplates"], [{"metadata": {"name": "x"}}])),
+    ("statefulset-spec", "otra estrategia", _sts_set(["spec", "updateStrategy", "type"], "OnDelete")),
+    ("service-account", "automount del token", _sa_automount),
+    ("service-account", "sin la cuenta de servicio", _drop("ServiceAccount", "keycloak")),
 ]  # fmt: skip
 
 
@@ -385,6 +507,20 @@ def test_design_image_repository_and_digest(env):
     repository, digest = image.split("@")
     assert repository == kd.design_image_repositories()[env]
     assert digest.startswith("sha256:")
+
+
+@pytest.mark.parametrize("env", kd.ENVS)
+def test_design_container_ports_match_flows(env):
+    declared = {p["containerPort"] for p in _container(kd.load(env))["ports"]}
+    assert set(kd.design_ports().values()) <= declared
+    assert declared - set(kd.design_ports().values()) == {8080}
+
+
+@pytest.mark.parametrize("env", kd.ENVS)
+def test_design_start_args_and_image_tag_come_from_the_dockerfile_design(env):
+    import theme_checks as tc
+
+    assert _container(kd.load(env))["args"] == tc.design_start_args()
 
 
 @pytest.mark.parametrize("env", kd.ENVS)

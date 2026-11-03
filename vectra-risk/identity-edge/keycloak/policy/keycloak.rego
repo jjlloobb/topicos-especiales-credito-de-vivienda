@@ -292,11 +292,28 @@ deny contains msg if {
 }
 
 # regla: probes
+# Liveness, readiness y startup: httpGet HTTPS al puerto de gestion 9000 (nombrado http-internal), con las rutas y tiempos del chart.
+deny contains msg if {
+	is_keycloak_statefulset
+	some probe, expected in expected_probes
+	container[probe] != expected
+	msg := sprintf("probes: %s debe ser exactamente %v", [probe, expected])
+}
+
 deny contains msg if {
 	is_keycloak_statefulset
 	some probe in ["livenessProbe", "readinessProbe"]
 	not probe_on_management_port(probe)
 	msg := sprintf("probes: %s debe ser un httpGet al puerto de gestion 9000", [probe])
+}
+
+expected_probes := {
+	"livenessProbe": {"httpGet": {"path": "/auth/health/live", "port": "http-internal", "scheme": "HTTPS"}, "initialDelaySeconds": 0, "timeoutSeconds": 5},
+	"readinessProbe": {"httpGet": {"path": "/auth/health/ready", "port": "http-internal", "scheme": "HTTPS"}, "initialDelaySeconds": 10, "timeoutSeconds": 1},
+	"startupProbe": {
+		"httpGet": {"path": "/auth/health", "port": "http-internal", "scheme": "HTTPS"},
+		"initialDelaySeconds": 15, "timeoutSeconds": 1, "failureThreshold": 60, "periodSeconds": 5,
+	},
 }
 
 probe_on_management_port(probe) if {
@@ -380,6 +397,188 @@ deny contains msg if {
 tls_volume if {
 	some volume in input.spec.template.spec.volumes
 	volume.secret.secretName == "keycloak-tls"
+}
+
+# El pod template completo contra una lista exacta (F-06). Lo que fija el diseno (imagen, args, puertos de flows.yaml, recursos)
+# se cruza con el diseno en test_keycloak_deploy.py; lo que solo fija el chart sale del render versionado.
+expected_pod_keys := {
+	"affinity", "containers", "enableServiceLinks", "priorityClassName", "restartPolicy", "securityContext",
+	"serviceAccountName", "terminationGracePeriodSeconds", "topologySpreadConstraints", "volumes",
+}
+
+expected_affinity := {"podAntiAffinity": {
+	"requiredDuringSchedulingIgnoredDuringExecution": [{
+		"labelSelector": {
+			"matchLabels": pod_selector,
+			"matchExpressions": [{"key": "app.kubernetes.io/component", "operator": "NotIn", "values": ["test"]}],
+		},
+		"topologyKey": "kubernetes.io/hostname",
+	}],
+	"preferredDuringSchedulingIgnoredDuringExecution": [{
+		"weight": 100,
+		"podAffinityTerm": {
+			"labelSelector": {
+				"matchLabels": pod_selector,
+				"matchExpressions": [{"key": "app.kubernetes.io/component", "operator": "NotIn", "values": ["test"]}],
+			},
+			"topologyKey": "topology.kubernetes.io/zone",
+		},
+	}],
+}}
+
+# regla: pod-spec
+deny contains msg if {
+	is_keycloak_statefulset
+	object.keys(input.spec.template.spec) != expected_pod_keys
+	msg := sprintf("pod-spec: las claves del pod deben ser exactamente %v", [sort(expected_pod_keys)])
+}
+
+deny contains msg if {
+	is_keycloak_statefulset
+	spec := input.spec.template.spec
+	not pod_spec_values_ok(spec)
+	msg := "pod-spec: serviceAccountName keycloak, enableServiceLinks true, restartPolicy Always, gracia de 60 s y la afinidad del render"
+}
+
+pod_spec_values_ok(spec) if {
+	spec.serviceAccountName == "keycloak"
+	spec.enableServiceLinks == true
+	spec.restartPolicy == "Always"
+	spec.terminationGracePeriodSeconds == 60
+	spec.affinity == expected_affinity
+}
+
+# regla: pod-security
+deny contains msg if {
+	is_keycloak_statefulset
+	input.spec.template.spec.securityContext != {"fsGroup": 1000, "runAsNonRoot": true, "seccompProfile": {"type": "RuntimeDefault"}}
+	msg := "pod-security: securityContext del pod exacto: fsGroup 1000, runAsNonRoot, seccomp RuntimeDefault"
+}
+
+# regla: container-spec
+expected_container_keys := {
+	"args", "env", "envFrom", "image", "imagePullPolicy", "livenessProbe", "name", "ports", "readinessProbe",
+	"resources", "securityContext", "startupProbe", "volumeMounts",
+}
+
+deny contains msg if {
+	is_keycloak_statefulset
+	object.keys(container) != expected_container_keys
+	msg := sprintf("container-spec: las claves del contenedor deben ser exactamente %v", [sort(expected_container_keys)])
+}
+
+deny contains msg if {
+	is_keycloak_statefulset
+	not container.name == "keycloak"
+	msg := "container-spec: el contenedor se llama keycloak"
+}
+
+deny contains msg if {
+	is_keycloak_statefulset
+	not container.imagePullPolicy == "IfNotPresent"
+	msg := "container-spec: imagePullPolicy IfNotPresent"
+}
+
+# regla: container-security
+deny contains msg if {
+	is_keycloak_statefulset
+	container.securityContext != {
+		"allowPrivilegeEscalation": false,
+		"capabilities": {"drop": ["ALL"]},
+		"readOnlyRootFilesystem": true,
+		"runAsNonRoot": true,
+		"runAsUser": 1000,
+	}
+	msg := "container-security: securityContext del contenedor exacto (sin privilegios, raiz de solo lectura, usuario 1000, drop ALL)"
+}
+
+# regla: ports
+# 8443 (F05, F50), 7800 (F117) y 9000 (F60) de flows.yaml, mas el 8080 que el chart declara siempre.
+deny contains msg if {
+	is_keycloak_statefulset
+	{p | some p in container.ports} != {
+		{"name": "http", "containerPort": 8080, "protocol": "TCP"},
+		{"name": "http-internal", "containerPort": 9000, "protocol": "TCP"},
+		{"name": "https", "containerPort": 8443, "protocol": "TCP"},
+		{"name": "jgroups", "containerPort": 7800, "protocol": "TCP"},
+	}
+	msg := "ports: los puertos del contenedor son exactamente 8080, 9000, 8443 y 7800, sin hostPort"
+}
+
+# regla: volumes
+deny contains msg if {
+	is_keycloak_statefulset
+	input.spec.template.spec.volumes != [
+		{"name": "tls", "secret": {"secretName": "keycloak-tls"}},
+		{"name": "internal-ca", "configMap": {"name": "vectra-internal-ca"}},
+		{"name": "tmp", "emptyDir": {}},
+		{"name": "data", "emptyDir": {}},
+	]
+	msg := "volumes: exactamente tls (Secret keycloak-tls), internal-ca (ConfigMap vectra-internal-ca), tmp y data (emptyDir)"
+}
+
+# regla: volume-mounts
+deny contains msg if {
+	is_keycloak_statefulset
+	container.volumeMounts != [
+		{"name": "tls", "mountPath": "/etc/x509/https", "readOnly": true},
+		{"name": "internal-ca", "mountPath": "/etc/vectra/ca", "readOnly": true},
+		{"name": "tmp", "mountPath": "/tmp"},
+		{"name": "data", "mountPath": "/opt/keycloak/data"},
+	]
+	msg := "volume-mounts: exactamente tls y internal-ca de solo lectura, tmp y data, sin subPath"
+}
+
+# regla: template-metadata
+deny contains msg if {
+	is_keycloak_statefulset
+	input.spec.template.metadata.labels != pod_selector
+	msg := "template-metadata: las etiquetas del pod son exactamente las del selector"
+}
+
+deny contains msg if {
+	is_keycloak_statefulset
+	object.keys(input.spec.template.metadata.annotations) != {"checksum/config-startup", "checksum/secrets"}
+	msg := "template-metadata: las anotaciones del pod son solo los dos checksum del chart"
+}
+
+deny contains msg if {
+	is_keycloak_statefulset
+	object.keys(input.spec.template.metadata) != {"annotations", "labels"}
+	msg := "template-metadata: solo annotations y labels"
+}
+
+# regla: statefulset-spec
+deny contains msg if {
+	is_keycloak_statefulset
+	object.keys(input.spec) != {"podManagementPolicy", "selector", "serviceName", "template", "updateStrategy"}
+	msg := "statefulset-spec: sin volumeClaimTemplates ni otros campos"
+}
+
+deny contains msg if {
+	is_keycloak_statefulset
+	not statefulset_values_ok
+	msg := "statefulset-spec: serviceName keycloak-headless, OrderedReady, RollingUpdate y el selector de los pods"
+}
+
+statefulset_values_ok if {
+	input.spec.serviceName == "keycloak-headless"
+	input.spec.podManagementPolicy == "OrderedReady"
+	input.spec.updateStrategy == {"type": "RollingUpdate"}
+	input.spec.selector == {"matchLabels": pod_selector}
+}
+
+# regla: service-account
+deny contains msg if {
+	input.kind == "ServiceAccount"
+	not service_account_ok
+	msg := "service-account: keycloak, sin montar el token de la API ni imagePullSecrets"
+}
+
+service_account_ok if {
+	input.metadata.name == "keycloak"
+	input.automountServiceAccountToken == false
+	object.keys(input) == {"apiVersion", "kind", "metadata", "automountServiceAccountToken"}
 }
 
 # regla: no-plain-secret

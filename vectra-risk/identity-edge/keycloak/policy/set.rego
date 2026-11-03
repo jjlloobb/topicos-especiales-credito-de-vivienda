@@ -25,6 +25,7 @@ present(kind, name) if {
 
 required := [
 	["StatefulSet", "keycloak"],
+	["ServiceAccount", "keycloak"],
 	["HorizontalPodAutoscaler", "keycloak"],
 	["PodDisruptionBudget", "keycloak"],
 	["Service", "keycloak"],
@@ -41,6 +42,12 @@ deny contains msg if {
 	some pair in required
 	not present(pair[0], pair[1])
 	msg := sprintf("present: falta %s %s en el render", pair)
+}
+
+# regla: service-account
+deny contains msg if {
+	not present("ServiceAccount", "keycloak")
+	msg := "service-account: falta la ServiceAccount keycloak"
 }
 
 # regla: hpa-targets-statefulset
