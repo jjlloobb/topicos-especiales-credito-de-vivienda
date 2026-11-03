@@ -5387,3 +5387,35 @@ Se marca el Paso 5 del plan, con el Job de `keycloak-config-cli` pendiente en su
 **Context**: Construcción de U2.
 
 ---
+
+## PR 57 aprobado y fusionado
+**Timestamp**: 2026-11-03T16:55:39Z
+**User Input**: "ya approve el PR 57"
+**AI Response**: El PR 57 (U02-T07, Paso 5 de U2 sin el Job de keycloak-config-cli: values de keycloakx, manifiestos de TLS y ExternalSecret, políticas Rego y build con /auth) ya estaba fusionado en main (merge d2ea469, 2026-11-03T16:55:00Z), con todos los checks de CI en verde. main local actualizado. El siguiente paso del plan es el Paso 6 (realm-drift y signing-key-age). Esta entrada se agrega en el próximo PR.
+**Context**: Construcción de U2.
+
+---
+
+## Preparación de U02-T08 (Paso 6)
+**Timestamp**: 2026-11-03T17:20:02Z
+**User Input**: "prepara U02-T08 (Paso 6)"
+**AI Response**: El orquestador revisó el Paso 6 contra el diseño y el código de Keycloak 26.8.1. Con solo `view-realm`, `keycloak-reader` no puede leer clientes, client scopes ni usuarios (`ClientPermissions.canView` exige `view-clients`, `UserPermissions.canView` exige `view-users`), y `partial-export` exige `manage-realm`. `GET /admin/realms/vectra/keys` no trae la fecha de creación de la llave. El diseño no fijaba la semántica de la comparación, la imagen de los CronJobs, cómo llega el realm de Git ni la métrica de `signing-key-age`. Se preguntaron cuatro decisiones.
+**Context**: Construcción de U2, preparación de U02-T08.
+
+---
+
+## Decisiones R1–R4 de U02-T08
+**Timestamp**: 2026-11-03T17:20:02Z
+**User Input**: R1 "Agregar view-clients y view-users (Recomendado)"; R2 "Proyección sobre Git (Recomendado)"; R3 "Imagen identity-jobs + ConfigMap (Recomendado)"; R4 "Timestamp de creación (Recomendado)".
+**AI Response**: Se aplicaron en el diseño.
+- INF-U2-05a: `keycloak-reader` con `view-realm`, `view-clients` y `view-users`, y la regla de `realm-lint` ajustada; domain-entities §1.1 enmendado.
+- INF-U2-09 (nuevo): lectura por F94 con `vectra_common.service_token` por `hostname-admin`, comparación por proyección sobre Git, métrica `vectra_signing_key_created_timestamp_seconds` desde el `notBefore` del certificado, push a F112, horarios `0 3 * * *` y `0 * * * *` en UTC, imagen `identity-jobs` y ConfigMap del realm.
+- P-U2-05 enmendado.
+- Paso 6 del plan, con su enmienda.
+- Tarea `tareas/U02-T08-realm-drift-y-signing-key-age.md`.
+- Candidata: verificar en kind la audiencia de la aserción pedida por `hostname-admin`.
+
+El orquestador fijó la URL del token en el mismo host de administración.
+**Context**: Construcción de U2, preparación de U02-T08.
+
+---

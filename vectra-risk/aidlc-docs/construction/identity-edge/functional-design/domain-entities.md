@@ -28,7 +28,7 @@ compartidos (`Principal`, scopes, `Problem`) son de U0 y no se redefinen aquí.
 | `cumplimiento` | **Obligatorio** (TOTP) | P4 | — |
 
 **Un solo rol de negocio por usuario** (Q1, BR-U2-01). Roles técnicos fuera de este
-conjunto: `realm-admin` (solo la cuenta *break-glass* y la cuenta de servicio del cliente `keycloak-config-cli`; `keycloak-reader` solo tiene `view-realm`, INF-U2-05a (enmienda del 2026-11-02, decisión del usuario tras la ronda 3 de U02-T03)) y **`operacion`**
+conjunto: `realm-admin` (solo la cuenta *break-glass* y la cuenta de servicio del cliente `keycloak-config-cli`; `keycloak-reader` solo tiene `view-realm`, `view-clients` y `view-users`, INF-U2-05a (enmienda del 2026-11-02, decisión del usuario tras la ronda 3 de U02-T03; ampliada el 2026-11-03, decisión R1 del usuario al preparar U02-T08)) y **`operacion`**
 (segunda revisión del Infrastructure Design de U10, 2026-10-10): el equipo de operación de la plataforma; MFA obligatorio; solo sirve en Grafana (dashboards de
 operación y silencios de Alertmanager por F109, U1 P-U1-10); no es un rol de negocio, así que el
 gateway le niega `/api/console/**`; `realm-lint` rechaza un usuario con `operacion` y un rol de negocio

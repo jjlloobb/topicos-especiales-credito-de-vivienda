@@ -57,7 +57,7 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 ### P-U2-05 — Rotación de las llaves de firma (Q3)
 - Cada 90 días se agrega por realm como código una llave nueva (RS256 o ES256) con mayor prioridad, que pasa a firmar.
 - La anterior queda **pasiva** (publicada en JWKS, sin firmar) durante 24 h y después se desactiva.
-- Runbook `signing-key-rotation.md`. Alerta `SigningKeyAgeHigh` (SEV3) a los 80 días, calculada desde la fecha de creación de la llave activa que publica el CronJob `signing-key-age` (seguimiento de la quinta revisión de coherencia, 2026-10-31).
+- Runbook `signing-key-rotation.md`. Alerta `SigningKeyAgeHigh` (SEV3) a los 80 días, calculada desde la fecha de creación de la llave activa que publica el CronJob `signing-key-age` (seguimiento de la quinta revisión de coherencia, 2026-10-31). Esa fecha es la métrica `vectra_signing_key_created_timestamp_seconds`, el `notBefore` del certificado de la llave (INF-U2-09; enmienda del 2026-11-03, decisión R4 del usuario al preparar U02-T08).
 - **Verificación**: en kind, rotación con tokens emitidos antes y después: los dos se aceptan durante el solapamiento y el anterior se rechaza tras desactivar la llave.
 - **Satisface**: SECURITY-12; NFR-U2-24.
 

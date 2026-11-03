@@ -82,7 +82,7 @@ vectra-risk/identity-edge/
     - `product-metrics` (`private_key_jwt`) con **solo** `registry:read:metrics`; `realm-lint` falla si tiene otro scope (NFR-U11-20; NFR Requirements de U11, 2026-10-10);
     - `channel-simulator` (`private_key_jwt`, `intake:submit`, audiencia `case-service`) solo en `realm.kind.yaml` y `realm.staging.yaml`; `realm-lint` falla si aparece en `realm.prod.yaml` (precisado el 2026-10-06, revisión del FD de U8);
     - `case-service` con `core:read-credit` y la audiencia `core-banking-mock` solo en `realm.kind.yaml` y `realm.staging.yaml`; `realm-lint` falla si aparecen en `realm.prod.yaml`, y una prueba sobre el realm de producción comprueba que `case-service` no obtiene un token con ese scope ni con esa audiencia (precisado el 2026-10-08 por U8 INF-U8-02, core deshabilitado en producción);
-    - clientes de administración de INF-U2-05a: `keycloak-config-cli` (cuenta de servicio con `realm-admin`) y `keycloak-reader` (cuenta de servicio con solo `view-realm`), ambos con `private_key_jwt` (enmienda del 2026-11-02, decisión del usuario tras la ronda 3 de U02-T03);
+    - clientes de administración de INF-U2-05a: `keycloak-config-cli` (cuenta de servicio con `realm-admin`) y `keycloak-reader` (cuenta de servicio con solo `view-realm`), ambos con `private_key_jwt` (enmienda del 2026-11-02, decisión del usuario tras la ronda 3 de U02-T03); `keycloak-reader` pasa a `view-realm`, `view-clients` y `view-users` en el Paso 6 (enmienda del 2026-11-03, decisión R1 del usuario al preparar U02-T08, INF-U2-05a);
     - mapper de audiencias y mapper `roles`;
     - access token sin `preferred_username`, `email` ni `name`.
   - kind y staging: ≥ 2 usuarios sintéticos por rol. prod: federación LDAPS `READ_ONLY` (INF-U2-07) y el usuario `break-glass`. `group-role-map.yaml` y los mappers de grupo LDAP a rol pasan a una tarea propia, que se despacha cuando el banco dé los nombres de los grupos; hasta entonces, en prod los usuarios LDAP no reciben rol (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04).
@@ -130,7 +130,8 @@ vectra-risk/identity-edge/
 - [ ] **Paso 6 — `realm-drift` y `signing-key-age`**
   - CronJob diario que exporta el realm, lo normaliza (sin secretos, IDs internos ni timestamps) y lo compara con Git; empuja `vectra_realm_drift` al Pushgateway (F112, `PUT /metrics/job/realm-drift`; revisión de consistencia entre unidades, 2026-11-01), de donde sale `RealmDrift` (cuarta revisión de coherencia entre unidades, 2026-10-31).
   - CronJob horario `signing-key-age`: lee por F94 la llave de firma activa y empuja su antigüedad al Pushgateway (F112, `PUT /metrics/job/signing-key-age`; revisión de consistencia entre unidades, 2026-11-01) para `SigningKeyAgeHigh`. Sin Deployment ni scrape (seguimiento de la quinta revisión de coherencia, 2026-10-31).
-  - Diseño: BR-U2-12; P-U2-05.
+  - **Enmienda del 2026-11-03 (decisiones R1–R4 del usuario al preparar U02-T08):** `keycloak-reader` necesita además `view-clients` y `view-users` para leer clientes, client scopes y usuarios, así que el paso amplía sus roles en los tres realms y la regla de `realm-lint` (INF-U2-05a). La comparación es una proyección sobre Git, la métrica de `signing-key-age` es `vectra_signing_key_created_timestamp_seconds`, y la imagen `identity-jobs` y el ConfigMap del realm están en INF-U2-09.
+  - Diseño: BR-U2-12; P-U2-05; INF-U2-05a, 06, 09.
   - **Aceptación**: `uv run pytest identity-edge/tests/unit/test_realm_diff.py` y una propiedad: `normalize(normalize(x)) == normalize(x)`, y dos exportaciones que solo difieren en secretos o timestamps no generan diferencias.
 
 ### Bloque C — Gateway
