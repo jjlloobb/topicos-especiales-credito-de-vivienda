@@ -90,3 +90,40 @@ deny contains msg if {
 	issuer_name == internal_ca
 	msg := sprintf("issuer-per-environment: staging y prod no usan %s", [internal_ca])
 }
+
+# regla: documents-exact
+# El render es exactamente esta lista de (tipo, nombre, namespace): nada de mas y nada de menos.
+expected_documents := {
+	["BackendTLSPolicy", "keycloak", "vectra-identity"],
+	["Certificate", "keycloak-tls", "vectra-identity"],
+	["ExternalSecret", "identity-ca", "vectra-identity"],
+	["ExternalSecret", "keycloak-config-cli-client", "vectra-identity"],
+	["ExternalSecret", "keycloak-reader-client", "vectra-identity"],
+	["HorizontalPodAutoscaler", "keycloak", "vectra-identity"],
+	["PodDisruptionBudget", "keycloak", "vectra-identity"],
+	["Service", "keycloak", "vectra-identity"],
+	["Service", "keycloak-admin", "vectra-identity"],
+	["Service", "keycloak-headless", "vectra-identity"],
+	["Service", "keycloak-http", "vectra-identity"],
+	["ServiceAccount", "keycloak", "vectra-identity"],
+	["StatefulSet", "keycloak", "vectra-identity"],
+}
+
+actual_documents := [[d.kind, d.metadata.name, object.get(d.metadata, "namespace", "")] | some d in documents]
+
+deny contains msg if {
+	some doc in actual_documents
+	not doc in expected_documents
+	msg := sprintf("documents-exact: documento fuera de la lista: %s %s (%s)", doc)
+}
+
+deny contains msg if {
+	some doc in expected_documents
+	not doc in actual_documents
+	msg := sprintf("documents-exact: falta %s %s (%s)", doc)
+}
+
+deny contains msg if {
+	count(actual_documents) != count(expected_documents)
+	msg := "documents-exact: documento repetido o de mas"
+}

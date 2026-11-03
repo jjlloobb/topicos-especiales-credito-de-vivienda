@@ -235,6 +235,44 @@ def _label(docs: Docs) -> None:
     _sts(docs)["spec"]["template"]["metadata"]["labels"]["extra"] = "x"
 
 
+
+def _extra_workload(kind: str, name: str) -> Callable[[Docs], None]:
+    def mutate(docs: Docs) -> None:
+        doc = copy.deepcopy(_sts(docs))
+        doc["kind"] = kind
+        doc["metadata"]["name"] = name
+        doc["spec"]["template"]["spec"]["containers"][0]["args"] = ["start-dev"]
+        docs.append(doc)
+
+    return mutate
+
+
+NETWORK_POLICY = {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": {"name": "allow-all", "namespace": "vectra-identity"},
+                  "spec": {"podSelector": {}, "ingress": [{}], "policyTypes": ["Ingress"]}}  # fmt: skip
+ROLE_BINDING = {"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "RoleBinding", "metadata": {"name": "keycloak-admin", "namespace": "vectra-identity"},
+                "roleRef": {"apiGroup": "rbac.authorization.k8s.io", "kind": "ClusterRole", "name": "admin"},
+                "subjects": [{"kind": "ServiceAccount", "name": "keycloak", "namespace": "vectra-identity"}]}  # fmt: skip
+TCP_ROUTE = {"apiVersion": "gateway.networking.k8s.io/v1alpha2", "kind": "TCPRoute", "metadata": {"name": "keycloak", "namespace": "vectra-identity"}, "spec": {}}
+UDP_ROUTE = {**TCP_ROUTE, "kind": "UDPRoute"}
+
+
+def _service_elsewhere(docs: Docs) -> None:
+    doc = copy.deepcopy(kd.find(docs, "Service", "keycloak-admin"))
+    doc["metadata"]["namespace"] = "vectra-edge"
+    docs.append(doc)
+
+
+def _spec_set(kind: str, name: str, path: list[str | int], value: Any) -> Callable[[Docs], None]:
+    return _set(kind, name, ["spec", *path], value)
+
+
+def _spec_del(kind: str, name: str, key: str) -> Callable[[Docs], None]:
+    def mutate(docs: Docs) -> None:
+        del kd.find(docs, kind, name)["spec"][key]
+
+    return mutate
+
+
 PLAIN_SECRET = {"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "keycloak-plain", "namespace": "vectra-identity"}, "data": {"password": "cGFzcw=="}}
 ROUTE = {"apiVersion": "gateway.networking.k8s.io/v1", "kind": "HTTPRoute", "metadata": {"name": "keycloak-admin", "namespace": "vectra-identity"}, "spec": {}}
 STRANGER = {"apiVersion": "external-secrets.io/v1", "kind": "ExternalSecret", "metadata": {"name": "other", "namespace": "vectra-identity"}, "spec": {}}
@@ -343,6 +381,40 @@ MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
     ("present", "sin credencial de config-cli", _drop("ExternalSecret", "keycloak-config-cli-client")),
     ("present", "sin credencial de reader", _drop("ExternalSecret", "keycloak-reader-client")),
     ("hpa-targets-statefulset", "sin StatefulSet", _drop("StatefulSet", "keycloak")),
+    # F-07: el conjunto de documentos del render es exactamente el esperado.
+    ("documents-exact", "Deployment kc-extra", _extra_workload("Deployment", "kc-extra")),
+    ("documents-exact", "StatefulSet keycloak-b", _extra_workload("StatefulSet", "keycloak-b")),
+    ("documents-exact", "NetworkPolicy abierta", _add_doc(NETWORK_POLICY)),
+    ("documents-exact", "RoleBinding admin", _add_doc(ROLE_BINDING)),
+    ("documents-exact", "TCPRoute", _add_doc(TCP_ROUTE)),
+    ("documents-exact", "UDPRoute", _add_doc(UDP_ROUTE)),
+    ("documents-exact", "Service duplicado en otro namespace", _service_elsewhere),
+    ("documents-exact", "falta keycloak-http", _drop("Service", "keycloak-http")),
+    ("documents-exact", "falta keycloak-headless", _drop("Service", "keycloak-headless")),
+    ("documents-exact", "falta la ServiceAccount", _drop("ServiceAccount", "keycloak")),
+    ("documents-exact", "documento en otro namespace", _set("Service", "keycloak-http", ["metadata", "namespace"], "vectra-edge")),
+    # F-08: el spec entero de cada documento.
+    ("zone-spread", "selector que no casa", _sts_set([*POD, "topologySpreadConstraints", 0, "labelSelector"], {"matchExpressions": [{"key": "app.kubernetes.io/name", "operator": "DoesNotExist"}]})),
+    ("zone-spread", "minDomains", _sts_set([*POD, "topologySpreadConstraints", 0, "minDomains"], 5)),
+    ("zone-spread", "nodeTaintsPolicy", _sts_set([*POD, "topologySpreadConstraints", 0, "nodeTaintsPolicy"], "Ignore")),
+    ("zone-spread", "maxSkew 2", _sts_set([*POD, "topologySpreadConstraints", 0, "maxSkew"], 2)),
+    ("hpa", "scaleUp Disabled", _spec_set("HorizontalPodAutoscaler", "keycloak", ["behavior", "scaleUp"], {"selectPolicy": "Disabled"})),
+    ("hpa", "sin behavior", _spec_del("HorizontalPodAutoscaler", "keycloak", "behavior")),
+    ("hpa", "scaleDown mas rapido", _spec_set("HorizontalPodAutoscaler", "keycloak", ["behavior", "scaleDown", "stabilizationWindowSeconds"], 0)),
+    ("hpa", "clave de mas", _spec_set("HorizontalPodAutoscaler", "keycloak", ["extra"], True)),
+    ("pdb", "selector con expresiones que no casan", _spec_set("PodDisruptionBudget", "keycloak", ["selector", "matchExpressions"], [{"key": "x", "operator": "DoesNotExist"}])),
+    ("pdb", "unhealthyPodEvictionPolicy", _spec_set("PodDisruptionBudget", "keycloak", ["unhealthyPodEvictionPolicy"], "AlwaysAllow")),
+    ("keycloak-tls", "isCA", _spec_set("Certificate", "keycloak-tls", ["isCA"], True)),
+    ("keycloak-tls", "ipAddresses", _spec_set("Certificate", "keycloak-tls", ["ipAddresses"], ["1.2.3.4"])),
+    ("keycloak-tls", "uris", _spec_set("Certificate", "keycloak-tls", ["uris"], ["spiffe://x"])),
+    ("keycloak-tls", "usages", _spec_set("Certificate", "keycloak-tls", ["usages"], ["client auth"])),
+    ("keycloak-tls", "issuerRef.group", _spec_set("Certificate", "keycloak-tls", ["issuerRef", "group"], "otro.io")),
+    ("keycloak-tls", "commonName", _spec_set("Certificate", "keycloak-tls", ["commonName"], "x")),
+    ("keycloak-tls", "privateKey", _spec_set("Certificate", "keycloak-tls", ["privateKey"], {"algorithm": "RSA", "size": 1024})),
+    ("backend-tls-policy", "subjectAltNames", _spec_set("BackendTLSPolicy", "keycloak", ["validation", "subjectAltNames"], [{"type": "Hostname", "hostname": "otro"}])),
+    ("backend-tls-policy", "options", _spec_set("BackendTLSPolicy", "keycloak", ["options"], {"x": "y"})),
+    ("backend-tls-policy", "wellKnownCACertificates", _spec_set("BackendTLSPolicy", "keycloak", ["validation", "wellKnownCACertificates"], "System")),
+    ("backend-tls-policy", "clave de mas en targetRefs", _spec_set("BackendTLSPolicy", "keycloak", ["targetRefs", 0, "extra"], "x")),
     # F-06: el pod template entero contra una lista exacta (sondas del revisor y una variante por campo).
     ("volumes", "keycloak.conf desde un ConfigMap con subPath", _vol_add({"name": "conf", "configMap": {"name": "x"}}, {"name": "conf", "mountPath": "/opt/keycloak/conf/keycloak.conf", "subPath": "keycloak.conf"})),
     ("volumes", "quarkus.properties montado", _vol_add({"name": "conf", "configMap": {"name": "x"}}, {"name": "conf", "mountPath": "/opt/keycloak/conf/quarkus.properties", "subPath": "quarkus.properties"})),
@@ -542,6 +614,25 @@ def test_design_certificate_and_backend_policy(env):
     assert (spec["dnsNames"], spec["duration"], spec["renewBefore"]) == (cert["sans"], cert["duration"], cert["renewBefore"])
     assert kd.find(docs, "BackendTLSPolicy", "keycloak")["spec"]["validation"]["hostname"] == cert["sans"][0]
     assert cert["sans"][1] == kd.design_admin_hostname()
+
+
+@pytest.mark.parametrize("env", kd.ENVS)
+def test_design_certificate_and_policy_specs_are_complete(env):
+    docs = kd.load(env)
+    cert = kd.design_certificate()
+    spec = kd.find(docs, "Certificate", "keycloak-tls")["spec"]
+    issuer = spec["issuerRef"]
+    assert issuer["kind"] == "ClusterIssuer"
+    assert spec == {
+        "secretName": "keycloak-tls", "duration": cert["duration"], "renewBefore": cert["renewBefore"],
+        "dnsNames": cert["sans"], "issuerRef": {"name": issuer["name"], "kind": "ClusterIssuer"},
+    }  # fmt: skip
+    low, high = kd.design_replicas()
+    hpa = kd.find(docs, "HorizontalPodAutoscaler", "keycloak")["spec"]
+    assert {k: hpa[k] for k in ("minReplicas", "maxReplicas")} == {"minReplicas": low, "maxReplicas": high}
+    assert kd.find(docs, "PodDisruptionBudget", "keycloak")["spec"] == {
+        "minAvailable": kd.design_pdb_min_available(), "selector": {"matchLabels": _sts(docs)["spec"]["selector"]["matchLabels"]},
+    }  # fmt: skip
 
 
 @pytest.mark.parametrize("env", kd.ENVS)

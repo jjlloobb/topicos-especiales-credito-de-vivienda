@@ -119,6 +119,19 @@ hpa_problem contains "las metricas son exactamente una: CPU, utilizacion del 70 
 	not hpa_cpu_only
 }
 
+hpa_problem contains "el spec debe ser exactamente el esperado (con el behavior del render)" if {
+	is_keycloak_hpa
+	input.spec != expected_hpa_spec
+}
+
+expected_hpa_spec := {
+	"scaleTargetRef": {"apiVersion": "apps/v1", "kind": "StatefulSet", "name": "keycloak"},
+	"minReplicas": 2,
+	"maxReplicas": 4,
+	"metrics": [{"type": "Resource", "resource": {"name": "cpu", "target": {"type": "Utilization", "averageUtilization": 70}}}],
+	"behavior": {"scaleDown": {"stabilizationWindowSeconds": 300, "policies": [{"type": "Pods", "value": 1, "periodSeconds": 300}]}},
+}
+
 hpa_cpu_only if {
 	count(input.spec.metrics) == 1
 	input.spec.metrics[0].type == "Resource"
@@ -135,12 +148,12 @@ deny contains msg if {
 }
 
 zone_spread if {
-	constraints := input.spec.template.spec.topologySpreadConstraints
-	count(constraints) == 1
-	constraints[0].topologyKey == "topology.kubernetes.io/zone"
-	constraints[0].maxSkew == 1
-	constraints[0].whenUnsatisfiable == "DoNotSchedule"
-	constraints[0].labelSelector.matchLabels == input.spec.selector.matchLabels
+	input.spec.template.spec.topologySpreadConstraints == [{
+		"maxSkew": 1,
+		"topologyKey": "topology.kubernetes.io/zone",
+		"whenUnsatisfiable": "DoNotSchedule",
+		"labelSelector": {"matchLabels": pod_selector},
+	}]
 }
 
 # regla: pdb
@@ -152,11 +165,7 @@ deny contains msg if {
 }
 
 pdb_ok if {
-	input.spec.minAvailable == 1
-	object.keys(input.spec) == {"minAvailable", "selector"}
-	input.spec.selector.matchLabels["app.kubernetes.io/name"] == "keycloak"
-	input.spec.selector.matchLabels["app.kubernetes.io/instance"] == "keycloak"
-	count(input.spec.selector.matchLabels) == 2
+	input.spec == {"minAvailable": 1, "selector": {"matchLabels": pod_selector}}
 }
 
 # regla: start-optimized
@@ -658,6 +667,16 @@ issuer_ok if {
 	input.spec.issuerRef.name != ""
 }
 
+certificate_problem contains "el spec solo lleva secretName, duration, renewBefore, dnsNames e issuerRef {name, kind}" if {
+	is_keycloak_tls
+	not certificate_spec_keys_ok
+}
+
+certificate_spec_keys_ok if {
+	object.keys(input.spec) == {"secretName", "duration", "renewBefore", "dnsNames", "issuerRef"}
+	object.keys(input.spec.issuerRef) == {"name", "kind"}
+}
+
 certificate_problem contains "namespace distinto de vectra-identity" if {
 	is_keycloak_tls
 	input.metadata.namespace != namespace
@@ -689,6 +708,16 @@ backend_tls_problem contains "la CA debe ser el Secret identity-ca" if {
 backend_tls_problem contains "hostname de validacion distinto del SAN de keycloak-tls" if {
 	is_backend_tls
 	input.spec.validation.hostname != "keycloak.vectra-identity.svc"
+}
+
+backend_tls_problem contains "el spec solo lleva targetRefs y validation {hostname, caCertificateRefs}" if {
+	is_backend_tls
+	not backend_spec_keys_ok
+}
+
+backend_spec_keys_ok if {
+	object.keys(input.spec) == {"targetRefs", "validation"}
+	object.keys(input.spec.validation) == {"hostname", "caCertificateRefs"}
 }
 
 backend_tls_problem contains "namespace distinto de vectra-identity" if {
