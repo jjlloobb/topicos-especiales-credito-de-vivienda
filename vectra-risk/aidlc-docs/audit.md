@@ -5352,3 +5352,17 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## PR 55 fusionado
+**Timestamp**: 2026-11-03T09:46:58Z
+**User Input**: "ya fusione el PR"
+**AI Response**: El PR 55 (U02-T06, tema `vectra` e imagen de Keycloak) está fusionado en main. Pasos 1 a 4 de U2 cerrados. Siguiente en el plan: Paso 5. Esta entrada se agrega en el próximo PR.
+**Context**: Construcción de U2.
+
+---
+## Preparación de U02-T07 (Paso 5) y decisiones Q1 a Q4
+**Timestamp**: 2026-11-03T09:52:12Z
+**User Input**: "prepara U02-T07 (Paso 5)". Respuestas a cuatro preguntas del orquestador: Q1 autenticación de keycloak-config-cli = "Separar el Job (Recomendado)"; Q2 imagen de Keycloak = "Digest por entorno (Recomendado)"; Q3 fase del hook = "PostSync (Recomendado)"; Q4 claves de la bóveda = "identity/<secreto> (Recomendado)".
+**AI Response**: El orquestador comprueba en el código fuente que ninguna versión publicada de `keycloak-config-cli` admite `private_key_jwt` (v6.5.1; el soporte por `clientAssertionFile` entró en main el 2026-09-13), y que Keycloak 26.8.1 trae `persistent-user-sessions` por defecto y `cache-stack` `jdbc-ping`. También comprueba que Envoy Gateway v1.9.3 admite `Secret` en `caCertificateRefs`. Fija el chart `keycloakx` 7.4.0 (appVersion 26.8.1) y lo descarga en `platform/.charts`. Se enmiendan INF-U2-01 (claves `identity/…`), INF-U2-05a (`PostSync` y el bloqueo), INF-U2-08 (repositorio, digest por entorno y chart) y el Paso 5 del plan (el Job sale a una tarea propia). Se redacta `tareas/U02-T07-despliegue-keycloak.md` con el texto del Paso 5 sin recortes y se agregan tres candidatas: la tarea del Job, el firmante de aserciones y la compatibilidad del cliente. La tarea no se despacha hasta que el usuario lo pida.
+**Context**: Construcción de U2.
+
+---

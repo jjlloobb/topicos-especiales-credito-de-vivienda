@@ -20,6 +20,13 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 - Keycloak: `hostname` = el público con el path `/auth`; `hostname-admin` = `keycloak-admin.vectra-identity.svc.cluster.local`, que no está en el gateway (X10).
 - Los nombres de staging y prod son de ejemplo y se fijan con el banco en los values de cada entorno. El realm no los repite: usa `$(env:PUBLIC_HOSTNAME)`, que sale de esos values (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04).
 - Contrato de variables del realm con el despliegue (Paso 5): `PUBLIC_HOSTNAME`, `CLIENT_<ID>_JWKS`, `SYNTH_<USUARIO>_*`, `BREAK_GLASS_PASSWORD` y `LDAP_*` (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04).
+- Claves de la bóveda para los secretos de U2, con prefijo `identity/` (enmienda del 2026-11-03, decisión Q4 del usuario al preparar U02-T07):
+  - `identity/ca`, propiedad `ca.crt`: certificado público de la CA de INF-U2-01 (INF-U2-05b);
+  - `identity/clients/<clientId>`, propiedades `private-key` (PEM de la llave ES256 del cliente, solo para los clientes cuyo pod firma aserciones) y `jwks` (su llave pública, que alimenta `CLIENT_<ID>_JWKS`);
+  - `identity/break-glass`, propiedad `BREAK_GLASS_PASSWORD`;
+  - `identity/synthetic-users`, una propiedad por variable `SYNTH_<USUARIO>_*` (solo kind y staging);
+  - `identity/ldap`, una propiedad por variable `LDAP_*` (solo prod).
+  - Regla: cuando la clave lleva variables del contrato, el nombre de la propiedad es el de la variable.
 
 ## 2. Gateway (Q2)
 
@@ -56,6 +63,9 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
   - `keycloak-config-cli`: su cuenta de servicio tiene el rol `realm-admin` de `realm-management`; es el único que escribe;
   - `keycloak-reader`: su cuenta de servicio tiene solo `view-realm` de `realm-management`; lo usan `realm-drift` y `signing-key-age`, que solo leen.
 - `realm-lint` rechaza cualquier rol de `realm-management` en otra cuenta de servicio, y cualquier rol distinto de `view-realm` en la de `keycloak-reader`.
+
+- `keycloak-config-cli` corre como hook **`PostSync`** de Argo CD, con `hook-delete-policy: BeforeHookCreation`, cuando la wave 3 ya está sana (enmienda del 2026-11-03, decisión Q3 del usuario al preparar U02-T07).
+- **Bloqueo** (enmienda del 2026-11-03, decisión Q1 del usuario al preparar U02-T07): ninguna versión publicada de `keycloak-config-cli` admite `private_key_jwt` (la última, v6.5.1 de 2026-05-22, solo admite contraseña o `client_secret`). El soporte entró en su rama principal el 2026-09-13 y lee un JWT **ya firmado** desde un archivo (`clientAssertionFile`), así que además hace falta un firmante que este diseño no tiene. El Job se separa del Paso 5 en una tarea propia, que espera un release con aserciones de cliente y el diseño del firmante.
 
 ### INF-U2-05b — Certificado interno de Keycloak (quinta revisión de coherencia entre unidades, 2026-10-31)
 - `Certificate` `keycloak-tls` en `vectra-identity`, con SAN `keycloak.vectra-identity.svc`, emitido por la CA de INF-U2-01 de cada entorno; 90 días, se renueva a los 60 (P-U1-03).
@@ -99,6 +109,8 @@ las cuotas de U1 (NFR-U1-13).
 ### INF-U2-08
 - `identity-edge/keycloak/Dockerfile`: imagen oficial de Keycloak 26.x pinneada por digest + tema `vectra` + `kc.sh build` con las opciones de producción (base de datos `postgres`, health y métricas habilitados, `cache=ispn`).
 - Imagen base: `quay.io/keycloak/keycloak:26.8.1@sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332`, la última 26.x estable al 2026-11-02. Se comprobó que en ese tag siguen las claves `default.reference.value` y `default.reference.maxAge` de domain-entities §1.2 (`Constants.java`) (enmienda del 2026-11-02, decisión P2 del usuario al preparar U02-T06).
+- Referencia en los values de `keycloakx` (enmienda del 2026-11-03, decisión Q2 del usuario al preparar U02-T07): repositorio `registro.banco.internal/vectra/keycloak` (`kind-registry:5000/vectra/keycloak` en kind) con el **digest en los values de cada entorno**. La plantilla lo exige: sin digest, el render falla. Mientras ningún workflow construya la imagen, las pruebas usan un digest de ejemplo.
+- Chart `keycloakx` de codecentric, versión **7.4.0** (appVersion 26.8.1, la de esta imagen), comprobada el 2026-11-03 (enmienda del 2026-11-03, decisión Q2 del usuario al preparar U02-T07).
 - Construida en CI, escaneada con Trivy y firmada con Cosign (`supply-chain.yml` de U1); el banco la replica a su registro interno.
 - Arranque: `start --optimized`.
 
