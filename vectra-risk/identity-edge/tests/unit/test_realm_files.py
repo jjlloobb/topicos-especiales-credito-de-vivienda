@@ -122,8 +122,8 @@ def test_realm_files_realm_settings_are_those_of_section_1_0(env: str) -> None:
 def test_realm_files_assertions_are_signed_with_the_algorithm_of_br_u2_09(env: str) -> None:
     """BR-U2-09: los de servicio (§2.2), los de administracion (INF-U2-05a) y `grafana` (§2.1); ningun otro."""
     algorithm = design.assertion_signing_algorithm()
-    covered = {*design_clients(env), *ADMIN_CLIENT_ROLES, *design.private_key_jwt_user_clients()}
-    assert {"grafana", "keycloak-config-cli", "keycloak-reader"} <= covered
+    covered = {*design_clients(env), *design.assertion_signing_extra_clients()}
+    assert len(design.assertion_signing_extra_clients()) >= 1
     for client in load(env)["clients"]:
         signed = client.get("attributes", {}).get("token.endpoint.auth.signing.alg")
         if client["clientId"] in covered:

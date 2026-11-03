@@ -308,7 +308,12 @@ def business_roles() -> list[str]:
     return [r[0].strip("`") for r in table_rows(body) if re.fullmatch(r"`\w+`", r[0])]
 
 
-def private_key_jwt_user_clients() -> list[str]:
-    """domain-entities §2.1: clientes de usuario confidenciales con `private_key_jwt`."""
-    body = section(DOMAIN_ENTITIES, "### 2.1 Clientes de usuario")
-    return [r[0].strip("`") for r in table_rows(body) if re.match(r"`[\w-]+`", r[0]) and "private_key_jwt" in r[1]]
+def assertion_signing_extra_clients() -> set[str]:
+    """BR-U2-09: los clientes que nombra ademas de los de servicio de §2.2 (tras «incluidos» y «cliente de usuario»)."""
+    line = next(ln for ln in BUSINESS_RULES.splitlines() if ln.startswith("**BR-U2-09"))
+    names: set[str] = set()
+    for marker in ("incluidos", "cliente de usuario"):
+        found = re.search(rf"{marker}((?:\s+`[\w-]+`(?:,|\s+y)?)+)", line)
+        assert found is not None, marker
+        names |= set(re.findall(r"`([\w-]+)`", found.group(1)))
+    return names
