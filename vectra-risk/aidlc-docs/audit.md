@@ -5290,3 +5290,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## Decisiones D-E y D-F tras la ronda 3 de U02-T04
+**Timestamp**: 2026-11-03T02:30:35Z
+**User Input**: Respuestas a dos preguntas del orquestador: D-E firma = "ES256 fijo (Recomendado)"; D-F ajustes = "Aceptar + WebAuthn amplio (Recomendado)".
+**AI Response**: U02-T04 salió NO-VERDE en la ronda 3 con dos NARANJA que venían de la ronda 1 (el revisor reconoce no haberlos barrido antes): RS256 fijo en los clientes de servicio, que rechazaría el ES256 del cliente de U0, y ajustes visibles del realm sin respaldo. Se enmienda BR-U2-09 (ES256 fijo) y se agrega a domain-entities §1.0 la tabla de ajustes del realm, con WebAuthn ES256 y RS256. Se despacha la ronda 4, la última antes de la regla de 4 rondas.
+**Context**: Construcción de U2.
+
+---

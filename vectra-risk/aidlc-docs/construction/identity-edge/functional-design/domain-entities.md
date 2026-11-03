@@ -7,6 +7,17 @@ compartidos (`Principal`, scopes, `Problem`) son de U0 y no se redefinen aquí.
 
 ## 1. Realm `vectra`
 
+### 1.0 Ajustes del realm (enmienda del 2026-11-02, decisiones D-E y D-F del usuario tras la ronda 3 de U02-T04)
+
+| Ajuste de Keycloak | Valor |
+|---|---|
+| `displayName` y `webAuthnPolicyRpEntityName` | `Vectra` |
+| `webAuthnPolicySignatureAlgorithms` | `ES256`, `RS256` |
+| `loginWithEmailAllowed` | `false` |
+| `sslRequired` | `all` |
+| `resetPasswordAllowed` | `false` |
+| `rememberMe` | `false` |
+
 ### 1.1 Roles de negocio (realm roles)
 
 | Rol | MFA | Persona | Notas |
