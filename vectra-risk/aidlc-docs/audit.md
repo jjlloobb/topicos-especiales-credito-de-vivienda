@@ -5317,3 +5317,24 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## PR 53 aprobado y fusionado
+**Timestamp**: 2026-11-03T03:48:58Z
+**User Input**: "ya approve el PR 53"
+**AI Response**: El PR 53 (U02-T04, realm como código, con las enmiendas D-A a G2) está fusionado. Pasos 1, 2 y 3 de U2 cerrados en main. Siguiente en el plan: Paso 4 (tema `vectra` e imagen de Keycloak). Esta entrada se agrega en el próximo PR.
+**Context**: Construcción de U2.
+
+---
+## Preparación de U02-T06 (Paso 4)
+**Timestamp**: 2026-11-03T04:12:00Z
+**User Input**: "prepara U02-T06 (Paso 4)"
+**AI Response**: El orquestador lee el Paso 4, P-U2-08, INF-U2-08, NFR-U2-25 y BR-U2-13, y encuentra cuatro datos sin fijar: `hadolint` no está instalado, el diseño no fija versión ni digest de Keycloak, no hay marca del banco y no hay referencia para «todas las claves de `messages_es` existen». Pregunta P1 a P4 al usuario.
+**Context**: Construcción de U2.
+
+---
+## Decisiones P1 a P4 y tarea U02-T06
+**Timestamp**: 2026-11-03T04:30:00Z
+**User Input**: Respuestas a cuatro preguntas del orquestador: P1 hadolint = "Agregarlo a .tools (Recomendado)"; P2 versión de Keycloak = "Resuelvo la última 26.x (Recomendado)"; P3 marca = "Marca Vectra (Recomendado)"; P4 referencia de claves = "Contra Keycloak (Recomendado)".
+**AI Response**: `hadolint` v2.15.1 entra en `platform/tools.env`, `install-tools.sh` (con el SHA-256 publicado) y `check-tools`. INF-U2-08 fija `quay.io/keycloak/keycloak:26.8.1` por digest, tras comprobar en ese tag las claves de `amr`. P-U2-08 fija la marca Vectra (`#0B3D5C`, `#C2410C`, fondo blanco, contraste AA calculado) y la referencia de claves: los `messages_en.properties` y las plantillas de login, TOTP y cambio de contraseña de Keycloak 26.8.1, guardados como fixtures con `SHA256SUMS`. Se redacta `tareas/U02-T06-tema-e-imagen-keycloak.md` con el texto del Paso 4 sin recortes. Tres candidatas nuevas: marca del banco, activar el tema en los realms y `hadolint` en el `check`. La tarea no se despacha hasta que el usuario lo pida.
+**Context**: Construcción de U2.
+
+---

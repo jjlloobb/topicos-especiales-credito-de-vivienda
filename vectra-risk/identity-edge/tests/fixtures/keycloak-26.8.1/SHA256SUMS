@@ -1,0 +1,10 @@
+11725402e7b4ed559144d95bf0e1d931b361ef4e385b0e0a3d26396ad626eb54  ./base/messages_en.properties
+eae6ed80d45d405393dda0fe30bd382076d3b58830f3a205603c50a66bd77add  ./keycloak.v2/messages_en.properties
+a43bf624005005cfd35cd2e9f592dcb666296f49fc94ca7a83d3c4fb871ffc5c  ./keycloak.v2/templates/buttons.ftl
+0d6afe0979f2398a417f4a2e16aca7c3d98ca039671b692bc6b51c7099cce1de  ./keycloak.v2/templates/field.ftl
+182a0e44f35be72d5cca2446c275c722f4bd60dc0cb21b08314aa9bd5338be1d  ./keycloak.v2/templates/login-config-totp.ftl
+c9ec5c28a14aa30f0d6887044f431c2c04cbe1ad7732c1bf4a1c3c89250efe31  ./keycloak.v2/templates/login.ftl
+532012d21d929bf6207af8550b44cff6de1e0dd55a4e16a5ff18541e8f15a085  ./keycloak.v2/templates/login-otp.ftl
+0cea2ddf59acc4ac36c7d849dc7c1a554466cf0cc6679f18ae08daee28f6258e  ./keycloak.v2/templates/login-update-password.ftl
+7aa5d6b69b69162426efce57c2a641a562020e45f1bba00df8575def92bca242  ./keycloak.v2/templates/password-commons.ftl
+6221a3176c73a3fd67abc97076deb9cef112378ce157735a78bd865800315b37  ./keycloak.v2/templates/template.ftl
