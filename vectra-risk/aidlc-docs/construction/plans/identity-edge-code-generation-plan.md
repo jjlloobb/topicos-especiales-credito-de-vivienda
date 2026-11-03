@@ -113,7 +113,7 @@ vectra-risk/identity-edge/
   - Diseño: BR-U2-13 (CSP estricta en `/auth/**`, posible porque el tema no tiene JavaScript propio); P-U2-08; INF-U2-08; NFR-U2-25.
   - **Aceptación**: `hadolint identity-edge/keycloak/Dockerfile`; `uv run pytest identity-edge/tests/unit/test_theme.py` (ningún archivo del tema referencia `http(s)://` externos ni `<script>` propio; todas las claves de `messages_es` existen). La construcción, el escaneo y la firma los hace `supply-chain.yml` de U1.
 
-- [ ] **Paso 5 — Despliegue de Keycloak y `keycloak-config-cli`**
+- [x] **Paso 5 — Despliegue de Keycloak y `keycloak-config-cli`** (U02-T07; el Job de `keycloak-config-cli` queda en su tarea propia, ver la enmienda)
   - Values de `keycloakx`:
     - 2 réplicas con HPA de 2 a 4, spread por zona y PDB;
     - `cache-stack` con `jdbc-ping`;
