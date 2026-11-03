@@ -36,8 +36,17 @@ def _fill_markers(node: Any) -> Any:
     if isinstance(node, list):
         return [_fill_markers(v) for v in node]
     if isinstance(node, str) and MARKER in node:
-        return "valor-de-la-boveda"
+        return resolve(node)
     return node
+
+
+def resolve(text: str, filler: str = "resuelto") -> str:
+    """El texto con cada `$(env:NOMBRE)` sustituido por un valor: lo literal que lo rodea se conserva (S3)."""
+    out = ""
+    while (start := text.find(MARKER)) >= 0:
+        out += text[:start] + filler
+        text = text[text.index(")", start) + 1 :]
+    return out + text
 
 
 def _noise(entity: dict[str, Any], ident: str, variant: str) -> None:
@@ -87,9 +96,23 @@ def keycloak_view(git: dict[str, Any], variant: str = "") -> dict[str, Any]:
             component["id"] = f"id-{component['name']}"
             component["parentId"] = f"realm-uuid{variant}"
     # Entidades propias de Keycloak, que Git no declara.
-    kc["clients"] += [{"clientId": "account", "id": "id-account"}, {"clientId": "broker", "id": "id-broker"}]
+    kc["clients"] += [
+        {"clientId": name, "id": f"id-{name}"}
+        for name in ("account", "broker", "realm-management", "account-console")
+    ]
     kc["clientScopes"] += [{"name": "profile", "id": "id-profile"}]
-    kc["roles"]["realm"] += [{"name": "offline_access", "id": "id-offline"}]
+    kc["roles"]["realm"] += [
+        {"name": "offline_access", "id": "id-offline"},
+        {"name": "uma_authorization", "id": "id-uma"},
+        {
+            "name": "default-roles-vectra",
+            "id": "id-default",
+            "composites": {
+                "realm": ["offline_access", "uma_authorization"],
+                "client": {"account": ["view-profile", "manage-account"]},
+            },
+        },
+    ]
     kc["requiredActions"] += [{"alias": "VERIFY_EMAIL", "name": "Verify Email"}]
     # Valores por defecto de un realm nuevo de Keycloak 26.8.1 (DefaultClientScopes.java, RealmManager.java, ClientManager.java,
     # DefaultAuthenticationFlows.java), que Git no declara.

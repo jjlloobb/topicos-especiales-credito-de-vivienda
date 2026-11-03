@@ -58,7 +58,20 @@ class FakeKeycloak:
         if path == "/client-scopes":
             return self._scopes()
         if path == "/roles":
-            return realm["roles"]["realm"]
+            return [
+                {**{k: v for k, v in r.items() if k != "composites"}, "composite": bool(r.get("composites"))}
+                for r in realm["roles"]["realm"]
+            ]
+        if path.startswith("/roles/") and path.endswith("/composites"):
+            role = next(r for r in realm["roles"]["realm"] if r["name"] == path.split("/")[2])
+            composites = role.get("composites", {})
+            found = [
+                {"name": n, "clientRole": False, "containerId": "realm-uuid"}
+                for n in composites.get("realm", [])
+            ]
+            for client, names in composites.get("client", {}).items():
+                found += [{"name": n, "clientRole": True, "containerId": f"cid-{client}"} for n in names]
+            return found
         if path == "/authentication/required-actions":
             return realm["requiredActions"]
         if path in ("/default-default-client-scopes", "/default-optional-client-scopes"):

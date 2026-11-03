@@ -944,3 +944,30 @@ def test_the_service_accounts_of_the_render_are_the_ones_of_the_network_inventor
             )
             pod = jc.find(jc.versioned(env), "CronJob", name)["spec"]["jobTemplate"]["spec"]["template"]
             assert pod["metadata"]["labels"]["app.kubernetes.io/name"] == workload["name"]
+
+
+# --- ronda 3: composites de los roles (D-8) y flujos propios (F-09) ------------------------------------
+
+
+async def test_d8_the_job_reads_the_composites_of_the_roles_that_have_them(env_kind: Environment) -> None:
+    kc = keycloak_view(load_git("kind"))
+    env_kind.serve(kc)
+    assert await drift(env_kind) == 0
+    composites = [p for p, _ in env_kind.server.requests if p.endswith("/composites")]
+    assert composites == ["/roles/default-roles-vectra/composites"]
+
+
+async def test_d8_realm_admin_as_a_composite_of_the_default_role_gives_one(env_kind: Environment) -> None:
+    kc = keycloak_view(load_git("kind"))
+    default = next(r for r in kc["roles"]["realm"] if r["name"] == "default-roles-vectra")
+    default["composites"]["client"]["realm-management"] = ["realm-admin"]
+    env_kind.serve(kc)
+    assert await drift(env_kind) == 1
+
+
+async def test_f09_a_flow_of_the_list_that_is_not_built_in_is_read_and_counts(env_kind: Environment) -> None:
+    kc = keycloak_view(load_git("kind"))
+    next(f for f in kc["authenticationFlows"] if f["alias"] == "docker auth")["builtIn"] = False
+    env_kind.serve(kc)
+    assert await drift(env_kind) == 1
+    assert "/authentication/flows/docker auth/executions" in [p for p, _ in env_kind.server.requests]

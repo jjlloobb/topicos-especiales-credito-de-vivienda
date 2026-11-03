@@ -110,7 +110,7 @@ class KeycloakReader:
         scopes = await self._fetch("/client-scopes", None)
         doc["clients"] = clients
         doc["clientScopes"] = scopes
-        doc["roles"] = {"realm": await self._fetch("/roles", None)}
+        doc["roles"] = {"realm": await self._roles(clients)}
         doc["requiredActions"] = await self._fetch("/authentication/required-actions", None)
         doc["defaultDefaultClientScopes"] = _names(await self._fetch("/default-default-client-scopes", None))
         doc["defaultOptionalClientScopes"] = _names(
@@ -124,17 +124,35 @@ class KeycloakReader:
         doc["users"] = await self._users(git, clients)
         return doc
 
+    async def _roles(self, clients: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Los roles de realm con sus composites (`composites: {realm: [...], client: {clientId: [...]}}`)."""
+        client_ids = {c["id"]: c["clientId"] for c in clients}
+        roles = []
+        for role in await self._fetch("/roles", None):
+            composites: dict[str, Any] = {}
+            if role.get("composite"):
+                realm_names: list[str] = []
+                client_names: dict[str, list[str]] = {}
+                for child in await self._fetch(f"/roles/{_q(role['name'])}/composites", None):
+                    if child.get("clientRole"):
+                        client_names.setdefault(client_ids[child["containerId"]], []).append(child["name"])
+                    else:
+                        realm_names.append(child["name"])
+                composites = {"realm": realm_names, "client": client_names}
+            roles.append({**role, "composites": composites})
+        return roles
+
     async def _flows(self, declared: set[str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         flows: list[dict[str, Any]] = []
         configs: dict[str, dict[str, Any]] = {}
         for flow in await self._fetch("/authentication/flows", None):
-            if (
-                flow["alias"] in realm_diff.BUILT_IN_NAMES[("authenticationFlows",)]
-                and flow["alias"] not in declared
-            ):
-                flows.append(
-                    flow
-                )  # un flujo de Keycloak (lista exacta de `realm_diff`): sin ejecuciones ni configuraciones
+            # Un flujo de Keycloak (alias de la lista exacta de `realm_diff` y `builtIn`): sin ejecuciones ni configuraciones.
+            keycloak_own = (
+                flow.get("builtIn") is True
+                and flow["alias"] in realm_diff.BUILT_IN_NAMES[("authenticationFlows",)]
+            )
+            if keycloak_own and flow["alias"] not in declared:
+                flows.append(flow)
                 continue
             executions = []
             for info in await self._fetch(f"/authentication/flows/{_q(flow['alias'])}/executions", None):

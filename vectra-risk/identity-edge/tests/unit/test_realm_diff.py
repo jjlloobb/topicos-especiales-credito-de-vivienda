@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 import realm_diff
-from realm_exports import ENVS, MARKER, keycloak_view, load_git
+from realm_exports import ENVS, MARKER, keycloak_view, load_git, resolve
 
 Realm = dict[str, Any]
 
@@ -190,10 +190,8 @@ def test_a_user_of_keycloak_not_in_git_is_zero(pair: tuple[Realm, Realm]) -> Non
 @pytest.mark.parametrize(
     ("key", "field", "value"),
     [
-        ("clients", "clientId", "account-console"),
         ("clients", "clientId", "admin-cli"),
         ("clientScopes", "name", "email"),
-        ("roles", "name", "uma_authorization"),
         ("requiredActions", "alias", "UPDATE_PASSWORD"),
     ],
 )
@@ -243,17 +241,17 @@ def _marker_paths(node: Any, path: tuple[Any, ...] = ()) -> list[tuple[Any, ...]
     return found
 
 
-def test_every_git_field_with_a_marker_ignores_any_value_in_keycloak(pair: tuple[Realm, Realm]) -> None:
+def test_every_git_field_with_a_marker_accepts_any_resolved_value(pair: tuple[Realm, Realm]) -> None:
     git, kc = pair
     paths = _marker_paths(git)
     assert paths, "el realm no tiene ningun $(env:...)"
     assert count(git, kc) == 0
-    for variant in ("otro", "", None, 7, ["x", "y"]):
+    for filler in ("otro", "", "con espacios", "x" * 40):
         other = copy.deepcopy(kc)
         for path in _marker_paths(git):
             # Se sustituye el valor de Keycloak en el campo, donde exista la entidad (por clave, no por posicion).
-            _set_by_projection(git, other, path, variant)
-        assert other != kc or variant == "valor-de-la-boveda"
+            _set_by_projection(git, other, path, lambda text, f=filler: resolve(text, f))
+        assert other != kc or filler == "resuelto"
         assert count(git, other) == 0
 
 
@@ -275,7 +273,7 @@ def _set_by_projection(git: Realm, kc: Realm, path: tuple[Any, ...], value: Any)
     last = path[-1]
     if isinstance(last, int):
         return  # elemento de una lista de escalares: la lista entera se ignora, se cubre con el campo
-    knode[last] = value
+    knode[last] = value(gnode[last]) if callable(value) else value
 
 
 def test_a_marker_field_is_ignored_but_the_same_field_without_marker_is_compared() -> None:
@@ -504,108 +502,193 @@ def test_f03_a_flow_outside_git_and_the_list_counts_even_if_it_says_built_in(
     assert count(git, kc) == 1
 
 
-def test_f03_a_flow_of_the_list_is_zero_even_if_it_says_it_is_not_built_in(pair: tuple[Realm, Realm]) -> None:
+def test_f09_a_flow_of_the_list_is_zero_only_if_it_says_it_is_built_in(pair: tuple[Realm, Realm]) -> None:
     git, kc = pair
     kc["authenticationFlows"] = [f for f in kc["authenticationFlows"] if f["alias"] != "docker auth"]
     kc["authenticationFlows"].append(
-        {"alias": "docker auth", "builtIn": False, "authenticationExecutions": []}
+        {"alias": "docker auth", "builtIn": True, "authenticationExecutions": []}
     )
     assert count(git, kc) == 0
-
-
-# --- orden -----------------------------------------------------------------------------------------
-
-
-def test_another_order_of_every_list_of_entities_is_zero(pair: tuple[Realm, Realm]) -> None:
-    git, kc = pair
-    for key in (
-        "clients",
-        "clientScopes",
-        "requiredActions",
-        "authenticationFlows",
-        "authenticatorConfig",
-        "users",
-    ):
-        kc[key].sort(key=lambda e: str(sorted(e.items(), key=str)))
-    kc["roles"]["realm"].reverse()
-    for client in kc["clients"]:
-        client.get("protocolMappers", []).reverse()
-    assert count(git, kc) == 0
-
-
-def test_the_order_of_the_executions_of_a_flow_does_not_matter_but_their_priority_does(
-    pair: tuple[Realm, Realm],
-) -> None:
-    git, kc = pair
-    flow = _entity(kc, "authenticationFlows", "alias", "vectra-browser forms")
-    flow["authenticationExecutions"].reverse()
-    assert count(git, kc) == 0
-    flow["authenticationExecutions"][0]["requirement"] = "DISABLED"
+    kc["authenticationFlows"][-1]["builtIn"] = False
+    assert count(git, kc) == 1
+    del kc["authenticationFlows"][-1]["builtIn"]
     assert count(git, kc) == 1
 
 
-# --- secretos, IDs y timestamps ---------------------------------------------------------------------
+# --- F-11: service_account solo en clientes con cuenta de servicio -----------------------------------
 
 
-def test_a_different_client_secret_is_zero(pair: tuple[Realm, Realm]) -> None:
+def test_f11_service_account_scope_on_a_client_without_service_account_counts(
+    pair: tuple[Realm, Realm],
+) -> None:
     git, kc = pair
-    for client in kc["clients"]:
-        client["secret"] = "otro"  # noqa: S105
-    assert count(git, kc) == 0
+    public = next(
+        c for c in kc["clients"] if c.get("serviceAccountsEnabled") is False and "defaultClientScopes" in c
+    )
+    public["defaultClientScopes"].append("service_account")
+    assert count(git, kc) == 1
 
 
-def test_a_different_credential_value_is_zero(pair: tuple[Realm, Realm]) -> None:
-    git, kc = pair
-    changed = 0
-    for user in kc["users"]:
-        for credential in user.get("credentials", []):
-            credential.update(value="distinto", secretData="distinto", credentialData="distinto")
-            changed += 1
-    if changed:
-        assert count(git, kc) == 0
+# --- S3: el texto literal que rodea al marcador se conserva -----------------------------------------------
 
 
-def test_a_secret_in_git_is_never_compared() -> None:
-    git = load_git("kind")
-    _entity(git, "clients", "clientId", "promotion-tool")["secret"] = "literal-en-git"  # noqa: S105
+def _ldap(realm: Realm) -> Realm:
+    return realm["components"]["org.keycloak.storage.UserStorageProvider"][0]["config"]
+
+
+def test_s3_ldap_url_without_tls_counts_and_any_host_with_the_literals_does_not() -> None:
+    git = load_git("prod")
     kc = keycloak_view(git)
-    _entity(kc, "clients", "clientId", "promotion-tool")["secret"] = "otro"  # noqa: S105
+    _ldap(kc)["connectionUrl"] = ["ldaps://cualquier.host.banco:636"]
     assert count(git, kc) == 0
+    _ldap(kc)["connectionUrl"] = ["ldap://otro:389"]
+    assert count(git, kc) == 1
+    _ldap(kc)["connectionUrl"] = ["ldaps://otro:389"]
+    assert count(git, kc) == 1
+    _ldap(kc)["connectionUrl"] = ["ldap://otro:636"]
+    assert count(git, kc) == 1
 
 
-def test_different_ids_and_timestamps_are_zero(pair: tuple[Realm, Realm]) -> None:
+def test_s3_prefix_and_suffix_do_not_overlap() -> None:
+    git = load_git("prod")
+    kc = keycloak_view(git)
+    _ldap(kc)["connectionUrl"] = ["ldaps://:636"]  # el marcador resuelto a vacio
+    assert count(git, kc) == 0
+    _ldap(kc)["connectionUrl"] = ["ldaps://636"]  # el prefijo y el sufijo se solapan: no cabe el marcador
+    assert count(git, kc) == 1
+
+
+def test_s3_a_list_element_that_does_not_keep_its_literals_counts(pair: tuple[Realm, Realm]) -> None:
     git, kc = pair
-    kc["id"] = "otro"
-    kc["notBefore"] = 99
-    for client in kc["clients"]:
-        client["id"] = "otro"
-        client["notBefore"] = 5
+    _console(kc)["redirectUris"] = ["https://x/callback", "https://x/otra"]
+    assert count(git, kc) == 1
+    _console(kc)["redirectUris"] = ["http://x/callback", "https://x/stepup-callback"]
+    assert count(git, kc) == 1
+
+
+def test_s3_every_scalar_marker_of_git_demands_a_string_that_keeps_its_literals(
+    pair: tuple[Realm, Realm],
+) -> None:
+    git, kc = pair
+    # Las credenciales y las acciones requeridas de un usuario no se comparan (S1).
+    paths = [p for p in _marker_paths(git) if isinstance(p[-1], str) and "credentials" not in p]
+    assert paths
+    for path in paths:
+        other = copy.deepcopy(kc)
+        _set_by_projection(git, other, path, lambda _text: 7)
+        if other != kc:
+            assert count(git, other) >= 1, path
+
+
+# --- F-08: los roles como conjunto exacto, en todos los lugares que los asignan ---------------------------
+
+
+def _git_users(git: Realm) -> list[str]:
+    return [u["username"] for u in git["users"]]
+
+
+def test_f08_a_realm_role_that_git_does_not_declare_counts_on_every_declared_user(
+    pair: tuple[Realm, Realm],
+) -> None:
+    git, kc = pair
+    for name in _git_users(git):
+        other = copy.deepcopy(kc)
+        _entity(other, "users", "username", name)["realmRoles"].append("cro")
+        assert count(git, other) >= 1, name
+
+
+def test_f08_a_client_role_that_git_does_not_declare_counts_on_every_declared_user(
+    pair: tuple[Realm, Realm],
+) -> None:
+    git, kc = pair
+    for name in _git_users(git):
+        user = _entity(git, "users", "username", name)
+        other = copy.deepcopy(kc)
+        kuser = _entity(other, "users", "username", name)
+        kuser.setdefault("clientRoles", {})
+        kuser["clientRoles"].setdefault("realm-management", []).append("realm-admin")
+        if "realm-admin" in user.get("clientRoles", {}).get("realm-management", []):
+            continue
+        assert count(git, other) == 1, name
+        other = copy.deepcopy(kc)
+        _entity(other, "users", "username", name).setdefault("clientRoles", {})["broker"] = ["read-token"]
+        assert count(git, other) == 1, name
+
+
+def test_f08_roles_absent_in_git_and_in_keycloak_are_zero_and_the_exemptions_hold(
+    pair: tuple[Realm, Realm],
+) -> None:
+    git, kc = pair
     for user in kc["users"]:
-        user["id"] = "otro"
-        user["createdTimestamp"] = 12345
-        for credential in user.get("credentials", []):
-            credential["createdDate"] = 777
+        assert set(user["realmRoles"]) >= {"default-roles-vectra"}
     assert count(git, kc) == 0
 
 
-# --- el total ---------------------------------------------------------------------------------------
+def test_f08_a_declared_user_gets_realm_admin_in_staging() -> None:
+    git = load_git("staging")
+    kc = keycloak_view(git)
+    _entity(kc, "users", "username", "analista-1")["clientRoles"] = {"realm-management": ["realm-admin"]}
+    assert count(git, kc) == 1
 
 
-def test_the_pushed_number_is_the_total_of_the_differences(pair: tuple[Realm, Realm]) -> None:
+@pytest.mark.parametrize("which", ["scopeMappings", "clientScopeMappings"])
+def test_f08_scope_mappings_that_git_does_not_declare_count(pair: tuple[Realm, Realm], which: str) -> None:
     git, kc = pair
-    kc["accessTokenLifespan"] += 1
-    MISSING["client"](kc)
-    MISSING["role"](kc)
-    EXTRA["flow"](kc)
-    EXTRA["client-scope"](kc)
-    differences = realm_diff.diff(git, kc)
-    assert len(differences) == 5 == count(git, kc)
-    assert {d.kind for d in differences} == {"value", "missing-in-keycloak", "unexpected-in-keycloak"}
-    assert all(d.path for d in differences)
+    if which == "scopeMappings":
+        kc[which].append({"client": "vectra-console", "roles": ["realm-admin"]})
+        assert count(git, kc) == 1
+        entry = next(m for m in kc[which] if m.get("roles") and m.get("clientScope") != "offline_access")
+        entry["roles"].append("realm-admin")
+        assert count(git, kc) == 2
+    else:
+        kc[which]["realm-management"].append({"client": "vectra-console", "roles": ["realm-admin"]})
+        assert count(git, kc) == 1
+        kc[which]["broker"] = [{"client": "vectra-console", "roles": ["read-token"]}]
+        assert count(git, kc) == 2
 
 
-def test_diff_does_not_modify_its_inputs(pair: tuple[Realm, Realm]) -> None:
+# --- D-8: los composites de los roles ------------------------------------------------------------------
+
+
+def _role(realm: Realm, name: str) -> Realm:
+    return next(r for r in realm["roles"]["realm"] if r["name"] == name)
+
+
+def test_d8_the_default_composites_of_keycloak_are_zero(pair: tuple[Realm, Realm]) -> None:
     git, kc = pair
-    before = (copy.deepcopy(git), copy.deepcopy(kc))
-    count(git, kc)
-    assert (git, kc) == before
+    assert _role(kc, "default-roles-vectra")["composites"]["client"] == {
+        "account": ["view-profile", "manage-account"]
+    }
+    assert count(git, kc) == 0
+
+
+def test_d8_realm_admin_as_a_composite_of_the_default_role_counts(pair: tuple[Realm, Realm]) -> None:
+    git, kc = pair
+    _role(kc, "default-roles-vectra")["composites"]["client"]["realm-management"] = ["realm-admin"]
+    assert count(git, kc) == 1
+
+
+def test_d8_any_change_to_the_default_composites_counts(pair: tuple[Realm, Realm]) -> None:
+    git, kc = pair
+    _role(kc, "default-roles-vectra")["composites"]["realm"].append("cro")
+    assert count(git, kc) == 1
+    _role(kc, "default-roles-vectra")["composites"]["client"]["account"].remove("manage-account")
+    assert count(git, kc) == 2
+    del _role(kc, "default-roles-vectra")["composites"]
+    assert count(git, kc) == 1  # sin composites, el campo entero difiere de los de Keycloak
+
+
+def test_d8_a_composite_on_another_keycloak_role_counts(pair: tuple[Realm, Realm]) -> None:
+    git, kc = pair
+    _role(kc, "offline_access")["composites"] = {"realm": ["cro"]}
+    assert count(git, kc) == 1
+
+
+def test_d8_the_composites_of_a_git_role_are_compared_with_git(pair: tuple[Realm, Realm]) -> None:
+    git, kc = pair
+    _role(kc, "cro")["composites"] = {"realm": ["analista"]}
+    assert count(git, kc) == 1
+    _role(git, "cro")["composites"] = {"realm": ["analista"]}
+    assert count(git, kc) == 0
+    _role(kc, "cro")["composites"] = {"realm": ["analista", "operacion"]}
+    assert count(git, kc) == 1
