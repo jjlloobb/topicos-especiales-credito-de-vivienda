@@ -5460,3 +5460,11 @@ El orquestador fijó la URL del token en el mismo host de administración.
 **Context**: Construcción de U2, U02-T08.
 
 ---
+
+## Ronda 5 de U02-T08 (guarda de U1 sobre skip-files)
+**Timestamp**: 2026-11-03T22:10:00Z
+**User Input**: (sin entrada nueva; consecuencia de T1)
+**AI Response**: Con el arreglo de Trivy subido, en el PR 59 fallaron `tests`, `policies` y `evidence` por `platform/tests/test_platform.py::test_trivy_skips_only_the_kind_secret_read`, que exigía solo el archivo de ESO en `skip-files`. Al preparar la tarea, el orquestador no había incluido en CA-7 las pruebas de `platform/`. Se enmendó la tarea: esa prueba entra en el alcance y CA-7 suma `make -C platform check-local`. Ronda 5 VERDE: la prueba exige la lista exacta de cuatro archivos y `check-local` da 619 passed. Se anotó como candidata la falta de guarda sobre `skip-dirs`.
+**Context**: Construcción de U2, U02-T08.
+
+---
