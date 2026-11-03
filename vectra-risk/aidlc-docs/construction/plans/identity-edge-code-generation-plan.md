@@ -127,7 +127,7 @@ vectra-risk/identity-edge/
   - Diseño: NFR-U2-01, 02, 23, 26; P-U2-04; INF-U2-01, 05, 06. Historia: US-601.
   - **Aceptación**: `helm template` + `conftest test identity-edge/keycloak/` (réplicas, HPA, spread, PDB, `start --optimized`, `hostname-admin` interno, sin Secret plano, hook de sync presente, `keycloak-tls` y `BackendTLSPolicy` presentes).
 
-- [ ] **Paso 6 — `realm-drift` y `signing-key-age`**
+- [x] **Paso 6 — `realm-drift` y `signing-key-age`** (U02-T08)
   - CronJob diario que exporta el realm, lo normaliza (sin secretos, IDs internos ni timestamps) y lo compara con Git; empuja `vectra_realm_drift` al Pushgateway (F112, `PUT /metrics/job/realm-drift`; revisión de consistencia entre unidades, 2026-11-01), de donde sale `RealmDrift` (cuarta revisión de coherencia entre unidades, 2026-10-31).
   - CronJob horario `signing-key-age`: lee por F94 la llave de firma activa y empuja su antigüedad al Pushgateway (F112, `PUT /metrics/job/signing-key-age`; revisión de consistencia entre unidades, 2026-11-01) para `SigningKeyAgeHigh`. Sin Deployment ni scrape (seguimiento de la quinta revisión de coherencia, 2026-10-31).
   - **Enmienda del 2026-11-03 (decisiones R1–R4 del usuario al preparar U02-T08):** `keycloak-reader` necesita además `view-clients` y `view-users` para leer clientes, client scopes y usuarios, así que el paso amplía sus roles en los tres realms y la regla de `realm-lint` (INF-U2-05a). La comparación es una proyección sobre Git, la métrica de `signing-key-age` es `vectra_signing_key_created_timestamp_seconds`, y la imagen `identity-jobs` y el ConfigMap del realm están en INF-U2-09.

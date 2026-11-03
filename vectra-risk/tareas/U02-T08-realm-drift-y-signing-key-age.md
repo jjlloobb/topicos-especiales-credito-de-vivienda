@@ -4,6 +4,14 @@
 **Historias que implementa:** US-601
 **Depende de:** U02-T07 (despliegue de Keycloak, Secrets `keycloak-reader-client` e `identity-ca`), en `main`
 
+> **Enmienda del 2026-11-03 (orquestador, decisiones S1 y S2 del usuario tras la ronda 1):** en los usuarios no se comparan `requiredActions` ni `credentials` (S1), y en las listas con `$(env:…)` solo se excluyen esos elementos (S2). INF-U2-09 queda enmendado y CA-2 suma sus casos.
+
+> **Enmienda del 2026-11-03 (orquestador, decisión S3 del usuario tras la ronda 2):** un valor con marcador conserva el texto literal que lo rodea en Git (prefijo y sufijo exactos). INF-U2-09 queda enmendado y CA-2 suma el caso.
+
+> **Enmienda del 2026-11-03 (orquestador, decisión T1 del usuario tras la ronda 3):** `supply-chain / scan` del PR 59 falla por KSV-0109 (HIGH) de Trivy en el ConfigMap del realm, un falso positivo por claves que contienen «token». El ConfigMap se renderiza en su propio archivo y solo ese archivo entra en `skip-files` de `supply-chain.yml`. El alcance suma ese workflow y el comentario de `.trivyignore`, y se agrega CA-8.
+
+> **Enmienda del 2026-11-03 (orquestador, consecuencia de T1 tras la ronda 4):** en el PR 59 fallan `tests`, `policies` y `evidence` por `platform/tests/test_platform.py::test_trivy_skips_only_the_kind_secret_read`, la guarda de U1 que exige que `skip-files` tenga solo el archivo de ESO. El alcance suma esa prueba, que pasa a exigir la lista exacta de cuatro archivos (sin comodines), y CA-7 suma `make -C platform check-local`.
+
 Paso 6 del plan de U2. Al preparar la tarea (2026-11-03) el orquestador comprobó en el código de Keycloak 26.8.1 que `view-realm` no permite leer clientes, client scopes ni usuarios, y que `partial-export` exige `manage-realm`. Las decisiones R1–R4 del usuario fijaron:
 - R1: los roles de `keycloak-reader` (INF-U2-05a);
 - R2: la comparación por proyección sobre Git;
@@ -44,7 +52,9 @@ Precisiones del diseño enmendado que la tarea aplica. Todas salen de INF-U2-09 
     - `username` para usuarios.
   - Cada entidad de Git que falta en Keycloak, y cada una de Keycloak que no está en Git, es una diferencia.
   - Los usuarios se leen uno a uno por su `username` de Git. Nunca se listan.
-  - Un campo cuyo valor en Git contiene `$(env:…)` se excluye.
+  - Un campo escalar cuyo valor en Git contiene `$(env:…)` se excluye. En una lista de valores solo se excluyen los elementos con marcador: los demás se comparan, y cada elemento de Keycloak que no está en Git cuenta, salvo uno por cada elemento de Git con marcador (decisión S2).
+  - Un valor con marcador debe empezar con el texto literal anterior al primer marcador y terminar con el posterior al último, comparados como prefijo y sufijo exactos (decisión S3).
+  - En los usuarios no se comparan `requiredActions` ni `credentials`, porque los cambia el login. Sí se comparan la existencia, `enabled`, los atributos y los roles (decisión S1).
   - La normalización quita secretos, IDs internos y timestamps, y es idempotente.
   - `vectra_realm_drift` es el número de diferencias.
 - **`signing-key-age`:**
@@ -67,7 +77,7 @@ Precisiones del diseño enmendado que la tarea aplica. Todas salen de INF-U2-09 
 - Las entradas de `vectra-risk-gitops/components.yaml`: Paso de integración del plan.
 - Construir la imagen. Cualquier cosa contra un clúster.
 - El Job de `keycloak-config-cli` (tarea propia, bloqueada).
-- Cambios en `contracts/`, `platform/`, `.github/workflows/`, el tema y los values de Keycloak de U02-T07.
+- Cambios en `contracts/`, `platform/` (salvo `test_trivy_skips_only_the_kind_secret_read`, por T1), `.github/workflows/` (salvo `skip-files` de `supply-chain.yml`, por T1), el tema y los values de Keycloak de U02-T07.
 
 ## Archivos de contexto
 
@@ -94,7 +104,10 @@ Precisiones del diseño enmendado que la tarea aplica. Todas salen de INF-U2-09 
   - un campo de Git con otro valor da 1;
   - un cliente, un client scope, un rol, un flujo o un usuario de Git que falta da 1 cada uno;
   - un cliente, un client scope, un rol o un flujo que sobra en Keycloak da 1 cada uno;
-  - un campo con `$(env:…)` en Git y cualquier valor en Keycloak da 0;
+  - un campo escalar con `$(env:…)` en Git y cualquier valor en Keycloak da 0;
+  - en una lista con elementos `$(env:…)` (por ejemplo, `redirectUris` de `vectra-console`), un valor resuelto por marcador da 0, un elemento de más da 1 y un elemento literal de Git que falta da 1;
+  - `break-glass` sin `CONFIGURE_TOTP` y con una credencial `otp` da 0; `break-glass` deshabilitado o con otro rol da 1;
+  - `connectionUrl` del LDAP de prod con `ldap://otro:389` da 1; con `ldaps://<cualquier host>:636` da 0 (S3);
   - el orden distinto de una lista de entidades da 0;
   - un secreto (por ejemplo, `secret` de un cliente o el valor de una credencial) distinto da 0.
 
@@ -138,9 +151,20 @@ Precisiones del diseño enmendado que la tarea aplica. Todas salen de INF-U2-09 
   Esperado: sin hallazgos. `policy-jobs-u1` aplica a `rendered/<env>/` las políticas de Kyverno y Rego de U1 que alcanzan a `vectra-identity`, y evalúa reglas: en U02-T07, `kyverno apply` sobre un directorio aplicaba 0 reglas. Si una política de U1 exige algo que el diseño de U2 no fija, detente y repórtalo.
 - [ ] **CA-7** — Lo anterior sigue cumpliendo.
   ```bash
-  uv sync --frozen && make -C identity-edge check && make -C platform check-tools
+  uv sync --frozen && make -C identity-edge check && make -C platform check-tools && make -C platform check-local
   ```
   Esperado: todo pasa y termina en 0. `check` incluye `render-jobs` (el render coincide con `rendered/`), `policy-jobs` y `policy-jobs-u1`.
+
+- [ ] **CA-8** — El escaneo de U1 pasa (decisión T1).
+  - El ConfigMap del realm se renderiza en `identity-edge/jobs/rendered/<env>/realm-configmap.yaml`, aparte de los CronJobs y las ServiceAccount.
+  - `skip-files` de `.github/workflows/supply-chain.yml` agrega solo esos tres archivos, uno por entorno y sin comodines, con un comentario que explica el motivo: falso positivo de KSV-0109, y `realm-lint` garantiza que el realm no lleva secretos literales.
+  - El comentario de `.trivyignore` lo menciona junto al precedente de KSV-0041.
+  - Los CronJobs y las ServiceAccount se siguen escaneando.
+  - CA-4 sigue exigiendo el conjunto exacto de documentos, ahora repartido en dos archivos.
+  ```bash
+  cd .. && trivy fs --scanners misconfig --severity CRITICAL,HIGH --exit-code 1 --skip-check-update --ignorefile vectra-risk/.trivyignore --skip-dirs vectra-risk/platform/policies/kyverno/fixtures,vectra-risk/platform/policies/rego/tests,vectra-risk/node_modules --skip-files <los de supply-chain.yml, separados por comas> vectra-risk
+  ```
+  Esperado: termina en 0. Sin el `skip-files` nuevo falla con KSV-0109, y eso es el rojo.
 
 ## Plan de pruebas
 

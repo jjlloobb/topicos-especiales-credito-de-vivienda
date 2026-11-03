@@ -1,0 +1,4 @@
+# staging: el digest es de ejemplo mientras ningun workflow construya la imagen (INF-U2-09, decision R3).
+image:
+  repository: registro.banco.internal/vectra/identity-jobs
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000002

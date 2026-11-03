@@ -465,6 +465,20 @@ def test_realm_files_admin_clients_and_their_service_accounts(env: str) -> None:
         assert assigned == roles
 
 
+def test_realm_files_reader_has_exactly_the_three_roles_of_the_design(env: str) -> None:
+    realm = load(env)
+    roles = design.reader_roles()
+    assert roles == {"view-realm", "view-clients", "view-users"}
+    (account,) = [u for u in realm["users"] if u.get("serviceAccountClientId") == "keycloak-reader"]
+    assert account["username"] == "service-account-keycloak-reader"
+    assert set(account["clientRoles"]) == {REALM_MANAGEMENT}
+    assert set(account["clientRoles"][REALM_MANAGEMENT]) == roles
+    assert len(account["clientRoles"][REALM_MANAGEMENT]) == len(roles)
+    (mapping,) = [m for m in realm["clientScopeMappings"][REALM_MANAGEMENT] if m["client"] == "keycloak-reader"]
+    assert set(mapping["roles"]) == roles and len(mapping["roles"]) == len(roles)
+    assert ADMIN_CLIENT_ROLES["keycloak-reader"] == roles
+
+
 # --- usuarios por entorno (domain-entities §3) -------------------------------------------------
 
 

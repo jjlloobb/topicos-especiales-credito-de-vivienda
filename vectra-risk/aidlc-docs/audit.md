@@ -5419,3 +5419,52 @@ El orquestador fijó la URL del token en el mismo host de administración.
 **Context**: Construcción de U2, preparación de U02-T08.
 
 ---
+
+## PR 58 aprobado y fusionado
+**Timestamp**: 2026-11-03T17:30:54Z
+**User Input**: "ya approve el PR 58"
+**AI Response**: El PR 58 (preparación de U02-T08: keycloak-reader con view-realm, view-clients y view-users; INF-U2-09; P-U2-05; tarea U02-T08) ya estaba fusionado en main (2026-11-03T17:30:39Z), con los checks de CI en verde. main local actualizado. U02-T08 queda lista para despacharse cuando el usuario lo pida. Esta entrada se agrega en el próximo PR.
+**Context**: Construcción de U2.
+
+---
+
+## Despacho y rondas de U02-T08
+**Timestamp**: 2026-11-03T20:22:07Z
+**User Input**: "despacha U02-T08"; después de la ronda 1, S1 "Excluir estado de login (Recomendado)" y S2 "Excluir solo el elemento (Recomendado)"; después de la ronda 2, S3 "Exigir el texto literal (Recomendado)".
+**AI Response**: U02-T08 se despachó en el worktree `wt-U02-T08` (rama `tarea/U02-T08`, base `b9577ff`).
+- Ronda 1, NO-VERDE:
+  - el scope mapping por defecto de `offline_access` contaba como deriva;
+  - una clave repetida en Keycloak se perdía;
+  - el flag `builtIn` lo ponía el lado auditado;
+  - `RS256` se usaba como respaldo.
+  - El usuario decidió S1 (en los usuarios no se comparan `requiredActions` ni `credentials`) y S2 (en las listas solo se excluyen los elementos con marcador). INF-U2-09 y la tarea quedaron enmendados.
+- Ronda 2, NO-VERDE: los roles de un usuario declarado solo se comparaban en los campos que Git declara (escalada sin deriva). El usuario decidió S3: un valor con marcador conserva el texto literal que lo rodea. El orquestador arbitró dos cosas: los roles se comparan como conjunto exacto, y los composites de los roles propios de Keycloak se comparan contra sus valores por defecto de 26.8.1.
+- Ronda 3, VERDE, con dos AMARILLO. Las candidatas del revisor se anotaron en `CANDIDATAS.md`; la de mayor prioridad es el cambio de la llave pública (`jwks.string`) de un cliente de servicio, que no se detecta.
+- Paso 6 marcado `[x]` en el plan.
+**Context**: Construcción de U2, U02-T08.
+
+---
+
+## PR 59: decisión T1 y nueva aprobación
+**Timestamp**: 2026-11-03T20:52:22Z
+**User Input**: "ya aprobe el PR"; T1 "Archivo propio + skip-files (Recomendado)"; "ya aprobé el PR 59 de nuevo"
+**AI Response**: `supply-chain / scan` del PR 59 falló por KSV-0109 (HIGH, falso positivo) en el ConfigMap del realm. El usuario decidió T1 y la tarea se enmendó con CA-8 (commit 3f35d6f, hash fc40238…). El arreglo está en la ronda 4 del codificador. La nueva aprobación del usuario recae sobre el head d16ae17, que todavía no tiene el arreglo; el orquestador lo sube al PR cuando el revisor lo apruebe.
+**Context**: Construcción de U2, U02-T08.
+
+---
+
+## Ronda 4 de U02-T08 (arreglo de Trivy)
+**Timestamp**: 2026-11-03T21:20:00Z
+**User Input**: (sin entrada nueva; sigue la decisión T1)
+**AI Response**: Ronda 4 VERDE con dos AMARILLO, que quedaron en CANDIDATAS. El ConfigMap del realm va en `rendered/<env>/realm-configmap.yaml`, y solo esos tres archivos entran en `skip-files` de `supply-chain.yml`. El revisor confirmó tres cosas: Trivy sigue detectando un CronJob inseguro en `identity-jobs.yaml`; un documento colado en el archivo omitido lo paran las políticas, `check-jobs-rendered` y pytest; y el escáner de secretos sigue cubriendo `realm.<env>.yaml`. Los commits se suben al PR 59.
+**Context**: Construcción de U2, U02-T08.
+
+---
+
+## Ronda 5 de U02-T08 (guarda de U1 sobre skip-files)
+**Timestamp**: 2026-11-03T22:10:00Z
+**User Input**: (sin entrada nueva; consecuencia de T1)
+**AI Response**: Con el arreglo de Trivy subido, en el PR 59 fallaron `tests`, `policies` y `evidence` por `platform/tests/test_platform.py::test_trivy_skips_only_the_kind_secret_read`, que exigía solo el archivo de ESO en `skip-files`. Al preparar la tarea, el orquestador no había incluido en CA-7 las pruebas de `platform/`. Se enmendó la tarea: esa prueba entra en el alcance y CA-7 suma `make -C platform check-local`. Ronda 5 VERDE: la prueba exige la lista exacta de cuatro archivos y `check-local` da 619 passed. Se anotó como candidata la falta de guarda sobre `skip-dirs`.
+**Context**: Construcción de U2, U02-T08.
+
+---

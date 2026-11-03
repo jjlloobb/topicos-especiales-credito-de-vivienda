@@ -24,7 +24,10 @@ jobs:
           # Casos de prueba, inseguros a proposito.
           skip-dirs: vectra-risk/platform/policies/kyverno/fixtures,vectra-risk/platform/policies/rego/tests
           # KSV-0041, aceptado solo para kind (issue 7): ESO lee todos los Secret. No se instala en staging ni prod.
-          skip-files: vectra-risk/platform/secrets/eso-rbac-secrets-read-kind.yaml
+          # KSV-0109, falso positivo (decision T1): el ConfigMap `realm-drift-realm` lleva el realm de Git, y Trivy toma por secretos
+          # las claves `revokeRefreshToken` y `client_credentials.use_refresh_token`. `realm-lint` garantiza que el realm no lleva
+          # secretos literales. Solo estos tres archivos (uno por entorno); los CronJobs y las ServiceAccount se siguen escaneando.
+          skip-files: vectra-risk/platform/secrets/eso-rbac-secrets-read-kind.yaml,vectra-risk/identity-edge/jobs/rendered/kind/realm-configmap.yaml,vectra-risk/identity-edge/jobs/rendered/staging/realm-configmap.yaml,vectra-risk/identity-edge/jobs/rendered/prod/realm-configmap.yaml
           format: table
           output: trivy-report.txt
       - name: Hallazgos de Trivy

@@ -291,6 +291,8 @@ clientScopeMappings:
   - client: keycloak-reader
     roles:
     - view-realm
+    - view-clients
+    - view-users
 requiredActions:
 - alias: CONFIGURE_TOTP
   name: Configure OTP
@@ -819,6 +821,8 @@ users:
   clientRoles:
     realm-management:
     - view-realm
+    - view-clients
+    - view-users
 clients:
 - clientId: vectra-console
   name: vectra-console

@@ -1,0 +1,161 @@
+---
+# Source: identity-jobs/templates/identity-jobs.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: realm-drift
+  namespace: vectra-identity
+  labels:
+    app.kubernetes.io/name: realm-drift
+    app.kubernetes.io/part-of: identity-edge
+
+
+---
+# Source: identity-jobs/templates/identity-jobs.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: signing-key-age
+  namespace: vectra-identity
+  labels:
+    app.kubernetes.io/name: signing-key-age
+    app.kubernetes.io/part-of: identity-edge
+
+
+---
+# Source: identity-jobs/templates/identity-jobs.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: realm-drift
+  namespace: vectra-identity
+  labels:
+    app.kubernetes.io/name: realm-drift
+    app.kubernetes.io/part-of: identity-edge
+    vectra.io/criticality: medium
+spec:
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: realm-drift
+            app.kubernetes.io/part-of: identity-edge
+          annotations:
+            config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+        spec:
+          serviceAccountName: realm-drift
+          priorityClassName: vectra-low
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: realm-drift
+              image: "kind-registry:5000/vectra/identity-jobs@sha256:0000000000000000000000000000000000000000000000000000000000000001"
+              imagePullPolicy: IfNotPresent
+              command: [python, "/app/realm_drift.py"]
+              env:
+                - { name: VECTRA_CLIENT_ID, value: "keycloak-reader" }
+                - { name: VECTRA_TOKEN_URL, value: "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token" }
+                - { name: VECTRA_CLIENT_KEY_PATH, value: /etc/vectra/reader/private-key }
+                - { name: VECTRA_CA_BUNDLE, value: /etc/vectra/ca/ca.crt }
+                - { name: KEYCLOAK_ADMIN_URL, value: "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/admin/realms/vectra" }
+                - { name: PUSHGATEWAY_URL, value: "http://pushgateway.vectra-observability.svc:9091" }
+                - { name: REALM_FILE, value: /etc/vectra/realm/realm.yaml }
+                - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+              securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+              volumeMounts:
+                - { name: reader-key, mountPath: /etc/vectra/reader, readOnly: true }
+                - { name: identity-ca, mountPath: /etc/vectra/ca, readOnly: true }
+                - { name: realm, mountPath: /etc/vectra/realm, readOnly: true }
+          volumes:
+            # 288 = 0440: la llave la lee el grupo del pod (fsGroup).
+            - name: reader-key
+              secret: { secretName: keycloak-reader-client, defaultMode: 288, items: [{ key: private-key, path: private-key }] }
+            - name: identity-ca
+              secret: { secretName: identity-ca, defaultMode: 288, items: [{ key: ca.crt, path: ca.crt }] }
+            - name: realm
+              configMap: { name: realm-drift-realm, items: [{ key: realm.yaml, path: realm.yaml }] }
+
+
+---
+# Source: identity-jobs/templates/identity-jobs.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: signing-key-age
+  namespace: vectra-identity
+  labels:
+    app.kubernetes.io/name: signing-key-age
+    app.kubernetes.io/part-of: identity-edge
+    vectra.io/criticality: medium
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: signing-key-age
+            app.kubernetes.io/part-of: identity-edge
+          annotations:
+            config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+        spec:
+          serviceAccountName: signing-key-age
+          priorityClassName: vectra-low
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: signing-key-age
+              image: "kind-registry:5000/vectra/identity-jobs@sha256:0000000000000000000000000000000000000000000000000000000000000001"
+              imagePullPolicy: IfNotPresent
+              command: [python, "/app/signing_key_age.py"]
+              env:
+                - { name: VECTRA_CLIENT_ID, value: "keycloak-reader" }
+                - { name: VECTRA_TOKEN_URL, value: "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token" }
+                - { name: VECTRA_CLIENT_KEY_PATH, value: /etc/vectra/reader/private-key }
+                - { name: VECTRA_CA_BUNDLE, value: /etc/vectra/ca/ca.crt }
+                - { name: KEYCLOAK_ADMIN_URL, value: "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/admin/realms/vectra" }
+                - { name: PUSHGATEWAY_URL, value: "http://pushgateway.vectra-observability.svc:9091" }
+                - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+              securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+              volumeMounts:
+                - { name: reader-key, mountPath: /etc/vectra/reader, readOnly: true }
+                - { name: identity-ca, mountPath: /etc/vectra/ca, readOnly: true }
+          volumes:
+            # 288 = 0440: la llave la lee el grupo del pod (fsGroup).
+            - name: reader-key
+              secret: { secretName: keycloak-reader-client, defaultMode: 288, items: [{ key: private-key, path: private-key }] }
+            - name: identity-ca
+              secret: { secretName: identity-ca, defaultMode: 288, items: [{ key: ca.crt, path: ca.crt }] }
+

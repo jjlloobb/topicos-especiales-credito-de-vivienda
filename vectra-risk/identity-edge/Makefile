@@ -16,7 +16,11 @@ CHART := $(ROOT)/platform/.charts/keycloakx/keycloakx
 # Destino del render de Keycloak. Por defecto, el versionado; `check-keycloak-rendered` lo cambia por un directorio temporal.
 OUT ?= $(KEYCLOAK)/rendered
 
-.PHONY: lint test check render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered
+JOBS := $(ROOT)/identity-edge/jobs
+# Destino del render de los jobs. Por defecto, el versionado; `check-jobs-rendered` lo cambia por un directorio temporal.
+JOBS_OUT ?= $(JOBS)/rendered
+
+.PHONY: lint test check render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
 
 lint:
 	$(UV) ruff check identity-edge
@@ -57,5 +61,39 @@ check-keycloak-rendered:
 	$(MAKE) -f $(lastword $(MAKEFILE_LIST)) render-keycloak OUT="$$tmp" && \
 	diff -r "$$tmp" $(KEYCLOAK)/rendered
 
+# `helm template` del chart propio de `realm-drift` y `signing-key-age` (U02-T08, Paso 6). El realm de Git del entorno entra
+# sin tocarlo (`--set-file`) y va al ConfigMap que lee `realm-drift`, en su propio archivo (decision T1).
+render-jobs:
+	for env in $(ENVS); do \
+	  mkdir -p $(JOBS_OUT)/$$env && \
+	  for file in identity-jobs realm-configmap; do \
+	    $(HELM) template identity-jobs $(JOBS)/chart --namespace vectra-identity --show-only templates/$$file.yaml \
+	      -f $(JOBS)/values/$$env.yaml --set-file realm=$(KEYCLOAK)/realm/realm.$$env.yaml > $(JOBS_OUT)/$$env/$$file.yaml || exit 1; \
+	  done; \
+	done
+
+policy-jobs:
+	$(CONFTEST) test --policy $(JOBS)/policy $(JOBS)/rendered/
+	for env in $(ENVS); do \
+	  $(CONFTEST) test --combine --namespace jobs_set --policy $(JOBS)/policy $(JOBS)/rendered/$$env/ || exit 1; \
+	done
+
+# Las politicas de U1 sobre los jobs, en los tres entornos (mismo metodo que `policy-keycloak-u1`).
+policy-jobs-u1:
+	tmp="$$(mktemp -d)" && trap 'rm -rf "$$tmp"' EXIT && mkdir "$$tmp/policies" && \
+	cp $(foreach p,$(STATIC_POLICIES),$(U1_POLICIES)/kyverno/$(p)) "$$tmp/policies/" && \
+	for env in $(ENVS); do \
+	  $(KYVERNO) apply "$$tmp/policies" --resource $(JOBS)/rendered/$$env/ > "$$tmp/report-$$env.txt" 2>&1; \
+	  grep -E '$(KYVERNO_OK)' "$$tmp/report-$$env.txt" || { grep -E 'fail:|FAIL|error' "$$tmp/report-$$env.txt" | head -40; exit 1; }; \
+	  $(CONFTEST) test --policy $(U1_POLICIES)/rego $(JOBS)/rendered/$$env/ || exit 1; \
+	  $(CONFTEST) test --combine --namespace hpa --policy $(U1_POLICIES)/rego $(JOBS)/rendered/$$env/ || exit 1; \
+	done
+
+# Lo versionado coincide con el render de ahora (sin tocar lo versionado).
+check-jobs-rendered:
+	tmp="$$(mktemp -d)" && trap 'rm -rf "$$tmp"' EXIT && \
+	$(MAKE) -f $(lastword $(MAKEFILE_LIST)) render-jobs JOBS_OUT="$$tmp" && \
+	diff -r "$$tmp" $(JOBS)/rendered
+
 # Verificaciones estaticas (AUTONOMIA-01). Crece con los pasos del plan.
-check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 test
+check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 test

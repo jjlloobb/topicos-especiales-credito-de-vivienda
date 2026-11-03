@@ -1,0 +1,5 @@
+apiVersion: v2
+name: identity-jobs
+description: CronJobs realm-drift y signing-key-age de U2 (INF-U2-09, BR-U2-12, P-U2-05)
+type: application
+version: 0.1.0

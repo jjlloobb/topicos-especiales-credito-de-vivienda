@@ -317,3 +317,14 @@ def assertion_signing_extra_clients() -> set[str]:
         assert found is not None, marker
         names |= set(re.findall(r"`([\w-]+)`", found.group(1)))
     return names
+
+
+def reader_roles() -> frozenset[str]:
+    """INF-U2-05a: los roles de `realm-management` de `keycloak-reader` (enmienda del 2026-11-03, R1)."""
+    body = section(INFRASTRUCTURE, "### INF-U2-05a")
+    (line,) = [ln for ln in body.splitlines() if ln.lstrip().startswith("- `keycloak-reader`:")]
+    first = line.split(";")[0]
+    listed = first.split("tiene solo", 1)[1].split(" de `realm-management`", 1)[0]
+    roles = frozenset(re.findall(r"`([a-z]+-[a-z]+)`", listed))
+    assert roles, "INF-U2-05a no fija los roles de keycloak-reader"
+    return roles
