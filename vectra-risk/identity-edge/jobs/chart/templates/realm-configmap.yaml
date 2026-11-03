@@ -1,0 +1,14 @@
+{{- /* El ConfigMap del realm va en su propio archivo (decision T1): Trivy lo omite por nombre, y los CronJobs no. */ -}}
+{{- $realm := required "realm es obligatorio: --set-file realm=identity-edge/keycloak/realm/realm.<entorno>.yaml (INF-U2-09)" .Values.realm -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: realm-drift-realm
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: realm-drift
+    app.kubernetes.io/part-of: identity-edge
+    vectra.io/criticality: medium
+data:
+  realm.yaml: |
+    {{- $realm | nindent 4 }}

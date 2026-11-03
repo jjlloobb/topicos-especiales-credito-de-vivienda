@@ -399,10 +399,50 @@ def render_env(request: pytest.FixtureRequest) -> str:
 
 
 def test_render_the_versioned_render_is_the_one_of_now(render_env: str) -> None:
-    result = jc.render(render_env)
-    assert result.returncode == 0, result.stderr
-    assert jc.load(result.stdout) == jc.versioned(render_env)
-    assert result.stdout == (jc.RENDERED / render_env / "identity-jobs.yaml").read_text(encoding="utf-8")
+    for name in jc.FILES:
+        result = jc.render_file(render_env, name)
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == (jc.RENDERED / render_env / name).read_text(encoding="utf-8")
+    assert jc.load(jc.render(render_env).stdout) != [] and len(jc.versioned(render_env)) == 5
+
+
+def test_t1_the_realm_configmap_has_its_own_file(render_env: str) -> None:
+    config_map = jc.load((jc.RENDERED / render_env / "realm-configmap.yaml").read_text(encoding="utf-8"))
+    assert [(d["kind"], d["metadata"]["name"]) for d in config_map] == [("ConfigMap", "realm-drift-realm")]
+    rest = jc.load((jc.RENDERED / render_env / "identity-jobs.yaml").read_text(encoding="utf-8"))
+    assert sorted((d["kind"], d["metadata"]["name"]) for d in rest) == [
+        ("CronJob", "realm-drift"),
+        ("CronJob", "signing-key-age"),
+        ("ServiceAccount", "realm-drift"),
+        ("ServiceAccount", "signing-key-age"),
+    ]
+
+
+def _workflow() -> str:
+    return (jc.EDGE.parent.parent / ".github" / "workflows" / "supply-chain.yml").read_text(encoding="utf-8")
+
+
+def test_t1_supply_chain_skips_exactly_the_three_realm_configmaps() -> None:
+    workflow = yaml.safe_load(_workflow())
+    (step,) = [
+        s for job in workflow["jobs"].values() for s in job["steps"] if "trivy-action" in s.get("uses", "")
+    ]
+    skipped = [f.strip() for f in step["with"]["skip-files"].split(",")]
+    assert skipped == [
+        "vectra-risk/platform/secrets/eso-rbac-secrets-read-kind.yaml",
+        *(f"vectra-risk/identity-edge/jobs/rendered/{env}/realm-configmap.yaml" for env in jc.ENVS),
+    ]
+    assert not [f for f in skipped if any(c in f for c in "*?[")]
+    for env in jc.ENVS:
+        assert (jc.EDGE.parent / skipped[1 + jc.ENVS.index(env)].removeprefix("vectra-risk/")).is_file()
+    text = _workflow()
+    assert "KSV-0109" in text and "realm-lint" in text
+    assert "trivyignores: vectra-risk/.trivyignore" in text and "scanners: vuln,misconfig,secret" in text
+
+
+def test_t1_trivyignore_mentions_the_new_skip() -> None:
+    text = (jc.EDGE.parent / ".trivyignore").read_text(encoding="utf-8")
+    assert "KSV-0109" in text and "realm-configmap.yaml" in text and "KSV-0041" in text
 
 
 def test_render_the_exact_set_of_documents(render_env: str) -> None:
@@ -467,8 +507,9 @@ def test_render_the_realm_configmaps_of_the_environments_differ() -> None:
 
 def test_render_there_is_no_plain_secret(render_env: str) -> None:
     assert not [d for d in jc.versioned(render_env) if d["kind"] in {"Secret", "ExternalSecret"}]
-    text = (jc.RENDERED / render_env / "identity-jobs.yaml").read_text(encoding="utf-8")
-    assert "kind: Secret\n" not in text
+    for name in jc.FILES:
+        text = (jc.RENDERED / render_env / name).read_text(encoding="utf-8")
+        assert "kind: Secret\n" not in text
 
 
 @pytest.mark.parametrize(

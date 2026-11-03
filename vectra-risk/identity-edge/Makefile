@@ -62,12 +62,14 @@ check-keycloak-rendered:
 	diff -r "$$tmp" $(KEYCLOAK)/rendered
 
 # `helm template` del chart propio de `realm-drift` y `signing-key-age` (U02-T08, Paso 6). El realm de Git del entorno entra
-# sin tocarlo (`--set-file`) y va al ConfigMap que lee `realm-drift`.
+# sin tocarlo (`--set-file`) y va al ConfigMap que lee `realm-drift`, en su propio archivo (decision T1).
 render-jobs:
 	for env in $(ENVS); do \
 	  mkdir -p $(JOBS_OUT)/$$env && \
-	  $(HELM) template identity-jobs $(JOBS)/chart --namespace vectra-identity \
-	    -f $(JOBS)/values/$$env.yaml --set-file realm=$(KEYCLOAK)/realm/realm.$$env.yaml > $(JOBS_OUT)/$$env/identity-jobs.yaml || exit 1; \
+	  for file in identity-jobs realm-configmap; do \
+	    $(HELM) template identity-jobs $(JOBS)/chart --namespace vectra-identity --show-only templates/$$file.yaml \
+	      -f $(JOBS)/values/$$env.yaml --set-file realm=$(KEYCLOAK)/realm/realm.$$env.yaml > $(JOBS_OUT)/$$env/$$file.yaml || exit 1; \
+	  done; \
 	done
 
 policy-jobs:

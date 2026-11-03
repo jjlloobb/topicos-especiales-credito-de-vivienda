@@ -55,8 +55,24 @@ def load(text: str) -> Docs:
     return [d for d in yaml.safe_load_all(text) if d]
 
 
+# Los archivos del render de cada entorno (T1): el ConfigMap del realm va aparte, para poder omitirlo del escaneo de Trivy.
+FILES = {
+    "identity-jobs.yaml": "templates/identity-jobs.yaml",
+    "realm-configmap.yaml": "templates/realm-configmap.yaml",
+}
+
+
+def render_file(env: str, name: str) -> subprocess.CompletedProcess[str]:
+    return render(env, "--show-only", FILES[name])
+
+
 def versioned(env: str) -> Docs:
-    return load((RENDERED / env / "identity-jobs.yaml").read_text(encoding="utf-8"))
+    """Todos los documentos del render versionado de `env`, de sus dos archivos."""
+    assert sorted(p.name for p in (RENDERED / env).iterdir()) == sorted(FILES)
+    docs: Docs = []
+    for name in sorted(FILES):
+        docs += load((RENDERED / env / name).read_text(encoding="utf-8"))
+    return docs
 
 
 def find(docs: Docs, kind: str, name: str) -> dict[str, Any]:
