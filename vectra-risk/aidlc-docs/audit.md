@@ -5444,3 +5444,19 @@ El orquestador fijó la URL del token en el mismo host de administración.
 **Context**: Construcción de U2, U02-T08.
 
 ---
+
+## PR 59: decisión T1 y nueva aprobación
+**Timestamp**: 2026-11-03T20:52:22Z
+**User Input**: "ya aprobe el PR"; T1 "Archivo propio + skip-files (Recomendado)"; "ya aprobé el PR 59 de nuevo"
+**AI Response**: `supply-chain / scan` del PR 59 falló por KSV-0109 (HIGH, falso positivo) en el ConfigMap del realm. El usuario decidió T1 y la tarea se enmendó con CA-8 (commit 3f35d6f, hash fc40238…). El arreglo está en la ronda 4 del codificador. La nueva aprobación del usuario recae sobre el head d16ae17, que todavía no tiene el arreglo; el orquestador lo sube al PR cuando el revisor lo apruebe.
+**Context**: Construcción de U2, U02-T08.
+
+---
+
+## Ronda 4 de U02-T08 (arreglo de Trivy)
+**Timestamp**: 2026-11-03T21:20:00Z
+**User Input**: (sin entrada nueva; sigue la decisión T1)
+**AI Response**: Ronda 4 VERDE con dos AMARILLO, que quedaron en CANDIDATAS. El ConfigMap del realm va en `rendered/<env>/realm-configmap.yaml`, y solo esos tres archivos entran en `skip-files` de `supply-chain.yml`. El revisor confirmó tres cosas: Trivy sigue detectando un CronJob inseguro en `identity-jobs.yaml`; un documento colado en el archivo omitido lo paran las políticas, `check-jobs-rendered` y pytest; y el escáner de secretos sigue cubriendo `realm.<env>.yaml`. Los commits se suben al PR 59.
+**Context**: Construcción de U2, U02-T08.
+
+---
