@@ -1,0 +1,3 @@
+# Respuesta a la ronda 2 — U02-T07
+
+F-06: Corregido en el commit de la ronda 3: el pod template del StatefulSet se compara con una lista exacta (claves del pod y del contenedor, `volumes`, `volumeMounts` con `subPath` y `readOnly`, puertos, sondas, `securityContext` del pod y del contenedor, anotaciones y etiquetas del pod, claves del StatefulSet, ServiceAccount, sin `initContainers`). Comando: `uv run pytest identity-edge/tests/unit/test_keycloak_deploy.py -q` (230 pasan; antes 62 fallaban con los casos nuevos). Las 4 sondas del revisor son los casos `volumes-keycloak.conf desde un ConfigMap con subPath`, `volumes-quarkus.properties montado`, `volumes-internal-ca desde otro ConfigMap` y `volumes-tls desde otro Secret`.

@@ -5366,3 +5366,24 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## PR 56 aprobado y fusionado
+**Timestamp**: 2026-11-03T09:58:37Z
+**User Input**: "ya approve el PR 56" y luego "ya fusione el PR"
+**AI Response**: El PR 56 (preparación de U02-T07: chart keycloakx 7.4.0, imagen con digest por entorno, hook PostSync, claves identity/… y separación del Job de keycloak-config-cli) está fusionado en main, con los checks de CI en verde. U02-T07 queda lista para despacharse cuando el usuario lo pida. Esta entrada se agrega en el próximo PR.
+**Context**: Construcción de U2.
+
+---
+## Despacho y rondas de U02-T07
+**Timestamp**: 2026-11-03T15:04:40Z
+**User Input**: "despacha U02-T07". Respuestas tras la ronda 1: D-1 = "Build con /auth (Recomendado)"; D-2 = "Agregar el SAN (Recomendado)"; D-4 = "70 % (Recomendado)"; D-3/D-5/D-6 = "Aceptar los tres (Recomendado)"; luego "continue". Tras la ronda 4: "Quinta ronda acotada (Recomendado)".
+**AI Response**: Se despacha U02-T07 en `wt-U02-T07`, base `ca29712`, usando por primera vez los subagentes registrados `codificador` y `revisor`.
+- Ronda 1 NO-VERDE. Lo más grave: `http-relative-path` es opción de build en Keycloak 26.8.1, comprobado en `HttpOptions.java`. Además, `valueFrom` esquivaba las variables y los Service no tenían lista blanca. Con las decisiones D-1 a D-6 se enmiendan INF-U2-08 (`--http-relative-path=/auth`), INF-U2-05b (SAN de admin), NFR-U2-01 (HPA al 70 %), INF-U2-01 (nombres de Secret y emisor de ejemplo `banco-ca`) y CA-1/CA-4 de la tarea (los comandos literales no evaluaban nada); se agrega CA-6.
+- Ronda 2 NO-VERDE: volúmenes y montajes sin lista blanca. Arbitraje: pod template exacto.
+- Ronda 3 NO-VERDE: documentos de más y comparaciones parciales fuera del pod. Arbitraje: conjunto exacto de documentos y `spec` completo.
+- Ronda 4 NO-VERDE: anotaciones de hook de Argo CD. La tarea se detuvo y el usuario autorizó una ronda 5 acotada.
+- Ronda 5 VERDE.
+
+Se marca el Paso 5 del plan, con el Job de `keycloak-config-cli` pendiente en su tarea propia, y se agrega la candidata F60 por HTTPS.
+**Context**: Construcción de U2.
+
+---

@@ -1,0 +1,278 @@
+# Values comunes de `keycloakx` 7.4.0 (INF-U2-08), Paso 5 del plan de U2. Los de cada entorno: kind.yaml, staging.yaml y prod.yaml.
+# Se renderiza con `make -C identity-edge render-keycloak`. Sin valor por defecto para el digest de la imagen ni para el
+# `issuerRef` de `keycloak-tls`: cada entorno los fija y, sin ellos, la plantilla falla.
+nameOverride: keycloak
+fullnameOverride: keycloak
+
+# Los entornos fijan `vectra.publicHostname`, `vectra.tls.issuerRef` y `image.repository`/`image.digest`.
+vectra:
+  adminHostname: keycloak-admin.vectra-identity.svc.cluster.local
+  tlsHostname: keycloak.vectra-identity.svc
+
+image:
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+# NFR-U2-01: 2 a 4 replicas por CPU, objetivo del 70 %. Con HPA el StatefulSet no fija `replicas`.
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+podDisruptionBudget:
+  minAvailable: 1
+
+statefulsetLabels:
+  vectra.io/criticality: high
+
+priorityClassName: vectra-high
+
+# INF-U2-06.
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+# NFR-U2-26: `start --optimized`; el ENTRYPOINT de la imagen es kc.sh (Dockerfile).
+args:
+  - start
+  - --optimized
+
+# INF-U2-05: cluster `keycloak-db` de U1, con la credencial de `pg-role-keycloak` (en vectra-identity, la entrega U1).
+# La contrasena sale de `existingSecret`; el usuario, de `extraEnv`. Pool maximo de 20 por pod.
+database:
+  vendor: postgres
+  hostname: keycloak-db-rw.vectra-data.svc
+  port: 5432
+  database: keycloak
+  existingSecret: pg-role-keycloak
+  existingSecretKey: password
+
+# NFR-U2-02: `persistent-user-sessions` activa por defecto en 26.8.1; no se toca. `cache-stack` = jdbc-ping.
+cache:
+  stack: default
+
+# NFR-U2-23: proxy-headers=xforwarded. Sin HTTP: el gateway entra por 8443 (F05).
+proxy:
+  enabled: true
+  mode: xforwarded
+  http:
+    enabled: false
+
+metrics:
+  enabled: true
+health:
+  enabled: true
+
+# El puerto de gestion (9000) sirve la salud por HTTPS: hereda el certificado de 8443. kubelet no verifica el certificado.
+http:
+  relativePath: /auth
+  internalScheme: HTTPS
+
+# Sin acceso a la API de Kubernetes: el descubrimiento es JDBC_PING.
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsUser: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+# 7800 es JGroups (F117).
+extraPorts:
+  - name: jgroups
+    containerPort: 7800
+    protocol: TCP
+
+topologySpreadConstraints: |
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        {{- include "keycloak.selectorLabels" . | nindent 8 }}
+
+# La plantilla falla sin digest: el `required` no emite nada.
+extraEnv: |
+  {{- $_ := required "image.digest es obligatorio (INF-U2-08): sin digest no se renderiza" .Values.image.digest }}
+  {{- $hostname := required "vectra.publicHostname es obligatorio (INF-U2-01)" .Values.vectra.publicHostname }}
+  - name: KC_HOSTNAME
+    value: https://{{ $hostname }}/auth
+  - name: KC_HOSTNAME_ADMIN
+    value: https://{{ .Values.vectra.adminHostname }}:8443/auth
+  - name: KC_DB_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: {{ .Values.database.existingSecret }}
+        key: username
+  - name: KC_DB_URL_PROPERTIES
+    value: "?sslmode=verify-full&sslrootcert=/etc/vectra/ca/ca.crt"
+  - name: KC_DB_POOL_MAX_SIZE
+    value: "20"
+  - name: KC_HTTPS_CERTIFICATE_FILE
+    value: /etc/x509/https/tls.crt
+  - name: KC_HTTPS_CERTIFICATE_KEY_FILE
+    value: /etc/x509/https/tls.key
+  - name: JAVA_OPTS_APPEND
+    value: -XX:MaxRAMPercentage=70
+
+# Con root de solo lectura (require-ro-rootfs), Keycloak escribe en /tmp y en /opt/keycloak/data.
+extraVolumes: |
+  - name: tls
+    secret:
+      secretName: keycloak-tls
+  - name: internal-ca
+    configMap:
+      name: vectra-internal-ca
+  - name: tmp
+    emptyDir: {}
+  - name: data
+    emptyDir: {}
+
+extraVolumeMounts: |
+  - name: tls
+    mountPath: /etc/x509/https
+    readOnly: true
+  - name: internal-ca
+    mountPath: /etc/vectra/ca
+    readOnly: true
+  - name: tmp
+    mountPath: /tmp
+  - name: data
+    mountPath: /opt/keycloak/data
+
+extraManifests:
+  # Service `keycloak` de platform/network/flows.yaml: 8443 (F05, F50, F94), 7800 (F117) y 9000 (F60).
+  - |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: keycloak
+      namespace: {{ include "keycloak.namespace" . }}
+      labels:
+        {{- include "keycloak.labels" . | nindent 4 }}
+    spec:
+      type: ClusterIP
+      selector:
+        {{- include "keycloak.selectorLabels" . | nindent 4 }}
+      ports:
+        - { name: https, port: 8443, targetPort: https, protocol: TCP }
+        - { name: jgroups, port: 7800, targetPort: jgroups, protocol: TCP }
+        - { name: http-internal, port: 9000, targetPort: http-internal, protocol: TCP }
+  # `hostname-admin` (INF-U2-01): un Service propio, que no esta en el gateway.
+  - |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: {{ (splitList "." .Values.vectra.adminHostname) | first }}
+      namespace: {{ include "keycloak.namespace" . }}
+      labels:
+        {{- include "keycloak.labels" . | nindent 4 }}
+    spec:
+      type: ClusterIP
+      selector:
+        {{- include "keycloak.selectorLabels" . | nindent 4 }}
+      ports:
+        - { name: https, port: 8443, targetPort: https, protocol: TCP }
+  # INF-U2-05b: 90 dias, se renueva a los 60 (P-U1-03).
+  - |
+    {{- $issuer := required "vectra.tls.issuerRef es obligatorio (INF-U2-05b): cada entorno fija su issuerRef" .Values.vectra.tls.issuerRef }}
+    apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: keycloak-tls
+      namespace: {{ include "keycloak.namespace" . }}
+      labels:
+        {{- include "keycloak.labels" . | nindent 4 }}
+    spec:
+      secretName: keycloak-tls
+      duration: 2160h
+      renewBefore: 720h
+      dnsNames:
+        - {{ .Values.vectra.tlsHostname }}
+        - {{ .Values.vectra.adminHostname }}
+      issuerRef:
+        name: {{ required "vectra.tls.issuerRef.name es obligatorio (INF-U2-05b)" $issuer.name }}
+        kind: {{ required "vectra.tls.issuerRef.kind es obligatorio (INF-U2-05b)" $issuer.kind }}
+  # INF-U2-05b, F05: el gateway verifica a Keycloak con la CA del banco (Secret `identity-ca`).
+  - |
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: BackendTLSPolicy
+    metadata:
+      name: keycloak
+      namespace: {{ include "keycloak.namespace" . }}
+      labels:
+        {{- include "keycloak.labels" . | nindent 4 }}
+    spec:
+      targetRefs:
+        - group: ""
+          kind: Service
+          name: keycloak
+          sectionName: https
+      validation:
+        hostname: {{ .Values.vectra.tlsHostname }}
+        caCertificateRefs:
+          - group: ""
+            kind: Secret
+            name: identity-ca
+  # Bóveda (INF-U2-01, enmienda Q4): la CA, y las llaves de los clientes de administracion de INF-U2-05a.
+  - |
+    apiVersion: external-secrets.io/v1
+    kind: ExternalSecret
+    metadata:
+      name: identity-ca
+      namespace: {{ include "keycloak.namespace" . }}
+      labels:
+        {{- include "keycloak.labels" . | nindent 4 }}
+    spec:
+      secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+      target: { name: identity-ca }
+      data:
+        - { secretKey: ca.crt, remoteRef: { key: identity/ca, property: ca.crt } }
+  - |
+    apiVersion: external-secrets.io/v1
+    kind: ExternalSecret
+    metadata:
+      name: keycloak-config-cli-client
+      namespace: {{ include "keycloak.namespace" . }}
+      labels:
+        {{- include "keycloak.labels" . | nindent 4 }}
+    spec:
+      secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+      target: { name: keycloak-config-cli-client }
+      data:
+        - { secretKey: private-key, remoteRef: { key: identity/clients/keycloak-config-cli, property: private-key } }
+  - |
+    apiVersion: external-secrets.io/v1
+    kind: ExternalSecret
+    metadata:
+      name: keycloak-reader-client
+      namespace: {{ include "keycloak.namespace" . }}
+      labels:
+        {{- include "keycloak.labels" . | nindent 4 }}
+    spec:
+      secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+      target: { name: keycloak-reader-client }
+      data:
+        - { secretKey: private-key, remoteRef: { key: identity/clients/keycloak-reader, property: private-key } }

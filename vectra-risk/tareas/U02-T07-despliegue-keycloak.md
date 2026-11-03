@@ -61,8 +61,9 @@ Precisiones del diseño enmendado que la tarea aplica:
 
 - [ ] **CA-1** — Aceptación del Paso 5: los manifiestos renderizados de los tres entornos cumplen las políticas de `identity-edge/keycloak/`.
   ```bash
-  make -C identity-edge render-keycloak && platform/.tools/bin/conftest test --policy identity-edge/keycloak/policy identity-edge/keycloak/rendered/
+  make -C identity-edge render-keycloak policy-keycloak
   ```
+  > **Enmienda del 2026-11-03 (decisión D-6 del usuario tras la ronda 1):** el comando literal anterior (`conftest test --policy identity-edge/keycloak/policy identity-edge/keycloak/rendered/`) no evaluaba las reglas de presencia. `policy-keycloak` corre las dos pasadas: por archivo y `--combine` por entorno.
   Esperado: pasa, con reglas para:
   - réplicas 2, HPA de 2 a 4 por CPU, spread por zona y PDB `minAvailable: 1`;
   - `start --optimized`, `cache-stack=jdbc-ping`, `proxy-headers=xforwarded`, `hostname` público con `/auth` y `hostname-admin` interno;
@@ -86,14 +87,30 @@ Precisiones del diseño enmendado que la tarea aplica:
   Esperado: pasa.
 - [ ] **CA-4** — Los manifiestos renderizados cumplen las políticas de U1 (Kyverno y Rego) que aplican a `vectra-identity`.
   ```bash
-  platform/.tools/bin/kyverno apply platform/policies/kyverno --resource identity-edge/keycloak/rendered/prod/ && platform/.tools/bin/conftest test --policy platform/policies/rego identity-edge/keycloak/rendered/prod/
+  make -C identity-edge policy-keycloak-u1
   ```
+  > **Enmienda del 2026-11-03 (decisión D-6 del usuario tras la ronda 1):** el `kyverno apply` literal anterior sobre el directorio de políticas aplicaba 0 reglas. `policy-keycloak-u1` aplica las políticas estáticas de U1 (`STATIC_POLICIES` de `platform/Makefile`) y el Rego de U1 en kind, staging y prod.
   Esperado: sin fallos. Si una política de U1 exige algo que el diseño de U2 no fija, detente y repórtalo.
 - [ ] **CA-5** — Lo anterior sigue cumpliendo.
   ```bash
   uv sync --frozen && make -C identity-edge check && make -C platform check-tools
   ```
   Esperado: todo pasa y termina en 0. `check` incluye `render-keycloak` y el `conftest` de CA-1.
+
+- [ ] **CA-6** — Enmiendas tras la ronda 1 (decisiones D-1 a D-5 del usuario, 2026-11-03), con lectura de vuelta:
+  - el `Dockerfile` lleva `--http-relative-path=/auth` en `kc.sh build`, y `test_keycloak_image.py` lo exige con su lista exacta, leída de INF-U2-08;
+  - `keycloak-tls` tiene exactamente los dos SAN de INF-U2-05b;
+  - el HPA tiene objetivo de CPU del 70 % (NFR-U2-01);
+  - los Secret se llaman como fija INF-U2-01;
+  - el `issuerRef` es `vectra-internal-ca` en kind y distinto de él en staging y prod.
+
+  Cada punto tiene un caso que falla sobre un render o un Dockerfile alterado.
+  ```bash
+  uv run pytest identity-edge/tests/unit/test_keycloak_deploy.py identity-edge/tests/unit/test_keycloak_image.py -q
+  ```
+  Esperado: pasa.
+
+> **Enmienda del 2026-11-03 (orquestador, con decisión D-1 del usuario):** el alcance incluye ahora `identity-edge/keycloak/Dockerfile` y `identity-edge/tests/unit/test_keycloak_image.py`, solo para `--http-relative-path=/auth`.
 
 ## Plan de pruebas
 

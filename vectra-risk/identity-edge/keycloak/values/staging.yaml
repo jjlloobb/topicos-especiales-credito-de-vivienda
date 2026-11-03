@@ -1,0 +1,9 @@
+# staging. El digest y el issuer son de ejemplo: el banco fija el nombre del `ClusterIssuer` de su CA (INF-U2-01) y la
+# imagen la construye CI (INF-U2-08). Se reemplazan en vectra-risk-gitops/values/staging/ en el paso de integracion.
+image:
+  repository: registro.banco.internal/vectra/keycloak
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000002
+vectra:
+  publicHostname: vectra.staging.banco.internal
+  tls:
+    issuerRef: { name: banco-ca, kind: ClusterIssuer }
