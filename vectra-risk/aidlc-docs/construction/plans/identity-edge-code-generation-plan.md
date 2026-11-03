@@ -107,7 +107,7 @@ vectra-risk/identity-edge/
   - Diseño: BR-U2-01, 09, 15; NFR-U2-40; AUTONOMIA-03. Historia: US-601 (su verificación pide la prueba del realm exportado: MFA por rol y fuerza bruta).
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest identity-edge/tests/property/test_realm_*.py identity-edge/tests/unit/test_realm_lint.py`, con casos nombrados: un usuario con dos roles → error; un cliente con `core:write-credit` → error; un cliente distinto de `bias-monitoring-job` con `governance:freeze` → error; `case-service` con `core:read-credit` en `realm.prod.yaml` → error; el mismo cliente en `realm.staging.yaml` → aceptado.
 
-- [ ] **Paso 4 — Tema `vectra` e imagen de Keycloak**
+- [x] **Paso 4 — Tema `vectra` e imagen de Keycloak** (U02-T06)
   - Tema hijo de `keycloak.v2` con `messages_es.properties`, logo y colores; sin JavaScript propio ni recursos de otro origen.
   - `Dockerfile`: imagen oficial 26.x pinneada por digest + tema + `kc.sh build` (`db=postgres`, `health-enabled`, `metrics-enabled`, `cache=ispn`).
   - Diseño: BR-U2-13 (CSP estricta en `/auth/**`, posible porque el tema no tiene JavaScript propio); P-U2-08; INF-U2-08; NFR-U2-25.
