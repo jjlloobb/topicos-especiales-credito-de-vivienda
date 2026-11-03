@@ -5419,3 +5419,28 @@ El orquestador fijó la URL del token en el mismo host de administración.
 **Context**: Construcción de U2, preparación de U02-T08.
 
 ---
+
+## PR 58 aprobado y fusionado
+**Timestamp**: 2026-11-03T17:30:54Z
+**User Input**: "ya approve el PR 58"
+**AI Response**: El PR 58 (preparación de U02-T08: keycloak-reader con view-realm, view-clients y view-users; INF-U2-09; P-U2-05; tarea U02-T08) ya estaba fusionado en main (2026-11-03T17:30:39Z), con los checks de CI en verde. main local actualizado. U02-T08 queda lista para despacharse cuando el usuario lo pida. Esta entrada se agrega en el próximo PR.
+**Context**: Construcción de U2.
+
+---
+
+## Despacho y rondas de U02-T08
+**Timestamp**: 2026-11-03T20:22:07Z
+**User Input**: "despacha U02-T08"; después de la ronda 1, S1 "Excluir estado de login (Recomendado)" y S2 "Excluir solo el elemento (Recomendado)"; después de la ronda 2, S3 "Exigir el texto literal (Recomendado)".
+**AI Response**: U02-T08 se despachó en el worktree `wt-U02-T08` (rama `tarea/U02-T08`, base `b9577ff`).
+- Ronda 1, NO-VERDE:
+  - el scope mapping por defecto de `offline_access` contaba como deriva;
+  - una clave repetida en Keycloak se perdía;
+  - el flag `builtIn` lo ponía el lado auditado;
+  - `RS256` se usaba como respaldo.
+  - El usuario decidió S1 (en los usuarios no se comparan `requiredActions` ni `credentials`) y S2 (en las listas solo se excluyen los elementos con marcador). INF-U2-09 y la tarea quedaron enmendados.
+- Ronda 2, NO-VERDE: los roles de un usuario declarado solo se comparaban en los campos que Git declara (escalada sin deriva). El usuario decidió S3: un valor con marcador conserva el texto literal que lo rodea. El orquestador arbitró dos cosas: los roles se comparan como conjunto exacto, y los composites de los roles propios de Keycloak se comparan contra sus valores por defecto de 26.8.1.
+- Ronda 3, VERDE, con dos AMARILLO. Las candidatas del revisor se anotaron en `CANDIDATAS.md`; la de mayor prioridad es el cambio de la llave pública (`jwks.string`) de un cliente de servicio, que no se detecta.
+- Paso 6 marcado `[x]` en el plan.
+**Context**: Construcción de U2, U02-T08.
+
+---
