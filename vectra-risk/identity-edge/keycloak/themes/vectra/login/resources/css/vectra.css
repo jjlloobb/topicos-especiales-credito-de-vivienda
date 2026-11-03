@@ -1,0 +1,46 @@
+/* Marca Vectra (P-U2-08): primario #0B3D5C, acento #C2410C, fondo #FFFFFF. Sin JavaScript ni recursos externos. */
+:root {
+  --vectra-primary: #0B3D5C;
+  --vectra-accent: #C2410C;
+  --vectra-background: #FFFFFF;
+}
+
+body,
+.pf-v5-c-login,
+.pf-v5-c-login__main {
+  background-color: var(--vectra-background);
+}
+
+#kc-header-wrapper,
+.pf-v5-c-login__header {
+  background-color: var(--vectra-background);
+  color: var(--vectra-primary);
+}
+
+#kc-header-wrapper::before {
+  content: "";
+  display: block;
+  width: 220px;
+  height: 56px;
+  margin: 0 auto 1rem;
+  background: url("../img/vectra-logo.svg") no-repeat center / contain;
+}
+
+.pf-v5-c-button.pf-m-primary,
+button.pf-m-primary {
+  background-color: var(--vectra-primary);
+  color: var(--vectra-background);
+}
+
+a,
+.pf-v5-c-login__main-footer-band-item a {
+  color: var(--vectra-accent);
+}
+
+a:focus,
+button:focus,
+input:focus,
+select:focus {
+  outline: 2px solid var(--vectra-accent);
+  outline-offset: 2px;
+}
