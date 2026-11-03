@@ -4,8 +4,11 @@ Los valores (colores, plantillas, imagen base) se leen del diseno, no de constan
 """
 
 import hashlib
+import html
 import json
 import re
+import shlex
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[3]
@@ -188,7 +191,39 @@ def required_keys(ref: Path, templates: list[str]) -> set[str]:
     return found & reference_keys(ref)
 
 
+_USED_LITERAL = re.compile(r"""(?:msg\(\s*|label\s*=\s*)["']([^"'$]+)["']""")
+_USED_PREFIX = re.compile(r"""msg\(\s*["']([^"'$]+\.)["']\s*\+""")
+
+
+def used_keys(ref: Path, templates: list[str]) -> set[str]:
+    """Claves que las plantillas usan: `msg("…")`/`msg('…')`, `label="…"` y las de `msg("prefijo." + …)` que hay en la referencia."""
+    keys = reference_keys(ref)
+    found: set[str] = set()
+    for name in templates:
+        text = (ref / "keycloak.v2" / "templates" / name).read_text(encoding="utf-8")
+        found |= set(_USED_LITERAL.findall(text))
+        for prefix in _USED_PREFIX.findall(text):
+            found |= {k for k in keys if k.startswith(prefix)}
+    return found & keys
+
+
 # --- tema -----------------------------------------------------------------------------------
+# Lista blanca sobre contenido parseado: el SVG con un parser XML, el CSS con los escapes decodificados y los
+# `.properties` con sus valores decodificados. Todo problema es una cadena `categoria: detalle`.
+
+ALLOWED_SUFFIXES = {".properties", ".css", ".svg"}
+SVG_NS = "http://www.w3.org/2000/svg"
+SVG_ELEMENTS = {
+    "svg": {"viewBox", "width", "height", "role", "aria-label"},
+    "title": set(),
+    "path": {"d", "fill", "stroke", "stroke-width", "stroke-linejoin", "stroke-linecap"},
+    "text": {"x", "y", "font-family", "font-size", "font-weight", "fill"},
+}
+SVG_COLOR_ATTRS = {"fill", "stroke"}
+CSS_KEYWORDS = {"none", "block", "auto", "center", "contain", "no-repeat", "solid"}  # palabras sin color que usa vectra.css
+CSS_FUNCTIONS = {"url"}
+_CONTROL = re.compile(r"[\x00-\x20\x7f-\x9f  ​-‏﻿]")
+
 
 def theme_files(theme: Path) -> list[Path]:
     return sorted(p for p in theme.rglob("*") if p.is_file())
@@ -198,58 +233,160 @@ def _text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-_SCHEME_URL = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]*://[^\s\"'<>)]*")
-_RELATIVE_SCHEME_URL = re.compile(r"(?:(?<=[\"'(=\s])|^)//[A-Za-z0-9\[][^\s\"'<>)]*", re.MULTILINE)
-_TAG = re.compile(r"<(?!!--)[^<>]*>")
-_XMLNS_ATTR = re.compile(r"(?<=\s)xmlns(?::[\w.-]+)?\s*=\s*([\"'])(.*?)\1", re.DOTALL)
+def _javascript_in(value: str) -> list[str]:
+    """JavaScript en un texto ya decodificado (también tras decodificar entidades HTML)."""
+    bad = []
+    for variant in {value, html.unescape(value)}:
+        squeezed = _CONTROL.sub("", variant).lower()
+        if "<script" in squeezed or "javascript:" in squeezed or "vbscript:" in squeezed:
+            bad.append("script: JavaScript embebido")
+        if re.search(r"(?<![\w-])on[a-z]+\s*=", variant, re.IGNORECASE):
+            bad.append("script: atributo de evento on*")
+    return sorted(set(bad))
 
 
-def _without_namespace_declarations(text: str) -> str:
-    """Quita el valor de los atributos `xmlns` / `xmlns:<prefijo>` de las etiquetas; en ninguna otra posición."""
-    comments = [m.span() for m in re.finditer(r"<!--.*?-->", text, re.DOTALL)]
-    spans = []
-    for tag in _TAG.finditer(text):
-        if any(a <= tag.start() < b for a, b in comments):
+def _url_problem(url: str) -> str | None:
+    """Una URL del tema debe ser una ruta relativa sin esquema, sin `/` ni `\\` inicial y sin caracteres de control."""
+    if not re.fullmatch(r"[\w.~][\w.~/-]*", url) or _CONTROL.search(url):
+        return f"url: {url!r}"
+    return None
+
+
+def _scheme_urls(value: str) -> list[str]:
+    bad = []
+    for variant in {value, html.unescape(value)}:
+        squeezed = _CONTROL.sub("", variant)
+        bad += [f"url: {u}" for u in re.findall(r"[A-Za-z][A-Za-z0-9+.-]*:[/\\]{1,2}[^\s\"'<>)]*", squeezed)]
+        bad += [f"url: {u}" for u in re.findall(r"(?<![\w:])[/\\]{2}[\w.\[-][^\s\"'<>)]*", squeezed)]
+    return sorted(set(bad))
+
+
+def svg_problems(text: str, allowed: set[str]) -> list[str]:
+    """SVG parseado con `xml.etree`: solo los elementos y atributos del logo; `fill`/`stroke` solo los colores de la marca o `none`."""
+    if re.search(r"<!DOCTYPE|<!ENTITY|<\?(?!xml\s)", text, re.IGNORECASE):
+        return ["structure: DOCTYPE, entidad o instrucción de proceso"]
+    try:
+        root = ET.fromstring(text)  # noqa: S314 - sin DOCTYPE, ya rechazado arriba
+    except ET.ParseError as exc:
+        return [f"structure: SVG mal formado: {exc}"]
+    bad = []
+    for el in root.iter():
+        if not isinstance(el.tag, str) or not el.tag.startswith("{" + SVG_NS + "}"):
+            bad.append(f"structure: elemento fuera del espacio de nombres SVG: {el.tag!r}")
             continue
-        for attr in _XMLNS_ATTR.finditer(tag.group(0)):
-            spans.append((tag.start() + attr.start(2), tag.start() + attr.end(2)))
-    for a, b in reversed(spans):
-        text = text[:a] + text[b:]
-    return text
+        name = el.tag.split("}", 1)[1]
+        if name not in SVG_ELEMENTS:
+            bad.append(f"structure: elemento no permitido: {name}")
+            continue
+        for attr, value in el.attrib.items():
+            if attr not in SVG_ELEMENTS[name]:
+                bad.append(f"structure: atributo no permitido en {name}: {attr}")
+                continue
+            bad += _javascript_in(value) + _scheme_urls(value)
+            if attr in SVG_COLOR_ATTRS and value.strip().upper() not in allowed | {"NONE"}:
+                bad.append(f"color: {attr}={value!r}")
+            if re.search(r"url\s*\(", value, re.IGNORECASE):
+                bad.append(f"url: {attr}={value!r}")
+        content = (el.text or "") + "".join(c.tail or "" for c in el)
+        if name in {"title", "text"} and not re.fullmatch(r"[\w ]*", content):
+            bad.append(f"structure: contenido no permitido en {name}")
+        if name not in {"title", "text"} and content.strip():
+            bad.append(f"structure: texto dentro de {name}")
+    return sorted(set(bad))
 
 
-def external_references(theme: Path) -> list[str]:
-    """URL con esquema o `//host` en cualquier archivo del tema. Solo el valor de un atributo `xmlns` queda exento."""
+def _css_unescape(css: str) -> str:
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
+    css = re.sub(r"\\\r?\n", "", css)
+
+    def decode(m: re.Match) -> str:
+        if m.group(1):
+            return chr(min(int(m.group(1), 16) or 0xFFFD, 0x10FFFF))
+        return m.group(2)
+
+    return re.sub(r"\\(?:([0-9a-fA-F]{1,6})[ \t\n\r\f]?|(.))", decode, css, flags=re.DOTALL)
+
+
+def css_problems(css: str, allowed: set[str]) -> list[str]:
+    """CSS con los escapes decodificados: URL relativas, y en cada declaración solo los hex de la marca, números y palabras de lista cerrada."""
+    text = _css_unescape(css)
+    bad = []
+    for rule in re.findall(r"@[\w-]+", text):
+        if rule.lower() != "@media":
+            bad.append(f"structure: regla {rule}")
+    for url in re.findall(r"url\(\s*(?:\"([^\"]*)\"|'([^']*)'|([^)\"']*))\s*\)", text, re.IGNORECASE):
+        found = "".join(url).strip()
+        problem = _url_problem(found) if found else "url: vacia"
+        if problem:
+            bad.append(problem)
+    bad += _javascript_in(text)
+    for body in re.findall(r"\{([^{}]*)\}", text):
+        for decl in body.split(";"):
+            prop, sep, value = decl.partition(":")
+            if not sep:
+                continue
+            value = re.sub(r"url\([^)]*\)", " ", value, flags=re.IGNORECASE)
+            value = re.sub(r"\"[^\"]*\"|'[^']*'", " ", value)
+            for hexa in re.findall(r"#[\w-]+", value):
+                if hexa.upper() not in allowed:
+                    bad.append(f"color: {hexa}")
+            value = re.sub(r"#[\w-]+", " ", value)
+            for fn in re.findall(r"([A-Za-z_-][\w-]*)\(", value):
+                bad.append(f"color: función {fn}()")
+            value = re.sub(r"[-+]?(?:\d+\.?\d*|\.\d+)[A-Za-z%]*", " ", value)
+            for word in re.findall(r"[A-Za-z_-][\w-]*", value):
+                if word.lower() not in CSS_KEYWORDS and f"color: función {word}()" not in bad:
+                    bad.append(f"color: palabra no permitida en {prop.strip()}: {word}")
+    return sorted(set(bad))
+
+
+def properties_problems(text: str) -> list[str]:
+    """Valores ya decodificados de un `.properties`: sin JavaScript ni URL de otro origen."""
+    bad = []
+    for key, value in parse_properties(text).items():
+        bad += _javascript_in(value) + _scheme_urls(value)
+        if key == "scripts":
+            bad.append("script: propiedad scripts")
+    return sorted(set(bad))
+
+
+def theme_problems(theme: Path, allowed: set[str]) -> list[str]:
+    """Todas las reglas del tema sobre contenido parseado. Cada problema: `<archivo>: <categoria>: <detalle>`."""
     bad = []
     for path in theme_files(theme):
+        rel = path.relative_to(theme)
+        if path.suffix not in ALLOWED_SUFFIXES:
+            bad.append(f"{rel}: structure: tipo de archivo no permitido")
+            continue
         text = _text(path)
-        if path.suffix == ".svg":
-            text = _without_namespace_declarations(text)
-        for url in _SCHEME_URL.findall(text) + _RELATIVE_SCHEME_URL.findall(text):
-            bad.append(f"{path.relative_to(theme)}: {url}")
+        found = (
+            svg_problems(text, allowed) if path.suffix == ".svg"
+            else css_problems(text, allowed) if path.suffix == ".css"
+            else properties_problems(text)
+        )
+        bad += [f"{rel}: {p}" for p in found]
     return bad
 
 
-_SCRIPT_ELEMENT = re.compile(r"<\s*(?:[\w.-]+:)?script\b", re.IGNORECASE)
-_EVENT_ATTR = re.compile(r"(?<=[\s\"'/])on[a-z]+\s*=", re.IGNORECASE)
-_JS_URL = re.compile(r"j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:", re.IGNORECASE)
-
-
-def script_problems(theme: Path) -> list[str]:
-    """JavaScript propio: elementos `script` (con cualquier prefijo), atributos `on*`, URL `javascript:` y `scripts=`."""
-    bad = []
-    for path in theme_files(theme):
-        rel = str(path.relative_to(theme))
-        text = _text(path)
-        if _SCRIPT_ELEMENT.search(text):
-            bad.append(f"{rel}: elemento script")
-        if any(_EVENT_ATTR.search(tag.group(0)) for tag in _TAG.finditer(text)):
-            bad.append(f"{rel}: atributo de evento on*")
-        if _JS_URL.search(text):
-            bad.append(f"{rel}: URL javascript:")
-        if path.name == "theme.properties" and "scripts" in parse_properties(text):
-            bad.append(f"{rel}: propiedad scripts")
+def structure_problems(theme: Path) -> list[str]:
+    """El tema estándar: `theme.properties` con el padre, `messages_es`, el CSS y el logo; `styles` conserva el del padre."""
+    bad = [f"falta {rel}" for rel in ("theme.properties", "messages/messages_es.properties",
+                                      "resources/css/vectra.css", f"resources/img/{design_logo_name()}")
+           if not (theme / rel).is_file()]
+    if not (theme / "theme.properties").is_file():
+        return bad
+    props = parse_properties(_text(theme / "theme.properties"))
+    if props.get("parent") != "keycloak.v2":
+        bad.append("parent no es keycloak.v2")
+    if props.get("styles", "").split() != ["css/styles.css", "css/vectra.css"]:
+        bad.append("styles no conserva css/styles.css del padre y agrega css/vectra.css")
+    if (theme / "resources" / "css" / "styles.css").exists():
+        bad.append("resources/css/styles.css tapa la hoja del padre")
     return bad
+
+
+def _of(theme: Path, allowed: set[str], category: str) -> list[str]:
+    return [p for p in theme_problems(theme, allowed) if f": {category}:" in p]
 
 
 def message_problems(theme: Path, ref: Path, templates: list[str]) -> list[str]:
@@ -257,82 +394,14 @@ def message_problems(theme: Path, ref: Path, templates: list[str]) -> list[str]:
     es = parse_properties(_text(theme / "messages" / "messages_es.properties"))
     problems = [f"clave inexistente en la referencia: {k}" for k in sorted(set(es) - reference_keys(ref))]
     problems += [f"sin traducir: {k}" for k in sorted(required_keys(ref, templates) - {k for k, v in es.items() if v.strip()})]
+    problems += [f"clave que ninguna plantilla usa: {k}" for k in sorted(set(es) & reference_keys(ref) - used_keys(ref, templates))]
     return problems
 
 
 # --- marca ----------------------------------------------------------------------------------
 
-_NAMED_COLORS = set(
-    """aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood
-    cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray
-    darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen
-    darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue
-    firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew
-    hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan
-    lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray
-    lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue
-    mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred
-    midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid
-    palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple
-    rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue
-    slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white
-    whitesmoke yellow yellowgreen transparent currentcolor""".split()
-)
-_COLOR_FUNCTIONS = {"rgb", "rgba", "hsl", "hsla", "hwb", "lab", "lch", "oklab", "oklch", "color", "color-mix", "light-dark", "var"}
-_HEX_TOKEN = re.compile(r"#[0-9A-Za-z_-]+")
-
-
-def _value_problems(value: str, allowed: set[str]) -> list[str]:
-    value = re.sub(r"url\([^)]*\)", " ", value)
-    value = re.sub(r"\"[^\"]*\"|'[^']*'", " ", value)
-    bad = [f"color no permitido: {h}" for h in _HEX_TOKEN.findall(value) if h.upper() not in allowed]
-    bad += [f"función de color: {f}()" for f in re.findall(r"([\w-]+)\(", value) if f.lower() in _COLOR_FUNCTIONS]
-    bad += [f"color con nombre: {n}" for n in re.findall(r"[A-Za-z][A-Za-z-]*", value) if n.lower() in _NAMED_COLORS]
-    return bad
-
-
-def css_color_problems(css: str, allowed: set[str]) -> list[str]:
-    """Colores de las declaraciones del CSS que no son uno de `allowed` (hex, nombres, funciones y `var()`)."""
-    css = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
-    bad = []
-    for body in re.findall(r"\{([^{}]*)\}", css):
-        for decl in body.split(";"):
-            prop, sep, value = decl.partition(":")
-            if sep:
-                bad += _value_problems(value, allowed)
-    return bad
-
-
-_SVG_COLOR_ATTR = re.compile(r"\b(?:fill|stroke|stop-color|flood-color|lighting-color|color)\s*=\s*([\"'])(.*?)\1", re.DOTALL)
-
-
-def svg_color_problems(svg: str, allowed: set[str]) -> list[str]:
-    svg = re.sub(r"<!--.*?-->", "", svg, flags=re.DOTALL)
-    bad = [f"color no permitido: {h}" for h in re.findall(r"#[0-9A-Fa-f]{3,8}\b", svg) if h.upper() not in allowed]
-    bad += [f"función de color: {f}()" for f in re.findall(r"([\w-]+)\(", svg) if f.lower() in _COLOR_FUNCTIONS]
-    for m in _SVG_COLOR_ATTR.finditer(svg):
-        bad += [p for p in _value_problems(m.group(2), allowed) if not p.startswith("color no permitido")]
-    for m in re.finditer(r"\bstyle\s*=\s*([\"'])(.*?)\1", svg, re.DOTALL):
-        bad += css_color_problems("{" + m.group(2) + "}", allowed)
-    for m in re.finditer(r"<style\b[^>]*>(.*?)</style>", svg, re.DOTALL | re.IGNORECASE):
-        bad += css_color_problems(m.group(1), allowed)
-    return bad
-
-
-def theme_color_problems(theme: Path, allowed: set[str]) -> list[str]:
-    bad = []
-    for path in theme_files(theme):
-        rel = path.relative_to(theme)
-        if path.suffix == ".css":
-            bad += [f"{rel}: {p}" for p in css_color_problems(_text(path), allowed)]
-        elif path.suffix == ".svg":
-            bad += [f"{rel}: {p}" for p in svg_color_problems(_text(path), allowed)]
-    return bad
-
-
 def css_hex_colors(css: str) -> set[str]:
-    css = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
-    return {h.upper() for h in re.findall(r"#[0-9A-Fa-f]{6}\b", css)}
+    return {h.upper() for h in re.findall(r"#[0-9A-Fa-f]{6}\b", _css_unescape(css))}
 
 
 def _lin(c: int) -> float:
@@ -353,41 +422,108 @@ def contrast(a: str, b: str) -> float:
 # --- Dockerfile -----------------------------------------------------------------------------
 
 THEME_TARGET = "/opt/keycloak/themes/vectra"
+_SEPARATORS = {"&&", ";", "||", "|", "&"}
+
+
+def _instructions(text: str) -> list[tuple[str, str]]:
+    """(INSTRUCCIÓN en mayúsculas, resto) con continuaciones de línea; los comentarios se descartan."""
+    logical, current = [], ""
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not current and (not line or line.startswith("#")):
+            continue
+        if current and line.startswith("#"):
+            continue
+        if line.endswith("\\"):
+            current += line[:-1] + " "
+            continue
+        logical.append((current + line).strip())
+        current = ""
+    if current.strip():
+        logical.append(current.strip())
+    out = []
+    for line in logical:
+        head, _, rest = line.partition(" ")
+        out.append((head.upper(), rest.strip()))
+    return out
+
+
+def _argv(rest: str) -> list[str]:
+    """Argumentos de una instrucción, en forma exec (JSON) o shell."""
+    if rest.startswith("["):
+        try:
+            parsed = json.loads(rest)
+            if isinstance(parsed, list) and all(isinstance(a, str) for a in parsed):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+    lexer = shlex.shlex(rest, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    try:
+        return list(lexer)
+    except ValueError:
+        return rest.split()
+
+
+def _kc_invocations(argv: list[str]) -> list[list[str]]:
+    """Argumentos que siguen a cada `kc.sh` de la línea de comandos."""
+    commands, current = [], []
+    for token in argv:
+        if token in _SEPARATORS:
+            commands.append(current)
+            current = []
+        else:
+            current.append(token)
+    commands.append(current)
+    found = []
+    for command in commands:
+        for i, token in enumerate(command):
+            if token.rsplit("/", 1)[-1] == "kc.sh":
+                found.append(command[i + 1 :])
+    return found
 
 
 def dockerfile_problems(text: str, image: str, digest: str, options: list[str], start: list[str]) -> list[str]:
-    """Incumplimientos del Dockerfile frente a INF-U2-08 (y `USER` por el escaneo de U1)."""
+    """Incumplimientos del Dockerfile frente a INF-U2-08 (y `USER 1000` por el escaneo de U1)."""
     problems = []
-    flat = re.sub(r"\\\n", " ", text)
-    flat = re.sub(r"[ \t]+", " ", flat)
-    froms = re.findall(r"^FROM (\S+)", flat, re.MULTILINE)
-    if froms != [f"{image}@{digest}"]:
-        problems.append(f"FROM no es la imagen exacta con su digest: {froms}")
-    copies = re.findall(r"^COPY (?:--\S+ )*(\S+) (\S+)\s*$", flat, re.MULTILINE)
-    if ("themes/vectra", THEME_TARGET) not in copies:
+    steps = _instructions(text)
+    froms = [_argv(rest) for kw, rest in steps if kw == "FROM"]
+    if len(froms) != 1 or [a for a in froms[0] if not a.startswith("--")][:1] != [f"{image}@{digest}"]:
+        problems.append(f"debe haber un único FROM y ser la imagen exacta con su digest: {froms}")
+    copies = [[a for a in _argv(rest) if not a.startswith("--")] for kw, rest in steps if kw == "COPY"]
+    if ["themes/vectra", THEME_TARGET] not in copies:
         problems.append(f"el tema no se copia a {THEME_TARGET}: {copies}")
-    builds = re.findall(r"kc\.sh build\b([^\n&;|]*)", flat)
+    builds = []
+    for kw, rest in steps:
+        if kw in {"RUN", "CMD", "ENTRYPOINT", "ONBUILD", "HEALTHCHECK"}:
+            builds += [args for args in _kc_invocations(_argv(rest)) if "build" in args]
     if len(builds) != 1:
-        problems.append(f"debe haber un único kc.sh build, hay {len(builds)}")
+        problems.append(f"debe haber una única invocación de kc.sh build, hay {len(builds)}")
     else:
-        given = builds[0].split()
         for option in options:
             name = option.split("=", 1)[0]
-            same = [g for g in given if g == name or g.startswith(name + "=")]
+            same = [g for g in builds[0] if g == name or g.startswith(name + "=")]
             if same != [option]:
                 problems.append(f"kc.sh build debe llevar {option} una sola vez: {same}")
+    assigned: list[tuple[str, str]] = []
+    for kw, rest in steps:
+        argv = _argv(rest)
+        for token in argv:
+            m = re.fullmatch(r"(KC_[A-Z_]+)=(.*)", token, re.DOTALL)
+            if m:
+                assigned.append((m.group(1), m.group(2)))
+        if kw in {"ENV", "ARG"} and len(argv) >= 2 and "=" not in argv[0]:
+            assigned.append((argv[0], " ".join(argv[1:])))
     for option in options:
         name, value = option.lstrip("-").split("=", 1)
         env = "KC_" + name.upper().replace("-", "_")
-        for found in re.findall(rf"\b{env}(?:=|\s+)(\S+)", flat):
-            if found.strip("\"'") != value:
-                problems.append(f"{env}={found} contradice {option}")
-    cmd = re.search(r"^CMD (\[.*\])\s*$", flat, re.MULTILINE)
-    args = json.loads(cmd.group(1)) if cmd else []
-    if args != start or not re.search(r'^ENTRYPOINT \["(?:\S*/)?kc\.sh"\]', flat, re.MULTILINE):
-        problems.append(f"el arranque no es `{' '.join(start)}` con kc.sh: {args}")
-    users = [m for m in re.finditer(r"^USER (\S+)", flat, re.MULTILINE)]
-    entry = re.search(r"^ENTRYPOINT", flat, re.MULTILINE)
-    if not users or users[-1].group(1) != "1000" or (entry and users[-1].start() > entry.start()):
-        problems.append("falta `USER 1000` antes del arranque")
+        problems += [f"{env}={v} contradice {option}" for k, v in assigned if k == env and v.strip("\"'") != value]
+    users = [(i, _argv(rest)) for i, (kw, rest) in enumerate(steps) if kw == "USER"]
+    entry = [i for i, (kw, _) in enumerate(steps) if kw == "ENTRYPOINT"]
+    if not users or any(a != ["1000"] for _, a in users) or (entry and users[-1][0] > entry[-1]):
+        problems.append("falta `USER 1000` antes del arranque, o hay otro USER")
+    cmd = [_argv(rest) for kw, rest in steps if kw == "CMD"]
+    entrypoint = [_argv(rest) for kw, rest in steps if kw == "ENTRYPOINT"]
+    if not cmd or cmd[-1] != start or not entrypoint or entrypoint[-1][:1] == [] or entrypoint[-1][0].rsplit("/", 1)[-1] != "kc.sh":
+        problems.append(f"el arranque no es `{' '.join(start)}` con kc.sh: {cmd} {entrypoint}")
     return problems

@@ -104,3 +104,61 @@ def test_other_user_is_detected(user):
 
 def test_user_after_the_entrypoint_is_detected():
     assert problems(TEXT.replace("USER 1000\n\n", "") + "USER 1000\n")
+
+
+SECOND_BUILD = {
+    "D03 shell": "RUN /opt/keycloak/bin/kc.sh build --db=dev-file",
+    "N37 exec": 'RUN ["/opt/keycloak/bin/kc.sh", "build", "--db=dev-file"]',
+    "N38 opcion antes de build": "RUN /opt/keycloak/bin/kc.sh --verbose build --db=dev-file",
+    "minusculas": "run /opt/keycloak/bin/kc.sh build --db=dev-file",
+    "encadenado con &&": "RUN echo hi && /opt/keycloak/bin/kc.sh build --db=dev-file",
+    "encadenado con ;": "RUN echo hi; kc.sh build --db=dev-file",
+    "continuacion de linea": "RUN /opt/keycloak/bin/kc.sh \\\n    build --db=dev-file",
+    "ruta relativa": "RUN bin/kc.sh build",
+}
+
+
+@pytest.mark.parametrize("name", SECOND_BUILD)
+def test_second_kc_build_in_any_form_is_detected(name):
+    assert problems(TEXT.replace("USER 1000", SECOND_BUILD[name] + "\nUSER 1000")), name
+
+
+def test_kc_build_in_exec_form_with_the_design_options_is_accepted():
+    exec_form = TEXT.replace(
+        TEXT[TEXT.index("RUN "):TEXT.index("# Usuario")],
+        'RUN ["/opt/keycloak/bin/kc.sh", "build", ' + ", ".join(f'"{o}"' for o in OPTIONS) + "]\n\n",
+    )
+    assert problems(exec_form) == []
+
+
+def test_lowercase_instructions_are_equivalent():
+    assert problems(TEXT.replace("COPY", "copy").replace("USER", "user").replace("ENTRYPOINT", "entrypoint").replace("CMD", "cmd")) == []
+
+
+FINAL_STAGE = {
+    "N50 from en minusculas": "from busybox:1.36",
+    "FROM en mayusculas": "FROM busybox:1.36",
+    "FROM con alias": "FROM busybox:1.36 AS final",
+    "FROM con plataforma": "FROM --platform=linux/amd64 busybox:1.36",
+}
+
+
+@pytest.mark.parametrize("name", FINAL_STAGE)
+def test_another_final_stage_is_detected(name):
+    assert problems(TEXT.replace("USER 1000", FINAL_STAGE[name] + "\nUSER 1000")), name
+
+
+@pytest.mark.parametrize("extra", ["user 0", "USER root", "User keycloak", "USER 0:0", "USER 1001"])
+def test_any_other_user_is_detected(extra):
+    """N49."""
+    assert problems(TEXT.replace("ENTRYPOINT", extra + "\nENTRYPOINT")), extra
+    assert problems(TEXT.replace("USER 1000\n", "")  + extra + "\n"), extra
+
+
+def test_user_1000_then_another_user_is_detected():
+    assert problems(TEXT.replace("USER 1000", "USER 1000\nUSER 0"))
+
+
+@pytest.mark.parametrize("env", ["ENV KC_DB dev-file", "env KC_DB=dev-file", "ARG KC_CACHE=local", "RUN KC_HEALTH_ENABLED=false true"])
+def test_env_forms_contradicting_an_option_are_detected(env):
+    assert problems(TEXT.replace("USER 1000", env + "\nUSER 1000")), env

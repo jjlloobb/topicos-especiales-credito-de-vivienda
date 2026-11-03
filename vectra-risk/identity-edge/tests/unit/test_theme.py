@@ -42,88 +42,195 @@ def _replace(path: Path, old: str, new: str) -> None:
 # --- estructura -------------------------------------------------------------------------------
 
 def test_theme_exists_and_structure_is_standard():
-    assert tc.THEME_DIR.is_dir() and tc.theme_files(tc.THEME_DIR)
-    props = tc.parse_properties((tc.THEME_DIR / "theme.properties").read_text(encoding="utf-8"))
-    assert props["parent"] == "keycloak.v2"
-    assert (tc.THEME_DIR / ES).is_file()
-    assert (tc.THEME_DIR / "resources" / "img" / tc.design_logo_name()).is_file()
-
-
-def test_theme_missing_directory_fails_the_checks(tmp_path):
-    missing = tmp_path / "no-existe"
-    assert tc.theme_files(missing) == []  # las pruebas de abajo exigen que no este vacio
-
-
-# --- sin recursos externos ni JavaScript ------------------------------------------------------
-
-def test_theme_has_no_external_urls():
     assert tc.theme_files(tc.THEME_DIR)
-    assert tc.external_references(tc.THEME_DIR) == []
+    assert tc.structure_problems(tc.THEME_DIR) == []
 
 
-def test_theme_has_no_script():
+def test_theme_missing_directory_fails_the_structure_rule(tmp_path):
+    assert len(tc.structure_problems(tmp_path / "no-existe")) == 4
+
+
+def test_theme_without_its_files_fails_the_structure_rule(theme):
+    (theme / LOGO).unlink()
+    (theme / CSS).unlink()
+    assert tc.structure_problems(theme) == [f"falta {CSS}", f"falta {LOGO}"]
+
+
+def test_styles_without_the_parent_stylesheet_fail_the_structure_rule(theme):
+    """T17."""
+    _replace(theme / "theme.properties", "css/styles.css css/vectra.css", "css/vectra.css")
+    assert tc.structure_problems(theme)
+
+
+def test_own_styles_css_shadowing_the_parent_fails_the_structure_rule(theme):
+    (theme / "resources" / "css" / "styles.css").write_text("a { }\n", encoding="utf-8")
+    assert tc.structure_problems(theme)
+
+
+def test_other_parent_fails_the_structure_rule(theme):
+    _replace(theme / "theme.properties", "parent=keycloak.v2", "parent=base")
+    assert tc.structure_problems(theme)
+
+
+# --- sin recursos externos ni JavaScript: lista blanca sobre contenido parseado ----------------
+
+def test_theme_is_clean_under_the_whitelist():
     assert tc.theme_files(tc.THEME_DIR)
-    assert tc.script_problems(tc.THEME_DIR) == []
+    assert tc.theme_problems(tc.THEME_DIR, ALLOWED) == []
 
 
-def test_theme_files_are_only_text_without_javascript():
+def test_theme_has_only_whitelisted_file_types():
     files = tc.theme_files(tc.THEME_DIR)
-    assert files
-    assert [p.name for p in files if p.suffix in {".js", ".mjs", ".ftl", ".html"}] == []
+    assert files and {p.suffix for p in files} <= tc.ALLOWED_SUFFIXES
 
 
-def test_xmlns_namespace_is_not_an_external_reference(theme):
-    assert 'xmlns="http://www.w3.org/2000/svg"' in (theme / LOGO).read_text(encoding="utf-8")
-    assert tc.external_references(theme) == []
+def test_unlisted_file_type_is_detected(theme):
+    (theme / "resources" / "js").mkdir()
+    (theme / "resources" / "js" / "v.js").write_text("alert(1)\n", encoding="utf-8")
+    (theme / "templates").mkdir()
+    (theme / "templates" / "login.ftl").write_text("<#-- -->\n", encoding="utf-8")
+    assert len([p for p in tc.theme_problems(theme, ALLOWED) if "tipo de archivo" in p]) == 2
 
 
-def test_xmlns_with_prefix_is_a_namespace_only_in_its_position(theme):
-    _replace(theme / LOGO, "</svg>", '<g xmlns:x="http://www.w3.org/1999/xlink"/></svg>')
-    assert tc.external_references(theme) == []
+def test_logo_has_no_image_element_and_says_vectra():
+    text = (tc.THEME_DIR / LOGO).read_text(encoding="utf-8")
+    assert not re.search(r"<\s*image\b", text, re.IGNORECASE)
+    assert "Vectra" in text
 
 
-URL_MUTATIONS = {
-    "T01 import sin esquema": (CSS, '\n@import url("//cdn.example.com/x.css");\n'),
-    "T02 url() sin esquema": (CSS, "\n.x { background: url(//cdn.example.com/a.png); }\n"),
-    "T07 url() sin comillas": (CSS, "\n.x { background: url(https://cdn.example.com/a.png); }\n"),
-    "CSS https": (CSS, '\n@import url("https://fonts.example.com/x.css");\n'),
-    "T03 xmlns:e de otra URL y href igual": (
-        LOGO, '<use xmlns:e="https://evil.example/x.svg" href="https://evil.example/x.svg"/></svg>'),
-    "T05 xmlns en comentario CSS": (CSS, '\n/* xmlns="https://evil.example/f.css" */\n@import url("https://evil.example/f.css");\n'),
-    "T06 atributo que termina en xmlns": (LOGO, '<g data-notxmlns="https://evil.example/"/></svg>'),
-    "X04b URL del espacio de nombres usada como href": (LOGO, '<use xlink:href="http://www.w3.org/2000/svg"/></svg>'),
-    "SVG href": (LOGO, '<a href="https://example.com/"/></svg>'),
-    "href sin esquema": (LOGO, '<use href="//evil.example/x.svg#a"/></svg>'),
-    "otro esquema": (CSS, '\n@import url("ftp://evil.example/x.css");\n'),
-    "comentario SVG con URL": (LOGO, "<!-- http://evil.example/ --></svg>"),
+def _svg(theme: Path, snippet: str) -> None:
+    _replace(theme / LOGO, "</svg>", snippet + "</svg>")
+
+
+SVG_MUTATIONS = {
+    # URL de otro origen o con trucos (N01-N06, N11, T03, T05-T06, X04b)
+    "N01 use href /\\host": '<use href="/\\evil.example/x.svg#a"/>',
+    "N02 href https:\\\\host": '<use href="https:\\\\evil.example/x.svg"/>',
+    "N03 href http:/host": '<use href="http:/evil.example/x.svg"/>',
+    "N06 entidad tab": '<use href="/&#9;/evil.example/x.svg"/>',
+    "N11 xmlns falso": '<use data-x=" xmlns=\'" href="https://evil.example/x.svg#a" z="\'"/>',
+    "T03 xmlns:e y href": '<use xmlns:e="https://evil.example/x.svg" href="https://evil.example/x.svg"/>',
+    "T06 atributo que termina en xmlns": '<g data-notxmlns="https://evil.example/"/>',
+    "X04b namespace como href": '<use xlink:href="http://www.w3.org/2000/svg"/>',
+    "SVG href": '<a href="https://example.com/"/>',
+    "href sin esquema": '<use href="//evil.example/x.svg#a"/>',
+    "image": '<image href="logo.png"/>',
+    # JavaScript (T08-T10, N12-N14, N18)
+    "script": "<script>alert(1)</script>",
+    "T09 script con prefijo": '<s:script xmlns:s="http://www.w3.org/2000/svg">alert(1)</s:script>',
+    "SCRIPT en mayusculas": "<SCRIPT>alert(1)</SCRIPT>",
+    "T08 onload": '<g onload="alert(1)"/>',
+    "T10 javascript:": '<a href="javascript:alert(1)"/>',
+    "N12 entidad en javascript": '<a href="&#106;avascript:alert(1)"/>',
+    "N13 javascript&#58;": '<a href="javascript&#58;alert(1)"/>',
+    "N14 foreignObject iframe srcdoc": '<foreignObject><iframe srcdoc="&lt;script&gt;alert(1)&lt;/script&gt;"/></foreignObject>',
+    "N18 set": '<set attributeName="onclick" to="alert(1)"/>',
+    "script en CDATA": "<g><![CDATA[<script>alert(1)</script>]]></g>",
+    "style element": "<style>text{fill:red}</style>",
+    # entidades y estructura
+    "DOCTYPE con entidad": None,
+    "instruccion de proceso": None,
 }
 
 
-@pytest.mark.parametrize("name", URL_MUTATIONS)
-def test_external_url_mutations_are_detected(theme, name):
-    rel, snippet = URL_MUTATIONS[name]
-    path = theme / rel
-    if rel == LOGO:
-        _replace(path, "</svg>", snippet)
+@pytest.mark.parametrize("name", SVG_MUTATIONS)
+def test_svg_mutations_are_detected(theme, name):
+    snippet = SVG_MUTATIONS[name]
+    if name == "DOCTYPE con entidad":
+        path = theme / LOGO
+        path.write_text('<!DOCTYPE svg [<!ENTITY e "x">]>\n' + path.read_text(encoding="utf-8"), encoding="utf-8")
+    elif name == "instruccion de proceso":
+        path = theme / LOGO
+        path.write_text('<?xml-stylesheet href="https://evil.example/s.css"?>\n' + path.read_text(encoding="utf-8"), encoding="utf-8")
     else:
-        _append(path, snippet)
-    assert tc.external_references(theme), name
+        _svg(theme, snippet)
+    assert tc.theme_problems(theme, ALLOWED), name
 
 
-SCRIPT_MUTATIONS = {
-    "<script>": "<script>alert(1)</script></svg>",
-    "T09 script con prefijo": '<s:script xmlns:s="http://www.w3.org/2000/svg">alert(1)</s:script></svg>',
-    "T08 onload": '<g onload="alert(1)"/></svg>',
-    "onclick con comillas simples": "<g onclick='alert(1)'/></svg>",
-    "T10 javascript:": '<a href="javascript:alert(1)"/></svg>',
-    "javascript: con espacios": '<a href="java script:alert(1)"/></svg>',
+SVG_ATTRIBUTE_MUTATIONS = [
+    ('d="M6 10 L24 46 L42 10"', 'd="M6 10" onclick="alert(1)"'),
+    ('aria-label="Vectra"', 'aria-label="javascript&#58;alert(1)"'),
+    ('aria-label="Vectra"', 'aria-label="&lt;script&gt;alert(1)&lt;/script&gt;"'),
+    ('aria-label="Vectra"', 'aria-label="Vectra" href="x"'),
+    ('role="img"', 'role="img" style="fill:red"'),
+    ('stroke-width="7"', 'stroke-width="7" filter="url(#f)"'),
+    ('width="220"', 'width="https://evil.example/"'),
+]
+
+
+@pytest.mark.parametrize(("old", "new"), SVG_ATTRIBUTE_MUTATIONS)
+def test_svg_attribute_mutations_are_detected(theme, old, new):
+    _replace(theme / LOGO, old, new)
+    assert tc.theme_problems(theme, ALLOWED)
+
+
+def test_malformed_svg_is_detected(theme):
+    _replace(theme / LOGO, "</svg>", "")
+    assert any("mal formado" in p for p in tc.theme_problems(theme, ALLOWED))
+
+
+def test_xmlns_declarations_are_not_attributes_to_whitelist(theme):
+    _replace(theme / LOGO, 'xmlns="http://www.w3.org/2000/svg"', 'xmlns="http://www.w3.org/2000/svg" xmlns:x="http://www.w3.org/1999/xlink"')
+    assert tc.theme_problems(theme, ALLOWED) == []
+
+
+CSS_URL_MUTATIONS = {
+    "T01 import sin esquema": '@import url("//cdn.example.com/x.css");',
+    "import de cadena": '@import "x.css";',
+    "T02 url sin esquema": ".x { background: url(//cdn.example.com/a.png); }",
+    "T07 url sin comillas": ".x { background: url(https://cdn.example.com/a.png); }",
+    "https": '.x { background: url("https://fonts.example.com/x.png"); }',
+    "N04b barra y contrabarra": '.x { background: url("/\\\\evil.example/a.png"); }',
+    "esquema con contrabarra": '.x { background: url("https:\\\\\\\\evil.example/a.png"); }',
+    "N03 esquema con una barra": ".x { background: url(http:/evil.example/a.png); }",
+    "barra inicial": '.x { background: url("/a.png"); }',
+    "escape de la barra": '.x { background: url("\\2f \\2f evil.example/a.png"); }',
+    "escape de url": ".x { background: u\\72l(//evil.example/a.png); }",
+    "caracter de control": '.x { background: url("a\tb//c"); }',
+    "url vacia": ".x { background: url(); }",
+    "image-set": '.x { background: image-set("a.png" 1x); }',
+    "ftp": '.x { background: url("ftp://evil.example/a.png"); }',
+    "namespace": '@namespace url("http://evil.example/");',
+    "font-face": '@font-face { font-family: x; src: url("https://evil.example/f.woff"); }',
+    "javascript en url": '.x { background: url("javascript:alert(1)"); }',
 }
 
 
-@pytest.mark.parametrize("name", SCRIPT_MUTATIONS)
-def test_script_mutations_are_detected(theme, name):
-    _replace(theme / LOGO, "</svg>", SCRIPT_MUTATIONS[name])
-    assert tc.script_problems(theme), name
+@pytest.mark.parametrize("name", CSS_URL_MUTATIONS)
+def test_css_url_mutations_are_detected(theme, name):
+    _append(theme / CSS, "\n" + CSS_URL_MUTATIONS[name].replace("\\t", "\t") + "\n")
+    assert tc.theme_problems(theme, ALLOWED), name
+
+
+def test_css_relative_url_is_accepted(theme):
+    _append(theme / CSS, '\n.x { background: url("../img/vectra-logo.svg"); }\n')
+    assert tc.theme_problems(theme, ALLOWED) == []
+
+
+def test_css_escaped_relative_url_is_decoded_before_the_rule(theme):
+    _append(theme / CSS, "\n.x { background: url(\\2e\\2e/img/vectra-logo.svg); }\n")
+    assert tc.theme_problems(theme, ALLOWED) == []
+
+
+def test_css_script_is_detected(theme):
+    _append(theme / CSS, '\n.x { content: "<script>alert(1)</script>"; }\n')
+    assert any("script:" in p for p in tc.theme_problems(theme, ALLOWED))
+
+
+@pytest.mark.parametrize("line", [
+    "loginTitleHtml=<script>alert(1)</script>",
+    "loginTitleHtml=java\\u0073cript:alert(1)",
+    "loginTitleHtml=&#106;avascript:alert(1)",
+    "loginTitleHtml=JAVA\\tSCRIPT:alert(1)",
+    "loginTitleHtml=<img src=x onerror=alert(1)>",
+    "loginTitleHtml=<a href=\"https://evil.example/\">x</a>",
+    "loginTitleHtml=<a href=\"//evil.example/\">x</a>",
+    "loginTitleHtml=&lt;SCRIPT&gt;x&lt;/SCRIPT&gt;",
+])
+def test_messages_es_mutations_are_detected(theme, line):
+    """N15."""
+    _append(theme / ES, "\n" + line + "\n")
+    assert tc.theme_problems(theme, ALLOWED), line
 
 
 def test_scripts_property_is_detected(theme):
@@ -131,13 +238,7 @@ def test_scripts_property_is_detected(theme):
     _append(theme / "theme.properties", "scripts=js/v.txt\n")
     (theme / "resources" / "js").mkdir()
     (theme / "resources" / "js" / "v.txt").write_text("alert(1)\n", encoding="utf-8")
-    assert tc.script_problems(theme) == ["theme.properties: propiedad scripts"]
-
-
-def test_logo_has_no_image_element():
-    text = (tc.THEME_DIR / "resources" / "img" / tc.design_logo_name()).read_text(encoding="utf-8")
-    assert not re.search(r"<\s*image\b", text, re.IGNORECASE)
-    assert "Vectra" in text
+    assert any("propiedad scripts" in p for p in tc.theme_problems(theme, ALLOWED))
 
 
 # --- mensajes ---------------------------------------------------------------------------------
@@ -154,12 +255,15 @@ def test_messages_es_translates_totp_keys():
 
 def test_messages_es_has_only_keys_used_by_the_listed_templates():
     es = tc.parse_properties((tc.THEME_DIR / ES).read_text(encoding="utf-8"))
-    used = set()
-    for name in TEMPLATES:
-        text = (tc.REFERENCE_DIR / "keycloak.v2" / "templates" / name).read_text(encoding="utf-8")
-        used |= set(re.findall(r"""(?:msg\(|label=|")["']?([\w.-]+)""", text))
+    used = tc.used_keys(tc.REFERENCE_DIR, TEMPLATES)
+    assert {"doSubmit", "doCancel", "showPassword", "hidePassword", "loginTotp.totp", "loginTotp.hotp"} <= used  # label=, msg('..'), msg("loginTotp." + ...)
+    assert es.keys() <= used
     assert "doClickHere" not in es
-    assert not (es.keys() - used - {"loginTotp.totp", "loginTotp.hotp"})
+
+
+def test_messages_es_key_no_template_uses_is_detected(theme):
+    _append(theme / ES, "\ndoClickHere=Haga clic aquí\n")
+    assert tc.message_problems(theme, tc.REFERENCE_DIR, TEMPLATES) == ["clave que ninguna plantilla usa: doClickHere"]
 
 
 @pytest.mark.parametrize("line", [
@@ -238,19 +342,6 @@ def test_brand_theme_declares_parent_and_own_css():
     assert (tc.THEME_DIR / CSS).is_file()
 
 
-def test_brand_styles_keep_the_parent_stylesheet():
-    """T17: un `styles` en el hijo reemplaza al del padre; `css/styles.css` se resuelve por la cadena hacia keycloak.v2."""
-    styles = tc.parse_properties((tc.THEME_DIR / "theme.properties").read_text(encoding="utf-8"))["styles"].split()
-    assert styles == ["css/styles.css", "css/vectra.css"]
-    assert not (tc.THEME_DIR / "resources" / "css" / "styles.css").exists()  # no tapa al del padre
-
-
-def test_brand_styles_without_parent_stylesheet_are_detected(theme):
-    _replace(theme / "theme.properties", "css/styles.css css/vectra.css", "css/vectra.css")
-    styles = tc.parse_properties((theme / "theme.properties").read_text(encoding="utf-8"))["styles"].split()
-    assert styles != ["css/styles.css", "css/vectra.css"]
-
-
 def test_brand_colors_come_from_the_design():
     assert ALLOWED == set(BRAND.values()) and len(ALLOWED) == 3
 
@@ -258,7 +349,7 @@ def test_brand_colors_come_from_the_design():
 def test_brand_css_uses_exactly_the_design_colors():
     css = (tc.THEME_DIR / CSS).read_text(encoding="utf-8")
     assert tc.css_hex_colors(css) == ALLOWED
-    assert tc.theme_color_problems(tc.THEME_DIR, ALLOWED) == []
+    assert [p for p in tc.theme_problems(tc.THEME_DIR, ALLOWED) if ": color:" in p] == []
 
 
 @pytest.mark.parametrize("role", ["primary", "accent"])
@@ -274,32 +365,43 @@ def test_brand_low_contrast_color_is_detected():
 
 CSS_COLOR_MUTATIONS = [
     "color: #123456;", "color: #fff;", "color: #0B3D5C80;", "color: rgb(1, 2, 3);", "color: red;",
-    "color: darkred;", "color: rebeccapurple;", "color: var(--pf-v5-global--danger-color--100);",
+    "color: RED;", "color: darkred;", "color: rebeccapurple;", "color: var(--pf-v5-global--danger-color--100);",
     "background: hsl(10 20% 30%);", "border: 1px solid transparent;", "color: currentColor;",
     "--x: color-mix(in srgb, #0B3D5C, #C2410C);", "color: light-dark(#0B3D5C, #FFFFFF);",
+    "color: CanvasText;", "background: Highlight;", "color: r\\65 d;", "color: \\72 ed;", "color: inherit;",
+    "color: initial;", "color: unset;", "color: revert;", "color: revert-layer;", "color: ButtonFace;",
+    "color: #0B3D5C !important;", "color: LinkText;",
 ]
 
 
 @pytest.mark.parametrize("decl", CSS_COLOR_MUTATIONS)
 def test_brand_css_other_colors_are_detected(theme, decl):
-    """T14, T15, T16."""
+    """T14, T15, T16, N27, N27b, N28."""
     _append(theme / CSS, f"\n.x {{ {decl} }}\n")
-    assert tc.theme_color_problems(theme, ALLOWED), decl
+    assert [p for p in tc.theme_problems(theme, ALLOWED) if ": color:" in p], decl
+
+
+def test_brand_css_lowercase_hex_of_the_brand_is_the_same_color(theme):
+    _append(theme / CSS, "\n.x { color: #0b3d5c; }\n")
+    assert tc.theme_problems(theme, ALLOWED) == []
 
 
 SVG_COLOR_MUTATIONS = [
     ('fill="#0B3D5C"', 'fill="red"'),            # T20
     ('fill="#0B3D5C"', 'fill="darkred"'),
+    ('fill="#0B3D5C"', 'fill="CanvasText"'),     # N30
+    ('fill="#0B3D5C"', 'fill="inherit"'),
+    ('fill="#0B3D5C"', 'fill="currentColor"'),
     ('fill="#0B3D5C"', 'fill="#abc"'),
+    ('fill="#0B3D5C"', 'fill="&#35;FF0000"'),
     ('fill="#0B3D5C"', 'fill="rgb(1,2,3)"'),
     ('fill="#0B3D5C"', 'fill="var(--x)"'),
-    ('fill="#0B3D5C"', 'style="fill:blue"'),
     ('stroke="#C2410C"', 'stroke="#C2410D"'),
-    ("</svg>", "<style>text{fill:green}</style></svg>"),
+    ('fill="none"', 'fill="transparent"'),
 ]
 
 
 @pytest.mark.parametrize(("old", "new"), SVG_COLOR_MUTATIONS)
 def test_brand_logo_other_colors_are_detected(theme, old, new):
     _replace(theme / LOGO, old, new)
-    assert tc.theme_color_problems(theme, ALLOWED)
+    assert [p for p in tc.theme_problems(theme, ALLOWED) if ": color:" in p]
