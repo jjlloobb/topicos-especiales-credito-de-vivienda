@@ -273,3 +273,30 @@ def amr_references() -> dict[str, str]:
     assert found is not None
     password, totp, webauthn = found.groups()
     return {"auth-username-password-form": password, "auth-otp-form": totp, "webauthn-authenticator": webauthn}
+
+
+def assertion_signing_algorithm() -> str:
+    """BR-U2-09: el algoritmo de firma de las aserciones `private_key_jwt`."""
+    found = re.search(r"BR-U2-09[^\n]*?firmado con \*\*(\w+)\*\*", BUSINESS_RULES)
+    assert found is not None
+    return found.group(1)
+
+
+def realm_settings() -> dict[str, object]:
+    """domain-entities §1.0: ajustes del realm con el nombre del campo de Keycloak."""
+    out: dict[str, object] = {}
+    for row in table_rows(section(DOMAIN_ENTITIES, "### 1.0 Ajustes del realm")):
+        names = re.findall(r"`(\w+)`", row[0])
+        if not names or row[0].startswith("Ajuste"):
+            continue
+        values = re.findall(r"`([^`]+)`", row[1])
+        value: object
+        if len(values) == 1 and values[0] in ("true", "false"):
+            value = values[0] == "true"
+        elif names[0] == "webAuthnPolicySignatureAlgorithms":
+            value = values
+        else:
+            value = values[0]
+        for name in names:
+            out[name] = value
+    return out

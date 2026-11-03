@@ -110,6 +110,27 @@ def test_realm_files_parameters_are_those_of_the_design(env: str) -> None:
     assert "persistent" not in json.dumps(realm).lower()  # D6: las sesiones persistentes son del servidor
 
 
+def test_realm_files_realm_settings_are_those_of_section_1_0(env: str) -> None:
+    realm = load(env)
+    settings = design.realm_settings()
+    assert set(settings) == {
+        "displayName", "webAuthnPolicyRpEntityName", "webAuthnPolicySignatureAlgorithms",
+        "loginWithEmailAllowed", "sslRequired", "resetPasswordAllowed", "rememberMe",
+    }  # fmt: skip
+    for key, value in settings.items():
+        assert realm[key] == value
+        assert type(realm[key]) is type(value)
+    assert settings["webAuthnPolicySignatureAlgorithms"] == ["ES256", "RS256"]
+
+
+def test_realm_files_assertions_are_signed_with_the_algorithm_of_br_u2_09(env: str) -> None:
+    algorithm = design.assertion_signing_algorithm()
+    jwt_clients = [c for c in load(env)["clients"] if c.get("clientAuthenticatorType") == "client-jwt"]
+    assert len(jwt_clients) >= 13
+    for client in jwt_clients:
+        assert client["attributes"]["token.endpoint.auth.signing.alg"] == algorithm
+
+
 def test_realm_files_events_without_personal_data_in_the_realm_fields(env: str) -> None:
     realm = load(env)
     assert realm["eventsEnabled"] is True

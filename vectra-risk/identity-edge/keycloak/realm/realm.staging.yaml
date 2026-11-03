@@ -37,6 +37,7 @@ adminEventsDetailsEnabled: false
 webAuthnPolicyRpEntityName: Vectra
 webAuthnPolicySignatureAlgorithms:
 - ES256
+- RS256
 browserFlow: vectra-browser
 roles:
   realm:
@@ -1005,7 +1006,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_GRAFANA_JWKS)
     default.acr.values: mfa
@@ -1065,7 +1066,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_CASE_SERVICE_JWKS)
     access.token.lifespan: '300'
@@ -1088,7 +1089,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_CASE_WORKER_JWKS)
     access.token.lifespan: '300'
@@ -1111,7 +1112,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_SCORING_SERVICE_JWKS)
     access.token.lifespan: '300'
@@ -1134,7 +1135,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_EXPLAINABILITY_SERVICE_JWKS)
     access.token.lifespan: '300'
@@ -1156,7 +1157,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_GOVERNANCE_SERVICE_JWKS)
     access.token.lifespan: '300'
@@ -1178,7 +1179,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_BIAS_MONITORING_SERVICE_JWKS)
     access.token.lifespan: '300'
@@ -1199,7 +1200,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_BIAS_MONITORING_JOB_JWKS)
     access.token.lifespan: '300'
@@ -1221,7 +1222,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_MODEL_VALIDATION_JOB_JWKS)
     access.token.lifespan: '300'
@@ -1242,7 +1243,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_PRODUCT_METRICS_JWKS)
     access.token.lifespan: '300'
@@ -1263,7 +1264,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_VERIFICATION_READER_JWKS)
     access.token.lifespan: '300'
@@ -1285,7 +1286,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_CHANNEL_JWKS)
     access.token.lifespan: '300'
@@ -1306,7 +1307,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_CHANNEL_SIMULATOR_JWKS)
     access.token.lifespan: '300'
@@ -1327,7 +1328,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_KEYCLOAK_CONFIG_CLI_JWKS)
     access.token.lifespan: '300'
@@ -1347,7 +1348,7 @@ clients:
   fullScopeAllowed: false
   clientAuthenticatorType: client-jwt
   attributes:
-    token.endpoint.auth.signing.alg: RS256
+    token.endpoint.auth.signing.alg: ES256
     use.jwks.string: 'true'
     jwks.string: $(env:CLIENT_KEYCLOAK_READER_JWKS)
     access.token.lifespan: '300'
