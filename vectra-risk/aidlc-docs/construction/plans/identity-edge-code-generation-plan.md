@@ -123,6 +123,7 @@ vectra-risk/identity-edge/
     - Secrets por `ExternalSecret`, incluida la credencial de administración de INF-U2-05a (seguimiento de la quinta revisión de coherencia, 2026-10-31); la contraseña de la base `keycloak` es `pg-role-keycloak`, que U1 entrega en `vectra-identity` (revisión de consistencia entre unidades, 2026-11-01);
     - `Certificate` `keycloak-tls` para 8443 y `BackendTLSPolicy` de F05 con el certificado de la CA (INF-U2-05b; quinta revisión de coherencia entre unidades, 2026-10-31).
   - `keycloak-config-cli` como Job hook del sync.
+  - **Enmienda del 2026-11-03 (decisión Q1 del usuario al preparar U02-T07):** el Job de `keycloak-config-cli` y el criterio «hook de sync presente» salen de este paso a una tarea propia, bloqueada hasta que exista un release de `keycloak-config-cli` con aserciones de cliente y el firmante esté diseñado (INF-U2-05a). El hook será `PostSync`. El resto del paso no cambia.
   - Diseño: NFR-U2-01, 02, 23, 26; P-U2-04; INF-U2-01, 05, 06. Historia: US-601.
   - **Aceptación**: `helm template` + `conftest test identity-edge/keycloak/` (réplicas, HPA, spread, PDB, `start --optimized`, `hostname-admin` interno, sin Secret plano, hook de sync presente, `keycloak-tls` y `BackendTLSPolicy` presentes).
 
