@@ -5310,3 +5310,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## Sexta ronda acotada de U02-T04
+**Timestamp**: 2026-11-03T03:26:04Z
+**User Input**: Respuesta a la pregunta del orquestador tras la ronda 5: "Sexta ronda acotada (Recomendado)".
+**AI Response**: U02-T04 salió NO-VERDE en la ronda 5 con un único NARANJA: la prueba de ES256 no lee de BR-U2-09 los clientes cubiertos. Se autoriza una ronda 6 limitada a ese hallazgo.
+**Context**: Construcción de U2.
+
+---
