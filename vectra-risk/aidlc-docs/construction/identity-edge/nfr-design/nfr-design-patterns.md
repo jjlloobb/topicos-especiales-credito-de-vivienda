@@ -86,6 +86,13 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 ### P-U2-08 — Tema de login en español (Q6)
 - Tema `vectra`, hijo de `keycloak.v2`: logo y colores del banco, textos en `messages_es.properties` (locale por defecto `es`), sin JavaScript propio ni recursos externos.
 - CSP estricta en `/auth/**` (BR-U2-13).
+- Marca Vectra mientras el banco no entregue la suya (enmienda del 2026-11-02, decisión P3 del usuario al preparar U02-T06):
+  - logo `vectra-logo.svg`: SVG propio con la palabra «Vectra», sin `<script>`, sin `<image>` y sin referencias de otro origen;
+  - color primario `#0B3D5C` (botones, encabezado) y de acento `#C2410C` (enlaces y foco), sobre fondo `#FFFFFF`;
+  - contraste sobre `#FFFFFF`: primario 11,44:1 y acento 5,18:1, ambos ≥ 4,5:1 (WCAG 2.1 AA, texto normal).
+- Referencia de claves de `messages_es.properties` (enmienda del 2026-11-02, decisión P4 del usuario): los `messages_en.properties` de los temas `base` y `keycloak.v2` (login) de la versión de Keycloak de INF-U2-08, guardados con su checksum en `identity-edge/tests/fixtures/keycloak-<versión>/`.
+  - Toda clave de `messages_es.properties` existe en esa referencia.
+  - Están traducidas las claves literales `msg("…")` de las plantillas de login (`login.ftl`), TOTP (`login-otp.ftl`, `login-config-totp.ftl`) y cambio de contraseña (`login-update-password.ftl`), con las comunes que incluyen (`template.ftl`, `buttons.ftl`, `field.ftl`, `password-commons.ftl`), siempre que existan en la referencia. Las plantillas están en el mismo directorio de fixtures.
 - Objetivo WCAG 2.1 AA: contraste, etiquetas de formulario y foco visible.
 - **Verificación**: Playwright + `axe-core` sobre las páginas de login, TOTP y cambio de contraseña sin violaciones serias ni críticas; prueba de que el tema no carga recursos de otro origen.
 - **Satisface**: NFR-USA-01; SECURITY-04.

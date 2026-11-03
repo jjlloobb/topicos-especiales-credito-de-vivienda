@@ -98,6 +98,7 @@ las cuotas de U1 (NFR-U1-13).
 
 ### INF-U2-08
 - `identity-edge/keycloak/Dockerfile`: imagen oficial de Keycloak 26.x pinneada por digest + tema `vectra` + `kc.sh build` con las opciones de producción (base de datos `postgres`, health y métricas habilitados, `cache=ispn`).
+- Imagen base: `quay.io/keycloak/keycloak:26.8.1@sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332`, la última 26.x estable al 2026-11-02. Se comprobó que en ese tag siguen las claves `default.reference.value` y `default.reference.maxAge` de domain-entities §1.2 (`Constants.java`) (enmienda del 2026-11-02, decisión P2 del usuario al preparar U02-T06).
 - Construida en CI, escaneada con Trivy y firmada con Cosign (`supply-chain.yml` de U1); el banco la replica a su registro interno.
 - Arranque: `start --optimized`.
 
