@@ -4,6 +4,7 @@ Los valores (colores, plantillas, imagen base) se leen del diseno, no de constan
 """
 
 import hashlib
+import json
 import re
 from pathlib import Path
 
@@ -15,7 +16,6 @@ INFRASTRUCTURE = (_FD / "infrastructure-design" / "infrastructure-design.md").re
 EDGE = _ROOT / "identity-edge"
 THEME_DIR = EDGE / "keycloak" / "themes" / "vectra" / "login"
 DOCKERFILE = EDGE / "keycloak" / "Dockerfile"
-REFERENCE_DIR = EDGE / "tests" / "fixtures" / "keycloak-26.8.1"
 
 
 def _subsection(text: str, heading: str) -> str:
@@ -69,6 +69,19 @@ def design_image() -> tuple[str, str]:
     return m.group(1), m.group(2)
 
 
+def design_version() -> str:
+    """La versión de Keycloak del tag de INF-U2-08 (`26.8.1`)."""
+    return design_image()[0].rsplit(":", 1)[1]
+
+
+def reference_dir() -> Path:
+    """`identity-edge/tests/fixtures/keycloak-<versión>/`, con la versión de INF-U2-08 (P-U2-08)."""
+    return EDGE / "tests" / "fixtures" / f"keycloak-{design_version()}"
+
+
+REFERENCE_DIR = reference_dir()
+
+
 def design_build_options() -> list[str]:
     """Las cuatro opciones de `kc.sh build` de INF-U2-08, en la forma de la linea de comandos."""
     text = INF_U2_08
@@ -105,21 +118,55 @@ def checksum_mismatches(ref: Path) -> list[str]:
     return bad
 
 
+
+
+_PROP_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "f": "\f"}
+
+
+def _unescape(text: str) -> str:
+    out, i = "", 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "\\" and i + 1 < len(text):
+            nxt = text[i + 1]
+            if nxt == "u" and re.fullmatch(r"[0-9A-Fa-f]{4}", text[i + 2 : i + 6]):
+                out += chr(int(text[i + 2 : i + 6], 16))
+                i += 6
+                continue
+            out += _PROP_ESCAPES.get(nxt, nxt)
+            i += 2
+            continue
+        out += ch
+        i += 1
+    return out
+
+
 def parse_properties(text: str) -> dict[str, str]:
+    """Sintaxis de `java.util.Properties`: clave hasta el primer `=`, `:` o espacio sin escapar; continuaciones con `\\`."""
     props: dict[str, str] = {}
-    logical = ""
-    for raw in text.splitlines():
-        line = raw.strip() if not logical else raw.lstrip()
-        if not logical and (not line or line[0] in "#!"):
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i].lstrip(" \t\f")
+        i += 1
+        if not line or line[0] in "#!":
             continue
-        if line.endswith("\\") and not line.endswith("\\\\"):
-            logical += line[:-1]
-            continue
-        logical += line
-        m = re.match(r"([^=:\s]+)\s*[=:]\s*(.*)$", logical)
-        if m:
-            props[m.group(1)] = m.group(2)
-        logical = ""
+        while (len(line) - len(line.rstrip("\\"))) % 2 == 1 and i < len(lines):
+            line = line[:-1] + lines[i].lstrip(" \t\f")
+            i += 1
+        pos = 0
+        while pos < len(line):
+            if line[pos] == "\\":
+                pos += 2
+                continue
+            if line[pos] in "=: \t\f":
+                break
+            pos += 1
+        key = line[:pos]
+        rest = line[pos:].lstrip(" \t\f")
+        if rest[:1] in ("=", ":"):
+            rest = rest[1:].lstrip(" \t\f")
+        props[_unescape(key)] = _unescape(rest)
     return props
 
 
@@ -147,30 +194,67 @@ def theme_files(theme: Path) -> list[Path]:
     return sorted(p for p in theme.rglob("*") if p.is_file())
 
 
-_URL = re.compile(r"https?://[^\s\"'<>)]+", re.IGNORECASE)
-_XMLNS = re.compile(r'xmlns(?::\w+)?\s*=\s*["\']\s*(https?://[^"\']*)["\']', re.IGNORECASE)
-_SCRIPT = re.compile(r"<\s*script\b", re.IGNORECASE)
+def _text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+_SCHEME_URL = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]*://[^\s\"'<>)]*")
+_RELATIVE_SCHEME_URL = re.compile(r"(?:(?<=[\"'(=\s])|^)//[A-Za-z0-9\[][^\s\"'<>)]*", re.MULTILINE)
+_TAG = re.compile(r"<(?!!--)[^<>]*>")
+_XMLNS_ATTR = re.compile(r"(?<=\s)xmlns(?::[\w.-]+)?\s*=\s*([\"'])(.*?)\1", re.DOTALL)
+
+
+def _without_namespace_declarations(text: str) -> str:
+    """Quita el valor de los atributos `xmlns` / `xmlns:<prefijo>` de las etiquetas; en ninguna otra posición."""
+    comments = [m.span() for m in re.finditer(r"<!--.*?-->", text, re.DOTALL)]
+    spans = []
+    for tag in _TAG.finditer(text):
+        if any(a <= tag.start() < b for a, b in comments):
+            continue
+        for attr in _XMLNS_ATTR.finditer(tag.group(0)):
+            spans.append((tag.start() + attr.start(2), tag.start() + attr.end(2)))
+    for a, b in reversed(spans):
+        text = text[:a] + text[b:]
+    return text
 
 
 def external_references(theme: Path) -> list[str]:
-    """URL `http(s)://` de cualquier archivo del tema, salvo los URI de espacio de nombres XML (`xmlns`)."""
+    """URL con esquema o `//host` en cualquier archivo del tema. Solo el valor de un atributo `xmlns` queda exento."""
     bad = []
     for path in theme_files(theme):
-        text = path.read_text(encoding="utf-8")
-        namespaces = {m.group(1) for m in _XMLNS.finditer(text)}
-        for url in _URL.findall(text):
-            if url not in namespaces:
-                bad.append(f"{path.relative_to(theme)}: {url}")
+        text = _text(path)
+        if path.suffix == ".svg":
+            text = _without_namespace_declarations(text)
+        for url in _SCHEME_URL.findall(text) + _RELATIVE_SCHEME_URL.findall(text):
+            bad.append(f"{path.relative_to(theme)}: {url}")
     return bad
 
 
-def script_tags(theme: Path) -> list[str]:
-    return [str(p.relative_to(theme)) for p in theme_files(theme) if _SCRIPT.search(p.read_text(encoding="utf-8"))]
+_SCRIPT_ELEMENT = re.compile(r"<\s*(?:[\w.-]+:)?script\b", re.IGNORECASE)
+_EVENT_ATTR = re.compile(r"(?<=[\s\"'/])on[a-z]+\s*=", re.IGNORECASE)
+_JS_URL = re.compile(r"j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:", re.IGNORECASE)
+
+
+def script_problems(theme: Path) -> list[str]:
+    """JavaScript propio: elementos `script` (con cualquier prefijo), atributos `on*`, URL `javascript:` y `scripts=`."""
+    bad = []
+    for path in theme_files(theme):
+        rel = str(path.relative_to(theme))
+        text = _text(path)
+        if _SCRIPT_ELEMENT.search(text):
+            bad.append(f"{rel}: elemento script")
+        if any(_EVENT_ATTR.search(tag.group(0)) for tag in _TAG.finditer(text)):
+            bad.append(f"{rel}: atributo de evento on*")
+        if _JS_URL.search(text):
+            bad.append(f"{rel}: URL javascript:")
+        if path.name == "theme.properties" and "scripts" in parse_properties(text):
+            bad.append(f"{rel}: propiedad scripts")
+    return bad
 
 
 def message_problems(theme: Path, ref: Path, templates: list[str]) -> list[str]:
-    """Claves de `messages_es` que no existen en la referencia y claves exigidas sin traducir."""
-    es = parse_properties((theme / "messages" / "messages_es.properties").read_text(encoding="utf-8"))
+    """Claves de `messages_es` que no existen en la referencia y claves exigidas sin traducir (ausentes o vacías)."""
+    es = parse_properties(_text(theme / "messages" / "messages_es.properties"))
     problems = [f"clave inexistente en la referencia: {k}" for k in sorted(set(es) - reference_keys(ref))]
     problems += [f"sin traducir: {k}" for k in sorted(required_keys(ref, templates) - {k for k, v in es.items() if v.strip()})]
     return problems
@@ -178,25 +262,77 @@ def message_problems(theme: Path, ref: Path, templates: list[str]) -> list[str]:
 
 # --- marca ----------------------------------------------------------------------------------
 
-_HEX = re.compile(r"#[0-9A-Fa-f]{3,8}\b")
-_COLOR_FN = re.compile(r"\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(", re.IGNORECASE)
-_NAMED = re.compile(
-    r"\b(?:white|black|red|green|blue|yellow|orange|purple|pink|gray|grey|silver|navy|teal|maroon|brown|cyan|magenta|"
-    r"lime|olive|aqua|fuchsia|gold|indigo|violet|crimson|coral|salmon|tan|beige|ivory)\b",
-    re.IGNORECASE,
+_NAMED_COLORS = set(
+    """aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood
+    cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray
+    darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen
+    darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue
+    firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew
+    hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan
+    lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray
+    lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue
+    mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred
+    midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid
+    palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple
+    rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue
+    slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white
+    whitesmoke yellow yellowgreen transparent currentcolor""".split()
 )
+_COLOR_FUNCTIONS = {"rgb", "rgba", "hsl", "hsla", "hwb", "lab", "lch", "oklab", "oklch", "color", "color-mix", "light-dark", "var"}
+_HEX_TOKEN = re.compile(r"#[0-9A-Za-z_-]+")
 
 
-def css_colors(css: str) -> tuple[set[str], list[str]]:
-    """(hex en mayusculas, otras formas de color) de las declaraciones y variables del CSS, sin comentarios."""
+def _value_problems(value: str, allowed: set[str]) -> list[str]:
+    value = re.sub(r"url\([^)]*\)", " ", value)
+    value = re.sub(r"\"[^\"]*\"|'[^']*'", " ", value)
+    bad = [f"color no permitido: {h}" for h in _HEX_TOKEN.findall(value) if h.upper() not in allowed]
+    bad += [f"función de color: {f}()" for f in re.findall(r"([\w-]+)\(", value) if f.lower() in _COLOR_FUNCTIONS]
+    bad += [f"color con nombre: {n}" for n in re.findall(r"[A-Za-z][A-Za-z-]*", value) if n.lower() in _NAMED_COLORS]
+    return bad
+
+
+def css_color_problems(css: str, allowed: set[str]) -> list[str]:
+    """Colores de las declaraciones del CSS que no son uno de `allowed` (hex, nombres, funciones y `var()`)."""
     css = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
-    css = re.sub(r"url\([^)]*\)", "", css)
-    css = re.sub(r"\"[^\"]*\"|'[^']*'", "", css)
-    hexes = {h.upper() for h in _HEX.findall(css)}
-    others = _COLOR_FN.findall(css)
-    for decl in re.findall(r":([^;{}]+)", css):
-        others += _NAMED.findall(decl)
-    return hexes, others
+    bad = []
+    for body in re.findall(r"\{([^{}]*)\}", css):
+        for decl in body.split(";"):
+            prop, sep, value = decl.partition(":")
+            if sep:
+                bad += _value_problems(value, allowed)
+    return bad
+
+
+_SVG_COLOR_ATTR = re.compile(r"\b(?:fill|stroke|stop-color|flood-color|lighting-color|color)\s*=\s*([\"'])(.*?)\1", re.DOTALL)
+
+
+def svg_color_problems(svg: str, allowed: set[str]) -> list[str]:
+    svg = re.sub(r"<!--.*?-->", "", svg, flags=re.DOTALL)
+    bad = [f"color no permitido: {h}" for h in re.findall(r"#[0-9A-Fa-f]{3,8}\b", svg) if h.upper() not in allowed]
+    bad += [f"función de color: {f}()" for f in re.findall(r"([\w-]+)\(", svg) if f.lower() in _COLOR_FUNCTIONS]
+    for m in _SVG_COLOR_ATTR.finditer(svg):
+        bad += [p for p in _value_problems(m.group(2), allowed) if not p.startswith("color no permitido")]
+    for m in re.finditer(r"\bstyle\s*=\s*([\"'])(.*?)\1", svg, re.DOTALL):
+        bad += css_color_problems("{" + m.group(2) + "}", allowed)
+    for m in re.finditer(r"<style\b[^>]*>(.*?)</style>", svg, re.DOTALL | re.IGNORECASE):
+        bad += css_color_problems(m.group(1), allowed)
+    return bad
+
+
+def theme_color_problems(theme: Path, allowed: set[str]) -> list[str]:
+    bad = []
+    for path in theme_files(theme):
+        rel = path.relative_to(theme)
+        if path.suffix == ".css":
+            bad += [f"{rel}: {p}" for p in css_color_problems(_text(path), allowed)]
+        elif path.suffix == ".svg":
+            bad += [f"{rel}: {p}" for p in svg_color_problems(_text(path), allowed)]
+    return bad
+
+
+def css_hex_colors(css: str) -> set[str]:
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
+    return {h.upper() for h in re.findall(r"#[0-9A-Fa-f]{6}\b", css)}
 
 
 def _lin(c: int) -> float:
@@ -216,26 +352,42 @@ def contrast(a: str, b: str) -> float:
 
 # --- Dockerfile -----------------------------------------------------------------------------
 
+THEME_TARGET = "/opt/keycloak/themes/vectra"
+
+
 def dockerfile_problems(text: str, image: str, digest: str, options: list[str], start: list[str]) -> list[str]:
-    """Incumplimientos del Dockerfile frente a INF-U2-08."""
+    """Incumplimientos del Dockerfile frente a INF-U2-08 (y `USER` por el escaneo de U1)."""
     problems = []
     flat = re.sub(r"\\\n", " ", text)
     flat = re.sub(r"[ \t]+", " ", flat)
     froms = re.findall(r"^FROM (\S+)", flat, re.MULTILINE)
     if froms != [f"{image}@{digest}"]:
         problems.append(f"FROM no es la imagen exacta con su digest: {froms}")
-    if not re.search(r"^COPY (?:--\S+ )*themes/vectra \S*/themes/vectra\s*$", flat, re.MULTILINE):
-        problems.append("el tema no se copia")
-    build = re.search(r"^RUN (?:\S*/)?kc\.sh build ?(.*)$", flat, re.MULTILINE)
-    if not build:
-        problems.append("falta `kc.sh build`")
+    copies = re.findall(r"^COPY (?:--\S+ )*(\S+) (\S+)\s*$", flat, re.MULTILINE)
+    if ("themes/vectra", THEME_TARGET) not in copies:
+        problems.append(f"el tema no se copia a {THEME_TARGET}: {copies}")
+    builds = re.findall(r"kc\.sh build\b([^\n&;|]*)", flat)
+    if len(builds) != 1:
+        problems.append(f"debe haber un único kc.sh build, hay {len(builds)}")
     else:
-        given = build.group(1).split()
-        problems += [f"falta {o} en kc.sh build" for o in options if o not in given]
+        given = builds[0].split()
+        for option in options:
+            name = option.split("=", 1)[0]
+            same = [g for g in given if g == name or g.startswith(name + "=")]
+            if same != [option]:
+                problems.append(f"kc.sh build debe llevar {option} una sola vez: {same}")
+    for option in options:
+        name, value = option.lstrip("-").split("=", 1)
+        env = "KC_" + name.upper().replace("-", "_")
+        for found in re.findall(rf"\b{env}(?:=|\s+)(\S+)", flat):
+            if found.strip("\"'") != value:
+                problems.append(f"{env}={found} contradice {option}")
     cmd = re.search(r"^CMD (\[.*\])\s*$", flat, re.MULTILINE)
-    import json
-
     args = json.loads(cmd.group(1)) if cmd else []
     if args != start or not re.search(r'^ENTRYPOINT \["(?:\S*/)?kc\.sh"\]', flat, re.MULTILINE):
         problems.append(f"el arranque no es `{' '.join(start)}` con kc.sh: {args}")
+    users = [m for m in re.finditer(r"^USER (\S+)", flat, re.MULTILINE)]
+    entry = re.search(r"^ENTRYPOINT", flat, re.MULTILINE)
+    if not users or users[-1].group(1) != "1000" or (entry and users[-1].start() > entry.start()):
+        problems.append("falta `USER 1000` antes del arranque")
     return problems

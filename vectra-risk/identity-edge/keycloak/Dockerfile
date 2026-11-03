@@ -10,5 +10,8 @@ RUN /opt/keycloak/bin/kc.sh build \
     --metrics-enabled=true \
     --cache=ispn
 
+# Usuario que ya declara la imagen base; lo exige el escaneo de supply-chain.yml (U1).
+USER 1000
+
 ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
 CMD ["start", "--optimized"]

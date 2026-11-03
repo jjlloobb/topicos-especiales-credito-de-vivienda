@@ -1,20 +1,14 @@
 /* Marca Vectra (P-U2-08): primario #0B3D5C, acento #C2410C, fondo #FFFFFF. Sin JavaScript ni recursos externos. */
-:root {
-  --vectra-primary: #0B3D5C;
-  --vectra-accent: #C2410C;
-  --vectra-background: #FFFFFF;
-}
-
 body,
 .pf-v5-c-login,
 .pf-v5-c-login__main {
-  background-color: var(--vectra-background);
+  background-color: #FFFFFF;
 }
 
 #kc-header-wrapper,
 .pf-v5-c-login__header {
-  background-color: var(--vectra-background);
-  color: var(--vectra-primary);
+  background-color: #FFFFFF;
+  color: #0B3D5C;
 }
 
 #kc-header-wrapper::before {
@@ -28,19 +22,19 @@ body,
 
 .pf-v5-c-button.pf-m-primary,
 button.pf-m-primary {
-  background-color: var(--vectra-primary);
-  color: var(--vectra-background);
+  background-color: #0B3D5C;
+  color: #FFFFFF;
 }
 
 a,
 .pf-v5-c-login__main-footer-band-item a {
-  color: var(--vectra-accent);
+  color: #C2410C;
 }
 
 a:focus,
 button:focus,
 input:focus,
 select:focus {
-  outline: 2px solid var(--vectra-accent);
+  outline: 2px solid #C2410C;
   outline-offset: 2px;
 }
