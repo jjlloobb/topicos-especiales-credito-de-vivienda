@@ -63,8 +63,8 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 ### INF-U2-05a — Credencial de administración (seguimiento de la quinta revisión de coherencia, 2026-10-31)
 - Dos clientes de administración del realm `vectra`, por F94, con `private_key_jwt` desde ESO (enmienda del 2026-11-02, decisión del usuario tras la ronda 3 de U02-T03):
   - `keycloak-config-cli`: su cuenta de servicio tiene el rol `realm-admin` de `realm-management`; es el único que escribe;
-  - `keycloak-reader`: su cuenta de servicio tiene solo `view-realm` de `realm-management`; lo usan `realm-drift` y `signing-key-age`, que solo leen.
-- `realm-lint` rechaza cualquier rol de `realm-management` en otra cuenta de servicio, y cualquier rol distinto de `view-realm` en la de `keycloak-reader`.
+  - `keycloak-reader`: su cuenta de servicio tiene solo `view-realm`, `view-clients` y `view-users` de `realm-management`, y el `clientScopeMappings` de `realm-management` para `keycloak-reader` es ese mismo conjunto; lo usan `realm-drift` y `signing-key-age`, que solo leen. En Keycloak 26.8.1, `view-realm` no basta para leer clientes, client scopes ni usuarios (`ClientPermissions.canView` exige `view-clients`; `UserPermissions.canView`, `view-users`), y `partial-export` exige `manage-realm` (`RealmAdminResource.java`) (enmienda del 2026-11-03, decisión R1 del usuario al preparar U02-T08).
+- `realm-lint` rechaza cualquier rol de `realm-management` en otra cuenta de servicio, y en la de `keycloak-reader` cualquier rol fuera de `view-realm`, `view-clients` y `view-users` (enmienda del 2026-11-03, decisión R1 del usuario al preparar U02-T08).
 
 - `keycloak-config-cli` corre como hook **`PostSync`** de Argo CD, con `hook-delete-policy: BeforeHookCreation`, cuando la wave 3 ya está sana (enmienda del 2026-11-03, decisión Q3 del usuario al preparar U02-T07).
 - **Bloqueo** (enmienda del 2026-11-03, decisión Q1 del usuario al preparar U02-T07): ninguna versión publicada de `keycloak-config-cli` admite `private_key_jwt` (la última, v6.5.1 de 2026-05-22, solo admite contraseña o `client_secret`). El soporte entró en su rama principal el 2026-09-13 y lee un JWT **ya firmado** desde un archivo (`clientAssertionFile`), así que además hace falta un firmante que este diseño no tiene. El Job se separa del Paso 5 en una tarea propia, que espera un release con aserciones de cliente y el diseño del firmante.
@@ -116,6 +116,23 @@ las cuotas de U1 (NFR-U1-13).
 - Chart `keycloakx` de codecentric, versión **7.4.0** (appVersion 26.8.1, la de esta imagen), comprobada el 2026-11-03 (enmienda del 2026-11-03, decisión Q2 del usuario al preparar U02-T07).
 - Construida en CI, escaneada con Trivy y firmada con Cosign (`supply-chain.yml` de U1); el banco la replica a su registro interno.
 - Arranque: `start --optimized`.
+
+## 6a. CronJobs de identidad (enmienda del 2026-11-03, decisiones R1–R4 del usuario al preparar U02-T08)
+
+### INF-U2-09 — `realm-drift` y `signing-key-age`
+- **Lectura por F94** con la credencial de `keycloak-reader` (INF-U2-05a): token por `private_key_jwt` ES256 con `vectra_common.service_token` de U0 (BR-U2-09), llave del Secret `keycloak-reader-client` (propiedad `private-key`) y CA del Secret `identity-ca`. La API de administración se llama por `hostname-admin` (INF-U2-01), puerto 8443: `https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/admin/realms/vectra`. El token se pide al mismo host: `VECTRA_TOKEN_URL` = `https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token`.
+- **Comparación de `realm-drift`** (decisión R2): proyección sobre Git.
+  - Se comparan solo los campos que fija `realm.<env>.yaml`. Lo que Keycloak agrega por defecto no cuenta.
+  - Las listas de entidades se emparejan por su clave: `clientId` (clientes), `name` (client scopes, roles, componentes), `alias` (flujos, acciones requeridas, configuración de autenticadores) y `username` (usuarios). Una entidad de Git que falta en Keycloak y una de Keycloak que no está en Git cuentan cada una como una diferencia. Los usuarios se leen uno a uno por su `username` de Git; no se listan, así que los importados de LDAP no se leen ni cuentan.
+  - Un campo cuyo valor en Git contiene un marcador `$(env:…)` se excluye de la comparación.
+  - La normalización quita secretos, IDs internos y timestamps, y es idempotente.
+  - `vectra_realm_drift` es el número de diferencias.
+- **`signing-key-age`** (decisión R4): empuja `vectra_signing_key_created_timestamp_seconds`, con etiquetas `kid` y `algorithm`. Su valor es el `notBefore` del certificado de la llave `ACTIVE` de uso `SIG` con mayor prioridad del algoritmo de firma por defecto del realm, leída en `GET /admin/realms/vectra/keys`. Esa respuesta no trae la fecha de creación (`KeyResource.java` de 26.8.1). Si la llave no tiene certificado, el job falla. `SigningKeyAgeHigh` calcula `time() - vectra_signing_key_created_timestamp_seconds > 80 d`.
+- **Push** a `http://pushgateway.vectra-observability.svc:9091` (F112), con `PUT /metrics/job/realm-drift` y `PUT /metrics/job/signing-key-age`.
+- **Horarios** (UTC): `realm-drift` `0 3 * * *`; `signing-key-age` `0 * * * *`. `concurrencyPolicy: Forbid`.
+- **Imagen** (decisión R3): `registro.banco.internal/vectra/identity-jobs` (`kind-registry:5000/vectra/identity-jobs` en kind), sobre `docker.io/library/python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159` (la misma base que los jobs de U1), con los scripts de los dos jobs y `vectra_common`. El digest va en los values de cada entorno y la plantilla lo exige. Construida, escaneada y firmada por `supply-chain.yml` de U1.
+- **Realm de Git** (decisión R3): el render de `identity-edge/jobs/` genera un ConfigMap con `realm.<env>.yaml` del entorno, versionado en `rendered/` como el de Keycloak. Así el realm de comparación llega en el mismo sync que lo aplica.
+- Cuentas de servicio `realm-drift` y `signing-key-age` en `vectra-identity` (`platform/network/flows.yaml`), prioridad `vectra-low`, recursos de INF-U2-06.
 
 ## 7. Cambios aplicados a otros artefactos
 
