@@ -5297,3 +5297,9 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## U02-T04 detenida tras 4 rondas
+**Timestamp**: 2026-11-03T02:45:42Z
+**AI Response**: U02-T04 sale NO-VERDE en la ronda 4 con dos NARANJA: ES256 en el cliente de usuario `grafana` sin respaldo (BR-U2-09 solo cubre servicios) y falta de lectura de vuelta de valores derivables del diseño (`include.in.token.scope`, `fullScopeAllowed`/`scopeMappings`, `use.refresh.tokens`). Por la regla del loop (4 rondas), la tarea se detiene y se lleva al usuario con la consulta D-G. Diagnóstico del orquestador: los realms de la ronda 1 traían valores sin respaldo que el revisor fue barriendo por partes; el barrido completo de la ronda 4 cierra esa clase.
+**Context**: Construcción de U2.
+
+---
