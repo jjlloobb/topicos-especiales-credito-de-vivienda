@@ -5303,3 +5303,10 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## Decisiones G1 y G2 y quinta ronda de U02-T04
+**Timestamp**: 2026-11-03T02:56:49Z
+**User Input**: Respuestas a tres preguntas del orquestador: G1 Grafana = "ES256 (Recomendado)"; G2 clientes de administración = "Sí, ES256 (Recomendado)"; seguir = "Quinta ronda (Recomendado)".
+**AI Response**: Se enmienda BR-U2-09 para que ES256 cubra también `keycloak-config-cli`, `keycloak-reader` y el cliente de usuario `grafana`, y domain-entities §2.1 lo refleja. La verificación de soporte de ES256 en Grafana y en `keycloak-config-cli` pasa a `CANDIDATAS.md`. Se autoriza y despacha la ronda 5: lectura de vuelta de `include.in.token.scope`, `fullScopeAllowed`/`scopeMappings` y `use.refresh.tokens`, derivables del diseño.
+**Context**: Construcción de U2.
+
+---
