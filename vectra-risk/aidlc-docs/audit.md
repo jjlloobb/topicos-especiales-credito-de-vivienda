@@ -5237,6 +5237,24 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Context**: Construcción de U2.
 
 ---
+## PR 51 fusionado
+**Timestamp**: 2026-11-02T19:26:17Z
+**User Input**: "ya approve el PR 51"
+**AI Response**: El PR 51 (U02-T03, `realm-lint`, con las enmiendas de diseño de U2) está fusionado. Paso 3 de U2 cerrado. Siguiente: U02-T04 (Paso 2, realm como código), ya con los dos clientes de administración en su texto. Esta entrada queda sin commit y entra en el próximo PR.
+**Context**: Construcción de U2.
+
+---
+## Despacho de U02-T04
+**Timestamp**: 2026-11-02T19:26:43Z
+**User Input**: "despacha U02-T04"
+**AI Response**: Se despacha U02-T04 (Paso 2 de U2, realm como código) al loop: codificador sonnet en su worktree desde main, revisor opus después.
+**Context**: Construcción de U2.
+
+---
+## Decisiones de diseño de U2 tras la ronda 1 de U02-T04
+**Timestamp**: 2026-11-02T19:55:03Z
+**User Input**: Respuestas a ocho preguntas del orquestador: D1 grupos LDAP = "Tarea aparte (Recomendado)"; D2 conexión LDAP = "Desde ESO/values (Recomendado)"; D3 hostnames = "Variable + nombres OK (Recomendado)"; D4 URIs = "Raíz y ruta estándar (Recomendado)"; D5 TOTP = "Semilla de ESO (Recomendado)"; D6 sesiones = "Pasos 4 y 5 (Recomendado)"; D7 eventos = "Filtro en Alloy (Recomendado)"; D8 Grafana = "Grafana de U1 (Recomendado)".
+**AI Response**: U02-T04 salió NO-VERDE en la ronda 1 (un ROJO por `group-role-map.yaml` bloqueado y siete NARANJA). Se enmiendan domain-entities (URIs de post-logout y de Grafana, Grafana en U1, TOTP desde ESO sin `CONFIGURE_TOTP`), BR-U2-16 (filtro en Alloy), INF-U2-01 (`$(env:PUBLIC_HOSTNAME)` y contrato de variables) e INF-U2-07 (parámetros LDAP desde ESO; sin caché de contraseñas no es `NO_CACHE`), y el Paso 2 del plan y la tarea U02-T04 (`group-role-map.yaml` a tarea propia; sesiones persistentes a los Pasos 4 y 5). Se crea `tareas/U02-T05-lint-credencial-otp.md` para el ajuste del lint de D5, que va antes de la ronda 2 de U02-T04. Lo que queda fuera pasa a `CANDIDATAS.md`.
 ## Decisiones sobre la credencial OTP tras la ronda 1 de U02-T05
 **Timestamp**: 2026-11-02T20:02:09Z
 **User Input**: Respuestas a tres preguntas del orquestador: E1 forma = "Sí, y el lint estricto (Recomendado)"; E2 codificación = "Base32 exigido (Recomendado)"; E3 nombre = "Exigir SYNTH_<USUARIO>_TOTP_SEED (Recomendado)".
@@ -5248,6 +5266,54 @@ Hallazgos: (1) `FailClosedPersistente`: U1 (P-U1-11, dueña de la alerta) la ata
 **Timestamp**: 2026-11-02T20:10:17Z
 **User Input**: Respuesta a la pregunta del orquestador: E4 = "Los cinco exactos (Recomendado)".
 **AI Response**: U02-T05 salió NO-VERDE en la ronda 2 (sobreviven mutantes de campos en sitio equivocado). Se fija en domain-entities que los cinco campos de `credentialData` son obligatorios con sus valores exactos, con `"counter":0` como única clave extra, y se agrega a la tarea el CA-4. Se despacha la ronda 3. Además, se liberaron unos 4,5 GB del scratchpad borrando copias de revisiones de tareas ya fusionadas.
+**Context**: Construcción de U2.
+
+---
+## PR 52 aprobado y fusionado
+**Timestamp**: 2026-11-02T20:24:47Z
+**User Input**: "ya approve el PR 52" y luego "ya fusioné el PR 52"
+**AI Response**: El PR 52 (U02-T05, credencial OTP en `realm-lint` y las enmiendas D1–D8 y E1–E4) quedó aprobado, con los checks en verde, y lo fusionó el usuario. La ronda 2 de U02-T04 sigue con el codificador; su rama ya contiene U02-T05. Estas entradas se agregan a la rama de U02-T04 cuando termine su ronda, para no escribir en el worktree mientras trabaja el codificador.
+**Context**: Construcción de U2.
+
+---
+## Decisiones D-A a D-C tras la ronda 2 de U02-T04
+**Timestamp**: 2026-11-02T20:38:06Z
+**User Input**: Respuestas a tres preguntas del orquestador: D-A amr = "RFC 8176 (Recomendado)"; D-B loa-max-age = "36 000 s (Recomendado)"; D-C audiencia = "Regla por dominio (Recomendado)".
+**AI Response**: U02-T04 salió NO-VERDE en la ronda 2 (dos NARANJA que dependían de datos del diseño y AMARILLO de pruebas). Se enmienda domain-entities: valores de `amr` de RFC 8176 por referencia en el flujo, `loa-max-age` = 36 000 s en §6, y la tabla scope → audiencia en §2.2. El orquestador corrige además el texto de BR-U2-16, que su enmienda anterior había dejado cortado. Se despacha la ronda 3.
+**Context**: Construcción de U2.
+
+---
+## Decisión D-D sobre la referencia amr
+**Timestamp**: 2026-11-02T20:42:31Z
+**User Input**: Respuesta a la pregunta del orquestador: D-D = "36 000 s (Recomendado)".
+**AI Response**: El codificador se detuvo en la ronda 3 de U02-T04 por no conocer sin red la clave de la referencia `amr`. El orquestador la verificó en el código fuente de Keycloak (`server-spi-private/.../Constants.java` y `AmrUtils.java`, tags 26.0.0 y 26.2.0): `default.reference.value` y `default.reference.maxAge` en el `authenticatorConfig` de cada ejecución; con `maxAge` 0 la referencia caduca al instante. Se fija en domain-entities la clave y `default.reference.maxAge` = 36 000 s. Se reanuda la ronda 3 para cerrar F-01.
+**Context**: Construcción de U2.
+
+---
+## Decisiones D-E y D-F tras la ronda 3 de U02-T04
+**Timestamp**: 2026-11-03T02:30:35Z
+**User Input**: Respuestas a dos preguntas del orquestador: D-E firma = "ES256 fijo (Recomendado)"; D-F ajustes = "Aceptar + WebAuthn amplio (Recomendado)".
+**AI Response**: U02-T04 salió NO-VERDE en la ronda 3 con dos NARANJA que venían de la ronda 1 (el revisor reconoce no haberlos barrido antes): RS256 fijo en los clientes de servicio, que rechazaría el ES256 del cliente de U0, y ajustes visibles del realm sin respaldo. Se enmienda BR-U2-09 (ES256 fijo) y se agrega a domain-entities §1.0 la tabla de ajustes del realm, con WebAuthn ES256 y RS256. Se despacha la ronda 4, la última antes de la regla de 4 rondas.
+**Context**: Construcción de U2.
+
+---
+## U02-T04 detenida tras 4 rondas
+**Timestamp**: 2026-11-03T02:45:42Z
+**AI Response**: U02-T04 sale NO-VERDE en la ronda 4 con dos NARANJA: ES256 en el cliente de usuario `grafana` sin respaldo (BR-U2-09 solo cubre servicios) y falta de lectura de vuelta de valores derivables del diseño (`include.in.token.scope`, `fullScopeAllowed`/`scopeMappings`, `use.refresh.tokens`). Por la regla del loop (4 rondas), la tarea se detiene y se lleva al usuario con la consulta D-G. Diagnóstico del orquestador: los realms de la ronda 1 traían valores sin respaldo que el revisor fue barriendo por partes; el barrido completo de la ronda 4 cierra esa clase.
+**Context**: Construcción de U2.
+
+---
+## Decisiones G1 y G2 y quinta ronda de U02-T04
+**Timestamp**: 2026-11-03T02:56:49Z
+**User Input**: Respuestas a tres preguntas del orquestador: G1 Grafana = "ES256 (Recomendado)"; G2 clientes de administración = "Sí, ES256 (Recomendado)"; seguir = "Quinta ronda (Recomendado)".
+**AI Response**: Se enmienda BR-U2-09 para que ES256 cubra también `keycloak-config-cli`, `keycloak-reader` y el cliente de usuario `grafana`, y domain-entities §2.1 lo refleja. La verificación de soporte de ES256 en Grafana y en `keycloak-config-cli` pasa a `CANDIDATAS.md`. Se autoriza y despacha la ronda 5: lectura de vuelta de `include.in.token.scope`, `fullScopeAllowed`/`scopeMappings` y `use.refresh.tokens`, derivables del diseño.
+**Context**: Construcción de U2.
+
+---
+## Sexta ronda acotada de U02-T04
+**Timestamp**: 2026-11-03T03:26:04Z
+**User Input**: Respuesta a la pregunta del orquestador tras la ronda 5: "Sexta ronda acotada (Recomendado)".
+**AI Response**: U02-T04 salió NO-VERDE en la ronda 5 con un único NARANJA: la prueba de ES256 no lee de BR-U2-09 los clientes cubiertos. Se autoriza una ronda 6 limitada a ese hallazgo.
 **Context**: Construcción de U2.
 
 ---

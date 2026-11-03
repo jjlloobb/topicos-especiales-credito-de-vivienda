@@ -7,6 +7,17 @@ compartidos (`Principal`, scopes, `Problem`) son de U0 y no se redefinen aquí.
 
 ## 1. Realm `vectra`
 
+### 1.0 Ajustes del realm (enmienda del 2026-11-02, decisiones D-E y D-F del usuario tras la ronda 3 de U02-T04)
+
+| Ajuste de Keycloak | Valor |
+|---|---|
+| `displayName` y `webAuthnPolicyRpEntityName` | `Vectra` |
+| `webAuthnPolicySignatureAlgorithms` | `ES256`, `RS256` |
+| `loginWithEmailAllowed` | `false` |
+| `sslRequired` | `all` |
+| `resetPasswordAllowed` | `false` |
+| `rememberMe` | `false` |
+
 ### 1.1 Roles de negocio (realm roles)
 
 | Rol | MFA | Persona | Notas |
@@ -31,7 +42,7 @@ dos usuarios sintéticos, `operacion-1` y `operacion-2`.
 | `pwd` | Solo contraseña (o LDAP) | Login sin segundo factor (`analista` sin MFA) |
 | `mfa` | Contraseña + TOTP o WebAuthn | Login con segundo factor; obligatorio para los tres roles aprobadores |
 
-Mapeo de LoA de Keycloak: `pwd` = 1, `mfa` = 2. El token incluye `acr`, `amr` y `auth_time`.
+Mapeo de LoA de Keycloak: `pwd` = 1, `mfa` = 2. El token incluye `acr`, `amr` y `auth_time`. `amr` lleva los valores de RFC 8176, configurados como referencia en cada paso del flujo: `pwd` en la contraseña, `otp` en TOTP y `hwk` en WebAuthn; el mapper emite el claim en el access token. En Keycloak 26, la referencia va en el `authenticatorConfig` de cada ejecución con las claves `default.reference.value` y `default.reference.maxAge` (verificado en `org.keycloak.models.Constants` y `AmrUtils`, 26.0.0 a 26.2.0); `default.reference.maxAge` = 36 000 s, igual que `loa-max-age` (decisión D-D del usuario, 2026-11-02). El nivel vale dentro de la sesión SSO durante `loa-max-age` = 36 000 s (§6) (enmienda del 2026-11-02, decisiones D-A a D-C del usuario tras la ronda 2 de U02-T04).
 
 ### 1.3 Claims del token de usuario
 
@@ -54,7 +65,7 @@ consume la SPA, lleva `name` para mostrarlo en pantalla.
 |---|---|---|---|---|
 | `vectra-console` | Público | Authorization Code + **PKCE (S256)** | Mapper de audiencias de §1.3 | Redirect URIs exactas (sin comodines): la de login y `/stepup-callback` del step-up en ventana emergente (U10 BR-U10-06; revisión del FD de U10, 2026-10-10); `post_logout_redirect_uris` exactas: `https://<host>/`; orígenes web = el host del gateway (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04) |
 | `promotion-tool` | Público | Authorization Code + PKCE con *loopback redirect* (`http://127.0.0.1:{puerto}`) | `aud = governance-service`; scope opcional `governance:promotion`, asignable solo al rol `ingeniero_riesgo` | Exige `acr = mfa` (F08) |
-| `grafana` | Confidencial (`private_key_jwt`) | Authorization Code | El realm solo entrega el claim `roles`; el mapeo a rol de Grafana vive en la configuración `generic_oauth` de Grafana de U1 (`role_attribute_path`) y los equipos los asigna el Job `grafana-folder-permissions` de U1 (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04). Mapper `roles` → rol y **equipo** de Grafana en la organización `Vectra`: `cro` y `cumplimiento` → Viewer, equipos `cro` y `cumplimiento` (carpeta `Vectra / Sesgo` de U9 y dashboards de negocio); `ingeniero_riesgo` → Viewer de operación; **`operacion`** → Editor de la carpeta de operación, equipo `operacion`, con permiso de silencios de Alertmanager (F109); `analista` → sin acceso (segunda revisión del Infrastructure Design de U10, 2026-10-10) | F06 |
+| `grafana` | Confidencial (`private_key_jwt` firmado con ES256, BR-U2-09; (decisiones G1 y G2 del usuario tras la ronda 4 de U02-T04, 2026-11-02)) | Authorization Code | El realm solo entrega el claim `roles`; el mapeo a rol de Grafana vive en la configuración `generic_oauth` de Grafana de U1 (`role_attribute_path`) y los equipos los asigna el Job `grafana-folder-permissions` de U1 (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04). Mapper `roles` → rol y **equipo** de Grafana en la organización `Vectra`: `cro` y `cumplimiento` → Viewer, equipos `cro` y `cumplimiento` (carpeta `Vectra / Sesgo` de U9 y dashboards de negocio); `ingeniero_riesgo` → Viewer de operación; **`operacion`** → Editor de la carpeta de operación, equipo `operacion`, con permiso de silencios de Alertmanager (F109); `analista` → sin acceso (segunda revisión del Infrastructure Design de U10, 2026-10-10) | F06 |
 
 ### 2.2 Identidades de servicio (client credentials, `private_key_jwt`)
 
@@ -80,6 +91,17 @@ sus scopes (*optional client scopes* restringidos) y la audiencia correspondient
 - **Core en producción** (precisado el 2026-10-08 por U8 INF-U8-02, aclaración Q1 = A): en el MVP el core está deshabilitado en producción y no existe el mock. Por mínimo privilegio, el cliente `case-service` del **realm de producción** no tiene el scope `core:read-credit` ni la audiencia `core-banking-mock`; los realms de kind y staging sí los tienen. Una prueba sobre el realm de producción comprueba que `case-service` no obtiene un token con ese scope ni con esa audiencia. Cuando se integre el core real (pendiente para Operations), el scope y la audiencia vuelven con el contrato de ese core.
 - Los clientes de servicio no tienen roles de usuario ni `acr = mfa`, así que nunca pasan un endpoint con MFA.
 - Las llaves públicas de cada cliente se registran en el realm; las privadas las entrega ESO (U1) desde la bóveda.
+- **Audiencia por scope** (enmienda del 2026-11-02, decisiones D-A a D-C del usuario tras la ronda 2 de U02-T04): el token de servicio solo lleva la audiencia del scope pedido. El mapper de audiencia va dentro de cada client scope, según esta tabla, y la unión por cliente coincide con la columna de audiencias de la tabla anterior:
+
+| Prefijo del scope | Audiencia |
+|---|---|
+| `registry:` | `decision-registry-service` |
+| `governance:` | `governance-service` |
+| `core:` | `core-banking-mock` |
+| `bias:` | `bias-monitoring-service` |
+| `intake:` | `case-service` |
+| `case:` | `scoring-service` |
+| `scoring:` | `explainability-service` |
 
 ## 3. Usuarios por entorno (Q11)
 
@@ -128,6 +150,8 @@ banco; su login genera una alerta SEV1 (BR-U2-12).
 | Parámetro | Valor | Regla |
 |---|---|---|
 | `mfa_max_age` | 900 s | BR-U2-04 / BR-U0-72 |
+| `default.reference.maxAge` (validez de la referencia `amr`) | 36 000 s | §1.2, decisión D-D del usuario (2026-11-02) |
+| `loa-max-age` (nivel en la sesión SSO, `pwd` y `mfa`) | 36 000 s | BR-U2-07 (enmienda del 2026-11-02, decisiones D-A a D-C del usuario tras la ronda 2 de U02-T04) |
 | Access token | 300 s | BR-U2-06 |
 | SSO idle / max | 1 800 s / 36 000 s | BR-U2-06 |
 | Fuerza bruta | 5 fallos → 60 s, +60 s por serie hasta 900 s; 20 en 12 h → permanente (campos en BR-U2-05) | BR-U2-05 |

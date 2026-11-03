@@ -66,7 +66,7 @@ vectra-risk/identity-edge/
 
 ### Bloque B — Keycloak
 
-- [ ] **Paso 2 — Realm como código**
+- [x] **Paso 2 — Realm como código** (U02-T04; `group-role-map.yaml` y las sesiones persistentes quedan fuera por las decisiones D1 y D6)
   - `realm.{env}.yaml`:
     - los 4 roles de negocio y el mapeo de ACR (`pwd` = 1, `mfa` = 2);
     - el flujo de login con OTP **condicional por rol** (obligatorio para `ingeniero_riesgo`, `cro` y `cumplimiento`) y TOTP como *required action*;

@@ -1,0 +1,6 @@
+F-01: Corregido en este commit: `authenticatorConfig` `amr-pwd`, `amr-otp` y `amr-hwk` con `default.reference.value` y `default.reference.maxAge` de §1.2 y §6, asignados a cada ejecución de contraseña, TOTP y WebAuthn; prueba `test_realm_files_amr_references_are_configured_in_every_step_of_the_flow`; un valor cambiado, `maxAge` en 0 y una ejecución sin config fallan (1 failed cada una); el mapper emite en el access token (ronda 3, primer tramo).
+F-02: Corregido en este commit: la prueba lee `loa-max-age` de §6 y compara cada condición de nivel; las mutaciones a 0 y a 900 fallan (1 failed cada una).
+F-03: Corregido en este commit: la prueba exige que solo los roles MFA, `break-glass` y los opcionales de §1.1 tengan subflujo de nivel 2 (la mutación `operacion` opcional falla, 3 failed) y `test_realm_files_user_client_scopes_add_no_audience` recorre los scopes de los clientes de usuario.
+F-04: Corregido en este commit: la prueba admite `"counter":0` como E4; se quitaron `len(ids) == 3` y el mapa LoA literal; la regla scope -> audiencia se lee de la tabla de §2.2 (`DOMAIN_AUDIENCE` eliminado).
+F-05: Corregido en este commit: el detector incluye `hashedSaltedValue`, `salt` y `client.secret`; tres casos nuevos y las mutaciones de YAML fallan.
+F-06: Corregido por el orquestador en 1f49c2f (BR-U2-16); sin cambios míos.

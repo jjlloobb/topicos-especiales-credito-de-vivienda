@@ -56,7 +56,7 @@ limit de `/auth/**` (BR-U2-08) actúa antes.
 Prohibido `localStorage`, `sessionStorage` y cookies legibles por JavaScript. Al recargar
 la página, la SPA recupera la sesión con un Authorization Code silencioso.
 
-**BR-U2-09 — Autenticación de clientes de servicio.** `private_key_jwt` con RS256 o ES256.
+**BR-U2-09 — Autenticación de clientes de servicio.** `private_key_jwt` firmado con **ES256**, el mismo algoritmo que usa el cliente de U0 (`vectra_common.service_token`); el realm lo fija en `token.endpoint.auth.signing.alg` de cada cliente de servicio, incluidos `keycloak-config-cli` y `keycloak-reader` (INF-U2-05a), y del cliente de usuario `grafana` (decisiones G1 y G2 del usuario tras la ronda 4 de U02-T04, 2026-11-02) (enmienda del 2026-11-02, decisiones D-E y D-F del usuario tras la ronda 3 de U02-T04).
 Las aserciones duran ≤ 60 s y llevan un `jti` único. Keycloak no guarda secretos
 compartidos de ningún cliente de servicio.
 
@@ -104,10 +104,11 @@ rechazaría (defensa en profundidad; revisión del Infrastructure Design de U10,
 ## 7. Eventos (Q12)
 
 **BR-U2-16 — Eventos sin identificadores personales directos.** Los eventos de login y de
-administración se emiten con `userId` (UUID) y nunca con `username` ni `email`. La
-El realm usa el listener `jboss-logging`; el pipeline de logs de U1 (Alloy) descarta `username` y `email` de los eventos de Keycloak antes de Loki, con su prueba (enmienda del 2026-11-02, decisión del usuario tras la ronda 1 de U02-T04). La
-correlación con los logs de los servicios se hace por `userId` = `sub` =
-`principal_subject`. Retención: la de Loki (90 días, U1).
+administración se emiten con `userId` (UUID) y nunca con `username` ni `email`. El realm
+usa el listener `jboss-logging`; el pipeline de logs de U1 (Alloy) descarta `username` y
+`email` de los eventos de Keycloak antes de Loki, con su prueba (enmienda del 2026-11-02,
+decisión del usuario tras la ronda 1 de U02-T04). La correlación con los logs de los
+servicios se hace por `userId` = `sub` = `principal_subject`. Retención: la de Loki (90 días, U1).
 
 **BR-U2-17 — Alertas de identidad.**
 

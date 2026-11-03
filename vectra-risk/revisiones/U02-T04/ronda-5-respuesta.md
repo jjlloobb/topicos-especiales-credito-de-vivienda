@@ -1,0 +1,1 @@
+F-01: Corregido en este commit: la prueba de ES256 une los clientes de §2.2 con los que BR-U2-09 nombra tras «incluidos» y «cliente de usuario» (parseados en `assertion_signing_extra_clients`), sin `ADMIN_CLIENT_ROLES` ni literales; quitar `grafana` del texto y quitar los dos clientes de administración fallan (3 failed cada una).
