@@ -1,0 +1,28 @@
+# Valores comunes de `realm-drift` y `signing-key-age` (INF-U2-06, INF-U2-09). Se renderiza con
+# `make -C identity-edge render-jobs`. Sin valor por defecto para el digest de la imagen ni para el realm de Git:
+# los fijan los values de cada entorno (`../values/<entorno>.yaml`) y `--set-file realm=.../realm.<entorno>.yaml`.
+namespace: vectra-identity
+image:
+  repository: ""
+  digest: ""
+# Contenido de `realm.<entorno>.yaml`, sin tocarlo (INF-U2-09, decision R3).
+realm: ""
+keycloak:
+  adminUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/admin/realms/vectra
+  tokenUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token
+  clientId: keycloak-reader
+  clientSecretName: keycloak-reader-client
+  caSecretName: identity-ca
+pushgateway:
+  url: http://pushgateway.vectra-observability.svc:9091
+priorityClassName: vectra-low
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { cpu: 500m, memory: 512Mi }
+jobs:
+  realmDrift:
+    schedule: "0 3 * * *"
+    activeDeadlineSeconds: 900
+  signingKeyAge:
+    schedule: "0 * * * *"
+    activeDeadlineSeconds: 300

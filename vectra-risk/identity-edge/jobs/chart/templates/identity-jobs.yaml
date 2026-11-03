@@ -1,0 +1,113 @@
+{{- /* La plantilla falla sin digest y sin el realm de Git: el `required` no emite nada. */ -}}
+{{- $digest := required "image.digest es obligatorio (INF-U2-09): sin digest no se renderiza" .Values.image.digest -}}
+{{- $repository := required "image.repository es obligatorio (INF-U2-09)" .Values.image.repository -}}
+{{- $realm := required "realm es obligatorio: --set-file realm=identity-edge/keycloak/realm/realm.<entorno>.yaml (INF-U2-09)" .Values.realm -}}
+{{- $image := printf "%s@%s" $repository $digest -}}
+{{- define "identity-jobs.env" -}}
+- { name: VECTRA_CLIENT_ID, value: {{ .root.Values.keycloak.clientId | quote }} }
+- { name: VECTRA_TOKEN_URL, value: {{ .root.Values.keycloak.tokenUrl | quote }} }
+- { name: VECTRA_CLIENT_KEY_PATH, value: /etc/vectra/reader/private-key }
+- { name: VECTRA_CA_BUNDLE, value: /etc/vectra/ca/ca.crt }
+- { name: KEYCLOAK_ADMIN_URL, value: {{ .root.Values.keycloak.adminUrl | quote }} }
+- { name: PUSHGATEWAY_URL, value: {{ .root.Values.pushgateway.url | quote }} }
+{{- if .realm }}
+- { name: REALM_FILE, value: /etc/vectra/realm/realm.yaml }
+{{- end }}
+- { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+{{- end -}}
+{{- define "identity-jobs.cronjob" -}}
+{{- $root := .root -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .name }}
+  namespace: {{ $root.Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .name }}
+    app.kubernetes.io/part-of: identity-edge
+    vectra.io/criticality: medium
+spec:
+  schedule: {{ .schedule | quote }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: {{ .deadline }}
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: {{ .name }}
+            app.kubernetes.io/part-of: identity-edge
+          annotations:
+            config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+        spec:
+          serviceAccountName: {{ .name }}
+          priorityClassName: {{ $root.Values.priorityClassName }}
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: {{ .name }}
+              image: {{ .image | quote }}
+              imagePullPolicy: IfNotPresent
+              command: [python, {{ .script | quote }}]
+              env:
+                {{- include "identity-jobs.env" (dict "root" $root "realm" .realm) | nindent 16 }}
+              securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+              resources:
+                {{- toYaml $root.Values.resources | nindent 16 }}
+              volumeMounts:
+                - { name: reader-key, mountPath: /etc/vectra/reader, readOnly: true }
+                - { name: identity-ca, mountPath: /etc/vectra/ca, readOnly: true }
+                {{- if .realm }}
+                - { name: realm, mountPath: /etc/vectra/realm, readOnly: true }
+                {{- end }}
+          volumes:
+            # 288 = 0440: la llave la lee el grupo del pod (fsGroup).
+            - name: reader-key
+              secret: { secretName: {{ $root.Values.keycloak.clientSecretName }}, defaultMode: 288, items: [{ key: private-key, path: private-key }] }
+            - name: identity-ca
+              secret: { secretName: {{ $root.Values.keycloak.caSecretName }}, defaultMode: 288, items: [{ key: ca.crt, path: ca.crt }] }
+            {{- if .realm }}
+            - name: realm
+              configMap: { name: realm-drift-realm, items: [{ key: realm.yaml, path: realm.yaml }] }
+            {{- end }}
+{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: realm-drift-realm
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: realm-drift
+    app.kubernetes.io/part-of: identity-edge
+    vectra.io/criticality: medium
+data:
+  realm.yaml: |
+    {{- $realm | nindent 4 }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: realm-drift
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: realm-drift
+    app.kubernetes.io/part-of: identity-edge
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: signing-key-age
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: signing-key-age
+    app.kubernetes.io/part-of: identity-edge
+---
+{{ include "identity-jobs.cronjob" (dict "root" . "name" "realm-drift" "schedule" .Values.jobs.realmDrift.schedule "deadline" .Values.jobs.realmDrift.activeDeadlineSeconds "image" $image "script" "/app/realm_drift.py" "realm" true) }}
+---
+{{ include "identity-jobs.cronjob" (dict "root" . "name" "signing-key-age" "schedule" .Values.jobs.signingKeyAge.schedule "deadline" .Values.jobs.signingKeyAge.activeDeadlineSeconds "image" $image "script" "/app/signing_key_age.py" "realm" false) }}
