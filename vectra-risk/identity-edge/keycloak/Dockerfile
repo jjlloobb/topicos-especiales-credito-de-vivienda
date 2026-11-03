@@ -8,7 +8,8 @@ RUN /opt/keycloak/bin/kc.sh build \
     --db=postgres \
     --health-enabled=true \
     --metrics-enabled=true \
-    --cache=ispn
+    --cache=ispn \
+    --http-relative-path=/auth
 
 # Usuario que ya declara la imagen base; lo exige el escaneo de supply-chain.yml (U1).
 USER 1000

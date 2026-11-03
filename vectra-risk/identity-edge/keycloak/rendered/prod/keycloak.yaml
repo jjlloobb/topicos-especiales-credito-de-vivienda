@@ -163,7 +163,7 @@ spec:
     - resource:
         name: cpu
         target:
-          averageUtilization: 80
+          averageUtilization: 70
           type: Utilization
       type: Resource
   behavior:
@@ -433,6 +433,7 @@ spec:
   renewBefore: 720h
   dnsNames:
     - keycloak.vectra-identity.svc
+    - keycloak-admin.vectra-identity.svc.cluster.local
   issuerRef:
     name: banco-ca
     kind: ClusterIssuer

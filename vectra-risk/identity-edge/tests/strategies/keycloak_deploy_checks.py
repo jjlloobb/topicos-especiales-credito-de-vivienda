@@ -132,10 +132,39 @@ def design_vault_entries() -> dict[str, str]:
 
 
 def design_certificate() -> dict[str, Any]:
-    san = re.search(r"SAN `([\w.-]+)`", INF_U2_05B)
+    """SAN (en orden), vigencia y renovacion de INF-U2-05b."""
+    san = re.search(r"SAN `([\w.-]+)` y `([\w.-]+)`", INF_U2_05B)
     days = re.search(r"(\d+) días, se renueva a los (\d+)", INF_U2_05B)
-    assert san and days, "INF-U2-05b no fija SAN y vigencia"
-    return {"san": san.group(1), "duration": f"{int(days.group(1)) * 24}h", "renewBefore": f"{(int(days.group(1)) - int(days.group(2))) * 24}h"}
+    assert san and days, "INF-U2-05b no fija los SAN y la vigencia"
+    return {
+        "sans": [san.group(1), san.group(2)],
+        "duration": f"{int(days.group(1)) * 24}h",
+        "renewBefore": f"{(int(days.group(1)) - int(days.group(2))) * 24}h",
+    }
+
+
+def design_hpa_utilization() -> int:
+    """Objetivo de utilizacion de CPU de NFR-U2-01."""
+    row = re.search(r"^\| NFR-U2-01 \|(.*)$", NFR_REQUIREMENTS, re.MULTILINE)
+    assert row
+    m = re.search(r"objetivo de utilización del (\d+) %", row.group(1))
+    assert m, "NFR-U2-01 no fija el objetivo de utilizacion"
+    return int(m.group(1))
+
+
+def design_secret_names() -> dict[str, str]:
+    """clave de la boveda -> nombre del Secret que crea su ExternalSecret (INF-U2-01, D-5)."""
+    m = re.search(r"Nombres de los Secret[^\n]*: `([\w-]+)` \(de `([\w/]+)`\), `([\w-]+)` y `([\w-]+)` \(de `([\w/]+)/<clientId>`\)", INF_U2_01)
+    assert m, "INF-U2-01 no fija los nombres de los Secret"
+    ca, ca_key, first, second, prefix = m.groups()
+    return {ca_key: ca, f"{prefix}/{first.removesuffix('-client')}": first, f"{prefix}/{second.removesuffix('-client')}": second}
+
+
+def design_internal_issuer() -> str:
+    """El ClusterIssuer de kind (INF-U2-01, D-3); staging y prod nunca lo usan."""
+    m = re.search(r"`ClusterIssuer` del certificado interno: `([\w-]+)` en kind", INF_U2_01)
+    assert m, "INF-U2-01 no fija el issuer de kind"
+    return m.group(1)
 
 
 def design_ports() -> dict[str, int]:

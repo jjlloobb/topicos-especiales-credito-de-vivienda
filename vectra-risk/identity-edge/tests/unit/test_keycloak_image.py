@@ -16,7 +16,7 @@ def problems(text: str) -> list[str]:
 def test_design_values_are_read_from_infrastructure_design():
     assert IMAGE.startswith("quay.io/keycloak/keycloak:26.")
     assert DIGEST.startswith("sha256:") and len(DIGEST) == 71
-    assert sorted(OPTIONS) == ["--cache=ispn", "--db=postgres", "--health-enabled=true", "--metrics-enabled=true"]
+    assert sorted(OPTIONS) == ["--cache=ispn", "--db=postgres", "--health-enabled=true", "--http-relative-path=/auth", "--metrics-enabled=true"]
     assert START == ["start", "--optimized"]
 
 

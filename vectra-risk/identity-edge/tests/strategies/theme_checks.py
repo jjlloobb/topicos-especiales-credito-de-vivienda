@@ -85,7 +85,7 @@ REFERENCE_DIR = reference_dir()
 
 
 def design_build_options() -> list[str]:
-    """Las cuatro opciones de `kc.sh build` de INF-U2-08, en la forma de la linea de comandos."""
+    """Las cinco opciones de `kc.sh build` de INF-U2-08, en la forma de la linea de comandos."""
     text = INF_U2_08
     opts = []
     m = re.search(r"base de datos `(\w+)`", text)
@@ -96,6 +96,9 @@ def design_build_options() -> list[str]:
     m = re.search(r"`cache=(\w+)`", text)
     assert m
     opts.append(f"--cache={m.group(1)}")
+    m = re.search(r"`kc\.sh build` lleva además `(--http-relative-path=/\w+)`", text)
+    assert m, "INF-U2-08 no fija --http-relative-path"
+    opts.append(m.group(1))
     return opts
 
 

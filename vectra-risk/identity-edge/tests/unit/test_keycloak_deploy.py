@@ -132,6 +132,46 @@ def _volume_drop(docs: Docs) -> None:
     volumes[:] = [v for v in volumes if v.get("secret", {}).get("secretName") != "keycloak-tls"]
 
 
+def _env_from_configmap(name: str) -> Callable[[Docs], None]:
+    def mutate(docs: Docs) -> None:
+        _env(docs, name).pop("value", None)
+        _env(docs, name)["valueFrom"] = {"configMapKeyRef": {"name": "x", "key": "y"}}
+
+    return mutate
+
+
+def _env_extra_key(docs: Docs) -> None:
+    _env(docs, "KC_DB")["valueFrom"] = {"configMapKeyRef": {"name": "x", "key": "y"}}
+
+
+def _env_secret_with_value(docs: Docs) -> None:
+    _env(docs, "KC_DB_PASSWORD")["value"] = "x"
+
+
+def _service(name: str, **spec: Any) -> Callable[[Docs], None]:
+    def mutate(docs: Docs) -> None:
+        kd.find(docs, "Service", name)["spec"].update(spec)
+
+    return mutate
+
+
+def _stranger_service(docs: Docs) -> None:
+    docs.append({"apiVersion": "v1", "kind": "Service", "metadata": {"name": "keycloak-extra", "namespace": "vectra-identity"},
+                 "spec": {"type": "NodePort", "selector": {"app.kubernetes.io/name": "keycloak", "app.kubernetes.io/instance": "keycloak"},
+                          "ports": [{"name": "https", "port": 8443, "targetPort": "https", "protocol": "TCP"}]}})  # fmt: skip
+
+
+def _node_port(name: str) -> Callable[[Docs], None]:
+    def mutate(docs: Docs) -> None:
+        kd.find(docs, "Service", name)["spec"]["ports"][0]["nodePort"] = 30443
+
+    return mutate
+
+
+def _hpa_utilization(docs: Docs) -> None:
+    kd.find(docs, "HorizontalPodAutoscaler", "keycloak")["spec"]["metrics"][0]["resource"]["target"]["averageUtilization"] = 80
+
+
 def _hpa_metric_memory(docs: Docs) -> None:
     kd.find(docs, "HorizontalPodAutoscaler", "keycloak")["spec"]["metrics"][0]["resource"]["name"] = "memory"
 
@@ -198,6 +238,9 @@ MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
     ("external-secret", "dataFrom", _es_dataFrom),
     ("external-secret", "ExternalSecret ajeno", _add_doc(STRANGER)),
     ("keycloak-tls", "SAN de mas", _set("Certificate", "keycloak-tls", ["spec", "dnsNames"], ["keycloak.vectra-identity.svc", "x.svc"])),
+    ("keycloak-tls", "solo el primer SAN", _set("Certificate", "keycloak-tls", ["spec", "dnsNames"], ["keycloak.vectra-identity.svc"])),
+    ("keycloak-tls", "SAN en otro orden", _set("Certificate", "keycloak-tls", ["spec", "dnsNames"], ["keycloak-admin.vectra-identity.svc.cluster.local", "keycloak.vectra-identity.svc"])),
+    ("issuer-per-environment", "prod con el issuer de kind", _set("Certificate", "keycloak-tls", ["spec", "issuerRef", "name"], "vectra-internal-ca")),
     ("keycloak-tls", "otro SAN", _set("Certificate", "keycloak-tls", ["spec", "dnsNames"], ["keycloak.otro.svc"])),
     ("keycloak-tls", "duracion", _set("Certificate", "keycloak-tls", ["spec", "duration"], "8760h")),
     ("keycloak-tls", "renovacion", _set("Certificate", "keycloak-tls", ["spec", "renewBefore"], "360h")),
@@ -209,6 +252,24 @@ MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
     ("backend-tls-policy", "otra CA", _set("BackendTLSPolicy", "keycloak", ["spec", "validation", "caCertificateRefs", 0, "name"], "otra")),
     ("backend-tls-policy", "CA como ConfigMap", _set("BackendTLSPolicy", "keycloak", ["spec", "validation", "caCertificateRefs", 0, "kind"], "ConfigMap")),
     ("backend-tls-policy", "otro hostname", _set("BackendTLSPolicy", "keycloak", ["spec", "validation", "hostname"], "keycloak.otro.svc")),
+    ("env-whitelist", "KC_HOSTNAME_ADMIN desde un ConfigMap", _env_from_configmap("KC_HOSTNAME_ADMIN")),
+    ("env-whitelist", "KC_CACHE_STACK desde un ConfigMap", _env_from_configmap("KC_CACHE_STACK")),
+    ("env-whitelist", "KC_PROXY_HEADERS desde un ConfigMap", _env_from_configmap("KC_PROXY_HEADERS")),
+    ("env-whitelist", "KC_DB_URL_PROPERTIES desde un ConfigMap", _env_from_configmap("KC_DB_URL_PROPERTIES")),
+    ("env-whitelist", "KC_HTTP_RELATIVE_PATH desde un ConfigMap", _env_from_configmap("KC_HTTP_RELATIVE_PATH")),
+    ("env-whitelist", "KC_HOSTNAME desde un ConfigMap", _env_from_configmap("KC_HOSTNAME")),
+    ("env-whitelist", "valueFrom y value juntos", _env_extra_key),
+    ("env-whitelist", "credencial con value", _env_secret_with_value),
+    ("hpa", "objetivo del 80 %", _hpa_utilization),
+    ("service-whitelist", "keycloak-admin NodePort", _service("keycloak-admin", type="NodePort")),
+    ("service-whitelist", "keycloak-http NodePort", _service("keycloak-http", type="NodePort")),
+    ("service-whitelist", "keycloak LoadBalancer", _service("keycloak", type="LoadBalancer")),
+    ("service-whitelist", "Service extra NodePort", _stranger_service),
+    ("service-whitelist", "keycloak con otro selector", _service("keycloak", selector={"app.kubernetes.io/name": "otro"})),
+    ("service-whitelist", "keycloak-headless con IP", _service("keycloak-headless", clusterIP="10.0.0.1")),
+    ("service-whitelist", "keycloak-admin con externalIPs", _service("keycloak-admin", externalIPs=["1.2.3.4"])),
+    ("service-ports", "nodePort en keycloak-admin", _node_port("keycloak-admin")),
+    ("service-ports", "keycloak-http con un puerto menos", lambda d: kd.find(d, "Service", "keycloak-http")["spec"]["ports"].pop()),
     ("service-ports", "sin 7800", _service_drop_port),
     ("service-ports", "admin con dos puertos", _admin_extra_port),
     ("no-gateway-route", "HTTPRoute del admin", _add_doc(ROUTE)),
@@ -259,6 +320,20 @@ def test_rule_fails_on_an_altered_render(rule, case, mutate, prod):
     code, output = kd.conftest(docs)
     assert code != 0, f"{rule}/{case}: conftest no fallo"
     assert f"{rule}: " in output, f"{rule}/{case}: la salida no nombra la regla\n{output}"
+
+
+def test_kind_with_another_issuer_fails():
+    docs = kd.load("kind")
+    _set("Certificate", "keycloak-tls", ["spec", "issuerRef", "name"], "banco-ca")(docs)
+    code, output = kd.conftest(docs)
+    assert code != 0 and "issuer-per-environment: " in output
+
+
+def test_staging_with_the_kind_issuer_fails():
+    docs = kd.load("staging")
+    _set("Certificate", "keycloak-tls", ["spec", "issuerRef", "name"], "vectra-internal-ca")(docs)
+    code, output = kd.conftest(docs)
+    assert code != 0 and "issuer-per-environment: " in output
 
 
 @pytest.mark.parametrize("env", ["kind", "staging"])
@@ -328,8 +403,30 @@ def test_design_certificate_and_backend_policy(env):
     docs = kd.load(env)
     cert = kd.design_certificate()
     spec = kd.find(docs, "Certificate", "keycloak-tls")["spec"]
-    assert (spec["dnsNames"], spec["duration"], spec["renewBefore"]) == ([cert["san"]], cert["duration"], cert["renewBefore"])
-    assert kd.find(docs, "BackendTLSPolicy", "keycloak")["spec"]["validation"]["hostname"] == cert["san"]
+    assert (spec["dnsNames"], spec["duration"], spec["renewBefore"]) == (cert["sans"], cert["duration"], cert["renewBefore"])
+    assert kd.find(docs, "BackendTLSPolicy", "keycloak")["spec"]["validation"]["hostname"] == cert["sans"][0]
+    assert cert["sans"][1] == kd.design_admin_hostname()
+
+
+@pytest.mark.parametrize("env", kd.ENVS)
+def test_design_hpa_utilization(env):
+    metric = kd.find(kd.load(env), "HorizontalPodAutoscaler", "keycloak")["spec"]["metrics"]
+    assert [m["resource"]["target"]["averageUtilization"] for m in metric] == [kd.design_hpa_utilization()]
+
+
+@pytest.mark.parametrize("env", kd.ENVS)
+def test_design_secret_names(env):
+    docs = kd.load(env)
+    found = {d["spec"]["data"][0]["remoteRef"]["key"]: d["spec"]["target"]["name"] for d in docs if d["kind"] == "ExternalSecret"}
+    assert found == kd.design_secret_names()
+    assert all(d["metadata"]["name"] == d["spec"]["target"]["name"] for d in docs if d["kind"] == "ExternalSecret")
+
+
+def test_design_issuer_is_the_internal_ca_only_in_kind():
+    internal = kd.design_internal_issuer()
+    names = {env: kd.find(kd.load(env), "Certificate", "keycloak-tls")["spec"]["issuerRef"]["name"] for env in kd.ENVS}
+    assert names["kind"] == internal
+    assert names["staging"] != internal and names["prod"] != internal
 
 
 @pytest.mark.parametrize("env", kd.ENVS)
@@ -337,11 +434,6 @@ def test_design_ports_match_flows(env):
     ports = kd.design_ports()
     service = kd.find(kd.load(env), "Service", "keycloak")
     assert sorted(p["port"] for p in service["spec"]["ports"]) == sorted(ports.values())
-
-
-def test_design_issuer_in_kind_is_the_internal_ca():
-    spec = kd.find(kd.load("kind"), "Certificate", "keycloak-tls")["spec"]
-    assert spec["issuerRef"] == {"name": "vectra-internal-ca", "kind": "ClusterIssuer"}
 
 
 @pytest.mark.parametrize("env", kd.ENVS)

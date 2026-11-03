@@ -14,11 +14,18 @@ image:
   digest: ""
   pullPolicy: IfNotPresent
 
-# NFR-U2-01: 2 a 4 replicas por CPU. Con HPA el StatefulSet no fija `replicas`.
+# NFR-U2-01: 2 a 4 replicas por CPU, objetivo del 70 %. Con HPA el StatefulSet no fija `replicas`.
 autoscaling:
   enabled: true
   minReplicas: 2
   maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
 
 podDisruptionBudget:
   minAvailable: 1
@@ -204,6 +211,7 @@ extraManifests:
       renewBefore: 720h
       dnsNames:
         - {{ .Values.vectra.tlsHostname }}
+        - {{ .Values.vectra.adminHostname }}
       issuerRef:
         name: {{ required "vectra.tls.issuerRef.name es obligatorio (INF-U2-05b)" $issuer.name }}
         kind: {{ required "vectra.tls.issuerRef.kind es obligatorio (INF-U2-05b)" $issuer.kind }}

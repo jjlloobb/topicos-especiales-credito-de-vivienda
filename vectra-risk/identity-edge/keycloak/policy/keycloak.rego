@@ -114,7 +114,7 @@ hpa_problem contains "no apunta al StatefulSet keycloak" if {
 	object.get(input.spec, "scaleTargetRef", {}) != {"apiVersion": "apps/v1", "kind": "StatefulSet", "name": "keycloak"}
 }
 
-hpa_problem contains "las metricas son exactamente una, de CPU por utilizacion" if {
+hpa_problem contains "las metricas son exactamente una: CPU, utilizacion del 70 %" if {
 	is_keycloak_hpa
 	not hpa_cpu_only
 }
@@ -124,6 +124,7 @@ hpa_cpu_only if {
 	input.spec.metrics[0].type == "Resource"
 	input.spec.metrics[0].resource.name == "cpu"
 	input.spec.metrics[0].resource.target.type == "Utilization"
+	input.spec.metrics[0].resource.target.averageUtilization == 70
 }
 
 # regla: zone-spread
@@ -207,6 +208,25 @@ deny contains msg if {
 	some name, expected in fixed_env
 	env_of(name) != expected
 	msg := sprintf("env-whitelist: %s debe valer %s", [name, expected])
+}
+
+# Cada variable es exactamente {name, value}; las que el diseno lleva a un Secret, exactamente {name, valueFrom}.
+deny contains msg if {
+	is_keycloak_statefulset
+	some e in container.env
+	not env_shape_ok(e)
+	msg := sprintf("env-whitelist: %s debe ser exactamente {name, value} (o {name, valueFrom} si viene de un Secret)", [e.name])
+}
+
+env_shape_ok(e) if {
+	not e.name in object.keys(secret_env)
+	object.keys(e) == {"name", "value"}
+	is_string(e.value)
+}
+
+env_shape_ok(e) if {
+	e.name in object.keys(secret_env)
+	object.keys(e) == {"name", "valueFrom"}
 }
 
 # regla: cache-stack
@@ -413,9 +433,9 @@ certificate_problem contains "secretName distinto de keycloak-tls" if {
 	input.spec.secretName != "keycloak-tls"
 }
 
-certificate_problem contains "el SAN debe ser solo keycloak.vectra-identity.svc" if {
+certificate_problem contains "los SAN deben ser exactamente los dos de INF-U2-05b" if {
 	is_keycloak_tls
-	input.spec.dnsNames != ["keycloak.vectra-identity.svc"]
+	input.spec.dnsNames != ["keycloak.vectra-identity.svc", "keycloak-admin.vectra-identity.svc.cluster.local"]
 }
 
 certificate_problem contains "duration debe ser 2160h (90 dias)" if {
@@ -477,21 +497,70 @@ backend_tls_problem contains "namespace distinto de vectra-identity" if {
 	input.metadata.namespace != namespace
 }
 
-# regla: service-ports
-deny contains msg if {
-	input.kind == "Service"
-	input.metadata.name == "keycloak"
-	ports := {[p.name, p.port, p.targetPort] | some p in input.spec.ports}
-	ports != {["https", 8443, "https"], ["jgroups", 7800, "jgroups"], ["http-internal", 9000, "http-internal"]}
-	msg := "service-ports: keycloak expone 8443 (F05, F50), 7800 (F117) y 9000 (F60)"
+# regla: service-whitelist
+# Solo los cuatro Service que hay hoy, ClusterIP, con el selector exacto de los pods de Keycloak.
+pod_selector := {"app.kubernetes.io/name": "keycloak", "app.kubernetes.io/instance": "keycloak"}
+
+services := {
+	"keycloak": {"keys": {"type", "selector", "ports"}, "ports": {
+		{"name": "https", "port": 8443, "targetPort": "https", "protocol": "TCP"},
+		{"name": "jgroups", "port": 7800, "targetPort": "jgroups", "protocol": "TCP"},
+		{"name": "http-internal", "port": 9000, "targetPort": "http-internal", "protocol": "TCP"},
+	}},
+	"keycloak-admin": {"keys": {"type", "selector", "ports"}, "ports": {
+		{"name": "https", "port": 8443, "targetPort": "https", "protocol": "TCP"},
+	}},
+	"keycloak-http": {"keys": {"type", "selector", "ports"}, "ports": {
+		{"name": "http-internal", "port": 9000, "targetPort": "http-internal", "protocol": "TCP"},
+		{"name": "http", "port": 80, "targetPort": "http", "protocol": "TCP"},
+		{"name": "https", "port": 8443, "targetPort": "https", "protocol": "TCP"},
+	}},
+	"keycloak-headless": {"keys": {"type", "clusterIP", "selector", "ports"}, "ports": {
+		{"name": "http", "port": 80, "targetPort": "http", "protocol": "TCP"},
+	}},
 }
 
 deny contains msg if {
 	input.kind == "Service"
-	input.metadata.name == "keycloak-admin"
-	ports := {[p.name, p.port, p.targetPort] | some p in input.spec.ports}
-	ports != {["https", 8443, "https"]}
-	msg := "service-ports: keycloak-admin expone solo 8443"
+	not input.metadata.name in object.keys(services)
+	msg := sprintf("service-whitelist: el Service %s no esta en la lista blanca", [input.metadata.name])
+}
+
+deny contains msg if {
+	input.kind == "Service"
+	input.metadata.name in object.keys(services)
+	object.keys(input.spec) != services[input.metadata.name].keys
+	msg := sprintf("service-whitelist: %s tiene campos de spec fuera de la lista blanca", [input.metadata.name])
+}
+
+deny contains msg if {
+	input.kind == "Service"
+	input.metadata.name in object.keys(services)
+	input.spec.type != "ClusterIP"
+	msg := sprintf("service-whitelist: %s debe ser ClusterIP", [input.metadata.name])
+}
+
+deny contains msg if {
+	input.kind == "Service"
+	input.metadata.name == "keycloak-headless"
+	input.spec.clusterIP != "None"
+	msg := "service-whitelist: keycloak-headless debe ser headless (clusterIP None)"
+}
+
+deny contains msg if {
+	input.kind == "Service"
+	input.metadata.name in object.keys(services)
+	input.spec.selector != pod_selector
+	msg := sprintf("service-whitelist: %s debe seleccionar exactamente los pods de Keycloak", [input.metadata.name])
+}
+
+# regla: service-ports
+deny contains msg if {
+	input.kind == "Service"
+	input.metadata.name in object.keys(services)
+	ports := {p | some p in input.spec.ports}
+	ports != services[input.metadata.name].ports
+	msg := sprintf("service-ports: %s no expone exactamente sus puertos (keycloak: 8443, 7800, 9000; keycloak-admin: 8443)", [input.metadata.name])
 }
 
 # regla: no-gateway-route
