@@ -55,10 +55,11 @@ OTP_CREDENTIAL_DATA: Mapping[str, Any] = {
 OTP_OPTIONAL_DATA: Mapping[str, Any] = {"counter": 0}
 BREAK_GLASS = "break-glass"
 # Clientes de administracion de INF-U2-05a (enmienda del 2026-11-02): sus cuentas de servicio son las unicas
-# con roles de `realm-management`. `keycloak-config-cli` escribe (`realm-admin`); `keycloak-reader` solo lee.
+# con roles de `realm-management`. `keycloak-config-cli` escribe (`realm-admin`); `keycloak-reader` solo lee
+# (`view-realm`, `view-clients` y `view-users`; enmienda del 2026-11-03, decision R1, INF-U2-05a).
 ADMIN_CLIENT_ROLES: Mapping[str, frozenset[str]] = {
     "keycloak-config-cli": frozenset({REALM_ADMIN}),
-    "keycloak-reader": frozenset({"view-realm"}),
+    "keycloak-reader": frozenset({"view-realm", "view-clients", "view-users"}),
 }
 
 CATALOG_SCOPES = frozenset(s.value for s in Scope)

@@ -568,7 +568,7 @@ def test_service_account_without_user_roles_is_accepted(env: str) -> None:
     assert "cuenta-de-servicio-con-rol-de-usuario" not in rules(realm, env)
 
 
-# --- CA-5, regla 3: solo keycloak-config-cli (realm-admin) y keycloak-reader (view-realm) ---
+# --- CA-5, regla 3: solo keycloak-config-cli (realm-admin) y keycloak-reader (view-realm, view-clients, view-users) ---
 
 
 @pytest.mark.parametrize("env", ENVS)
@@ -579,17 +579,27 @@ def test_config_applier_service_account_with_realm_admin_is_accepted(env: str) -
 
 
 @pytest.mark.parametrize("env", ENVS)
-def test_reader_service_account_with_only_view_realm_is_accepted(env: str) -> None:
+def test_reader_service_account_with_the_three_roles_is_accepted(env: str) -> None:
     realm = realm_copy(env)
-    realm["users"].append(admin_account("keycloak-reader", "view-realm"))
+    realm["users"].append(admin_account("keycloak-reader", "view-realm", "view-clients", "view-users"))
     assert lint_realm(realm, env) == []
 
 
 @pytest.mark.parametrize("env", ENVS)
-@pytest.mark.parametrize("role", ["realm-admin", "manage-users", "manage-realm", "view-users"])
-def test_reader_service_account_with_any_role_other_than_view_realm_is_rejected(env: str, role: str) -> None:
+@pytest.mark.parametrize("roles", [("view-realm",), ("view-clients", "view-users"), ("view-users",)])
+def test_reader_service_account_with_a_subset_is_accepted(env: str, roles: tuple[str, ...]) -> None:
     realm = realm_copy(env)
-    realm["users"].append(admin_account("keycloak-reader", "view-realm", role))
+    realm["users"].append(admin_account("keycloak-reader", *roles))
+    assert lint_realm(realm, env) == []
+
+
+@pytest.mark.parametrize("env", ENVS)
+@pytest.mark.parametrize(
+    "role", ["realm-admin", "manage-users", "manage-realm", "manage-clients", "view-events", "view-authorization"]
+)
+def test_reader_service_account_with_any_role_outside_the_three_is_rejected(env: str, role: str) -> None:
+    realm = realm_copy(env)
+    realm["users"].append(admin_account("keycloak-reader", "view-realm", "view-clients", "view-users", role))
     assert "rol-de-administracion-no-permitido" in rules(realm, env)
 
 
