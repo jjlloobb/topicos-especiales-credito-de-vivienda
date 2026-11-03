@@ -14,6 +14,13 @@ import yaml
 REALM_DIR = Path(__file__).resolve().parents[2] / "keycloak" / "realm"
 ENVS = ("kind", "staging", "prod")
 MARKER = "$(env:"
+# Los flujos que crea Keycloak 26.8.1 (DefaultAuthenticationFlows.java), escritos aqui a mano, sin las listas de `realm_diff`.
+KEYCLOAK_FLOWS = (
+    "registration", "registration form", "reset credentials", "Reset - Conditional OTP", "direct grant",
+    "Direct Grant - Conditional OTP", "browser", "forms", "Browser - Conditional 2FA", "clients",
+    "first broker login", "User creation or linking", "Handle Existing Account", "Account verification options",
+    "Verify Existing Account by Re-authentication", "First broker login - Conditional 2FA", "saml ecp", "docker auth",
+)  # fmt: skip
 
 
 def load_git(env: str) -> dict[str, Any]:
@@ -84,7 +91,20 @@ def keycloak_view(git: dict[str, Any], variant: str = "") -> dict[str, Any]:
     kc["clientScopes"] += [{"name": "profile", "id": "id-profile"}]
     kc["roles"]["realm"] += [{"name": "offline_access", "id": "id-offline"}]
     kc["requiredActions"] += [{"alias": "VERIFY_EMAIL", "name": "Verify Email"}]
-    kc["authenticationFlows"] += [{"alias": "browser", "builtIn": True, "authenticationExecutions": []}]
+    # Valores por defecto de un realm nuevo de Keycloak 26.8.1 (DefaultClientScopes.java, RealmManager.java, ClientManager.java,
+    # DefaultAuthenticationFlows.java), que Git no declara.
+    kc["scopeMappings"].append({"clientScope": "offline_access", "roles": ["offline_access"]})
+    kc["clientScopeMappings"]["account"] = [
+        {"client": "account-console", "roles": ["view-groups", "manage-account"]}
+    ]
+    for client in kc["clients"]:
+        if client.get("serviceAccountsEnabled"):
+            client["defaultClientScopes"] = [*client.get("defaultClientScopes", []), "service_account"]
+    for user in kc["users"]:
+        user["realmRoles"] = [*user.get("realmRoles", []), "default-roles-vectra"]
+    kc["authenticationFlows"] += [
+        {"alias": alias, "builtIn": True, "authenticationExecutions": []} for alias in KEYCLOAK_FLOWS
+    ]
     # El orden de las listas de entidades no cuenta.
     for key in (
         "clients",

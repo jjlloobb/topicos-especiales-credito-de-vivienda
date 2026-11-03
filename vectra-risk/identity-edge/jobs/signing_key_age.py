@@ -22,7 +22,6 @@ from cryptography import x509
 LOG = logging.getLogger("signing-key-age")
 JOB: Final = "signing-key-age"
 METRIC: Final = "vectra_signing_key_created_timestamp_seconds"
-KEYCLOAK_DEFAULT_ALGORITHM: Final = "RS256"
 
 
 class NoSigningKey(Exception):
@@ -71,7 +70,9 @@ def push_url(pushgateway: str) -> str:
 
 async def run(reader: admin.KeycloakReader, put: admin.HttpPut, pushgateway: str) -> int:
     realm = await reader.realm()
-    algorithm = str(realm.get("defaultSignatureAlgorithm") or KEYCLOAK_DEFAULT_ALGORITHM)
+    algorithm = str(realm.get("defaultSignatureAlgorithm") or "").strip()
+    if not algorithm:  # sin algoritmo no hay llave que elegir, y suponer uno falsearia la metrica
+        raise NoSigningKey("el realm no trae defaultSignatureAlgorithm")
     key = active_signing_key(await reader.keys(), algorithm)
     created = created_at(key)
     await put(push_url(pushgateway), metrics_body(str(key["kid"]), algorithm, created))

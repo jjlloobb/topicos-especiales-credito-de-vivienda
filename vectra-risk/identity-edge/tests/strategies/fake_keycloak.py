@@ -157,7 +157,7 @@ class FakeKeycloak:
         user = next(u for u in self.realm["users"] if f"uid-{u['username']}" == ident)
         if what == "role-mappings":
             return {
-                "realmMappings": [{"name": r} for r in [*user.get("realmRoles", []), "default-roles-vectra"]],
+                "realmMappings": [{"name": r} for r in user.get("realmRoles", [])],
                 "clientMappings": {
                     c: {"client": c, "mappings": [{"name": r} for r in roles]}
                     for c, roles in user.get("clientRoles", {}).items()

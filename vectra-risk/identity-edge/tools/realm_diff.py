@@ -11,6 +11,7 @@ y las claves de `components` y `clientScopeMappings` (tipo de proveedor, cliente
 """
 
 import json
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final, Literal
@@ -34,7 +35,6 @@ ENTITY_KEYS: Final[Mapping[Path, KeyOf]] = {
     ("clients", "protocolMappers"): "name",
     ("clientScopes", "protocolMappers"): "name",
     ("authenticationFlows", "authenticationExecutions"): "priority",
-    ("users", "credentials"): "type",
     ("scopeMappings",): ("client", "clientScope"),
     ("clientScopeMappings", "*"): ("client", "clientScope"),
 }
@@ -72,10 +72,15 @@ TIMESTAMP_FIELDS: Final[Mapping[Path, frozenset[str]]] = {
 }
 
 # --- lo que el Admin API no devuelve (se lee a mano en keycloak_admin.py o no se lee) ---------------
-# `userSetupAllowed` solo existe en la exportacion de flujos; `temporary` solo se envia al crear una credencial.
+# `userSetupAllowed` solo existe en la exportacion de flujos.
 UNREADABLE_FIELDS: Final[Mapping[Path, frozenset[str]]] = {
     ("authenticationFlows", "authenticationExecutions"): frozenset({"userSetupAllowed"}),
-    ("users", "credentials"): frozenset({"temporary"}),
+}
+
+# --- lo que no se compara (decision S1 del usuario) ---------------------------------------------------
+# El propio login cambia las acciones requeridas y las credenciales de un usuario (el primer login de `break-glass`).
+NOT_COMPARED_FIELDS: Final[Mapping[Path, frozenset[str]]] = {
+    ("users",): frozenset({"requiredActions", "credentials"}),
 }
 
 # --- lo que Keycloak trae sin que Git lo declare (Keycloak 26.8.1) ----------------------------------
@@ -108,6 +113,7 @@ BUILT_IN_NAMES: Final[Mapping[Path, frozenset[str]]] = {
             "CONFIGURE_RECOVERY_AUTHN_CODES",
             "CONFIGURE_TOTP",
             "TERMS_AND_CONDITIONS",
+            "UPDATE_EMAIL",
             "UPDATE_PASSWORD",
             "UPDATE_PROFILE",
             "VERIFY_EMAIL",
@@ -120,9 +126,61 @@ BUILT_IN_NAMES: Final[Mapping[Path, frozenset[str]]] = {
             "webauthn-register-passwordless",
         }
     ),
+    # `DefaultAuthenticationFlows.java` de 26.8.1: los alias de los flujos y subflujos que crea. El flag `builtIn` de
+    # la respuesta no cuenta: lo pone el lado que se audita.
+    ("authenticationFlows",): frozenset(
+        {
+            "registration",
+            "registration form",
+            "reset credentials",
+            "Reset - Conditional OTP",
+            "direct grant",
+            "Direct Grant - Conditional OTP",
+            "browser",
+            "forms",
+            "Browser - Conditional 2FA",
+            "Browser - Conditional Organization",
+            "Organization",
+            "clients",
+            "first broker login",
+            "User creation or linking",
+            "Handle Existing Account",
+            "Account verification options",
+            "Verify Existing Account by Re-authentication",
+            "First broker login - Conditional 2FA",
+            "First Broker Login - Conditional Organization",
+            "saml ecp",
+            "docker auth",
+        }
+    ),  # fmt: skip
 }
 
-DifferenceKind = Literal["value", "missing-in-keycloak", "unexpected-in-keycloak"]
+# Entradas de un nivel anidado que Keycloak 26.8.1 crea en un realm nuevo, por ubicacion (como en `Difference.path`).
+# Solo la entrada exacta es la de Keycloak: con otros roles o en otro contenedor, cuenta.
+DEFAULT_ENTITIES: Final[Mapping[str, tuple[Mapping[str, Any], ...]]] = {
+    # DefaultClientScopes.createOfflineAccessClientScope
+    "scopeMappings": ({"clientScope": "offline_access", "roles": ["offline_access"]},),
+    # RealmManager: `account-console` recibe `manage-account` y `view-groups` de `account`
+    "clientScopeMappings.account": (
+        {"client": "account-console", "roles": ["manage-account", "view-groups"]},
+    ),
+}
+
+# Elementos de una lista de valores que Keycloak agrega por su cuenta y no cuentan como «de mas».
+DEFAULT_LIST_ELEMENTS: Final[Mapping[Path, frozenset[str]]] = {
+    # ClientManager.enableServiceAccount agrega el scope `service_account` a los clientes con cuenta de servicio.
+    ("clients", "defaultClientScopes"): frozenset({"service_account"}),
+    # Los roles que Keycloak da a todo usuario: la misma lista que la de roles propios (una sola fuente).
+    ("users", "realmRoles"): BUILT_IN_NAMES[("roles", "realm")],
+}
+
+DifferenceKind = Literal[
+    "value",
+    "missing-in-keycloak",
+    "unexpected-in-keycloak",
+    "duplicate-key-in-git",
+    "duplicate-key-in-keycloak",
+]
 
 
 @dataclass(frozen=True)
@@ -131,6 +189,12 @@ class Difference:
     kind: DifferenceKind
     git: Any = None
     keycloak: Any = None
+
+
+DUPLICATE: Final[Mapping[str, DifferenceKind]] = {
+    "git": "duplicate-key-in-git",
+    "keycloak": "duplicate-key-in-keycloak",
+}
 
 
 def child_path(path: Path, key: str) -> Path:
@@ -202,10 +266,10 @@ def _has_marker(value: Any) -> bool:
     return False
 
 
-def _is_built_in(path: Path, entity: Mapping[str, Any]) -> bool:
-    if path == ("authenticationFlows",):
-        return entity.get("builtIn") is True
-    return _key_of(path, entity) in BUILT_IN_NAMES.get(path, frozenset())
+def _is_built_in(path: Path, trail: str, entity: Mapping[str, Any]) -> bool:
+    if _key_of(path, entity) in BUILT_IN_NAMES.get(path, frozenset()):
+        return True
+    return any(_normalize(d, path) == entity for d in DEFAULT_ENTITIES.get(trail, ()))
 
 
 def _where(path: Path, trail: str) -> str:
@@ -217,35 +281,62 @@ def _compare(git: Any, kc: Any, path: Path, trail: str, out: list[Difference]) -
         if not isinstance(kc, dict):
             out.append(Difference(_where(path, trail), "value", git, kc))
             return
-        unreadable = UNREADABLE_FIELDS.get(path, frozenset())
+        skipped = UNREADABLE_FIELDS.get(path, frozenset()) | NOT_COMPARED_FIELDS.get(path, frozenset())
         for key, value in git.items():
-            if key in unreadable or _projects_out(value, child_path(path, key)):
+            if key in skipped or _projects_out(value):
                 continue
             _compare(value, kc.get(key), child_path(path, key), f"{trail}.{key}" if trail else key, out)
+        if path in WILDCARD_PARENTS:  # un contenedor que Keycloak tiene y Git no: sus entradas sobran
+            for key in kc.keys() - git.keys():
+                _compare_entities([], kc[key], child_path(path, key), f"{trail}.{key}" if trail else key, out)
         return
     if isinstance(git, list) and path in ENTITY_KEYS:
         _compare_entities(git, kc, path, trail, out)
-        return
-    if git != kc:
+    elif isinstance(git, list):
+        _compare_values(git, kc, path, trail, out)
+    elif git != kc:
         out.append(Difference(_where(path, trail), "value", git, kc))
 
 
-def _projects_out(value: Any, path: Path) -> bool:
-    """El campo de Git no se compara: su valor sale de la boveda (`$(env:...)`)."""
-    if isinstance(value, dict) or (isinstance(value, list) and path in ENTITY_KEYS):
-        return False  # se recorre; el marcador excluye el campo que lo contiene
-    return _has_marker(value)
+def _projects_out(value: Any) -> bool:
+    """El campo escalar de Git no se compara: su valor sale de la boveda (`$(env:...)`). Las listas se tratan por elemento."""
+    return isinstance(value, str) and ENV_MARKER in value
+
+
+def _compare_values(git: list[Any], kc: Any, path: Path, trail: str, out: list[Difference]) -> None:
+    """Lista de valores (decision S2): los elementos de Git con marcador se excluyen; los demas se comparan, y cada
+    elemento de Keycloak que no esta en Git cuenta, salvo uno por cada marcador y los que Keycloak agrega solo."""
+    where = _where(path, trail)
+    if not isinstance(kc, list):
+        out.append(Difference(where, "value", git, kc))
+        return
+    markers = [e for e in git if _has_marker(e)]
+    remaining = Counter(_canonical(e) for e in kc)
+    for element in (e for e in git if not _has_marker(e)):
+        if remaining[_canonical(element)] > 0:
+            remaining[_canonical(element)] -= 1
+        else:
+            out.append(Difference(f"{where}[{_canonical(element)}]", "missing-in-keycloak", element, None))
+    exempt = DEFAULT_LIST_ELEMENTS.get(path, frozenset())
+    extras: list[Any] = []
+    leftover = Counter(remaining)
+    for element in kc:
+        key = _canonical(element)
+        if leftover[key] > 0:
+            leftover[key] -= 1
+            if element not in exempt:
+                extras.append(element)
+    for element in extras[len(markers) :]:
+        out.append(Difference(f"{where}[{_canonical(element)}]", "unexpected-in-keycloak", None, element))
 
 
 def _compare_entities(git: list[Any], kc: Any, path: Path, trail: str, out: list[Difference]) -> None:
     if not isinstance(kc, list):
         out.append(Difference(_where(path, trail), "value", git, kc))
         return
-    kc_by_key = {_key_of(path, e): e for e in kc if isinstance(e, dict)}
-    git_keys = set()
-    for entity in git:
-        key = _key_of(path, entity)
-        git_keys.add(key)
+    git_by_key = _index(git, path, trail, "git", out)
+    kc_by_key = _index(kc, path, trail, "keycloak", out)
+    for key, entity in git_by_key.items():
         where = f"{trail}[{key}]"
         if key not in kc_by_key:
             out.append(Difference(where, "missing-in-keycloak", entity, None))
@@ -254,8 +345,22 @@ def _compare_entities(git: list[Any], kc: Any, path: Path, trail: str, out: list
     if path in UNLISTED:
         return
     for key, entity in kc_by_key.items():
-        if key not in git_keys and not _is_built_in(path, entity):
+        if key not in git_by_key and not _is_built_in(path, trail, entity):
             out.append(Difference(f"{trail}[{key}]", "unexpected-in-keycloak", None, entity))
+
+
+def _index(entities: list[Any], path: Path, trail: str, side: str, out: list[Difference]) -> dict[Any, Any]:
+    """Las entidades por clave. Una clave repetida (en cualquiera de los dos lados) es una diferencia por cada repeticion."""
+    found: dict[Any, Any] = {}
+    for entity in entities:
+        if not isinstance(entity, dict):
+            continue
+        key = _key_of(path, entity)
+        if key in found:
+            out.append(Difference(f"{trail}[{key}]", DUPLICATE[side], None, entity))
+        else:
+            found[key] = entity
+    return found
 
 
 def diff(git: Mapping[str, Any], keycloak: Mapping[str, Any]) -> list[Difference]:

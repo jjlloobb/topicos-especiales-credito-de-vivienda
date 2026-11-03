@@ -14,6 +14,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Final, Protocol
 from urllib.parse import quote, urlencode
 
+import realm_diff
 from vectra_common.service_token import provider_from_env
 
 ADMIN_URL_ENV: Final = "KEYCLOAK_ADMIN_URL"
@@ -28,8 +29,6 @@ READ_SEPARATELY: Final = frozenset(
         "defaultDefaultClientScopes", "defaultOptionalClientScopes",
     }
 )  # fmt: skip
-# Roles que Keycloak asigna a un usuario sin que Git lo declare.
-KEYCLOAK_USER_ROLES: Final = frozenset({"default-roles-vectra", "offline_access", "uma_authorization"})
 
 HttpGet = Callable[[str, Mapping[str, str]], Awaitable[Any]]
 HttpPut = Callable[[str, bytes], Awaitable[None]]
@@ -117,18 +116,25 @@ class KeycloakReader:
         doc["defaultOptionalClientScopes"] = _names(
             await self._fetch("/default-optional-client-scopes", None)
         )
-        doc["authenticationFlows"], doc["authenticatorConfig"] = await self._flows()
+        doc["authenticationFlows"], doc["authenticatorConfig"] = await self._flows(
+            {f["alias"] for f in git.get("authenticationFlows", [])}
+        )
         doc["scopeMappings"], doc["clientScopeMappings"] = await self._scope_mappings(clients, scopes)
         doc["components"] = await self._components(git)
         doc["users"] = await self._users(git, clients)
         return doc
 
-    async def _flows(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    async def _flows(self, declared: set[str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         flows: list[dict[str, Any]] = []
         configs: dict[str, dict[str, Any]] = {}
         for flow in await self._fetch("/authentication/flows", None):
-            if flow.get("builtIn") is True:
-                flows.append(flow)  # sin ejecuciones ni configuraciones: no es de Git
+            if (
+                flow["alias"] in realm_diff.BUILT_IN_NAMES[("authenticationFlows",)]
+                and flow["alias"] not in declared
+            ):
+                flows.append(
+                    flow
+                )  # un flujo de Keycloak (lista exacta de `realm_diff`): sin ejecuciones ni configuraciones
                 continue
             executions = []
             for info in await self._fetch(f"/authentication/flows/{_q(flow['alias'])}/executions", None):
@@ -182,18 +188,12 @@ class KeycloakReader:
             if not matches:
                 continue  # una entidad de Git que falta en Keycloak
             user = dict(matches[0])
-            kept_roles = set(declared.get("realmRoles", []))
             mappings = await self._fetch(f"/users/{_q(user['id'])}/role-mappings", None) or {}
-            user["realmRoles"] = [
-                r
-                for r in _names(mappings.get("realmMappings"))
-                if r in kept_roles or r not in KEYCLOAK_USER_ROLES
-            ]
+            user["realmRoles"] = _names(mappings.get("realmMappings"))
             user["clientRoles"] = {
                 container: _names(mapped.get("mappings"))
                 for container, mapped in (mappings.get("clientMappings") or {}).items()
             }
-            user["credentials"] = await self._fetch(f"/users/{_q(user['id'])}/credentials", None)
             if target := declared.get("serviceAccountClientId"):
                 account = (
                     await self._fetch(f"/clients/{_q(client_ids[target])}/service-account-user", None)

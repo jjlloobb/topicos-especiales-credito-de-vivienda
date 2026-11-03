@@ -311,6 +311,50 @@ def test_signing_key_age_fails_without_pushing_when_there_is_no_usable_certifica
     assert env_kind.pushgateway.puts == []
 
 
+def _without_algorithm(server: fake.FakeKeycloak, value: Any) -> None:
+    original = server._route
+
+    def route(path: str, query: dict[str, str]) -> Any:
+        found = original(path, query)
+        if path != "":
+            return found
+        found = dict(found)
+        found.pop("defaultSignatureAlgorithm")
+        if value is not None:
+            found["defaultSignatureAlgorithm"] = value
+        return found
+
+    server._route = route  # type: ignore[method-assign]
+
+
+@pytest.mark.parametrize("value", [None, "", "  "], ids=["absent", "empty", "blank"])
+def test_f04_without_the_default_signature_algorithm_the_job_fails_without_pushing(
+    env_kind: Environment, monkeypatch: pytest.MonkeyPatch, value: str | None
+) -> None:
+    env_kind.serve(keycloak_view(load_git("kind")), several_keys())
+    _without_algorithm(env_kind.server, value)
+    monkeypatch.setattr(keycloak_admin, "urllib_get", env_kind.server.get)
+    monkeypatch.setattr(keycloak_admin, "urllib_put", env_kind.pushgateway.put)
+    assert signing_key_age.main() == 1
+    assert env_kind.pushgateway.puts == []
+    assert not hasattr(signing_key_age, "KEYCLOAK_DEFAULT_ALGORITHM")
+
+
+async def test_the_reader_does_not_read_credentials_nor_the_executions_of_keycloak_flows(
+    env_kind: Environment,
+) -> None:
+    kc = keycloak_view(load_git("kind"))
+    kc["authenticationFlows"].append(
+        {"alias": "puerta-trasera", "builtIn": True, "authenticationExecutions": []}
+    )
+    env_kind.serve(kc)
+    assert await drift(env_kind) == 1
+    paths = [p for p, _ in env_kind.server.requests]
+    assert not [p for p in paths if p.endswith("/credentials")]
+    assert "/authentication/flows/browser/executions" not in paths
+    assert "/authentication/flows/puerta-trasera/executions" in paths
+
+
 def test_signing_key_age_main_succeeds_through_the_injected_transport(
     env_kind: Environment, monkeypatch: pytest.MonkeyPatch
 ) -> None:
