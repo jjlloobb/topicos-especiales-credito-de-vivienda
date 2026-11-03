@@ -8,6 +8,8 @@
 
 > **Enmienda del 2026-11-03 (orquestador, decisión S3 del usuario tras la ronda 2):** un valor con marcador conserva el texto literal que lo rodea en Git (prefijo y sufijo exactos). INF-U2-09 queda enmendado y CA-2 suma el caso.
 
+> **Enmienda del 2026-11-03 (orquestador, decisión T1 del usuario tras la ronda 3):** `supply-chain / scan` del PR 59 falla por KSV-0109 (HIGH) de Trivy en el ConfigMap del realm, un falso positivo por claves que contienen «token». El ConfigMap se renderiza en su propio archivo y solo ese archivo entra en `skip-files` de `supply-chain.yml`. El alcance suma ese workflow y el comentario de `.trivyignore`, y se agrega CA-8.
+
 Paso 6 del plan de U2. Al preparar la tarea (2026-11-03) el orquestador comprobó en el código de Keycloak 26.8.1 que `view-realm` no permite leer clientes, client scopes ni usuarios, y que `partial-export` exige `manage-realm`. Las decisiones R1–R4 del usuario fijaron:
 - R1: los roles de `keycloak-reader` (INF-U2-05a);
 - R2: la comparación por proyección sobre Git;
@@ -73,7 +75,7 @@ Precisiones del diseño enmendado que la tarea aplica. Todas salen de INF-U2-09 
 - Las entradas de `vectra-risk-gitops/components.yaml`: Paso de integración del plan.
 - Construir la imagen. Cualquier cosa contra un clúster.
 - El Job de `keycloak-config-cli` (tarea propia, bloqueada).
-- Cambios en `contracts/`, `platform/`, `.github/workflows/`, el tema y los values de Keycloak de U02-T07.
+- Cambios en `contracts/`, `platform/`, `.github/workflows/` (salvo `skip-files` de `supply-chain.yml`, por T1), el tema y los values de Keycloak de U02-T07.
 
 ## Archivos de contexto
 
@@ -150,6 +152,17 @@ Precisiones del diseño enmendado que la tarea aplica. Todas salen de INF-U2-09 
   uv sync --frozen && make -C identity-edge check && make -C platform check-tools
   ```
   Esperado: todo pasa y termina en 0. `check` incluye `render-jobs` (el render coincide con `rendered/`), `policy-jobs` y `policy-jobs-u1`.
+
+- [ ] **CA-8** — El escaneo de U1 pasa (decisión T1).
+  - El ConfigMap del realm se renderiza en `identity-edge/jobs/rendered/<env>/realm-configmap.yaml`, aparte de los CronJobs y las ServiceAccount.
+  - `skip-files` de `.github/workflows/supply-chain.yml` agrega solo esos tres archivos, uno por entorno y sin comodines, con un comentario que explica el motivo: falso positivo de KSV-0109, y `realm-lint` garantiza que el realm no lleva secretos literales.
+  - El comentario de `.trivyignore` lo menciona junto al precedente de KSV-0041.
+  - Los CronJobs y las ServiceAccount se siguen escaneando.
+  - CA-4 sigue exigiendo el conjunto exacto de documentos, ahora repartido en dos archivos.
+  ```bash
+  cd .. && trivy fs --scanners misconfig --severity CRITICAL,HIGH --exit-code 1 --skip-check-update --ignorefile vectra-risk/.trivyignore --skip-dirs vectra-risk/platform/policies/kyverno/fixtures,vectra-risk/platform/policies/rego/tests,vectra-risk/node_modules --skip-files <los de supply-chain.yml, separados por comas> vectra-risk
+  ```
+  Esperado: termina en 0. Sin el `skip-files` nuevo falla con KSV-0109, y eso es el rojo.
 
 ## Plan de pruebas
 
