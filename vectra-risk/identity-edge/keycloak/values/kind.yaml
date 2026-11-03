@@ -1,0 +1,8 @@
+# kind: CA interna de U1 (INF-U2-01). El digest es de ejemplo mientras ningun workflow construya la imagen (INF-U2-08).
+image:
+  repository: kind-registry:5000/vectra/keycloak
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000001
+vectra:
+  publicHostname: vectra.localtest.me
+  tls:
+    issuerRef: { name: vectra-internal-ca, kind: ClusterIssuer }

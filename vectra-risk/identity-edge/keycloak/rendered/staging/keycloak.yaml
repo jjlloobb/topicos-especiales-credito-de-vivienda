@@ -1,0 +1,501 @@
+---
+# Source: keycloakx/templates/poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: keycloak
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+      app.kubernetes.io/instance: keycloak
+  minAvailable: 1
+---
+# Source: keycloakx/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+automountServiceAccountToken: false
+
+---
+# Source: keycloakx/templates/extra-manifests.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+  ports:
+    - { name: https, port: 8443, targetPort: https, protocol: TCP }
+    - { name: jgroups, port: 7800, targetPort: jgroups, protocol: TCP }
+    - { name: http-internal, port: 9000, targetPort: http-internal, protocol: TCP }
+
+  
+
+---
+# Source: keycloakx/templates/extra-manifests.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-admin
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+  ports:
+    - { name: https, port: 8443, targetPort: https, protocol: TCP }
+
+  
+
+---
+# Source: keycloakx/templates/service-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-headless
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: headless
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+
+---
+# Source: keycloakx/templates/service-http.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-http
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: http
+spec:
+  type: ClusterIP
+  ports:
+    - name: 'http-internal'
+      port: 9000
+      protocol: TCP
+      targetPort: 'http-internal'
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    - name: https
+      port: 8443
+      targetPort: https
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+
+---
+# Source: keycloakx/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: keycloak
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: keycloak
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - resource:
+        name: cpu
+        target:
+          averageUtilization: 80
+          type: Utilization
+      type: Resource
+  behavior:
+    scaleDown:
+      policies:
+      - periodSeconds: 300
+        type: Pods
+        value: 1
+      stabilizationWindowSeconds: 300
+
+---
+# Source: keycloakx/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: keycloak
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+    vectra.io/criticality: "high"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+      app.kubernetes.io/instance: keycloak
+  serviceName: keycloak-headless
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        checksum/config-startup: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        checksum/secrets: 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
+      labels:
+        app.kubernetes.io/name: keycloak
+        app.kubernetes.io/instance: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          image: "registro.banco.internal/vectra/keycloak@sha256:0000000000000000000000000000000000000000000000000000000000000002"
+          imagePullPolicy: IfNotPresent
+          args:
+            - start
+            - --optimized
+          env:
+            - name: KC_HTTP_RELATIVE_PATH
+              value: /auth
+            - name: KC_CACHE
+              value: "ispn"
+            - name: KC_CACHE_STACK
+              value: "jdbc-ping"
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL_HOST
+              value: keycloak-db-rw.vectra-data.svc
+            - name: KC_DB_URL_PORT
+              value: "5432"
+            - name: KC_DB_URL_DATABASE
+              value: keycloak
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pg-role-keycloak
+                  key: password
+            - name: KC_METRICS_ENABLED
+              value: "true"
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            
+            - name: KC_HOSTNAME
+              value: https://vectra.staging.banco.internal/auth
+            - name: KC_HOSTNAME_ADMIN
+              value: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: pg-role-keycloak
+                  key: username
+            - name: KC_DB_URL_PROPERTIES
+              value: "?sslmode=verify-full&sslrootcert=/etc/vectra/ca/ca.crt"
+            - name: KC_DB_POOL_MAX_SIZE
+              value: "20"
+            - name: KC_HTTPS_CERTIFICATE_FILE
+              value: /etc/x509/https/tls.crt
+            - name: KC_HTTPS_CERTIFICATE_KEY_FILE
+              value: /etc/x509/https/tls.key
+            - name: JAVA_OPTS_APPEND
+              value: -XX:MaxRAMPercentage=70
+            
+          envFrom:
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: 'http-internal'
+              containerPort: 9000
+              protocol: TCP
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+            - containerPort: 7800
+              name: jgroups
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: '/auth/health/live'
+              port: 'http-internal'
+              scheme: 'HTTPS'
+            initialDelaySeconds: 0
+            timeoutSeconds: 5
+            
+          readinessProbe:
+            httpGet:
+              path: '/auth/health/ready'
+              port: 'http-internal'
+              scheme: 'HTTPS'
+            initialDelaySeconds: 10
+            timeoutSeconds: 1
+            
+          startupProbe:
+            httpGet:
+              path: '/auth/health'
+              port: 'http-internal'
+              scheme: 'HTTPS'
+            initialDelaySeconds: 15
+            timeoutSeconds: 1
+            failureThreshold: 60
+            periodSeconds: 5
+            
+          resources:
+            limits:
+              cpu: "2"
+              memory: 2Gi
+            requests:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/x509/https
+              readOnly: true
+            - name: internal-ca
+              mountPath: /etc/vectra/ca
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /opt/keycloak/data
+            
+      serviceAccountName: keycloak
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      enableServiceLinks: true
+      restartPolicy: Always
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: keycloak
+                  app.kubernetes.io/instance: keycloak
+                matchExpressions:
+                  - key: app.kubernetes.io/component
+                    operator: NotIn
+                    values:
+                      - test
+              topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: keycloak
+                    app.kubernetes.io/instance: keycloak
+                  matchExpressions:
+                    - key: app.kubernetes.io/component
+                      operator: NotIn
+                      values:
+                        - test
+                topologyKey: topology.kubernetes.io/zone
+        
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+                app.kubernetes.io/name: keycloak
+                app.kubernetes.io/instance: keycloak
+        
+      priorityClassName: vectra-high
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - name: tls
+          secret:
+            secretName: keycloak-tls
+        - name: internal-ca
+          configMap:
+            name: vectra-internal-ca
+        - name: tmp
+          emptyDir: {}
+        - name: data
+          emptyDir: {}
+        
+
+---
+# Source: keycloakx/templates/extra-manifests.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: BackendTLSPolicy
+metadata:
+  name: keycloak
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: keycloak
+      sectionName: https
+  validation:
+    hostname: keycloak.vectra-identity.svc
+    caCertificateRefs:
+      - group: ""
+        kind: Secret
+        name: identity-ca
+
+  
+
+---
+# Source: keycloakx/templates/extra-manifests.yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: keycloak-tls
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  secretName: keycloak-tls
+  duration: 2160h
+  renewBefore: 720h
+  dnsNames:
+    - keycloak.vectra-identity.svc
+  issuerRef:
+    name: banco-ca
+    kind: ClusterIssuer
+
+  
+
+---
+# Source: keycloakx/templates/extra-manifests.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: identity-ca
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: identity-ca }
+  data:
+    - { secretKey: ca.crt, remoteRef: { key: identity/ca, property: ca.crt } }
+
+  
+
+---
+# Source: keycloakx/templates/extra-manifests.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-config-cli-client
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: keycloak-config-cli-client }
+  data:
+    - { secretKey: private-key, remoteRef: { key: identity/clients/keycloak-config-cli, property: private-key } }
+
+  
+
+---
+# Source: keycloakx/templates/extra-manifests.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-reader-client
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: keycloak-reader-client }
+  data:
+    - { secretKey: private-key, remoteRef: { key: identity/clients/keycloak-reader, property: private-key } }

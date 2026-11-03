@@ -1,0 +1,8 @@
+# prod. Mismos ejemplos que staging; ver su nota.
+image:
+  repository: registro.banco.internal/vectra/keycloak
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000003
+vectra:
+  publicHostname: vectra.banco.internal
+  tls:
+    issuerRef: { name: banco-ca, kind: ClusterIssuer }
