@@ -240,11 +240,57 @@ deny contains msg if {
 }
 
 # regla: envoy-resources
-# require-resources (U1), INF-U2-06: 250m / 256 MiB de requests y 1 CPU / 512 MiB de limits.
+# require-resources (U1) vale para todos los contenedores del pod, INF-U2-06: Envoy 250m / 256 MiB de requests y 1 CPU / 512 MiB
+# de limits; el sidecar `shutdown-manager` 10m / 32 MiB y 50m / 64 MiB (Y1), que v1.9.3 solo deja fijar por `envoyDeployment.patch`.
+sidecar_containers := [c |
+	some c in input.spec.provider.kubernetes.envoyDeployment.patch.value.spec.template.spec.containers
+	c.name == "shutdown-manager"
+]
+
 deny contains msg if {
 	input.kind == "EnvoyProxy"
 	not input.spec.provider.kubernetes.envoyDeployment.container.resources == {"requests": {"cpu": "250m", "memory": "256Mi"}, "limits": {"cpu": "1", "memory": "512Mi"}}
-	msg := sprintf("envoy-resources: %s no fija los recursos de INF-U2-06", [label(input)])
+	msg := sprintf("envoy-resources: %s no fija los recursos de INF-U2-06 en Envoy", [label(input)])
+}
+
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	not input.spec.provider.kubernetes.envoyDeployment.patch.type == "StrategicMerge"
+	msg := sprintf("envoy-resources: %s no fija los recursos del shutdown-manager por un patch StrategicMerge", [label(input)])
+}
+
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	count(sidecar_containers) != 1
+	msg := sprintf("envoy-resources: %s debia fijar los recursos del contenedor shutdown-manager", [label(input)])
+}
+
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	some c in sidecar_containers
+	not c.resources == {"requests": {"cpu": "10m", "memory": "32Mi"}, "limits": {"cpu": "50m", "memory": "64Mi"}}
+	msg := sprintf("envoy-resources: %s no fija los recursos del shutdown-manager de INF-U2-06", [label(input)])
+}
+
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	some c in input.spec.provider.kubernetes.envoyDeployment.patch.value.spec.template.spec.containers
+	not c.name == "shutdown-manager"
+	msg := sprintf("envoy-resources: %s parcha el contenedor %s y solo debia parchar el shutdown-manager", [label(input), c.name])
+}
+
+# regla: client-tls
+# NFR-U2-22 (Y4): TLS 1.2 como minimo y 1.3 como maximo en el borde.
+deny contains msg if {
+	input.kind == "ClientTrafficPolicy"
+	not input.spec.tls.minVersion == "1.2"
+	msg := sprintf("client-tls: %s no fija TLS 1.2 como minimo", [label(input)])
+}
+
+deny contains msg if {
+	input.kind == "ClientTrafficPolicy"
+	not input.spec.tls.maxVersion == "1.3"
+	msg := sprintf("client-tls: %s no fija TLS 1.3 como maximo", [label(input)])
 }
 
 # regla: envoy-priority

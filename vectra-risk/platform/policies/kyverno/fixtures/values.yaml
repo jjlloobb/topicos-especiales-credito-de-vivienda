@@ -20,6 +20,12 @@ policies:
       hpas: 0
 - name: require-spread-and-pdb
   resources:
+  - name: envoy-one-replica
+    values:
+      pdbs: 1
+  - name: envoy-no-spread
+    values:
+      pdbs: 1
   - name: exempt-two
     values:
       pdbs: 1

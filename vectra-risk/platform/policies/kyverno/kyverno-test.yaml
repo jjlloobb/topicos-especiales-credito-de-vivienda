@@ -388,3 +388,23 @@ results:
   - envoy-generado
   kind: Deployment
   result: skip
+- policy: require-spread-and-pdb
+  rule: require-spread-and-pdb
+  resources:
+  - envoy-one-replica
+  - envoy-generado
+  kind: Deployment
+  result: skip
+- policy: require-spread-and-pdb
+  rule: require-spread-gateway
+  resources:
+  - envoy-one-replica
+  - envoy-generado
+  kind: Deployment
+  result: pass
+- policy: require-spread-and-pdb
+  rule: require-spread-gateway
+  resources:
+  - envoy-no-spread
+  kind: Deployment
+  result: fail

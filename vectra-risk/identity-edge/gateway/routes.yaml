@@ -4,7 +4,7 @@
 namespace: vectra-edge
 gateway: { name: api-gateway, section: https } # INF-U2-10 (V9); lo crea el Paso 8
 gateway_class: { name: envoy-gateway, controller: gateway.envoyproxy.io/gatewayclass-controller } # el controlador es el de `gateway-helm` v1.9.3
-listener: { port: 443, protocol: HTTPS, tls_secret: api-gateway-tls } # INF-U2-02
+listener: { port: 443, protocol: HTTPS, tls_mode: Terminate, tls_secret: api-gateway-tls } # INF-U2-02
 certificate: { name: api-gateway, issuer_kind: ClusterIssuer, issuer_group: cert-manager.io } # INF-U2-01, NFR-U2-22; el issuer sale de values/<env>.yaml
 infrastructure_labels: { vectra.io/criticality: high } # X3: de aqui toma v1.9.3 las etiquetas del Deployment (`require-criticality-label`)
 envoy_proxy: # INF-U2-02 (W2, W4, W5, W6), INF-U2-06, NFR-U2-03
@@ -13,10 +13,13 @@ envoy_proxy: # INF-U2-02 (W2, W4, W5, W6), INF-U2-06, NFR-U2-03
   pod_labels: { app.kubernetes.io/name: api-gateway, vectra.io/criticality: high }
   priority_class: vectra-high
   replicas: 2
-  hpa: { min: 2, max: 6, cpu_utilization: 70 }
+  hpa: { min: 2, max: 6, metric: cpu, target_type: Utilization, target_percent: 70 }
   pdb_min_available: 1
   spread: { max_skew: 1, key: topology.kubernetes.io/zone, when_unsatisfiable: DoNotSchedule, selector: { app.kubernetes.io/name: api-gateway } } # los mismos valores que Keycloak
   resources: { requests: { cpu: 250m, memory: 256Mi }, limits: { cpu: "1", memory: 512Mi } }
+  shutdown_manager: # Y1: v1.9.3 le pone requests 10m / 32Mi y ningun limit; el patch le fija los de INF-U2-06
+    container: shutdown-manager
+    resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 50m, memory: 64Mi } }
   pod_security_context: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
   container_security_context: # el mismo contexto va al sidecar `shutdown-manager` (v1.9.3 aplica el del contenedor a los dos)
     allowPrivilegeEscalation: false
@@ -27,6 +30,8 @@ envoy_proxy: # INF-U2-02 (W2, W4, W5, W6), INF-U2-06, NFR-U2-03
     seccompProfile: { type: RuntimeDefault }
   service: { type: LoadBalancer, external_traffic_policy: Local, labels: { app.kubernetes.io/name: api-gateway } } # restrict-loadbalancer
 access_log: # P-U2-07: exactamente estos campos; ni query string, ni cuerpo, ni cabeceras. `route_name` y `method` no llevan la query.
+  format: JSON
+  sink: File # la forma de Envoy Gateway de escribir a stdout
   path: /dev/stdout
   fields:
     timestamp: "%START_TIME%"
@@ -38,11 +43,12 @@ access_log: # P-U2-07: exactamente estos campos; ni query string, ni cuerpo, ni 
     correlation_id: "%TRACE_ID%"
     client_ip: "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
     response_flags: "%RESPONSE_FLAGS%"
-tracing: { service: otel-collector, namespace: vectra-observability, port: 4317, sampling_percent: 100 } # W6, F61
+tracing: { provider: OpenTelemetry, service: otel-collector, namespace: vectra-observability, port: 4317, sampling_percent: 100 } # W6, F61
 fail_closed: { patch_name: auth-fail-closed, failure_mode_deny: true, status_on_error: 503 } # P-U2-01, alternativa 2; el filtro es el del dominio de la politica de `/auth/**`
 internal_headers: [x-vectra-sub, x-vectra-azp] # P-U2-06: las que el gateway copia del JWT y quita hacia el backend
 internal_header_prefix: x-vectra- # P-U2-06: toda cabecera con este prefijo se elimina de la request entrante y de la respuesta
 client: # NFR-U2-23, BR-U2-10
+  tls: { min_version: "1.2", max_version: "1.3" } # NFR-U2-22 (Y4)
   trusted_hops: 0 # W2: con el balanceador L4 y `externalTrafficPolicy: Local` no se confia en ningun salto; 0 = sin `clientIPDetection`
   escaped_slashes_action: UnescapeAndRedirect
   merge_slashes: true

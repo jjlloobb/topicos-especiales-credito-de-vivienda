@@ -15,6 +15,7 @@ _FD = _ROOT / "aidlc-docs" / "construction" / "identity-edge"
 BUSINESS_RULES = (_FD / "functional-design" / "business-rules.md").read_text(encoding="utf-8")
 NFR_PATTERNS = (_FD / "nfr-design" / "nfr-design-patterns.md").read_text(encoding="utf-8")
 NFR_REQUIREMENTS = (_FD / "nfr-requirements" / "nfr-requirements.md").read_text(encoding="utf-8")
+KEYCLOAK_VALUES = (_ROOT / "identity-edge" / "keycloak" / "values" / "common.yaml").read_text(encoding="utf-8")
 LOGICAL_COMPONENTS = (_FD / "nfr-design" / "logical-components.md").read_text(encoding="utf-8")
 CLUSTER_STORE = _ROOT / "platform" / "secrets" / "cluster-secret-store-prod.yaml"
 
@@ -545,8 +546,22 @@ def issuers() -> dict[str, str]:
     return {"kind": kind.group(1), "staging": bank.group(1), "prod": bank.group(1)}
 
 
+def listener_protocol() -> str:
+    found = re.search(r"listener (HTTPS?) \(\d+\)", _inf_02())
+    assert found, "INF-U2-02 sin el protocolo del listener"
+    return found.group(1)
+
+
+# Un listener HTTPS termina TLS en el Gateway: el modo de `tls` de Gateway API que le corresponde.
+TLS_MODE = {"HTTPS": "Terminate", "HTTP": None}
+
+
+def listener_tls_mode() -> str:
+    return TLS_MODE[listener_protocol()]
+
+
 def listener_port() -> int:
-    found = re.search(r"listener HTTPS \((\d+)\)", _inf_02())
+    found = re.search(r"listener HTTPS? \((\d+)\)", _inf_02())
     assert found, "INF-U2-02 sin el puerto del listener"
     return int(found.group(1))
 
@@ -585,7 +600,7 @@ def service_spec() -> tuple[str, str, dict[str, str]]:
 
 def scaling() -> tuple[int, int, int, int]:
     """W5: (minimo, maximo, objetivo de CPU en %, minAvailable del PDB)."""
-    found = re.search(r"`envoyHpa` de (\d+) a (\d+) réplicas con un objetivo de CPU del (\d+) %, y `envoyPDB` con `minAvailable: (\d+)`", _inf_02())
+    found = re.search(r"`envoyHpa` de (\d+) a (\d+) réplicas con un objetivo de (?:CPU|memoria) del (\d+) %, y `envoyPDB` con `minAvailable: (\d+)`", _inf_02())
     assert found, "INF-U2-02 sin el escalado"
     return tuple(int(g) for g in found.groups())  # type: ignore[return-value]
 
@@ -619,7 +634,7 @@ def access_log_fields() -> list[str]:
 
 def tracing() -> tuple[str, str, int, int]:
     """W6: (Service, namespace, puerto, muestreo en %)."""
-    found = re.search(r"tracing OpenTelemetry hacia `([\w-]+)\.([\w-]+)\.svc:(\d+)` \(F61\) con muestreo del (\d+) %", _inf_02())
+    found = re.search(r"tracing \w+ hacia `([\w-]+)\.([\w-]+)\.svc:(\d+)` \(F61\) con muestreo del (\d+) %", _inf_02())
     assert found, "INF-U2-02 sin el tracing"
     return found.group(1), found.group(2), int(found.group(3)), int(found.group(4))
 
@@ -629,3 +644,55 @@ def fail_closed() -> tuple[bool, int]:
     found = re.search(r"`failure_mode_deny: (true|false)` y `status_on_error: (\d+)`", _p_u2_01())
     assert found, "P-U2-01 sin el modo de fallo"
     return found.group(1) == "true", int(found.group(2))
+
+
+def hpa_metric() -> tuple[str, str]:
+    """W5: (recurso, tipo de objetivo). «objetivo de CPU del 70 %» es un objetivo `Utilization` del recurso `cpu`."""
+    found = re.search(r"un objetivo de (CPU|memoria) del \d+ %", _inf_02())
+    assert found, "INF-U2-02 sin el objetivo del HPA"
+    return {"CPU": "cpu", "memoria": "memory"}[found.group(1)], "Utilization"
+
+
+def spread() -> tuple[int, str]:
+    """«(los mismos valores que Keycloak)»: (maxSkew, whenUnsatisfiable) de los values de Keycloak."""
+    assert "los mismos valores que Keycloak" in _inf_02()
+    skew = re.search(r"maxSkew: (\d+)", KEYCLOAK_VALUES)
+    when = re.search(r"whenUnsatisfiable: (\w+)", KEYCLOAK_VALUES)
+    assert skew and when, "values de Keycloak sin topologySpreadConstraints"
+    return int(skew.group(1)), when.group(1)
+
+
+# Donde escribe el access log de Envoy Gateway segun el destino que dice el diseno: (tipo de sink, camino).
+SINKS = {"stdout": ("File", "/dev/stdout"), "stderr": ("File", "/dev/stderr")}
+
+
+def access_log_target() -> tuple[str, str, str]:
+    """W6: «el access log de P-U2-07, en JSON a stdout»: (formato, tipo de sink, camino)."""
+    found = re.search(r"el access log de P-U2-07, en (JSON|Text) a (\w+)", _inf_02())
+    assert found, "INF-U2-02 sin el destino del access log"
+    sink, path = SINKS[found.group(2)]
+    return found.group(1), sink, path
+
+
+def tracing_provider() -> str:
+    found = re.search(r"tracing (OpenTelemetry|Zipkin|Datadog) hacia", _inf_02())
+    assert found, "INF-U2-02 sin el proveedor de tracing"
+    return found.group(1)
+
+
+def sidecar_resources() -> tuple[str, dict[str, dict[str, str]]]:
+    """Y1: (contenedor, recursos) del `shutdown-manager` de INF-U2-06."""
+    row = next(r for r in table_rows(_inf_06()) if "sidecar de cada pod de Envoy" in r[0])
+    name = _ticks_of(row[0])[0]
+    out = {}
+    for key, cell in (("requests", row[1]), ("limits", row[2])):
+        cpu, mem = (p.strip() for p in cell.split("/"))
+        out[key] = {"cpu": cpu.replace(" CPU", ""), "memory": mem.replace(" MiB", "Mi").replace(" GiB", "Gi")}
+    return name, out
+
+
+def tls_versions() -> tuple[str, str]:
+    """Y4 / NFR-U2-22: (minimo, maximo)."""
+    found = re.search(r"fija TLS (1\.\d) como mínimo y (1\.\d) como máximo", _inf_02())
+    assert found, "INF-U2-02 sin las versiones de TLS"
+    return found.group(1), found.group(2)

@@ -6,9 +6,11 @@ Estado: **verificado** (ronda 1, con las decisiones W1–W7 y X1–X3 del usuari
 - Se puede. `internal/provider/kubernetes/controller.go` fija `gatewayNamespaceMode: cfg.EnvoyGateway.GatewayNamespaceMode()`; `internal/infrastructure/kubernetes/proxy/resource_provider.go` (`envoyLabels`) agrega `GatewayNameLabel` en ese modo y el Deployment, el Service, el HPA y el PDB nacen en el namespace del `Gateway` (`r.Namespace()`). `flows.yaml` y las NetworkPolicies no se tocan.
 - El `EnvoyProxy` de la `GatewayClass` lleva `namespace` explícito (`processGatewayClassParamsRef`: `ptr.Deref(gc.Spec.ParametersRef.Namespace, "default")`); se genera en `vectra-edge`. El de `Gateway.spec.infrastructure.parametersRef` se busca en el namespace del Gateway (`processGatewayParamsRef`).
 - **Etiquetas.** `require-criticality-label` valida `metadata.labels` del Deployment. El controlador las toma de `getLabels()` = `envoyLabels(infra.GetProxyMetadata().Labels)`, o sea de `Gateway.spec.infrastructure.labels`; `pod.labels` del `EnvoyProxy` solo llega al pod (`getPodLabels`) y es lo que sobrescribe `app.kubernetes.io/name`. Por eso `vectra.io/criticality: high` va en las dos y `app.kubernetes.io/name: api-gateway` va en el pod y en el Service (`envoyService.labels`, que se aplica después de las etiquetas de la infraestructura en `Service()`).
-- **Sidecar `shutdown-manager`.** `expectedProxyContainers` (`internal/infrastructure/kubernetes/proxy/resource.go`) le pone `expectedShutdownManagerSecurityContext(containerSpec)`, el mismo `securityContext` del contenedor de Envoy (parte del hardening por defecto y los campos de `envoyDeployment.container.securityContext`, que `applySecurityContextOverrides` mezcla), y su imagen sale de `provider.kubernetes.shutdownManager.image` del config del controlador (`expectedShutdownManagerImage`), que el chart fija a la del controlador. X3 la reemplaza en `platform/operators/envoy-gateway.yaml` por el espejo `registro.banco.internal/vectra/envoy-gateway@sha256:192fc9bd…cd9f`. En kind el registro es `kind-registry:5000/vectra/envoy-gateway`: el values es común a los tres entornos y el cambio entra con un `kind_values` de la integración (`components.yaml` queda fuera del alcance; está en `CANDIDATAS.md`).
+- **Sidecar `shutdown-manager`.** `expectedProxyContainers` (`internal/infrastructure/kubernetes/proxy/resource.go`) le pone `expectedShutdownManagerSecurityContext(containerSpec)`, el mismo `securityContext` del contenedor de Envoy (parte del hardening por defecto y los campos de `envoyDeployment.container.securityContext`, que `applySecurityContextOverrides` mezcla), y su imagen sale de `provider.kubernetes.shutdownManager.image` del config del controlador (`expectedShutdownManagerImage`), que el chart fija a la del controlador. X3 la reemplaza en `platform/operators/envoy-gateway.yaml` por el espejo `registro.banco.internal/vectra/envoy-gateway@sha256:192fc9bd…cd9f`. En kind el registro es `kind-registry:5000/vectra/envoy-gateway` y lo fija `envoy-gateway-kind.yaml` (Y3).
 - **Raíz de solo lectura.** v1.9.3 deja `ReadOnlyRootFilesystem = nil` en Envoy ("needs to write to the log file/UDS socket") y en el shutdown-manager, pero ambos aceptan el override; el shutdown-manager tiene `emptyDir` en `/tmp` y Envoy no tiene ninguno (`expectedContainerVolumeMounts`). `require-ro-rootfs` obliga a fijarlo; que Envoy arranque así se verifica en kind (Paso 16, `CANDIDATAS.md`).
-- **Réplicas.** Con `envoyHpa`, el controlador deja `replicas` sin fijar en el Deployment (`replicas = nil`); `require-spread-and-pdb` pide `replicas >= 2` en el Deployment y no es de las políticas estáticas (`CANDIDATAS.md`).
+- **Recursos del sidecar (Y1).** v1.9.3 le pone requests 10m / 32Mi y ningún limit (`api/v1alpha1/envoyproxy_helpers.go`, `DefaultShutdownManagerContainerResourceRequirements`; `resource.go`: `Resources: *egv1a1.DefaultShutdownManagerContainerResourceRequirements()`), y `require-resources` exige limits en todos los contenedores. El único mecanismo es `envoyDeployment.patch` (`MergeWithPatch`, `StrategicMerge` por nombre de contenedor): requests 10m / 32 MiB y limits 50m / 64 MiB (INF-U2-06). Esta condición de «detente» no se reportó en la ronda 1; la encontró la revisión.
+- **Réplicas (Y2).** Con `envoyHpa` el controlador deja `replicas` sin fijar en el Deployment (`replicas = nil`, `resource_provider.go`) y el apiserver lo deja en 1. La regla de réplicas de `require-spread-and-pdb` (U1) exime los Deployments con `gateway.envoyproxy.io/owning-gateway-name`, como ya hace `require-pdb`; el reparto por zona lo exige la regla nueva `require-spread-gateway`. El mínimo de 2 es `minReplicas` del HPA. `identity-edge/tests/unit/test_data_plane_policies.py` arma el Deployment como lo haría v1.9.3 y le aplica con `kyverno apply` las políticas estáticas y `require-spread-and-pdb`.
+- **Imagen del sidecar en kind (Y3).** `platform/operators/envoy-gateway-kind.yaml` (`kind_values` de la entrada `envoy-gateway` de `components.yaml`) fija `kind-registry:5000/vectra/envoy-gateway@sha256:192fc9bd…cd9f`.
 
 ## 2. Modo de fallo por ruta (P-U2-01): alternativa 2 (parche acotado)
 - **Por qué no la 1 ni la 3.** `GlobalRateLimit.FailClosed` es un ajuste global del controlador (`createRateLimitFilter` en `internal/xds/translator/ratelimit.go`: `rateLimitFilterProto.FailureModeDeny = t.GlobalRateLimit.FailClosed`) y no hay campo por política; un `Gateway` separado lo comparte.
@@ -23,60 +25,39 @@ Estado: **verificado** (ronda 1, con las decisiones W1–W7 y X1–X3 del usuari
 ## 4. IP real (W2, NFR-U2-23)
 - `internal/xds/translator/listener.go`: `useRemoteAddress := true` y pasa a `false` si `originalIPDetectionExtensions` no es nil; `xffNumTrustedHops` **resta 1** al valor del usuario ("for backward compatibility", `envoyproxy/envoy#34241`) y la extensión `envoy.extensions.http.original_ip_detection.xff` se configura siempre que `NumTrustedHops != nil`. Con `numTrustedHops: 1` o `0` el xDS sale con `xff_num_trusted_hops: 0`, la extensión `xff` y `use_remote_address: false`: Envoy tomaría el último valor de `X-Forwarded-For`, que escribe el cliente (el balanceador L4 no agrega la cabecera). Comprobado con `egctl`.
 - W2 se cumple omitiendo `clientIPDetection` (`routes.yaml` `client.trusted_hops: 0` significa "no emitir"): `use_remote_address: true`, sin `original_ip_detection_extensions`, y con `externalTrafficPolicy: Local` la dirección remota es la del cliente. La prueba exige esas dos cosas, no solo `xff_num_trusted_hops` (que valdría 0 en los dos casos).
+- **TLS (Y4, NFR-U2-22).** v1.9.3 ya traduce `tlsMinimumProtocolVersion: TLSv1_2` y `tlsMaximumProtocolVersion: TLSv1_3` por defecto (`internal/xds/translator/listener.go`, `buildTLSVersion`); `ClientTrafficPolicy.tls` (`minVersion: "1.2"`, `maxVersion: "1.3"`) los fija de forma explícita y la prueba del xDS los exige. Las suites son las de Envoy; NFR-U2-22 se verifica con `testssl.sh` en el Paso 16.
 
 ## 5. Binding K14
-X2: K14 es exactamente el RBAC que el chart `gateway-helm` v1.9.3 concede al ServiceAccount `envoy-gateway` con los values de `platform/operators/envoy-gateway.yaml` (`GatewayNamespace` agrega el `ClusterRole` `cluster-infra-manager`: gestión de Deployments, Services, ConfigMaps, ServiceAccounts, HPA y PDB en todo el clúster, no solo en `vectra-edge` y `envoy-gateway-system`). Más que la K14 original (lectura de Gateway API y de Envoy Gateway; gestión de Deployments, Services y ConfigMaps): `secrets`, `pods`, `nodes`, `namespaces`, `serviceaccounts`, HPA, PDB, `daemonsets`, `leases`, `events`, `tokenreviews`, `endpointslices`, `clustertrustbundles`, `serviceimports`, `gatewayclasses` (escritura) y la actualización de los `*/status`. Se lista aquí y la prueba `test_k14_is_exactly_the_rbac_of_the_chart` la fija: si el chart cambia una regla, falla.
+X2 y Y4: K14 es exactamente el RBAC que el chart `gateway-helm` v1.9.3 concede a los ServiceAccounts `envoy-gateway` y `certgen` con los values de `platform/operators/envoy-gateway.yaml` (`GatewayNamespace` agrega el `ClusterRole` `cluster-infra-manager`: gestión de Deployments, Services, ConfigMaps, ServiceAccounts, HPA y PDB en todo el clúster, no solo en `vectra-edge` y `envoy-gateway-system`). Más que la K14 original (lectura de Gateway API y de Envoy Gateway; gestión de Deployments, Services y ConfigMaps): `secrets`, `pods`, `nodes`, `namespaces`, `serviceaccounts`, HPA, PDB, `daemonsets`, `leases`, `events`, `tokenreviews`, `endpointslices`, `clustertrustbundles`, `serviceimports`, `gatewayclasses` (escritura) y la actualización de los `*/status`. Se lista aquí y la prueba `test_k14_is_exactly_the_rbac_of_the_chart` la fija una línea por regla y ámbito: si el chart cambia una regla, o un verbo pasa de un `Role` a un `ClusterRole`, falla.
 
 ### Reglas del RBAC del chart (K14)
-- `core/configmaps`: create, delete, deletecollection, get, list, patch, update, watch (cluster, envoy-gateway-system)
-- `core/events`: create, patch (envoy-gateway-system)
-- `core/namespaces`: get, list, watch (cluster)
-- `core/nodes`: get, list, watch (cluster)
-- `core/pods`: get, list, patch, update, watch (cluster)
-- `core/pods/binding`: get, list, patch, update, watch (cluster)
-- `core/secrets`: get, list, watch (cluster)
-- `core/serviceaccounts`: create, delete, deletecollection, get, list, patch, watch (cluster, envoy-gateway-system)
-- `core/services`: create, delete, deletecollection, get, list, patch, watch (cluster, envoy-gateway-system)
-- `apps/daemonsets`: create, delete, deletecollection, get, list, patch, watch (cluster, envoy-gateway-system)
-- `apps/deployments`: create, delete, deletecollection, get, list, patch, watch (cluster, envoy-gateway-system)
-- `authentication.k8s.io/tokenreviews`: create (cluster)
-- `autoscaling/horizontalpodautoscalers`: create, delete, deletecollection, get, list, patch, watch (cluster, envoy-gateway-system)
-- `certificates.k8s.io/clustertrustbundles`: get, list, watch (cluster, envoy-gateway-system)
-- `coordination.k8s.io/leases`: create, delete, get, list, patch, update, watch (envoy-gateway-system)
-- `discovery.k8s.io/endpointslices`: get, list, watch (cluster)
-- `gateway.envoyproxy.io/backends`: get, list, watch (cluster)
-- `gateway.envoyproxy.io/backends/status`: update (cluster)
-- `gateway.envoyproxy.io/backendtrafficpolicies`: get, list, watch (cluster)
-- `gateway.envoyproxy.io/backendtrafficpolicies/status`: update (cluster)
-- `gateway.envoyproxy.io/clienttrafficpolicies`: get, list, watch (cluster)
-- `gateway.envoyproxy.io/clienttrafficpolicies/status`: update (cluster)
-- `gateway.envoyproxy.io/envoyextensionpolicies`: get, list, watch (cluster)
-- `gateway.envoyproxy.io/envoyextensionpolicies/status`: update (cluster)
-- `gateway.envoyproxy.io/envoypatchpolicies`: get, list, watch (cluster)
-- `gateway.envoyproxy.io/envoypatchpolicies/status`: update (cluster)
-- `gateway.envoyproxy.io/envoyproxies`: get, list, watch (cluster)
-- `gateway.envoyproxy.io/envoyproxies/status`: update (cluster)
-- `gateway.envoyproxy.io/httproutefilters`: get, list, watch (cluster)
-- `gateway.envoyproxy.io/securitypolicies`: get, list, watch (cluster)
-- `gateway.envoyproxy.io/securitypolicies/status`: update (cluster)
-- `gateway.networking.k8s.io/backendtlspolicies`: get, list, watch (cluster)
-- `gateway.networking.k8s.io/backendtlspolicies/status`: update (cluster)
-- `gateway.networking.k8s.io/gatewayclasses`: get, list, patch, update, watch (cluster)
-- `gateway.networking.k8s.io/gatewayclasses/status`: update (cluster)
-- `gateway.networking.k8s.io/gateways`: get, list, watch (cluster)
-- `gateway.networking.k8s.io/gateways/status`: update (cluster)
-- `gateway.networking.k8s.io/grpcroutes`: get, list, watch (cluster)
-- `gateway.networking.k8s.io/grpcroutes/status`: update (cluster)
-- `gateway.networking.k8s.io/httproutes`: get, list, watch (cluster)
-- `gateway.networking.k8s.io/httproutes/status`: update (cluster)
-- `gateway.networking.k8s.io/listenersets`: get, list, watch (cluster)
-- `gateway.networking.k8s.io/listenersets/status`: update (cluster)
-- `gateway.networking.k8s.io/referencegrants`: get, list, watch (cluster)
-- `gateway.networking.k8s.io/tcproutes`: get, list, watch (cluster)
-- `gateway.networking.k8s.io/tcproutes/status`: update (cluster)
-- `gateway.networking.k8s.io/tlsroutes`: get, list, watch (cluster)
-- `gateway.networking.k8s.io/tlsroutes/status`: update (cluster)
-- `gateway.networking.k8s.io/udproutes`: get, list, watch (cluster)
-- `gateway.networking.k8s.io/udproutes/status`: update (cluster)
-- `multicluster.x-k8s.io/serviceimports`: get, list, watch (cluster)
-- `policy/poddisruptionbudgets`: create, delete, deletecollection, get, list, patch, watch (cluster, envoy-gateway-system)
+Una línea por regla y por ámbito (`cluster` o el namespace del `Role`), con el ServiceAccount al que se concede. Incluye el `certgen` del chart (Y4).
+- `envoy-gateway-gateway-helm-certgen` (cluster): admissionregistration.k8s.io/mutatingwebhookconfigurations: get, list, watch
+- `envoy-gateway-gateway-helm-certgen` (cluster): admissionregistration.k8s.io/mutatingwebhookconfigurations: patch, update [envoy-gateway-topology-injector.envoy-gateway-system]
+- `envoy-gateway-gateway-helm-certgen` (envoy-gateway-system): core/secrets: create, get, update
+- `envoy-gateway` (cluster): apps/daemonsets, apps/deployments: create, delete, deletecollection, get, list, patch, watch
+- `envoy-gateway` (cluster): apps/daemonsets, apps/deployments: get, list, watch
+- `envoy-gateway` (cluster): authentication.k8s.io/tokenreviews: create
+- `envoy-gateway` (cluster): autoscaling/horizontalpodautoscalers: create, delete, deletecollection, get, list, patch, watch
+- `envoy-gateway` (cluster): certificates.k8s.io/clustertrustbundles: get, list, watch
+- `envoy-gateway` (cluster): core/configmaps, core/secrets, core/services: get, list, watch
+- `envoy-gateway` (cluster): core/configmaps, core/serviceaccounts, core/services: create, delete, deletecollection, get, list, patch, watch
+- `envoy-gateway` (cluster): core/namespaces, core/nodes: get, list, watch
+- `envoy-gateway` (cluster): core/pods, core/pods/binding: get, list, patch, update, watch
+- `envoy-gateway` (cluster): discovery.k8s.io/endpointslices: get, list, watch
+- `envoy-gateway` (cluster): gateway.envoyproxy.io/backends, gateway.envoyproxy.io/backendtrafficpolicies, gateway.envoyproxy.io/clienttrafficpolicies, gateway.envoyproxy.io/envoyextensionpolicies, gateway.envoyproxy.io/envoypatchpolicies, gateway.envoyproxy.io/envoyproxies, gateway.envoyproxy.io/httproutefilters, gateway.envoyproxy.io/securitypolicies: get, list, watch
+- `envoy-gateway` (cluster): gateway.envoyproxy.io/backends/status, gateway.envoyproxy.io/backendtrafficpolicies/status, gateway.envoyproxy.io/clienttrafficpolicies/status, gateway.envoyproxy.io/envoyextensionpolicies/status, gateway.envoyproxy.io/envoypatchpolicies/status, gateway.envoyproxy.io/envoyproxies/status, gateway.envoyproxy.io/securitypolicies/status: update
+- `envoy-gateway` (cluster): gateway.networking.k8s.io/backendtlspolicies, gateway.networking.k8s.io/gateways, gateway.networking.k8s.io/grpcroutes, gateway.networking.k8s.io/httproutes, gateway.networking.k8s.io/listenersets, gateway.networking.k8s.io/referencegrants, gateway.networking.k8s.io/tcproutes, gateway.networking.k8s.io/tlsroutes, gateway.networking.k8s.io/udproutes: get, list, watch
+- `envoy-gateway` (cluster): gateway.networking.k8s.io/backendtlspolicies/status, gateway.networking.k8s.io/gateways/status, gateway.networking.k8s.io/grpcroutes/status, gateway.networking.k8s.io/httproutes/status, gateway.networking.k8s.io/listenersets/status, gateway.networking.k8s.io/tcproutes/status, gateway.networking.k8s.io/tlsroutes/status, gateway.networking.k8s.io/udproutes/status: update
+- `envoy-gateway` (cluster): gateway.networking.k8s.io/gatewayclasses/status: update
+- `envoy-gateway` (cluster): gateway.networking.k8s.io/gatewayclasses: get, list, patch, update, watch
+- `envoy-gateway` (cluster): multicluster.x-k8s.io/serviceimports: get, list, watch
+- `envoy-gateway` (cluster): policy/poddisruptionbudgets: create, delete, deletecollection, get, list, patch, watch
+- `envoy-gateway` (envoy-gateway-system): apps/daemonsets, apps/deployments: create, delete, deletecollection, get, list, patch, watch
+- `envoy-gateway` (envoy-gateway-system): autoscaling/horizontalpodautoscalers: create, delete, deletecollection, get, list, patch, watch
+- `envoy-gateway` (envoy-gateway-system): certificates.k8s.io/clustertrustbundles: get, list, watch
+- `envoy-gateway` (envoy-gateway-system): coordination.k8s.io/leases: create, delete, get, list, patch, update, watch
+- `envoy-gateway` (envoy-gateway-system): core/configmaps, core/serviceaccounts, core/services: create, delete, deletecollection, get, list, patch, watch
+- `envoy-gateway` (envoy-gateway-system): core/configmaps: create, delete, get, list, patch, update, watch
+- `envoy-gateway` (envoy-gateway-system): core/events: create, patch
+- `envoy-gateway` (envoy-gateway-system): policy/poddisruptionbudgets: create, delete, deletecollection, get, list, patch, watch

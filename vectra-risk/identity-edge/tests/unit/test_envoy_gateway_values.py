@@ -14,7 +14,6 @@ HELM = ROOT / "platform" / ".tools" / "bin" / "helm"
 CHART = ROOT / "platform" / ".charts" / "envoy-gateway" / "gateway-helm"
 VALUES = ROOT / "platform" / "operators" / "envoy-gateway.yaml"
 ADR = ROOT / "identity-edge" / "docs" / "adr-envoy-gateway.md"
-SA = ("envoy-gateway", "envoy-gateway-system")
 GATEWAY_GROUPS = ("gateway.networking.k8s.io", "gateway.envoyproxy.io")
 READ = {"get", "list", "watch"}
 MANAGE = {"create", "get", "list", "watch", "patch", "update", "delete", "deletecollection"}
@@ -88,6 +87,20 @@ def test_each_controller_check_fails_on_an_altered_render(args: tuple[str, ...],
     assert name in problems(render(*args))
 
 
+KIND_VALUES = ROOT / "platform" / "operators" / "envoy-gateway-kind.yaml"
+
+
+def test_kind_values_set_the_kind_registry_for_the_sidecar() -> None:
+    """Y3: el `kind_values` de la entrada `envoy-gateway` cambia solo la imagen del shutdown-manager."""
+    cfg = controller_config(render("-f", str(KIND_VALUES)))
+    assert cfg["provider"]["kubernetes"]["shutdownManager"]["image"] == design.shutdown_manager_image("kind")
+    assert design.shutdown_manager_image("kind") != design.shutdown_manager_image("prod")
+    assert problems(render("-f", str(KIND_VALUES))) == ["shutdownManager.image"]
+    components = yaml.safe_load((ROOT / "vectra-risk-gitops" / "components.yaml").read_text(encoding="utf-8"))["components"]
+    (entry,) = [c for c in components if c["name"] == "envoy-gateway"]
+    assert entry["kind_values"] == ["platform/operators/envoy-gateway-kind.yaml"]
+
+
 def test_the_design_values_are_read_from_the_documents() -> None:
     assert (design.controller_replicas(), design.controller_priority()) == (2, "vectra-high")
     assert design.shutdown_manager_image() == "registro.banco.internal/vectra/envoy-gateway@sha256:192fc9bdadb6d2462e8cf7bd702ce3dd9648f3310c6038787448a1f509b7cd9f"
@@ -97,28 +110,19 @@ def test_the_design_values_are_read_from_the_documents() -> None:
 # --- K14 (X2): el RBAC exacto del chart ------------------------------------------------------------
 
 
-def grants(docs: Docs) -> dict[tuple[str, str], tuple[set[str], set[str]]]:
+def rbac_lines(docs: Docs) -> list[str]:
+    """Una linea por regla y por ambito (Y4: tambien el ServiceAccount de `certgen`; F-04: sin juntar verbos ni ambitos)."""
     roles = {(d["kind"], d["metadata"]["name"]): d for d in docs if d["kind"] in ("Role", "ClusterRole")}
-    out: dict[tuple[str, str], tuple[set[str], set[str]]] = collections.defaultdict(lambda: (set(), set()))
+    lines = []
     for binding in (d for d in docs if d["kind"] in ("RoleBinding", "ClusterRoleBinding")):
-        if SA not in [(s["name"], s.get("namespace")) for s in binding["subjects"]]:
-            continue
         role = roles[(binding["roleRef"]["kind"], binding["roleRef"]["name"])]
         scope = "cluster" if binding["kind"] == "ClusterRoleBinding" else binding["metadata"]["namespace"]
-        for rule in role["rules"]:
-            for group in rule["apiGroups"]:
-                for resource in rule["resources"]:
-                    verbs, scopes = out[(group, resource)]
-                    verbs.update(rule["verbs"])
-                    scopes.add(scope)
-    return dict(out)
-
-
-def rbac_lines(docs: Docs) -> list[str]:
-    return [
-        f"- `{group or 'core'}/{resource}`: {', '.join(sorted(verbs))} ({', '.join(sorted(scopes))})"
-        for (group, resource), (verbs, scopes) in sorted(grants(docs).items())
-    ]
+        for subject in binding["subjects"]:
+            for rule in role["rules"]:
+                resources = ", ".join(f"{group or 'core'}/{resource}" for group in sorted(rule["apiGroups"]) for resource in sorted(rule["resources"]))
+                names = f" [{', '.join(sorted(rule['resourceNames']))}]" if rule.get("resourceNames") else ""
+                lines.append(f"- `{subject['name']}` ({scope}): {resources}: {', '.join(sorted(rule['verbs']))}{names}")
+    return sorted(set(lines))
 
 
 def adr_rbac_lines() -> list[str]:
@@ -150,6 +154,22 @@ def test_the_k14_comparison_sees_a_dropped_grant() -> None:
     role = find(docs, "ClusterRole", "envoy-gateway-gateway-helm-envoy-gateway-role")
     role["rules"].pop()
     assert rbac_lines(docs) != adr_rbac_lines()
+
+
+def test_the_k14_comparison_sees_a_verb_that_moves_to_a_cluster_wide_role() -> None:
+    """F-04: un verbo que pasa de un Role a un ClusterRole cambia las lineas."""
+    docs = render()
+    namespaced = find(docs, "Role", "envoy-gateway-gateway-helm-leader-election-role")
+    cluster = find(docs, "ClusterRole", "envoy-gateway-gateway-helm-envoy-gateway-role")
+    moved = namespaced["rules"][0]
+    namespaced["rules"].remove(moved)
+    cluster["rules"].append(moved)
+    assert rbac_lines(docs) != adr_rbac_lines()
+
+
+def test_k14_includes_the_certgen_service_account() -> None:
+    assert any(line.startswith("- `envoy-gateway-gateway-helm-certgen`") for line in rbac_lines(render()))
+    assert any(line.startswith("- `envoy-gateway-gateway-helm-certgen`") for line in adr_rbac_lines())
 
 
 def test_the_k14_comparison_sees_a_wider_verb() -> None:

@@ -546,6 +546,7 @@ def clienttrafficpolicies() -> list[dict[str, Any]]:
             },
         },
         "path": {"escapedSlashesAction": gd.escaped_slashes_action(), "disableMergeSlashes": not gd.merge_slashes()},
+        "tls": {"minVersion": gd.tls_versions()[0], "maxVersion": gd.tls_versions()[1]},
     }
     if gd.trusted_hops():  # W2: con 0 no hay `clientIPDetection` (v1.9.3 resta 1 y configura la extension `xff` aun con 0)
         spec["clientIPDetection"] = {"xForwardedFor": {"numTrustedHops": gd.trusted_hops()}}
@@ -600,9 +601,9 @@ def gateways(hostname: str) -> list[dict[str, Any]]:
                     {
                         "name": section,
                         "port": gd.listener_port(),
-                        "protocol": "HTTPS",
+                        "protocol": gd.listener_protocol(),
                         "hostname": hostname,
-                        "tls": {"mode": "Terminate", "certificateRefs": [{"group": "", "kind": "Secret", "name": TLS_SECRET}]},
+                        "tls": {"mode": gd.listener_tls_mode(), "certificateRefs": [{"group": "", "kind": "Secret", "name": TLS_SECRET}]},
                     }
                 ],
             },
@@ -642,6 +643,16 @@ def access_log_json() -> dict[str, str]:
     return {f: operators.get(f, "%SIN-OPERADOR%") for f in fields}  # un campo nuevo en el diseno no tiene operador: no coincide
 
 
+def access_log_format() -> str:
+    return gd.access_log_target()[0]
+
+
+def sidecar_patch() -> dict[str, Any]:
+    """Y1: los recursos del `shutdown-manager` (INF-U2-06) por `envoyDeployment.patch`."""
+    name, resources = gd.sidecar_resources()
+    return {"type": "StrategicMerge", "value": {"spec": {"template": {"spec": {"containers": [{"name": name, "resources": resources}]}}}}}
+
+
 def envoyproxies(env: str) -> list[dict[str, Any]]:
     name = gd.gateway_ref()[0]
     repos, digest, _, _ = gd.envoy_images()
@@ -670,15 +681,16 @@ def envoyproxies(env: str) -> list[dict[str, Any]]:
                         "envoyDeployment": {
                             "replicas": low,
                             "container": {"image": f"{repos[env]}@{digest}", "resources": gd.envoy_resources(), "securityContext": security},
+                            "patch": sidecar_patch(),
                             "pod": {
                                 "labels": pod_labels,
                                 "priorityClassName": gd.envoy_priority(),
                                 "securityContext": {"runAsNonRoot": True, "seccompProfile": {"type": "RuntimeDefault"}},
                                 "topologySpreadConstraints": [
                                     {
-                                        "maxSkew": 1,
+                                        "maxSkew": gd.spread()[0],
                                         "topologyKey": gd.spread_key(),
-                                        "whenUnsatisfiable": "DoNotSchedule",
+                                        "whenUnsatisfiable": gd.spread()[1],
                                         "labelSelector": {"matchLabels": service_labels},
                                     }
                                 ],
@@ -687,17 +699,17 @@ def envoyproxies(env: str) -> list[dict[str, Any]]:
                         "envoyHpa": {
                             "minReplicas": low,
                             "maxReplicas": high,
-                            "metrics": [{"type": "Resource", "resource": {"name": "cpu", "target": {"type": "Utilization", "averageUtilization": cpu}}}],
+                            "metrics": [{"type": "Resource", "resource": {"name": gd.hpa_metric()[0], "target": {"type": gd.hpa_metric()[1], "averageUtilization": cpu}}}],
                         },
                         "envoyPDB": {"minAvailable": pdb},
                         "envoyService": {"type": service_type, "externalTrafficPolicy": traffic_policy, "labels": service_labels},
                     },
                 },
                 "telemetry": {
-                    "accessLog": {"settings": [{"format": {"type": "JSON", "json": access_log_json()}, "sinks": [{"type": "File", "file": {"path": "/dev/stdout"}}]}]},
+                    "accessLog": {"settings": [{"format": {"type": access_log_format(), "json": access_log_json()}, "sinks": [{"type": gd.access_log_target()[1], "file": {"path": gd.access_log_target()[2]}}]}]},
                     "tracing": {
                         "samplingRate": sampling,
-                        "provider": {"type": "OpenTelemetry", "backendRefs": [{"name": service, "namespace": namespace, "port": port}]},
+                        "provider": {"type": gd.tracing_provider(), "backendRefs": [{"name": service, "namespace": namespace, "port": port}]},
                     },
                 },
             },

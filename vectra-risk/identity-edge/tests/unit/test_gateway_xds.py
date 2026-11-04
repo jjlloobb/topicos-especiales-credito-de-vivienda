@@ -6,6 +6,7 @@ ninguna politica queda sin aceptar. Cada comprobacion tiene su caso que falla so
 """
 
 import copy
+import shutil
 from collections.abc import Callable
 from typing import Any
 
@@ -14,6 +15,7 @@ import gateway_design as gd
 import gateway_expected as ge
 import pytest
 import xds_gateway as xg
+import yaml
 
 ENVS = gc.ENVS
 BASE = "envoy.filters.http.ratelimit"
@@ -61,7 +63,23 @@ def problems(result: dict[str, Any]) -> list[str]:
             found.append(f"{name} tiene failure_mode_deny")
         if name != AUTH_FILTER and "statusOnError" in config:
             found.append(f"{name} tiene status_on_error")
-    found += access_log_problems(result) + tracing_problems(result) + client_ip_problems(result) + route_problems(result)
+    found += access_log_problems(result) + tracing_problems(result) + client_ip_problems(result) + route_problems(result) + tls_problems(result)
+    return found
+
+
+TLS_VERSION = {"1.2": "TLSv1_2", "1.3": "TLSv1_3"}
+
+
+def tls_problems(result: dict[str, Any]) -> list[str]:
+    """NFR-U2-22 (Y4): TLS 1.2 como minimo y 1.3 como maximo en el borde."""
+    (chain,) = listener(result)["filterChains"]
+    params = chain["transportSocket"]["typedConfig"]["commonTlsContext"].get("tlsParams", {})
+    low, high = gd.tls_versions()
+    found = []
+    if params.get("tlsMinimumProtocolVersion") != TLS_VERSION[low]:
+        found.append(f"TLS minimo: {params.get('tlsMinimumProtocolVersion')}")
+    if params.get("tlsMaximumProtocolVersion") != TLS_VERSION[high]:
+        found.append(f"TLS maximo: {params.get('tlsMaximumProtocolVersion')}")
     return found
 
 
@@ -71,6 +89,12 @@ def access_log_problems(result: dict[str, Any]) -> list[str]:
         return [f"access logs: {len(logs)}"]
     config = logs[0]["typedConfig"]
     found = []
+    # el access log del listener (conexiones sin ruta, filtro NR) tiene los mismos campos
+    for entry in listener(result).get("accessLog", []):
+        if entry["typedConfig"].get("logFormat", {}).get("jsonFormat") != ge.access_log_json():
+            found.append(f"access log del listener: {entry['typedConfig'].get('logFormat')}")
+    if not listener(result).get("accessLog"):
+        found.append("el listener no tiene access log")
     if config.get("path") != "/dev/stdout":
         found.append(f"access log a {config.get('path')}")
     if config.get("logFormat", {}).get("jsonFormat") != ge.access_log_json():
@@ -79,7 +103,7 @@ def access_log_problems(result: dict[str, Any]) -> list[str]:
 
 
 def tracing_problems(result: dict[str, Any]) -> list[str]:
-    service, namespace, _, sampling = gd.tracing()
+    service, namespace, port, sampling = gd.tracing()
     tracing = hcm(result).get("tracing")
     if not tracing:
         return ["sin tracing"]
@@ -91,7 +115,25 @@ def tracing_problems(result: dict[str, Any]) -> list[str]:
     grpc = tracing["provider"]["typedConfig"]["grpcService"]["envoyGrpc"]
     if grpc["authority"] != f"{service}.{namespace}.svc":
         found.append(f"el tracing va a {grpc['authority']}")
+    ports = _tracing_ports(result, grpc["clusterName"])
+    if ports != {port}:
+        found.append(f"el cluster de tracing apunta a los puertos {ports}")
     return found
+
+
+def _tracing_ports(result: dict[str, Any], cluster: str) -> set[int]:
+    (xds,) = result["xds"].values()
+    ports: set[int] = set()
+    for config in xds["configs"]:
+        if config["@type"].endswith("EndpointsConfigDump"):
+            for dynamic in config["dynamicEndpointConfigs"]:
+                if dynamic["endpointConfig"]["clusterName"] == cluster:
+                    ports |= {
+                        lb["endpoint"]["address"]["socketAddress"]["portValue"]
+                        for group in dynamic["endpointConfig"]["endpoints"]
+                        for lb in group["lbEndpoints"]
+                    }
+    return ports
 
 
 def client_ip_problems(result: dict[str, Any]) -> list[str]:
@@ -117,16 +159,22 @@ def route_problems(result: dict[str, Any]) -> list[str]:
         for dynamic in config["dynamicRouteConfigs"]:
             for host in dynamic["routeConfig"]["virtualHosts"]:
                 for route in host["routes"]:
-                    uses = AUTH_FILTER in route.get("typedPerFilterConfig", {})
+                    per_route = route.get("typedPerFilterConfig", {})
+                    uses = AUTH_FILTER in per_route
                     is_auth = route["name"].startswith("httproute/vectra-edge/auth/")
                     if uses != is_auth:
                         found.append(f"{route['name']}: filtro de /auth/** = {uses}")
+                    # la politica de la ruta de /auth/** se mezcla con edge-rate-limits: conserva el limite global
+                    if is_auth and EDGE_FILTER not in per_route:
+                        found.append(f"{route['name']}: sin el filtro de edge-rate-limits")
     return found
 
 
 @pytest.fixture(scope="module")
 def results() -> dict[str, dict[str, Any]]:
-    return {env: xg.translate(xg.load_dir(gc.GENERATED / env)) for env in ENVS}
+    """La salida de `make xds-gateway` (`xds_gateway.main`, que escribe `.tools/xds/<env>.yaml`), no una traduccion aparte."""
+    assert xg.main([]) == 0
+    return {env: yaml.safe_load((xg.OUT / f"{env}.yaml").read_text(encoding="utf-8")) for env in ENVS}
 
 
 @pytest.fixture(scope="module")
@@ -213,6 +261,10 @@ ALTERATIONS: list[tuple[str, Callable[[gc.Docs], None]]] = [
     ("second-policy-on-the-gateway", _second_gateway_policy),
     ("trusts-one-hop", _trust_one_hop),
     ("trusts-zero-hops", _trust_zero_hops),
+    ("tls-minimum-1.0", lambda d: _by_name(d, "ClientTrafficPolicy", "edge-client")["spec"]["tls"].update(minVersion="1.0")),
+    ("tls-maximum-1.2", lambda d: _by_name(d, "ClientTrafficPolicy", "edge-client")["spec"]["tls"].update(maxVersion="1.2")),
+    ("tracing-to-another-port", lambda d: _proxy(d)["telemetry"]["tracing"]["provider"]["backendRefs"][0].update(port=4318)),
+    ("auth-policy-without-merge-type", lambda d: _by_name(d, "BackendTrafficPolicy", ge.AUTH_RULE)["spec"].pop("mergeType")),
     ("no-tracing", lambda d: _proxy(d)["telemetry"].pop("tracing")),
     ("tracing-sampling-1", lambda d: _proxy(d)["telemetry"]["tracing"].update(samplingRate=1)),
     ("access-log-with-path", lambda d: _proxy(d)["telemetry"]["accessLog"]["settings"][0]["format"]["json"].update(path="%REQ(:PATH)%")),
@@ -225,18 +277,28 @@ ALTERATIONS: list[tuple[str, Callable[[gc.Docs], None]]] = [
 def test_the_xds_check_fails_on_an_altered_generated_tree(case, alter, prod_docs):
     docs = copy.deepcopy(prod_docs)
     alter(docs)
-    try:
-        result = xg.translate(docs)
-    except xg.TranslateError:
-        return  # egctl rechaza la entrada: tambien es un fallo
+    result = xg.translate(docs)  # una excepcion de egctl hace fallar la prueba: no cuenta como acierto
     assert problems(result), f"{case}: la prueba no fallo"
 
 
-def test_main_fails_when_a_policy_is_not_accepted(tmp_path, monkeypatch):
-    docs = xg.load_dir(gc.GENERATED / "prod")
-    _second_gateway_policy(docs)
-    result = xg.translate(docs)
-    assert any("Conflicted" in line for line in xg.not_accepted(result))
+def test_main_fails_when_a_policy_is_not_accepted(tmp_path, monkeypatch, capsys):
+    generated = tmp_path / "generated"
+    shutil.copytree(gc.GENERATED, generated)
+    extra = copy.deepcopy(_by_name(xg.load_dir(gc.GENERATED / "prod"), "BackendTrafficPolicy", "edge-rate-limits"))
+    extra["metadata"]["name"] = "zz-second"
+    (generated / "prod" / "zz-second.yaml").write_text(yaml.safe_dump(extra), encoding="utf-8")
+    monkeypatch.setattr(xg, "GENERATED", generated)
+    assert xg.main(["--out", str(tmp_path / "out")]) == 1
+    assert "Conflicted" in capsys.readouterr().err
+
+
+def test_main_fails_when_egctl_rejects_the_input(tmp_path, monkeypatch, capsys):
+    generated = tmp_path / "generated"
+    shutil.copytree(gc.GENERATED, generated)
+    (generated / "kind" / "gatewayclasses.yaml").unlink()
+    monkeypatch.setattr(xg, "GENERATED", generated)
+    assert xg.main(["--out", str(tmp_path / "out")]) == 1
+    assert "GatewayClass" in capsys.readouterr().err
 
 
 def test_the_inspection_reads_the_failure_mode_from_the_design(monkeypatch, results):

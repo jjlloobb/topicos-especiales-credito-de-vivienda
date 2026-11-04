@@ -901,6 +901,11 @@ def _pod(docs: gc.Docs) -> dict[str, Any]:
     return _kube(docs)["envoyDeployment"]["pod"]
 
 
+def _sidecar(docs: gc.Docs) -> dict[str, Any]:
+    (found,) = [c for c in _kube(docs)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"] if c["name"] == "shutdown-manager"]
+    return found
+
+
 def _telemetry(docs: gc.Docs) -> dict[str, Any]:
     return gc.find(docs, "EnvoyProxy", "api-gateway")["spec"]["telemetry"]
 
@@ -1042,6 +1047,7 @@ MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("envoy-image", "registry", lambda d: _container(d).update(image="docker.io/envoyproxy/envoy@" + "sha256:" + "9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0")),
     ("envoy-image", "no-digest", lambda d: _container(d).update(image="registro.banco.internal/vectra/envoy:distroless-v1.39.5")),
     ("envoy-image", "other-digest", lambda d: _container(d).update(image="registro.banco.internal/vectra/envoy@sha256:" + "0" * 64)),
+    ("envoy-image", "registry-only", lambda d: _container(d).update(image="otro.io/vectra/envoy@sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0")),
     ("envoy-image", "other-mirror", lambda d: _container(d).update(image="registro.banco.internal/vectra/otro@sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0")),
     ("envoy-non-root", "pod", lambda d: _pod(d)["securityContext"].update(runAsNonRoot=False)),
     ("envoy-non-root", "container", lambda d: _container(d)["securityContext"].pop("runAsNonRoot")),
@@ -1053,6 +1059,15 @@ MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("envoy-hardening", "container-seccomp", lambda d: _container(d)["securityContext"].update(seccompProfile={"type": "Unconfined"})),
     ("envoy-hardening", "capabilities", lambda d: _container(d)["securityContext"].update(capabilities={"add": ["NET_ADMIN"]})),
     ("envoy-resources", "no-limits", lambda d: _container(d)["resources"].pop("limits")),
+    ("envoy-resources", "sidecar-without-patch", lambda d: _kube(d)["envoyDeployment"].pop("patch")),
+    ("envoy-resources", "sidecar-patch-type", lambda d: _kube(d)["envoyDeployment"]["patch"].update(type="JSONMerge")),
+    ("envoy-resources", "sidecar-no-limits", lambda d: _sidecar(d)["resources"].pop("limits")),
+    ("envoy-resources", "sidecar-limits", lambda d: _sidecar(d)["resources"]["limits"].update(memory="1Gi")),
+    ("envoy-resources", "sidecar-missing", lambda d: _kube(d)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"].update(containers=[])),
+    ("envoy-resources", "patches-envoy", lambda d: _kube(d)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"].append({"name": "envoy", "resources": {}})),
+    ("client-tls", "min-1.0", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"]["tls"].update(minVersion="1.0")),
+    ("client-tls", "max-auto", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"]["tls"].update(maxVersion="Auto")),
+    ("client-tls", "missing", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"].pop("tls")),
     ("envoy-resources", "memory", lambda d: _container(d)["resources"]["requests"].update(memory="1Gi")),
     ("envoy-priority", "class", lambda d: _pod(d).update(priorityClassName="system-cluster-critical")),
     ("envoy-priority", "missing", lambda d: _pod(d).pop("priorityClassName")),
@@ -1082,6 +1097,7 @@ MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("fail-closed-patch", "not-a-listener", lambda d: _patches(d)[0].update(type="type.googleapis.com/envoy.config.cluster.v3.Cluster")),
     ("fail-closed-patch", "other-listener", lambda d: _patches(d)[0].update(name="vectra-edge/api-gateway/web")),
     ("fail-closed-patch", "all-rate-limit-filters", lambda d: _patches(d)[0]["operation"].update(jsonPath="..http_filters[?(@.name=~'envoy.filters.http.ratelimit.*')].typed_config")),
+    ("fail-closed-patch", "three-patches", lambda d: _patches(d).append(copy.deepcopy(_patches(d)[0]))),
     ("fail-closed-patch", "fail-open", lambda d: _patches(d)[0]["operation"].update(value=False)),
     ("fail-closed-patch", "status-500", lambda d: _patches(d)[1]["operation"].update(value={"code": 500})),
     ("environment-issuer", "kind-issuer-in-prod", lambda d: _cert_for(d)["issuerRef"].update(name="vectra-internal-ca")),
@@ -1271,6 +1287,18 @@ DESIGN_ALTERATIONS = [
     ("NFR_PATTERNS", "- Campos: `timestamp`, `route_name`,", "- Campos: `timestamp`, `route`,"),
     ("NFR_PATTERNS", "`failure_mode_deny: true` y `status_on_error: 503`", "`failure_mode_deny: true` y `status_on_error: 500`"),
     ("NFR_PATTERNS", "`failure_mode_deny: true` y `status_on_error: 503`", "`failure_mode_deny: false` y `status_on_error: 503`"),
+    ("KEYCLOAK_VALUES", "maxSkew: 1", "maxSkew: 2"),
+    ("KEYCLOAK_VALUES", "whenUnsatisfiable: DoNotSchedule", "whenUnsatisfiable: ScheduleAnyway"),
+    ("INFRASTRUCTURE", "en JSON a stdout", "en JSON a stderr"),
+    ("INFRASTRUCTURE", "en JSON a stdout", "en Text a stdout"),
+    ("INFRASTRUCTURE", "tracing OpenTelemetry hacia", "tracing Zipkin hacia"),
+    ("INFRASTRUCTURE", "objetivo de CPU del", "objetivo de memoria del"),
+    ("INFRASTRUCTURE", "listener HTTPS (443)", "listener HTTP (443)"),
+    ("INFRASTRUCTURE", "| 10m / 32 MiB | 50m / 64 MiB |", "| 20m / 32 MiB | 50m / 64 MiB |"),
+    ("INFRASTRUCTURE", "| 10m / 32 MiB | 50m / 64 MiB |", "| 10m / 32 MiB | 100m / 64 MiB |"),
+    ("INFRASTRUCTURE", "`shutdown-manager` (sidecar de cada pod de Envoy)", "`shutdown-agent` (sidecar de cada pod de Envoy)"),
+    ("INFRASTRUCTURE", "fija TLS 1.2 como mínimo y 1.3 como máximo", "fija TLS 1.3 como mínimo y 1.3 como máximo"),
+    ("INFRASTRUCTURE", "fija TLS 1.2 como mínimo y 1.3 como máximo", "fija TLS 1.2 como mínimo y 1.2 como máximo"),
     ("LOGICAL_COMPONENTS", "| Envoy (data plane) | `vectra-edge` | TLS, rutas, JWT, rate limit, cabeceras, access log | P-U2-01..03, 06, 07 | `vectra-high` |", "| Envoy (data plane) | `vectra-edge` | TLS, rutas, JWT, rate limit, cabeceras, access log | P-U2-01..03, 06, 07 | `vectra-medium` |"),
 ]
 

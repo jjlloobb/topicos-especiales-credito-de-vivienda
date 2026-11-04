@@ -16,16 +16,36 @@ spec:
               kinds: [Deployment]
               namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-mock]
       # El InferenceService inactivo de U6 (INF-U6-02) lleva 1 replica y no tiene PDB.
+      # El data plane de Envoy Gateway (U02-T10, decision Y2): con `envoyHpa`, v1.9.3 deja `replicas` sin fijar en el Deployment
+      # (`resource_provider.go`), el apiserver lo deja en 1 y el HPA lo sube; el minimo de 2 es `minReplicas` del HPA, que vigila
+      # `require-hpa-bounds`. Su reparto por zona lo exige la regla siguiente.
       exclude:
-        all:
+        any:
           - resources:
               selector: { matchLabels: { vectra.io/serving-state: inactivo } }
               annotations: { vectra.io/hpa-exempt: "?*" }
+          - resources:
+              selector: { matchExpressions: [{ key: gateway.envoyproxy.io/owning-gateway-name, operator: Exists }] }
       validate:
         message: "Al menos 2 replicas y reparto por zona"
         pattern:
           spec:
             replicas: ">=2"
+            template:
+              spec:
+                topologySpreadConstraints:
+                  - topologyKey: topology.kubernetes.io/zone
+    - name: require-spread-gateway
+      match:
+        any:
+          - resources:
+              kinds: [Deployment]
+              namespaces: [vectra-edge]
+              selector: { matchExpressions: [{ key: gateway.envoyproxy.io/owning-gateway-name, operator: Exists }] }
+      validate:
+        message: "El data plane de Envoy Gateway se reparte por zona (Y2: sin la regla de replicas)"
+        pattern:
+          spec:
             template:
               spec:
                 topologySpreadConstraints:

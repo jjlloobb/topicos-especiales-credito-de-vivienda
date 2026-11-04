@@ -19,7 +19,7 @@ components:
   - { name: linkerd-crds, wave: 0, namespace: linkerd, repo: "https://helm.linkerd.io/edge", chart: linkerd-crds, version: 2026.10.2 }
   - { name: linkerd-cni, wave: 0, namespace: linkerd-cni, repo: "https://helm.linkerd.io/edge", chart: linkerd2-cni, version: 2026.10.2 }
   - { name: prometheus-operator-crds, wave: 0, namespace: vectra-observability, repo: "https://prometheus-community.github.io/helm-charts", chart: prometheus-operator-crds, version: 32.0.2 }
-  - { name: envoy-gateway, wave: 0, namespace: envoy-gateway-system, repo: "docker.io/envoyproxy", chart: gateway-helm, version: v1.9.3, values: [platform/operators/envoy-gateway.yaml] }
+  - { name: envoy-gateway, wave: 0, namespace: envoy-gateway-system, repo: "docker.io/envoyproxy", chart: gateway-helm, version: v1.9.3, values: [platform/operators/envoy-gateway.yaml], kind_values: [platform/operators/envoy-gateway-kind.yaml] }
   - { name: kserve-crd, wave: 0, namespace: kserve, repo: "ghcr.io/kserve/charts", chart: kserve-crd, version: v0.21.0 }
   - { name: kserve, wave: 0, namespace: kserve, repo: "ghcr.io/kserve/charts", chart: kserve-resources, version: v0.21.0, values: [platform/operators/kserve.yaml] }
   - { name: argo-cd, wave: 0, namespace: argocd, repo: "https://argoproj.github.io/argo-helm", chart: argo-cd, version: 10.11.6, values: [platform/operators/argo-cd.yaml], kind_values: [platform/operators/argo-cd-kind.yaml] }

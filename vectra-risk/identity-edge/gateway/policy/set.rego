@@ -407,7 +407,7 @@ deny contains msg if {
 	some env in envs
 	some proxy in of_kind("EnvoyProxy")
 	image := proxy.spec.provider.kubernetes.envoyDeployment.container.image
-	not image == sprintf("%s@sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0", [images[env]])
+	not image == sprintf("%s@%s", [images[env], data.main.envoy_digest])
 	msg := sprintf("environment-issuer: el EnvoyProxy de %s usa la imagen %s", [env, image])
 }
 

@@ -472,6 +472,8 @@ def client_traffic_policies(ctx: Ctx) -> list[dict[str, Any]]:
         },
         "path": {"escapedSlashesAction": c["escaped_slashes_action"], "disableMergeSlashes": not c["merge_slashes"]},
     }
+    if c.get("tls"):  # NFR-U2-22 (Y4)
+        spec["tls"] = {"minVersion": c["tls"]["min_version"], "maxVersion": c["tls"]["max_version"]}
     if c["trusted_hops"]:
         # W2: con 0 no se emite `clientIPDetection`. v1.9.3 resta 1 a `numTrustedHops` y configura la extension `xff` (con
         # `use_remote_address: false`) aun con 0, y Envoy confiaria en el X-Forwarded-For del cliente.
@@ -562,7 +564,7 @@ def gateways(ctx: Ctx) -> list[dict[str, Any]]:
                         "port": listener["port"],
                         "protocol": listener["protocol"],
                         "hostname": ctx.hostname,
-                        "tls": {"mode": "Terminate", "certificateRefs": [{"group": "", "kind": "Secret", "name": listener["tls_secret"]}]},
+                        "tls": {"mode": listener["tls_mode"], "certificateRefs": [{"group": "", "kind": "Secret", "name": listener["tls_secret"]}]},
                     }
                 ],
             },
@@ -586,6 +588,12 @@ def certificates(ctx: Ctx) -> list[dict[str, Any]]:
     ]
 
 
+def sidecar_patch(sidecar: dict[str, Any]) -> dict[str, Any]:
+    """Y1: v1.9.3 deja al `shutdown-manager` sin limits y su unico mecanismo es el patch del Deployment (`MergeWithPatch`)."""
+    container = {"name": sidecar["container"], "resources": sidecar["resources"]}
+    return {"type": "StrategicMerge", "value": {"spec": {"template": {"spec": {"containers": [container]}}}}}
+
+
 def envoy_proxies(ctx: Ctx) -> list[dict[str, Any]]:
     e = ctx.routes["envoy_proxy"]
     hpa, svc, spread = e["hpa"], e["service"], e["spread"]
@@ -603,6 +611,7 @@ def envoy_proxies(ctx: Ctx) -> list[dict[str, Any]]:
                         "envoyDeployment": {
                             "replicas": e["replicas"],
                             "container": {"image": ctx.image, "resources": e["resources"], "securityContext": e["container_security_context"]},
+                            "patch": sidecar_patch(e["shutdown_manager"]),
                             "pod": {
                                 "labels": dict(sorted(e["pod_labels"].items())),
                                 "priorityClassName": e["priority_class"],
@@ -620,17 +629,17 @@ def envoy_proxies(ctx: Ctx) -> list[dict[str, Any]]:
                         "envoyHpa": {
                             "minReplicas": hpa["min"],
                             "maxReplicas": hpa["max"],
-                            "metrics": [{"type": "Resource", "resource": {"name": "cpu", "target": {"type": "Utilization", "averageUtilization": hpa["cpu_utilization"]}}}],
+                            "metrics": [{"type": "Resource", "resource": {"name": hpa["metric"], "target": {"type": hpa["target_type"], "averageUtilization": hpa["target_percent"]}}}],
                         },
                         "envoyPDB": {"minAvailable": e["pdb_min_available"]},
                         "envoyService": {"type": svc["type"], "externalTrafficPolicy": svc["external_traffic_policy"], "labels": dict(svc["labels"])},
                     },
                 },
                 "telemetry": {
-                    "accessLog": {"settings": [{"format": {"type": "JSON", "json": dict(log["fields"])}, "sinks": [{"type": "File", "file": {"path": log["path"]}}]}]},
+                    "accessLog": {"settings": [{"format": {"type": log["format"], "json": dict(log["fields"])}, "sinks": [{"type": log["sink"], "file": {"path": log["path"]}}]}]},
                     "tracing": {
                         "samplingRate": tracing["sampling_percent"],
-                        "provider": {"type": "OpenTelemetry", "backendRefs": [{"name": tracing["service"], "namespace": tracing["namespace"], "port": tracing["port"]}]},
+                        "provider": {"type": tracing["provider"], "backendRefs": [{"name": tracing["service"], "namespace": tracing["namespace"], "port": tracing["port"]}]},
                     },
                 },
             },
