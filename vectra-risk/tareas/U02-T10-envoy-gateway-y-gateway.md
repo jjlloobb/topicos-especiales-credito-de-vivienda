@@ -15,6 +15,14 @@ Paso 8 del plan de U2. Al preparar la tarea (2026-11-04), el orquestador comprob
 
 Las decisiones están en INF-U2-02, INF-U2-03, INF-U2-10, P-U2-01 y NFR-U2-23.
 
+> **Enmienda del 2026-11-04 (orquestador, decisiones X1–X3 del usuario y hallazgos del codificador en la ronda 1):**
+> - X1: `/auth/**` no reintenta y tiene una sola política de ruta, con los dos contadores por IP (`shared`) y `mergeType: StrategicMerge` hacia `edge-rate-limits`. La `EnvoyPatchPolicy` va sobre el filtro del dominio de esa política. Donde abajo dice `auth-rate-limits` «del `Gateway`», léase esa política de ruta (P-U2-01, P-U2-02).
+> - X2: K14 es exactamente el RBAC del chart v1.9.3 (component-dependency §3). CA-3 fija esas reglas exactas en vez de compararlas con la K14 anterior.
+> - X3: `provider.kubernetes.shutdownManager.image` usa el espejo `envoy-gateway`, con el digest `sha256:192fc9bd…cd9f` (INF-U2-02). `vectra.io/criticality: high` va en `Gateway.spec.infrastructure.labels`.
+> - **IP real:** v1.9.3 resta 1 a `numTrustedHops`, así que con 0 o con 1 configura igual la extensión `xff`. W2 se cumple omitiendo `clientIPDetection`, y la prueba de xDS exige `use_remote_address: true` y que no haya `original_ip_detection_extensions`.
+> - **`egctl x translate -f`** acepta un archivo, no un directorio. `xds-gateway` concatena `generated/<env>/` con un Secret TLS de prueba y el Service `otel-collector`, y usa `--add-missing-resources`.
+> - **Tracing:** con `backendRefs`, no con `host`/`port`, que v1.9.3 da por obsoleto.
+
 ## Alcance
 
 **Dentro:** todo el Paso 8 del plan. Texto del plan, sin recortes:

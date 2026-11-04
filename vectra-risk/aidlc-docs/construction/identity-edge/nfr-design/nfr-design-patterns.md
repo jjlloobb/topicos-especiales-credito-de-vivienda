@@ -24,7 +24,7 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 - **Alternativa elegida** (enmienda del 2026-11-04, decisión W3 del usuario al preparar U02-T10), comprobada contra Envoy Gateway v1.9.3:
   - la 1 no existe: `rateLimit.failClosed` es global del controlador y responde 500;
   - la 3 tampoco sirve: un `Gateway` separado comparte ese mismo ajuste del controlador;
-  - se usa la 2. Envoy Gateway crea un filtro de rate limit por dominio, y cada política con reglas `shared` tiene su dominio. Los dos contadores por IP de `/auth/**` van en su propia política, `auth-rate-limits`. Una `EnvoyPatchPolicy` fija en el filtro de ese dominio `failure_mode_deny: true` y `status_on_error: 503`, y el 503 lleva `Problem` `dependency_unavailable`;
+  - se usa la 2. Envoy Gateway crea un filtro de rate limit por dominio, y cada política con reglas `shared` tiene su dominio. Los dos contadores por IP de `/auth/**` van en la política de ruta de `/auth/**`, que es una sola porque `/auth/**` no reintenta (X1). Su `mergeType: StrategicMerge` la mezcla con `edge-rate-limits`. Una segunda `BackendTrafficPolicy` en el `Gateway` queda `Conflicted` en v1.9.3, y `mergeType` solo vale sobre rutas (enmienda del 2026-11-04, decisión X1 del usuario en la ronda 1 de U02-T10). Una `EnvoyPatchPolicy` fija en el filtro de ese dominio `failure_mode_deny: true` y `status_on_error: 503`, y el 503 lleva `Problem` `dependency_unavailable`;
   - el límite global de 200/s sigue en `edge-rate-limits` y falla abierto;
   - el controlador habilita `extensionApis.enableEnvoyPatchPolicy`.
 - **Verificación**: en kind, con Valkey escalado a 0 → `GET /api/console/me` = 200 y `POST /auth/realms/vectra/protocol/openid-connect/token` = 503.
@@ -40,7 +40,8 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 | `/auth/**` | 10 s | Solo `GET`/`HEAD` |
 | `/grafana/**` | 30 s | Solo `GET`/`HEAD` |
 
-- Cifras de los «solo `GET`/`HEAD`» de promoción, `/auth/**` y `/grafana/**`: las de `/api/console/**`, es decir, 1 reintento ante `connect-failure`, presupuesto del 20 % y sin reintento ante `503` (enmienda del 2026-11-04, decisión D-4 del usuario tras la ronda 1 de U02-T09).
+- `/auth/**` no reintenta (enmienda del 2026-11-04, decisión X1 del usuario en la ronda 1 de U02-T10). En Envoy Gateway v1.9.3, separar sus reglas por método para reintentar solo `GET`/`HEAD` partiría en dos cada contador por IP de P-U2-01, que tiene que quedar exacto.
+- Cifras de los «solo `GET`/`HEAD`» de promoción y `/grafana/**` (`/auth/**` ya no reintenta, decisión X1): las de `/api/console/**`, es decir, 1 reintento ante `connect-failure`, presupuesto del 20 % y sin reintento ante `503` (enmienda del 2026-11-04, decisión D-4 del usuario tras la ronda 1 de U02-T09).
 - **Nunca** se reintentan `POST`, `PUT` ni `PATCH`: un reintento podría duplicar una decisión, una aprobación o una solicitud.
 - **Outlier detection**: 5 errores 5xx consecutivos sacan un pod del balanceo por 30 s, hasta el 50 % de los pods del backend. En `/api/console/**` cuentan **solo los errores de conexión** (`splitExternalLocalOriginErrors` y `consecutiveLocalOriginFailures`), porque un 503 `dependency_unavailable` del BFF no indica un pod enfermo (seguimiento de la cuarta revisión de coherencia, 2026-10-31).
 - **Verificación**: `conftest` sobre las `BackendTrafficPolicy` renderizadas (ningún reintento en métodos no idempotentes; `/api/console/**` no expulsa por 5xx); en kind, un backend de prueba que devuelve 503 a un `POST` recibe exactamente 1 llamada.
