@@ -92,6 +92,7 @@ Solo dos perfiles admiten el mismo origen: `grafana` (el iframe del dashboard, U
 **BR-U2-14 — Errores del gateway.** Las respuestas de error que genera el propio gateway
 (401, 403, 404, 413, 429, 503) son `Problem` genéricos con `correlation_id` y sin detalles
 de enrutamiento ni de versión del proxy. Se ocultan las cabeceras `server` y `x-envoy-*`.
+El 404 de los prefijos cerrados lo devuelve `directResponse` sin cuerpo útil, y un `responseOverride` de 404 con `source: Local` lo reescribe como `Problem` con `correlation_id`. En Envoy v1.39.5, el cuerpo de `directResponse` se formatea sin span, así que `%TRACE_ID%` saldría vacío (enmienda del 2026-11-04, decisión D-2 del usuario tras la ronda 1 de U02-T09).
 
 ## 6. Realm como código y administración (Q10, Q11)
 
