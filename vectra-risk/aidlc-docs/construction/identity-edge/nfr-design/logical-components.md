@@ -74,7 +74,7 @@ Se formalizan en el Infrastructure Design de U2 (`component-dependency.md` y `fl
 
 | Origen | Destino | Puerto | Propósito |
 |---|---|---|---|
-| Envoy | Servicio de rate limit | 8083 (gRPC; 8081 queda para health y métricas) | Decisiones de rate limit |
+| Envoy | Servicio de rate limit (`envoy-ratelimit`, `envoy-gateway-system`) | 8081 (gRPC; health 8080 y métricas 19001, fijos en Envoy Gateway v1.9.3; enmienda del 2026-11-04, R1 de U02-T11, antes 8083) | Decisiones de rate limit |
 | Servicio de rate limit | Valkey (vía Sentinel) | 26379 / 6379 | Contadores |
 | Valkey réplica | Valkey primaria | 6379 | Replicación |
 | Sentinel | Valkey | 6379 / 26379 | Monitoreo y failover |

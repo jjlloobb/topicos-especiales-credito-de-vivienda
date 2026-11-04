@@ -50,7 +50,7 @@ flowchart TB
 
 ```text
 Navegadores y canales -> balanceador L4 del banco (IP real) -> Envoy (2..6, por zona, vectra-edge)
-Envoy -> servicio de rate limit (gRPC 8083, 2 réplicas) -> Valkey primaria (Sentinel elige la primaria)
+Envoy -> envoy-ratelimit (envoy-gateway-system, gRPC 8081, 2 a 4 réplicas; R1 de U02-T11) -> Valkey primaria (Sentinel elige la primaria)
 Valkey réplica (otra zona) -> replica desde la primaria; 3 Sentinel repartidos por zona
 Envoy -> Keycloak (2..4, por zona, vectra-identity) -> keycloak-db (CloudNativePG, U1)
 Keycloak -> LDAP del banco (LDAPS 636, solo prod, F73)

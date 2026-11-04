@@ -69,9 +69,35 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 
 ### INF-U2-03 — Servicio de rate limit
 - **Enmienda del 2026-11-04 (decisión W1 del usuario al preparar U02-T10).** En Envoy Gateway v1.9.3, el rate limit global de las `BackendTrafficPolicy` lo atiende el servicio que despliega el propio controlador: `envoy-ratelimit`, en `envoy-gateway-system`, gRPC en el 8081. Su configuración la arma el controlador por xDS a partir de las políticas de `route-gen` (`internal/infrastructure/kubernetes/ratelimit`), y Envoy no se puede apuntar a otro servicio. Las viñetas siguientes quedan **superadas**, salvo que Valkey es el backend. La conexión a Valkey (Sentinel y ACL), el HPA de 2 a 4, los recursos y los flujos F90–F93 se rediseñan al preparar el Paso 9.
-- `envoyproxy/ratelimit` en `vectra-edge`: HPA de 2 a 4 por CPU, repartido por zona, PDB. Sin HPA ni exención, `require-hpa-bounds` lo rechazaría (quinta revisión de coherencia entre unidades, 2026-10-31).
-- **gRPC en el puerto 8083.** Se cambia el 8081 por defecto, que en Vectra está reservado para health y métricas (convención de U0). Métricas y health en 8081.
-- Configuración de descriptores generada por `route-gen` desde `routes.yaml` (P-U2-06).
+- **Enmienda del 2026-11-04 (decisiones R1 y R2 del usuario al preparar U02-T11).** El orquestador comprobó contra v1.9.3 (`internal/infrastructure/kubernetes/ratelimit/resource.go` y `resource_provider.go`; `api/v1alpha1/envoygateway_types.go`) y contra `envoyproxy/ratelimit` `5ae0682e`, la imagen del chart (`src/settings/settings.go`, `src/redis/driver_impl.go`):
+  - **Dónde y cómo se configura.** `envoy-ratelimit` corre en el namespace del controlador (`ControllerNamespace`, `envoy-gateway-system`). Se configura en `platform/operators/envoy-gateway.yaml`, con `config.envoyGateway.rateLimit` y `config.envoyGateway.provider.kubernetes.rateLimitDeployment`, `rateLimitHpa` y `rateLimitPDB`. `rateLimit.failClosed: false`, porque el cierre de `/auth/**` lo hace la `EnvoyPatchPolicy` de P-U2-01. El timeout es el de v1.9.3, 20 ms.
+  - **Puertos (los fija v1.9.3, no son configurables).**
+    - gRPC en el 8081 (`InfraGRPCPort`);
+    - health y readiness en el 8080 (`ReadinessPort`);
+    - métricas Prometheus en el 19001 (`PrometheusPort`);
+    - xDS del controlador hacia `envoy-ratelimit` en el 18001.
+
+    La convención de U0 que reserva el 8081 para health y métricas no se puede cumplir en este componente. El 8083 queda superado.
+  - **Conexión a Valkey (R1).**
+    - `rateLimit.backend.redis.url` = `<nombre del master>,<sentinel-a-0>:26379,<sentinel-b-0>:26379,<sentinel-b-1>:26379`, con los FQDN de `vectra-edge`. `ValidateRedisURL` acepta la lista separada por comas.
+    - `rateLimitDeployment.container.env` agrega `REDIS_TYPE=SENTINEL`, y `REDIS_AUTH` y `REDIS_SENTINEL_AUTH` por `secretKeyRef`. `ExpectedContainerEnv` reemplaza o agrega por nombre.
+    - El formato es `usuario:contraseña` (`splitAuth`) y el Secret lo materializa ESO en `envoy-gateway-system`.
+    - `REDIS_SOCKET_TYPE=tcp` lo pone el controlador.
+  - **Endurecimiento (R2).** Las políticas Kyverno de U1 no alcanzan `envoy-gateway-system`, así que `rateLimitDeployment` fija lo mismo que exigirían, y una regla de conftest sobre el render del chart exige cada campo:
+    - réplicas 2;
+    - imagen espejada con digest;
+    - `securityContext`: no root, sin privilegios, raíz de solo lectura y `seccompProfile: RuntimeDefault`;
+    - recursos de INF-U2-06;
+    - `priorityClassName: vectra-high` y `vectra.io/criticality: high`;
+    - reparto por zona;
+    - `rateLimitHpa` de 2 a 4 con CPU al 70 % y `rateLimitPDB` `minAvailable: 1`.
+
+    La imagen es `envoyproxy/ratelimit:5ae0682e`, la de `global.images.ratelimit` de v1.9.3, con `@sha256:b95206e32b1a5f824fb06062fbb85bbdfb7f5de54135e92afe8462f22c979681`. Se espeja en `registro.banco.internal/vectra/ratelimit`, y en kind en `kind-registry:5000/vectra/ratelimit` por `envoy-gateway-kind.yaml`.
+  - **Telemetría.** Métricas Prometheus activas (el default) y tracing OpenTelemetry hacia `otel-collector.vectra-observability.svc:4317` con muestreo del 100 %, como el data plane (W6).
+  - **Descriptores.** No los genera `route-gen`: el controlador los arma por xDS desde las `BackendTrafficPolicy` (`edge-rate-limits` y `auth-rate-limits`). Se comprueban offline con el IR de `egctl x translate --to ir`.
+- *(Superado por la enmienda anterior.)* `envoyproxy/ratelimit` en `vectra-edge`: HPA de 2 a 4 por CPU, repartido por zona, PDB. Sin HPA ni exención, `require-hpa-bounds` lo rechazaría (quinta revisión de coherencia entre unidades, 2026-10-31).
+- *(Superado: el puerto lo fija v1.9.3, ver la enmienda de R1 y R2.)* **gRPC en el puerto 8083.** Se cambia el 8081 por defecto, que en Vectra está reservado para health y métricas (convención de U0). Métricas y health en 8081.
+- *(Superado: los descriptores los arma el controlador.)* Configuración de descriptores generada por `route-gen` desde `routes.yaml` (P-U2-06).
 
 ## 3. Almacenamiento (Q3)
 
@@ -83,6 +109,30 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 - **Sentinel con dos zonas** (seguimiento de la quinta revisión de coherencia, 2026-10-31): 1 Sentinel en la zona A y 2 en la B. La primaria se prefiere en la zona A: si cae A, los 2 de B promueven la réplica; si cae B, la primaria sigue. Tras una conmutación, el runbook la devuelve a A. Mientras esté en B, una caída de B deja 1 de 3 Sentinel, sin promoción, y `/auth/**` responde 503 hasta que vuelva la zona. Es un riesgo aceptado para el MVP.
 - `maxmemory 128mb`, política `volatile-ttl` (todas las claves de rate limit tienen TTL).
 - Prioridad `vectra-high`; NetworkPolicy que solo admite al servicio de rate limit, a la réplica y a los Sentinel (F91–F93).
+- **Enmienda del 2026-11-04 (decisiones R2 a R4 del usuario al preparar U02-T11).**
+  - **Imágenes (R2).** `valkey/valkey:8.1.11-alpine` `@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a`, para Valkey y para Sentinel. El exportador es `oliver006/redis_exporter:v1.95.0-alpine` `@sha256:19bb5c732f5812d5b60b2e0af3c6d82c5b3e418cd020068d65f588a56df4a118`. Se espejan en `registro.banco.internal/vectra/valkey` y `.../redis-exporter`, y en kind en `kind-registry:5000/vectra/...`.
+  - **Topología (R3).**
+    - Valkey va en dos StatefulSets de 1 réplica, `valkey-a` y `valkey-b`, cada uno con `nodeAffinity` obligatoria a `topology.kubernetes.io/zone` (`zone-a` y `zone-b` en kind; las zonas de cada entorno van en los values). `valkey-a` arranca como primaria y `valkey-b` como réplica de ella.
+    - `replica-priority` favorece a A: 10 en `valkey-a` y 100 en `valkey-b`. Así, Sentinel promueve a A cuando vuelve y el runbook de INF-U2-04 solo tiene que forzar el failover.
+    - Sentinel va en `sentinel-a` (1 réplica, zona A) y `sentinel-b` (2 réplicas, zona B), con quórum 2. Usa `resolve-hostnames yes` y `announce-hostnames yes` sobre Services headless.
+    - Al reiniciar, un nodo pregunta a Sentinel por la primaria actual antes de declararse réplica. Sentinel reescribe su configuración, así que la copia a un `emptyDir` al arrancar.
+    - PDB: `minAvailable: 1` sobre la etiqueta común de Valkey y `minAvailable: 2` sobre la de Sentinel. Las políticas de réplicas de U1 solo miran Deployments.
+  - **ACL (R4).**
+    - ESO arma los archivos de ACL con `target.template`, desde la clave de Vault `edge/valkey`. El `users.acl` de Valkey lleva:
+      - `user default off`;
+      - `ratelimit` con `~* +@read +@write +@connection -@dangerous`;
+      - `replication` con `+psync +replconf +ping`;
+      - `sentinel` con los comandos que pide Sentinel: `+multi +exec +slaveof +ping +subscribe +publish +info +role +config|rewrite +client|setname +client|kill +script|kill`;
+      - `exporter`, de solo lectura de métricas: `+info +ping +client|list +config|get +slowlog|get +latency|latest +memory|stats`.
+    - El `sentinel.conf` lleva `user default off` y un usuario `ratelimit` limitado a `+sentinel|get-master-addr-by-name +sentinel|sentinels +sentinel|replicas +subscribe +ping +auth +hello &*`, más `sentinel auth-user`/`auth-pass` con el usuario `sentinel`.
+    - Los Secrets van en `vectra-edge`. El de `envoy-ratelimit` (`REDIS_AUTH` y `REDIS_SENTINEL_AUTH`, `ratelimit:<contraseña>`) es un segundo `ExternalSecret` en `envoy-gateway-system`, y K11 se amplía a ese namespace.
+    - Valkey y Sentinel arrancan con `aclfile` montado de solo lectura; nunca se escribe una contraseña en un ConfigMap.
+  - **Flujos (para el Paso 10):**
+    - F90 pasa a ser Envoy (`vectra-edge`) → `envoy-ratelimit` (`envoy-gateway-system`) en el 8081;
+    - F91 sale de `envoy-ratelimit` en `envoy-gateway-system` hacia Valkey y Sentinel en `vectra-edge`;
+    - el scrape de `envoy-ratelimit` va al 19001 y el del exportador al 9121.
+
+    La NetworkPolicy de Valkey solo admite a F91–F93.
 
 ### INF-U2-05a — Credencial de administración (seguimiento de la quinta revisión de coherencia, 2026-10-31)
 - Dos clientes de administración del realm `vectra`, por F94, con `private_key_jwt` desde ESO (enmienda del 2026-11-02, decisión del usuario tras la ronda 3 de U02-T03):

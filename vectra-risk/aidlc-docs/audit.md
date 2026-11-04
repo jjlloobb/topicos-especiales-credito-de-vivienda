@@ -5632,3 +5632,30 @@ Paso 8 marcado `[x]` en el plan. Se abre el PR para revisión humana; el agente 
 **Context**: Construcción de U2, U02-T10.
 
 ---
+
+## PR 63 aprobado y fusionado
+**Timestamp**: 2026-11-04T20:31:55Z
+**User Input**: "ya aprobé el PR 63, prepara U02-T11"
+**AI Response**: El PR 63 (U02-T10, Paso 8) quedó aprobado y fusionado por una persona (`joseluisjedi`) a las 2026-11-04T20:31:23Z, sobre el head 60901ad. El commit de fusión en `main` es 14a6dfa. El agente no fusionó.
+**Context**: Construcción de U2, U02-T10.
+
+---
+
+## Preparación de U02-T11 (Paso 9) y decisiones R1 a R4
+**Timestamp**: 2026-11-04T22:14:29Z
+**User Input**: "ya aprobé el PR 63, prepara U02-T11"; R1 "Sentinel por env (Recomendado)"; R2 "Values + conftest (Recomendado)"; R3 "Un StatefulSet por zona (Recomendado)"; R4 "ESO arma el aclfile (Recomendado)"
+**AI Response**: Por W1, el Paso 9 se rediseñaba al prepararlo. El orquestador lo comparó con Envoy Gateway v1.9.3 y con `envoyproxy/ratelimit` `5ae0682e`, la imagen del chart. Encontró lo siguiente:
+- `envoy-ratelimit` corre en el namespace del controlador (`ratelimit_infra.go`: `ControllerNamespace`). Sus puertos son constantes: gRPC 8081, health 8080 y métricas 19001 (`resource.go`). El 8083 de INF-U2-03 no se puede cumplir;
+- `RateLimitRedisSettings` solo tiene `url`, `urlRef` y `tls`, sin Sentinel ni usuario. La imagen sí admite `REDIS_TYPE=SENTINEL`, `REDIS_AUTH` con `usuario:contraseña` y `REDIS_SENTINEL_AUTH` (`settings.go`, `driver_impl.go`). `rateLimitDeployment.container.env` reemplaza o agrega por nombre (`ExpectedContainerEnv`);
+- v1.9.3 tiene `rateLimitHpa` y `rateLimitPDB`;
+- las políticas Kyverno de U1 no cubren `envoy-gateway-system`, y K11 tampoco;
+- `egctl x translate --to ir` devuelve offline las reglas `global` de cada política (comprobado sobre `generated/kind`);
+- un StatefulSet no puede fijar zona por ordinal;
+- el exportador y la conexión de `envoy-ratelimit` a Sentinel no tenían credencial en el diseño.
+
+Digests resueltos con `platform/resolve_digest.py`: ratelimit `b95206e3…9681`, Valkey 8.1.11-alpine `2602ace2…db02a` y redis_exporter v1.95.0-alpine `19bb5c73…df4a118`.
+
+El usuario decidió R1–R4, todas por la opción recomendada. Se enmendaron INF-U2-03, INF-U2-04, NFR-U2-27, component-dependency §0 y §2.8 (F90 y F91), logical-components §3, deployment-architecture y el Paso 9 del plan. Se redactó `tareas/U02-T11-rate-limit-y-valkey.md` con el texto del Paso 9 sin recortes y 5 CAs. La tarea no se despacha hasta que el usuario lo pida.
+**Context**: Construcción de U2, U02-T11.
+
+---
