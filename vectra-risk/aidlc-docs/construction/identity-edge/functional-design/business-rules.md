@@ -66,10 +66,16 @@ compartidos de ningún cliente de servicio.
 límite de tasa, el gateway responde **429** con `Problem` (`code = rate_limited`) y
 `Retry-After`. Al superar el tamaño, responde **413** (`payload_too_large`). Los dos sin
 eco del contenido.
+`Retry-After` tiene un valor fijo por ruta, igual a la ventana de su límite: `1` en los límites por segundo y `60` en los de `/auth/**`, que son por minuto. Ni Envoy ni Envoy Gateway v1.9.3 lo calculan (enmienda del 2026-11-03, decisión V5 del usuario al preparar U02-T09). Las ráfagas de la tabla de rutas no se implementan (domain-entities §4, decisión V2).
 
 **BR-U2-10 — Rutas cerradas.** El gateway solo enruta las rutas de domain-entities §4.
 Cualquier otra ruta devuelve 404 genérico, incluida `/auth/admin/**` (X10). En `/auth/**`
 solo se enrutan los endpoints públicos del realm `vectra`; el realm `master` no se expone.
+Precisión del 2026-11-03 (decisión V10 del usuario al preparar U02-T09):
+- `/` es un prefijo hacia `console-spa`, porque U10 necesita que las rutas de la SPA sin extensión (por ejemplo `/cases/123`) lleguen a nginx, que sirve `index.html`.
+- `/api/` y `/auth/` son prefijos cerrados: solo pasan sus entradas de la tabla, con la lista de `/auth/**` de domain-entities §4. Cualquier otro camino bajo ellos da 404 `Problem`, por `directResponse` de Envoy Gateway.
+- `/federate` da 404 mientras F09 está deshabilitada, y `/grafana/` va entero a Grafana.
+- `%2F` y `%5C` se tratan con `UnescapeAndRedirect` y las barras dobles se fusionan. Son los valores por defecto de Envoy Gateway v1.9.3, y se fijan de forma explícita.
 
 **BR-U2-11 — Validación de JWT en el gateway.** Para las rutas autenticadas, el gateway
 valida firma (JWKS), `exp`, `iss`, el `azp` esperado y los claims de la tabla de rutas. El `azp` esperado puede ser un conjunto por ruta y por entorno: en `/api/intake/**`, `channel` y, fuera de producción, `channel-simulator` (precisado el 2026-10-06, revisión del FD de U8).

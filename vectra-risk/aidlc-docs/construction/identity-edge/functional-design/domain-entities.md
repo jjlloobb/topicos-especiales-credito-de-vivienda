@@ -130,6 +130,19 @@ banco; su login genera una alerta SEV1 (BR-U2-12).
 - Límite global: 200 req/s.
 - `channel` y `channel-simulator` tienen contadores separados (la clave es el `azp`, P-U2-06): el simulador nunca consume la cuota de un canal real, y en producción no existe. Los dos cuentan para el límite global (precisado el 2026-10-06, revisión del FD de U8).
 
+**Enmienda del 2026-11-03 (decisiones V1, V2, V3, V6 y V7 del usuario al preparar U02-T09).** Se comprobó contra Envoy Gateway v1.9.3 y Keycloak 26.8.1:
+- **Endpoints de `/auth/**`** (V1). Solo se enrutan estos caminos bajo `/auth/realms/vectra/`; cualquier otro da 404 (entre ellos `userinfo`, `token/introspect`, `revoke`, `broker`, `clients-registrations`, el realm `master` y `/auth/admin/**`):
+  - exactos: `.well-known/openid-configuration`, `protocol/openid-connect/auth`, `protocol/openid-connect/token`, `protocol/openid-connect/certs`, `protocol/openid-connect/logout`, `protocol/openid-connect/login-status-iframe.html` y `protocol/openid-connect/login-status-iframe.html/init`;
+  - por prefijo: `protocol/openid-connect/3p-cookies/`, `login-actions/` y `account/`;
+  - además `/auth/resources/` por prefijo (recursos estáticos del tema).
+
+  Sin `login-actions/**` ni `/auth/resources/**` el formulario de login no funciona, y sin el iframe y `3p-cookies` no funciona la comprobación silenciosa del perfil `auth`.
+- **Límite de `/auth/**`** (V1): dos contadores por IP de 600 req/min, uno de login (`protocol/openid-connect/auth` y `login-actions/**`) y otro de token (`protocol/openid-connect/token`). El resto de `/auth/**` solo cuenta para el límite global.
+- **Ráfagas** (V2): el rate limit global de Envoy Gateway (`envoyproxy/ratelimit`) cuenta por ventana fija y no admite ráfaga; el local sí, pero por réplica, y NFR-U2-20 exige límites exactos con varias réplicas. Los límites son globales con ventana de 1 s: 20/s por `sub` en consola, 10/s para `channel` y 30/s para `channel-simulator`. Las ráfagas de la tabla no se implementan.
+- **Reescritura** (V3): el gateway quita el prefijo `/api/intake` y `/api/promotion` antes de enviar al servicio, que expone `/v1/...`. `/api/intake/v1/intake/applications` llega como `/v1/intake/applications`. `/api/promotion/v1/models` (solo `GET`, con `state=aprobado`) llega como `/v1/models`, y `/api/promotion/v1/models/{id}/activation` (solo `POST`) como `/v1/models/{id}/activation`. El match es exacto en método y camino; cualquier otro camino bajo esos prefijos da 404. `/`, `/api/console/**`, `/auth/**`, `/grafana/**` y `/federate` pasan sin reescritura.
+- **Cookie `vectra-spa-route`** (V6): cookie de sesión (TTL 0 s), `path=/`.
+- **F09** (V7): la basic auth sale del Secret `federate-basic-auth` en `vectra-edge`, con la clave `.htpasswd` (hash SHA), creado por un `ExternalSecret` desde la clave de bóveda `identity/federate`, propiedad `.htpasswd`. Con `enabled: false` no se genera nada de F09; con `true` se generan la ruta, su SecurityPolicy y el `ExternalSecret`.
+
 ### 4.1 Perfiles de cabeceras (Q9)
 
 | Perfil | Cabeceras |

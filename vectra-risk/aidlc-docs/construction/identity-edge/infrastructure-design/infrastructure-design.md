@@ -44,6 +44,17 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 - El Service del data plane es el **único** `LoadBalancer` del clúster (INF-U1-05), con `externalTrafficPolicy: Local` o PROXY protocol v2 (NFR-U2-23).
 - La comunicación xDS es el flujo nuevo F95: Envoy se conecta al controlador (cuarta revisión de coherencia entre unidades, 2026-10-31).
 
+### INF-U2-10 — Manifiestos de `route-gen` (enmienda del 2026-11-03, decisiones V4, V8 y V9 del usuario al preparar U02-T09)
+- **`Gateway`** (V9): `api-gateway` en `vectra-edge`, con el listener `https` (443). Es el mismo nombre que la identidad de `flows.yaml`. Lo crea el Paso 8; las HTTPRoute de `route-gen` lo referencian en `parentRefs` con `sectionName: https`.
+- Las HTTPRoute y las políticas van en `vectra-edge`. En cada namespace de destino (`vectra-app`, `vectra-identity`, `vectra-observability`) hay un `ReferenceGrant` que admite solo las HTTPRoute de `vectra-edge` hacia los Services de ese namespace que usan, por nombre.
+- **Destinos** (Service y puerto):
+  - `console-spa` 8080 (`vectra-edge`), `console-bff` 8080, `case-service` 8080 y `governance-service` 8080 (`vectra-app`): el nombre y el puerto de `flows.yaml` (F02, F03, F04, F08);
+  - `keycloak` 8443 (`vectra-identity`), con la `BackendTLSPolicy` de U02-T07 (F05);
+  - `kube-prometheus-stack-grafana` 80 y `kube-prometheus-stack-prometheus` 9090 (`vectra-observability`), los Services del chart de U1, que llegan a los puertos 3000 y 9090 de F06 y F09.
+- **Tamaño por ruta** (V4): `BackendTrafficPolicy.requestBuffer.limit` de cada ruta, que responde 413. La `ClientTrafficPolicy` aplica al `Gateway` o al listener, no a una ruta, y queda para `X-Forwarded-For` o PROXY protocol y para las cabeceras de entrada y salida.
+- **JWT**: el `issuer` es `https://<hostname público>/auth/realms/vectra`, con el hostname de INF-U2-01 de cada entorno. La JWKS se pide por la URL interna `https://keycloak.vectra-identity.svc:8443/auth/realms/vectra/protocol/openid-connect/certs` (P-U2-03), con `cacheDuration` de 5 min.
+- **Validación** (V8): `kubeconform` v0.8.0, con checksum, en `platform/tools.env` y `platform/install-tools.sh`. `platform/charts.sh` también descarga los charts OCI de `components.yaml`, entre ellos `gateway-helm` v1.9.3, que trae los CRDs de Envoy Gateway y de Gateway API v1.6.1. Un script de `identity-edge/tools/` los convierte a esquemas JSON en `.tools`, sin versionarlos.
+
 ### INF-U2-03 — Servicio de rate limit
 - `envoyproxy/ratelimit` en `vectra-edge`: HPA de 2 a 4 por CPU, repartido por zona, PDB. Sin HPA ni exención, `require-hpa-bounds` lo rechazaría (quinta revisión de coherencia entre unidades, 2026-10-31).
 - **gRPC en el puerto 8083.** Se cambia el 8081 por defecto, que en Vectra está reservado para health y métricas (convención de U0). Métricas y health en 8081.
