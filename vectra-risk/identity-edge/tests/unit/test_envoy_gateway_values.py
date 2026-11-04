@@ -1,6 +1,5 @@
 """Values del controlador de Envoy Gateway (U02-T10, Paso 8): NFR-U2-03; INF-U2-02, 06; P-U2-01; K14."""
 
-import collections
 import subprocess
 from pathlib import Path
 from typing import Any
