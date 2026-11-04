@@ -26,6 +26,7 @@ TOOLS_BIN = _ROOT / "platform" / ".tools" / "bin"
 CONFTEST = TOOLS_BIN / "conftest"
 KUBECONFORM = TOOLS_BIN / "kubeconform"
 CHART = _ROOT / "platform" / ".charts" / "envoy-gateway" / "gateway-helm"
+ESO_CHART = _ROOT / "platform" / ".charts" / "external-secrets" / "external-secrets"
 ENVS = ("kind", "staging", "prod")
 
 Docs = list[dict[str, Any]]
@@ -62,10 +63,11 @@ def identities(docs: Docs) -> list[tuple[str, str, str]]:
 # --- conftest ------------------------------------------------------------------------------------
 
 
-def conftest(docs: Docs) -> tuple[int, str]:
-    """Las dos pasadas de `make policy-gateway` sobre `docs`. Devuelve (codigo mayor, salida)."""
+def conftest(docs: Docs, env: str = "prod") -> tuple[int, str]:
+    """Las dos pasadas de `make policy-gateway` sobre `docs`, en un directorio `<env>/`. Devuelve (codigo mayor, salida)."""
     with tempfile.TemporaryDirectory() as tmp:
-        target = Path(tmp) / "gateway.yaml"
+        (Path(tmp) / env).mkdir()
+        target = Path(tmp) / env / "gateway.yaml"
         target.write_text(yaml.safe_dump_all(docs, sort_keys=False), encoding="utf-8")
         first = subprocess.run([str(CONFTEST), "test", "--policy", str(POLICY), str(target)], capture_output=True, text=True, check=False)  # noqa: S603 - herramienta fija de platform/.tools
         second = subprocess.run(  # noqa: S603 - herramienta fija de platform/.tools
@@ -85,6 +87,7 @@ def policy_rules() -> set[str]:
 # --- modelo de enrutamiento --------------------------------------------------------------------
 
 _ESCAPED_SLASH = re.compile(r"%2f|%5c", re.IGNORECASE)
+_UNRESERVED_ESCAPE = re.compile(r"%((?:2[dDeE])|(?:3[0-9])|(?:4[1-9a-fA-F])|(?:5[0-9aA])|(?:6[1-9a-fA-F])|(?:7[0-9aA])|(?:5[fF])|(?:7[eE]))")
 _TYPE_RANK = {"Exact": 2, "RegularExpression": 1, "PathPrefix": 0}
 
 
@@ -97,6 +100,8 @@ def normalize(raw: str) -> tuple[str, bool]:
     redirected = _ESCAPED_SLASH.search(raw) is not None
     path = re.sub(r"%2f", "/", raw, flags=re.IGNORECASE)
     path = re.sub(r"%5c", "/", path, flags=re.IGNORECASE).replace("\\", "/")
+    # `NormalizePath` (RFC 3986): se decodifican los caracteres no reservados (`%2e`, `%61`...) antes de resolver los puntos.
+    path = _UNRESERVED_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), path)
     trailing = path.endswith("/") or path.endswith(("/.", "/.."))
     segments: list[str] = []
     for segment in path.split("/"):

@@ -1,8 +1,10 @@
 """Los manifiestos que `route-gen` debe generar, escritos aparte del generador y con los valores del diseno.
 
 `expected(env, f09, simulator_azp)` devuelve `{archivo: [documentos]}` completos. Las pruebas comparan cada
-documento generado entero contra esto (leccion de U02-T07): los valores que fija el diseno se leen de los
-documentos de diseno (`gateway_design`); los que solo fija el generador (nombres, etiquetas, orden) se escriben aqui.
+documento generado entero contra esto (leccion de U02-T07). Todo valor que fija el diseno se lee de los documentos
+de diseno por `gateway_design` (claims, scopes, `azp`, `cacheDuration`, outlier y reintentos, saltos de confianza,
+caminos y reescrituras, destinos, cabeceras, cookie, F09, grants); aqui solo queda lo que fija el generador (nombres de
+reglas y de politicas, etiquetas, orden) y la logica que arma cada documento.
 """
 
 from typing import Any
@@ -20,16 +22,12 @@ from vectra_common.errors import (
     to_problem,
 )
 
-EDGE_NS = "vectra-edge"
-GATEWAY = "api-gateway"
 GATEWAY_GROUP = "gateway.networking.k8s.io"
 EG_GROUP = "gateway.envoyproxy.io"
 EG_API = f"{EG_GROUP}/v1alpha1"
 GW_API = f"{GATEWAY_GROUP}/v1"
 LABELS = {"app.kubernetes.io/managed-by": "route-gen", "app.kubernetes.io/part-of": "identity-edge"}
 TRACE_ID = "%TRACE_ID%"
-INTERNAL_PREFIX = "x-vectra-"
-INTERNAL_HEADERS = ["x-vectra-azp", "x-vectra-sub"]
 QUERY_SUFFIX = r"(\?.*)?$"
 
 FILES = (
@@ -42,13 +40,29 @@ FILES = (
 )
 EXTERNAL_SECRETS_FILE = "externalsecrets.yaml"
 
-SPA = ("console-spa", EDGE_NS, 8080)
-CONSOLE = ("console-bff", "vectra-app", 8080)
-INTAKE = ("case-service", "vectra-app", 8080)
-PROMOTION = ("governance-service", "vectra-app", 8080)
-KEYCLOAK = ("keycloak", "vectra-identity", 8443)
-GRAFANA = ("kube-prometheus-stack-grafana", "vectra-observability", 80)
-PROMETHEUS = ("kube-prometheus-stack-prometheus", "vectra-observability", 9090)
+# Fila de §4 y destino (Service) de cada ruta. Los puertos y namespaces salen de INF-U2-10.
+ROW = {
+    "spa": "/",
+    "console": "/api/console/**",
+    "intake": "/api/intake/**",
+    "promotion": "/api/promotion/**",
+    "auth": "/auth/realms/vectra/**",
+    "grafana": "/grafana/**",
+    "federate": "/federate",
+}
+SERVICE = {
+    "spa": "console-spa",
+    "console": "console-bff",
+    "intake": "case-service",
+    "promotion": "governance-service",
+    "auth": "keycloak",
+    "grafana": "kube-prometheus-stack-grafana",
+    "federate": "kube-prometheus-stack-prometheus",
+}
+# La clave de P-U2-02 de cada ruta con reintentos, y su regla de solo lectura.
+RETRY_KEY = {"console": "/api/console/**", "promotion": "/api/promotion/**", "auth": "/auth/**", "grafana": "/grafana/**"}
+TIMEOUT_KEY = {"console": "/api/console/**", "intake": "/api/intake/**", "promotion": "/api/promotion/**", "auth": "/auth/**", "grafana": "/grafana/**"}
+READ_RULE = {"console": "console-read", "promotion": "promotion-models", "auth": "auth-read", "grafana": "grafana-read"}
 
 PROBLEM_ERRORS: dict[int, VectraError] = {
     401: Unauthenticated(),
@@ -60,16 +74,26 @@ PROBLEM_ERRORS: dict[int, VectraError] = {
 }
 
 
+def edge_namespace() -> str:
+    return gd.gateway_ref()[1]
+
+
+def dest(route: str) -> tuple[str, str, int]:
+    namespace, port = gd.destinations()[SERVICE[route]]
+    return (SERVICE[route], namespace, port)
+
+
 def problem_json(status: int) -> str:
+    assert status in gd.error_statuses()
     return problem_body(to_problem(PROBLEM_ERRORS[status], TRACE_ID)).decode("utf-8")
 
 
-def meta(name: str, namespace: str = EDGE_NS) -> dict[str, Any]:
-    return {"name": name, "namespace": namespace, "labels": dict(LABELS)}
+def meta(name: str, namespace: str | None = None) -> dict[str, Any]:
+    return {"name": name, "namespace": namespace or edge_namespace(), "labels": dict(LABELS)}
 
 
 def gateway_ref() -> dict[str, Any]:
-    return {"group": GATEWAY_GROUP, "kind": "Gateway", "name": GATEWAY}
+    return {"group": GATEWAY_GROUP, "kind": "Gateway", "name": gd.gateway_ref()[0]}
 
 
 def route_ref(route: str, rule: str | None = None) -> dict[str, Any]:
@@ -79,8 +103,8 @@ def route_ref(route: str, rule: str | None = None) -> dict[str, Any]:
     return ref
 
 
-def backend_ref(dest: tuple[str, str, int]) -> dict[str, Any]:
-    name, namespace, port = dest
+def backend_ref(d: tuple[str, str, int]) -> dict[str, Any]:
+    name, namespace, port = d
     return {"group": "", "kind": "Service", "name": name, "namespace": namespace, "port": port}
 
 
@@ -107,27 +131,28 @@ def response_headers(profile: str) -> dict[str, Any]:
 
 
 def request_headers() -> dict[str, Any]:
-    return {"type": "RequestHeaderModifier", "requestHeaderModifier": {"remove": list(INTERNAL_HEADERS)}}
+    return {"type": "RequestHeaderModifier", "requestHeaderModifier": {"remove": gd.internal_headers()}}
 
 
 def extension_filter(name: str) -> dict[str, Any]:
     return {"type": "ExtensionRef", "extensionRef": {"group": EG_GROUP, "kind": "HTTPRouteFilter", "name": name}}
 
 
-def rule(name: str, matches: list[dict[str, Any]], filters: list[dict[str, Any]], dest: tuple[str, str, int] | None) -> dict[str, Any]:
+def rule(name: str, matches: list[dict[str, Any]], filters: list[dict[str, Any]], d: tuple[str, str, int] | None) -> dict[str, Any]:
     out: dict[str, Any] = {"name": name, "matches": sorted_matches(matches), "filters": filters}
-    if dest:
-        out["backendRefs"] = [backend_ref(dest)]
+    if d:
+        out["backendRefs"] = [backend_ref(d)]
     return out
 
 
 def httproute(name: str, hostname: str, rules: list[dict[str, Any]]) -> dict[str, Any]:
+    gateway, namespace, section = gd.gateway_ref()
     return {
         "apiVersion": GW_API,
         "kind": "HTTPRoute",
         "metadata": meta(name),
         "spec": {
-            "parentRefs": [{"group": GATEWAY_GROUP, "kind": "Gateway", "name": GATEWAY, "namespace": EDGE_NS, "sectionName": "https"}],
+            "parentRefs": [{"group": GATEWAY_GROUP, "kind": "Gateway", "name": gateway, "namespace": namespace, "sectionName": section}],
             "hostnames": [hostname],
             "rules": sorted(rules, key=lambda r: r["name"]),
         },
@@ -136,6 +161,12 @@ def httproute(name: str, hostname: str, rules: list[dict[str, Any]]) -> dict[str
 
 def with_methods(path_type: str, value: str, methods: list[str]) -> list[dict[str, Any]]:
     return [match(path_type, value, m) for m in methods]
+
+
+def row_prefix(route: str) -> str:
+    key = ROW[route]
+    assert key.endswith("/**")
+    return key[: -len("/**")]
 
 
 def auth_matches(methods: list[str] | None) -> list[dict[str, Any]]:
@@ -147,34 +178,46 @@ def auth_matches(methods: list[str] | None) -> list[dict[str, Any]]:
     return found
 
 
+def read_methods() -> list[str]:
+    return ["GET", "HEAD"]
+
+
+def rewrite_filter(target: str) -> dict[str, Any]:
+    return {"type": "URLRewrite", "urlRewrite": {"path": {"type": "ReplaceFullPath", "replaceFullPath": target}}}
+
+
+def activation_pattern(source: str) -> str:
+    return source.replace("{id}", "[^/]+")
+
+
 def httproutes(hostname: str, f09: bool) -> list[dict[str, Any]]:
-    read = ["GET", "HEAD"]
-    intake_path = "/api/intake/v1/intake/applications"
+    intake, models, activation = gd.rewrites()
+    state, approved = gd.promotion_query()
+    get_method, post_method = gd.promotion_methods()
+    closed_profile = {"api": "api", "auth": "auth", "federate": "api"}  # perfil de la fila de cada prefijo cerrado
+    closed_rules = [
+        rule(
+            f"closed-{prefix.lstrip('/')}",
+            [match("PathPrefix", prefix)],
+            [extension_filter("problem-not-found"), response_headers(closed_profile[prefix.lstrip("/")])],
+            None,
+        )
+        for prefix in gd.closed_prefixes()
+    ]
     routes = [
-        httproute("spa", hostname, [rule("spa", [match("PathPrefix", "/")], [response_headers("spa")], SPA)]),
+        httproute("spa", hostname, [rule("spa", [match("PathPrefix", "/")], [response_headers("spa")], dest("spa"))]),
         httproute(
             "console",
             hostname,
             [
-                rule("console-read", with_methods("PathPrefix", "/api/console", read), [request_headers(), response_headers("api")], CONSOLE),
-                rule("console-write", [match("PathPrefix", "/api/console")], [request_headers(), response_headers("api")], CONSOLE),
+                rule("console-read", with_methods("PathPrefix", row_prefix("console"), read_methods()), [request_headers(), response_headers("api")], dest("console")),
+                rule("console-write", [match("PathPrefix", row_prefix("console"))], [request_headers(), response_headers("api")], dest("console")),
             ],
         ),
         httproute(
             "intake",
             hostname,
-            [
-                rule(
-                    "intake-submit",
-                    [match("Exact", intake_path, "POST")],
-                    [
-                        {"type": "URLRewrite", "urlRewrite": {"path": {"type": "ReplaceFullPath", "replaceFullPath": "/v1/intake/applications"}}},
-                        request_headers(),
-                        response_headers("api"),
-                    ],
-                    INTAKE,
-                )
-            ],
+            [rule("intake-submit", [match("Exact", intake.source, gd.intake_method())], [rewrite_filter(intake.target), request_headers(), response_headers("api")], dest("intake"))],
         ),
         httproute(
             "promotion",
@@ -182,19 +225,15 @@ def httproutes(hostname: str, f09: bool) -> list[dict[str, Any]]:
             [
                 rule(
                     "promotion-models",
-                    [match("Exact", "/api/promotion/v1/models", "GET", [{"type": "Exact", "name": "state", "value": "aprobado"}])],
-                    [
-                        {"type": "URLRewrite", "urlRewrite": {"path": {"type": "ReplaceFullPath", "replaceFullPath": "/v1/models"}}},
-                        request_headers(),
-                        response_headers("api"),
-                    ],
-                    PROMOTION,
+                    [match("Exact", models.source, get_method, [{"type": "Exact", "name": state, "value": approved}])],
+                    [rewrite_filter(models.target), request_headers(), response_headers("api")],
+                    dest("promotion"),
                 ),
                 rule(
                     "promotion-activation",
-                    [match("RegularExpression", "/api/promotion/v1/models/[^/]+/activation", "POST")],
+                    [match("RegularExpression", activation_pattern(activation.source), post_method)],
                     [extension_filter("rewrite-promotion-activation"), request_headers(), response_headers("api")],
-                    PROMOTION,
+                    dest("promotion"),
                 ),
             ],
         ),
@@ -202,40 +241,28 @@ def httproutes(hostname: str, f09: bool) -> list[dict[str, Any]]:
             "auth",
             hostname,
             [
-                rule("auth-read", auth_matches(read), [response_headers("auth")], KEYCLOAK),
-                rule("auth-write", auth_matches(None), [response_headers("auth")], KEYCLOAK),
+                rule("auth-read", auth_matches(read_methods()), [response_headers("auth")], dest("auth")),
+                rule("auth-write", auth_matches(None), [response_headers("auth")], dest("auth")),
             ],
         ),
         httproute(
             "grafana",
             hostname,
             [
-                rule("grafana-read", with_methods("PathPrefix", "/grafana", read), [response_headers("grafana")], GRAFANA),
-                rule("grafana-write", [match("PathPrefix", "/grafana")], [response_headers("grafana")], GRAFANA),
+                rule("grafana-read", with_methods("PathPrefix", row_prefix("grafana"), read_methods()), [response_headers("grafana")], dest("grafana")),
+                rule("grafana-write", [match("PathPrefix", row_prefix("grafana"))], [response_headers("grafana")], dest("grafana")),
             ],
         ),
-        httproute(
-            "closed",
-            hostname,
-            [
-                rule("closed-api", [match("PathPrefix", "/api")], [extension_filter("problem-not-found"), response_headers("api")], None),
-                rule("closed-auth", [match("PathPrefix", "/auth")], [extension_filter("problem-not-found"), response_headers("auth")], None),
-                rule("closed-federate", [match("PathPrefix", "/federate")], [extension_filter("problem-not-found"), response_headers("api")], None),
-            ],
-        ),
+        httproute("closed", hostname, closed_rules),
     ]
     if f09:
-        routes.append(
-            httproute(
-                "federate",
-                hostname,
-                [rule("federate", [match("Exact", "/federate", "GET")], [response_headers("api")], PROMETHEUS)],
-            )
-        )
+        routes.append(httproute("federate", hostname, [rule("federate", [match("Exact", "/federate", "GET")], [response_headers("api")], dest("federate"))]))
     return sorted(routes, key=lambda r: r["metadata"]["name"])
 
 
 def httproutefilters() -> list[dict[str, Any]]:
+    activation = gd.rewrites()[2]
+    base = activation.source.split("/v1/")[0]  # `/api/promotion`
     return [
         {
             "apiVersion": EG_API,
@@ -257,7 +284,7 @@ def httproutefilters() -> list[dict[str, Any]]:
                 "urlRewrite": {
                     "path": {
                         "type": "ReplaceRegexMatch",
-                        "replaceRegexMatch": {"pattern": "^/api/promotion(/v1/models/[^/]+/activation)$", "substitution": "\\1"},
+                        "replaceRegexMatch": {"pattern": f"^{base}({activation_pattern(activation.source)[len(base):]})$", "substitution": "\\1"},
                     }
                 }
             },
@@ -268,10 +295,11 @@ def httproutefilters() -> list[dict[str, Any]]:
 # --- SecurityPolicy ---------------------------------------------------------------------------
 
 
-def jwt_policy(name: str, hostname: str, claims: list[dict[str, Any]], scopes: list[str] | None) -> dict[str, Any]:
-    principal: dict[str, Any] = {"provider": "keycloak", "claims": claims}
+def jwt_policy(name: str, hostname: str, claims: list[dict[str, Any]], scopes: list[str]) -> dict[str, Any]:
+    principal: dict[str, Any] = {"provider": "keycloak", "claims": sorted(claims, key=lambda c: c["name"])}
     if scopes:
-        principal["scopes"] = scopes
+        principal["scopes"] = sorted(scopes)
+    sub, azp = (f"{gd.internal_prefix()}{k}" for k in ("sub", "azp"))
     return {
         "apiVersion": EG_API,
         "kind": "SecurityPolicy",
@@ -282,13 +310,13 @@ def jwt_policy(name: str, hostname: str, claims: list[dict[str, Any]], scopes: l
                 "providers": [
                     {
                         "name": "keycloak",
-                        "issuer": f"https://{hostname}/auth/realms/vectra",
+                        "issuer": f"https://{hostname}{gd.jwt_issuer_path()}",
                         "remoteJWKS": {
                             "uri": gd.jwks_uri(),
-                            "backendRefs": [backend_ref(KEYCLOAK)],
-                            "cacheDuration": "300s",
+                            "backendRefs": [backend_ref(dest("auth"))],
+                            "cacheDuration": gd.jwks_cache_duration(),
                         },
-                        "claimToHeaders": [{"claim": "azp", "header": "x-vectra-azp"}, {"claim": "sub", "header": "x-vectra-sub"}],
+                        "claimToHeaders": [{"claim": "azp", "header": azp}, {"claim": "sub", "header": sub}],
                     }
                 ]
             },
@@ -301,27 +329,26 @@ def jwt_policy(name: str, hostname: str, claims: list[dict[str, Any]], scopes: l
 
 
 def claim(name: str, values: list[str], array: bool = False) -> dict[str, Any]:
-    return {"name": name, "valueType": "StringArray" if array else "String", "values": values}
+    return {"name": name, "valueType": "StringArray" if array else "String", "values": sorted(values)}
 
 
 def securitypolicies(hostname: str, f09: bool, simulator_azp: str | None) -> list[dict[str, Any]]:
-    intake_azp = sorted(["channel"] + ([simulator_azp] if simulator_azp else []))
+    console, intake, promotion = (gd.auth_row(ROW[r]) for r in ("console", "intake", "promotion"))
+    assert [gd.authentication_kind(ROW[r]) for r in ("console", "intake", "promotion")] == ["jwt"] * 3
+    intake_azp = [a for a in intake.azp if a not in intake.non_prod_azp] + ([simulator_azp] if simulator_azp else [])
+    assert console.roles and promotion.roles and promotion.acr
     policies = [
-        jwt_policy(
-            "console",
-            hostname,
-            [claim("azp", ["vectra-console"]), claim("roles", sorted(gd.business_roles()), array=True)],
-            None,
-        ),
-        jwt_policy("intake", hostname, [claim("azp", intake_azp)], ["intake:submit"]),
+        jwt_policy("console", hostname, [claim("azp", console.azp), claim("roles", console.roles, array=True)], console.scopes),
+        jwt_policy("intake", hostname, [claim("azp", intake_azp)], intake.scopes),
         jwt_policy(
             "promotion",
             hostname,
-            [claim("acr", ["mfa"]), claim("azp", ["promotion-tool"]), claim("roles", ["ingeniero_riesgo"], array=True)],
-            ["governance:promotion"],
+            [claim("acr", [promotion.acr]), claim("azp", promotion.azp), claim("roles", promotion.roles, array=True)],
+            promotion.scopes,
         ),
     ]
     if f09:
+        assert gd.authentication_kind(ROW["federate"]) == "basic"
         policies.append(
             {
                 "apiVersion": EG_API,
@@ -329,7 +356,7 @@ def securitypolicies(hostname: str, f09: bool, simulator_azp: str | None) -> lis
                 "metadata": meta("federate"),
                 "spec": {
                     "targetRefs": [route_ref("federate")],
-                    "basicAuth": {"users": {"group": "", "kind": "Secret", "name": "federate-basic-auth"}},
+                    "basicAuth": {"users": {"group": "", "kind": "Secret", "name": gd.federate().secret}},
                 },
             }
         )
@@ -349,118 +376,102 @@ def override(status: int, retry_after: str | None) -> dict[str, Any]:
     return {"match": {"statusCodes": [{"type": "Value", "value": status}]}, "source": "Local", "response": response}
 
 
-def overrides(codes: list[int], retry_after: str) -> list[dict[str, Any]]:
-    return [override(c, retry_after) for c in sorted(codes)]
-
-
-def passive(console: bool = False) -> dict[str, Any]:
-    out: dict[str, Any] = {"baseEjectionTime": "30s", "maxEjectionPercent": 50}
-    if console:
-        out |= {"consecutive5XxErrors": 0, "consecutiveLocalOriginFailures": 5, "splitExternalLocalOriginErrors": True}
+def passive(console: bool) -> dict[str, Any]:
+    o = gd.outlier()
+    out: dict[str, Any] = {"baseEjectionTime": o.base_ejection_time, "maxEjectionPercent": o.max_ejection_percent}
+    if console:  # en la consola cuentan solo los errores de conexion
+        out |= {"consecutive5XxErrors": 0, "consecutiveLocalOriginFailures": o.local_origin_failures, "splitExternalLocalOriginErrors": True}
     else:
-        out["consecutive5XxErrors"] = 5
+        out["consecutive5XxErrors"] = o.consecutive_5xx
     return out
 
 
-def btp(
-    route: str,
-    rule_name: str | None,
-    *,
-    timeout: str | None = None,
-    retry: bool = False,
-    console: bool = False,
-    limit: str | None = None,
-    codes: list[int],
-    retry_after: str,
-    outlier: bool = True,
-    cookie: bool = False,
-) -> dict[str, Any]:
+def error_codes(route: str) -> list[int]:
+    """Los estados `Problem` de una ruta: 429 siempre, 503 con backend, 401/403 si autentica, 413 si tiene tope de tamano."""
+    kind = gd.authentication_kind(ROW[route])
+    codes = {429, 503}
+    if kind in ("jwt", "basic"):
+        codes.add(401)
+    if kind == "jwt":
+        codes.add(403)
+    if gd.body_limit(ROW[route]):
+        codes.add(413)
+    return sorted(codes)
+
+
+def btp(route: str, rule_name: str, *, timeout: str | None, retry: bool, console: bool, limit: str | None, cookie: bool, retry_after: str) -> dict[str, Any]:
     spec: dict[str, Any] = {"mergeType": "StrategicMerge", "targetRefs": [route_ref(route, rule_name)]}
     if retry:
-        spec["retry"] = {"numRetries": 1, "retryOn": {"triggers": ["connect-failure"]}}
-        spec["circuitBreaker"] = {"retryBudget": {"percent": {"numerator": 20, "denominator": 100}}}
-    if outlier:
-        spec["healthCheck"] = {"passive": passive(console)}
+        r = gd.retry()
+        spec["retry"] = {"numRetries": r.num_retries, "retryOn": {"triggers": [r.trigger]}}
+        spec["circuitBreaker"] = {"retryBudget": {"percent": {"numerator": r.budget_percent, "denominator": 100}}}
+    spec["healthCheck"] = {"passive": passive(console)}
     if cookie:
+        c = gd.cookie()
         spec["loadBalancer"] = {
             "type": "ConsistentHash",
-            "consistentHash": {
-                "type": "Cookie",
-                "cookie": {
-                    "name": "vectra-spa-route",
-                    "ttl": "0s",
-                    "attributes": {"HttpOnly": "", "Path": "/", "SameSite": "Strict", "Secure": ""},
-                },
-            },
+            "consistentHash": {"type": "Cookie", "cookie": {"name": c.name, "ttl": c.ttl, "attributes": dict(sorted(c.attributes.items()))}},
         }
     if limit:
         spec["requestBuffer"] = {"limit": limit}
-    spec["responseOverride"] = overrides(codes, retry_after)
+    spec["responseOverride"] = [override(c, retry_after) for c in error_codes(route)]
     if timeout:
         spec["timeout"] = {"http": {"requestTimeout": timeout}}
-    return {
-        "apiVersion": EG_API,
-        "kind": "BackendTrafficPolicy",
-        "metadata": meta(rule_name or route),
-        "spec": spec,
-    }
+    return {"apiVersion": EG_API, "kind": "BackendTrafficPolicy", "metadata": meta(rule_name), "spec": spec}
+
+
+def counter_regex(paths: list[str]) -> str:
+    """Los caminos de un contador de `/auth/**` (relativos al realm) como un patron que admite consulta."""
+    parts = [p[: -len("/**")] + "(/[^?]*)?" if p.endswith("/**") else p for p in paths]
+    body = parts[0] if len(parts) == 1 else "(" + "|".join(parts) + ")"
+    return "^" + gd.AUTH_BASE + body + QUERY_SUFFIX
 
 
 def rate_limit_rules(simulator_azp: str | None, f09: bool) -> list[dict[str, Any]]:
-    n = gd.rate_limit_numbers()
-    distinct_sub = {"name": "x-vectra-sub", "type": "Distinct"}
-    per_ip = {"type": "Distinct", "value": "0.0.0.0/0"}
+    n, u = gd.rate_limit_numbers(), gd.rate_limit_units()
+    sub = f"{gd.internal_prefix()}sub"
+    azp = f"{gd.internal_prefix()}azp"
+    distinct_sub = {"name": sub, "type": "Distinct"}
+    intake_path = {"type": "RegularExpression", "value": "^" + gd.rewrites()[0].source + QUERY_SUFFIX}
+    counters = gd.auth_counters()
 
-    def rl(requests: int, unit: str, selector: dict[str, Any] | None) -> dict[str, Any]:
-        out: dict[str, Any] = {"limit": {"requests": requests, "unit": unit}, "shared": True}
+    def rl(key: str, selector: dict[str, Any] | None) -> dict[str, Any]:
+        out: dict[str, Any] = {"limit": {"requests": n[key], "unit": u[key]}, "shared": True}
         if selector:
             out["clientSelectors"] = [selector]
         return out
 
-    intake_path = {"type": "RegularExpression", "value": "^/api/intake/v1/intake/applications" + QUERY_SUFFIX}
-    rules = {
-        "auth-login": rl(
-            n["auth"],
-            "Minute",
-            {
-                "path": {
-                    "type": "RegularExpression",
-                    "value": "^/auth/realms/vectra/(protocol/openid-connect/auth|login-actions(/[^?]*)?)" + QUERY_SUFFIX,
-                },
-                "sourceCIDR": per_ip,
-            },
-        ),
-        "auth-token": rl(
-            n["auth"],
-            "Minute",
-            {
-                "path": {"type": "RegularExpression", "value": "^/auth/realms/vectra/protocol/openid-connect/token" + QUERY_SUFFIX},
-                "sourceCIDR": per_ip,
-            },
-        ),
-        "console": rl(n["console"], "Second", {"headers": [distinct_sub], "path": {"type": "PathPrefix", "value": "/api/console"}}),
-        "global": rl(n["global"], "Second", None),
-        "intake-channel": rl(
-            n["intake-channel"], "Second", {"headers": [{"name": "x-vectra-azp", "type": "Exact", "value": "channel"}], "path": intake_path}
-        ),
-        "promotion": rl(n["promotion"], "Second", {"headers": [distinct_sub], "path": {"type": "PathPrefix", "value": "/api/promotion"}}),
+    rules: dict[str, dict[str, Any]] = {
+        "console": rl("console", {"headers": [distinct_sub], "path": {"type": "PathPrefix", "value": row_prefix("console")}}),
+        "global": rl("global", None),
+        "intake-channel": rl("intake-channel", {"headers": [{"name": azp, "type": "Exact", "value": "channel"}], "path": intake_path}),
+        "promotion": rl("promotion", {"headers": [distinct_sub], "path": {"type": "PathPrefix", "value": row_prefix("promotion")}}),
     }
+    for name, key in (("auth-login", "login"), ("auth-token", "token")):
+        for cidr in ("0.0.0.0/0", "::/0"):  # un contador por IP de origen, IPv4 e IPv6
+            rules[f"{name}@{cidr}"] = rl("auth", {"path": {"type": "RegularExpression", "value": counter_regex(counters[key])}, "sourceCIDR": {"type": "Distinct", "value": cidr}})
     if simulator_azp:
-        rules["intake-channel-simulator"] = rl(
-            n["intake-channel-simulator"],
-            "Second",
-            {"headers": [{"name": "x-vectra-azp", "type": "Exact", "value": simulator_azp}], "path": intake_path},
-        )
+        rules["intake-channel-simulator"] = rl("intake-channel-simulator", {"headers": [{"name": azp, "type": "Exact", "value": simulator_azp}], "path": intake_path})
     if f09:
-        rules["federate"] = rl(n["federate"], "Second", {"path": {"type": "RegularExpression", "value": "^/federate" + QUERY_SUFFIX}})
+        rules["federate"] = rl("federate", {"path": {"type": "RegularExpression", "value": "^/federate" + QUERY_SUFFIX}})
     return [rules[k] for k in sorted(rules)]
 
 
 def backendtrafficpolicies(simulator_azp: str | None, f09: bool) -> list[dict[str, Any]]:
-    one, minute = gd.retry_after()["second"], gd.retry_after()["auth"]
-    t = gd.timeouts()
-    sizes = {k: gd.body_limit(k) for k in gd.route_rows()}
-    common = [401, 403, 413, 429, 503]
+    ra = gd.retry_after()
+    timeouts = gd.timeouts()
+    retried = set(gd.retry().routes)
+    assert retried == set(RETRY_KEY.values())
+    rules = {
+        "spa": ["spa"],
+        "console": ["console-read", "console-write"],
+        "intake": ["intake-submit"],
+        "promotion": ["promotion-models", "promotion-activation"],
+        "auth": ["auth-read", "auth-write"],
+        "grafana": ["grafana-read", "grafana-write"],
+    }
+    if f09:
+        rules["federate"] = ["federate"]
     policies = [
         {
             "apiVersion": EG_API,
@@ -471,24 +482,37 @@ def backendtrafficpolicies(simulator_azp: str | None, f09: bool) -> list[dict[st
                 "rateLimit": {"type": "Global", "global": {"rules": rate_limit_rules(simulator_azp, f09)}},
             },
         },
-        btp("spa", "spa", cookie=True, codes=[429, 503], retry_after=one),
-        btp("console", "console-read", timeout=t["/api/console/**"], retry=True, console=True, limit=sizes["/api/console/**"], codes=common, retry_after=one),
-        btp("console", "console-write", timeout=t["/api/console/**"], console=True, limit=sizes["/api/console/**"], codes=common, retry_after=one),
-        btp("intake", "intake-submit", timeout=t["/api/intake/**"], limit=sizes["/api/intake/**"], codes=common, retry_after=one),
-        btp("promotion", "promotion-models", timeout=t["/api/promotion/**"], retry=True, limit=sizes["/api/promotion/**"], codes=common, retry_after=one),
-        btp("promotion", "promotion-activation", timeout=t["/api/promotion/**"], limit=sizes["/api/promotion/**"], codes=common, retry_after=one),
-        btp("auth", "auth-read", timeout=t["/auth/**"], retry=True, codes=[429, 503], retry_after=minute),
-        btp("auth", "auth-write", timeout=t["/auth/**"], codes=[429, 503], retry_after=minute),
-        btp("grafana", "grafana-read", timeout=t["/grafana/**"], retry=True, limit=sizes["/grafana/**"], codes=[413, 429, 503], retry_after=one),
-        btp("grafana", "grafana-write", timeout=t["/grafana/**"], limit=sizes["/grafana/**"], codes=[413, 429, 503], retry_after=one),
-        btp("closed", None, codes=[429], retry_after=one, outlier=False),
+        {
+            "apiVersion": EG_API,
+            "kind": "BackendTrafficPolicy",
+            "metadata": meta("closed"),
+            "spec": {
+                "mergeType": "StrategicMerge",
+                "targetRefs": [route_ref("closed")],
+                "responseOverride": [override(c, ra["second"]) for c in (404, 429)],
+            },
+        },
     ]
-    if f09:
-        policies.append(btp("federate", "federate", codes=[401, 429, 503], retry_after=one))
+    for route, names in rules.items():
+        for name in names:
+            policies.append(
+                btp(
+                    route,
+                    name,
+                    timeout=timeouts.get(TIMEOUT_KEY.get(route, "")),
+                    retry=name == READ_RULE.get(route),
+                    console=route == "console",
+                    limit=gd.body_limit(ROW[route]),
+                    cookie=route == "spa",
+                    retry_after=ra["auth"] if route == "auth" else ra["second"],
+                )
+            )
     return sorted(policies, key=lambda p: p["metadata"]["name"])
 
 
 def clienttrafficpolicies() -> list[dict[str, Any]]:
+    prefix = gd.internal_prefix()
+    remove, remove_prefixes = gd.response_removals()
     return [
         {
             "apiVersion": EG_API,
@@ -496,48 +520,56 @@ def clienttrafficpolicies() -> list[dict[str, Any]]:
             "metadata": meta("edge-client"),
             "spec": {
                 "targetRefs": [gateway_ref()],
-                "clientIPDetection": {"xForwardedFor": {"numTrustedHops": 1}},
+                "clientIPDetection": {"xForwardedFor": {"numTrustedHops": gd.trusted_hops()}},
                 "headers": {
-                    "earlyRequestHeaders": {"removeOnMatch": [{"type": "Prefix", "value": INTERNAL_PREFIX}]},
+                    "earlyRequestHeaders": {"removeOnMatch": [{"type": "Prefix", "value": prefix}]},
                     "lateResponseHeaders": {
-                        "remove": ["server"],
-                        "removeOnMatch": [{"type": "Prefix", "value": "x-envoy-"}, {"type": "Prefix", "value": INTERNAL_PREFIX}],
+                        "remove": remove,
+                        "removeOnMatch": [{"type": "Prefix", "value": v} for v in sorted([*remove_prefixes, prefix])],
                     },
                 },
-                "path": {"escapedSlashesAction": "UnescapeAndRedirect", "disableMergeSlashes": False},
+                "path": {"escapedSlashesAction": gd.escaped_slashes_action(), "disableMergeSlashes": not gd.merge_slashes()},
             },
         }
     ]
 
 
 def referencegrants(f09: bool) -> list[dict[str, Any]]:
-    targets = {"vectra-app": [CONSOLE[0], INTAKE[0], PROMOTION[0]], "vectra-identity": [KEYCLOAK[0]], "vectra-observability": [GRAFANA[0]]}
-    if f09:
-        targets["vectra-observability"].append(PROMETHEUS[0])
-    return [
-        {
-            "apiVersion": GW_API,
-            "kind": "ReferenceGrant",
-            "metadata": meta("edge-routes", namespace),
-            "spec": {
-                "from": [{"group": GATEWAY_GROUP, "kind": "HTTPRoute", "namespace": EDGE_NS}],
-                "to": [{"group": "", "kind": "Service", "name": n} for n in sorted(names)],
-            },
-        }
-        for namespace, names in sorted(targets.items())
-    ]
+    edge = edge_namespace()
+    used: dict[str, set[str]] = {}
+    for route in [r for r in SERVICE if r != "spa" and (f09 or r != "federate")]:
+        namespace, _ = gd.destinations()[SERVICE[route]]
+        used.setdefault(namespace, set()).add(SERVICE[route])
+    assert set(used) <= set(gd.grant_namespaces())
+    grant_ns, grant_group, grant_service = gd.securitypolicy_grant()
+    out = []
+    for namespace in gd.grant_namespaces():
+        sources = [{"group": GATEWAY_GROUP, "kind": "HTTPRoute", "namespace": edge}]
+        if namespace == grant_ns:
+            assert used[namespace] == {grant_service}
+            sources.append({"group": grant_group, "kind": "SecurityPolicy", "namespace": edge})
+        out.append(
+            {
+                "apiVersion": GW_API,
+                "kind": "ReferenceGrant",
+                "metadata": meta("edge-routes", namespace),
+                "spec": {"from": sources, "to": [{"group": "", "kind": "Service", "name": n} for n in sorted(used[namespace])]},
+            }
+        )
+    return out
 
 
 def externalsecrets() -> list[dict[str, Any]]:
+    f = gd.federate()
     return [
         {
             "apiVersion": "external-secrets.io/v1",
             "kind": "ExternalSecret",
-            "metadata": meta("federate-basic-auth"),
+            "metadata": meta(f.secret, f.namespace),
             "spec": {
-                "secretStoreRef": {"name": "vectra-store", "kind": "ClusterSecretStore"},
-                "target": {"name": "federate-basic-auth"},
-                "data": [{"secretKey": ".htpasswd", "remoteRef": {"key": "identity/federate", "property": ".htpasswd"}}],
+                "secretStoreRef": {"name": f.store_name, "kind": f.store_kind},
+                "target": {"name": f.secret},
+                "data": [{"secretKey": f.property, "remoteRef": {"key": f.key, "property": f.property}}],
             },
         }
     ]

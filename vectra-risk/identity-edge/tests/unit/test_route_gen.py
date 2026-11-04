@@ -265,29 +265,36 @@ def _auth_counters(docs: gc.Docs) -> list[dict[str, Any]]:
     return [r for r in rules if any("sourceCIDR" in s for s in r.get("clientSelectors", []))]
 
 
+CIDRS = {"0.0.0.0/0", "::/0"}  # un contador por IP de origen, de IPv4 y de IPv6
+
+
 def counters_violations(docs: gc.Docs) -> list[str]:
-    bad = []
     counters = _auth_counters(docs)
-    if len(counters) != 2:
-        return [f"debia haber 2 contadores y hay {len(counters)}"]
+    if len(counters) != 4:
+        return [f"debia haber 2 contadores por familia de direcciones y hay {len(counters)} reglas"]
+    bad = []
     login = "/auth/realms/vectra/protocol/openid-connect/auth"
     token_url = "/auth/realms/vectra/protocol/openid-connect/token"  # noqa: S105
     same = ["/auth/realms/vectra/login-actions/authenticate", "/auth/realms/vectra/login-actions", login + "?client_id=x"]
+    others = ["/auth/realms/vectra/protocol/openid-connect/certs", "/auth/resources/x.css", "/auth/realms/vectra/account"]
+    number, unit = gd.rate_limit_numbers()["auth"], gd.rate_limit_units()["auth"]
+    by_regex: dict[str, set[str]] = {}
     for counter in counters:
         (selector,) = counter["clientSelectors"]
-        number = gd.rate_limit_numbers()["auth"]
-        if (counter["limit"], counter.get("shared"), selector["sourceCIDR"]) != ({"requests": number, "unit": "Minute"}, True, {"type": "Distinct", "value": "0.0.0.0/0"}):
+        if counter["limit"] != {"requests": number, "unit": unit} or counter.get("shared") is not True:
             bad.append(f"contador distinto: {counter}")
+        if selector["sourceCIDR"]["type"] != "Distinct" or selector["sourceCIDR"]["value"] not in CIDRS:
+            bad.append(f"sourceCIDR distinto: {selector['sourceCIDR']}")
         regex = selector["path"]["value"]
+        by_regex.setdefault(regex, set()).add(selector["sourceCIDR"]["value"])
         matches_login = all(re.fullmatch(regex, p) for p in [login, *same])
         matches_token = bool(re.fullmatch(regex, token_url)) or bool(re.fullmatch(regex, token_url + "?grant_type=x"))
         if matches_login == matches_token:
             bad.append(f"el contador no separa login y token: {regex}")
-    others = ["/auth/realms/vectra/protocol/openid-connect/certs", "/auth/resources/x.css", "/auth/realms/vectra/account"]
-    for counter in counters:
-        regex = counter["clientSelectors"][0]["path"]["value"]
         if any(re.fullmatch(regex, p) for p in others):
             bad.append(f"el contador cuenta otros caminos: {regex}")
+    if len(by_regex) != 2 or any(cidrs != CIDRS for cidrs in by_regex.values()):
+        bad.append(f"cada contador debia estar con las dos familias de direcciones: {by_regex}")
     return bad
 
 
@@ -311,7 +318,7 @@ def of_btp(docs: gc.Docs) -> gc.Docs:
 
 
 @pytest.mark.parametrize("env", ENVS)
-def test_auth_has_two_counters_of_600_per_minute_and_retry_after_60(env, docs_by_env):
+def test_auth_has_two_counters_per_ip_family_of_600_per_minute_and_retry_after_60(env, docs_by_env):
     assert counters_violations(docs_by_env[env]) == []
     assert retry_after_violations(docs_by_env[env]) == []
 
@@ -326,6 +333,13 @@ def _drop_counter(docs: gc.Docs) -> None:
     rules.remove(_auth_counters(docs)[1])
 
 
+def _drop_ipv6(docs: gc.Docs) -> None:
+    rules = gc.find(docs, "BackendTrafficPolicy", "edge-rate-limits")["spec"]["rateLimit"]["global"]["rules"]
+    for counter in _auth_counters(docs):
+        if counter["clientSelectors"][0]["sourceCIDR"]["value"] == "::/0":
+            rules.remove(counter)
+
+
 @pytest.mark.parametrize(
     "alter",
     [
@@ -333,8 +347,9 @@ def _drop_counter(docs: gc.Docs) -> None:
         lambda d: _set_counter(d, 1, "shared", False),
         lambda d: _auth_counters(d)[0]["clientSelectors"][0].update(path={"type": "RegularExpression", "value": "^/auth/.*"}),
         _drop_counter,
+        _drop_ipv6,
     ],
-    ids=["limit-10", "not-shared", "counts-everything", "one-counter"],
+    ids=["limit-10", "not-shared", "counts-everything", "one-counter", "no-ipv6"],
 )
 def test_counters_check_fails_on_altered_counters(alter):
     docs = copy.deepcopy(gc.load_env("prod"))
@@ -636,7 +651,13 @@ def grant_violations(docs: gc.Docs) -> list[str]:
     if set(grants) != set(used):
         bad.append(f"namespaces con grant {sorted(grants)} y usados {sorted(used)}")
     for namespace, grant in grants.items():
-        if grant["spec"]["from"] != [{"group": "gateway.networking.k8s.io", "kind": "HTTPRoute", "namespace": "vectra-edge"}]:
+        grant_ns, grant_group, grant_service = gd.securitypolicy_grant()
+        want_from = [{"group": "gateway.networking.k8s.io", "kind": "HTTPRoute", "namespace": "vectra-edge"}]
+        if namespace == grant_ns:  # D-1: la JWKS de la SecurityPolicy, solo hacia el Service de Keycloak
+            want_from.append({"group": grant_group, "kind": "SecurityPolicy", "namespace": "vectra-edge"})
+            if [t["name"] for t in grant["spec"]["to"]] != [grant_service]:
+                bad.append(f"{namespace}: el grant de la SecurityPolicy debia ser solo hacia {grant_service}")
+        if grant["spec"]["from"] != want_from:
             bad.append(f"{namespace}: from")
         names = [t["name"] for t in grant["spec"]["to"]]
         if any(t != {"group": "", "kind": "Service", "name": t["name"]} for t in grant["spec"]["to"]):
@@ -656,22 +677,54 @@ def test_reference_grants_admit_exactly_the_services_used(env, docs_by_env):
     }
 
 
+def _set_header(rule: dict[str, Any], name: str, value: str) -> None:
+    for entry in rule["filters"][-1]["responseHeaderModifier"]["set"]:
+        if entry["name"] == name:
+            entry["value"] = value
+            return
+    raise AssertionError(name)
+
+
+def _f09(alter: Callable[[gc.Docs], None]) -> Callable[[gc.Docs], None]:
+    """Parte de los manifiestos de produccion con F09 habilitada (generados) y los altera."""
+
+    def mutate(docs: gc.Docs) -> None:
+        docs[:] = generated_docs("prod", f09=True)
+        alter(docs)
+
+    return mutate
+
+
+def _grant(docs: gc.Docs, namespace: str) -> dict[str, Any]:
+    (found,) = [g for g in gc.of_kind(docs, "ReferenceGrant") if g["metadata"]["namespace"] == namespace]
+    return found
+
+
 @pytest.mark.parametrize(
     "alter",
     [
-        lambda d: gc.find(d, "ReferenceGrant", "edge-routes")["spec"]["to"].append({"group": "", "kind": "Service", "name": "other"}),
-        lambda d: gc.find(d, "ReferenceGrant", "edge-routes")["spec"]["to"].pop(),
-        lambda d: gc.find(d, "ReferenceGrant", "edge-routes")["spec"]["from"][0].update(kind="SecurityPolicy"),
-        lambda d: d.remove(gc.find(d, "ReferenceGrant", "edge-routes")),
+        lambda d: _grant(d, "vectra-app")["spec"]["to"].append({"group": "", "kind": "Service", "name": "other"}),
+        lambda d: _grant(d, "vectra-app")["spec"]["to"].pop(),
+        lambda d: _grant(d, "vectra-app")["spec"]["from"][0].update(kind="SecurityPolicy"),
+        lambda d: d.remove(_grant(d, "vectra-app")),
+        lambda d: _grant(d, "vectra-identity")["spec"]["from"].pop(),
+        lambda d: _grant(d, "vectra-identity")["spec"]["to"].append({"group": "", "kind": "Service", "name": "other"}),
+        lambda d: _grant(d, "vectra-app")["spec"]["from"].append({"group": "gateway.envoyproxy.io", "kind": "SecurityPolicy", "namespace": "vectra-edge"}),
+        lambda d: _grant(d, "vectra-observability")["spec"]["to"][0].update(kind="Secret"),
     ],
-    ids=["extra-service", "missing-service", "other-kind", "no-grant"],
+    ids=["extra-service", "missing-service", "other-kind", "no-grant", "no-policy-source", "extra-service-for-policy", "policy-source-in-app", "not-a-service"],
 )
 def test_grant_check_fails_on_altered_grants(alter):
     docs = copy.deepcopy(gc.load_env("prod"))
-    # `find` exige un solo grant: se deja solo el de vectra-app.
-    docs[:] = [d for d in docs if not (d["kind"] == "ReferenceGrant" and d["metadata"]["namespace"] != "vectra-app")]
+    assert grant_violations(docs) == []
     alter(docs)
     assert grant_violations(docs)
+
+
+def test_the_identity_grant_admits_the_security_policy_only_towards_keycloak():
+    grant = _grant(gc.load_env("prod"), "vectra-identity")["spec"]
+    assert [f["kind"] for f in grant["from"]] == ["HTTPRoute", "SecurityPolicy"]
+    assert [t["name"] for t in grant["to"]] == ["keycloak"]
 
 
 # --- CA-5: F09 --------------------------------------------------------------------------------------
@@ -883,6 +936,40 @@ MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("rate-limit-global", "global-100", lambda d: [r for r in gc.find(d, "BackendTrafficPolicy", "edge-rate-limits")["spec"]["rateLimit"]["global"]["rules"] if "clientSelectors" not in r][0].update(limit={"requests": 100, "unit": "Second"})),
     ("federate-coherence", "route-without-policy", lambda d: _federate_route(d)),
     ("security-policy-target", "policy-for-no-route", lambda d: gc.find(d, "SecurityPolicy", "console")["spec"]["targetRefs"][0].update(name="ghost")),
+    # --- ramas de las reglas que antes no tenian caso ---
+    ("jwks-internal", "backend-ref", lambda d: gc.find(d, "SecurityPolicy", "console")["spec"]["jwt"]["providers"][0]["remoteJWKS"]["backendRefs"][0].update(name="other")),
+    ("jwks-internal", "issuer-realm", lambda d: gc.find(d, "SecurityPolicy", "console")["spec"]["jwt"]["providers"][0].update(issuer="https://vectra.banco.internal/auth/realms/other")),
+    ("jwks-internal", "issuer-host", lambda d: gc.find(d, "SecurityPolicy", "console")["spec"]["jwt"]["providers"][0].update(issuer="https://otro.example/auth/realms/vectra")),
+    ("client-policy", "late-prefix", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"]["headers"]["lateResponseHeaders"]["removeOnMatch"].pop()),
+    ("client-policy", "envoy-headers", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"]["headers"].update(enableEnvoyHeaders=True)),
+    ("cookie-affinity", "type", lambda d: gc.find(d, "BackendTrafficPolicy", "spa")["spec"]["loadBalancer"].update(type="Random")),
+    ("cookie-affinity", "hash-type", lambda d: gc.find(d, "BackendTrafficPolicy", "spa")["spec"]["loadBalancer"]["consistentHash"].update(type="Header")),
+    ("outlier", "5xx-threshold", lambda d: gc.find(d, "BackendTrafficPolicy", "intake-submit")["spec"]["healthCheck"]["passive"].update(consecutive5XxErrors=10)),
+    ("console-no-5xx-ejection", "local-origin-threshold", lambda d: gc.find(d, "BackendTrafficPolicy", "console-read")["spec"]["healthCheck"]["passive"].update(consecutiveLocalOriginFailures=1)),
+    ("route-parent", "two-hostnames", lambda d: gc.find(d, "HTTPRoute", "console")["spec"]["hostnames"].append("vectra.localtest.me")),
+    ("route-parent", "unknown-hostname", lambda d: gc.find(d, "HTTPRoute", "console")["spec"].update(hostnames=["otro.example"])),
+    ("profile-headers", "grafana-csp", lambda d: _rule(d, "grafana", "grafana-read")["filters"][0]["responseHeaderModifier"]["set"].append({"name": "Content-Security-Policy", "value": "frame-ancestors 'none'"})),
+    ("profile-headers", "grafana-xfo", lambda d: _set_header(_rule(d, "grafana", "grafana-write"), "X-Frame-Options", "DENY")),
+    ("profile-headers", "auth-csp", lambda d: _rule(d, "auth", "auth-read")["filters"][0]["responseHeaderModifier"].pop("add")),
+    ("profile-headers", "auth-xfo", lambda d: _rule(d, "auth", "auth-write")["filters"][0]["responseHeaderModifier"]["set"].append({"name": "X-Frame-Options", "value": "SAMEORIGIN"})),
+    ("profile-headers", "page-csp-text", lambda d: _set_header(_rule(d, "console", "console-write"), "Content-Security-Policy", "default-src *; frame-ancestors 'none'; require-trusted-types-for 'script'; trusted-types 'none'")),
+    ("profile-headers", "hsts", lambda d: _set_header(_rule(d, "spa", "spa"), "Strict-Transport-Security", "max-age=0")),
+    ("profile-headers", "two-modifiers", lambda d: _rule(d, "spa", "spa")["filters"].append(copy.deepcopy(_rule(d, "spa", "spa")["filters"][0]))),
+    ("reference-grants-exact", "missing-grant", lambda d: d.remove(_grant(d, "vectra-app"))),
+    ("reference-grants-exact", "not-a-service", lambda d: _grant(d, "vectra-observability")["spec"]["to"][0].update(kind="Secret")),
+    ("reference-grants-exact", "no-policy-source", lambda d: _grant(d, "vectra-identity")["spec"]["from"].pop()),
+    ("reference-grants-exact", "policy-source-in-app", lambda d: _grant(d, "vectra-app")["spec"]["from"].append({"group": "gateway.envoyproxy.io", "kind": "SecurityPolicy", "namespace": "vectra-edge"})),
+    ("federate-coherence", "no-external-secret", _f09(lambda d: d.remove(gc.find(d, "ExternalSecret", "federate-basic-auth")))),
+    ("federate-coherence", "no-policy", _f09(lambda d: d.remove(gc.find(d, "SecurityPolicy", "federate")))),
+    ("federate-coherence", "external-secret-without-route", lambda d: d.append(ge.externalsecrets()[0])),
+    ("federate-coherence", "wrong-secret", _f09(lambda d: gc.find(d, "SecurityPolicy", "federate")["spec"]["basicAuth"]["users"].update(name="otro"))),
+    ("federate-coherence", "wrong-vault-key", _f09(lambda d: gc.find(d, "ExternalSecret", "federate-basic-auth")["spec"]["data"][0]["remoteRef"].update(key="identity/otro"))),
+    ("closed-prefixes", "no-404-override", lambda d: gc.find(d, "BackendTrafficPolicy", "closed")["spec"].update(responseOverride=[e for e in gc.find(d, "BackendTrafficPolicy", "closed")["spec"]["responseOverride"] if e["match"]["statusCodes"][0]["value"] != 404])),
+    ("closed-prefixes", "override-from-backend", lambda d: [e.update(source="Backend") for e in gc.find(d, "BackendTrafficPolicy", "closed")["spec"]["responseOverride"]]),
+    ("environment-values", "prod-with-simulator", lambda d: gc.find(d, "SecurityPolicy", "intake")["spec"]["authorization"]["rules"][0]["principal"]["jwt"]["claims"][0]["values"].append("channel-simulator")),
+    ("environment-values", "prod-simulator-limit", lambda d: gc.find(d, "BackendTrafficPolicy", "edge-rate-limits")["spec"]["rateLimit"]["global"]["rules"].append({"limit": {"requests": 30, "unit": "Second"}, "shared": True, "clientSelectors": [{"headers": [{"name": "x-vectra-azp", "type": "Exact", "value": "channel-simulator"}]}]})),
+    ("environment-values", "staging-hostname", lambda d: gc.find(d, "HTTPRoute", "console")["spec"].update(hostnames=["vectra.staging.banco.internal"])),
+    ("environment-values", "staging-issuer", lambda d: gc.find(d, "SecurityPolicy", "console")["spec"]["jwt"]["providers"][0].update(issuer="https://vectra.staging.banco.internal/auth/realms/vectra")),
 ]
 
 
@@ -892,8 +979,14 @@ def test_every_rule_has_a_failing_case():
 
 @pytest.mark.parametrize("env", ENVS)
 def test_conftest_passes_on_the_generated_manifests(env, docs_by_env):
-    code, output = gc.conftest(docs_by_env[env])
+    code, output = gc.conftest(docs_by_env[env], env)
     assert code == 0, output
+
+
+@pytest.mark.parametrize(("docs_env", "dir_env"), [("kind", "prod"), ("prod", "kind"), ("staging", "kind"), ("kind", "staging"), ("prod", "elsewhere")])
+def test_conftest_tells_the_environments_apart(docs_env, dir_env, docs_by_env):
+    code, output = gc.conftest(docs_by_env[docs_env], dir_env)
+    assert code != 0 and "environment-values: " in output, output
 
 
 @pytest.mark.parametrize(("rule", "case", "mutate"), MUTATIONS, ids=[f"{r}-{c}" for r, c, _ in MUTATIONS])
@@ -911,7 +1004,7 @@ def test_rule_fails_on_an_altered_document(rule, case, mutate, docs_by_env):
 @pytest.fixture(scope="module")
 def schemas(tmp_path_factory: pytest.TempPathFactory) -> Path:
     out = tmp_path_factory.mktemp("schemas")
-    crd_schemas.convert(gc.CHART, out)
+    crd_schemas.convert(gc.CHART, out, gc.ESO_CHART)
     return out
 
 
@@ -946,3 +1039,111 @@ def test_kubeconform_fails_on_a_kind_without_schema(schemas, tmp_path):
     (tmp_path / "x.yaml").write_text("apiVersion: gateway.envoyproxy.io/v1alpha1\nkind: Unknown\nmetadata: {name: x}\n", encoding="utf-8")
     code, _ = gc.kubeconform(tmp_path, schemas)
     assert code != 0
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_kubeconform_validates_the_external_secret_when_f09_is_enabled(env, schemas, tmp_path):
+    files = route_gen.generate(route_gen.load_routes(), values_for(env, f09=True))
+    for name, text in files.items():
+        (tmp_path / name).write_text(text, encoding="utf-8")
+    code, output = gc.kubeconform(tmp_path, schemas)
+    assert code == 0, output
+    count = sum(len([d for d in yaml.safe_load_all(t) if d]) for t in files.values())
+    assert f"Valid: {count}, Invalid: 0, Errors: 0, Skipped: 0" in output, output
+    assert ge.EXTERNAL_SECRETS_FILE in files
+
+
+def test_kubeconform_fails_on_an_external_secret_with_an_unknown_field(schemas, tmp_path):
+    docs = generated_docs("prod", f09=True)
+    gc.find(docs, "ExternalSecret", "federate-basic-auth")["spec"]["datta"] = []
+    (tmp_path / "all.yaml").write_text(yaml.safe_dump_all(docs, sort_keys=False), encoding="utf-8")
+    code, output = gc.kubeconform(tmp_path, schemas)
+    assert code != 0 and "Invalid: 0" not in output, output
+
+
+# --- el oraculo lee el diseno (F-02) ----------------------------------------------------------
+
+
+def _alter(attribute: str, old: str, new: str) -> tuple[str, str, str]:
+    return (attribute, old, new)
+
+
+# (documento de diseno, texto, texto alterado). Cada alteracion cambia un valor que fija el diseno; el oraculo lo lee
+# alterado, asi que deja de coincidir con los manifiestos generados. Si un valor estuviera escrito a mano en el
+# oraculo, la alteracion no lo movería y la prueba fallaria.
+DESIGN_ALTERATIONS = [
+    ("INFRASTRUCTURE", "`console-bff` 8080", "`console-bff` 8081"),
+    ("INFRASTRUCTURE", "`keycloak` 8443 (`vectra-identity`)", "`keycloak` 9443 (`vectra-identity`)"),
+    ("INFRASTRUCTURE", "`kube-prometheus-stack-grafana` 80", "`kube-prometheus-stack-grafana` 3000"),
+    ("INFRASTRUCTURE", "`cacheDuration` de 5 min", "`cacheDuration` de 10 min"),
+    ("INFRASTRUCTURE", "`api-gateway` en `vectra-edge`, con el listener `https`", "`api-gateway` en `vectra-edge`, con el listener `web`"),
+    ("INFRASTRUCTURE", "solo hacia el Service `keycloak`", "solo hacia el Service `otro`"),
+    ("INFRASTRUCTURE", "https://<hostname público>/auth/realms/vectra", "https://<hostname público>/auth/realms/otro"),
+    ("INFRASTRUCTURE", "| kind | `vectra.localtest.me` |", "| kind | `vectra.otro.me` |"),
+    ("NFR_PATTERNS", "5 errores 5xx consecutivos sacan un pod del balanceo por 30 s", "5 errores 5xx consecutivos sacan un pod del balanceo por 45 s"),
+    ("NFR_PATTERNS", "hasta el 50 % de los pods", "hasta el 40 % de los pods"),
+    ("NFR_PATTERNS", "5 errores 5xx consecutivos", "7 errores 5xx consecutivos"),
+    ("NFR_PATTERNS", "1 reintento ante `connect-failure`", "2 reintento ante `connect-failure`"),
+    ("NFR_PATTERNS", "presupuesto del 20 %", "presupuesto del 25 %"),
+    ("NFR_PATTERNS", "| `/auth/**` | 10 s |", "| `/auth/**` | 12 s |"),
+    ("NFR_PATTERNS", "prefijo reservado `x-vectra-`", "prefijo reservado `x-mio-`"),
+    ("NFR_PATTERNS", "`x-vectra-azp`", "`x-vectra-azq`"),
+    ("NFR_REQUIREMENTS", "(1 salto)", "(2 salto)"),
+    ("BUSINESS_RULES", "se tratan con `UnescapeAndRedirect`", "se tratan con `RejectRequest`"),
+    ("BUSINESS_RULES", "las barras dobles se fusionan", "las barras dobles se mantienen"),
+    ("BUSINESS_RULES", "Se ocultan las cabeceras `server` y `x-envoy-*`", "Se ocultan las cabeceras `via` y `x-envoy-*`"),
+    ("BUSINESS_RULES", "Se ocultan las cabeceras `server` y `x-envoy-*`", "Se ocultan las cabeceras `server` y `x-mio-*`"),
+    ("BUSINESS_RULES", "`/api/` y `/auth/` son prefijos cerrados", "`/api/` y `/otro/` son prefijos cerrados"),
+    ("DOMAIN_ENTITIES", "JWT válido de `vectra-console`", "JWT válido de `vectra-consola`"),
+    ("DOMAIN_ENTITIES", "JWT con `intake:submit`", "JWT con `intake:send`"),
+    ("DOMAIN_ENTITIES", "`azp` = `channel` (F04)", "`azp` = `canal` (F04)"),
+    ("DOMAIN_ENTITIES", "JWT de `promotion-tool`", "JWT de `promotion-cli`"),
+    ("DOMAIN_ENTITIES", "`governance:promotion`, `acr = mfa`", "`governance:promote`, `acr = mfa`"),
+    ("DOMAIN_ENTITIES", "`governance:promotion`, `acr = mfa`", "`governance:promotion`, `acr = pwd`"),
+    ("DOMAIN_ENTITIES", "rol `ingeniero_riesgo`, `governance", "rol `cro`, `governance"),
+    ("DOMAIN_ENTITIES", "llega como `/v1/intake/applications`", "llega como `/v2/intake/applications`"),
+    ("DOMAIN_ENTITIES", "llega como `/v1/models`, y", "llega como `/v2/models`, y"),
+    ("DOMAIN_ENTITIES", "`/api/promotion/v1/models/{id}/activation` (solo `POST`)", "`/api/promotion/v1/models/{id}/activate` (solo `POST`)"),
+    ("DOMAIN_ENTITIES", "con `state=aprobado`", "con `state=borrador`"),
+    ("DOMAIN_ENTITIES", "(solo `POST /v1/intake/applications`)", "(solo `PUT /v1/intake/applications`)"),
+    ("DOMAIN_ENTITIES", "`SameSite=Strict`;", "`SameSite=Lax`;"),
+    ("DOMAIN_ENTITIES", "cookie de sesión (TTL 0 s)", "cookie de sesión (TTL 60 s)"),
+    ("DOMAIN_ENTITIES", "`path=/`", "`path=/spa`"),
+    ("DOMAIN_ENTITIES", "cookie** `vectra-spa-route`", "cookie** `vectra-otra-ruta`"),
+    ("DOMAIN_ENTITIES", "Secret `federate-basic-auth`", "Secret `federate-otro`"),
+    ("DOMAIN_ENTITIES", "clave de bóveda `identity/federate`", "clave de bóveda `identity/otro`"),
+    ("DOMAIN_ENTITIES", "20 req/s por `sub`", "25 req/s por `sub`"),
+    ("DOMAIN_ENTITIES", "600 req/min por IP en login", "600 req/s por IP en login"),
+    ("DOMAIN_ENTITIES", "Límite global: 200 req/s", "Límite global: 150 req/s"),
+    ("DOMAIN_ENTITIES", "`protocol/openid-connect/token`)", "`protocol/openid-connect/certs`)"),
+    ("DOMAIN_ENTITIES", "`X-Frame-Options: DENY`", "`X-Frame-Options: SAMEORIGIN`"),
+    ("DOMAIN_ENTITIES", "| 64 KiB | Perfil `api` |", "| 48 KiB | Perfil `api` |"),
+]
+
+
+@pytest.mark.parametrize(("attribute", "old", "new"), DESIGN_ALTERATIONS, ids=[f"{i}-{a}" for i, (a, _, _) in enumerate(DESIGN_ALTERATIONS)])
+def test_a_value_changed_in_the_design_but_not_in_the_oracle_is_caught(attribute, old, new, monkeypatch):
+    import gateway_design
+
+    text = getattr(gateway_design, attribute)
+    assert old in text, f"el diseno ya no dice {old!r}: actualiza la alteracion"
+    reference = {env: gc.flat(expected(env, f09=True)) for env in ENVS}
+    monkeypatch.setattr(gateway_design, attribute, text.replace(old, new))
+    changed = []
+    for env in ENVS:
+        try:
+            altered = gc.flat(expected(env, f09=True))
+        except (AssertionError, AttributeError, KeyError, IndexError, StopIteration):
+            changed.append(env)  # el oraculo no puede leer un diseno incoherente: tambien lo atrapa
+            continue
+        if altered != reference[env]:
+            changed.append(env)
+            assert altered != generated_docs(env, f09=True), env
+    assert changed, f"el oraculo no lee {old!r} del diseno"
+
+
+def test_the_design_texts_are_the_ones_the_oracle_reads():
+    import gateway_design
+
+    assert gateway_design.INFRASTRUCTURE is design_values.INFRASTRUCTURE
+    assert gateway_design.DOMAIN_ENTITIES is design_values.DOMAIN_ENTITIES

@@ -37,6 +37,9 @@ spec:
   - group: gateway.networking.k8s.io
     kind: HTTPRoute
     namespace: vectra-edge
+  - group: gateway.envoyproxy.io
+    kind: SecurityPolicy
+    namespace: vectra-edge
   to:
   - group: ''
     kind: Service

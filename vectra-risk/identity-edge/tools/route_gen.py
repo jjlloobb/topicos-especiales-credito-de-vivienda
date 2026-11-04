@@ -46,8 +46,6 @@ PROBLEM_CONTENT_TYPE = "application/problem+json"
 NOT_FOUND_FILTER = "problem-not-found"
 EDGE_RATE_LIMITS = "edge-rate-limits"
 CLIENT_POLICY = "edge-client"
-PER_IP_CIDR = "0.0.0.0/0"  # `Distinct` sobre todo IPv4: un contador por IP de origen
-JWT_SAFE_METHODS = ("GET", "HEAD")
 
 PROBLEM_ERRORS: dict[int, VectraError] = {
     401: Unauthenticated(),
@@ -316,19 +314,6 @@ def override(status: int, retry_after: str) -> dict[str, Any]:
     return {"match": {"statusCodes": [{"type": "Value", "value": status}]}, "source": "Local", "response": response}
 
 
-def error_codes(route: dict[str, Any]) -> list[int]:
-    codes = {429}
-    if route.get("backend"):
-        codes.add(503)
-    if route.get("auth"):
-        codes.add(401)
-    if route.get("auth", {}).get("kind") == "jwt":
-        codes.add(403)
-    if route.get("max_body"):
-        codes.add(413)
-    return sorted(codes)
-
-
 def passive(ctx: Ctx, route: dict[str, Any]) -> dict[str, Any]:
     base = ctx.routes["outlier"]
     out: dict[str, Any] = {"baseEjectionTime": base["base_ejection_time"], "maxEjectionPercent": base["max_ejection_percent"]}
@@ -359,23 +344,23 @@ def rule_traffic_policy(ctx: Ctx, route: dict[str, Any], rule: dict[str, Any]) -
         }
     if route.get("max_body"):
         spec["requestBuffer"] = {"limit": route["max_body"]}
-    spec["responseOverride"] = [override(c, route["retry_after"]) for c in error_codes(route)]
+    spec["responseOverride"] = [override(c, route["retry_after"]) for c in sorted(route["errors"])]
     if route.get("timeout"):
         spec["timeout"] = {"http": {"requestTimeout": route["timeout"]}}
     return {"apiVersion": EG_API, "kind": "BackendTrafficPolicy", "metadata": meta(ctx, rule["name"]), "spec": spec}
 
 
 def closed_traffic_policy(ctx: Ctx) -> dict[str, Any]:
-    retry_after = "1"
+    policy = ctx.routes["closed_policy"]
     spec = {
         "mergeType": "StrategicMerge",
         "targetRefs": [route_ref("closed")],
-        "responseOverride": [override(429, retry_after)],
+        "responseOverride": [override(c, policy["retry_after"]) for c in sorted(policy["errors"])],
     }
     return {"apiVersion": EG_API, "kind": "BackendTrafficPolicy", "metadata": meta(ctx, "closed"), "spec": spec}
 
 
-def rate_limit_rule(ctx: Ctx, item: dict[str, Any]) -> dict[str, Any]:
+def rate_limit_rule(ctx: Ctx, item: dict[str, Any], cidr: str | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {"limit": {"requests": item["requests"], "unit": item["unit"]}, "shared": True}
     selector: dict[str, Any] = {}
     if item.get("header"):
@@ -384,8 +369,8 @@ def rate_limit_rule(ctx: Ctx, item: dict[str, Any]) -> dict[str, Any]:
         selector["headers"] = [{"name": header["name"], "type": "Exact", "value": value} if value else {"name": header["name"], "type": "Distinct"}]
     if item.get("path"):
         selector["path"] = dict(item["path"])
-    if item.get("source_ip"):
-        selector["sourceCIDR"] = {"type": "Distinct", "value": PER_IP_CIDR}
+    if cidr:
+        selector["sourceCIDR"] = {"type": "Distinct", "value": cidr}
     if selector:
         out["clientSelectors"] = [selector]
     return out
@@ -399,7 +384,12 @@ def edge_rate_limits(ctx: Ctx) -> dict[str, Any]:
     """
     limits = {"global": rate_limit_rule(ctx, ctx.routes["global_limit"])}
     for item in ctx.routes["rate_limits"]:
-        if ctx.enabled(item):
+        if not ctx.enabled(item):
+            continue
+        if item.get("source_ip"):  # un contador por IP de origen, uno por familia de direcciones
+            for cidr in item["source_ip"]:
+                limits[f"{item['name']}@{cidr}"] = rate_limit_rule(ctx, item, cidr)
+        else:
             limits[item["name"]] = rate_limit_rule(ctx, item)
     return {
         "apiVersion": EG_API,
@@ -451,13 +441,21 @@ def reference_grants(ctx: Ctx) -> list[dict[str, Any]]:
         backend = route["backend"]
         if backend["namespace"] != ctx.namespace:
             used.setdefault(backend["namespace"], set()).add(backend["service"])
+    jwks_namespace = ctx.routes["jwt"]["jwks_backend"]["namespace"]
+
+    def sources(namespace: str) -> list[dict[str, Any]]:
+        found = [{"group": GW_GROUP, "kind": "HTTPRoute", "namespace": ctx.namespace}]
+        if namespace == jwks_namespace:  # D-1: v1.9.3 exige el grant para el `backendRefs` de la JWKS (SecurityPolicy)
+            found.append({"group": EG_GROUP, "kind": "SecurityPolicy", "namespace": ctx.namespace})
+        return found
+
     return [
         {
             "apiVersion": GW_API,
             "kind": "ReferenceGrant",
             "metadata": meta(ctx, "edge-routes", namespace),
             "spec": {
-                "from": [{"group": GW_GROUP, "kind": "HTTPRoute", "namespace": ctx.namespace}],
+                "from": sources(namespace),
                 "to": [{"group": "", "kind": "Service", "name": name} for name in sorted(names)],
             },
         }

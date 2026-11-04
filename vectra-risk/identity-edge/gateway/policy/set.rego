@@ -170,6 +170,20 @@ deny contains msg if {
 	msg := sprintf("closed-prefixes: el prefijo %s no esta cerrado con el 404 Problem", [prefix])
 }
 
+deny contains msg if {
+	not closed_not_found_override
+	msg := "closed-prefixes: la politica closed no reescribe el 404 como Problem con source Local (D-2)"
+}
+
+closed_not_found_override if {
+	some btp in of_kind("BackendTrafficPolicy")
+	btp.metadata.name == "closed"
+	some o in btp.spec.responseOverride
+	o.match.statusCodes == [{"type": "Value", "value": 404}]
+	o.source == "Local"
+	contains(o.response.body.inline, "%TRACE_ID%")
+}
+
 # regla: reference-grants-exact
 # INF-U2-10: un ReferenceGrant por namespace de destino, solo para HTTPRoute de vectra-edge y solo hacia los Services usados.
 used_services(namespace) := {ref.name |
@@ -197,10 +211,19 @@ granted(namespace) if {
 	g.metadata.namespace == namespace
 }
 
+# D-1: el grant de `vectra-identity` admite ademas la SecurityPolicy de vectra-edge (la JWKS), solo hacia `keycloak`.
+route_source := {"group": "gateway.networking.k8s.io", "kind": "HTTPRoute", "namespace": edge_namespace}
+
+policy_source := {"group": "gateway.envoyproxy.io", "kind": "SecurityPolicy", "namespace": edge_namespace}
+
+allowed_sources(namespace) := [route_source, policy_source] if namespace == "vectra-identity"
+
+allowed_sources(namespace) := [route_source] if namespace != "vectra-identity"
+
 deny contains msg if {
 	some g in of_kind("ReferenceGrant")
-	not g.spec.from == [{"group": "gateway.networking.k8s.io", "kind": "HTTPRoute", "namespace": edge_namespace}]
-	msg := sprintf("reference-grants-exact: el ReferenceGrant de %s admite algo mas que HTTPRoute de vectra-edge", [g.metadata.namespace])
+	not g.spec.from == allowed_sources(g.metadata.namespace)
+	msg := sprintf("reference-grants-exact: el ReferenceGrant de %s admite %v", [g.metadata.namespace, g.spec.from])
 }
 
 deny contains msg if {
@@ -265,4 +288,82 @@ deny contains msg if {
 	secret.metadata.name == "federate-basic-auth"
 	not secret.spec.data == [{"secretKey": ".htpasswd", "remoteRef": {"key": "identity/federate", "property": ".htpasswd"}}]
 	msg := "federate-coherence: el ExternalSecret de F09 debia leer identity/federate, propiedad .htpasswd"
+}
+
+# regla: environment-values
+# INF-U2-01: el entorno sale del directorio de los archivos (`generated/<env>/`); hostname, issuer y `azp` de intake son los suyos.
+hostnames := {"kind": "vectra.localtest.me", "staging": "vectra.staging.banco.internal", "prod": "vectra.banco.internal"}
+
+envs := {parts[count(parts) - 2] |
+	some file in input
+	parts := split(file.path, "/")
+}
+
+deny contains msg if {
+	count(envs) != 1
+	msg := sprintf("environment-values: los archivos deben estar en un solo directorio de entorno y estan en %v", [envs])
+}
+
+deny contains msg if {
+	some env in envs
+	not hostnames[env]
+	msg := sprintf("environment-values: %s no es un entorno conocido", [env])
+}
+
+deny contains msg if {
+	some env in envs
+	some route in of_kind("HTTPRoute")
+	not route.spec.hostnames == [hostnames[env]]
+	msg := sprintf("environment-values: la ruta %s de %s debia tener el hostname %s", [route.metadata.name, env, hostnames[env]])
+}
+
+deny contains msg if {
+	some env in envs
+	some sp in of_kind("SecurityPolicy")
+	some provider in sp.spec.jwt.providers
+	not provider.issuer == sprintf("https://%s/auth/realms/vectra", [hostnames[env]])
+	msg := sprintf("environment-values: la SecurityPolicy %s de %s tiene el issuer %s", [sp.metadata.name, env, provider.issuer])
+}
+
+simulator_in_intake if {
+	some sp in of_kind("SecurityPolicy")
+	sp.metadata.name == "intake"
+	some claim in sp.spec.authorization.rules[_].principal.jwt.claims
+	claim.name == "azp"
+	"channel-simulator" in claim.values
+}
+
+simulator_rule if {
+	some btp in of_kind("BackendTrafficPolicy")
+	btp.metadata.name == "edge-rate-limits"
+	some r in btp.spec.rateLimit.global.rules
+	some s in r.clientSelectors
+	some h in s.headers
+	h.value == "channel-simulator"
+}
+
+deny contains msg if {
+	"prod" in envs
+	simulator_in_intake
+	msg := "environment-values: produccion autoriza el azp channel-simulator"
+}
+
+deny contains msg if {
+	"prod" in envs
+	simulator_rule
+	msg := "environment-values: produccion tiene el limite de channel-simulator"
+}
+
+deny contains msg if {
+	some env in envs
+	env != "prod"
+	not simulator_in_intake
+	msg := sprintf("environment-values: %s no autoriza el azp channel-simulator", [env])
+}
+
+deny contains msg if {
+	some env in envs
+	env != "prod"
+	not simulator_rule
+	msg := sprintf("environment-values: %s no tiene el limite de channel-simulator", [env])
 }

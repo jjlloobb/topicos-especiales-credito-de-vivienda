@@ -18,6 +18,9 @@ problem_content_type := "application/problem+json"
 
 internal_headers := {"x-vectra-sub", "x-vectra-azp"}
 
+# domain-entities §4.1, perfiles `spa` y `api`: el texto exacto.
+page_csp_text := "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types 'none'"
+
 common_headers := {
 	"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 	"X-Content-Type-Options": "nosniff",
@@ -370,15 +373,10 @@ deny contains msg if {
 	profile_of(rule) == "page"
 	csp := header_values(rule, "Content-Security-Policy")
 	not page_csp(csp)
-	msg := sprintf("profile-headers: %s, regla %s: la CSP debia ser una sola con frame-ancestors 'none' y Trusted Types", [label(input), rule.name])
+	msg := sprintf("profile-headers: %s, regla %s: la CSP debia ser una sola y la de domain-entities §4.1", [label(input), rule.name])
 }
 
-page_csp(csp) if {
-	count(csp) == 1
-	contains(csp[0], "frame-ancestors 'none'")
-	contains(csp[0], "require-trusted-types-for 'script'")
-	contains(csp[0], "trusted-types 'none'")
-}
+page_csp(csp) if csp == [page_csp_text]
 
 deny contains msg if {
 	input.kind == "HTTPRoute"

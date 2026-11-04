@@ -57,13 +57,14 @@ rate_limits: # P-U2-06; sin rafaga (V2). Los contadores `source_ip` cuentan por 
     requests: 600
     unit: Minute
     path: { type: RegularExpression, value: '^/auth/realms/vectra/(protocol/openid-connect/auth|login-actions(/[^?]*)?)(\?.*)?$' }
-    source_ip: true
+    source_ip: [0.0.0.0/0, '::/0']
   - name: auth-token
     requests: 600
     unit: Minute
     path: { type: RegularExpression, value: '^/auth/realms/vectra/protocol/openid-connect/token(\?.*)?$' }
-    source_ip: true
+    source_ip: [0.0.0.0/0, '::/0']
   - { name: federate, requests: 1, unit: Second, path: { type: RegularExpression, value: '^/federate(\?.*)?$' }, requires: f09 }
+closed_policy: { retry_after: "1", errors: [404, 429] } # D-2: el 404 del cierre se reescribe como `Problem` con `%TRACE_ID%`
 closed: # BR-U2-10: prefijos cerrados; todo lo que no es una entrada da 404 `Problem`
   - { rule: closed-api, path: /api, profile: api }
   - { rule: closed-auth, path: /auth, profile: auth }
@@ -74,6 +75,7 @@ routes:
     profile: spa
     backend: { service: console-spa, namespace: vectra-edge, port: 8080 }
     retry_after: "1"
+    errors: [429, 503] # estados `Problem` que genera el gateway para la ruta
     affinity: # V6: cookie de sesion para que una pestana cargue todo del mismo pod durante un rollout
       cookie: vectra-spa-route
       ttl: 0s
@@ -85,6 +87,7 @@ routes:
     profile: api
     backend: { service: console-bff, namespace: vectra-app, port: 8080 }
     retry_after: "1"
+    errors: [401, 403, 413, 429, 503] # estados `Problem` que genera el gateway para la ruta
     timeout: 15s
     max_body: 64Ki
     outlier: { local_origin_only: true, consecutive_local_origin_failures: 5 } # un 503 del BFF no indica un pod enfermo
@@ -102,6 +105,7 @@ routes:
     profile: api
     backend: { service: case-service, namespace: vectra-app, port: 8080 }
     retry_after: "1"
+    errors: [401, 403, 413, 429, 503] # estados `Problem` que genera el gateway para la ruta
     timeout: 5s
     max_body: 32Ki
     auth:
@@ -119,6 +123,7 @@ routes:
     profile: api
     backend: { service: governance-service, namespace: vectra-app, port: 8080 }
     retry_after: "1"
+    errors: [401, 403, 413, 429, 503] # estados `Problem` que genera el gateway para la ruta
     timeout: 10s
     max_body: 16Ki
     auth:
@@ -143,6 +148,7 @@ routes:
     profile: auth
     backend: { service: keycloak, namespace: vectra-identity, port: 8443 }
     retry_after: "60"
+    errors: [429, 503] # estados `Problem` que genera el gateway para la ruta
     timeout: 10s
     matches:
       - { type: Exact, path: /auth/realms/vectra/.well-known/openid-configuration }
@@ -164,6 +170,7 @@ routes:
     profile: grafana
     backend: { service: kube-prometheus-stack-grafana, namespace: vectra-observability, port: 80 }
     retry_after: "1"
+    errors: [413, 429, 503] # estados `Problem` que genera el gateway para la ruta
     timeout: 30s
     max_body: 64Ki
     matches: [{ type: PathPrefix, path: /grafana }]
@@ -176,6 +183,7 @@ routes:
     profile: api
     backend: { service: kube-prometheus-stack-prometheus, namespace: vectra-observability, port: 9090 }
     retry_after: "1"
+    errors: [401, 429, 503] # estados `Problem` que genera el gateway para la ruta
     auth:
       kind: basic
       secret: federate-basic-auth # V7: Secret en `vectra-edge`, clave `.htpasswd`

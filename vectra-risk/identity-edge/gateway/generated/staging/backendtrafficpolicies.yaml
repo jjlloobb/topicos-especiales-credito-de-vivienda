@@ -122,6 +122,16 @@ spec:
   - match:
       statusCodes:
       - type: Value
+        value: 404
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:not_found", "title": "Recurso no encontrado", "status": 404, "code": "not_found", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
         value: 429
     response:
       body:
@@ -340,10 +350,32 @@ spec:
       - clientSelectors:
         - path:
             type: RegularExpression
+            value: ^/auth/realms/vectra/(protocol/openid-connect/auth|login-actions(/[^?]*)?)(\?.*)?$
+          sourceCIDR:
+            type: Distinct
+            value: ::/0
+        limit:
+          requests: 600
+          unit: Minute
+        shared: true
+      - clientSelectors:
+        - path:
+            type: RegularExpression
             value: ^/auth/realms/vectra/protocol/openid-connect/token(\?.*)?$
           sourceCIDR:
             type: Distinct
             value: 0.0.0.0/0
+        limit:
+          requests: 600
+          unit: Minute
+        shared: true
+      - clientSelectors:
+        - path:
+            type: RegularExpression
+            value: ^/auth/realms/vectra/protocol/openid-connect/token(\?.*)?$
+          sourceCIDR:
+            type: Distinct
+            value: ::/0
         limit:
           requests: 600
           unit: Minute
