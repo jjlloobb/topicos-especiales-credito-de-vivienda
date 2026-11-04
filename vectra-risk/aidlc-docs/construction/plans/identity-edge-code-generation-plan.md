@@ -136,7 +136,7 @@ vectra-risk/identity-edge/
 
 ### Bloque C — Gateway
 
-- [ ] **Paso 7 — `routes.yaml` y `route-gen`**
+- [x] **Paso 7 — `routes.yaml` y `route-gen`** (U02-T09)
   - `routes.yaml` con F01–F09 (F09 con `enabled: false`) según domain-entities §4.
   - `route-gen` genera:
     - **HTTPRoute** cerradas, con 404 genérico para el resto (incluido `/auth/admin/**` y el realm `master`);
