@@ -5579,3 +5579,56 @@ El usuario decidió W1–W7, todas por la opción recomendada. Se enmendaron INF
 **Context**: Construcción de U2, U02-T10.
 
 ---
+
+## Ronda 1 de U02-T10 y decisiones X1 a X3
+**Timestamp**: 2026-11-04T13:37:35Z
+**User Input**: (decisiones X1–X3 del usuario en otra sesión; su texto literal no quedó registrado aquí. Esta entrada se reconstruyó el 2026-11-04T19:52:10Z a partir del commit e9f510a y de la enmienda de la tarea)
+**AI Response**: Se despachó al codificador la ronda 1 de U02-T10 en el worktree `wt-U02-T10`, rama `tarea/U02-T10`, desde `main` en 87125f4. El codificador se detuvo en W3 (a426bc0). El usuario decidió:
+- X1: `/auth/**` tiene una sola política de ruta con los dos contadores por IP (`shared`) y `mergeType: StrategicMerge`; en v1.9.3 `mergeType` solo vale sobre rutas;
+- X2: K14 es exactamente el RBAC del chart v1.9.3;
+- X3: la imagen del `shutdown-manager` usa el espejo `envoy-gateway` con su digest, y `vectra.io/criticality: high` va en `Gateway.spec.infrastructure.labels`.
+
+Se enmendaron la tarea y el diseño (e9f510a), y el codificador terminó la ronda 1 (d565da0).
+**Context**: Construcción de U2, U02-T10.
+
+---
+
+## Revisión de la ronda 1 de U02-T10 y decisiones Y1 a Y4
+**Timestamp**: 2026-11-04T14:41:30Z
+**User Input**: (decisiones Y1–Y4 del usuario en otra sesión; su texto literal no quedó registrado aquí. Esta entrada se reconstruyó a partir del commit 74cf226)
+**AI Response**: Ronda 1 NO-VERDE (F-01 a F-11): con `kyverno apply`, las políticas de U1 rechazaban el data plane, y la evidencia de CA-5 estaba mal registrada. El usuario decidió:
+- Y1: los recursos del `shutdown-manager` van por `envoyDeployment.patch`;
+- Y2: la regla de réplicas de U1 exime los Deployments del gateway;
+- Y3: `platform/operators/envoy-gateway-kind.yaml` y `kind_values` en `components.yaml`;
+- Y4: `ClientTrafficPolicy.tls` de 1.2 a 1.3, y el `certgen` dentro de K14.
+
+Se enmendaron INF-U2-02, INF-U2-06, la tarea y el plan (74cf226), y se despachó la ronda 2.
+**Context**: Construcción de U2, U02-T10.
+
+---
+
+## Revisión de la ronda 2 de U02-T10 y decisiones Z1 y Z2
+**Timestamp**: 2026-11-04T15:43:43Z
+**User Input**: (decisiones Z1 y Z2 del usuario en otra sesión; su texto literal no quedó registrado aquí. Esta entrada se reconstruyó a partir del commit 02d1a2b)
+**AI Response**: Ronda 2 NO-VERDE (F-12 a F-15). F-12, ROJO: con `pod.labels` `app.kubernetes.io/name: api-gateway`, el selector del Deployment del data plane (`stableSelector` de v1.9.3) no selecciona su template, así que el apiserver lo rechazaría. El usuario decidió:
+- Z1: `pod.labels` no sobrescribe `app.kubernetes.io/name`; la identidad se selecciona por `gateway.envoyproxy.io/owning-gateway-name` en el Paso 10;
+- Z2: `require-spread-and-pdb` se parte en `require-min-replicas`, con la exención del gateway solo en `vectra-edge`, y `require-zone-spread`.
+
+Se enmendaron el diseño y la tarea (02d1a2b), y se despachó la ronda 3.
+**Context**: Construcción de U2, U02-T10.
+
+---
+
+## Ronda 3 de U02-T10 y verificación de la versión pinneada (Paso 8)
+**Timestamp**: 2026-11-04T19:52:10Z
+**User Input**: "podemos seguir con las siguientes unidades del proyecto?"; "ok, avísame cuando termine el revisor"
+**AI Response**: Ronda 3 VERDE sobre f5943fb. El revisor corrió CA-1 a CA-6 en serie: `identity-edge check` 2036 pruebas, `platform check-local` 619, ninguna omitida. Con el sha256 alterado, `install-tools.sh` falla. F-12 a F-15 quedaron corregidos. Tres AMARILLO y dos candidatas pasaron a CANDIDATAS (F-16 a F-18). F-18 es de especificación: el alcance de «sin exención» en Z2.
+
+Verificación de la versión pinneada (Envoy Gateway v1.9.3, `identity-edge/docs/adr-envoy-gateway.md`):
+1. El data plane se puede desplegar en el namespace del `Gateway` (`vectra-edge`) con `deploy.type: GatewayNamespace` (`controller.go`, `resource_provider.go`). No hay que moverlo a `envoy-gateway-system`; `flows.yaml` y las NetworkPolicies no cambian por esto.
+2. El modo de fallo por ruta usa la alternativa 2 de P-U2-01. `GlobalRateLimit.FailClosed` es global del controlador (`ratelimit.go`), y hay un filtro por dominio, así que una `EnvoyPatchPolicy` fija `failure_mode_deny: true` y `status_on_error` 503 solo en el filtro de `auth-rate-limits`. `egctl x translate` lo comprueba sin clúster.
+
+Paso 8 marcado `[x]` en el plan. Se abre el PR para revisión humana; el agente no fusiona.
+**Context**: Construcción de U2, U02-T10.
+
+---
