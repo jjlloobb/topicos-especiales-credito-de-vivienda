@@ -23,6 +23,10 @@ Las decisiones están en domain-entities §4, BR-U2-08, BR-U2-10 e INF-U2-10.
 > - D-2: el 404 de los prefijos cerrados se reescribe con un `responseOverride` de 404 con `source: Local`, para que lleve `%TRACE_ID%` (BR-U2-14).
 > - D-3: los límites de tasa van en la `BackendTrafficPolicy` del `Gateway` `edge-rate-limits` con `mergeType: StrategicMerge`, no en la de cada ruta (INF-U2-10). Las precisiones de rate limit de abajo se leen con esa ubicación.
 > - D-4: promoción (`GET`), `/auth/**` y `/grafana/**` usan las cifras de reintento de la consola (P-U2-02).
+>
+> **Enmienda del 2026-11-04 (orquestador, decisiones D-5 y D-6 del usuario en la ronda 2):**
+> - D-5: en `/auth/**` todo 429 lleva `Retry-After: 60` (BR-U2-08).
+> - D-6: los 404 del cierre (`directResponse`) no cuentan para ningún límite, porque v1.9.3 no aplica rate limit a esas rutas. La política del cierre no declara 429 (BR-U2-10, INF-U2-10).
 
 ## Alcance
 

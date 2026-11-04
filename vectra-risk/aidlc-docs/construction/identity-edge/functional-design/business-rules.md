@@ -75,6 +75,7 @@ Precisión del 2026-11-03 (decisión V10 del usuario al preparar U02-T09):
 - `/` es un prefijo hacia `console-spa`, porque U10 necesita que las rutas de la SPA sin extensión (por ejemplo `/cases/123`) lleguen a nginx, que sirve `index.html`.
 - `/api/` y `/auth/` son prefijos cerrados: solo pasan sus entradas de la tabla, con la lista de `/auth/**` de domain-entities §4. Cualquier otro camino bajo ellos da 404 `Problem`, por `directResponse` de Envoy Gateway.
 - `/federate` da 404 mientras F09 está deshabilitada, y `/grafana/` va entero a Grafana.
+- Los 404 de los prefijos cerrados y de `/federate` deshabilitada no cuentan para ningún límite de tasa, tampoco el global, y su política no declara 429. En Envoy Gateway v1.9.3 el rate limit no se aplica a las rutas `directResponse` (`internal/xds/translator/ratelimit.go`), y esos 404 no llegan a ningún backend (enmienda del 2026-11-04, decisión D-6 del usuario tras la ronda 2 de U02-T09).
 - `%2F` y `%5C` se tratan con `UnescapeAndRedirect` y las barras dobles se fusionan. Son los valores por defecto de Envoy Gateway v1.9.3, y se fijan de forma explícita.
 
 **BR-U2-11 — Validación de JWT en el gateway.** Para las rutas autenticadas, el gateway
