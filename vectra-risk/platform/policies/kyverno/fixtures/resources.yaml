@@ -752,3 +752,71 @@ spec:
       topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: topology.kubernetes.io/zone
+---
+# Y2 (U02-T10): con `envoyHpa`, v1.9.3 no fija `replicas` y el apiserver lo deja en 1.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy-one-replica
+  namespace: vectra-edge
+  labels:
+    gateway.envoyproxy.io/owning-gateway-name: api-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api-gateway
+    spec:
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy-no-spread
+  namespace: vectra-edge
+  labels:
+    gateway.envoyproxy.io/owning-gateway-name: api-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api-gateway
+    spec:
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+# Z2 (U02-T10): la exencion por `owning-gateway-name` solo vale en `vectra-edge`; fuera de ahi no exime a nadie.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: impostor
+  namespace: vectra-app
+  labels:
+    gateway.envoyproxy.io/owning-gateway-name: api-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: impostor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: impostor
+    spec:
+      containers:
+      - name: a
+        image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000

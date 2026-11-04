@@ -81,7 +81,7 @@ results:
   kind: Secret
   result: fail
 - policy: require-spread-and-pdb
-  rule: require-spread-and-pdb
+  rule: require-min-replicas
   resources:
   - grafana-in-app
   kind: Deployment
@@ -183,9 +183,16 @@ results:
   kind: Secret
   result: pass
 - policy: require-spread-and-pdb
-  rule: require-spread-and-pdb
+  rule: require-min-replicas
   resources:
   - exempt-two
+  kind: Deployment
+  result: pass
+- policy: require-spread-and-pdb
+  rule: require-zone-spread
+  resources:
+  - exempt-two
+  - grafana-in-app
   kind: Deployment
   result: pass
 - policy: require-run-as-non-root
@@ -285,7 +292,14 @@ results:
   kind: Service
   result: fail
 - policy: require-spread-and-pdb
-  rule: require-spread-and-pdb
+  rule: require-min-replicas
+  resources:
+  - grafana
+  - pushgateway
+  kind: Deployment
+  result: skip
+- policy: require-spread-and-pdb
+  rule: require-zone-spread
   resources:
   - grafana
   - pushgateway
@@ -388,3 +402,31 @@ results:
   - envoy-generado
   kind: Deployment
   result: skip
+- policy: require-spread-and-pdb
+  rule: require-min-replicas
+  resources:
+  - envoy-one-replica
+  - envoy-no-spread
+  - envoy-generado
+  kind: Deployment
+  result: skip
+- policy: require-spread-and-pdb
+  rule: require-zone-spread
+  resources:
+  - envoy-one-replica
+  - envoy-generado
+  kind: Deployment
+  result: pass
+- policy: require-spread-and-pdb
+  rule: require-zone-spread
+  resources:
+  - envoy-no-spread
+  - impostor
+  kind: Deployment
+  result: fail
+- policy: require-spread-and-pdb
+  rule: require-min-replicas
+  resources:
+  - impostor
+  kind: Deployment
+  result: fail

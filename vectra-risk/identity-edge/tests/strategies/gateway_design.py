@@ -15,6 +15,8 @@ _FD = _ROOT / "aidlc-docs" / "construction" / "identity-edge"
 BUSINESS_RULES = (_FD / "functional-design" / "business-rules.md").read_text(encoding="utf-8")
 NFR_PATTERNS = (_FD / "nfr-design" / "nfr-design-patterns.md").read_text(encoding="utf-8")
 NFR_REQUIREMENTS = (_FD / "nfr-requirements" / "nfr-requirements.md").read_text(encoding="utf-8")
+KEYCLOAK_VALUES = (_ROOT / "identity-edge" / "keycloak" / "values" / "common.yaml").read_text(encoding="utf-8")
+LOGICAL_COMPONENTS = (_FD / "nfr-design" / "logical-components.md").read_text(encoding="utf-8")
 CLUSTER_STORE = _ROOT / "platform" / "secrets" / "cluster-secret-store-prod.yaml"
 
 ENVS = ("kind", "staging", "prod")
@@ -277,12 +279,21 @@ def retry() -> Retry:
     found = re.search(r"(\d+) reintento ante `([\w-]+)`, presupuesto del (\d+) %", console)
     assert found, "P-U2-02 sin la cifra de reintentos de la consola"
     assert "Cifras de los «solo `GET`/`HEAD`»" in _p_u2_02() or "Cifras de los «solo `GET`/`HEAD`»" in NFR_PATTERNS
-    retried = [k for k, r in rows.items() if r[2].startswith("Solo")]
+    no_retry = set(re.findall(r"^- `(/[\w/*]+)` no reintenta", _p_u2_02(), re.MULTILINE))  # X1: `/auth/**` no reintenta
+    retried = [k for k, r in rows.items() if r[2].startswith("Solo") and k not in no_retry]
     return Retry(int(found.group(1)), found.group(2), int(found.group(3)), retried)
 
 
+def no_retry_routes() -> set[str]:
+    return set(re.findall(r"^- `(/[\w/*]+)` no reintenta", _p_u2_02(), re.MULTILINE))
+
+
 def trusted_hops() -> int:
-    found = re.search(r"\((\d+) salto\)", NFR_REQUIREMENTS[NFR_REQUIREMENTS.index("| NFR-U2-23 |") :].splitlines()[0])
+    """NFR-U2-23 (W2): con el balanceador L4 y `externalTrafficPolicy: Local` no se confia en ningun salto."""
+    line = NFR_REQUIREMENTS[NFR_REQUIREMENTS.index("| NFR-U2-23 |") :].splitlines()[0]
+    if "no confía en ningún salto" in line:
+        return 0
+    found = re.search(r"\((\d+) salto\)", line)
     assert found, "NFR-U2-23 sin los saltos"
     return int(found.group(1))
 
@@ -500,3 +511,188 @@ def federate_path() -> str:
     """La fila `/federate` de §4."""
     assert "/federate" in route_rows()
     return "/federate"
+
+
+# --- Paso 8 (U02-T10): Gateway, Certificate, EnvoyProxy, EnvoyPatchPolicy ------------------------
+
+
+def _inf_02() -> str:
+    return section(INFRASTRUCTURE, "### INF-U2-02")
+
+
+def _inf_06() -> str:
+    return section(INFRASTRUCTURE, "### INF-U2-06")
+
+
+def _logical_components() -> str:
+    return LOGICAL_COMPONENTS
+
+
+def _p_u2_01() -> str:
+    return section(NFR_PATTERNS, "### P-U2-01")
+
+
+def _p_u2_07() -> str:
+    return section(NFR_PATTERNS, "### P-U2-07")
+
+
+def issuers() -> dict[str, str]:
+    """INF-U2-01: `vectra-internal-ca` en kind; el ejemplo `banco-ca` en staging y prod."""
+    body = section(INFRASTRUCTURE, "### INF-U2-01")
+    line = next(ln for ln in body.splitlines() if ln.startswith("- `ClusterIssuer` del certificado interno"))
+    kind = re.search(r"`([\w-]+)` en kind", line)
+    bank = re.search(r"el ejemplo es `([\w-]+)`", line)
+    assert kind and bank, "INF-U2-01 sin los ClusterIssuer"
+    return {"kind": kind.group(1), "staging": bank.group(1), "prod": bank.group(1)}
+
+
+def listener_protocol() -> str:
+    found = re.search(r"listener (HTTPS?) \(\d+\)", _inf_02())
+    assert found, "INF-U2-02 sin el protocolo del listener"
+    return found.group(1)
+
+
+# Un listener HTTPS termina TLS en el Gateway: el modo de `tls` de Gateway API que le corresponde.
+TLS_MODE = {"HTTPS": "Terminate", "HTTP": None}
+
+
+def listener_tls_mode() -> str:
+    return TLS_MODE[listener_protocol()]
+
+
+def listener_port() -> int:
+    found = re.search(r"listener HTTPS? \((\d+)\)", _inf_02())
+    assert found, "INF-U2-02 sin el puerto del listener"
+    return int(found.group(1))
+
+
+def envoy_images() -> tuple[dict[str, str], str, dict[str, str], str]:
+    """(repositorio de Envoy por entorno, su digest, repositorio del shutdown-manager por entorno, su digest): W4 y X3."""
+    text = _inf_02()
+    w4 = next(ln for ln in text.splitlines() if ln.startswith("  - **Imagen del data plane**"))
+    envoy = re.search(r"\(W4\): `(registro[\w./-]+)` \(`(kind-registry[\w.:/-]+)` en kind\)", w4)
+    envoy_digest = re.search(r"digest `(sha256:[0-9a-f]{64})`, que va en los values", w4)
+    shutdown = re.search(r"Es `(registro[\w./-]+)` \(`(kind-registry[\w.:/-]+)` en kind\)", w4)
+    shutdown_digest = re.search(r"digest de upstream `(sha256:[0-9a-f]{64})`", w4)
+    assert envoy and envoy_digest and shutdown and shutdown_digest, "INF-U2-02 sin las imagenes del data plane"
+    by_env = lambda bank, local: {"kind": local, "staging": bank, "prod": bank}  # noqa: E731
+    return (
+        by_env(envoy.group(1), envoy.group(2)),
+        envoy_digest.group(1),
+        by_env(shutdown.group(1), shutdown.group(2)),
+        shutdown_digest.group(1),
+    )
+
+
+def infrastructure_labels() -> dict[str, str]:
+    """X3: `vectra.io/criticality: high` en `Gateway.spec.infrastructure.labels`."""
+    found = re.search(r"`(vectra\.io/criticality): (\w+)` va en `Gateway\.spec\.infrastructure\.labels`", _inf_02())
+    assert found, "INF-U2-02 sin la etiqueta de criticidad"
+    return {found.group(1): found.group(2)}
+
+
+def service_spec() -> tuple[str, str, dict[str, str]]:
+    """W2: (tipo, externalTrafficPolicy, etiquetas) del Service del data plane."""
+    found = re.search(r"`(LoadBalancer)` con `externalTrafficPolicy: (\w+)` y la etiqueta `([\w./-]+): ([\w-]+)`", _inf_02())
+    assert found, "INF-U2-02 sin el Service"
+    return found.group(1), found.group(2), {found.group(3): found.group(4)}
+
+
+def scaling() -> tuple[int, int, int, int]:
+    """W5: (minimo, maximo, objetivo de CPU en %, minAvailable del PDB)."""
+    found = re.search(r"`envoyHpa` de (\d+) a (\d+) réplicas con un objetivo de (?:CPU|memoria) del (\d+) %, y `envoyPDB` con `minAvailable: (\d+)`", _inf_02())
+    assert found, "INF-U2-02 sin el escalado"
+    return tuple(int(g) for g in found.groups())  # type: ignore[return-value]
+
+
+def spread_key() -> str:
+    """El reparto es por zona (tabla de INF-U2-02 y Kyverno `require-spread-and-pdb`)."""
+    found = re.search(r"spread por (zona|nodo)", _inf_02())
+    assert found, "INF-U2-02 sin el reparto"
+    return {"zona": "topology.kubernetes.io/zone", "nodo": "kubernetes.io/hostname"}[found.group(1)]
+
+
+def envoy_resources() -> dict[str, dict[str, str]]:
+    row = next(r for r in table_rows(_inf_06()) if r[0] == "Envoy (data plane)")
+    out = {}
+    for key, cell in (("requests", row[1]), ("limits", row[2])):
+        cpu, mem = (p.strip() for p in cell.split("/"))
+        out[key] = {"cpu": cpu.replace(" CPU", ""), "memory": mem.replace(" MiB", "Mi").replace(" GiB", "Gi")}
+    return out
+
+
+def envoy_priority() -> str:
+    row = next(r for r in table_rows(_logical_components()) if r[0].startswith("Envoy (data plane)"))
+    return row[-1].strip("`")
+
+
+def access_log_fields() -> list[str]:
+    """P-U2-07: los campos del access log, en orden."""
+    line = next(ln for ln in _p_u2_07().splitlines() if ln.startswith("- Campos:"))
+    return _ticks_of(line.replace("(el `trace-id` de `traceparent`)", ""))[: line.count("`") // 2]
+
+
+def tracing() -> tuple[str, str, int, int]:
+    """W6: (Service, namespace, puerto, muestreo en %)."""
+    found = re.search(r"tracing \w+ hacia `([\w-]+)\.([\w-]+)\.svc:(\d+)` \(F61\) con muestreo del (\d+) %", _inf_02())
+    assert found, "INF-U2-02 sin el tracing"
+    return found.group(1), found.group(2), int(found.group(3)), int(found.group(4))
+
+
+def fail_closed() -> tuple[bool, int]:
+    """P-U2-01: `failure_mode_deny: true` y `status_on_error: 503`."""
+    found = re.search(r"`failure_mode_deny: (true|false)` y `status_on_error: (\d+)`", _p_u2_01())
+    assert found, "P-U2-01 sin el modo de fallo"
+    return found.group(1) == "true", int(found.group(2))
+
+
+def hpa_metric() -> tuple[str, str]:
+    """W5: (recurso, tipo de objetivo). «objetivo de CPU del 70 %» es un objetivo `Utilization` del recurso `cpu`."""
+    found = re.search(r"un objetivo de (CPU|memoria) del \d+ %", _inf_02())
+    assert found, "INF-U2-02 sin el objetivo del HPA"
+    return {"CPU": "cpu", "memoria": "memory"}[found.group(1)], "Utilization"
+
+
+def spread() -> tuple[int, str]:
+    """«(los mismos valores que Keycloak)»: (maxSkew, whenUnsatisfiable) de los values de Keycloak."""
+    assert "los mismos valores que Keycloak" in _inf_02()
+    skew = re.search(r"maxSkew: (\d+)", KEYCLOAK_VALUES)
+    when = re.search(r"whenUnsatisfiable: (\w+)", KEYCLOAK_VALUES)
+    assert skew and when, "values de Keycloak sin topologySpreadConstraints"
+    return int(skew.group(1)), when.group(1)
+
+
+# Donde escribe el access log de Envoy Gateway segun el destino que dice el diseno: (tipo de sink, camino).
+SINKS = {"stdout": ("File", "/dev/stdout"), "stderr": ("File", "/dev/stderr")}
+
+
+def access_log_target() -> tuple[str, str, str]:
+    """W6: «el access log de P-U2-07, en JSON a stdout»: (formato, tipo de sink, camino)."""
+    found = re.search(r"el access log de P-U2-07, en (JSON|Text) a (\w+)", _inf_02())
+    assert found, "INF-U2-02 sin el destino del access log"
+    sink, path = SINKS[found.group(2)]
+    return found.group(1), sink, path
+
+
+def tracing_provider() -> str:
+    found = re.search(r"tracing (OpenTelemetry|Zipkin|Datadog) hacia", _inf_02())
+    assert found, "INF-U2-02 sin el proveedor de tracing"
+    return found.group(1)
+
+
+def sidecar_resources() -> tuple[str, dict[str, dict[str, str]]]:
+    """Y1: (contenedor, recursos) del `shutdown-manager` de INF-U2-06."""
+    row = next(r for r in table_rows(_inf_06()) if "sidecar de cada pod de Envoy" in r[0])
+    name = _ticks_of(row[0])[0]
+    out = {}
+    for key, cell in (("requests", row[1]), ("limits", row[2])):
+        cpu, mem = (p.strip() for p in cell.split("/"))
+        out[key] = {"cpu": cpu.replace(" CPU", ""), "memory": mem.replace(" MiB", "Mi").replace(" GiB", "Gi")}
+    return name, out
+
+
+def tls_versions() -> tuple[str, str]:
+    """Y4 / NFR-U2-22: (minimo, maximo)."""
+    found = re.search(r"fija TLS (1\.\d) como mínimo y (1\.\d) como máximo", _inf_02())
+    assert found, "INF-U2-02 sin las versiones de TLS"
+    return found.group(1), found.group(2)

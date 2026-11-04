@@ -157,7 +157,7 @@ vectra-risk/identity-edge/
     - `conftest`: ningún reintento en `POST`/`PUT`/`PATCH`; toda ruta autenticada tiene SecurityPolicy;
     - `/api/intake/**`: el JWT de `channel-simulator` pasa en kind y staging y se rechaza (403) con los values de producción; descriptores separados por `azp` (10/20 para `channel`, 30/60 para `channel-simulator`), y el de `channel-simulator` no existe en producción (precisado el 2026-10-06, revisión del FD de U8).
 
-- [ ] **Paso 8 — Envoy Gateway, `Gateway` y verificación de la versión pinneada**
+- [x] **Paso 8 — Envoy Gateway, `Gateway` y verificación de la versión pinneada** (U02-T10)
   - Values del controlador (`envoy-gateway-system`, 2 réplicas; `deploy.type: GatewayNamespace` ya está en `platform/operators/envoy-gateway.yaml`); `EnvoyProxy` con la identidad que usa `flows.yaml` (`provider.kubernetes.envoyServiceAccount.name: api-gateway`, `envoyDeployment.pod.labels: {app.kubernetes.io/name: api-gateway}`, `envoyDeployment.container.image` espejada en un registro permitido, `envoyDeployment.replicas ≥ 2`, `envoyPDB`, `securityContext` y `priorityClassName` para Kyverno; campos comprobados en el CRD de v1.9.3, no en un clúster (revisión de consistencia entre unidades, 2026-11-01)); (data plane en `vectra-edge`, HPA de 2 a 6, spread, PDB, Service `LoadBalancer` con `externalTrafficPolicy: Local` o PROXY protocol); `GatewayClass`, `Gateway` (HTTPS 443) y `Certificate` con el `ClusterIssuer` de cada entorno; binding K14.
   - **Verificación de la versión pinneada.** Se registra en `identity-edge/docs/adr-envoy-gateway.md` y en `audit.md`:
     1. si se puede desplegar el data plane en el namespace del `Gateway` (INF-U2-02); si no, el data plane va en `envoy-gateway-system` y se ajustan `flows.yaml` y las NetworkPolicies;
@@ -169,7 +169,8 @@ vectra-risk/identity-edge/
     - imagen de Envoy espejada con el digest real (W4);
     - HPA con objetivo del 70 % y `minAvailable: 1` (W5);
     - access log de P-U2-07 y tracing al 100 % en el `EnvoyProxy` (W6);
-    - `egctl` v1.9.3 con su sha256 en las herramientas de U1 (W7).
+    - `egctl` v1.9.3 con su sha256 en las herramientas de U1 (W7);
+    - el pod no lleva `pod.labels: {app.kubernetes.io/name: api-gateway}`: rompería el selector del Deployment en v1.9.3; la identidad se selecciona por `gateway.envoyproxy.io/owning-gateway-name` (decisión Z1 del usuario en la ronda 2 de U02-T10, INF-U2-02).
 
     Todo está en INF-U2-02, 03 y 10, P-U2-01 y NFR-U2-23.
   - Diseño: NFR-U2-03, 04, 21, 22, 23; P-U2-01, 07; INF-U2-01, 02, 03, 10. Historia: US-611 (el gateway sirve las cabeceras y los errores genéricos).
@@ -187,6 +188,7 @@ vectra-risk/identity-edge/
 ### Bloque D — Plataforma: red, observabilidad y GitOps
 
 - [ ] **Paso 10 — Flujos y RBAC**
+  - **Nota del 2026-11-04 (decisión Z1 del usuario en U02-T10):** la identidad `api-gateway` de `flows.yaml` pasa a seleccionar el data plane por `gateway.envoyproxy.io/owning-gateway-name: api-gateway` (INF-U2-02).
   - Verificar en `platform/network/flows.yaml` de U1, donde ya están: F05, F43, F50, F73 (solo prod), F90–F95, F112, F117 y el scrape de Keycloak (9000). El de `vectra-edge` es F60, solo al 8081: Envoy, rate limit y el exportador de Valkey se publican en ese puerto o se agrega su puerto por PR (revisión de consistencia entre unidades, 2026-11-01). Agregar el RBAC K14. `realm-drift` no tiene binding: usa F94, no la API de Kubernetes (cuarta revisión de coherencia entre unidades, 2026-10-31).
   - Diseño: INF-U2-02..04; P-U1-01.
   - **Aceptación**: `uv run python platform/network/generate.py --check` y `uv run pytest platform/network/tests` (los IDs F90–F95 y K14 de `component-dependency.md` están en `flows.yaml`).

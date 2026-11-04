@@ -260,9 +260,15 @@ def test_auth_list_check_fails_when_the_list_changes(alter):
     assert auth_violations(docs)
 
 
+AUTH_POLICY = ge.AUTH_RULE  # X1: la politica de la unica regla de `/auth/**`
+
+
+def _auth_rules(docs: gc.Docs) -> list[dict[str, Any]]:
+    return gc.find(docs, "BackendTrafficPolicy", AUTH_POLICY)["spec"]["rateLimit"]["global"]["rules"]
+
+
 def _auth_counters(docs: gc.Docs) -> list[dict[str, Any]]:
-    rules = gc.find(docs, "BackendTrafficPolicy", "edge-rate-limits")["spec"]["rateLimit"]["global"]["rules"]
-    return [r for r in rules if any("sourceCIDR" in s for s in r.get("clientSelectors", []))]
+    return [r for r in _auth_rules(docs) if any("sourceCIDR" in s for s in r.get("clientSelectors", []))]
 
 
 CIDRS = {"0.0.0.0/0", "::/0"}  # un contador por IP de origen, de IPv4 y de IPv6
@@ -329,12 +335,11 @@ def _set_counter(docs: gc.Docs, index: int, key: str, value: Any) -> None:
 
 
 def _drop_counter(docs: gc.Docs) -> None:
-    rules = gc.find(docs, "BackendTrafficPolicy", "edge-rate-limits")["spec"]["rateLimit"]["global"]["rules"]
-    rules.remove(_auth_counters(docs)[1])
+    _auth_rules(docs).remove(_auth_counters(docs)[1])
 
 
 def _drop_ipv6(docs: gc.Docs) -> None:
-    rules = gc.find(docs, "BackendTrafficPolicy", "edge-rate-limits")["spec"]["rateLimit"]["global"]["rules"]
+    rules = _auth_rules(docs)
     for counter in _auth_counters(docs):
         if counter["clientSelectors"][0]["sourceCIDR"]["value"] == "::/0":
             rules.remove(counter)
@@ -359,7 +364,7 @@ def test_counters_check_fails_on_altered_counters(alter):
 
 def test_retry_after_check_fails_on_a_wrong_value():
     docs = copy.deepcopy(gc.load_env("prod"))
-    entry = [e for e in gc.find(docs, "BackendTrafficPolicy", "auth-read")["spec"]["responseOverride"] if e["match"]["statusCodes"][0]["value"] == 429][0]
+    entry = [e for e in gc.find(docs, "BackendTrafficPolicy", AUTH_POLICY)["spec"]["responseOverride"] if e["match"]["statusCodes"][0]["value"] == 429][0]
     entry["response"]["header"]["set"][0]["value"] = "1"
     assert retry_after_violations(docs)
     other = copy.deepcopy(gc.load_env("prod"))
@@ -780,10 +785,10 @@ def test_sizes_timeouts_and_profiles_come_from_the_design(env, docs_by_env):
     by_rule = {b["metadata"]["name"]: b["spec"] for b in gc.of_kind(docs, "BackendTrafficPolicy")}
     for rule, key in [("console-read", "/api/console/**"), ("intake-submit", "/api/intake/**"), ("promotion-models", "/api/promotion/**"), ("grafana-write", "/grafana/**")]:
         assert by_rule[rule]["requestBuffer"] == {"limit": sizes[key]}
-    for rule in ("spa", "auth-read", "auth-write"):
+    for rule in ("spa", AUTH_POLICY):
         assert "requestBuffer" not in by_rule[rule]
     assert by_rule["console-read"]["timeout"]["http"]["requestTimeout"] == t["/api/console/**"]
-    assert by_rule["auth-write"]["timeout"]["http"]["requestTimeout"] == t["/auth/**"]
+    assert by_rule[AUTH_POLICY]["timeout"]["http"]["requestTimeout"] == t["/auth/**"]
     assert "timeout" not in by_rule["spa"]
 
 
@@ -801,7 +806,7 @@ def retry_violations(docs: gc.Docs) -> list[str]:
         if not all(m.get("method") in ("GET", "HEAD") for m in rule["matches"]):
             bad.append(f"{rule['name']}: reintenta una regla que admite otros metodos")
     retried = {b["metadata"]["name"] for b in gc.of_kind(docs, "BackendTrafficPolicy") if "retry" in b["spec"]}
-    if retried != {"console-read", "promotion-models", "auth-read", "grafana-read"}:
+    if retried != {"console-read", "promotion-models", "grafana-read"}:  # X1: `/auth/**` no reintenta
         bad.append(f"reglas con reintento: {sorted(retried)}")
     return bad
 
@@ -880,6 +885,51 @@ def _new_api_route(docs: gc.Docs) -> None:
     )
 
 
+
+# --- Paso 8 (U02-T10): helpers de las alteraciones ---------------------------------------------------
+
+
+def _kube(docs: gc.Docs) -> dict[str, Any]:
+    return gc.find(docs, "EnvoyProxy", "api-gateway")["spec"]["provider"]["kubernetes"]
+
+
+def _container(docs: gc.Docs) -> dict[str, Any]:
+    return _kube(docs)["envoyDeployment"]["container"]
+
+
+def _pod(docs: gc.Docs) -> dict[str, Any]:
+    return _kube(docs)["envoyDeployment"]["pod"]
+
+
+def _sidecar(docs: gc.Docs) -> dict[str, Any]:
+    (found,) = [c for c in _kube(docs)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"] if c["name"] == "shutdown-manager"]
+    return found
+
+
+def _telemetry(docs: gc.Docs) -> dict[str, Any]:
+    return gc.find(docs, "EnvoyProxy", "api-gateway")["spec"]["telemetry"]
+
+
+def _listener(docs: gc.Docs) -> dict[str, Any]:
+    return gc.find(docs, "Gateway", "api-gateway")["spec"]["listeners"][0]
+
+
+def _patches(docs: gc.Docs) -> list[dict[str, Any]]:
+    return gc.find(docs, "EnvoyPatchPolicy", "auth-fail-closed")["spec"]["jsonPatches"]
+
+
+def _move_counters_to_edge(docs: gc.Docs) -> None:
+    edge = gc.find(docs, "BackendTrafficPolicy", "edge-rate-limits")["spec"]["rateLimit"]["global"]["rules"]
+    auth = gc.find(docs, "BackendTrafficPolicy", ge.AUTH_RULE)["spec"]
+    edge.extend(auth["rateLimit"]["global"]["rules"])
+    del auth["rateLimit"]
+
+
+def _cert_for(docs: gc.Docs) -> dict[str, Any]:
+    return gc.find(docs, "Certificate", "api-gateway")["spec"]
+
+
+
 # (regla, caso, alteracion). Cada regla de la politica aparece al menos una vez; la salida debe nombrarla.
 MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("no-app-headers", "idempotency-key-filtered", lambda d: _rule(d, "intake", "intake-submit")["filters"][1]["requestHeaderModifier"]["remove"].append("Idempotency-Key")),
@@ -895,7 +945,8 @@ MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("shared-rate-limits", "not-shared", lambda d: gc.find(d, "BackendTrafficPolicy", "edge-rate-limits")["spec"]["rateLimit"]["global"]["rules"][0].update(shared=False)),
     ("shared-rate-limits", "local", lambda d: gc.find(d, "BackendTrafficPolicy", "edge-rate-limits")["spec"]["rateLimit"].update(type="Local")),
     ("merge-with-gateway", "no-merge-type", lambda d: gc.find(d, "BackendTrafficPolicy", "console-read")["spec"].pop("mergeType")),
-    ("client-policy", "one-hop-two", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"]["clientIPDetection"]["xForwardedFor"].update(numTrustedHops=2)),
+    ("client-policy", "trusts-one-hop", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"].update(clientIPDetection={"xForwardedFor": {"numTrustedHops": 1}})),
+    ("client-policy", "trusts-zero-hops", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"].update(clientIPDetection={"xForwardedFor": {"numTrustedHops": 0}})),
     ("client-policy", "no-early-removal", _no_early_removal),
     ("client-policy", "server-kept", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"]["headers"]["lateResponseHeaders"].pop("remove")),
     ("client-policy", "slashes-kept", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"]["path"].update(escapedSlashesAction="KeepUnchanged")),
@@ -903,7 +954,7 @@ MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("cookie-affinity", "ttl", lambda d: gc.find(d, "BackendTrafficPolicy", "spa")["spec"]["loadBalancer"]["consistentHash"]["cookie"].update(ttl="60s")),
     ("cookie-affinity", "samesite", lambda d: gc.find(d, "BackendTrafficPolicy", "spa")["spec"]["loadBalancer"]["consistentHash"]["cookie"]["attributes"].update(SameSite="None")),
     ("outlier", "ejection-time", lambda d: gc.find(d, "BackendTrafficPolicy", "intake-submit")["spec"]["healthCheck"]["passive"].update(baseEjectionTime="5s")),
-    ("outlier", "max-percent", lambda d: gc.find(d, "BackendTrafficPolicy", "auth-read")["spec"]["healthCheck"]["passive"].update(maxEjectionPercent=100)),
+    ("outlier", "max-percent", lambda d: gc.find(d, "BackendTrafficPolicy", AUTH_POLICY)["spec"]["healthCheck"]["passive"].update(maxEjectionPercent=100)),
     ("console-no-5xx-ejection", "ejects-by-5xx", lambda d: gc.find(d, "BackendTrafficPolicy", "console-read")["spec"]["healthCheck"]["passive"].update(consecutive5XxErrors=5)),
     ("console-no-5xx-ejection", "no-split", lambda d: gc.find(d, "BackendTrafficPolicy", "console-write")["spec"]["healthCheck"]["passive"].update(splitExternalLocalOriginErrors=False)),
     ("console-no-5xx-ejection", "no-passive", lambda d: gc.find(d, "BackendTrafficPolicy", "console-write")["spec"].pop("healthCheck")),
@@ -949,8 +1000,8 @@ MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("route-parent", "unknown-hostname", lambda d: gc.find(d, "HTTPRoute", "console")["spec"].update(hostnames=["otro.example"])),
     ("profile-headers", "grafana-csp", lambda d: _rule(d, "grafana", "grafana-read")["filters"][0]["responseHeaderModifier"]["set"].append({"name": "Content-Security-Policy", "value": "frame-ancestors 'none'"})),
     ("profile-headers", "grafana-xfo", lambda d: _set_header(_rule(d, "grafana", "grafana-write"), "X-Frame-Options", "DENY")),
-    ("profile-headers", "auth-csp", lambda d: _rule(d, "auth", "auth-read")["filters"][0]["responseHeaderModifier"].pop("add")),
-    ("profile-headers", "auth-xfo", lambda d: _rule(d, "auth", "auth-write")["filters"][0]["responseHeaderModifier"]["set"].append({"name": "X-Frame-Options", "value": "SAMEORIGIN"})),
+    ("profile-headers", "auth-csp", lambda d: _rule(d, "auth", AUTH_POLICY)["filters"][0]["responseHeaderModifier"].pop("add")),
+    ("profile-headers", "auth-xfo", lambda d: _rule(d, "auth", AUTH_POLICY)["filters"][0]["responseHeaderModifier"]["set"].append({"name": "X-Frame-Options", "value": "SAMEORIGIN"})),
     ("profile-headers", "page-csp-text", lambda d: _set_header(_rule(d, "console", "console-write"), "Content-Security-Policy", "default-src *; frame-ancestors 'none'; require-trusted-types-for 'script'; trusted-types 'none'")),
     ("profile-headers", "hsts", lambda d: _set_header(_rule(d, "spa", "spa"), "Strict-Transport-Security", "max-age=0")),
     ("profile-headers", "two-modifiers", lambda d: _rule(d, "spa", "spa")["filters"].append(copy.deepcopy(_rule(d, "spa", "spa")["filters"][0]))),
@@ -971,6 +1022,102 @@ MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("environment-values", "prod-simulator-limit", lambda d: gc.find(d, "BackendTrafficPolicy", "edge-rate-limits")["spec"]["rateLimit"]["global"]["rules"].append({"limit": {"requests": 30, "unit": "Second"}, "shared": True, "clientSelectors": [{"headers": [{"name": "x-vectra-azp", "type": "Exact", "value": "channel-simulator"}]}]})),
     ("environment-values", "staging-hostname", lambda d: gc.find(d, "HTTPRoute", "console")["spec"].update(hostnames=["vectra.staging.banco.internal"])),
     ("environment-values", "staging-issuer", lambda d: gc.find(d, "SecurityPolicy", "console")["spec"]["jwt"]["providers"][0].update(issuer="https://vectra.staging.banco.internal/auth/realms/vectra")),
+    # --- Paso 8 (U02-T10) ---
+    ("gateway-class", "controller", lambda d: gc.find(d, "GatewayClass", "envoy-gateway")["spec"].update(controllerName="example.com/other")),
+    ("gateway-class", "parameters-ref", lambda d: gc.find(d, "GatewayClass", "envoy-gateway")["spec"]["parametersRef"].update(name="other")),
+    ("gateway-class", "name", lambda d: gc.find(d, "GatewayClass", "envoy-gateway")["metadata"].update(name="otra")),
+    ("gateway-listener", "name", lambda d: gc.find(d, "Gateway", "api-gateway")["metadata"].update(name="otro")),
+    ("gateway-listener", "namespace", lambda d: gc.find(d, "Gateway", "api-gateway")["metadata"].update(namespace="vectra-app")),
+    ("gateway-listener", "class", lambda d: gc.find(d, "Gateway", "api-gateway")["spec"].update(gatewayClassName="otra")),
+    ("gateway-listener", "two-listeners", lambda d: gc.find(d, "Gateway", "api-gateway")["spec"]["listeners"].append(copy.deepcopy(_listener(d)))),
+    ("gateway-listener", "listener-name", lambda d: _listener(d).update(name="web")),
+    ("gateway-listener", "port", lambda d: _listener(d).update(port=8443)),
+    ("gateway-listener", "protocol", lambda d: _listener(d).update(protocol="HTTP")),
+    ("gateway-listener", "hostname", lambda d: _listener(d).update(hostname="otro.example")),
+    ("gateway-listener", "tls-passthrough", lambda d: _listener(d)["tls"].update(mode="Passthrough")),
+    ("gateway-listener", "tls-secret", lambda d: _listener(d)["tls"]["certificateRefs"][0].update(name="otro-secret")),
+    ("certificate-issuer", "namespace", lambda d: gc.find(d, "Certificate", "api-gateway")["metadata"].update(namespace="vectra-app")),
+    ("certificate-issuer", "secret", lambda d: _cert_for(d).update(secretName="otro")),
+    ("certificate-issuer", "two-dns-names", lambda d: _cert_for(d)["dnsNames"].append("vectra.localtest.me")),
+    ("certificate-issuer", "dns-name", lambda d: _cert_for(d).update(dnsNames=["otro.example"])),
+    ("certificate-issuer", "namespaced-issuer", lambda d: _cert_for(d)["issuerRef"].update(kind="Issuer")),
+    ("certificate-issuer", "unknown-issuer", lambda d: _cert_for(d)["issuerRef"].update(name="letsencrypt")),
+    ("envoy-identity", "service-account", lambda d: _kube(d).update(envoyServiceAccount={"name": "envoy"})),
+    ("envoy-identity", "pod-label-name", lambda d: _pod(d)["labels"].update({"app.kubernetes.io/name": "api-gateway"})),
+    ("envoy-identity", "pod-label-component", lambda d: _pod(d)["labels"].update({"app.kubernetes.io/component": "gateway"})),
+    ("envoy-identity", "pod-label-managed-by", lambda d: _pod(d)["labels"].update({"app.kubernetes.io/managed-by": "route-gen"})),
+    ("envoy-image", "registry", lambda d: _container(d).update(image="docker.io/envoyproxy/envoy@" + "sha256:" + "9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0")),
+    ("envoy-image", "no-digest", lambda d: _container(d).update(image="registro.banco.internal/vectra/envoy:distroless-v1.39.5")),
+    ("envoy-image", "other-digest", lambda d: _container(d).update(image="registro.banco.internal/vectra/envoy@sha256:" + "0" * 64)),
+    ("envoy-image", "registry-only", lambda d: _container(d).update(image="otro.io/vectra/envoy@sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0")),
+    ("envoy-image", "other-mirror", lambda d: _container(d).update(image="registro.banco.internal/vectra/otro@sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0")),
+    ("envoy-non-root", "pod", lambda d: _pod(d)["securityContext"].update(runAsNonRoot=False)),
+    ("envoy-non-root", "container", lambda d: _container(d)["securityContext"].pop("runAsNonRoot")),
+    ("envoy-no-privileged", "privileged", lambda d: _container(d)["securityContext"].update(privileged=True)),
+    ("envoy-no-privileged", "escalation", lambda d: _container(d)["securityContext"].update(allowPrivilegeEscalation=True)),
+    ("envoy-readonly-rootfs", "writable", lambda d: _container(d)["securityContext"].update(readOnlyRootFilesystem=False)),
+    ("envoy-readonly-rootfs", "missing", lambda d: _container(d).pop("securityContext")),
+    ("envoy-hardening", "pod-seccomp", lambda d: _pod(d)["securityContext"].pop("seccompProfile")),
+    ("envoy-hardening", "container-seccomp", lambda d: _container(d)["securityContext"].update(seccompProfile={"type": "Unconfined"})),
+    ("envoy-hardening", "capabilities", lambda d: _container(d)["securityContext"].update(capabilities={"add": ["NET_ADMIN"]})),
+    ("envoy-resources", "no-limits", lambda d: _container(d)["resources"].pop("limits")),
+    ("envoy-resources", "sidecar-without-patch", lambda d: _kube(d)["envoyDeployment"].pop("patch")),
+    ("envoy-resources", "sidecar-patch-type", lambda d: _kube(d)["envoyDeployment"]["patch"].update(type="JSONMerge")),
+    ("envoy-resources", "sidecar-no-limits", lambda d: _sidecar(d)["resources"].pop("limits")),
+    ("envoy-resources", "sidecar-limits", lambda d: _sidecar(d)["resources"]["limits"].update(memory="1Gi")),
+    ("envoy-resources", "sidecar-missing", lambda d: _kube(d)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"].update(containers=[])),
+    ("envoy-resources", "patches-envoy", lambda d: _kube(d)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"].append({"name": "envoy", "resources": {}})),
+    ("client-tls", "min-1.0", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"]["tls"].update(minVersion="1.0")),
+    ("client-tls", "max-auto", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"]["tls"].update(maxVersion="Auto")),
+    ("client-tls", "missing", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"].pop("tls")),
+    ("envoy-resources", "memory", lambda d: _container(d)["resources"]["requests"].update(memory="1Gi")),
+    ("envoy-priority", "class", lambda d: _pod(d).update(priorityClassName="system-cluster-critical")),
+    ("envoy-priority", "missing", lambda d: _pod(d).pop("priorityClassName")),
+    ("envoy-criticality", "pod-label", lambda d: _pod(d)["labels"].pop("vectra.io/criticality")),
+    ("envoy-criticality", "deployment-label", lambda d: gc.find(d, "Gateway", "api-gateway")["spec"].pop("infrastructure")),
+    ("envoy-service", "type", lambda d: _kube(d)["envoyService"].update(type="ClusterIP")),
+    ("envoy-service", "cluster-policy", lambda d: _kube(d)["envoyService"].update(externalTrafficPolicy="Cluster")),
+    ("envoy-service", "label", lambda d: _kube(d)["envoyService"].update(labels={"app.kubernetes.io/name": "envoy"})),
+    ("envoy-scaling", "replicas", lambda d: _kube(d)["envoyDeployment"].update(replicas=1)),
+    ("envoy-scaling", "hpa-range", lambda d: _kube(d)["envoyHpa"].update(maxReplicas=10)),
+    ("envoy-scaling", "hpa-target", lambda d: _kube(d)["envoyHpa"]["metrics"][0]["resource"]["target"].update(averageUtilization=90)),
+    ("envoy-scaling", "pdb", lambda d: _kube(d)["envoyPDB"].update(minAvailable=0)),
+    ("envoy-scaling", "spread-selector", lambda d: _pod(d)["topologySpreadConstraints"][0].update(labelSelector={"matchLabels": {"app.kubernetes.io/name": "api-gateway"}})),
+    ("envoy-scaling", "spread", lambda d: _pod(d)["topologySpreadConstraints"][0].update(topologyKey="kubernetes.io/hostname")),
+    ("access-log-allowlist", "extra-field", lambda d: _telemetry(d)["accessLog"]["settings"][0]["format"]["json"].update(path="%REQ(:PATH)%")),
+    ("access-log-allowlist", "authorization", lambda d: _telemetry(d)["accessLog"]["settings"][0]["format"]["json"].update(method="%REQ(AUTHORIZATION)%")),
+    ("access-log-allowlist", "missing-field", lambda d: _telemetry(d)["accessLog"]["settings"][0]["format"]["json"].pop("client_ip")),
+    ("access-log-allowlist", "text-format", lambda d: _telemetry(d)["accessLog"]["settings"][0].update(format={"type": "Text", "text": "%REQ(:PATH)%"})),
+    ("access-log-allowlist", "two-settings", lambda d: _telemetry(d)["accessLog"]["settings"].append(copy.deepcopy(_telemetry(d)["accessLog"]["settings"][0]))),
+    ("access-log-allowlist", "other-sink", lambda d: _telemetry(d)["accessLog"]["settings"][0].update(sinks=[{"type": "File", "file": {"path": "/var/log/envoy.log"}}])),
+    ("access-log-allowlist", "disabled", lambda d: _telemetry(d)["accessLog"].update(disable=True)),
+    ("tracing", "sampling", lambda d: _telemetry(d)["tracing"].update(samplingRate=1)),
+    ("tracing", "collector", lambda d: _telemetry(d)["tracing"]["provider"]["backendRefs"][0].update(port=4318)),
+    ("tracing", "host-and-port", lambda d: _telemetry(d)["tracing"].update(provider={"type": "OpenTelemetry", "host": "otel-collector.vectra-observability.svc", "port": 4317})),
+    ("fail-closed-patch", "type", lambda d: gc.find(d, "EnvoyPatchPolicy", "auth-fail-closed")["spec"].update(type="Other")),
+    ("fail-closed-patch", "target", lambda d: gc.find(d, "EnvoyPatchPolicy", "auth-fail-closed")["spec"]["targetRef"].update(name="other")),
+    ("fail-closed-patch", "one-patch", lambda d: _patches(d).pop()),
+    ("fail-closed-patch", "not-a-listener", lambda d: _patches(d)[0].update(type="type.googleapis.com/envoy.config.cluster.v3.Cluster")),
+    ("fail-closed-patch", "other-listener", lambda d: _patches(d)[0].update(name="vectra-edge/api-gateway/web")),
+    ("fail-closed-patch", "all-rate-limit-filters", lambda d: _patches(d)[0]["operation"].update(jsonPath="..http_filters[?(@.name=~'envoy.filters.http.ratelimit.*')].typed_config")),
+    ("fail-closed-patch", "three-patches", lambda d: _patches(d).append(copy.deepcopy(_patches(d)[0]))),
+    ("fail-closed-patch", "fail-open", lambda d: _patches(d)[0]["operation"].update(value=False)),
+    ("fail-closed-patch", "status-500", lambda d: _patches(d)[1]["operation"].update(value={"code": 500})),
+    ("environment-issuer", "kind-issuer-in-prod", lambda d: _cert_for(d)["issuerRef"].update(name="vectra-internal-ca")),
+    ("environment-issuer", "dns-name", lambda d: _cert_for(d).update(dnsNames=["vectra.staging.banco.internal"])),
+    ("environment-issuer", "listener-hostname", lambda d: _listener(d).update(hostname="vectra.staging.banco.internal")),
+    ("environment-issuer", "kind-image-in-prod", lambda d: _container(d).update(image="kind-registry:5000/vectra/envoy@sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0")),
+    ("gateway-wiring", "gateway-without-class", _remove("GatewayClass", "envoy-gateway")),
+    ("gateway-wiring", "class-without-proxy", _remove("EnvoyProxy", "api-gateway")),
+    ("gateway-wiring", "listener-secret", lambda d: _cert_for(d).update(secretName="otro")),
+    ("gateway-wiring", "route-without-gateway", _remove("Gateway", "api-gateway")),
+    ("auth-rate-limit-isolated", "counters-back-in-edge", _move_counters_to_edge),
+    ("auth-rate-limit-isolated", "counters-elsewhere", lambda d: gc.find(d, "BackendTrafficPolicy", "console-read")["spec"].update(rateLimit={"type": "Global", "global": {"rules": []}})),
+    ("auth-rate-limit-isolated", "target", lambda d: gc.find(d, "BackendTrafficPolicy", ge.AUTH_RULE)["spec"]["targetRefs"][0].pop("sectionName")),
+    ("auth-rate-limit-isolated", "one-counter", lambda d: gc.find(d, "BackendTrafficPolicy", ge.AUTH_RULE)["spec"]["rateLimit"]["global"]["rules"].pop()),
+    ("auth-rate-limit-isolated", "retry", lambda d: gc.find(d, "BackendTrafficPolicy", ge.AUTH_RULE)["spec"].update(retry={"numRetries": 1})),
+    ("auth-rate-limit-isolated", "two-rules", lambda d: _rule(d, "auth", ge.AUTH_RULE) and gc.find(d, "HTTPRoute", "auth")["spec"]["rules"].append({**copy.deepcopy(_rule(d, "auth", ge.AUTH_RULE)), "name": "otra"})),
+    ("fail-closed-domain", "patch-on-edge-domain", lambda d: [_patches(d)[i]["operation"].update(jsonPath=_patches(d)[i]["operation"]["jsonPath"].replace("auth-rate-limits", "edge-rate-limits")) for i in (0, 1)]),
 ]
 
 
@@ -1005,7 +1152,7 @@ def test_rule_fails_on_an_altered_document(rule, case, mutate, docs_by_env):
 @pytest.fixture(scope="module")
 def schemas(tmp_path_factory: pytest.TempPathFactory) -> Path:
     out = tmp_path_factory.mktemp("schemas")
-    crd_schemas.convert(gc.CHART, out, gc.ESO_CHART)
+    crd_schemas.convert(gc.CHART, out, gc.ESO_CHART, cert_manager_chart=gc.CERT_MANAGER_CHART)
     return out
 
 
@@ -1089,7 +1236,7 @@ DESIGN_ALTERATIONS = [
     ("NFR_PATTERNS", "| `/auth/**` | 10 s |", "| `/auth/**` | 12 s |"),
     ("NFR_PATTERNS", "prefijo reservado `x-vectra-`", "prefijo reservado `x-mio-`"),
     ("NFR_PATTERNS", "`x-vectra-azp`", "`x-vectra-azq`"),
-    ("NFR_REQUIREMENTS", "(1 salto)", "(2 salto)"),
+    ("NFR_REQUIREMENTS", "no confía en ningún salto", "confía en un salto"),
     ("BUSINESS_RULES", "se tratan con `UnescapeAndRedirect`", "se tratan con `RejectRequest`"),
     ("BUSINESS_RULES", "las barras dobles se fusionan", "las barras dobles se mantienen"),
     ("BUSINESS_RULES", "Se ocultan las cabeceras `server` y `x-envoy-*`", "Se ocultan las cabeceras `via` y `x-envoy-*`"),
@@ -1097,6 +1244,7 @@ DESIGN_ALTERATIONS = [
     ("BUSINESS_RULES", "`/api/` y `/auth/` son prefijos cerrados", "`/api/` y `/grafana/` son prefijos cerrados"),
     ("BUSINESS_RULES", "su política no declara 429", "su política declara 429"),
     ("NFR_PATTERNS", "Solo `GET`/`HEAD`: 1 reintento", "Solo `GET`: 1 reintento"),
+    ("NFR_PATTERNS", "- `/auth/**` no reintenta", "- `/auth/**` reintenta"),
     ("DOMAIN_ENTITIES", "JWT válido de `vectra-console`", "JWT válido de `vectra-consola`"),
     ("DOMAIN_ENTITIES", "JWT con `intake:submit`", "JWT con `intake:send`"),
     ("DOMAIN_ENTITIES", "`azp` = `channel` (F04)", "`azp` = `canal` (F04)"),
@@ -1121,6 +1269,40 @@ DESIGN_ALTERATIONS = [
     ("DOMAIN_ENTITIES", "`protocol/openid-connect/token`)", "`protocol/openid-connect/certs`)"),
     ("DOMAIN_ENTITIES", "`X-Frame-Options: DENY`", "`X-Frame-Options: SAMEORIGIN`"),
     ("DOMAIN_ENTITIES", "| 64 KiB | Perfil `api` |", "| 48 KiB | Perfil `api` |"),
+    # --- Paso 8 (U02-T10): cada valor nuevo que fija el diseno ---
+    ("INFRASTRUCTURE", "`vectra-internal-ca` en kind", "`vectra-interna` en kind"),
+    ("INFRASTRUCTURE", "el ejemplo es `banco-ca`", "el ejemplo es `ca-banco`"),
+    ("INFRASTRUCTURE", "listener HTTPS (443)", "listener HTTPS (8443)"),
+    ("INFRASTRUCTURE", "`registro.banco.internal/vectra/envoy` (`kind-registry:5000/vectra/envoy` en kind)", "`registro.banco.internal/vectra/proxy` (`kind-registry:5000/vectra/envoy` en kind)"),
+    ("INFRASTRUCTURE", "`registro.banco.internal/vectra/envoy` (`kind-registry:5000/vectra/envoy` en kind)", "`registro.banco.internal/vectra/envoy` (`kind-registry:5000/vectra/proxy` en kind)"),
+    ("INFRASTRUCTURE", "sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0", "sha256:" + "1" * 64),
+    ("INFRASTRUCTURE", "`vectra.io/criticality: high` va en", "`vectra.io/criticality: medium` va en"),
+    ("INFRASTRUCTURE", "`externalTrafficPolicy: Local` y la etiqueta `app.kubernetes.io/name: api-gateway`", "`externalTrafficPolicy: Cluster` y la etiqueta `app.kubernetes.io/name: api-gateway`"),
+    ("INFRASTRUCTURE", "`envoyHpa` de 2 a 6 réplicas", "`envoyHpa` de 3 a 6 réplicas"),
+    ("INFRASTRUCTURE", "`envoyHpa` de 2 a 6 réplicas", "`envoyHpa` de 2 a 8 réplicas"),
+    ("INFRASTRUCTURE", "objetivo de CPU del 70 %", "objetivo de CPU del 80 %"),
+    ("INFRASTRUCTURE", "`envoyPDB` con `minAvailable: 1`", "`envoyPDB` con `minAvailable: 2`"),
+    ("INFRASTRUCTURE", "| Envoy (data plane) | 250m / 256 MiB | 1 CPU / 512 MiB |", "| Envoy (data plane) | 300m / 256 MiB | 1 CPU / 512 MiB |"),
+    ("INFRASTRUCTURE", "| Envoy (data plane) | 250m / 256 MiB | 1 CPU / 512 MiB |", "| Envoy (data plane) | 250m / 256 MiB | 2 CPU / 512 MiB |"),
+    ("INFRASTRUCTURE", "`otel-collector.vectra-observability.svc:4317` (F61) con muestreo del 100 %", "`otel-collector.vectra-observability.svc:4318` (F61) con muestreo del 100 %"),
+    ("INFRASTRUCTURE", "`otel-collector.vectra-observability.svc:4317` (F61) con muestreo del 100 %", "`otel-collector.vectra-observability.svc:4317` (F61) con muestreo del 50 %"),
+    ("INFRASTRUCTURE", "spread por zona", "spread por nodo"),
+    ("NFR_PATTERNS", "- Campos: `timestamp`, `route_name`,", "- Campos: `timestamp`, `route`,"),
+    ("NFR_PATTERNS", "`failure_mode_deny: true` y `status_on_error: 503`", "`failure_mode_deny: true` y `status_on_error: 500`"),
+    ("NFR_PATTERNS", "`failure_mode_deny: true` y `status_on_error: 503`", "`failure_mode_deny: false` y `status_on_error: 503`"),
+    ("KEYCLOAK_VALUES", "maxSkew: 1", "maxSkew: 2"),
+    ("KEYCLOAK_VALUES", "whenUnsatisfiable: DoNotSchedule", "whenUnsatisfiable: ScheduleAnyway"),
+    ("INFRASTRUCTURE", "en JSON a stdout", "en JSON a stderr"),
+    ("INFRASTRUCTURE", "en JSON a stdout", "en Text a stdout"),
+    ("INFRASTRUCTURE", "tracing OpenTelemetry hacia", "tracing Zipkin hacia"),
+    ("INFRASTRUCTURE", "objetivo de CPU del", "objetivo de memoria del"),
+    ("INFRASTRUCTURE", "listener HTTPS (443)", "listener HTTP (443)"),
+    ("INFRASTRUCTURE", "| 10m / 32 MiB | 50m / 64 MiB |", "| 20m / 32 MiB | 50m / 64 MiB |"),
+    ("INFRASTRUCTURE", "| 10m / 32 MiB | 50m / 64 MiB |", "| 10m / 32 MiB | 100m / 64 MiB |"),
+    ("INFRASTRUCTURE", "`shutdown-manager` (sidecar de cada pod de Envoy)", "`shutdown-agent` (sidecar de cada pod de Envoy)"),
+    ("INFRASTRUCTURE", "fija TLS 1.2 como mínimo y 1.3 como máximo", "fija TLS 1.3 como mínimo y 1.3 como máximo"),
+    ("INFRASTRUCTURE", "fija TLS 1.2 como mínimo y 1.3 como máximo", "fija TLS 1.2 como mínimo y 1.2 como máximo"),
+    ("LOGICAL_COMPONENTS", "| Envoy (data plane) | `vectra-edge` | TLS, rutas, JWT, rate limit, cabeceras, access log | P-U2-01..03, 06, 07 | `vectra-high` |", "| Envoy (data plane) | `vectra-edge` | TLS, rutas, JWT, rate limit, cabeceras, access log | P-U2-01..03, 06, 07 | `vectra-medium` |"),
 ]
 
 
@@ -1146,3 +1328,77 @@ def test_the_design_texts_are_the_ones_the_oracle_reads():
 
     assert gateway_design.INFRASTRUCTURE is design_values.INFRASTRUCTURE
     assert gateway_design.DOMAIN_ENTITIES is design_values.DOMAIN_ENTITIES
+
+
+# --- Paso 8 (U02-T10): lo que no es una sola regla ---------------------------------------------------
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_the_auth_counters_live_only_in_the_route_policy(env, docs_by_env):
+    docs = docs_by_env[env]
+    edge = gc.find(docs, "BackendTrafficPolicy", "edge-rate-limits")["spec"]["rateLimit"]["global"]["rules"]
+    assert not [r for r in edge if any("sourceCIDR" in s for s in r.get("clientSelectors", []))]
+    others = [b["metadata"]["name"] for b in gc.of_kind(docs, "BackendTrafficPolicy") if "rateLimit" in b["spec"]]
+    assert sorted(others) == sorted(["edge-rate-limits", ge.AUTH_RULE])
+    assert "retry" not in gc.find(docs, "BackendTrafficPolicy", ge.AUTH_RULE)["spec"]  # X1
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_the_client_policy_takes_the_remote_address(env, docs_by_env):
+    spec = gc.find(docs_by_env[env], "ClientTrafficPolicy", "edge-client")["spec"]
+    assert "clientIPDetection" not in spec  # v1.9.3 resta 1 a numTrustedHops y configura la extension xff aun con 0
+    assert gd.trusted_hops() == 0
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_the_issuer_is_the_one_of_the_environment_and_staging_and_prod_never_use_the_one_of_kind(env, docs_by_env):
+    issuer = gc.find(docs_by_env[env], "Certificate", "api-gateway")["spec"]["issuerRef"]["name"]
+    assert issuer == gd.issuers()[env]
+    assert (issuer == "vectra-internal-ca") == (env == "kind")
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_the_envoy_image_is_the_mirror_of_the_environment_with_the_digest_of_the_design(env, docs_by_env):
+    repos, digest, _, _ = gd.envoy_images()
+    image = _container(docs_by_env[env])["image"]
+    assert image == f"{repos[env]}@{digest}"
+    values = route_gen.load_values(env)["envoy_image"]
+    assert (values["repository"], values["digest"]) == (repos[env], digest)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_the_access_log_has_exactly_the_fields_of_the_design(env, docs_by_env):
+    (setting,) = _telemetry(docs_by_env[env])["accessLog"]["settings"]
+    assert sorted(setting["format"]["json"]) == sorted(gd.access_log_fields())
+    assert setting["format"]["json"]["correlation_id"] == "%TRACE_ID%"
+    assert all("REQ(" not in v or v == "%REQ(:METHOD)%" for v in setting["format"]["json"].values())
+
+
+@pytest.mark.parametrize("remove", ["digest", "repository", "block"])
+def test_the_generator_fails_without_the_digest_of_the_envoy_image(remove):
+    values = copy.deepcopy(route_gen.load_values("prod"))
+    if remove == "block":
+        values.pop("envoy_image")
+    else:
+        values["envoy_image"].pop(remove)
+    with pytest.raises(route_gen.RoutesError):
+        route_gen.generate(route_gen.load_routes(), values)
+
+
+def test_the_generator_rejects_a_digest_that_is_not_a_sha256():
+    values = copy.deepcopy(route_gen.load_values("prod"))
+    values["envoy_image"]["digest"] = "latest"
+    with pytest.raises(route_gen.RoutesError):
+        route_gen.generate(route_gen.load_routes(), values)
+
+
+def test_the_generator_fails_without_an_issuer():
+    values = copy.deepcopy(route_gen.load_values("prod"))
+    values.pop("issuer")
+    with pytest.raises(route_gen.RoutesError):
+        route_gen.generate(route_gen.load_routes(), values)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_the_gateway_carries_the_criticality_label_the_deployment_gets(env, docs_by_env):
+    assert gc.find(docs_by_env[env], "Gateway", "api-gateway")["spec"]["infrastructure"]["labels"] == gd.infrastructure_labels()

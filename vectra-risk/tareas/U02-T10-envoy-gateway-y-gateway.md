@@ -15,6 +15,26 @@ Paso 8 del plan de U2. Al preparar la tarea (2026-11-04), el orquestador comprob
 
 Las decisiones están en INF-U2-02, INF-U2-03, INF-U2-10, P-U2-01 y NFR-U2-23.
 
+> **Enmienda del 2026-11-04 (orquestador, decisiones X1–X3 del usuario y hallazgos del codificador en la ronda 1):**
+> - X1: `/auth/**` no reintenta y tiene una sola política de ruta, con los dos contadores por IP (`shared`) y `mergeType: StrategicMerge` hacia `edge-rate-limits`. La `EnvoyPatchPolicy` va sobre el filtro del dominio de esa política. Donde abajo dice `auth-rate-limits` «del `Gateway`», léase esa política de ruta (P-U2-01, P-U2-02).
+> - X2: K14 es exactamente el RBAC del chart v1.9.3 (component-dependency §3). CA-3 fija esas reglas exactas en vez de compararlas con la K14 anterior.
+> - X3: `provider.kubernetes.shutdownManager.image` usa el espejo `envoy-gateway`, con el digest `sha256:192fc9bd…cd9f` (INF-U2-02). `vectra.io/criticality: high` va en `Gateway.spec.infrastructure.labels`.
+> - **IP real:** v1.9.3 resta 1 a `numTrustedHops`, así que con 0 o con 1 configura igual la extensión `xff`. W2 se cumple omitiendo `clientIPDetection`, y la prueba de xDS exige `use_remote_address: true` y que no haya `original_ip_detection_extensions`.
+> - **`egctl x translate -f`** acepta un archivo, no un directorio. `xds-gateway` concatena `generated/<env>/` con un Secret TLS de prueba y el Service `otel-collector`, y usa `--add-missing-resources`.
+> - **Tracing:** con `backendRefs`, no con `host`/`port`, que v1.9.3 da por obsoleto.
+>
+> **Enmienda del 2026-11-04 (orquestador, decisiones Y1–Y4 del usuario tras la ronda 1 de revisión):**
+> - Y1: el `shutdown-manager` lleva requests 10m / 32 MiB y limits 50m / 64 MiB por `envoyDeployment.patch` (INF-U2-06).
+> - Y2: la regla de réplicas de `platform/policies/kyverno/require-spread-and-pdb.yaml` exime los Deployments con `gateway.envoyproxy.io/owning-gateway-name`, con su caso en el `kyverno test` de U1.
+> - Y3: `platform/operators/envoy-gateway-kind.yaml` y `kind_values` en `vectra-risk-gitops/components.yaml`, con `vectra-risk-gitops/apps/` regenerado por `generate.py`.
+> - Y4: `ClientTrafficPolicy.tls` con mínimo 1.2 y máximo 1.3, y el `certgen` dentro de K14.
+>
+> El alcance en `platform/` y en `vectra-risk-gitops/` suma esos archivos.
+>
+> **Enmienda del 2026-11-04 (orquestador, decisiones Z1 y Z2 del usuario tras la ronda 2 de revisión):**
+> - Z1: el `EnvoyProxy` no sobrescribe `app.kubernetes.io/name` en `pod.labels`; donde el texto del Paso 8 pide `envoyDeployment.pod.labels: {app.kubernetes.io/name: api-gateway}`, rige la enmienda del plan. La identidad se selecciona por `gateway.envoyproxy.io/owning-gateway-name` en el Paso 10 (`flows.yaml` queda fuera de esta tarea).
+> - Z2: `require-spread-and-pdb` se parte en una regla de réplicas, con la exención por `owning-gateway-name` solo en `vectra-edge`, y otra de reparto por zona para todos, sin exención. Se quita `require-spread-gateway`.
+
 ## Alcance
 
 **Dentro:** todo el Paso 8 del plan. Texto del plan, sin recortes:

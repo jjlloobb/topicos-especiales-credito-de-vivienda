@@ -21,6 +21,7 @@ EDGE = Path(__file__).resolve().parents[1]
 ROOT = EDGE.parent
 DEFAULT_CHART = ROOT / "platform" / ".charts" / "envoy-gateway" / "gateway-helm"
 DEFAULT_ESO_CHART = ROOT / "platform" / ".charts" / "external-secrets" / "external-secrets"
+DEFAULT_CERT_MANAGER_CHART = ROOT / "platform" / ".charts" / "cert-manager" / "cert-manager"
 DEFAULT_HELM = ROOT / "platform" / ".tools" / "bin" / "helm"
 DEFAULT_OUT = EDGE / ".tools" / "schemas"
 _DROP = {"default", "format", "example", "x-kubernetes-validations", "x-kubernetes-list-type", "x-kubernetes-list-map-keys", "x-kubernetes-map-type", "x-kubernetes-embedded-resource"}
@@ -67,16 +68,31 @@ def eso_crds(chart: Path, helm: Path) -> list[dict[str, Any]]:
     return [d for d in yaml.safe_load_all(run.stdout) if d]
 
 
-def convert(chart: Path, out: Path, eso_chart: Path | None = None, helm: Path = DEFAULT_HELM) -> list[Path]:
+def cert_manager_crds(chart: Path, helm: Path) -> list[dict[str, Any]]:
+    """El CRD `Certificate` de cert-manager (U02-T10): el chart lo trae como plantilla, activa con `crds.enabled`."""
+    run = subprocess.run(  # noqa: S603 - helm fijo de platform/.tools
+        [str(helm), "template", "cm", str(chart), "--set", "crds.enabled=true", "--show-only", "templates/crd-cert-manager.io_certificates.yaml"],
+        capture_output=True, text=True, check=False,
+    )  # fmt: skip
+    if run.returncode != 0:
+        raise SystemExit(f"crd_schemas: helm template de {chart} fallo: {run.stderr.strip()}")
+    return [d for d in yaml.safe_load_all(run.stdout) if d]
+
+
+def convert(
+    chart: Path, out: Path, eso_chart: Path | None = None, helm: Path = DEFAULT_HELM, cert_manager_chart: Path | None = None
+) -> list[Path]:
     """Escribe un esquema por version de cada CRD. Devuelve los archivos escritos.
 
     Con `eso_chart` (el chart de External Secrets de `components.yaml`, que baja `charts.sh`) agrega el `ExternalSecret`
-    que genera F09.
+    que genera F09, y con `cert_manager_chart` el `Certificate` del Gateway (Paso 8).
     """
     written = []
     docs = [d for path in crd_files(chart) for d in yaml.safe_load_all(path.read_text(encoding="utf-8")) if d]
     if eso_chart is not None:
         docs += eso_crds(eso_chart, helm)
+    if cert_manager_chart is not None:
+        docs += cert_manager_crds(cert_manager_chart, helm)
     for doc in docs:
         if doc.get("kind") != "CustomResourceDefinition":
             continue
@@ -96,9 +112,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="CRDs de gateway-helm -> esquemas JSON para kubeconform")
     parser.add_argument("--chart", type=Path, default=DEFAULT_CHART)
     parser.add_argument("--eso-chart", type=Path, default=DEFAULT_ESO_CHART)
+    parser.add_argument("--cert-manager-chart", type=Path, default=DEFAULT_CERT_MANAGER_CHART)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = parser.parse_args(argv)
-    written = convert(args.chart, args.out, args.eso_chart)
+    written = convert(args.chart, args.out, args.eso_chart, cert_manager_chart=args.cert_manager_chart)
     print(f"crd_schemas: {len(written)} esquemas en {args.out}")  # noqa: T201
     return 0
 

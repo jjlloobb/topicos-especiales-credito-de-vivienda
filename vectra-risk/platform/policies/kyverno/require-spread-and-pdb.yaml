@@ -3,29 +3,51 @@ kind: ClusterPolicy
 metadata:
   name: require-spread-and-pdb
   annotations:
-    policies.kyverno.io/description: Al menos 2 replicas y reparto por zona
+    policies.kyverno.io/description: Al menos 2 replicas (el data plane de Envoy Gateway en vectra-edge, por su HPA) y reparto por zona
 spec:
   validationFailureAction: Enforce
   failurePolicy: Fail
   background: false
   rules:
-    - name: require-spread-and-pdb
+    # Z2 (U02-T10): replicas y reparto por zona son dos reglas. Solo la de replicas se exime para el data plane de Envoy Gateway.
+    - name: require-min-replicas
       match:
         any:
           - resources:
               kinds: [Deployment]
               namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-mock]
       # El InferenceService inactivo de U6 (INF-U6-02) lleva 1 replica y no tiene PDB.
+      # El data plane de Envoy Gateway (decision Y2, acotada a `vectra-edge` por Z2): con `envoyHpa`, v1.9.3 deja `replicas` sin
+      # fijar en el Deployment (`resource_provider.go`), el apiserver lo deja en 1 y el HPA lo sube. El minimo de 2 es `minReplicas`
+      # del HPA, que vigila la regla `envoy-scaling` de U2 (conftest sobre lo generado); `require-hpa-bounds` no lo mira.
       exclude:
-        all:
+        any:
+          - resources:
+              selector: { matchLabels: { vectra.io/serving-state: inactivo } }
+              annotations: { vectra.io/hpa-exempt: "?*" }
+          - resources:
+              namespaces: [vectra-edge]
+              selector: { matchExpressions: [{ key: gateway.envoyproxy.io/owning-gateway-name, operator: Exists }] }
+      validate:
+        message: "Al menos 2 replicas"
+        pattern:
+          spec:
+            replicas: ">=2"
+    - name: require-zone-spread
+      match:
+        any:
+          - resources:
+              kinds: [Deployment]
+              namespaces: [vectra-app, vectra-edge, vectra-identity, vectra-serving, vectra-mock]
+      exclude:
+        any:
           - resources:
               selector: { matchLabels: { vectra.io/serving-state: inactivo } }
               annotations: { vectra.io/hpa-exempt: "?*" }
       validate:
-        message: "Al menos 2 replicas y reparto por zona"
+        message: "Reparto por zona"
         pattern:
           spec:
-            replicas: ">=2"
             template:
               spec:
                 topologySpreadConstraints:

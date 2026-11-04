@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Instala helm, kyverno, conftest, promtool, actionlint, hadolint y kubeconform en platform/.tools/bin, comprobando el SHA-256 publicado.
+# Instala helm, kyverno, conftest, promtool, actionlint, hadolint, kubeconform y egctl en platform/.tools/bin, comprobando el SHA-256 publicado.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
@@ -25,3 +25,8 @@ fetch "https://github.com/hadolint/hadolint/releases/download/$HADOLINT_VERSION"
 install -m 0755 "$work/hadolint-linux-x86_64" "$bin/hadolint"
 fetch "https://github.com/yannh/kubeconform/releases/download/$KUBECONFORM_VERSION" kubeconform-linux-amd64.tar.gz CHECKSUMS
 tar -xzf "$work/kubeconform-linux-amd64.tar.gz" -C "$bin" kubeconform
+# egctl: el release no publica un archivo de checksums, asi que el sha256 del tarball esta fijado en tools.env (U02-T10, W7).
+curl -fsSL -o "$work/egctl.tar.gz" "https://github.com/envoyproxy/gateway/releases/download/$EGCTL_VERSION/egctl_${EGCTL_VERSION}_linux_amd64.tar.gz"
+echo "$EGCTL_SHA256  $work/egctl.tar.gz" | sha256sum -c -
+mkdir "$work/egctl" && tar -xzf "$work/egctl.tar.gz" -C "$work/egctl"
+install -m 0755 "$(find "$work/egctl" -type f -name egctl | head -n 1)" "$bin/egctl"

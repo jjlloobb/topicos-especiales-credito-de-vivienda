@@ -1,0 +1,32 @@
+# Generado por identity-edge/tools/route_gen.py desde identity-edge/gateway/routes.yaml. No editar a mano.
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: auth-fail-closed
+  namespace: vectra-edge
+spec:
+  jsonPatches:
+  - name: vectra-edge/api-gateway/https
+    operation:
+      jsonPath: ..http_filters[?(@.name=='envoy.filters.http.ratelimit/vectra-edge/auth-rate-limits')].typed_config
+      op: add
+      path: failure_mode_deny
+      value: true
+    type: type.googleapis.com/envoy.config.listener.v3.Listener
+  - name: vectra-edge/api-gateway/https
+    operation:
+      jsonPath: ..http_filters[?(@.name=='envoy.filters.http.ratelimit/vectra-edge/auth-rate-limits')].typed_config
+      op: add
+      path: status_on_error
+      value:
+        code: 503
+    type: type.googleapis.com/envoy.config.listener.v3.Listener
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: api-gateway
+  type: JSONPatch

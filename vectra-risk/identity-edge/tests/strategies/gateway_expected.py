@@ -7,9 +7,11 @@ caminos y reescrituras, destinos, cabeceras, cookie, F09, grants); aqui solo que
 reglas y de politicas, etiquetas, orden) y la logica que arma cada documento.
 """
 
+from pathlib import Path
 from typing import Any
 
 import gateway_design as gd
+import yaml
 from vectra_common.errors import (
     DependencyUnavailable,
     Forbidden,
@@ -32,7 +34,12 @@ QUERY_SUFFIX = r"(\?.*)?$"
 
 FILES = (
     "backendtrafficpolicies.yaml",
+    "certificates.yaml",
     "clienttrafficpolicies.yaml",
+    "envoypatchpolicies.yaml",
+    "envoyproxies.yaml",
+    "gatewayclasses.yaml",
+    "gateways.yaml",
     "httproutefilters.yaml",
     "httproutes.yaml",
     "referencegrants.yaml",
@@ -62,7 +69,9 @@ SERVICE = {
 # La clave de P-U2-02 de cada ruta con reintentos, y su regla de solo lectura.
 RETRY_KEY = {"console": "/api/console/**", "promotion": "/api/promotion/**", "auth": "/auth/**", "grafana": "/grafana/**"}
 TIMEOUT_KEY = {"console": "/api/console/**", "intake": "/api/intake/**", "promotion": "/api/promotion/**", "auth": "/auth/**", "grafana": "/grafana/**"}
-READ_RULE = {"console": "console-read", "promotion": "promotion-models", "auth": "auth-read", "grafana": "grafana-read"}
+# La regla que reintenta, si el diseno dice que la ruta reintenta (X1: `/auth/**` no, y su unica regla seria la que reintentara).
+READ_RULE = {"console": "console-read", "promotion": "promotion-models", "auth": "auth-rate-limits", "grafana": "grafana-read"}
+AUTH_RULE = "auth-rate-limits"  # X1: la unica regla de `/auth/**`, y el dominio de su filtro de rate limit
 
 PROBLEM_ERRORS: dict[int, VectraError] = {
     401: Unauthenticated(),
@@ -246,10 +255,7 @@ def httproutes(hostname: str, f09: bool) -> list[dict[str, Any]]:
         httproute(
             "auth",
             hostname,
-            [
-                rule("auth-read", auth_matches(read_methods()), [response_headers("auth")], dest("auth")),
-                rule("auth-write", auth_matches(None), [response_headers("auth")], dest("auth")),
-            ],
+            [rule(AUTH_RULE, auth_matches(None), [response_headers("auth")], dest("auth"))],
         ),
         httproute(
             "grafana",
@@ -405,8 +411,10 @@ def error_codes(route: str) -> list[int]:
     return sorted(codes)
 
 
-def btp(route: str, rule_name: str, *, timeout: str | None, retry: bool, console: bool, limit: str | None, cookie: bool, retry_after: str) -> dict[str, Any]:
+def btp(route: str, rule_name: str, *, timeout: str | None, retry: bool, console: bool, limit: str | None, cookie: bool, retry_after: str, rules: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     spec: dict[str, Any] = {"mergeType": "StrategicMerge", "targetRefs": [route_ref(route, rule_name)]}
+    if rules:
+        spec["rateLimit"] = {"type": "Global", "global": {"rules": rules}}
     if retry:
         r = gd.retry()
         spec["retry"] = {"numRetries": r.num_retries, "retryOn": {"triggers": [r.trigger]}}
@@ -433,13 +441,24 @@ def counter_regex(paths: list[str]) -> str:
     return "^" + gd.AUTH_BASE + body + QUERY_SUFFIX
 
 
+def auth_rate_limit_rules() -> list[dict[str, Any]]:
+    """X1: los dos contadores por IP de `/auth/**` (login y token), uno por familia de direcciones."""
+    n, u = gd.rate_limit_numbers(), gd.rate_limit_units()
+    counters = gd.auth_counters()
+    rules: dict[str, dict[str, Any]] = {}
+    for name, key in (("auth-login", "login"), ("auth-token", "token")):
+        for cidr in ("0.0.0.0/0", "::/0"):  # un contador por IP de origen, IPv4 e IPv6
+            selector = {"path": {"type": "RegularExpression", "value": counter_regex(counters[key])}, "sourceCIDR": {"type": "Distinct", "value": cidr}}
+            rules[f"{name}@{cidr}"] = {"limit": {"requests": n["auth"], "unit": u["auth"]}, "shared": True, "clientSelectors": [selector]}
+    return [rules[k] for k in sorted(rules)]
+
+
 def rate_limit_rules(simulator_azp: str | None, f09: bool) -> list[dict[str, Any]]:
     n, u = gd.rate_limit_numbers(), gd.rate_limit_units()
     sub = f"{gd.internal_prefix()}sub"
     azp = f"{gd.internal_prefix()}azp"
     distinct_sub = {"name": sub, "type": "Distinct"}
     intake_path = {"type": "RegularExpression", "value": "^" + gd.rewrites()[0].source + QUERY_SUFFIX}
-    counters = gd.auth_counters()
 
     def rl(key: str, selector: dict[str, Any] | None) -> dict[str, Any]:
         out: dict[str, Any] = {"limit": {"requests": n[key], "unit": u[key]}, "shared": True}
@@ -453,9 +472,6 @@ def rate_limit_rules(simulator_azp: str | None, f09: bool) -> list[dict[str, Any
         "intake-channel": rl("intake-channel", {"headers": [{"name": azp, "type": "Exact", "value": intake_base_azp()}], "path": intake_path}),
         "promotion": rl("promotion", {"headers": [distinct_sub], "path": {"type": "PathPrefix", "value": row_prefix("promotion")}}),
     }
-    for name, key in (("auth-login", "login"), ("auth-token", "token")):
-        for cidr in ("0.0.0.0/0", "::/0"):  # un contador por IP de origen, IPv4 e IPv6
-            rules[f"{name}@{cidr}"] = rl("auth", {"path": {"type": "RegularExpression", "value": counter_regex(counters[key])}, "sourceCIDR": {"type": "Distinct", "value": cidr}})
     if simulator_azp:
         rules["intake-channel-simulator"] = rl("intake-channel-simulator", {"headers": [{"name": azp, "type": "Exact", "value": simulator_azp}], "path": intake_path})
     if f09:
@@ -467,13 +483,13 @@ def backendtrafficpolicies(simulator_azp: str | None, f09: bool) -> list[dict[st
     ra = gd.retry_after()
     timeouts = gd.timeouts()
     retried = set(gd.retry().routes)
-    assert retried == set(RETRY_KEY.values())
+    assert retried <= set(RETRY_KEY.values())
     rules = {
         "spa": ["spa"],
         "console": ["console-read", "console-write"],
         "intake": ["intake-submit"],
         "promotion": ["promotion-models", "promotion-activation"],
-        "auth": ["auth-read", "auth-write"],
+        "auth": [AUTH_RULE],
         "grafana": ["grafana-read", "grafana-write"],
     }
     if f09:
@@ -506,11 +522,12 @@ def backendtrafficpolicies(simulator_azp: str | None, f09: bool) -> list[dict[st
                     route,
                     name,
                     timeout=timeouts.get(TIMEOUT_KEY.get(route, "")),
-                    retry=name == READ_RULE.get(route),
+                    retry=name == READ_RULE.get(route) and RETRY_KEY[route] in retried,
                     console=route == "console",
                     limit=gd.body_limit(ROW[route]),
                     cookie=route == "spa",
                     retry_after=ra["auth"] if route == "auth" else ra["second"],
+                    rules=auth_rate_limit_rules() if name == AUTH_RULE else None,
                 )
             )
     return sorted(policies, key=lambda p: p["metadata"]["name"])
@@ -519,22 +536,207 @@ def backendtrafficpolicies(simulator_azp: str | None, f09: bool) -> list[dict[st
 def clienttrafficpolicies() -> list[dict[str, Any]]:
     prefix = gd.internal_prefix()
     remove, remove_prefixes = gd.response_removals()
+    spec: dict[str, Any] = {
+        "targetRefs": [gateway_ref()],
+        "headers": {
+            "earlyRequestHeaders": {"removeOnMatch": [{"type": "Prefix", "value": prefix}]},
+            "lateResponseHeaders": {
+                "remove": remove,
+                "removeOnMatch": [{"type": "Prefix", "value": v} for v in sorted([*remove_prefixes, prefix])],
+            },
+        },
+        "path": {"escapedSlashesAction": gd.escaped_slashes_action(), "disableMergeSlashes": not gd.merge_slashes()},
+        "tls": {"minVersion": gd.tls_versions()[0], "maxVersion": gd.tls_versions()[1]},
+    }
+    if gd.trusted_hops():  # W2: con 0 no hay `clientIPDetection` (v1.9.3 resta 1 y configura la extension `xff` aun con 0)
+        spec["clientIPDetection"] = {"xForwardedFor": {"numTrustedHops": gd.trusted_hops()}}
+    return [{"apiVersion": EG_API, "kind": "ClientTrafficPolicy", "metadata": meta("edge-client"), "spec": spec}]
+
+
+# --- Paso 8: GatewayClass, Gateway, Certificate, EnvoyProxy, EnvoyPatchPolicy -----------------------
+
+CLASS_NAME = "envoy-gateway"
+CERTIFICATE_NAME = "api-gateway"
+TLS_SECRET = "api-gateway-tls"  # noqa: S105 - nombre de un Secret, no una credencial
+PATCH_NAME = "auth-fail-closed"
+CONTROLLER_VALUES = Path(__file__).resolve().parents[3] / "platform" / ".charts" / "envoy-gateway" / "gateway-helm" / "values.yaml"
+OWNING_GATEWAY_LABEL = "gateway.envoyproxy.io/owning-gateway-name"  # etiqueta de v1.9.3 (gatewayapi.OwningGatewayNameLabel)
+LISTENER_TYPE = "type.googleapis.com/envoy.config.listener.v3.Listener"
+RATELIMIT_FILTER = "envoy.filters.http.ratelimit"
+
+
+def controller_name() -> str:
+    """El nombre del controlador es el del chart `gateway-helm` v1.9.3."""
+    return yaml.safe_load(CONTROLLER_VALUES.read_text(encoding="utf-8"))["config"]["envoyGateway"]["gateway"]["controllerName"]
+
+
+def cluster_meta(name: str) -> dict[str, Any]:
+    return {"name": name, "labels": dict(LABELS)}
+
+
+def gatewayclasses() -> list[dict[str, Any]]:
+    return [
+        {
+            "apiVersion": GW_API,
+            "kind": "GatewayClass",
+            "metadata": cluster_meta(CLASS_NAME),
+            "spec": {
+                "controllerName": controller_name(),
+                "parametersRef": {"group": EG_GROUP, "kind": "EnvoyProxy", "name": gd.gateway_ref()[0], "namespace": edge_namespace()},
+            },
+        }
+    ]
+
+
+def gateways(hostname: str) -> list[dict[str, Any]]:
+    name, _, section = gd.gateway_ref()
+    return [
+        {
+            "apiVersion": GW_API,
+            "kind": "Gateway",
+            "metadata": meta(name),
+            "spec": {
+                "gatewayClassName": CLASS_NAME,
+                "infrastructure": {"labels": gd.infrastructure_labels()},
+                "listeners": [
+                    {
+                        "name": section,
+                        "port": gd.listener_port(),
+                        "protocol": gd.listener_protocol(),
+                        "hostname": hostname,
+                        "tls": {"mode": gd.listener_tls_mode(), "certificateRefs": [{"group": "", "kind": "Secret", "name": TLS_SECRET}]},
+                    }
+                ],
+            },
+        }
+    ]
+
+
+def certificates(env: str, hostname: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "apiVersion": "cert-manager.io/v1",
+            "kind": "Certificate",
+            "metadata": meta(CERTIFICATE_NAME),
+            "spec": {
+                "secretName": TLS_SECRET,
+                "dnsNames": [hostname],
+                "issuerRef": {"group": "cert-manager.io", "kind": "ClusterIssuer", "name": gd.issuers()[env]},
+            },
+        }
+    ]
+
+
+def access_log_json() -> dict[str, str]:
+    """Los campos son los de P-U2-07; el operador de cada uno lo fija el generador (ninguno lleva query ni cabeceras)."""
+    operators = {
+        "timestamp": "%START_TIME%",
+        "route_name": "%ROUTE_NAME%",
+        "method": "%REQ(:METHOD)%",
+        "status": "%RESPONSE_CODE%",
+        "duration_ms": "%DURATION%",
+        "upstream_cluster": "%UPSTREAM_CLUSTER%",
+        "correlation_id": TRACE_ID,
+        "client_ip": "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%",
+        "response_flags": "%RESPONSE_FLAGS%",
+    }
+    fields = gd.access_log_fields()
+    return {f: operators.get(f, "%SIN-OPERADOR%") for f in fields}  # un campo nuevo en el diseno no tiene operador: no coincide
+
+
+def access_log_format() -> str:
+    return gd.access_log_target()[0]
+
+
+def sidecar_patch() -> dict[str, Any]:
+    """Y1: los recursos del `shutdown-manager` (INF-U2-06) por `envoyDeployment.patch`."""
+    name, resources = gd.sidecar_resources()
+    return {"type": "StrategicMerge", "value": {"spec": {"template": {"spec": {"containers": [{"name": name, "resources": resources}]}}}}}
+
+
+def envoyproxies(env: str) -> list[dict[str, Any]]:
+    name = gd.gateway_ref()[0]
+    repos, digest, _, _ = gd.envoy_images()
+    low, high, cpu, pdb = gd.scaling()
+    service_type, traffic_policy, service_labels = gd.service_spec()
+    service, namespace, port, sampling = gd.tracing()
+    pod_labels = dict(gd.infrastructure_labels())  # Z1: sin `app.kubernetes.io/name`; la identidad es `owning-gateway-name`
+    security = {
+        "allowPrivilegeEscalation": False,
+        "capabilities": {"drop": ["ALL"]},
+        "privileged": False,
+        "readOnlyRootFilesystem": True,
+        "runAsNonRoot": True,
+        "seccompProfile": {"type": "RuntimeDefault"},
+    }
     return [
         {
             "apiVersion": EG_API,
-            "kind": "ClientTrafficPolicy",
-            "metadata": meta("edge-client"),
+            "kind": "EnvoyProxy",
+            "metadata": meta(name),
             "spec": {
-                "targetRefs": [gateway_ref()],
-                "clientIPDetection": {"xForwardedFor": {"numTrustedHops": gd.trusted_hops()}},
-                "headers": {
-                    "earlyRequestHeaders": {"removeOnMatch": [{"type": "Prefix", "value": prefix}]},
-                    "lateResponseHeaders": {
-                        "remove": remove,
-                        "removeOnMatch": [{"type": "Prefix", "value": v} for v in sorted([*remove_prefixes, prefix])],
+                "provider": {
+                    "type": "Kubernetes",
+                    "kubernetes": {
+                        "envoyServiceAccount": {"name": name},
+                        "envoyDeployment": {
+                            "replicas": low,
+                            "container": {"image": f"{repos[env]}@{digest}", "resources": gd.envoy_resources(), "securityContext": security},
+                            "patch": sidecar_patch(),
+                            "pod": {
+                                "labels": pod_labels,
+                                "priorityClassName": gd.envoy_priority(),
+                                "securityContext": {"runAsNonRoot": True, "seccompProfile": {"type": "RuntimeDefault"}},
+                                "topologySpreadConstraints": [
+                                    {
+                                        "maxSkew": gd.spread()[0],
+                                        "topologyKey": gd.spread_key(),
+                                        "whenUnsatisfiable": gd.spread()[1],
+                                        "labelSelector": {"matchLabels": {OWNING_GATEWAY_LABEL: gd.gateway_ref()[0]}},
+                                    }
+                                ],
+                            },
+                        },
+                        "envoyHpa": {
+                            "minReplicas": low,
+                            "maxReplicas": high,
+                            "metrics": [{"type": "Resource", "resource": {"name": gd.hpa_metric()[0], "target": {"type": gd.hpa_metric()[1], "averageUtilization": cpu}}}],
+                        },
+                        "envoyPDB": {"minAvailable": pdb},
+                        "envoyService": {"type": service_type, "externalTrafficPolicy": traffic_policy, "labels": service_labels},
                     },
                 },
-                "path": {"escapedSlashesAction": gd.escaped_slashes_action(), "disableMergeSlashes": not gd.merge_slashes()},
+                "telemetry": {
+                    "accessLog": {"settings": [{"format": {"type": access_log_format(), "json": access_log_json()}, "sinks": [{"type": gd.access_log_target()[1], "file": {"path": gd.access_log_target()[2]}}]}]},
+                    "tracing": {
+                        "samplingRate": sampling,
+                        "provider": {"type": gd.tracing_provider(), "backendRefs": [{"name": service, "namespace": namespace, "port": port}]},
+                    },
+                },
+            },
+        }
+    ]
+
+
+def envoypatchpolicies() -> list[dict[str, Any]]:
+    """P-U2-01, alternativa 2: el filtro del dominio de la politica de `/auth/**` falla cerrado con 503."""
+    gateway, namespace, section = gd.gateway_ref()
+    deny, status = gd.fail_closed()
+    filter_name = f"{RATELIMIT_FILTER}/{namespace}/{AUTH_RULE}"
+    selector = f"..http_filters[?(@.name=='{filter_name}')].typed_config"
+
+    def patch(path: str, value: Any) -> dict[str, Any]:
+        return {"type": LISTENER_TYPE, "name": f"{namespace}/{gateway}/{section}", "operation": {"op": "add", "jsonPath": selector, "path": path, "value": value}}
+
+    return [
+        {
+            "apiVersion": EG_API,
+            "kind": "EnvoyPatchPolicy",
+            "metadata": meta(PATCH_NAME),
+            "spec": {
+                "type": "JSONPatch",
+                "targetRef": gateway_ref(),
+                "jsonPatches": [patch("failure_mode_deny", deny), patch("status_on_error", {"code": status})],
             },
         }
     ]
@@ -586,7 +788,12 @@ def expected(env: str, f09: bool, simulator_azp: str | None) -> dict[str, list[d
     hostname = gd.hostnames()[env]
     files = {
         "backendtrafficpolicies.yaml": backendtrafficpolicies(simulator_azp, f09),
+        "certificates.yaml": certificates(env, hostname),
         "clienttrafficpolicies.yaml": clienttrafficpolicies(),
+        "envoypatchpolicies.yaml": envoypatchpolicies(),
+        "envoyproxies.yaml": envoyproxies(env),
+        "gatewayclasses.yaml": gatewayclasses(),
+        "gateways.yaml": gateways(hostname),
         "httproutefilters.yaml": httproutefilters(),
         "httproutes.yaml": httproutes(hostname, f09),
         "referencegrants.yaml": referencegrants(f09),

@@ -1,0 +1,18 @@
+# Generado por identity-edge/tools/route_gen.py desde identity-edge/gateway/routes.yaml. No editar a mano.
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: api-gateway
+  namespace: vectra-edge
+spec:
+  dnsNames:
+  - vectra.banco.internal
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: banco-ca
+  secretName: api-gateway-tls

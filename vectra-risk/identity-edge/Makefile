@@ -20,7 +20,7 @@ JOBS := $(ROOT)/identity-edge/jobs
 # Destino del render de los jobs. Por defecto, el versionado; `check-jobs-rendered` lo cambia por un directorio temporal.
 JOBS_OUT ?= $(JOBS)/rendered
 
-.PHONY: lint test check route-gen check-route-gen schemas-gateway kubeconform-gateway policy-gateway render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
+.PHONY: lint test check route-gen check-route-gen schemas-gateway kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
 
 lint:
 	$(UV) ruff check identity-edge
@@ -130,4 +130,15 @@ policy-gateway:
 	done
 
 # Verificaciones estaticas (AUTONOMIA-01). Crece con los pasos del plan.
-check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 check-route-gen kubeconform-gateway policy-gateway test
+check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 check-route-gen kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway test
+
+# `helm template` del chart gateway-helm v1.9.3 con los values del controlador (U02-T10, Paso 8). Lo renderizado no se versiona.
+EG_RENDER := $(ROOT)/identity-edge/.tools/envoy-gateway/render.yaml
+render-envoy-gateway:
+	mkdir -p $(dir $(EG_RENDER)) && \
+	$(HELM) template envoy-gateway $(ROOT)/platform/.charts/envoy-gateway/gateway-helm --namespace envoy-gateway-system --skip-crds \
+	  -f $(ROOT)/platform/operators/envoy-gateway.yaml > $(EG_RENDER) && test -s $(EG_RENDER)
+
+# Traduccion offline de `gateway/generated/<env>/` a xDS con `egctl` (U02-T10, Paso 8): sin clúster, con un Secret TLS desechable.
+xds-gateway:
+	$(UV) python identity-edge/tools/xds_gateway.py

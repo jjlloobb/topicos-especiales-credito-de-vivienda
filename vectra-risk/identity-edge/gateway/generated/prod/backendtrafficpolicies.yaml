@@ -6,66 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: route-gen
     app.kubernetes.io/part-of: identity-edge
-  name: auth-read
-  namespace: vectra-edge
-spec:
-  circuitBreaker:
-    retryBudget:
-      percent:
-        denominator: 100
-        numerator: 20
-  healthCheck:
-    passive:
-      baseEjectionTime: 30s
-      consecutive5XxErrors: 5
-      maxEjectionPercent: 50
-  mergeType: StrategicMerge
-  responseOverride:
-  - match:
-      statusCodes:
-      - type: Value
-        value: 429
-    response:
-      body:
-        inline: '{"type": "urn:vectra:problem:rate_limited", "title": "Demasiadas solicitudes", "status": 429, "code": "rate_limited", "correlation_id": "%TRACE_ID%"}'
-        type: Inline
-      contentType: application/problem+json
-      header:
-        set:
-        - name: Retry-After
-          value: '60'
-    source: Local
-  - match:
-      statusCodes:
-      - type: Value
-        value: 503
-    response:
-      body:
-        inline: '{"type": "urn:vectra:problem:dependency_unavailable", "title": "Servicio no disponible temporalmente", "status": 503, "code": "dependency_unavailable", "correlation_id": "%TRACE_ID%"}'
-        type: Inline
-      contentType: application/problem+json
-    source: Local
-  retry:
-    numRetries: 1
-    retryOn:
-      triggers:
-      - connect-failure
-  targetRefs:
-  - group: gateway.networking.k8s.io
-    kind: HTTPRoute
-    name: auth
-    sectionName: auth-read
-  timeout:
-    http:
-      requestTimeout: 10s
----
-apiVersion: gateway.envoyproxy.io/v1alpha1
-kind: BackendTrafficPolicy
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: route-gen
-    app.kubernetes.io/part-of: identity-edge
-  name: auth-write
+  name: auth-rate-limits
   namespace: vectra-edge
 spec:
   healthCheck:
@@ -74,6 +15,54 @@ spec:
       consecutive5XxErrors: 5
       maxEjectionPercent: 50
   mergeType: StrategicMerge
+  rateLimit:
+    global:
+      rules:
+      - clientSelectors:
+        - path:
+            type: RegularExpression
+            value: ^/auth/realms/vectra/(protocol/openid-connect/auth|login-actions(/[^?]*)?)(\?.*)?$
+          sourceCIDR:
+            type: Distinct
+            value: 0.0.0.0/0
+        limit:
+          requests: 600
+          unit: Minute
+        shared: true
+      - clientSelectors:
+        - path:
+            type: RegularExpression
+            value: ^/auth/realms/vectra/(protocol/openid-connect/auth|login-actions(/[^?]*)?)(\?.*)?$
+          sourceCIDR:
+            type: Distinct
+            value: ::/0
+        limit:
+          requests: 600
+          unit: Minute
+        shared: true
+      - clientSelectors:
+        - path:
+            type: RegularExpression
+            value: ^/auth/realms/vectra/protocol/openid-connect/token(\?.*)?$
+          sourceCIDR:
+            type: Distinct
+            value: 0.0.0.0/0
+        limit:
+          requests: 600
+          unit: Minute
+        shared: true
+      - clientSelectors:
+        - path:
+            type: RegularExpression
+            value: ^/auth/realms/vectra/protocol/openid-connect/token(\?.*)?$
+          sourceCIDR:
+            type: Distinct
+            value: ::/0
+        limit:
+          requests: 600
+          unit: Minute
+        shared: true
+    type: Global
   responseOverride:
   - match:
       statusCodes:
@@ -103,7 +92,7 @@ spec:
   - group: gateway.networking.k8s.io
     kind: HTTPRoute
     name: auth
-    sectionName: auth-write
+    sectionName: auth-rate-limits
   timeout:
     http:
       requestTimeout: 10s
@@ -322,50 +311,6 @@ spec:
   rateLimit:
     global:
       rules:
-      - clientSelectors:
-        - path:
-            type: RegularExpression
-            value: ^/auth/realms/vectra/(protocol/openid-connect/auth|login-actions(/[^?]*)?)(\?.*)?$
-          sourceCIDR:
-            type: Distinct
-            value: 0.0.0.0/0
-        limit:
-          requests: 600
-          unit: Minute
-        shared: true
-      - clientSelectors:
-        - path:
-            type: RegularExpression
-            value: ^/auth/realms/vectra/(protocol/openid-connect/auth|login-actions(/[^?]*)?)(\?.*)?$
-          sourceCIDR:
-            type: Distinct
-            value: ::/0
-        limit:
-          requests: 600
-          unit: Minute
-        shared: true
-      - clientSelectors:
-        - path:
-            type: RegularExpression
-            value: ^/auth/realms/vectra/protocol/openid-connect/token(\?.*)?$
-          sourceCIDR:
-            type: Distinct
-            value: 0.0.0.0/0
-        limit:
-          requests: 600
-          unit: Minute
-        shared: true
-      - clientSelectors:
-        - path:
-            type: RegularExpression
-            value: ^/auth/realms/vectra/protocol/openid-connect/token(\?.*)?$
-          sourceCIDR:
-            type: Distinct
-            value: ::/0
-        limit:
-          requests: 600
-          unit: Minute
-        shared: true
       - clientSelectors:
         - headers:
           - name: x-vectra-sub
