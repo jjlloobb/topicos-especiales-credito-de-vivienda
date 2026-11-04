@@ -10,6 +10,14 @@ Paso 9 del plan de U2. El plan pedía rediseñar este paso al prepararlo (decisi
 
 El usuario decidió R1–R4: R1, la conexión por Sentinel; R2, el endurecimiento y las imágenes; R3, la topología; R4, las ACL. Las decisiones están en INF-U2-03, INF-U2-04, NFR-U2-27 y component-dependency §0 y §2.8.
 
+> **Enmienda del 2026-11-04 (orquestador, decisión R5 del usuario tras la detención de la ronda 1):** las listas de comandos de R4 no funcionaban en Valkey 8.1.11 ni con radix v4.1.4. Rigen las de R5, en INF-U2-04 («ACL definitivas»). Donde esta tarea dice «R4» para listas de ACL, léase R5. Cambia lo siguiente:
+> - `+role` sale del usuario `sentinel` de Valkey, que gana `&__sentinel__:hello`;
+> - el usuario `ratelimit` de Sentinel usa `+sentinel|master +sentinel|slaves +sentinel|sentinels` y `&switch-master`;
+> - se agrega el usuario de pares `sentinel-peer`, con `sentinel sentinel-user` y `sentinel sentinel-pass`;
+> - el exportador usa los comandos de sus defaults;
+> - el master se llama `ratelimit`;
+> - las propiedades de `edge/valkey` son `ratelimit`, `replication`, `sentinel`, `sentinel-peer`, `exporter` y `sentinel-ratelimit`.
+
 ## Alcance
 
 **Dentro:** todo el Paso 9 del plan. Texto del plan, sin recortes:

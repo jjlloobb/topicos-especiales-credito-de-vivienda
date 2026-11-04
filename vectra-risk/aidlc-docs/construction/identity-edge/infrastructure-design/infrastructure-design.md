@@ -127,6 +127,24 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
     - El `sentinel.conf` lleva `user default off` y un usuario `ratelimit` limitado a `+sentinel|get-master-addr-by-name +sentinel|sentinels +sentinel|replicas +subscribe +ping +auth +hello &*`, más `sentinel auth-user`/`auth-pass` con el usuario `sentinel`.
     - Los Secrets van en `vectra-edge`. El de `envoy-ratelimit` (`REDIS_AUTH` y `REDIS_SENTINEL_AUTH`, `ratelimit:<contraseña>`) es un segundo `ExternalSecret` en `envoy-gateway-system`, y K11 se amplía a ese namespace.
     - Valkey y Sentinel arrancan con `aclfile` montado de solo lectura; nunca se escribe una contraseña en un ConfigMap.
+  - **ACL definitivas (decisión R5 del usuario, 2026-11-04, tras la detención de la ronda 1 de U02-T11; reemplazan las listas de R4).** El orquestador comprobó el informe del codificador contra Valkey 8.1.11 y contra radix v4.1.4, el cliente de `envoyproxy/ratelimit` `5ae0682e`:
+    - en `sentinel.c:1938`, Sentinel tiene `sentinel-user` y `sentinel-pass` para hablar con sus pares, aparte de `auth-user`;
+    - Sentinel usa el canal `__sentinel__:hello`, y `acl-pubsub-default` es `resetchannels`;
+    - radix envía `SENTINEL MASTER`, `SLAVES` y `SENTINELS` (`sentinel.go:285-391`) y se suscribe a `switch-master`. En Valkey, `sentinel|master` y `sentinel|slaves` son subcomandos distintos de `primary` y `replicas`.
+
+    Las listas quedan así:
+    - **`users.acl` de Valkey:**
+      - `user default off`;
+      - `ratelimit`: `~* +@read +@write +@connection -@dangerous`, sin cambios;
+      - `replication`: `+psync +replconf +ping`, sin cambios;
+      - `sentinel`: `+auth +client|setname +client|kill +config|rewrite +exec +info +multi +ping +publish +script|kill +slaveof +subscribe &__sentinel__:hello`, sin `+role`;
+      - `exporter`: `+info +ping +client|setname +config|get +slowlog|get +slowlog|len +latency|latest +latency|histogram +command|info +commandlog|len`, que es lo que usa redis_exporter v1.95.0 por defecto.
+    - **ACL de cada `sentinel.conf`:**
+      - `user default off`;
+      - `ratelimit`: `+auth +hello +ping +subscribe +sentinel|master +sentinel|slaves +sentinel|sentinels &switch-master`;
+      - `sentinel-peer`: `+auth +ping +publish +client|setname +sentinel|is-master-down-by-addr &__sentinel__:hello`, más `sentinel sentinel-user sentinel-peer` y `sentinel sentinel-pass`.
+      - `sentinel auth-user sentinel` y `auth-pass` siguen igual, hacia el master y las réplicas.
+    - **Nombres:** el master se llama `ratelimit` (deployment-architecture). Las propiedades de la clave de Vault `edge/valkey` son `ratelimit`, `replication`, `sentinel`, `sentinel-peer`, `exporter` y `sentinel-ratelimit`.
   - **Flujos (para el Paso 10):**
     - F90 pasa a ser Envoy (`vectra-edge`) → `envoy-ratelimit` (`envoy-gateway-system`) en el 8081;
     - F91 sale de `envoy-ratelimit` en `envoy-gateway-system` hacia Valkey y Sentinel en `vectra-edge`;
