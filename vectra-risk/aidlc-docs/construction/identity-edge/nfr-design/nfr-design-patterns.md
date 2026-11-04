@@ -21,6 +21,12 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 2. **Parche acotado**: una `EnvoyPatchPolicy` que fija `failure_mode_deny: true` **solo** en el filtro de rate limit de la ruta de `/auth/**`. Una prueba sobre la configuración renderizada de Envoy (`egctl config envoy-proxy`) falla si una actualización rompe el parche.
 3. **Gateway separado**: `/auth/**` en un `Gateway` propio con un `EnvoyProxy` configurado en fail-closed.
 
+- **Alternativa elegida** (enmienda del 2026-11-04, decisión W3 del usuario al preparar U02-T10), comprobada contra Envoy Gateway v1.9.3:
+  - la 1 no existe: `rateLimit.failClosed` es global del controlador y responde 500;
+  - la 3 tampoco sirve: un `Gateway` separado comparte ese mismo ajuste del controlador;
+  - se usa la 2. Envoy Gateway crea un filtro de rate limit por dominio, y cada política con reglas `shared` tiene su dominio. Los dos contadores por IP de `/auth/**` van en su propia política, `auth-rate-limits`. Una `EnvoyPatchPolicy` fija en el filtro de ese dominio `failure_mode_deny: true` y `status_on_error: 503`, y el 503 lleva `Problem` `dependency_unavailable`;
+  - el límite global de 200/s sigue en `edge-rate-limits` y falla abierto;
+  - el controlador habilita `extensionApis.enableEnvoyPatchPolicy`.
 - **Verificación**: en kind, con Valkey escalado a 0 → `GET /api/console/me` = 200 y `POST /auth/realms/vectra/protocol/openid-connect/token` = 503.
 - **Satisface**: NFR-U2-21; SECURITY-15; RESILIENCY-10.
 

@@ -162,7 +162,17 @@ vectra-risk/identity-edge/
   - **Verificación de la versión pinneada.** Se registra en `identity-edge/docs/adr-envoy-gateway.md` y en `audit.md`:
     1. si se puede desplegar el data plane en el namespace del `Gateway` (INF-U2-02); si no, el data plane va en `envoy-gateway-system` y se ajustan `flows.yaml` y las NetworkPolicies;
     2. cuál de las tres alternativas de P-U2-01 se usa para el modo de fallo por ruta.
-  - Diseño: NFR-U2-03, 04, 21, 22, 23; P-U2-01; INF-U2-01, 02. Historia: US-611 (el gateway sirve las cabeceras y los errores genéricos).
+  - **Enmienda del 2026-11-04 (decisiones W1–W7 del usuario al preparar U02-T10):**
+    - el servicio de rate limit es el `envoy-ratelimit` de Envoy Gateway; los values del controlador no llevan `rateLimit`, que se diseña con el Paso 9 (W1, INF-U2-03);
+    - Service con `externalTrafficPolicy: Local`, y la `ClientTrafficPolicy` de `route-gen` deja de confiar en `X-Forwarded-For` (W2, NFR-U2-23);
+    - modo de fallo por la alternativa 2 de P-U2-01, con `auth-rate-limits` y una `EnvoyPatchPolicy` (W3);
+    - imagen de Envoy espejada con el digest real (W4);
+    - HPA con objetivo del 70 % y `minAvailable: 1` (W5);
+    - access log de P-U2-07 y tracing al 100 % en el `EnvoyProxy` (W6);
+    - `egctl` v1.9.3 con su sha256 en las herramientas de U1 (W7).
+
+    Todo está en INF-U2-02, 03 y 10, P-U2-01 y NFR-U2-23.
+  - Diseño: NFR-U2-03, 04, 21, 22, 23; P-U2-01, 07; INF-U2-01, 02, 03, 10. Historia: US-611 (el gateway sirve las cabeceras y los errores genéricos).
   - **Aceptación**:
     - `egctl x translate --from gateway-api --to xds -f identity-edge/gateway/generated/` (traducción offline, sin clúster) y una prueba que inspecciona el xDS: el filtro de rate limit de la ruta `/auth/**` tiene `failure_mode_deny: true` y el de las demás no;
     - `test -s identity-edge/docs/adr-envoy-gateway.md`.
@@ -170,6 +180,7 @@ vectra-risk/identity-edge/
 - [ ] **Paso 9 — Servicio de rate limit y Valkey**
   - `envoyproxy/ratelimit` (HPA de 2 a 4, quinta revisión de coherencia entre unidades, 2026-10-31; gRPC en 8083, métricas en 8081) con la configuración de descriptores generada por `route-gen`.
   - Chart propio de Valkey 8: 2 nodos en zonas distintas, primaria preferida en la zona A, 3 Sentinel, sin persistencia, PDB, exportador como sidecar, ACL `ratelimit`, de replicación y de Sentinel desde ESO (seguimiento de la quinta revisión de coherencia, 2026-10-31), usuario `default` deshabilitado, `maxmemory 128mb`, `volatile-ttl`, prioridad `vectra-high`.
+  - **Nota del 2026-11-04 (decisión W1 del usuario al preparar U02-T10):** el servicio de rate limit es el `envoy-ratelimit` que despliega Envoy Gateway, no un `envoyproxy/ratelimit` propio en el 8083 con configuración de `route-gen` (INF-U2-03). Este paso se rediseña al prepararlo.
   - Diseño: NFR-U2-20, 27, 30; P-U2-04, 06; INF-U2-03, 04. Historia: US-611 (exceso de solicitudes → 429).
   - **Aceptación**: `helm template` + `conftest test identity-edge/ratelimit/ identity-edge/charts/valkey/` (puertos 8083/8081, sin RDB/AOF, ACL presente, `default` deshabilitado, spread por zona); `uv run pytest identity-edge/tests/unit/test_ratelimit_config.py` (los descriptores coinciden con `routes.yaml`).
 
