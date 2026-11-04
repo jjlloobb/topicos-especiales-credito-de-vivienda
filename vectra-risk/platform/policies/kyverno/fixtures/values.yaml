@@ -20,6 +20,9 @@ policies:
       hpas: 0
 - name: require-spread-and-pdb
   resources:
+  - name: impostor
+    values:
+      pdbs: 1
   - name: envoy-one-replica
     values:
       pdbs: 1

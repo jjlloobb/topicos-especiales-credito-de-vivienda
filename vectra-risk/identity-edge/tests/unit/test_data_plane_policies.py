@@ -3,12 +3,16 @@
 `EnvoyProxy` no genera un Deployment en el render, asi que esta prueba arma el que `resource_provider.go` y `resource.go` de
 v1.9.3 producirian con `generated/<env>/` y le aplica las politicas estaticas de U1 (`STATIC_POLICIES` del Makefile) mas
 `require-spread-and-pdb`. Lo que modela, con su fuente en v1.9.3:
-- etiquetas del Deployment: `EnvoyAppLabel` + las del owning gateway + `Gateway.spec.infrastructure.labels` (`getLabels`);
-- etiquetas del pod: las anteriores + `pod.labels` del EnvoyProxy, que ganan (`getPodLabels`);
+- etiquetas (`envoyLabels`): `EnvoyAppLabel` (`app.kubernetes.io/name: envoy`, `component`, `managed-by`) + `gateway.networking.k8s.io/gateway-name`
+  (en modo `GatewayNamespace`) + las de `ProxyMetadata` (owning gateway, nombre y namespace, y `Gateway.spec.infrastructure.labels`);
+- selector del Deployment, del PDB y del HPA: `stableSelector()` = `envoyLabels` solo con las etiquetas del owning gateway;
+- etiquetas del Deployment: `getLabels()`; las del template: `getPodLabels()`, donde `pod.labels` se copia encima y puede sobrescribir
+  las de `EnvoyAppLabel`, que el selector no sigue (el apiserver rechaza un Deployment cuyo selector no selecciona su template);
 - `replicas` sin fijar con `envoyHpa` (el apiserver lo deja en 1);
 - contenedor `envoy`: contexto de seguridad por defecto, mezclado con el del EnvoyProxy (`expectedEnvoySecurityContext`);
 - sidecar `shutdown-manager`: requests 10m / 32Mi y sin limits (`DefaultShutdownManagerContainerResourceRequirements`), el mismo
-  contexto, la imagen de `provider.kubernetes.shutdownManager.image` del controlador, y el `envoyDeployment.patch` mezclado por nombre.
+  contexto, la imagen de `provider.kubernetes.shutdownManager.image` de los values del controlador (`platform/operators/envoy-gateway.yaml`
+  y, en kind, `envoy-gateway-kind.yaml`), y el `envoyDeployment.patch` mezclado por nombre.
 """
 
 import copy
@@ -19,7 +23,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import envoy_gateway_design as eg_design
 import gateway_checks as gc
 import pytest
 import yaml
@@ -30,7 +33,45 @@ POLICIES = ROOT / "platform" / "policies" / "kyverno"
 MAKEFILE = (gc.EDGE / "Makefile").read_text(encoding="utf-8")
 OK = re.compile(r"pass: [1-9][0-9]*, fail: 0, warn: 0, error: 0")
 OWNING_GATEWAY = "gateway.envoyproxy.io/owning-gateway-name"
-ENV_IMAGES = {"kind": "kind", "staging": "prod", "prod": "prod"}
+CONTROLLER_VALUES = ROOT / "platform" / "operators" / "envoy-gateway.yaml"
+CONTROLLER_KIND_VALUES = ROOT / "platform" / "operators" / "envoy-gateway-kind.yaml"
+OWNING_KEYS = (OWNING_GATEWAY, "gateway.envoyproxy.io/owning-gateway-namespace")
+GATEWAY_NAME_LABEL = "gateway.networking.k8s.io/gateway-name"
+ENVOY_APP_LABELS = {"app.kubernetes.io/name": "envoy", "app.kubernetes.io/component": "proxy", "app.kubernetes.io/managed-by": "envoy-gateway"}
+
+
+def sidecar_image(env: str) -> str:
+    """La imagen que el controlador pone al `shutdown-manager`: los values que Argo CD aplica en cada entorno (kind suma los suyos)."""
+    files = [CONTROLLER_VALUES] + ([CONTROLLER_KIND_VALUES] if env == "kind" else [])
+    image = None
+    for path in files:
+        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+        image = loaded.get("config", {}).get("envoyGateway", {}).get("provider", {}).get("kubernetes", {}).get("shutdownManager", {}).get("image", image)
+    assert image, "los values del controlador no fijan shutdownManager.image"
+    return image
+
+
+def envoy_labels(gateway: dict[str, Any], extra: dict[str, str]) -> dict[str, str]:
+    """`envoyLabels()` de v1.9.3 en modo GatewayNamespace: Envoy Gateway pone sus etiquetas y las `extra` ganan."""
+    return {**ENVOY_APP_LABELS, GATEWAY_NAME_LABEL: gateway["metadata"]["name"], **extra}
+
+
+def proxy_metadata_labels(gateway: dict[str, Any]) -> dict[str, str]:
+    return {
+        OWNING_GATEWAY: gateway["metadata"]["name"],
+        "gateway.envoyproxy.io/owning-gateway-namespace": gateway["metadata"]["namespace"],
+        **gateway["spec"].get("infrastructure", {}).get("labels", {}),
+    }
+
+
+def stable_selector(gateway: dict[str, Any]) -> dict[str, str]:
+    """`stableSelector()`: solo las etiquetas del owning gateway, mas las de `EnvoyAppLabel` y el nombre del Gateway."""
+    metadata = proxy_metadata_labels(gateway)
+    return envoy_labels(gateway, {k: v for k, v in metadata.items() if k in OWNING_KEYS})
+
+
+def selects(selector: dict[str, str], labels: dict[str, str]) -> bool:
+    return all(labels.get(k) == v for k, v in selector.items())
 
 
 def static_policies() -> list[str]:
@@ -69,20 +110,13 @@ def data_plane_deployment(docs: gc.Docs, env: str, with_patch: bool = True) -> d
     proxy = gc.find(docs, "EnvoyProxy", "api-gateway")["spec"]["provider"]["kubernetes"]
     gateway = gc.find(docs, "Gateway", "api-gateway")
     deployment = proxy["envoyDeployment"]
-    labels = {
-        "app.kubernetes.io/name": "envoy",
-        "app.kubernetes.io/component": "proxy",
-        "app.kubernetes.io/managed-by": "envoy-gateway",
-        OWNING_GATEWAY: gateway["metadata"]["name"],
-        "gateway.envoyproxy.io/owning-gateway-namespace": gateway["metadata"]["namespace"],
-        **gateway["spec"].get("infrastructure", {}).get("labels", {}),
-    }
+    labels = envoy_labels(gateway, proxy_metadata_labels(gateway))
     security = {**deep_default_security(), **deployment["container"]["securityContext"]}
     containers = [
         {"name": "envoy", "image": deployment["container"]["image"], "resources": deployment["container"]["resources"], "securityContext": security},
         {
             "name": "shutdown-manager",
-            "image": eg_design.shutdown_manager_image(ENV_IMAGES[env]),
+            "image": sidecar_image(env),
             "resources": {"requests": {"cpu": "10m", "memory": "32Mi"}},
             "securityContext": security,
         },
@@ -96,9 +130,9 @@ def data_plane_deployment(docs: gc.Docs, env: str, with_patch: bool = True) -> d
         "metadata": {"name": "envoy-vectra-edge-api-gateway", "namespace": gateway["metadata"]["namespace"], "labels": labels},
         "spec": {
             "replicas": 1,  # con envoyHpa v1.9.3 no lo fija y el apiserver lo deja en 1
-            "selector": {"matchLabels": {"app.kubernetes.io/name": "envoy"}},
+            "selector": {"matchLabels": stable_selector(gateway)},
             "template": {
-                "metadata": {"labels": {**labels, **pod["labels"]}},
+                "metadata": {"labels": envoy_labels(gateway, {**proxy_metadata_labels(gateway), **pod["labels"]})},
                 "spec": {
                     "containers": containers,
                     "priorityClassName": pod["priorityClassName"],
@@ -110,12 +144,40 @@ def data_plane_deployment(docs: gc.Docs, env: str, with_patch: bool = True) -> d
     }
 
 
+def pod_disruption_budget(docs: gc.Docs) -> dict[str, Any]:
+    kube = gc.find(docs, "EnvoyProxy", "api-gateway")["spec"]["provider"]["kubernetes"]
+    gateway = gc.find(docs, "Gateway", "api-gateway")
+    return {
+        "apiVersion": "policy/v1",
+        "kind": "PodDisruptionBudget",
+        "metadata": {"name": "envoy-vectra-edge-api-gateway", "namespace": gateway["metadata"]["namespace"]},
+        "spec": {"minAvailable": kube["envoyPDB"]["minAvailable"], "selector": {"matchLabels": stable_selector(gateway)}},
+    }
+
+
+def horizontal_pod_autoscaler(docs: gc.Docs) -> dict[str, Any]:
+    kube = gc.find(docs, "EnvoyProxy", "api-gateway")["spec"]["provider"]["kubernetes"]
+    hpa = kube["envoyHpa"]
+    return {
+        "apiVersion": "autoscaling/v2",
+        "kind": "HorizontalPodAutoscaler",
+        "metadata": {"name": "envoy-vectra-edge-api-gateway", "namespace": "vectra-edge"},
+        "spec": {"scaleTargetRef": {"apiVersion": "apps/v1", "kind": "Deployment", "name": "envoy-vectra-edge-api-gateway"}, "minReplicas": hpa["minReplicas"], "maxReplicas": hpa["maxReplicas"]},
+    }
+
+
 def apply_policies(resources: list[dict[str, Any]], extra: tuple[str, ...] = ("require-spread-and-pdb.yaml",)) -> tuple[int, str]:
     with tempfile.TemporaryDirectory() as tmp:
         policies = Path(tmp) / "policies"
         policies.mkdir()
         for name in [*static_policies(), *extra]:
             shutil.copy(POLICIES / name, policies / name)
+        # `require-pdb` consulta la API (el PDB del Deployment) y `kyverno apply` no tiene cluster: se prueba sin esa regla.
+        spread = policies / "require-spread-and-pdb.yaml"
+        if spread.exists():
+            policy = yaml.safe_load(spread.read_text(encoding="utf-8"))
+            policy["spec"]["rules"] = [r for r in policy["spec"]["rules"] if r["name"] != "require-pdb"]
+            spread.write_text(yaml.safe_dump(policy), encoding="utf-8")
         target = Path(tmp) / "resources.yaml"
         target.write_text(yaml.safe_dump_all(resources, sort_keys=False), encoding="utf-8")
         run = subprocess.run([str(KYVERNO), "apply", str(policies), "--resource", str(target)], capture_output=True, text=True, check=False)  # noqa: S603 - herramienta fija de platform/.tools
@@ -168,7 +230,45 @@ def test_the_replicas_rule_exempts_only_the_deployments_of_the_gateway():
     deployment = data_plane_deployment(docs, "prod")
     deployment["metadata"]["labels"].pop(OWNING_GATEWAY)
     code, output = apply_policies([deployment])
-    assert code != 0 and "require-spread-and-pdb" in output, output
+    assert code != 0 and "require-min-replicas" in output, output
+
+
+def test_the_exemption_by_the_gateway_label_does_not_work_outside_vectra_edge():
+    """Z2: un Deployment `impostor` con la etiqueta, en otro namespace, con 1 replica y sin reparto, sigue rechazado."""
+    docs = gc.load_env("prod")
+    impostor = data_plane_deployment(docs, "prod")
+    impostor["metadata"]["namespace"] = "vectra-app"
+    impostor["spec"]["template"]["spec"].pop("topologySpreadConstraints")
+    code, output = apply_policies([impostor])
+    assert code != 0 and "require-min-replicas" in output and "require-zone-spread" in output, output
+
+
+@pytest.mark.parametrize("env", gc.ENVS)
+def test_the_selector_of_the_deployment_the_pdb_and_the_hpa_selects_the_pods_of_the_template(env):
+    """F-12: el apiserver rechaza un Deployment cuyo selector no selecciona su template; el PDB y el HPA usan ese selector."""
+    docs = gc.load_env(env)
+    deployment = data_plane_deployment(docs, env)
+    template = deployment["spec"]["template"]["metadata"]["labels"]
+    assert selects(deployment["spec"]["selector"]["matchLabels"], template)
+    assert selects(pod_disruption_budget(docs)["spec"]["selector"]["matchLabels"], template)
+    assert horizontal_pod_autoscaler(docs)["spec"]["scaleTargetRef"]["name"] == deployment["metadata"]["name"]
+    assert GATEWAY_NAME_LABEL in deployment["spec"]["selector"]["matchLabels"]
+    # y la etiqueta de cada constraint de reparto selecciona esos pods
+    for constraint in deployment["spec"]["template"]["spec"]["topologySpreadConstraints"]:
+        assert selects(constraint["labelSelector"]["matchLabels"], template)
+
+
+@pytest.mark.parametrize("key", sorted(ENVOY_APP_LABELS))
+def test_the_model_sees_a_pod_label_that_overrides_an_envoy_label(key):
+    docs = copy.deepcopy(gc.load_env("prod"))
+    gc.find(docs, "EnvoyProxy", "api-gateway")["spec"]["provider"]["kubernetes"]["envoyDeployment"]["pod"]["labels"][key] = "api-gateway"
+    deployment = data_plane_deployment(docs, "prod")
+    assert not selects(deployment["spec"]["selector"]["matchLabels"], deployment["spec"]["template"]["metadata"]["labels"])
+
+
+def test_the_sidecar_image_comes_from_the_controller_values():
+    assert sidecar_image("prod").startswith("registro.banco.internal/vectra/envoy-gateway@sha256:")
+    assert sidecar_image("kind").startswith("kind-registry:5000/vectra/envoy-gateway@sha256:")
 
 
 def test_the_spread_rule_still_applies_to_the_data_plane():
@@ -176,7 +276,7 @@ def test_the_spread_rule_still_applies_to_the_data_plane():
     deployment = data_plane_deployment(docs, "prod")
     deployment["spec"]["template"]["spec"].pop("topologySpreadConstraints")
     code, output = apply_policies([deployment])
-    assert code != 0 and "require-spread-gateway" in output, output
+    assert code != 0 and "require-zone-spread" in output, output
 
 
 def test_the_simulation_sees_a_registry_that_is_not_allowed():

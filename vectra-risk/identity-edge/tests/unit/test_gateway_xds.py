@@ -63,7 +63,7 @@ def problems(result: dict[str, Any]) -> list[str]:
             found.append(f"{name} tiene failure_mode_deny")
         if name != AUTH_FILTER and "statusOnError" in config:
             found.append(f"{name} tiene status_on_error")
-    found += access_log_problems(result) + tracing_problems(result) + client_ip_problems(result) + route_problems(result) + tls_problems(result)
+    found += access_log_problems(result) + listener_access_log_problems(result) + tracing_problems(result) + client_ip_problems(result) + route_problems(result) + tls_problems(result)
     return found
 
 
@@ -89,17 +89,19 @@ def access_log_problems(result: dict[str, Any]) -> list[str]:
         return [f"access logs: {len(logs)}"]
     config = logs[0]["typedConfig"]
     found = []
-    # el access log del listener (conexiones sin ruta, filtro NR) tiene los mismos campos
-    for entry in listener(result).get("accessLog", []):
-        if entry["typedConfig"].get("logFormat", {}).get("jsonFormat") != ge.access_log_json():
-            found.append(f"access log del listener: {entry['typedConfig'].get('logFormat')}")
-    if not listener(result).get("accessLog"):
-        found.append("el listener no tiene access log")
     if config.get("path") != "/dev/stdout":
         found.append(f"access log a {config.get('path')}")
     if config.get("logFormat", {}).get("jsonFormat") != ge.access_log_json():
         found.append(f"access log: {config.get('logFormat')}")
     return found
+
+
+def listener_access_log_problems(result: dict[str, Any]) -> list[str]:
+    """El access log del listener (conexiones que no llegan a una ruta, filtro `NR`) tiene los mismos campos."""
+    entries = listener(result).get("accessLog", [])
+    if not entries:
+        return ["el listener no tiene access log"]
+    return [f"access log del listener: {e['typedConfig'].get('logFormat')}" for e in entries if e["typedConfig"].get("logFormat", {}).get("jsonFormat") != ge.access_log_json()]
 
 
 def tracing_problems(result: dict[str, Any]) -> list[str]:

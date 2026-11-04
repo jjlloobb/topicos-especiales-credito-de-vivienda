@@ -143,17 +143,23 @@ deny contains msg if {
 }
 
 # regla: envoy-identity
-# Paso 8: la identidad que usa `flows.yaml`: ServiceAccount y etiqueta `app.kubernetes.io/name: api-gateway` en el pod.
+# Paso 8 (Z1): la identidad: ServiceAccount `api-gateway` (Linkerd) y el pod sin sobrescribir las etiquetas de Envoy Gateway; el Paso 10
+# selecciona el data plane por `gateway.envoyproxy.io/owning-gateway-name`.
 deny contains msg if {
 	input.kind == "EnvoyProxy"
 	not input.spec.provider.kubernetes.envoyServiceAccount == {"name": "api-gateway"}
 	msg := sprintf("envoy-identity: %s no usa el ServiceAccount api-gateway", [label(input)])
 }
 
+# Z1: `pod.labels` se copia encima de las etiquetas del template pero no del selector del Deployment (`stableSelector`), que usa las de
+# `EnvoyAppLabel` (v1.9.3): sobrescribir una deja un selector que no selecciona su template, y el apiserver rechaza el Deployment.
+envoy_app_label_keys := {"app.kubernetes.io/name", "app.kubernetes.io/component", "app.kubernetes.io/managed-by"}
+
 deny contains msg if {
 	input.kind == "EnvoyProxy"
-	not object.get(input.spec.provider.kubernetes.envoyDeployment.pod.labels, "app.kubernetes.io/name", "") == "api-gateway"
-	msg := sprintf("envoy-identity: %s no etiqueta el pod con app.kubernetes.io/name: api-gateway", [label(input)])
+	some key in object.keys(input.spec.provider.kubernetes.envoyDeployment.pod.labels)
+	key in envoy_app_label_keys
+	msg := sprintf("envoy-identity: %s sobrescribe %s en pod.labels y el selector del Deployment dejaria de seleccionar sus pods", [label(input), key])
 }
 
 # regla: envoy-image
@@ -367,6 +373,14 @@ deny contains msg if {
 	constraints := input.spec.provider.kubernetes.envoyDeployment.pod.topologySpreadConstraints
 	not [c.topologyKey | some c in constraints] == ["topology.kubernetes.io/zone"]
 	msg := sprintf("envoy-scaling: %s no reparte por zona", [label(input)])
+}
+
+# El reparto selecciona los pods del data plane por la etiqueta del owning gateway que v1.9.3 pone a todos.
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	some c in input.spec.provider.kubernetes.envoyDeployment.pod.topologySpreadConstraints
+	not c.labelSelector.matchLabels == {"gateway.envoyproxy.io/owning-gateway-name": "api-gateway"}
+	msg := sprintf("envoy-scaling: %s reparte pods que no son los del data plane", [label(input)])
 }
 
 # regla: access-log-allowlist

@@ -10,12 +10,12 @@ infrastructure_labels: { vectra.io/criticality: high } # X3: de aqui toma v1.9.3
 envoy_proxy: # INF-U2-02 (W2, W4, W5, W6), INF-U2-06, NFR-U2-03
   name: api-gateway
   service_account: api-gateway # la identidad de flows.yaml
-  pod_labels: { app.kubernetes.io/name: api-gateway, vectra.io/criticality: high }
+  pod_labels: { vectra.io/criticality: high } # Z1: no se sobrescribe `app.kubernetes.io/name` (el selector del Deployment usa el de Envoy Gateway)
   priority_class: vectra-high
   replicas: 2
   hpa: { min: 2, max: 6, metric: cpu, target_type: Utilization, target_percent: 70 }
   pdb_min_available: 1
-  spread: { max_skew: 1, key: topology.kubernetes.io/zone, when_unsatisfiable: DoNotSchedule, selector: { app.kubernetes.io/name: api-gateway } } # los mismos valores que Keycloak
+  spread: { max_skew: 1, key: topology.kubernetes.io/zone, when_unsatisfiable: DoNotSchedule, selector: { gateway.envoyproxy.io/owning-gateway-name: api-gateway } } # etiqueta de v1.9.3 que llevan todos los pods # los mismos valores que Keycloak
   resources: { requests: { cpu: 250m, memory: 256Mi }, limits: { cpu: "1", memory: 512Mi } }
   shutdown_manager: # Y1: v1.9.3 le pone requests 10m / 32Mi y ningun limit; el patch le fija los de INF-U2-06
     container: shutdown-manager

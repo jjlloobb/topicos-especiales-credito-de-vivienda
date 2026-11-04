@@ -560,6 +560,7 @@ CERTIFICATE_NAME = "api-gateway"
 TLS_SECRET = "api-gateway-tls"  # noqa: S105 - nombre de un Secret, no una credencial
 PATCH_NAME = "auth-fail-closed"
 CONTROLLER_VALUES = Path(__file__).resolve().parents[3] / "platform" / ".charts" / "envoy-gateway" / "gateway-helm" / "values.yaml"
+OWNING_GATEWAY_LABEL = "gateway.envoyproxy.io/owning-gateway-name"  # etiqueta de v1.9.3 (gatewayapi.OwningGatewayNameLabel)
 LISTENER_TYPE = "type.googleapis.com/envoy.config.listener.v3.Listener"
 RATELIMIT_FILTER = "envoy.filters.http.ratelimit"
 
@@ -659,7 +660,7 @@ def envoyproxies(env: str) -> list[dict[str, Any]]:
     low, high, cpu, pdb = gd.scaling()
     service_type, traffic_policy, service_labels = gd.service_spec()
     service, namespace, port, sampling = gd.tracing()
-    pod_labels = {**service_labels, **gd.infrastructure_labels()}
+    pod_labels = dict(gd.infrastructure_labels())  # Z1: sin `app.kubernetes.io/name`; la identidad es `owning-gateway-name`
     security = {
         "allowPrivilegeEscalation": False,
         "capabilities": {"drop": ["ALL"]},
@@ -691,7 +692,7 @@ def envoyproxies(env: str) -> list[dict[str, Any]]:
                                         "maxSkew": gd.spread()[0],
                                         "topologyKey": gd.spread_key(),
                                         "whenUnsatisfiable": gd.spread()[1],
-                                        "labelSelector": {"matchLabels": service_labels},
+                                        "labelSelector": {"matchLabels": {OWNING_GATEWAY_LABEL: gd.gateway_ref()[0]}},
                                     }
                                 ],
                             },
