@@ -433,3 +433,21 @@ removes_internal(mods) if {
 	count(mods) == 1
 	{h | some h in mods[0].remove} == internal_headers
 }
+
+# regla: closed-no-rate-limit
+# D-6 (BR-U2-10): en Envoy Gateway v1.9.3 el rate limit no se aplica a las rutas `directResponse`; la politica del cierre
+# no declara 429 ni ningun `rateLimit`.
+deny contains msg if {
+	input.kind == "BackendTrafficPolicy"
+	input.metadata.name == "closed"
+	input.spec.rateLimit
+	msg := sprintf("closed-no-rate-limit: %s declara rateLimit", [label(input)])
+}
+
+deny contains msg if {
+	input.kind == "BackendTrafficPolicy"
+	input.metadata.name == "closed"
+	some override in input.spec.responseOverride
+	429 in {code | some code in [c | some m in override.match.statusCodes; c := m.value]}
+	msg := sprintf("closed-no-rate-limit: %s declara un 429", [label(input)])
+}

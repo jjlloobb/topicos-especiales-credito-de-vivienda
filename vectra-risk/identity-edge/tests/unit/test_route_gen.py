@@ -752,7 +752,6 @@ def test_f09_enabled_generates_the_route_the_basic_auth_and_the_external_secret(
     out = gc.route(docs, "GET", "/federate")
     assert (out.kind, out.backend) == ("backend", ("kube-prometheus-stack-prometheus", "vectra-observability", 9090))
     assert gc.route(docs, "GET", "/federate/x").status == 404
-    assert gc.route(docs, "POST", "/federate").status == 404
     assert gc.find(docs, "SecurityPolicy", "federate")["spec"]["basicAuth"]["users"]["name"] == "federate-basic-auth"
     secret = gc.find(docs, "ExternalSecret", "federate-basic-auth")["spec"]
     assert secret["secretStoreRef"] == {"name": "vectra-store", "kind": "ClusterSecretStore"}
@@ -965,6 +964,8 @@ MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("federate-coherence", "wrong-secret", _f09(lambda d: gc.find(d, "SecurityPolicy", "federate")["spec"]["basicAuth"]["users"].update(name="otro"))),
     ("federate-coherence", "wrong-vault-key", _f09(lambda d: gc.find(d, "ExternalSecret", "federate-basic-auth")["spec"]["data"][0]["remoteRef"].update(key="identity/otro"))),
     ("closed-prefixes", "no-404-override", lambda d: gc.find(d, "BackendTrafficPolicy", "closed")["spec"].update(responseOverride=[e for e in gc.find(d, "BackendTrafficPolicy", "closed")["spec"]["responseOverride"] if e["match"]["statusCodes"][0]["value"] != 404])),
+    ("closed-no-rate-limit", "declares-429", lambda d: gc.find(d, "BackendTrafficPolicy", "closed")["spec"]["responseOverride"].append(ge.override(429, "1"))),
+    ("closed-no-rate-limit", "declares-rate-limit", lambda d: gc.find(d, "BackendTrafficPolicy", "closed")["spec"].update(rateLimit={"type": "Global", "global": {"rules": []}})),
     ("closed-prefixes", "override-from-backend", lambda d: [e.update(source="Backend") for e in gc.find(d, "BackendTrafficPolicy", "closed")["spec"]["responseOverride"]]),
     ("environment-values", "prod-with-simulator", lambda d: gc.find(d, "SecurityPolicy", "intake")["spec"]["authorization"]["rules"][0]["principal"]["jwt"]["claims"][0]["values"].append("channel-simulator")),
     ("environment-values", "prod-simulator-limit", lambda d: gc.find(d, "BackendTrafficPolicy", "edge-rate-limits")["spec"]["rateLimit"]["global"]["rules"].append({"limit": {"requests": 30, "unit": "Second"}, "shared": True, "clientSelectors": [{"headers": [{"name": "x-vectra-azp", "type": "Exact", "value": "channel-simulator"}]}]})),
@@ -1093,7 +1094,9 @@ DESIGN_ALTERATIONS = [
     ("BUSINESS_RULES", "las barras dobles se fusionan", "las barras dobles se mantienen"),
     ("BUSINESS_RULES", "Se ocultan las cabeceras `server` y `x-envoy-*`", "Se ocultan las cabeceras `via` y `x-envoy-*`"),
     ("BUSINESS_RULES", "Se ocultan las cabeceras `server` y `x-envoy-*`", "Se ocultan las cabeceras `server` y `x-mio-*`"),
-    ("BUSINESS_RULES", "`/api/` y `/auth/` son prefijos cerrados", "`/api/` y `/otro/` son prefijos cerrados"),
+    ("BUSINESS_RULES", "`/api/` y `/auth/` son prefijos cerrados", "`/api/` y `/grafana/` son prefijos cerrados"),
+    ("BUSINESS_RULES", "su política no declara 429", "su política declara 429"),
+    ("NFR_PATTERNS", "Solo `GET`/`HEAD`: 1 reintento", "Solo `GET`: 1 reintento"),
     ("DOMAIN_ENTITIES", "JWT válido de `vectra-console`", "JWT válido de `vectra-consola`"),
     ("DOMAIN_ENTITIES", "JWT con `intake:submit`", "JWT con `intake:send`"),
     ("DOMAIN_ENTITIES", "`azp` = `channel` (F04)", "`azp` = `canal` (F04)"),
@@ -1131,11 +1134,7 @@ def test_a_value_changed_in_the_design_but_not_in_the_oracle_is_caught(attribute
     monkeypatch.setattr(gateway_design, attribute, text.replace(old, new))
     changed = []
     for env in ENVS:
-        try:
-            altered = gc.flat(expected(env, f09=True))
-        except (AssertionError, AttributeError, KeyError, IndexError, StopIteration):
-            changed.append(env)  # el oraculo no puede leer un diseno incoherente: tambien lo atrapa
-            continue
+        altered = gc.flat(expected(env, f09=True))  # una excepcion del lector hace fallar la prueba: debe leer el valor alterado
         if altered != reference[env]:
             changed.append(env)
             assert altered != generated_docs(env, f09=True), env

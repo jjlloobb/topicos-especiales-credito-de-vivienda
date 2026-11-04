@@ -163,6 +163,13 @@ def with_methods(path_type: str, value: str, methods: list[str]) -> list[dict[st
     return [match(path_type, value, m) for m in methods]
 
 
+def intake_base_azp() -> str:
+    """El `azp` de intake que existe en todos los entornos (el que el diseno no marca «solo fuera de produccion»)."""
+    row = gd.auth_row(ROW["intake"])
+    (base,) = [a for a in row.azp if a not in row.non_prod_azp]
+    return base
+
+
 def row_prefix(route: str) -> str:
     key = ROW[route]
     assert key.endswith("/**")
@@ -179,7 +186,7 @@ def auth_matches(methods: list[str] | None) -> list[dict[str, Any]]:
 
 
 def read_methods() -> list[str]:
-    return ["GET", "HEAD"]
+    return gd.read_methods()
 
 
 def rewrite_filter(target: str) -> dict[str, Any]:
@@ -194,12 +201,11 @@ def httproutes(hostname: str, f09: bool) -> list[dict[str, Any]]:
     intake, models, activation = gd.rewrites()
     state, approved = gd.promotion_query()
     get_method, post_method = gd.promotion_methods()
-    closed_profile = {"api": "api", "auth": "auth", "federate": "api"}  # perfil de la fila de cada prefijo cerrado
     closed_rules = [
         rule(
             f"closed-{prefix.lstrip('/')}",
             [match("PathPrefix", prefix)],
-            [extension_filter("problem-not-found"), response_headers(closed_profile[prefix.lstrip("/")])],
+            [extension_filter("problem-not-found"), response_headers(gd.closed_profile(prefix))],
             None,
         )
         for prefix in gd.closed_prefixes()
@@ -256,7 +262,7 @@ def httproutes(hostname: str, f09: bool) -> list[dict[str, Any]]:
         httproute("closed", hostname, closed_rules),
     ]
     if f09:
-        routes.append(httproute("federate", hostname, [rule("federate", [match("Exact", "/federate", "GET")], [response_headers("api")], dest("federate"))]))
+        routes.append(httproute("federate", hostname, [rule("federate", [match("Exact", gd.federate_path())], [response_headers("api")], dest("federate"))]))
     return sorted(routes, key=lambda r: r["metadata"]["name"])
 
 
@@ -444,7 +450,7 @@ def rate_limit_rules(simulator_azp: str | None, f09: bool) -> list[dict[str, Any
     rules: dict[str, dict[str, Any]] = {
         "console": rl("console", {"headers": [distinct_sub], "path": {"type": "PathPrefix", "value": row_prefix("console")}}),
         "global": rl("global", None),
-        "intake-channel": rl("intake-channel", {"headers": [{"name": azp, "type": "Exact", "value": "channel"}], "path": intake_path}),
+        "intake-channel": rl("intake-channel", {"headers": [{"name": azp, "type": "Exact", "value": intake_base_azp()}], "path": intake_path}),
         "promotion": rl("promotion", {"headers": [distinct_sub], "path": {"type": "PathPrefix", "value": row_prefix("promotion")}}),
     }
     for name, key in (("auth-login", "login"), ("auth-token", "token")):
@@ -453,7 +459,7 @@ def rate_limit_rules(simulator_azp: str | None, f09: bool) -> list[dict[str, Any
     if simulator_azp:
         rules["intake-channel-simulator"] = rl("intake-channel-simulator", {"headers": [{"name": azp, "type": "Exact", "value": simulator_azp}], "path": intake_path})
     if f09:
-        rules["federate"] = rl("federate", {"path": {"type": "RegularExpression", "value": "^/federate" + QUERY_SUFFIX}})
+        rules["federate"] = rl("federate", {"path": {"type": "RegularExpression", "value": "^" + gd.federate_path() + QUERY_SUFFIX}})
     return [rules[k] for k in sorted(rules)]
 
 
@@ -489,7 +495,7 @@ def backendtrafficpolicies(simulator_azp: str | None, f09: bool) -> list[dict[st
             "spec": {
                 "mergeType": "StrategicMerge",
                 "targetRefs": [route_ref("closed")],
-                "responseOverride": [override(c, ra["second"]) for c in (404, 429)],
+                "responseOverride": [override(c, ra["second"]) for c in gd.closed_errors()],
             },
         },
     ]
@@ -545,15 +551,16 @@ def referencegrants(f09: bool) -> list[dict[str, Any]]:
     out = []
     for namespace in gd.grant_namespaces():
         sources = [{"group": GATEWAY_GROUP, "kind": "HTTPRoute", "namespace": edge}]
-        if namespace == grant_ns:
-            assert used[namespace] == {grant_service}
+        services = sorted(used[namespace])
+        if namespace == grant_ns:  # D-1: la SecurityPolicy solo llega al Service del diseno
+            services = [grant_service]
             sources.append({"group": grant_group, "kind": "SecurityPolicy", "namespace": edge})
         out.append(
             {
                 "apiVersion": GW_API,
                 "kind": "ReferenceGrant",
                 "metadata": meta("edge-routes", namespace),
-                "spec": {"from": sources, "to": [{"group": "", "kind": "Service", "name": n} for n in sorted(used[namespace])]},
+                "spec": {"from": sources, "to": [{"group": "", "kind": "Service", "name": n} for n in services]},
             }
         )
     return out

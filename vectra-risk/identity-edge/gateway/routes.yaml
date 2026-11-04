@@ -64,7 +64,7 @@ rate_limits: # P-U2-06; sin rafaga (V2). Los contadores `source_ip` cuentan por 
     path: { type: RegularExpression, value: '^/auth/realms/vectra/protocol/openid-connect/token(\?.*)?$' }
     source_ip: [0.0.0.0/0, '::/0']
   - { name: federate, requests: 1, unit: Second, path: { type: RegularExpression, value: '^/federate(\?.*)?$' }, requires: f09 }
-closed_policy: { retry_after: "1", errors: [404, 429] } # D-2: el 404 del cierre se reescribe como `Problem` con `%TRACE_ID%`
+closed_policy: { retry_after: "1", errors: [404] } # D-2: el 404 del cierre se reescribe como `Problem` con `%TRACE_ID%`; D-6: sin 429 (el rate limit no aplica a `directResponse`)
 closed: # BR-U2-10: prefijos cerrados; todo lo que no es una entrada da 404 `Problem`
   - { rule: closed-api, path: /api, profile: api }
   - { rule: closed-auth, path: /auth, profile: auth }
@@ -189,4 +189,4 @@ routes:
       secret: federate-basic-auth # V7: Secret en `vectra-edge`, clave `.htpasswd`
       external_secret: { store: vectra-store, key: identity/federate, property: .htpasswd }
     rules:
-      - { name: federate, methods: [GET], matches: [{ type: Exact, path: /federate }] }
+      - { name: federate, matches: [{ type: Exact, path: /federate }] }

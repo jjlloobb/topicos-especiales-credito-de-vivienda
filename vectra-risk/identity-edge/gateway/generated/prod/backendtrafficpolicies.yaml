@@ -129,20 +129,6 @@ spec:
         type: Inline
       contentType: application/problem+json
     source: Local
-  - match:
-      statusCodes:
-      - type: Value
-        value: 429
-    response:
-      body:
-        inline: '{"type": "urn:vectra:problem:rate_limited", "title": "Demasiadas solicitudes", "status": 429, "code": "rate_limited", "correlation_id": "%TRACE_ID%"}'
-        type: Inline
-      contentType: application/problem+json
-      header:
-        set:
-        - name: Retry-After
-          value: '1'
-    source: Local
   targetRefs:
   - group: gateway.networking.k8s.io
     kind: HTTPRoute

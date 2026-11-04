@@ -109,15 +109,15 @@ def body_limit(row_key: str) -> str | None:
 def rate_limit_numbers() -> dict[str, int]:
     rows = route_rows()
     numbers = {
-        "console": int(re.search(r"(\d+) req/s por `sub`", rows["/api/console/**"][4]).group(1)),  # type: ignore[union-attr]
-        "intake-channel": int(re.search(r"`channel` (\d+) req/s", rows["/api/intake/**"][4]).group(1)),  # type: ignore[union-attr]
+        "console": int(re.search(r"(\d+) req/(?:s|min) por `sub`", rows["/api/console/**"][4]).group(1)),  # type: ignore[union-attr]
+        "intake-channel": int(re.search(r"`channel` (\d+) req/(?:s|min)", rows["/api/intake/**"][4]).group(1)),  # type: ignore[union-attr]
         "intake-channel-simulator": int(
-            re.search(r"`channel-simulator` (\d+) req/s", rows["/api/intake/**"][4]).group(1)  # type: ignore[union-attr]
+            re.search(r"`channel-simulator` (\d+) req/(?:s|min)", rows["/api/intake/**"][4]).group(1)  # type: ignore[union-attr]
         ),
-        "promotion": int(re.search(r"(\d+) req/s por `sub`", rows["/api/promotion/**"][4]).group(1)),  # type: ignore[union-attr]
-        "auth": int(re.search(r"(\d+) req/min por IP", rows["/auth/realms/vectra/**"][4]).group(1)),  # type: ignore[union-attr]
-        "federate": int(re.search(r"(\d+) req/s", rows["/federate"][4]).group(1)),  # type: ignore[union-attr]
-        "global": int(re.search(r"Límite global: (\d+) req/s", _routes_section()).group(1)),  # type: ignore[union-attr]
+        "promotion": int(re.search(r"(\d+) req/(?:s|min) por `sub`", rows["/api/promotion/**"][4]).group(1)),  # type: ignore[union-attr]
+        "auth": int(re.search(r"(\d+) req/(?:s|min) por IP", rows["/auth/realms/vectra/**"][4]).group(1)),  # type: ignore[union-attr]
+        "federate": int(re.search(r"(\d+) req/(?:s|min)", rows["/federate"][4]).group(1)),  # type: ignore[union-attr]
+        "global": int(re.search(r"Límite global: (\d+) req/(?:s|min)", _routes_section()).group(1)),  # type: ignore[union-attr]
     }
     return numbers
 
@@ -362,8 +362,8 @@ class Rewrite:
 def rewrites() -> list[Rewrite]:
     """V3: «`/api/...` llega como `/v1/...`»."""
     line = next(ln for ln in _routes_section().splitlines() if ln.startswith("- **Reescritura** (V3)"))
-    sources = re.findall(r"`(/api/[^`]*/v1/[^`]*)`", line)
-    targets = [t for t in re.findall(r"`(/v1/[^`]+)`", line) if "..." not in t]
+    sources = re.findall(r"`(/api/[^`]*/v\d+/[^`]*)`", line)
+    targets = [t for t in re.findall(r"`(/v\d+/[^`]+)`", line) if "..." not in t]
     assert len(sources) == len(targets) > 0, "V3 con otra forma"
     return [Rewrite(a, b) for a, b in zip(sources, targets, strict=True)]
 
@@ -422,8 +422,9 @@ def federate() -> Federate:
 
 def closed_prefixes() -> list[str]:
     """BR-U2-10: `/api/` y `/auth/` son prefijos cerrados, y `/federate` da 404 con F09 deshabilitada."""
-    line = next(ln for ln in BUSINESS_RULES.splitlines() if ln.startswith("- `/api/` y `/auth/` son prefijos cerrados"))
-    prefixes = [t.rstrip("/") for t in _ticks_of(line.split(":")[0])]
+    found = re.search(r"- `(/\w+)/` y `(/\w+)/` son prefijos cerrados", BUSINESS_RULES)
+    assert found, "BR-U2-10 sin los prefijos cerrados"
+    prefixes = [found.group(1), found.group(2)]
     federate_line = next(ln for ln in BUSINESS_RULES.splitlines() if "`/federate` da 404" in ln)
     prefixes.append(re.search(r"`(/federate)` da 404", federate_line).group(1))  # type: ignore[union-attr]
     return sorted(prefixes)
@@ -468,3 +469,34 @@ def authentication_kind(row_key: str) -> str:
     if "Basic auth" in cell or "basic auth" in cell:
         return "basic"
     return "none"
+
+
+def read_methods() -> list[str]:
+    """P-U2-02: «Solo `GET`/`HEAD`»."""
+    rows = {r[0].strip("`"): r for r in table_rows(_p_u2_02()) if r[0].startswith("`/")}
+    found = re.match(r"Solo ((?:`\w+`/?)+):", rows["/api/console/**"][2])
+    assert found, "P-U2-02 sin los metodos de solo lectura"
+    return _ticks_of(found.group(1))
+
+
+def closed_profile(prefix: str) -> str:
+    """El perfil de la fila de §4 que cae bajo el prefijo cerrado (`/api` -> `api`, `/auth` -> `auth`, `/federate` -> `api`)."""
+    for key, row in route_rows().items():
+        if key == prefix or key.startswith(prefix + "/"):
+            found = re.search(r"Perfil `(\w+)`", row[6])
+            assert found, key
+            return found.group(1)
+    raise AssertionError(f"ninguna fila de §4 bajo {prefix}")
+
+
+def closed_errors() -> list[int]:
+    """D-2 y D-6 (BR-U2-10): el cierre reescribe el 404 y su politica no declara 429."""
+    assert "responseOverride` de 404" in _inf_10() or "responseOverride` de 404" in BUSINESS_RULES
+    declares_429 = "no declara 429" not in BUSINESS_RULES
+    return sorted([404, 429] if declares_429 else [404])
+
+
+def federate_path() -> str:
+    """La fila `/federate` de §4."""
+    assert "/federate" in route_rows()
+    return "/federate"
