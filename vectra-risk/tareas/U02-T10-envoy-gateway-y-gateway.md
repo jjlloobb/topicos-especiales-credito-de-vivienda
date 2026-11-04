@@ -30,6 +30,10 @@ Las decisiones están en INF-U2-02, INF-U2-03, INF-U2-10, P-U2-01 y NFR-U2-23.
 > - Y4: `ClientTrafficPolicy.tls` con mínimo 1.2 y máximo 1.3, y el `certgen` dentro de K14.
 >
 > El alcance en `platform/` y en `vectra-risk-gitops/` suma esos archivos.
+>
+> **Enmienda del 2026-11-04 (orquestador, decisiones Z1 y Z2 del usuario tras la ronda 2 de revisión):**
+> - Z1: el `EnvoyProxy` no sobrescribe `app.kubernetes.io/name` en `pod.labels`; donde el texto del Paso 8 pide `envoyDeployment.pod.labels: {app.kubernetes.io/name: api-gateway}`, rige la enmienda del plan. La identidad se selecciona por `gateway.envoyproxy.io/owning-gateway-name` en el Paso 10 (`flows.yaml` queda fuera de esta tarea).
+> - Z2: `require-spread-and-pdb` se parte en una regla de réplicas, con la exención por `owning-gateway-name` solo en `vectra-edge`, y otra de reparto por zona para todos, sin exención. Se quita `require-spread-gateway`.
 
 ## Alcance
 
