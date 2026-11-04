@@ -5468,3 +5468,36 @@ El orquestador fijó la URL del token en el mismo host de administración.
 **Context**: Construcción de U2, U02-T08.
 
 ---
+
+## PR 59 aprobado y fusionado
+**Timestamp**: 2026-11-03T23:16:55Z
+**User Input**: "ya aprobé el PR 59"
+**AI Response**: El PR 59 (U02-T08, realm-drift y signing-key-age) quedó aprobado y fusionado por una persona (`joseluisjedi`) a las 2026-11-03T23:16:32Z, sobre el head aae03e9 con todo el CI en verde. El commit de fusión en `main` es 6d8efc5. El agente no fusionó. U2 tiene cerrados los Pasos 1 a 6; sigue el Bloque C, Paso 7.
+**Context**: Construcción de U2, U02-T08.
+
+---
+
+## Preparación de U02-T09 (Paso 7)
+**Timestamp**: 2026-11-04T00:11:13Z
+**User Input**: "prepara U02-T09 (Paso 7)"; V1 "Lista exacta ampliada (Recomendado)"; V2 "Ventana de 1 s, sin ráfaga (Recomendado)"; V3 "Quitar /api/intake y /api/promotion (Recomendado)"; V4 "BackendTrafficPolicy.requestBuffer (Recomendado)"; V5 "La ventana del límite (Recomendado)"; V6 "Cookie de sesión, TTL 0 s (Recomendado)"; V7 "ExternalSecret desde identity/ (Recomendado)"; V8 "Herramientas de U1 (Recomendado)"; V9 "api-gateway / https (Recomendado)"; V10 "SPA por prefijo, /api y /auth cerrados (Recomendado)"
+**AI Response**: El orquestador comparó el Paso 7 con el código de Envoy Gateway v1.9.3 (`api/v1alpha1` y `internal/xds/translator` de ese tag). Encontró lo siguiente:
+- el rate limit global no admite ráfaga;
+- la `ClientTrafficPolicy` no aplica a una ruta, y el tamaño por ruta está en `BackendTrafficPolicy.requestBuffer`;
+- la respuesta personalizada no calcula `Retry-After`;
+- la cookie de afinidad necesita TTL;
+- el login de Keycloak 26.8.1 necesita `login-actions/**`, `/auth/resources/**`, el iframe de sesión y `3p-cookies`;
+- los servicios exponen `/v1/...`;
+- el nombre del `Gateway` no estaba fijado;
+- `kubeconform` y los CRDs no estaban en las herramientas de U1;
+- BR-U2-10 choca con el fallback de la SPA de U10.
+
+El usuario decidió V1–V10, todas por la opción recomendada. Se enmendaron:
+- domain-entities §4 (V1, V2, V3, V6, V7);
+- BR-U2-08 (V5) y BR-U2-10 (V10);
+- INF-U2-10, nueva (V4, V8, V9);
+- el Paso 7 del plan.
+
+Se redactó `tareas/U02-T09-routes-y-route-gen.md` con el texto del Paso 7 sin recortes y 7 CAs. Se agregaron cuatro candidatas: Grafana sin subruta ni OIDC, el servicio de rate limit del Paso 9 frente al que despliega Envoy Gateway, `routingType` con Linkerd, y el access log en el `EnvoyProxy`. La tarea no se despacha hasta que el usuario lo pida.
+**Context**: Construcción de U2, U02-T09.
+
+---

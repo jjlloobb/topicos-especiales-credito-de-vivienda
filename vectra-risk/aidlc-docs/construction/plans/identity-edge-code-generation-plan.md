@@ -148,7 +148,8 @@ vectra-risk/identity-edge/
     - respuestas de error `Problem`;
     - eliminación de `server`, `x-envoy-*` y de las cabeceras internas entrantes y salientes.
   - Propiedades PBT-U2-04, 05 y 06.
-  - Diseño: BR-U2-08, 10, 11, 13, 14; P-U2-02, 03, 06, 07; NFR-U2-20, 23, 40, 41. Historias: US-611, US-602.
+  - **Enmienda del 2026-11-03 (decisiones V1–V10 del usuario al preparar U02-T09):** `/` es un prefijo hacia la SPA, y `/api/` y `/auth/` son prefijos cerrados con 404 `Problem` para el resto (V10, BR-U2-10). Los límites de `channel` y `channel-simulator` quedan en 10/s y 30/s, sin ráfaga (V2). El tamaño máximo por ruta va en la `BackendTrafficPolicy` (`requestBuffer`), porque la `ClientTrafficPolicy` no aplica a una ruta (V4, INF-U2-10). La lista de endpoints de `/auth/**` y sus dos contadores (V1), los límites sin ráfaga (V2), la reescritura de `/api/intake` y `/api/promotion` (V3), la cookie de sesión (V6) y la credencial de F09 (V7) están en domain-entities §4. `Retry-After` está en BR-U2-08 (V5). El `Gateway` `api-gateway`, los destinos, los `ReferenceGrant` y `kubeconform` están en INF-U2-10 (V8, V9).
+  - Diseño: BR-U2-08, 10, 11, 13, 14; P-U2-02, 03, 06, 07; NFR-U2-20, 23, 40, 41; INF-U2-01, 10. Historias: US-611, US-602.
   - **Aceptación**:
     - `uv run python identity-edge/tools/route_gen.py --check` (los manifiestos versionados coinciden con los generados);
     - `kubeconform` con los CRDs de Gateway API y Envoy Gateway;
@@ -263,6 +264,7 @@ vectra-risk/identity-edge/
 | NFR-U2-40..42 (pruebas) | 3, 7, 13 |
 | P-U2-01..09 | 4, 5, 6, 7, 8, 9, 11, 13, 16 |
 | INF-U2-01..08 | 2, 4, 5, 8, 9, 10, 12 |
+| INF-U2-10 | 7 |
 
 | Propiedad | Paso |
 |---|---|
