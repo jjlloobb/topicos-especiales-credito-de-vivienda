@@ -271,7 +271,7 @@ def counters_violations(docs: gc.Docs) -> list[str]:
     if len(counters) != 2:
         return [f"debia haber 2 contadores y hay {len(counters)}"]
     login = "/auth/realms/vectra/protocol/openid-connect/auth"
-    token_path = "/auth/realms/vectra/protocol/openid-connect/token"
+    token_url = "/auth/realms/vectra/protocol/openid-connect/token"  # noqa: S105
     same = ["/auth/realms/vectra/login-actions/authenticate", "/auth/realms/vectra/login-actions", login + "?client_id=x"]
     for counter in counters:
         (selector,) = counter["clientSelectors"]
@@ -280,7 +280,7 @@ def counters_violations(docs: gc.Docs) -> list[str]:
             bad.append(f"contador distinto: {counter}")
         regex = selector["path"]["value"]
         matches_login = all(re.fullmatch(regex, p) for p in [login, *same])
-        matches_token = bool(re.fullmatch(regex, token_path)) or bool(re.fullmatch(regex, token_path + "?grant_type=x"))
+        matches_token = bool(re.fullmatch(regex, token_url)) or bool(re.fullmatch(regex, token_url + "?grant_type=x"))
         if matches_login == matches_token:
             bad.append(f"el contador no separa login y token: {regex}")
     others = ["/auth/realms/vectra/protocol/openid-connect/certs", "/auth/resources/x.css", "/auth/realms/vectra/account"]
@@ -394,8 +394,8 @@ def _drop_query(docs: gc.Docs) -> None:
 
 
 def _drop_rewrite(docs: gc.Docs) -> None:
-    rules = gc.find(docs, "HTTPRoute", "promotion")["spec"]["rules"]
-    rules[0]["filters"] = [f for f in rules[0]["filters"] if f["type"] != "URLRewrite"]
+    rule = _rule(docs, "promotion", "promotion-models")
+    rule["filters"] = [f for f in rule["filters"] if f["type"] != "URLRewrite"]
 
 
 def _id_with_slash(docs: gc.Docs) -> None:
@@ -423,7 +423,7 @@ def test_promotion_check_fails_on_altered_routes(alter):
 def internal_header_violations(docs: gc.Docs) -> list[str]:
     bad = []
     ctp = gc.find(docs, "ClientTrafficPolicy", "edge-client")["spec"]["headers"]
-    if ctp["earlyRequestHeaders"] != {"removeOnMatch": [{"type": "Prefix", "value": "x-vectra-"}]}:
+    if ctp.get("earlyRequestHeaders") != {"removeOnMatch": [{"type": "Prefix", "value": "x-vectra-"}]}:
         bad.append("la entrada no quita el prefijo x-vectra-")
     authenticated = {"console-read", "console-write", "intake-submit", "promotion-models", "promotion-activation"}
     seen = set()
@@ -809,6 +809,25 @@ def _federate_route(docs: gc.Docs) -> None:
     )
 
 
+def _new_api_route(docs: gc.Docs) -> None:
+    docs.append(
+        {
+            "apiVersion": "gateway.networking.k8s.io/v1",
+            "kind": "HTTPRoute",
+            "metadata": {"name": "other", "namespace": "vectra-edge"},
+            "spec": {
+                "rules": [
+                    {
+                        "name": "other",
+                        "matches": [{"path": {"type": "Exact", "value": "/api/other"}}],
+                        "backendRefs": [{"group": "", "kind": "Service", "name": "other", "namespace": "vectra-app", "port": 8080}],
+                    }
+                ]
+            },
+        }
+    )
+
+
 # (regla, caso, alteracion). Cada regla de la politica aparece al menos una vez; la salida debe nombrarla.
 MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("no-app-headers", "idempotency-key-filtered", lambda d: _rule(d, "intake", "intake-submit")["filters"][1]["requestHeaderModifier"]["remove"].append("Idempotency-Key")),
@@ -853,7 +872,7 @@ MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("no-retry-unsafe", "retry-on-whole-route", lambda d: gc.find(d, "BackendTrafficPolicy", "console-read")["spec"]["targetRefs"][0].pop("sectionName")),
     ("authenticated-has-security-policy", "no-policy-for-intake", _remove("SecurityPolicy", "intake")),
     ("authenticated-has-security-policy", "policy-without-jwt", lambda d: gc.find(d, "SecurityPolicy", "console")["spec"].pop("jwt")),
-    ("authenticated-has-security-policy", "new-authenticated-rule", lambda d: _rule(d, "intake", "intake-submit")["matches"].append({"path": {"type": "Exact", "value": "/api/other"}, "method": "POST"}) or gc.find(d, "HTTPRoute", "intake")["spec"]["rules"].append({"name": "other", "matches": [{"path": {"type": "Exact", "value": "/api/other"}}], "backendRefs": [{"group": "", "kind": "Service", "name": "other", "namespace": "vectra-app", "port": 8080}]})),
+    ("authenticated-has-security-policy", "new-authenticated-route", _new_api_route),
     ("every-rule-has-policy", "rule-without-traffic-policy", _remove("BackendTrafficPolicy", "grafana-write")),
     ("closed-prefixes", "api-not-closed", lambda d: gc.find(d, "HTTPRoute", "closed")["spec"]["rules"].remove(_rule(d, "closed", "closed-api"))),
     ("closed-prefixes", "auth-with-backend", lambda d: _rule(d, "closed", "closed-auth").update(backendRefs=[{"group": "", "kind": "Service", "name": "keycloak", "namespace": "vectra-identity", "port": 8443}])),

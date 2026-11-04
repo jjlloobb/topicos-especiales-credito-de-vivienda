@@ -20,7 +20,7 @@ JOBS := $(ROOT)/identity-edge/jobs
 # Destino del render de los jobs. Por defecto, el versionado; `check-jobs-rendered` lo cambia por un directorio temporal.
 JOBS_OUT ?= $(JOBS)/rendered
 
-.PHONY: lint test check render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
+.PHONY: lint test check route-gen check-route-gen schemas-gateway kubeconform-gateway policy-gateway render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
 
 lint:
 	$(UV) ruff check identity-edge
@@ -95,5 +95,39 @@ check-jobs-rendered:
 	$(MAKE) -f $(lastword $(MAKEFILE_LIST)) render-jobs JOBS_OUT="$$tmp" && \
 	diff -r "$$tmp" $(JOBS)/rendered
 
+GATEWAY := $(ROOT)/identity-edge/gateway
+KUBECONFORM := $(TOOLS)/kubeconform
+# Los esquemas de los CRDs de gateway-helm que `crd_schemas.py` deja en `.tools` (no se versiona).
+SCHEMAS := $(ROOT)/identity-edge/.tools/schemas
+# Sin `-ignore-missing-schemas`: un documento sin esquema es un error.
+KUBECONFORM_OK := Valid: [1-9][0-9]*, Invalid: 0, Errors: 0, Skipped: 0
+
+# Genera `gateway/generated/<env>/` desde `gateway/routes.yaml` y `gateway/values/<env>.yaml` (U02-T09, Paso 7).
+route-gen:
+	$(UV) python identity-edge/tools/route_gen.py
+
+# Lo versionado coincide con lo generado (sin tocar lo versionado).
+check-route-gen:
+	$(UV) python identity-edge/tools/route_gen.py --check
+
+# Convierte los CRDs de `platform/.charts/envoy-gateway/gateway-helm` (Envoy Gateway y Gateway API v1.6.1) a esquemas JSON.
+schemas-gateway:
+	rm -rf $(SCHEMAS)
+	$(UV) python identity-edge/tools/crd_schemas.py
+
+kubeconform-gateway: schemas-gateway
+	for env in $(ENVS); do \
+	  out="$$($(KUBECONFORM) -strict -summary -schema-location '$(SCHEMAS)/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' $(GATEWAY)/generated/$$env 2>&1)"; code=$$?; \
+	  echo "$$out"; \
+	  { [ $$code -eq 0 ] && echo "$$out" | grep -qE '$(KUBECONFORM_OK)'; } || exit 1; \
+	done
+
+# Las reglas por documento sobre todo lo generado, y las que ven el entorno entero (`--combine`) una vez por entorno.
+policy-gateway:
+	$(CONFTEST) test --policy $(GATEWAY)/policy $(GATEWAY)/generated/
+	for env in $(ENVS); do \
+	  $(CONFTEST) test --combine --namespace gateway_set --policy $(GATEWAY)/policy $(GATEWAY)/generated/$$env/ || exit 1; \
+	done
+
 # Verificaciones estaticas (AUTONOMIA-01). Crece con los pasos del plan.
-check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 test
+check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 check-route-gen kubeconform-gateway policy-gateway test

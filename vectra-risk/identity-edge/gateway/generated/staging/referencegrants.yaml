@@ -1,0 +1,61 @@
+# Generado por identity-edge/tools/route_gen.py desde identity-edge/gateway/routes.yaml. No editar a mano.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: ReferenceGrant
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: edge-routes
+  namespace: vectra-app
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: vectra-edge
+  to:
+  - group: ''
+    kind: Service
+    name: case-service
+  - group: ''
+    kind: Service
+    name: console-bff
+  - group: ''
+    kind: Service
+    name: governance-service
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: ReferenceGrant
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: edge-routes
+  namespace: vectra-identity
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: vectra-edge
+  to:
+  - group: ''
+    kind: Service
+    name: keycloak
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: ReferenceGrant
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: edge-routes
+  namespace: vectra-observability
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: vectra-edge
+  to:
+  - group: ''
+    kind: Service
+    name: kube-prometheus-stack-grafana

@@ -9,11 +9,11 @@ from typing import Any
 
 import gateway_design as gd
 from vectra_common.errors import (
+    DependencyUnavailable,
     Forbidden,
     NotFound,
     PayloadTooLarge,
     RateLimited,
-    DependencyUnavailable,
     Unauthenticated,
     VectraError,
     problem_body,

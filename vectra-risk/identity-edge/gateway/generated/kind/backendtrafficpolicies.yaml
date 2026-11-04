@@ -1,0 +1,848 @@
+# Generado por identity-edge/tools/route_gen.py desde identity-edge/gateway/routes.yaml. No editar a mano.
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: auth-read
+  namespace: vectra-edge
+spec:
+  circuitBreaker:
+    retryBudget:
+      percent:
+        denominator: 100
+        numerator: 20
+  healthCheck:
+    passive:
+      baseEjectionTime: 30s
+      consecutive5XxErrors: 5
+      maxEjectionPercent: 50
+  mergeType: StrategicMerge
+  responseOverride:
+  - match:
+      statusCodes:
+      - type: Value
+        value: 429
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:rate_limited", "title": "Demasiadas solicitudes", "status": 429, "code": "rate_limited", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+      header:
+        set:
+        - name: Retry-After
+          value: '60'
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 503
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:dependency_unavailable", "title": "Servicio no disponible temporalmente", "status": 503, "code": "dependency_unavailable", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  retry:
+    numRetries: 1
+    retryOn:
+      triggers:
+      - connect-failure
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: auth
+    sectionName: auth-read
+  timeout:
+    http:
+      requestTimeout: 10s
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: auth-write
+  namespace: vectra-edge
+spec:
+  healthCheck:
+    passive:
+      baseEjectionTime: 30s
+      consecutive5XxErrors: 5
+      maxEjectionPercent: 50
+  mergeType: StrategicMerge
+  responseOverride:
+  - match:
+      statusCodes:
+      - type: Value
+        value: 429
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:rate_limited", "title": "Demasiadas solicitudes", "status": 429, "code": "rate_limited", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+      header:
+        set:
+        - name: Retry-After
+          value: '60'
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 503
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:dependency_unavailable", "title": "Servicio no disponible temporalmente", "status": 503, "code": "dependency_unavailable", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: auth
+    sectionName: auth-write
+  timeout:
+    http:
+      requestTimeout: 10s
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: closed
+  namespace: vectra-edge
+spec:
+  mergeType: StrategicMerge
+  responseOverride:
+  - match:
+      statusCodes:
+      - type: Value
+        value: 429
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:rate_limited", "title": "Demasiadas solicitudes", "status": 429, "code": "rate_limited", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+      header:
+        set:
+        - name: Retry-After
+          value: '1'
+    source: Local
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: closed
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: console-read
+  namespace: vectra-edge
+spec:
+  circuitBreaker:
+    retryBudget:
+      percent:
+        denominator: 100
+        numerator: 20
+  healthCheck:
+    passive:
+      baseEjectionTime: 30s
+      consecutive5XxErrors: 0
+      consecutiveLocalOriginFailures: 5
+      maxEjectionPercent: 50
+      splitExternalLocalOriginErrors: true
+  mergeType: StrategicMerge
+  requestBuffer:
+    limit: 64Ki
+  responseOverride:
+  - match:
+      statusCodes:
+      - type: Value
+        value: 401
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:unauthenticated", "title": "Autenticación requerida", "status": 401, "code": "unauthenticated", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 403
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:forbidden", "title": "Acción no permitida", "status": 403, "code": "forbidden", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 413
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:payload_too_large", "title": "La solicitud es demasiado grande", "status": 413, "code": "payload_too_large", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 429
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:rate_limited", "title": "Demasiadas solicitudes", "status": 429, "code": "rate_limited", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+      header:
+        set:
+        - name: Retry-After
+          value: '1'
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 503
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:dependency_unavailable", "title": "Servicio no disponible temporalmente", "status": 503, "code": "dependency_unavailable", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  retry:
+    numRetries: 1
+    retryOn:
+      triggers:
+      - connect-failure
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: console
+    sectionName: console-read
+  timeout:
+    http:
+      requestTimeout: 15s
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: console-write
+  namespace: vectra-edge
+spec:
+  healthCheck:
+    passive:
+      baseEjectionTime: 30s
+      consecutive5XxErrors: 0
+      consecutiveLocalOriginFailures: 5
+      maxEjectionPercent: 50
+      splitExternalLocalOriginErrors: true
+  mergeType: StrategicMerge
+  requestBuffer:
+    limit: 64Ki
+  responseOverride:
+  - match:
+      statusCodes:
+      - type: Value
+        value: 401
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:unauthenticated", "title": "Autenticación requerida", "status": 401, "code": "unauthenticated", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 403
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:forbidden", "title": "Acción no permitida", "status": 403, "code": "forbidden", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 413
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:payload_too_large", "title": "La solicitud es demasiado grande", "status": 413, "code": "payload_too_large", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 429
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:rate_limited", "title": "Demasiadas solicitudes", "status": 429, "code": "rate_limited", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+      header:
+        set:
+        - name: Retry-After
+          value: '1'
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 503
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:dependency_unavailable", "title": "Servicio no disponible temporalmente", "status": 503, "code": "dependency_unavailable", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: console
+    sectionName: console-write
+  timeout:
+    http:
+      requestTimeout: 15s
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: edge-rate-limits
+  namespace: vectra-edge
+spec:
+  rateLimit:
+    global:
+      rules:
+      - clientSelectors:
+        - path:
+            type: RegularExpression
+            value: ^/auth/realms/vectra/(protocol/openid-connect/auth|login-actions(/[^?]*)?)(\?.*)?$
+          sourceCIDR:
+            type: Distinct
+            value: 0.0.0.0/0
+        limit:
+          requests: 600
+          unit: Minute
+        shared: true
+      - clientSelectors:
+        - path:
+            type: RegularExpression
+            value: ^/auth/realms/vectra/protocol/openid-connect/token(\?.*)?$
+          sourceCIDR:
+            type: Distinct
+            value: 0.0.0.0/0
+        limit:
+          requests: 600
+          unit: Minute
+        shared: true
+      - clientSelectors:
+        - headers:
+          - name: x-vectra-sub
+            type: Distinct
+          path:
+            type: PathPrefix
+            value: /api/console
+        limit:
+          requests: 20
+          unit: Second
+        shared: true
+      - limit:
+          requests: 200
+          unit: Second
+        shared: true
+      - clientSelectors:
+        - headers:
+          - name: x-vectra-azp
+            type: Exact
+            value: channel
+          path:
+            type: RegularExpression
+            value: ^/api/intake/v1/intake/applications(\?.*)?$
+        limit:
+          requests: 10
+          unit: Second
+        shared: true
+      - clientSelectors:
+        - headers:
+          - name: x-vectra-azp
+            type: Exact
+            value: channel-simulator
+          path:
+            type: RegularExpression
+            value: ^/api/intake/v1/intake/applications(\?.*)?$
+        limit:
+          requests: 30
+          unit: Second
+        shared: true
+      - clientSelectors:
+        - headers:
+          - name: x-vectra-sub
+            type: Distinct
+          path:
+            type: PathPrefix
+            value: /api/promotion
+        limit:
+          requests: 1
+          unit: Second
+        shared: true
+    type: Global
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: api-gateway
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: grafana-read
+  namespace: vectra-edge
+spec:
+  circuitBreaker:
+    retryBudget:
+      percent:
+        denominator: 100
+        numerator: 20
+  healthCheck:
+    passive:
+      baseEjectionTime: 30s
+      consecutive5XxErrors: 5
+      maxEjectionPercent: 50
+  mergeType: StrategicMerge
+  requestBuffer:
+    limit: 64Ki
+  responseOverride:
+  - match:
+      statusCodes:
+      - type: Value
+        value: 413
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:payload_too_large", "title": "La solicitud es demasiado grande", "status": 413, "code": "payload_too_large", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 429
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:rate_limited", "title": "Demasiadas solicitudes", "status": 429, "code": "rate_limited", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+      header:
+        set:
+        - name: Retry-After
+          value: '1'
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 503
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:dependency_unavailable", "title": "Servicio no disponible temporalmente", "status": 503, "code": "dependency_unavailable", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  retry:
+    numRetries: 1
+    retryOn:
+      triggers:
+      - connect-failure
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: grafana
+    sectionName: grafana-read
+  timeout:
+    http:
+      requestTimeout: 30s
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: grafana-write
+  namespace: vectra-edge
+spec:
+  healthCheck:
+    passive:
+      baseEjectionTime: 30s
+      consecutive5XxErrors: 5
+      maxEjectionPercent: 50
+  mergeType: StrategicMerge
+  requestBuffer:
+    limit: 64Ki
+  responseOverride:
+  - match:
+      statusCodes:
+      - type: Value
+        value: 413
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:payload_too_large", "title": "La solicitud es demasiado grande", "status": 413, "code": "payload_too_large", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 429
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:rate_limited", "title": "Demasiadas solicitudes", "status": 429, "code": "rate_limited", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+      header:
+        set:
+        - name: Retry-After
+          value: '1'
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 503
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:dependency_unavailable", "title": "Servicio no disponible temporalmente", "status": 503, "code": "dependency_unavailable", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: grafana
+    sectionName: grafana-write
+  timeout:
+    http:
+      requestTimeout: 30s
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: intake-submit
+  namespace: vectra-edge
+spec:
+  healthCheck:
+    passive:
+      baseEjectionTime: 30s
+      consecutive5XxErrors: 5
+      maxEjectionPercent: 50
+  mergeType: StrategicMerge
+  requestBuffer:
+    limit: 32Ki
+  responseOverride:
+  - match:
+      statusCodes:
+      - type: Value
+        value: 401
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:unauthenticated", "title": "Autenticación requerida", "status": 401, "code": "unauthenticated", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 403
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:forbidden", "title": "Acción no permitida", "status": 403, "code": "forbidden", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 413
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:payload_too_large", "title": "La solicitud es demasiado grande", "status": 413, "code": "payload_too_large", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 429
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:rate_limited", "title": "Demasiadas solicitudes", "status": 429, "code": "rate_limited", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+      header:
+        set:
+        - name: Retry-After
+          value: '1'
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 503
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:dependency_unavailable", "title": "Servicio no disponible temporalmente", "status": 503, "code": "dependency_unavailable", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: intake
+    sectionName: intake-submit
+  timeout:
+    http:
+      requestTimeout: 5s
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: promotion-activation
+  namespace: vectra-edge
+spec:
+  healthCheck:
+    passive:
+      baseEjectionTime: 30s
+      consecutive5XxErrors: 5
+      maxEjectionPercent: 50
+  mergeType: StrategicMerge
+  requestBuffer:
+    limit: 16Ki
+  responseOverride:
+  - match:
+      statusCodes:
+      - type: Value
+        value: 401
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:unauthenticated", "title": "Autenticación requerida", "status": 401, "code": "unauthenticated", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 403
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:forbidden", "title": "Acción no permitida", "status": 403, "code": "forbidden", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 413
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:payload_too_large", "title": "La solicitud es demasiado grande", "status": 413, "code": "payload_too_large", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 429
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:rate_limited", "title": "Demasiadas solicitudes", "status": 429, "code": "rate_limited", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+      header:
+        set:
+        - name: Retry-After
+          value: '1'
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 503
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:dependency_unavailable", "title": "Servicio no disponible temporalmente", "status": 503, "code": "dependency_unavailable", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: promotion
+    sectionName: promotion-activation
+  timeout:
+    http:
+      requestTimeout: 10s
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: promotion-models
+  namespace: vectra-edge
+spec:
+  circuitBreaker:
+    retryBudget:
+      percent:
+        denominator: 100
+        numerator: 20
+  healthCheck:
+    passive:
+      baseEjectionTime: 30s
+      consecutive5XxErrors: 5
+      maxEjectionPercent: 50
+  mergeType: StrategicMerge
+  requestBuffer:
+    limit: 16Ki
+  responseOverride:
+  - match:
+      statusCodes:
+      - type: Value
+        value: 401
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:unauthenticated", "title": "Autenticación requerida", "status": 401, "code": "unauthenticated", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 403
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:forbidden", "title": "Acción no permitida", "status": 403, "code": "forbidden", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 413
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:payload_too_large", "title": "La solicitud es demasiado grande", "status": 413, "code": "payload_too_large", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 429
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:rate_limited", "title": "Demasiadas solicitudes", "status": 429, "code": "rate_limited", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+      header:
+        set:
+        - name: Retry-After
+          value: '1'
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 503
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:dependency_unavailable", "title": "Servicio no disponible temporalmente", "status": 503, "code": "dependency_unavailable", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  retry:
+    numRetries: 1
+    retryOn:
+      triggers:
+      - connect-failure
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: promotion
+    sectionName: promotion-models
+  timeout:
+    http:
+      requestTimeout: 10s
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: spa
+  namespace: vectra-edge
+spec:
+  healthCheck:
+    passive:
+      baseEjectionTime: 30s
+      consecutive5XxErrors: 5
+      maxEjectionPercent: 50
+  loadBalancer:
+    consistentHash:
+      cookie:
+        attributes:
+          HttpOnly: ''
+          Path: /
+          SameSite: Strict
+          Secure: ''
+        name: vectra-spa-route
+        ttl: 0s
+      type: Cookie
+    type: ConsistentHash
+  mergeType: StrategicMerge
+  responseOverride:
+  - match:
+      statusCodes:
+      - type: Value
+        value: 429
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:rate_limited", "title": "Demasiadas solicitudes", "status": 429, "code": "rate_limited", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+      header:
+        set:
+        - name: Retry-After
+          value: '1'
+    source: Local
+  - match:
+      statusCodes:
+      - type: Value
+        value: 503
+    response:
+      body:
+        inline: '{"type": "urn:vectra:problem:dependency_unavailable", "title": "Servicio no disponible temporalmente", "status": 503, "code": "dependency_unavailable", "correlation_id": "%TRACE_ID%"}'
+        type: Inline
+      contentType: application/problem+json
+    source: Local
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: spa
+    sectionName: spa

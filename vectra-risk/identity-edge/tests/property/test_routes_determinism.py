@@ -27,7 +27,7 @@ VALUES = {env: route_gen.load_values(env) for env in gc.ENVS}
 
 
 def with_f09(values: dict[str, Any], enabled: bool) -> dict[str, Any]:
-    out = permute(values, random.Random(0))
+    out = permute(values, random.Random(0))  # noqa: S311
     out["f09"] = {"enabled": enabled}
     return out
 

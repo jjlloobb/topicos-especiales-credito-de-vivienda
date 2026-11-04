@@ -1,0 +1,156 @@
+# Generado por identity-edge/tools/route_gen.py desde identity-edge/gateway/routes.yaml. No editar a mano.
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: console
+  namespace: vectra-edge
+spec:
+  authorization:
+    defaultAction: Deny
+    rules:
+    - action: Allow
+      name: console-allow
+      principal:
+        jwt:
+          claims:
+          - name: azp
+            valueType: String
+            values:
+            - vectra-console
+          - name: roles
+            valueType: StringArray
+            values:
+            - analista
+            - cro
+            - cumplimiento
+            - ingeniero_riesgo
+          provider: keycloak
+  jwt:
+    providers:
+    - claimToHeaders:
+      - claim: azp
+        header: x-vectra-azp
+      - claim: sub
+        header: x-vectra-sub
+      issuer: https://vectra.staging.banco.internal/auth/realms/vectra
+      name: keycloak
+      remoteJWKS:
+        backendRefs:
+        - group: ''
+          kind: Service
+          name: keycloak
+          namespace: vectra-identity
+          port: 8443
+        cacheDuration: 300s
+        uri: https://keycloak.vectra-identity.svc:8443/auth/realms/vectra/protocol/openid-connect/certs
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: console
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: intake
+  namespace: vectra-edge
+spec:
+  authorization:
+    defaultAction: Deny
+    rules:
+    - action: Allow
+      name: intake-allow
+      principal:
+        jwt:
+          claims:
+          - name: azp
+            valueType: String
+            values:
+            - channel
+            - channel-simulator
+          provider: keycloak
+          scopes:
+          - intake:submit
+  jwt:
+    providers:
+    - claimToHeaders:
+      - claim: azp
+        header: x-vectra-azp
+      - claim: sub
+        header: x-vectra-sub
+      issuer: https://vectra.staging.banco.internal/auth/realms/vectra
+      name: keycloak
+      remoteJWKS:
+        backendRefs:
+        - group: ''
+          kind: Service
+          name: keycloak
+          namespace: vectra-identity
+          port: 8443
+        cacheDuration: 300s
+        uri: https://keycloak.vectra-identity.svc:8443/auth/realms/vectra/protocol/openid-connect/certs
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: intake
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: promotion
+  namespace: vectra-edge
+spec:
+  authorization:
+    defaultAction: Deny
+    rules:
+    - action: Allow
+      name: promotion-allow
+      principal:
+        jwt:
+          claims:
+          - name: acr
+            valueType: String
+            values:
+            - mfa
+          - name: azp
+            valueType: String
+            values:
+            - promotion-tool
+          - name: roles
+            valueType: StringArray
+            values:
+            - ingeniero_riesgo
+          provider: keycloak
+          scopes:
+          - governance:promotion
+  jwt:
+    providers:
+    - claimToHeaders:
+      - claim: azp
+        header: x-vectra-azp
+      - claim: sub
+        header: x-vectra-sub
+      issuer: https://vectra.staging.banco.internal/auth/realms/vectra
+      name: keycloak
+      remoteJWKS:
+        backendRefs:
+        - group: ''
+          kind: Service
+          name: keycloak
+          namespace: vectra-identity
+          port: 8443
+        cacheDuration: 300s
+        uri: https://keycloak.vectra-identity.svc:8443/auth/realms/vectra/protocol/openid-connect/certs
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: promotion
