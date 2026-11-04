@@ -5555,3 +5555,27 @@ Con las decisiones del usuario se enmendaron INF-U2-10 (D-1, D-3), BR-U2-14 (D-2
 **Context**: Construcción de U2, U02-T09.
 
 ---
+
+## PR 61 aprobado y fusionado
+**Timestamp**: 2026-11-04T03:59:51Z
+**User Input**: "ya aprobé el PR 61"
+**AI Response**: El PR 61 (U02-T09, `routes.yaml` y `route-gen`) quedó aprobado y fusionado por una persona (`joseluisjedi`) a las 2026-11-04T03:59:25Z, sobre el head 10169c9 con todo el CI en verde. El commit de fusión en `main` es 41e9bb1. El agente no fusionó. U2 tiene cerrados los Pasos 1 a 7; sigue el Paso 8 (Envoy Gateway, `Gateway` y verificación de la versión pinneada).
+**Context**: Construcción de U2, U02-T09.
+
+---
+
+## Preparación de U02-T10 (Paso 8)
+**Timestamp**: 2026-11-04T04:06:31Z
+**User Input**: "prepara U02-T10 (Paso 8)"; W1 "Usar el ratelimit de Envoy Gateway (Recomendado)"; W2 "externalTrafficPolicy Local, sin XFF (Recomendado)"; W3 "Parche acotado por dominio (Recomendado)"; W4 "Espejo con el digest real (Recomendado)"; W5 "70 % y minAvailable 1 (Recomendado)"; W6 "Incluir las dos (Recomendado)"; W7 "tools.env con el sha256 fijado (Recomendado)"
+**AI Response**: El orquestador comparó el Paso 8 con el código de Envoy Gateway v1.9.3. Encontró lo siguiente:
+- el rate limit global lo atiende el `envoy-ratelimit` que despliega el controlador en `envoy-gateway-system` (8081), configurado por xDS, y eso choca con INF-U2-03;
+- `rateLimit.failClosed` es global del controlador y responde 500, pero hay un filtro de rate limit por dominio, así que la alternativa 2 de P-U2-01 es viable;
+- con el balanceador L4, el `numTrustedHops: 1` del Paso 7 confía en un `X-Forwarded-For` que escribe el cliente;
+- la imagen por defecto es `envoyproxy/envoy:distroless-v1.39.5@sha256:9d84…a6e0`;
+- `egctl x translate` habilita el rate limit global y `EnvoyPatchPolicy`;
+- el release no publica checksums, pero el digest del asset de GitHub coincide con la descarga (`82b6…150f`).
+
+El usuario decidió W1–W7, todas por la opción recomendada. Se enmendaron INF-U2-02, INF-U2-03, INF-U2-10, P-U2-01, NFR-U2-23 y los Pasos 8 y 9 del plan. Se redactó `tareas/U02-T10-envoy-gateway-y-gateway.md` con el texto del Paso 8 sin recortes y 6 CAs. La tarea no se despacha hasta que el usuario lo pida.
+**Context**: Construcción de U2, U02-T10.
+
+---
