@@ -182,8 +182,17 @@ vectra-risk/identity-edge/
   - `envoyproxy/ratelimit` (HPA de 2 a 4, quinta revisión de coherencia entre unidades, 2026-10-31; gRPC en 8083, métricas en 8081) con la configuración de descriptores generada por `route-gen`.
   - Chart propio de Valkey 8: 2 nodos en zonas distintas, primaria preferida en la zona A, 3 Sentinel, sin persistencia, PDB, exportador como sidecar, ACL `ratelimit`, de replicación y de Sentinel desde ESO (seguimiento de la quinta revisión de coherencia, 2026-10-31), usuario `default` deshabilitado, `maxmemory 128mb`, `volatile-ttl`, prioridad `vectra-high`.
   - **Nota del 2026-11-04 (decisión W1 del usuario al preparar U02-T10):** el servicio de rate limit es el `envoy-ratelimit` que despliega Envoy Gateway, no un `envoyproxy/ratelimit` propio en el 8083 con configuración de `route-gen` (INF-U2-03). Este paso se rediseña al prepararlo.
+  - **Rediseño del 2026-11-04 (decisiones R1–R4 del usuario al preparar U02-T11; INF-U2-03, INF-U2-04, NFR-U2-27, component-dependency §0 y §2.8):**
+    - `envoy-ratelimit` de Envoy Gateway v1.9.3, en `envoy-gateway-system`, configurado en `platform/operators/envoy-gateway.yaml` (`rateLimit`, `rateLimitDeployment`, `rateLimitHpa` de 2 a 4 al 70 %, `rateLimitPDB` `minAvailable: 1`). Los puertos los fija v1.9.3: gRPC 8081, health 8080 y métricas 19001;
+    - conexión por Sentinel con `REDIS_TYPE=SENTINEL`, y `REDIS_AUTH` y `REDIS_SENTINEL_AUTH` desde un `ExternalSecret` en `envoy-gateway-system`; K11 se amplía a ese namespace (R1);
+    - el endurecimiento de `rateLimitDeployment` lo exige conftest sobre el render, porque Kyverno no alcanza `envoy-gateway-system`. Imagen `ratelimit:5ae0682e` espejada con digest (R2);
+    - chart `identity-edge/charts/valkey`: `valkey-a` y `valkey-b` por zona con `replica-priority`, `sentinel-a` (1) y `sentinel-b` (2) (R3);
+    - ACL armadas por la plantilla de ESO, con el usuario `exporter` y la ACL propia de Sentinel (R4);
+    - Valkey 8.1.11-alpine y redis_exporter v1.95.0-alpine con digest (R2).
   - Diseño: NFR-U2-20, 27, 30; P-U2-04, 06; INF-U2-03, 04. Historia: US-611 (exceso de solicitudes → 429).
-  - **Aceptación**: `helm template` + `conftest test identity-edge/ratelimit/ identity-edge/charts/valkey/` (puertos 8083/8081, sin RDB/AOF, ACL presente, `default` deshabilitado, spread por zona); `uv run pytest identity-edge/tests/unit/test_ratelimit_config.py` (los descriptores coinciden con `routes.yaml`).
+  - **Aceptación** (enmendada el 2026-11-04 con R1–R4; la original pedía los puertos 8083/8081 y descriptores generados por `route-gen`):
+    - `helm template` de `identity-edge/charts/valkey` y del chart `gateway-helm` v1.9.3 con los values, más `conftest test` con las políticas de `identity-edge/ratelimit/policy/` e `identity-edge/charts/valkey/policy/`: puertos 8081, 8080 y 19001 de `envoy-ratelimit`, Sentinel por env, sin RDB ni AOF, ACL presente, `default` deshabilitado y reparto por zona;
+    - `uv run pytest identity-edge/tests/unit/test_ratelimit_config.py`: los descriptores del IR de `egctl x translate --to ir` coinciden con `routes.yaml`.
 
 ### Bloque D — Plataforma: red, observabilidad y GitOps
 

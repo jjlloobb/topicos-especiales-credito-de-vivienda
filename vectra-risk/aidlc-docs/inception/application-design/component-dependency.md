@@ -26,7 +26,7 @@ un número de puerto, pero no la existencia ni la dirección de un flujo.
 | `3100/TCP` | Loki (push de logs) |
 | `9091/TCP` | Pushgateway (métricas de jobs batch) |
 | `6379/TCP`, `26379/TCP` | Valkey y Sentinel (contadores del rate limit, U2) |
-| `8083/TCP` | gRPC del servicio de rate limit (U2; no usa 8081, reservado para health y métricas) |
+| `8083/TCP` | *(Superado el 2026-11-04, decisión R1 de U02-T11: `envoy-ratelimit` de Envoy Gateway v1.9.3 escucha gRPC en el 8081, health en el 8080 y métricas en el 19001, puertos fijos del controlador.)* gRPC del servicio de rate limit (U2; no usa 8081, reservado para health y métricas) |
 | `18000/TCP` | xDS: Envoy se conecta al controlador de Envoy Gateway |
 | `8200/TCP` | Vault (Transit y secretos), solo en kind |
 | `9000/TCP` | MinIO in-cluster (API S3): model-store, Loki, Tempo; también el puerto de gestión (health y métricas) de Keycloak, que no se expone en el gateway |
@@ -196,8 +196,8 @@ Ningún componente de observabilidad exporta fuera del clúster, salvo la notifi
 
 | ID | Origen | Destino | Puerto | Tipo | Propósito |
 |---|---|---|---|---|---|
-| F90 | Envoy (data plane) | Servicio de rate limit | 8083 | S | Decisiones de rate limit global (P-U2-01, 06) |
-| F91 | Servicio de rate limit | Valkey (vía Sentinel) | 26379 / 6379 | W | Contadores efímeros con TTL |
+| F90 | Envoy (data plane) | Servicio de rate limit (`envoy-ratelimit`, `envoy-gateway-system`) | 8081 | S | Decisiones de rate limit global (P-U2-01, 06). Puerto y namespace los fija Envoy Gateway v1.9.3 (enmienda del 2026-11-04, R1 de U02-T11; antes 8083 en `vectra-edge`) |
+| F91 | Servicio de rate limit (`envoy-gateway-system`) | Valkey (vía Sentinel, `vectra-edge`) | 26379 / 6379 | W | Contadores efímeros con TTL (enmienda del 2026-11-04, R1 de U02-T11: el origen está en `envoy-gateway-system`) |
 | F92 | Valkey réplica | Valkey primaria | 6379 | Replicación | Réplica en otra zona |
 | F93 | Sentinel | Valkey y otros Sentinel | 6379 / 26379 | O | Monitoreo y failover |
 | F94 | `keycloak-config-cli`, `realm-drift`, `signing-key-age` | Keycloak (API de administración, interna) | 8443 | W / R | Aplicar el realm en el sync manual; exportarlo para detectar deriva (BR-U2-12) |

@@ -37,7 +37,7 @@ Los IDs `NFR-U2-xx` se referencian en NFR Design, Infrastructure Design y el pla
 | NFR-U2-24 | Política de contraseñas de usuarios locales: longitud ≥ 14, distinta del usuario y del email, historial de 5, Argon2, sin vencimiento periódico; `break-glass` se rota tras cada uso | Q8, SECURITY-12 | `realm-lint` verifica la `passwordPolicy` del realm |
 | NFR-U2-25 | Imágenes de Keycloak, Envoy, rate limit y Valkey pinneadas por digest y firmadas (políticas de U1) | SECURITY-10 | `kyverno test` de U1 sobre los manifiestos de U2 |
 | NFR-U2-26 | Keycloak en modo producción (`start --optimized`), sin proveedores ni temas de terceros no aprobados; la consola de administración solo en `hostname-admin` interno (BR-U2-12) | SECURITY-09 | `conftest` sobre los args del Deployment; prueba de ruta `/auth/admin` → 404 |
-| NFR-U2-27 | Valkey sin persistencia (contadores efímeros), con autenticación (ACL con contraseña desde ESO), sin exponerse fuera de `vectra-edge` | SECURITY-07, 12 | `conftest` (sin AOF/RDB, ACL configurada) + flujo en `flows.yaml` |
+| NFR-U2-27 | Valkey sin persistencia (contadores efímeros), con autenticación (ACL con contraseña desde ESO), sin exponerse fuera de `vectra-edge`, salvo F91 desde `envoy-ratelimit` en `envoy-gateway-system`, que el controlador de Envoy Gateway v1.9.3 despliega ahí (enmienda del 2026-11-04, decisiones R1 y R4 del usuario al preparar U02-T11) | SECURITY-07, 12 | `conftest` (sin AOF/RDB, ACL configurada) + flujo en `flows.yaml` |
 
 ## 4. Escalabilidad
 
