@@ -66,7 +66,7 @@ compartidos de ningún cliente de servicio.
 límite de tasa, el gateway responde **429** con `Problem` (`code = rate_limited`) y
 `Retry-After`. Al superar el tamaño, responde **413** (`payload_too_large`). Los dos sin
 eco del contenido.
-`Retry-After` tiene un valor fijo por ruta, igual a la ventana de su límite: `1` en los límites por segundo y `60` en los de `/auth/**`, que son por minuto. Ni Envoy ni Envoy Gateway v1.9.3 lo calculan (enmienda del 2026-11-03, decisión V5 del usuario al preparar U02-T09). Las ráfagas de la tabla de rutas no se implementan (domain-entities §4, decisión V2).
+`Retry-After` tiene un valor fijo por ruta, igual a la ventana de su límite: `1` en los límites por segundo y `60` en los de `/auth/**`, que son por minuto. Ni Envoy ni Envoy Gateway v1.9.3 lo calculan (enmienda del 2026-11-03, decisión V5 del usuario al preparar U02-T09). En `/auth/**` todo 429 lleva `Retry-After: 60`, también si lo disparó el límite global de 1 s: en v1.9.3 la respuesta del 429 es una por ruta y no distingue qué regla la disparó (enmienda del 2026-11-04, decisión D-5 del usuario en la ronda 2 de U02-T09). Las ráfagas de la tabla de rutas no se implementan (domain-entities §4, decisión V2).
 
 **BR-U2-10 — Rutas cerradas.** El gateway solo enruta las rutas de domain-entities §4.
 Cualquier otra ruta devuelve 404 genérico, incluida `/auth/admin/**` (X10). En `/auth/**`
