@@ -1,0 +1,5 @@
+# Valores del entorno kind para route-gen (INF-U2-01; domain-entities §2.2 y §4).
+hostname: vectra.localtest.me
+# `azp` de channel-simulator (F07): existe solo en kind y staging, y en produccion no hay regla ni autorizacion para el.
+channel_simulator_azp: channel-simulator
+f09: { enabled: false } # V7: F09 deshabilitada por defecto

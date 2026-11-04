@@ -1,0 +1,651 @@
+# Generado por identity-edge/tools/route_gen.py desde identity-edge/gateway/routes.yaml. No editar a mano.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: auth
+  namespace: vectra-edge
+spec:
+  hostnames:
+  - vectra.localtest.me
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: api-gateway
+    namespace: vectra-edge
+    sectionName: https
+  rules:
+  - backendRefs:
+    - group: ''
+      kind: Service
+      name: keycloak
+      namespace: vectra-identity
+      port: 8443
+    filters:
+    - responseHeaderModifier:
+        add:
+        - name: Content-Security-Policy
+          value: frame-ancestors 'self'
+        set:
+        - name: Cross-Origin-Opener-Policy
+          value: same-origin
+        - name: Referrer-Policy
+          value: no-referrer
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+      type: ResponseHeaderModifier
+    matches:
+    - method: GET
+      path:
+        type: Exact
+        value: /auth/realms/vectra/.well-known/openid-configuration
+    - method: HEAD
+      path:
+        type: Exact
+        value: /auth/realms/vectra/.well-known/openid-configuration
+    - method: GET
+      path:
+        type: PathPrefix
+        value: /auth/realms/vectra/account
+    - method: HEAD
+      path:
+        type: PathPrefix
+        value: /auth/realms/vectra/account
+    - method: GET
+      path:
+        type: PathPrefix
+        value: /auth/realms/vectra/login-actions
+    - method: HEAD
+      path:
+        type: PathPrefix
+        value: /auth/realms/vectra/login-actions
+    - method: GET
+      path:
+        type: PathPrefix
+        value: /auth/realms/vectra/protocol/openid-connect/3p-cookies
+    - method: HEAD
+      path:
+        type: PathPrefix
+        value: /auth/realms/vectra/protocol/openid-connect/3p-cookies
+    - method: GET
+      path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/auth
+    - method: HEAD
+      path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/auth
+    - method: GET
+      path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/certs
+    - method: HEAD
+      path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/certs
+    - method: GET
+      path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/login-status-iframe.html
+    - method: HEAD
+      path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/login-status-iframe.html
+    - method: GET
+      path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/login-status-iframe.html/init
+    - method: HEAD
+      path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/login-status-iframe.html/init
+    - method: GET
+      path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/logout
+    - method: HEAD
+      path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/logout
+    - method: GET
+      path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/token
+    - method: HEAD
+      path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/token
+    - method: GET
+      path:
+        type: PathPrefix
+        value: /auth/resources
+    - method: HEAD
+      path:
+        type: PathPrefix
+        value: /auth/resources
+    name: auth-read
+  - backendRefs:
+    - group: ''
+      kind: Service
+      name: keycloak
+      namespace: vectra-identity
+      port: 8443
+    filters:
+    - responseHeaderModifier:
+        add:
+        - name: Content-Security-Policy
+          value: frame-ancestors 'self'
+        set:
+        - name: Cross-Origin-Opener-Policy
+          value: same-origin
+        - name: Referrer-Policy
+          value: no-referrer
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+      type: ResponseHeaderModifier
+    matches:
+    - path:
+        type: Exact
+        value: /auth/realms/vectra/.well-known/openid-configuration
+    - path:
+        type: PathPrefix
+        value: /auth/realms/vectra/account
+    - path:
+        type: PathPrefix
+        value: /auth/realms/vectra/login-actions
+    - path:
+        type: PathPrefix
+        value: /auth/realms/vectra/protocol/openid-connect/3p-cookies
+    - path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/auth
+    - path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/certs
+    - path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/login-status-iframe.html
+    - path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/login-status-iframe.html/init
+    - path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/logout
+    - path:
+        type: Exact
+        value: /auth/realms/vectra/protocol/openid-connect/token
+    - path:
+        type: PathPrefix
+        value: /auth/resources
+    name: auth-write
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: closed
+  namespace: vectra-edge
+spec:
+  hostnames:
+  - vectra.localtest.me
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: api-gateway
+    namespace: vectra-edge
+    sectionName: https
+  rules:
+  - filters:
+    - extensionRef:
+        group: gateway.envoyproxy.io
+        kind: HTTPRouteFilter
+        name: problem-not-found
+      type: ExtensionRef
+    - responseHeaderModifier:
+        set:
+        - name: Content-Security-Policy
+          value: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types 'none'
+        - name: Cross-Origin-Opener-Policy
+          value: same-origin
+        - name: Referrer-Policy
+          value: no-referrer
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Frame-Options
+          value: DENY
+      type: ResponseHeaderModifier
+    matches:
+    - path:
+        type: PathPrefix
+        value: /api
+    name: closed-api
+  - filters:
+    - extensionRef:
+        group: gateway.envoyproxy.io
+        kind: HTTPRouteFilter
+        name: problem-not-found
+      type: ExtensionRef
+    - responseHeaderModifier:
+        add:
+        - name: Content-Security-Policy
+          value: frame-ancestors 'self'
+        set:
+        - name: Cross-Origin-Opener-Policy
+          value: same-origin
+        - name: Referrer-Policy
+          value: no-referrer
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+      type: ResponseHeaderModifier
+    matches:
+    - path:
+        type: PathPrefix
+        value: /auth
+    name: closed-auth
+  - filters:
+    - extensionRef:
+        group: gateway.envoyproxy.io
+        kind: HTTPRouteFilter
+        name: problem-not-found
+      type: ExtensionRef
+    - responseHeaderModifier:
+        set:
+        - name: Content-Security-Policy
+          value: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types 'none'
+        - name: Cross-Origin-Opener-Policy
+          value: same-origin
+        - name: Referrer-Policy
+          value: no-referrer
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Frame-Options
+          value: DENY
+      type: ResponseHeaderModifier
+    matches:
+    - path:
+        type: PathPrefix
+        value: /federate
+    name: closed-federate
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: console
+  namespace: vectra-edge
+spec:
+  hostnames:
+  - vectra.localtest.me
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: api-gateway
+    namespace: vectra-edge
+    sectionName: https
+  rules:
+  - backendRefs:
+    - group: ''
+      kind: Service
+      name: console-bff
+      namespace: vectra-app
+      port: 8080
+    filters:
+    - requestHeaderModifier:
+        remove:
+        - x-vectra-azp
+        - x-vectra-sub
+      type: RequestHeaderModifier
+    - responseHeaderModifier:
+        set:
+        - name: Content-Security-Policy
+          value: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types 'none'
+        - name: Cross-Origin-Opener-Policy
+          value: same-origin
+        - name: Referrer-Policy
+          value: no-referrer
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Frame-Options
+          value: DENY
+      type: ResponseHeaderModifier
+    matches:
+    - method: GET
+      path:
+        type: PathPrefix
+        value: /api/console
+    - method: HEAD
+      path:
+        type: PathPrefix
+        value: /api/console
+    name: console-read
+  - backendRefs:
+    - group: ''
+      kind: Service
+      name: console-bff
+      namespace: vectra-app
+      port: 8080
+    filters:
+    - requestHeaderModifier:
+        remove:
+        - x-vectra-azp
+        - x-vectra-sub
+      type: RequestHeaderModifier
+    - responseHeaderModifier:
+        set:
+        - name: Content-Security-Policy
+          value: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types 'none'
+        - name: Cross-Origin-Opener-Policy
+          value: same-origin
+        - name: Referrer-Policy
+          value: no-referrer
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Frame-Options
+          value: DENY
+      type: ResponseHeaderModifier
+    matches:
+    - path:
+        type: PathPrefix
+        value: /api/console
+    name: console-write
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: grafana
+  namespace: vectra-edge
+spec:
+  hostnames:
+  - vectra.localtest.me
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: api-gateway
+    namespace: vectra-edge
+    sectionName: https
+  rules:
+  - backendRefs:
+    - group: ''
+      kind: Service
+      name: kube-prometheus-stack-grafana
+      namespace: vectra-observability
+      port: 80
+    filters:
+    - responseHeaderModifier:
+        set:
+        - name: Content-Security-Policy
+          value: frame-ancestors 'self'
+        - name: Cross-Origin-Opener-Policy
+          value: same-origin
+        - name: Referrer-Policy
+          value: no-referrer
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Frame-Options
+          value: SAMEORIGIN
+      type: ResponseHeaderModifier
+    matches:
+    - method: GET
+      path:
+        type: PathPrefix
+        value: /grafana
+    - method: HEAD
+      path:
+        type: PathPrefix
+        value: /grafana
+    name: grafana-read
+  - backendRefs:
+    - group: ''
+      kind: Service
+      name: kube-prometheus-stack-grafana
+      namespace: vectra-observability
+      port: 80
+    filters:
+    - responseHeaderModifier:
+        set:
+        - name: Content-Security-Policy
+          value: frame-ancestors 'self'
+        - name: Cross-Origin-Opener-Policy
+          value: same-origin
+        - name: Referrer-Policy
+          value: no-referrer
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Frame-Options
+          value: SAMEORIGIN
+      type: ResponseHeaderModifier
+    matches:
+    - path:
+        type: PathPrefix
+        value: /grafana
+    name: grafana-write
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: intake
+  namespace: vectra-edge
+spec:
+  hostnames:
+  - vectra.localtest.me
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: api-gateway
+    namespace: vectra-edge
+    sectionName: https
+  rules:
+  - backendRefs:
+    - group: ''
+      kind: Service
+      name: case-service
+      namespace: vectra-app
+      port: 8080
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          replaceFullPath: /v1/intake/applications
+          type: ReplaceFullPath
+    - requestHeaderModifier:
+        remove:
+        - x-vectra-azp
+        - x-vectra-sub
+      type: RequestHeaderModifier
+    - responseHeaderModifier:
+        set:
+        - name: Content-Security-Policy
+          value: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types 'none'
+        - name: Cross-Origin-Opener-Policy
+          value: same-origin
+        - name: Referrer-Policy
+          value: no-referrer
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Frame-Options
+          value: DENY
+      type: ResponseHeaderModifier
+    matches:
+    - method: POST
+      path:
+        type: Exact
+        value: /api/intake/v1/intake/applications
+    name: intake-submit
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: promotion
+  namespace: vectra-edge
+spec:
+  hostnames:
+  - vectra.localtest.me
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: api-gateway
+    namespace: vectra-edge
+    sectionName: https
+  rules:
+  - backendRefs:
+    - group: ''
+      kind: Service
+      name: governance-service
+      namespace: vectra-app
+      port: 8080
+    filters:
+    - extensionRef:
+        group: gateway.envoyproxy.io
+        kind: HTTPRouteFilter
+        name: rewrite-promotion-activation
+      type: ExtensionRef
+    - requestHeaderModifier:
+        remove:
+        - x-vectra-azp
+        - x-vectra-sub
+      type: RequestHeaderModifier
+    - responseHeaderModifier:
+        set:
+        - name: Content-Security-Policy
+          value: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types 'none'
+        - name: Cross-Origin-Opener-Policy
+          value: same-origin
+        - name: Referrer-Policy
+          value: no-referrer
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Frame-Options
+          value: DENY
+      type: ResponseHeaderModifier
+    matches:
+    - method: POST
+      path:
+        type: RegularExpression
+        value: /api/promotion/v1/models/[^/]+/activation
+    name: promotion-activation
+  - backendRefs:
+    - group: ''
+      kind: Service
+      name: governance-service
+      namespace: vectra-app
+      port: 8080
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          replaceFullPath: /v1/models
+          type: ReplaceFullPath
+    - requestHeaderModifier:
+        remove:
+        - x-vectra-azp
+        - x-vectra-sub
+      type: RequestHeaderModifier
+    - responseHeaderModifier:
+        set:
+        - name: Content-Security-Policy
+          value: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types 'none'
+        - name: Cross-Origin-Opener-Policy
+          value: same-origin
+        - name: Referrer-Policy
+          value: no-referrer
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Frame-Options
+          value: DENY
+      type: ResponseHeaderModifier
+    matches:
+    - method: GET
+      path:
+        type: Exact
+        value: /api/promotion/v1/models
+      queryParams:
+      - name: state
+        type: Exact
+        value: aprobado
+    name: promotion-models
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: spa
+  namespace: vectra-edge
+spec:
+  hostnames:
+  - vectra.localtest.me
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: api-gateway
+    namespace: vectra-edge
+    sectionName: https
+  rules:
+  - backendRefs:
+    - group: ''
+      kind: Service
+      name: console-spa
+      namespace: vectra-edge
+      port: 8080
+    filters:
+    - responseHeaderModifier:
+        set:
+        - name: Content-Security-Policy
+          value: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types 'none'
+        - name: Cross-Origin-Opener-Policy
+          value: same-origin
+        - name: Referrer-Policy
+          value: no-referrer
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Frame-Options
+          value: DENY
+      type: ResponseHeaderModifier
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
+    name: spa

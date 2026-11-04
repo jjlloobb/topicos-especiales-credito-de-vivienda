@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Instala helm, kyverno, conftest, promtool, actionlint y hadolint en platform/.tools/bin, comprobando el SHA-256 publicado.
+# Instala helm, kyverno, conftest, promtool, actionlint, hadolint y kubeconform en platform/.tools/bin, comprobando el SHA-256 publicado.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
@@ -23,3 +23,5 @@ fetch "https://github.com/rhysd/actionlint/releases/download/$ACTIONLINT_VERSION
 tar -xzf "$work/actionlint_${ACTIONLINT_VERSION#v}_linux_amd64.tar.gz" -C "$bin" actionlint
 fetch "https://github.com/hadolint/hadolint/releases/download/$HADOLINT_VERSION" hadolint-linux-x86_64 checksums.sha256
 install -m 0755 "$work/hadolint-linux-x86_64" "$bin/hadolint"
+fetch "https://github.com/yannh/kubeconform/releases/download/$KUBECONFORM_VERSION" kubeconform-linux-amd64.tar.gz CHECKSUMS
+tar -xzf "$work/kubeconform-linux-amd64.tar.gz" -C "$bin" kubeconform

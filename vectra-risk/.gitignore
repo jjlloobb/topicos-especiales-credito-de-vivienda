@@ -17,5 +17,6 @@ mutants/
 .import_linter_cache/
 coverage.json
 platform/.tools/
+identity-edge/.tools/
 platform/kind/encryption-config.yaml
 platform/.charts/

@@ -1,0 +1,192 @@
+# Unica fuente de las rutas del gateway (U2, Paso 7). `identity-edge/tools/route_gen.py` genera de aqui, y de
+# `values/<env>.yaml`, los manifiestos de `generated/<env>/`. Ninguna lista depende del orden.
+# Diseno: domain-entities §4 y §4.1; BR-U2-08, 10, 11, 13, 14; P-U2-02, 03, 06, 07; INF-U2-10.
+namespace: vectra-edge
+gateway: { name: api-gateway, section: https } # INF-U2-10 (V9); lo crea el Paso 8
+internal_headers: [x-vectra-sub, x-vectra-azp] # P-U2-06: las que el gateway copia del JWT y quita hacia el backend
+internal_header_prefix: x-vectra- # P-U2-06: toda cabecera con este prefijo se elimina de la request entrante y de la respuesta
+client: # NFR-U2-23, BR-U2-10
+  trusted_hops: 1
+  escaped_slashes_action: UnescapeAndRedirect
+  merge_slashes: true
+  response_remove: [server]
+  response_remove_prefixes: [x-envoy-]
+jwt: # BR-U2-11, P-U2-03, INF-U2-10
+  provider: keycloak
+  issuer_path: /auth/realms/vectra
+  jwks_uri: https://keycloak.vectra-identity.svc:8443/auth/realms/vectra/protocol/openid-connect/certs
+  jwks_backend: { service: keycloak, namespace: vectra-identity, port: 8443 }
+  cache_duration: 300s
+  claim_to_headers: [{ claim: sub, header: x-vectra-sub }, { claim: azp, header: x-vectra-azp }]
+outlier: { consecutive_5xx: 5, base_ejection_time: 30s, max_ejection_percent: 50 } # P-U2-02
+retry: { num_retries: 1, triggers: [connect-failure], budget_percent: 20 } # P-U2-02: solo en las reglas con `retry: true`
+profiles: # domain-entities §4.1
+  common:
+    set:
+      Strict-Transport-Security: max-age=31536000; includeSubDomains
+      X-Content-Type-Options: nosniff
+      Referrer-Policy: no-referrer
+      Cross-Origin-Opener-Policy: same-origin
+  spa: &page
+    set:
+      X-Frame-Options: DENY
+      Content-Security-Policy: "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types 'none'"
+  api: *page
+  grafana:
+    set:
+      X-Frame-Options: SAMEORIGIN
+      Content-Security-Policy: frame-ancestors 'self'
+  auth:
+    add:
+      Content-Security-Policy: frame-ancestors 'self'
+global_limit: { requests: 200, unit: Second } # un solo contador para todas las rutas
+rate_limits: # P-U2-06; sin rafaga (V2). Los contadores `source_ip` cuentan por IP de origen.
+  - { name: console, requests: 20, unit: Second, path: { type: PathPrefix, value: /api/console }, header: { name: x-vectra-sub } }
+  - name: intake-channel
+    requests: 10
+    unit: Second
+    path: { type: RegularExpression, value: '^/api/intake/v1/intake/applications(\?.*)?$' }
+    header: { name: x-vectra-azp, value: channel }
+  - name: intake-channel-simulator
+    requests: 30
+    unit: Second
+    path: { type: RegularExpression, value: '^/api/intake/v1/intake/applications(\?.*)?$' }
+    header: { name: x-vectra-azp, value_from: channel_simulator_azp } # no existe sin ese valor (produccion)
+  - { name: promotion, requests: 1, unit: Second, path: { type: PathPrefix, value: /api/promotion }, header: { name: x-vectra-sub } }
+  - name: auth-login
+    requests: 600
+    unit: Minute
+    path: { type: RegularExpression, value: '^/auth/realms/vectra/(protocol/openid-connect/auth|login-actions(/[^?]*)?)(\?.*)?$' }
+    source_ip: [0.0.0.0/0, '::/0']
+  - name: auth-token
+    requests: 600
+    unit: Minute
+    path: { type: RegularExpression, value: '^/auth/realms/vectra/protocol/openid-connect/token(\?.*)?$' }
+    source_ip: [0.0.0.0/0, '::/0']
+  - { name: federate, requests: 1, unit: Second, path: { type: RegularExpression, value: '^/federate(\?.*)?$' }, requires: f09 }
+closed_policy: { retry_after: "1", errors: [404] } # D-2: el 404 del cierre se reescribe como `Problem` con `%TRACE_ID%`; D-6: sin 429 (el rate limit no aplica a `directResponse`)
+closed: # BR-U2-10: prefijos cerrados; todo lo que no es una entrada da 404 `Problem`
+  - { rule: closed-api, path: /api, profile: api }
+  - { rule: closed-auth, path: /auth, profile: auth }
+  - { rule: closed-federate, path: /federate, profile: api } # 404 mientras F09 esta deshabilitada, y para todo salvo la entrada exacta cuando no
+routes:
+  - name: spa # F02: `/` es un prefijo; las rutas de la SPA sin extension (`/callback`, `/stepup-callback`) llegan a nginx
+    flow: F02
+    profile: spa
+    backend: { service: console-spa, namespace: vectra-edge, port: 8080 }
+    retry_after: "1"
+    errors: [429, 503] # estados `Problem` que genera el gateway para la ruta
+    affinity: # V6: cookie de sesion para que una pestana cargue todo del mismo pod durante un rollout
+      cookie: vectra-spa-route
+      ttl: 0s
+      attributes: { Secure: "", HttpOnly: "", SameSite: Strict, Path: / }
+    rules:
+      - { name: spa, matches: [{ type: PathPrefix, path: / }] }
+  - name: console # F03
+    flow: F03
+    profile: api
+    backend: { service: console-bff, namespace: vectra-app, port: 8080 }
+    retry_after: "1"
+    errors: [401, 403, 413, 429, 503] # estados `Problem` que genera el gateway para la ruta
+    timeout: 15s
+    max_body: 64Ki
+    outlier: { local_origin_only: true, consecutive_local_origin_failures: 5 } # un 503 del BFF no indica un pod enfermo
+    auth:
+      kind: jwt
+      claims:
+        - { name: azp, values: [vectra-console] }
+        - { name: roles, array: true, values: [analista, ingeniero_riesgo, cro, cumplimiento] }
+    matches: [{ type: PathPrefix, path: /api/console }]
+    rules:
+      - { name: console-read, methods: [GET, HEAD], retry: true }
+      - { name: console-write }
+  - name: intake # F04, F07
+    flow: F04
+    profile: api
+    backend: { service: case-service, namespace: vectra-app, port: 8080 }
+    retry_after: "1"
+    errors: [401, 403, 413, 429, 503] # estados `Problem` que genera el gateway para la ruta
+    timeout: 5s
+    max_body: 32Ki
+    auth:
+      kind: jwt
+      claims:
+        - { name: azp, values: [channel], extra_values_from: channel_simulator_azp }
+      scopes: [intake:submit]
+    rules:
+      - name: intake-submit
+        methods: [POST]
+        matches: [{ type: Exact, path: /api/intake/v1/intake/applications }]
+        rewrite: { full_path: /v1/intake/applications }
+  - name: promotion # F08
+    flow: F08
+    profile: api
+    backend: { service: governance-service, namespace: vectra-app, port: 8080 }
+    retry_after: "1"
+    errors: [401, 403, 413, 429, 503] # estados `Problem` que genera el gateway para la ruta
+    timeout: 10s
+    max_body: 16Ki
+    auth:
+      kind: jwt
+      claims:
+        - { name: azp, values: [promotion-tool] }
+        - { name: roles, array: true, values: [ingeniero_riesgo] }
+        - { name: acr, values: [mfa] }
+      scopes: [governance:promotion]
+    rules:
+      - name: promotion-models
+        methods: [GET]
+        retry: true
+        matches: [{ type: Exact, path: /api/promotion/v1/models, query: { state: aprobado } }]
+        rewrite: { full_path: /v1/models }
+      - name: promotion-activation
+        methods: [POST]
+        matches: [{ type: RegularExpression, path: "/api/promotion/v1/models/[^/]+/activation" }]
+        rewrite: { filter: rewrite-promotion-activation, pattern: '^/api/promotion(/v1/models/[^/]+/activation)$', substitution: '\1' }
+  - name: auth # F05: solo los endpoints publicos del realm `vectra` (V1)
+    flow: F05
+    profile: auth
+    backend: { service: keycloak, namespace: vectra-identity, port: 8443 }
+    retry_after: "60"
+    errors: [429, 503] # estados `Problem` que genera el gateway para la ruta
+    timeout: 10s
+    matches:
+      - { type: Exact, path: /auth/realms/vectra/.well-known/openid-configuration }
+      - { type: Exact, path: /auth/realms/vectra/protocol/openid-connect/auth }
+      - { type: Exact, path: /auth/realms/vectra/protocol/openid-connect/token }
+      - { type: Exact, path: /auth/realms/vectra/protocol/openid-connect/certs }
+      - { type: Exact, path: /auth/realms/vectra/protocol/openid-connect/logout }
+      - { type: Exact, path: /auth/realms/vectra/protocol/openid-connect/login-status-iframe.html }
+      - { type: Exact, path: /auth/realms/vectra/protocol/openid-connect/login-status-iframe.html/init }
+      - { type: PathPrefix, path: /auth/realms/vectra/protocol/openid-connect/3p-cookies }
+      - { type: PathPrefix, path: /auth/realms/vectra/login-actions }
+      - { type: PathPrefix, path: /auth/realms/vectra/account }
+      - { type: PathPrefix, path: /auth/resources }
+    rules:
+      - { name: auth-read, methods: [GET, HEAD], retry: true }
+      - { name: auth-write }
+  - name: grafana # F06
+    flow: F06
+    profile: grafana
+    backend: { service: kube-prometheus-stack-grafana, namespace: vectra-observability, port: 80 }
+    retry_after: "1"
+    errors: [413, 429, 503] # estados `Problem` que genera el gateway para la ruta
+    timeout: 30s
+    max_body: 64Ki
+    matches: [{ type: PathPrefix, path: /grafana }]
+    rules:
+      - { name: grafana-read, methods: [GET, HEAD], retry: true }
+      - { name: grafana-write }
+  - name: federate # F09: deshabilitada por defecto; sin F09 no se genera nada de esto
+    flow: F09
+    requires: f09
+    profile: api
+    backend: { service: kube-prometheus-stack-prometheus, namespace: vectra-observability, port: 9090 }
+    retry_after: "1"
+    errors: [401, 429, 503] # estados `Problem` que genera el gateway para la ruta
+    auth:
+      kind: basic
+      secret: federate-basic-auth # V7: Secret en `vectra-edge`, clave `.htpasswd`
+      external_secret: { store: vectra-store, key: identity/federate, property: .htpasswd }
+    rules:
+      - { name: federate, matches: [{ type: Exact, path: /federate }] }

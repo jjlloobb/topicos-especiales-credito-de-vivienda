@@ -1,0 +1,5 @@
+# Valores del entorno prod para route-gen (INF-U2-01; domain-entities §2.2 y §4).
+hostname: vectra.banco.internal
+# `azp` de channel-simulator (F07): existe solo en kind y staging, y en produccion no hay regla ni autorizacion para el.
+channel_simulator_azp: null
+f09: { enabled: false } # V7: F09 deshabilitada por defecto

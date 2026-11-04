@@ -5501,3 +5501,57 @@ Se redactó `tareas/U02-T09-routes-y-route-gen.md` con el texto del Paso 7 sin r
 **Context**: Construcción de U2, U02-T09.
 
 ---
+
+## PR 60 aprobado y fusionado
+**Timestamp**: 2026-11-04T00:20:47Z
+**User Input**: "ya aprobé el PR 60"
+**AI Response**: El PR 60 (preparación de U02-T09, decisiones V1–V10) quedó aprobado y fusionado por una persona (`joseluisjedi`) a las 2026-11-04T00:20:35Z, sobre el head 94c0f9a con todo el CI en verde. El commit de fusión en `main` es 21e5149. El agente no fusionó. U02-T09 queda lista para despacharse cuando el usuario lo pida.
+**Context**: Construcción de U2, U02-T09.
+
+---
+
+## Despacho de U02-T09
+**Timestamp**: 2026-11-04T00:22:11Z
+**User Input**: "despacha U02-T09"
+**AI Response**: Se creó el worktree `wt-U02-T09`, con la rama `tarea/U02-T09` desde `main` en 21e5149, y se despachó al codificador la ronda 1 con `tareas/U02-T09-routes-y-route-gen.md`. Al terminar la revisa el revisor.
+**Context**: Construcción de U2, U02-T09.
+
+---
+
+## Ronda 1 de U02-T09 y decisiones D-1 a D-4
+**Timestamp**: 2026-11-04T01:58:09Z
+**User Input**: D-1 "Ampliar el grant de vectra-identity (Recomendado)"; D-2 "responseOverride 404 source Local (Recomendado)"; D-3 "Ratificar la BTP del Gateway (Recomendado)"; D-4 "Las de la consola (Recomendado)"
+**AI Response**: Ronda 1 NO-VERDE. Hallazgos:
+- ROJO: la JWKS cruzada exige `ReferenceGrant`; el orquestador lo comprobó en `validate.go` de v1.9.3.
+- ROJO: el oráculo de CA-3 escribe a mano valores que fija el diseño.
+- ROJO: el 404 de `directResponse` sale sin `correlation_id`.
+- NARANJA: literales en `route_gen.py`, huecos de PBT-U2-04 y el `ExternalSecret` de F09 sin esquema.
+
+Con las decisiones del usuario se enmendaron INF-U2-10 (D-1, D-3), BR-U2-14 (D-2), P-U2-02 (D-4) y la tarea (hash 4026dcf…, commit c35fbc5). Se despachó la ronda 2.
+**Context**: Construcción de U2, U02-T09.
+
+---
+
+## Decisión D-5 (Retry-After del 429 en /auth/**)
+**Timestamp**: 2026-11-04T02:23:32Z
+**User Input**: D-5 "60 (Recomendado)"
+**AI Response**: En la ronda 2, el codificador se detuvo en el `Retry-After` del 429 de `/auth/**`. Ahí aplican dos límites: el contador por IP, con ventana de 60 s, y el global, con ventana de 1 s. En Envoy Gateway v1.9.3 la respuesta del 429 es una sola por ruta. El usuario decidió `Retry-After: 60` en todo 429 de `/auth/**`. Se precisa BR-U2-08 cuando el codificador termine la ronda.
+**Context**: Construcción de U2, U02-T09.
+
+---
+
+## Ronda 2 de U02-T09 y decisión D-6
+**Timestamp**: 2026-11-04T03:20:27Z
+**User Input**: D-6 "Aceptar y quitar el 429 del cierre (Recomendado)"
+**AI Response**: Ronda 2 NO-VERDE. Los hallazgos de la ronda 1 y las decisiones D-1 a D-4 quedaron resueltos y comprobados en el código. El defecto nuevo, de diseño, es este: en v1.9.3 el rate limit no se aplica a las rutas `directResponse` (`ratelimit.go:176`, comprobado por el orquestador), así que el 429 del cierre no se dispara y contradecía D-5. El usuario decidió D-6: los 404 del cierre quedan fuera de todo límite y su política no declara 429. Se enmendaron BR-U2-10, INF-U2-10 y la tarea (commit a498efc), y se despachó la ronda 3 con D-6 y dos AMARILLO.
+**Context**: Construcción de U2, U02-T09.
+
+---
+
+## Ronda 3 de U02-T09
+**Timestamp**: 2026-11-04T03:53:50Z
+**User Input**: (sin entrada nueva; sigue D-6)
+**AI Response**: Ronda 3 VERDE, con tres AMARILLO que quedaron en CANDIDATAS. El cierre ya no declara 429 ni `rateLimit`, con la regla de conftest `closed-no-rate-limit`. El oráculo no tiene literales del diseño, y las 48 alteraciones cambian lo esperado sin atrapar excepciones. El revisor corrió CA-1 a CA-7 en serie: 1800 y 619 passed. Paso 7 marcado `[x]` en el plan.
+**Context**: Construcción de U2, U02-T09.
+
+---

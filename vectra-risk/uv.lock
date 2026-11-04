@@ -1175,12 +1175,14 @@ version = "0.1.0"
 source = { virtual = "identity-edge" }
 dependencies = [
     { name = "pyyaml" },
+    { name = "vectra-common" },
     { name = "vectra-contracts" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "pyyaml", specifier = "==6.0.3" },
+    { name = "vectra-common", editable = "contracts/python/vectra_common" },
     { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
 ]
 

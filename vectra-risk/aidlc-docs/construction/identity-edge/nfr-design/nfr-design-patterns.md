@@ -34,6 +34,7 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 | `/auth/**` | 10 s | Solo `GET`/`HEAD` |
 | `/grafana/**` | 30 s | Solo `GET`/`HEAD` |
 
+- Cifras de los «solo `GET`/`HEAD`» de promoción, `/auth/**` y `/grafana/**`: las de `/api/console/**`, es decir, 1 reintento ante `connect-failure`, presupuesto del 20 % y sin reintento ante `503` (enmienda del 2026-11-04, decisión D-4 del usuario tras la ronda 1 de U02-T09).
 - **Nunca** se reintentan `POST`, `PUT` ni `PATCH`: un reintento podría duplicar una decisión, una aprobación o una solicitud.
 - **Outlier detection**: 5 errores 5xx consecutivos sacan un pod del balanceo por 30 s, hasta el 50 % de los pods del backend. En `/api/console/**` cuentan **solo los errores de conexión** (`splitExternalLocalOriginErrors` y `consecutiveLocalOriginFailures`), porque un 503 `dependency_unavailable` del BFF no indica un pod enfermo (seguimiento de la cuarta revisión de coherencia, 2026-10-31).
 - **Verificación**: `conftest` sobre las `BackendTrafficPolicy` renderizadas (ningún reintento en métodos no idempotentes; `/api/console/**` no expulsa por 5xx); en kind, un backend de prueba que devuelve 503 a un `POST` recibe exactamente 1 llamada.
