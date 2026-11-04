@@ -22,6 +22,14 @@ Las decisiones están en INF-U2-02, INF-U2-03, INF-U2-10, P-U2-01 y NFR-U2-23.
 > - **IP real:** v1.9.3 resta 1 a `numTrustedHops`, así que con 0 o con 1 configura igual la extensión `xff`. W2 se cumple omitiendo `clientIPDetection`, y la prueba de xDS exige `use_remote_address: true` y que no haya `original_ip_detection_extensions`.
 > - **`egctl x translate -f`** acepta un archivo, no un directorio. `xds-gateway` concatena `generated/<env>/` con un Secret TLS de prueba y el Service `otel-collector`, y usa `--add-missing-resources`.
 > - **Tracing:** con `backendRefs`, no con `host`/`port`, que v1.9.3 da por obsoleto.
+>
+> **Enmienda del 2026-11-04 (orquestador, decisiones Y1–Y4 del usuario tras la ronda 1 de revisión):**
+> - Y1: el `shutdown-manager` lleva requests 10m / 32 MiB y limits 50m / 64 MiB por `envoyDeployment.patch` (INF-U2-06).
+> - Y2: la regla de réplicas de `platform/policies/kyverno/require-spread-and-pdb.yaml` exime los Deployments con `gateway.envoyproxy.io/owning-gateway-name`, con su caso en el `kyverno test` de U1.
+> - Y3: `platform/operators/envoy-gateway-kind.yaml` y `kind_values` en `vectra-risk-gitops/components.yaml`, con `vectra-risk-gitops/apps/` regenerado por `generate.py`.
+> - Y4: `ClientTrafficPolicy.tls` con mínimo 1.2 y máximo 1.3, y el `certgen` dentro de K14.
+>
+> El alcance en `platform/` y en `vectra-risk-gitops/` suma esos archivos.
 
 ## Alcance
 
