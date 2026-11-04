@@ -93,3 +93,8 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - la regla `federate` de `routes.yaml` ya no restringe el método: se quitó `GET` para no escribirlo a mano en el oráculo. §4 no fija el método de F09; si debe ser solo `GET`, hay que escribirlo en §4;
   - `federate_path()` y `closed_errors()` de `gateway_design.py` devuelven valores fijos después de comprobar el diseño, y el perfil de cada ruta sigue escrito en el oráculo, aunque PBT-U2-05 lo cubre;
   - `closed_policy.retry_after` de `routes.yaml` ya no se usa sin el 429 (D-6).
+- Paso 8 (W3): decidir cómo expresar el modo de fallo de `/auth/**` en v1.9.3: no caben dos `BackendTrafficPolicy` de `Gateway` ni `mergeType` en una de `Gateway`; opciones en el ADR (contadores en `auth-read`/`auth-write`, u otro diseño de rutas) (codificador, U02-T10).
+- Paso 8: el `shutdown-manager` del data plane toma su imagen del config del controlador (`provider.kubernetes.shutdownManager.image`); hay que fijar el espejo y el digest para `restrict-registries` y `disallow-latest` (codificador, U02-T10).
+- Paso 8: `require-criticality-label` valida el Deployment del data plane; la etiqueta debe ir en `Gateway.spec.infrastructure.labels`, no solo en `pod.labels` (codificador, U02-T10).
+- Paso 8: `egctl x translate -f` acepta un archivo, no un directorio; `xds-gateway` debe concatenar `generated/<env>/` más un Secret TLS y el Service del colector (codificador, U02-T10).
+- Paso 8: K14 es más estrecho que el RBAC del chart (ver ADR, punto 5); decidir si se amplía K14 o se limita con `watch` (codificador, U02-T10).

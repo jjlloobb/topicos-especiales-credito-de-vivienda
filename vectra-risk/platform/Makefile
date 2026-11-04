@@ -39,7 +39,7 @@ check-local: charts render
 
 # Falla si faltan las herramientas: nunca parece aprobado lo que no se ejecuto.
 check-tools:
-	test -x $(TOOLS)/kyverno && test -x $(TOOLS)/conftest && test -x $(TOOLS)/promtool && test -x $(TOOLS)/actionlint && test -x $(TOOLS)/hadolint && test -x $(TOOLS)/kubeconform
+	test -x $(TOOLS)/kyverno && test -x $(TOOLS)/conftest && test -x $(TOOLS)/promtool && test -x $(TOOLS)/actionlint && test -x $(TOOLS)/hadolint && test -x $(TOOLS)/kubeconform && test -x $(TOOLS)/egctl
 	. $(ROOT)/platform/tools.env && helm version --short | grep -q "^$$HELM_VERSION+\|^$$HELM_VERSION$$"
 	$(TOOLS)/kyverno test $(ROOT)/platform/policies/kyverno
 	cd $(ROOT)/platform/observability/rules/tests && $(TOOLS)/promtool test rules *.yaml
