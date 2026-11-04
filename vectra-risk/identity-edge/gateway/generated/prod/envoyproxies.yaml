@@ -1,0 +1,97 @@
+# Generado por identity-edge/tools/route_gen.py desde identity-edge/gateway/routes.yaml. No editar a mano.
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: route-gen
+    app.kubernetes.io/part-of: identity-edge
+  name: api-gateway
+  namespace: vectra-edge
+spec:
+  provider:
+    kubernetes:
+      envoyDeployment:
+        container:
+          image: registro.banco.internal/vectra/envoy@sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0
+          resources:
+            limits:
+              cpu: '1'
+              memory: 512Mi
+            requests:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+        pod:
+          labels:
+            app.kubernetes.io/name: api-gateway
+            vectra.io/criticality: high
+          priorityClassName: vectra-high
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          topologySpreadConstraints:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: api-gateway
+            maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: DoNotSchedule
+        replicas: 2
+      envoyHpa:
+        maxReplicas: 6
+        metrics:
+        - resource:
+            name: cpu
+            target:
+              averageUtilization: 70
+              type: Utilization
+          type: Resource
+        minReplicas: 2
+      envoyPDB:
+        minAvailable: 1
+      envoyService:
+        externalTrafficPolicy: Local
+        labels:
+          app.kubernetes.io/name: api-gateway
+        type: LoadBalancer
+      envoyServiceAccount:
+        name: api-gateway
+    type: Kubernetes
+  telemetry:
+    accessLog:
+      settings:
+      - format:
+          json:
+            client_ip: '%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%'
+            correlation_id: '%TRACE_ID%'
+            duration_ms: '%DURATION%'
+            method: '%REQ(:METHOD)%'
+            response_flags: '%RESPONSE_FLAGS%'
+            route_name: '%ROUTE_NAME%'
+            status: '%RESPONSE_CODE%'
+            timestamp: '%START_TIME%'
+            upstream_cluster: '%UPSTREAM_CLUSTER%'
+          type: JSON
+        sinks:
+        - file:
+            path: /dev/stdout
+          type: File
+    tracing:
+      provider:
+        backendRefs:
+        - name: otel-collector
+          namespace: vectra-observability
+          port: 4317
+        type: OpenTelemetry
+      samplingRate: 100

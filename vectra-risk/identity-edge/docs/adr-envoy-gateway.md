@@ -1,33 +1,34 @@
 # ADR — Envoy Gateway v1.9.3: verificación de la versión pinneada (U02-T10, Paso 8)
 
-Estado: **parcial**. Los puntos 1, 3, 4 y 5 están verificados; el punto 2 (modo de fallo, W3) no se puede expresar como lo pide el diseño y espera una decisión. Código citado: tag `v1.9.3` de `envoyproxy/gateway`, Envoy v1.39.5. Comprobado con `egctl` v1.9.3 (`x translate`) y `gh api repos/envoyproxy/gateway/contents/<ruta>?ref=v1.9.3`.
+Estado: **verificado** (ronda 1, con las decisiones W1–W7 y X1–X3 del usuario). Código citado: tag `v1.9.3` de `envoyproxy/gateway` (`gh api repos/envoyproxy/gateway/contents/<ruta>?ref=v1.9.3`) y Envoy v1.39.5; el comportamiento se comprobó además con `egctl` v1.9.3 (`x translate`, sin clúster) sobre `identity-edge/gateway/generated/<env>/`. La entrada de `audit.md` la escribe el orquestador.
 
 ## 1. Data plane en `vectra-edge` con `deploy.type: GatewayNamespace`
-- `internal/provider/kubernetes/controller.go`: `gatewayNamespaceMode: cfg.EnvoyGateway.GatewayNamespaceMode()`; `envoyLabels` de `internal/infrastructure/kubernetes/proxy/resource_provider.go` agrega `GatewayNameLabel` en ese modo. El Deployment y el Service nacen en el namespace del `Gateway`. Se puede: `flows.yaml` y las NetworkPolicies no se tocan.
-- Con `GatewayNamespace` el EnvoyProxy de `Gateway.spec.infrastructure.parametersRef` se busca en el namespace del Gateway (`processGatewayParamsRef`); el de la `GatewayClass` lleva `namespace` explícito (`processGatewayClassParamsRef`).
-- Hallazgo: el sidecar `shutdown-manager` toma su imagen de `EnvoyGateway.provider.kubernetes.shutdownManager.image` (`expectedShutdownManagerImage`), que el chart fija a `docker.io/envoyproxy/gateway:v1.9.3`, no del `EnvoyProxy`. Kyverno `restrict-registries` y `disallow-latest` lo rechazarían en `vectra-edge`. El diseño no fija el espejo ni el digest: **detenido** (ver informe).
-- Hallazgo: `require-criticality-label` valida `metadata.labels` del Deployment, que el controlador arma con `getLabels()` (etiquetas de `Gateway.spec.infrastructure.labels`), no con `pod.labels`.
+- Se puede. `internal/provider/kubernetes/controller.go` fija `gatewayNamespaceMode: cfg.EnvoyGateway.GatewayNamespaceMode()`; `internal/infrastructure/kubernetes/proxy/resource_provider.go` (`envoyLabels`) agrega `GatewayNameLabel` en ese modo y el Deployment, el Service, el HPA y el PDB nacen en el namespace del `Gateway` (`r.Namespace()`). `flows.yaml` y las NetworkPolicies no se tocan.
+- El `EnvoyProxy` de la `GatewayClass` lleva `namespace` explícito (`processGatewayClassParamsRef`: `ptr.Deref(gc.Spec.ParametersRef.Namespace, "default")`); se genera en `vectra-edge`. El de `Gateway.spec.infrastructure.parametersRef` se busca en el namespace del Gateway (`processGatewayParamsRef`).
+- **Etiquetas.** `require-criticality-label` valida `metadata.labels` del Deployment. El controlador las toma de `getLabels()` = `envoyLabels(infra.GetProxyMetadata().Labels)`, o sea de `Gateway.spec.infrastructure.labels`; `pod.labels` del `EnvoyProxy` solo llega al pod (`getPodLabels`) y es lo que sobrescribe `app.kubernetes.io/name`. Por eso `vectra.io/criticality: high` va en las dos y `app.kubernetes.io/name: api-gateway` va en el pod y en el Service (`envoyService.labels`, que se aplica después de las etiquetas de la infraestructura en `Service()`).
+- **Sidecar `shutdown-manager`.** `expectedProxyContainers` (`internal/infrastructure/kubernetes/proxy/resource.go`) le pone `expectedShutdownManagerSecurityContext(containerSpec)`, el mismo `securityContext` del contenedor de Envoy (parte del hardening por defecto y los campos de `envoyDeployment.container.securityContext`, que `applySecurityContextOverrides` mezcla), y su imagen sale de `provider.kubernetes.shutdownManager.image` del config del controlador (`expectedShutdownManagerImage`), que el chart fija a la del controlador. X3 la reemplaza en `platform/operators/envoy-gateway.yaml` por el espejo `registro.banco.internal/vectra/envoy-gateway@sha256:192fc9bd…cd9f`. En kind el registro es `kind-registry:5000/vectra/envoy-gateway`: el values es común a los tres entornos y el cambio entra con un `kind_values` de la integración (`components.yaml` queda fuera del alcance; está en `CANDIDATAS.md`).
+- **Raíz de solo lectura.** v1.9.3 deja `ReadOnlyRootFilesystem = nil` en Envoy ("needs to write to the log file/UDS socket") y en el shutdown-manager, pero ambos aceptan el override; el shutdown-manager tiene `emptyDir` en `/tmp` y Envoy no tiene ninguno (`expectedContainerVolumeMounts`). `require-ro-rootfs` obliga a fijarlo; que Envoy arranque así se verifica en kind (Paso 16, `CANDIDATAS.md`).
+- **Réplicas.** Con `envoyHpa`, el controlador deja `replicas` sin fijar en el Deployment (`replicas = nil`); `require-spread-and-pdb` pide `replicas >= 2` en el Deployment y no es de las políticas estáticas (`CANDIDATAS.md`).
 
-## 2. Modo de fallo por ruta (P-U2-01): alternativa 2, **bloqueada**
-- `internal/xds/translator/ratelimit.go`: un filtro por dominio; dominio = `stripRuleIndexSuffix(rule.Name)` = `<ns>/<política>`; nombre `envoy.filters.http.ratelimit/<ns>/<política>`, más el del listener (`envoy.filters.http.ratelimit`). `failure_mode_deny` solo sale de `GlobalRateLimit.FailClosed` (global del controlador).
-- `EnvoyPatchPolicy` (`jsonpatch.go`, `envoypatchpolicy.go`): se verificó con `egctl` que un `JSONPatch` sobre el `Listener` `vectra-edge/api-gateway/https` con `jsonPath` `..http_filters[?(@.name=='envoy.filters.http.ratelimit/vectra-edge/auth-rate-limits')].typed_config` fija `failureModeDeny: true` y `statusOnError: ServiceUnavailable`, y la política queda `Accepted`.
-- Bloqueo, comprobado con `egctl` y en `backendtrafficpolicy.go`:
-  - `mergeType` solo vale con destinos xRoute (`mergeType can only be used with xRoute targets`): `auth-rate-limits` no puede llevarlo en el `Gateway`.
-  - Dos `BackendTrafficPolicy` sobre el mismo `Gateway` sin `sectionName`: la segunda queda `Accepted: False`, `Conflicted` (`resolveBackendTrafficPolicyGatewayTargetRef`).
-  - Con una en el `Gateway` y otra en el listener `https`, ambas se aceptan, pero una política de ruta con `mergeType` se mezcla con un solo padre (el del listener si existe, si no el del Gateway; `processBackendTrafficPolicyForRoute`) y `edge-rate-limits` queda `Overridden`: desaparece el filtro y el límite global de 200/s.
-- Opciones para el orquestador: (a) contadores de `/auth/**` en las políticas por regla `auth-read` y `auth-write` (dominios `.../auth-read` y `.../auth-write`, verificado aceptado; parte el contador por clase de método); (b) otro diseño de rutas. No se eligió ninguna.
+## 2. Modo de fallo por ruta (P-U2-01): alternativa 2 (parche acotado)
+- **Por qué no la 1 ni la 3.** `GlobalRateLimit.FailClosed` es un ajuste global del controlador (`createRateLimitFilter` en `internal/xds/translator/ratelimit.go`: `rateLimitFilterProto.FailureModeDeny = t.GlobalRateLimit.FailClosed`) y no hay campo por política; un `Gateway` separado lo comparte.
+- **Un filtro por dominio.** `buildRateLimitFilter` crea un filtro por dominio `stripRuleIndexSuffix(rule.Name)` = `<namespace>/<política>` de cada regla `shared`, con nombre `envoy.filters.http.ratelimit/<namespace>/<política>`, más el del listener (`envoy.filters.http.ratelimit`). `patchRouteWithRateLimit` pone la configuración por ruta solo en el filtro del dominio de cada regla (`typed_per_filter_config`).
+- **X1.** En v1.9.3 `mergeType` solo vale sobre rutas (`mergeType can only be used with xRoute targets`, validación del CRD; comprobado con `egctl`); una segunda `BackendTrafficPolicy` sobre el mismo `Gateway` queda `Conflicted` (`resolveBackendTrafficPolicyGatewayTargetRef`); y una política de ruta se mezcla con un solo padre, el del listener si existe y si no el del `Gateway` (`processBackendTrafficPolicyForRoute`), así que ni dos políticas de `Gateway` ni una de listener y otra de `Gateway` dan los dos dominios. Por eso `/auth/**` tiene una sola regla (`auth-rate-limits`), sin reintentos, y la política de esa regla lleva los dos contadores por IP (`shared`, `mergeType: StrategicMerge`), que se mezclan con `edge-rate-limits` (`translateBackendTrafficPolicyForRouteWithMerge`, caso 1: ambas con rate limit). Su dominio es `vectra-edge/auth-rate-limits`.
+- **Parche.** `EnvoyPatchPolicy` (`type: JSONPatch`, `targetRef` al `Gateway`, `internal/gatewayapi/envoypatchpolicy.go`; requiere `extensionApis.enableEnvoyPatchPolicy`, `egctl` la habilita siempre) sobre el `Listener` `vectra-edge/api-gateway/https` (`internal/xds/translator/jsonpatch.go`, `processJSONPatches`) con `jsonPath` `..http_filters[?(@.name=='envoy.filters.http.ratelimit/vectra-edge/auth-rate-limits')].typed_config` y las operaciones `add` de `failure_mode_deny: true` y `status_on_error: {code: 503}`. `egctl` lo traduce a `failureModeDeny: true` y `statusOnError: ServiceUnavailable` solo en ese filtro, y la política queda `Accepted`. El 503 lleva `Problem` por el `responseOverride` de 503 de la ruta (`dependency_unavailable`); eso, con un servicio de rate limit caído, se comprueba en kind (Paso 16).
+- Prueba: `identity-edge/tests/unit/test_gateway_xds.py` (el filtro del dominio de `auth-rate-limits` tiene `failure_mode_deny` y `status_on_error` 503; ningún otro; solo las rutas de `/auth/**` usan ese filtro; contadores de vuelta en `edge-rate-limits`, sin la `EnvoyPatchPolicy` o con el parche en todos los filtros hacen fallar la prueba).
 
 ## 3. Servicio de rate limit del controlador (W1)
-- `internal/cmd/egctl/translate.go` usa `ratelimit.GetServiceURL(namespace, dnsDomain)`; el filtro apunta al cluster `ratelimit_cluster` que atiende el `envoy-ratelimit` que despliega el controlador (`internal/infrastructure/kubernetes/ratelimit`). Los values no llevan `rateLimit` (prueba `test_envoy_gateway_values.py`).
+- El rate limit global de las `BackendTrafficPolicy` lo atiende el `envoy-ratelimit` que despliega el controlador (`internal/infrastructure/kubernetes/ratelimit`; `ratelimit.GetServiceURL(namespace, dnsDomain)` en `internal/cmd/egctl/translate.go`); el filtro apunta al cluster `ratelimit_cluster` (`getRateLimitServiceClusterName`), no a un servicio configurable. Los values del controlador no llevan `rateLimit` (la prueba de `test_envoy_gateway_values.py` lo exige). La conexión a Valkey, el HPA y los flujos son del Paso 9.
 
-## 4. IP real (W2)
-- `internal/xds/translator/listener.go`: `useRemoteAddress := true` y pasa a `false` si `originalIPDetectionExtensions` no es nil; `xffNumTrustedHops` **resta 1** al valor del usuario (`numTrustedHops: 1` genera `xff_num_trusted_hops: 0` con la extensión `xff` y `use_remote_address: false`: Envoy confía en el `X-Forwarded-For` del cliente).
-- Por eso `numTrustedHops: 0` tampoco sirve (también configura la extensión). Hay que omitir `clientIPDetection`. La prueba de xDS no puede mirar solo `xff_num_trusted_hops > 0`: debe exigir `use_remote_address: true` y sin `original_ip_detection_extensions`.
+## 4. IP real (W2, NFR-U2-23)
+- `internal/xds/translator/listener.go`: `useRemoteAddress := true` y pasa a `false` si `originalIPDetectionExtensions` no es nil; `xffNumTrustedHops` **resta 1** al valor del usuario ("for backward compatibility", `envoyproxy/envoy#34241`) y la extensión `envoy.extensions.http.original_ip_detection.xff` se configura siempre que `NumTrustedHops != nil`. Con `numTrustedHops: 1` o `0` el xDS sale con `xff_num_trusted_hops: 0`, la extensión `xff` y `use_remote_address: false`: Envoy tomaría el último valor de `X-Forwarded-For`, que escribe el cliente (el balanceador L4 no agrega la cabecera). Comprobado con `egctl`.
+- W2 se cumple omitiendo `clientIPDetection` (`routes.yaml` `client.trusted_hops: 0` significa "no emitir"): `use_remote_address: true`, sin `original_ip_detection_extensions`, y con `externalTrafficPolicy: Local` la dirección remota es la del cliente. La prueba exige esas dos cosas, no solo `xff_num_trusted_hops` (que valdría 0 en los dos casos).
 
 ## 5. Binding K14
-El chart `gateway-helm` v1.9.3 con los values de `platform/operators/envoy-gateway.yaml` concede, para el ServiceAccount `envoy-gateway`, lo siguiente que K14 no menciona (la prueba `test_everything_the_chart_grants_beyond_k14_is_listed_in_the_adr` exige que cada línea esté aquí). Además, el `ClusterRole` `cluster-infra-manager` da la gestión de Deployments, Services y ConfigMaps en todo el clúster, no solo en `vectra-edge` y `envoy-gateway-system`. **No se recortó**: se reporta.
+X2: K14 es exactamente el RBAC que el chart `gateway-helm` v1.9.3 concede al ServiceAccount `envoy-gateway` con los values de `platform/operators/envoy-gateway.yaml` (`GatewayNamespace` agrega el `ClusterRole` `cluster-infra-manager`: gestión de Deployments, Services, ConfigMaps, ServiceAccounts, HPA y PDB en todo el clúster, no solo en `vectra-edge` y `envoy-gateway-system`). Más que la K14 original (lectura de Gateway API y de Envoy Gateway; gestión de Deployments, Services y ConfigMaps): `secrets`, `pods`, `nodes`, `namespaces`, `serviceaccounts`, HPA, PDB, `daemonsets`, `leases`, `events`, `tokenreviews`, `endpointslices`, `clustertrustbundles`, `serviceimports`, `gatewayclasses` (escritura) y la actualización de los `*/status`. Se lista aquí y la prueba `test_k14_is_exactly_the_rbac_of_the_chart` la fija: si el chart cambia una regla, falla.
 
-### Concesiones del chart que K14 no menciona
+### Reglas del RBAC del chart (K14)
+- `core/configmaps`: create, delete, deletecollection, get, list, patch, update, watch (cluster, envoy-gateway-system)
 - `core/events`: create, patch (envoy-gateway-system)
 - `core/namespaces`: get, list, watch (cluster)
 - `core/nodes`: get, list, watch (cluster)
@@ -35,28 +36,47 @@ El chart `gateway-helm` v1.9.3 con los values de `platform/operators/envoy-gatew
 - `core/pods/binding`: get, list, patch, update, watch (cluster)
 - `core/secrets`: get, list, watch (cluster)
 - `core/serviceaccounts`: create, delete, deletecollection, get, list, patch, watch (cluster, envoy-gateway-system)
+- `core/services`: create, delete, deletecollection, get, list, patch, watch (cluster, envoy-gateway-system)
 - `apps/daemonsets`: create, delete, deletecollection, get, list, patch, watch (cluster, envoy-gateway-system)
+- `apps/deployments`: create, delete, deletecollection, get, list, patch, watch (cluster, envoy-gateway-system)
 - `authentication.k8s.io/tokenreviews`: create (cluster)
 - `autoscaling/horizontalpodautoscalers`: create, delete, deletecollection, get, list, patch, watch (cluster, envoy-gateway-system)
 - `certificates.k8s.io/clustertrustbundles`: get, list, watch (cluster, envoy-gateway-system)
 - `coordination.k8s.io/leases`: create, delete, get, list, patch, update, watch (envoy-gateway-system)
 - `discovery.k8s.io/endpointslices`: get, list, watch (cluster)
+- `gateway.envoyproxy.io/backends`: get, list, watch (cluster)
 - `gateway.envoyproxy.io/backends/status`: update (cluster)
+- `gateway.envoyproxy.io/backendtrafficpolicies`: get, list, watch (cluster)
 - `gateway.envoyproxy.io/backendtrafficpolicies/status`: update (cluster)
+- `gateway.envoyproxy.io/clienttrafficpolicies`: get, list, watch (cluster)
 - `gateway.envoyproxy.io/clienttrafficpolicies/status`: update (cluster)
+- `gateway.envoyproxy.io/envoyextensionpolicies`: get, list, watch (cluster)
 - `gateway.envoyproxy.io/envoyextensionpolicies/status`: update (cluster)
+- `gateway.envoyproxy.io/envoypatchpolicies`: get, list, watch (cluster)
 - `gateway.envoyproxy.io/envoypatchpolicies/status`: update (cluster)
+- `gateway.envoyproxy.io/envoyproxies`: get, list, watch (cluster)
 - `gateway.envoyproxy.io/envoyproxies/status`: update (cluster)
+- `gateway.envoyproxy.io/httproutefilters`: get, list, watch (cluster)
+- `gateway.envoyproxy.io/securitypolicies`: get, list, watch (cluster)
 - `gateway.envoyproxy.io/securitypolicies/status`: update (cluster)
+- `gateway.networking.k8s.io/backendtlspolicies`: get, list, watch (cluster)
 - `gateway.networking.k8s.io/backendtlspolicies/status`: update (cluster)
 - `gateway.networking.k8s.io/gatewayclasses`: get, list, patch, update, watch (cluster)
 - `gateway.networking.k8s.io/gatewayclasses/status`: update (cluster)
+- `gateway.networking.k8s.io/gateways`: get, list, watch (cluster)
 - `gateway.networking.k8s.io/gateways/status`: update (cluster)
+- `gateway.networking.k8s.io/grpcroutes`: get, list, watch (cluster)
 - `gateway.networking.k8s.io/grpcroutes/status`: update (cluster)
+- `gateway.networking.k8s.io/httproutes`: get, list, watch (cluster)
 - `gateway.networking.k8s.io/httproutes/status`: update (cluster)
+- `gateway.networking.k8s.io/listenersets`: get, list, watch (cluster)
 - `gateway.networking.k8s.io/listenersets/status`: update (cluster)
+- `gateway.networking.k8s.io/referencegrants`: get, list, watch (cluster)
+- `gateway.networking.k8s.io/tcproutes`: get, list, watch (cluster)
 - `gateway.networking.k8s.io/tcproutes/status`: update (cluster)
+- `gateway.networking.k8s.io/tlsroutes`: get, list, watch (cluster)
 - `gateway.networking.k8s.io/tlsroutes/status`: update (cluster)
+- `gateway.networking.k8s.io/udproutes`: get, list, watch (cluster)
 - `gateway.networking.k8s.io/udproutes/status`: update (cluster)
 - `multicluster.x-k8s.io/serviceimports`: get, list, watch (cluster)
 - `policy/poddisruptionbudgets`: create, delete, deletecollection, get, list, patch, watch (cluster, envoy-gateway-system)

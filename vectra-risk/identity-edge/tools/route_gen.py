@@ -2,12 +2,14 @@
 
 Genera por entorno, en `identity-edge/gateway/generated/<env>/`: HTTPRoute (cerradas, con 404 `Problem` para el resto),
 HTTPRouteFilter, SecurityPolicy (JWT con JWKS interna y autorizacion `Deny` por defecto), BackendTrafficPolicy
-(reintentos solo idempotentes, outlier detection, tamano por ruta, afinidad, errores `Problem`, y los descriptores de
-rate limit en una politica del Gateway), ClientTrafficPolicy, ReferenceGrant y, con F09 habilitada, un ExternalSecret.
+(reintentos solo idempotentes, outlier detection, tamano por ruta, afinidad, errores `Problem`, los descriptores de rate
+limit en una politica del Gateway y los contadores por IP de `/auth/**` en la politica de su unica regla),
+ClientTrafficPolicy, ReferenceGrant y, con F09 habilitada, un ExternalSecret. Paso 8 (U02-T10): GatewayClass, Gateway,
+Certificate, EnvoyProxy (data plane, access log, tracing) y la EnvoyPatchPolicy que pone en fail-closed el filtro de `/auth/**`.
 
 Sin `--check` escribe; con `--check` compara sin escribir y termina distinto de 0 si algo difiere. La salida es una
 funcion pura de las entradas: toda lista de `routes.yaml` es un conjunto y se ordena, y las claves van ordenadas.
-Diseno: domain-entities §4 y §4.1; BR-U2-08, 10, 11, 13, 14; P-U2-02, 03, 06, 07; INF-U2-01, 10.
+Diseno: domain-entities §4 y §4.1; BR-U2-08, 10, 11, 13, 14; P-U2-01, 02, 03, 06, 07; INF-U2-01, 02, 06, 10; NFR-U2-03, 22, 23.
 """
 
 import argparse
@@ -46,6 +48,9 @@ PROBLEM_CONTENT_TYPE = "application/problem+json"
 NOT_FOUND_FILTER = "problem-not-found"
 EDGE_RATE_LIMITS = "edge-rate-limits"
 CLIENT_POLICY = "edge-client"
+RATELIMIT_FILTER = "envoy.filters.http.ratelimit"  # nombre del filtro de Envoy Gateway v1.9.3 (internal/xds/translator/ratelimit.go)
+LISTENER_TYPE = "type.googleapis.com/envoy.config.listener.v3.Listener"
+SHA256_HEX = set("0123456789abcdef")
 
 PROBLEM_ERRORS: dict[int, VectraError] = {
     401: Unauthenticated(),
@@ -86,6 +91,10 @@ def meta(ctx: "Ctx", name: str, namespace: str | None = None) -> dict[str, Any]:
     return {"name": name, "namespace": namespace or ctx.namespace, "labels": dict(LABELS)}
 
 
+def cluster_meta(name: str) -> dict[str, Any]:
+    return {"name": name, "labels": dict(LABELS)}
+
+
 class Ctx:
     """Entradas ya validadas: las rutas activas (F09 segun los values) y el entorno."""
 
@@ -105,6 +114,28 @@ class Ctx:
         unknown = {r["profile"] for r in self.active} | {c["profile"] for c in routes["closed"]}
         if not unknown <= set(routes["profiles"]):
             raise RoutesError(f"perfiles desconocidos: {sorted(unknown - set(routes['profiles']))}")
+        self.issuer: str = self._required("issuer")
+        image = self._required("envoy_image")
+        self.image = f"{self._field(image, 'repository')}@{self._digest(self._field(image, 'digest'))}"
+
+    def _required(self, key: str) -> Any:
+        if not self.values.get(key):
+            raise RoutesError(f"values: falta {key}")
+        return self.values[key]
+
+    @staticmethod
+    def _field(block: Any, key: str) -> str:
+        if not isinstance(block, dict) or not block.get(key):
+            raise RoutesError(f"values: envoy_image sin {key}")
+        return str(block[key])
+
+    @staticmethod
+    def _digest(digest: str) -> str:
+        """W4: la imagen de Envoy lleva su digest; sin el, el generador falla."""
+        hex_part = digest.removeprefix("sha256:")
+        if not digest.startswith("sha256:") or len(hex_part) != 64 or not set(hex_part) <= SHA256_HEX:
+            raise RoutesError(f"values: el digest de la imagen de Envoy no es un sha256: {digest}")
+        return digest
 
     def enabled(self, item: dict[str, Any]) -> bool:
         if item.get("requires") == "f09" and not self.f09:
@@ -329,8 +360,20 @@ def passive(ctx: Ctx, route: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def route_counters(ctx: Ctx, route: dict[str, Any]) -> list[dict[str, Any]]:
+    """Los contadores de `rate_limits` que van en la politica de la unica regla de esta ruta (X1: `route: <ruta>`)."""
+    items = [i for i in ctx.routes["rate_limits"] if i.get("route") == route["name"] and ctx.enabled(i)]
+    if items and len(route["rules"]) != 1:
+        raise RoutesError(f"la ruta {route['name']} lleva contadores propios y debe tener una sola regla")
+    return items
+
+
 def rule_traffic_policy(ctx: Ctx, route: dict[str, Any], rule: dict[str, Any]) -> dict[str, Any]:
     spec: dict[str, Any] = {"mergeType": "StrategicMerge", "targetRefs": [route_ref(route["name"], rule["name"])]}
+    counters = route_counters(ctx, route)
+    if counters:
+        rules = counter_rules(ctx, counters)
+        spec["rateLimit"] = {"type": "Global", "global": {"rules": [rules[k] for k in sorted(rules)]}}
     if rule.get("retry"):
         retry = ctx.routes["retry"]
         spec["retry"] = {"numRetries": retry["num_retries"], "retryOn": {"triggers": sorted(retry["triggers"])}}
@@ -376,6 +419,17 @@ def rate_limit_rule(ctx: Ctx, item: dict[str, Any], cidr: str | None = None) -> 
     return out
 
 
+def counter_rules(ctx: Ctx, items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    limits: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if item.get("source_ip"):  # un contador por IP de origen, uno por familia de direcciones
+            for cidr in item["source_ip"]:
+                limits[f"{item['name']}@{cidr}"] = rate_limit_rule(ctx, item, cidr)
+        else:
+            limits[item["name"]] = rate_limit_rule(ctx, item)
+    return limits
+
+
 def edge_rate_limits(ctx: Ctx) -> dict[str, Any]:
     """Todos los contadores en una sola politica del Gateway: `shared` solo comparte dentro de una politica.
 
@@ -383,14 +437,7 @@ def edge_rate_limits(ctx: Ctx) -> dict[str, Any]:
     conserva los nombres de las reglas de la politica del Gateway, asi que `global` es un solo contador).
     """
     limits = {"global": rate_limit_rule(ctx, ctx.routes["global_limit"])}
-    for item in ctx.routes["rate_limits"]:
-        if not ctx.enabled(item):
-            continue
-        if item.get("source_ip"):  # un contador por IP de origen, uno por familia de direcciones
-            for cidr in item["source_ip"]:
-                limits[f"{item['name']}@{cidr}"] = rate_limit_rule(ctx, item, cidr)
-        else:
-            limits[item["name"]] = rate_limit_rule(ctx, item)
+    limits |= counter_rules(ctx, [i for i in ctx.routes["rate_limits"] if ctx.enabled(i) and not i.get("route")])
     return {
         "apiVersion": EG_API,
         "kind": "BackendTrafficPolicy",
@@ -414,25 +461,22 @@ def backend_traffic_policies(ctx: Ctx) -> list[dict[str, Any]]:
 def client_traffic_policies(ctx: Ctx) -> list[dict[str, Any]]:
     c = ctx.routes["client"]
     prefix = ctx.routes["internal_header_prefix"]
-    return [
-        {
-            "apiVersion": EG_API,
-            "kind": "ClientTrafficPolicy",
-            "metadata": meta(ctx, CLIENT_POLICY),
-            "spec": {
-                "targetRefs": [gateway_ref(ctx)],
-                "clientIPDetection": {"xForwardedFor": {"numTrustedHops": c["trusted_hops"]}},
-                "headers": {
-                    "earlyRequestHeaders": {"removeOnMatch": [{"type": "Prefix", "value": prefix}]},
-                    "lateResponseHeaders": {
-                        "remove": sorted(c["response_remove"]),
-                        "removeOnMatch": [{"type": "Prefix", "value": v} for v in sorted([*c["response_remove_prefixes"], prefix])],
-                    },
-                },
-                "path": {"escapedSlashesAction": c["escaped_slashes_action"], "disableMergeSlashes": not c["merge_slashes"]},
+    spec: dict[str, Any] = {
+        "targetRefs": [gateway_ref(ctx)],
+        "headers": {
+            "earlyRequestHeaders": {"removeOnMatch": [{"type": "Prefix", "value": prefix}]},
+            "lateResponseHeaders": {
+                "remove": sorted(c["response_remove"]),
+                "removeOnMatch": [{"type": "Prefix", "value": v} for v in sorted([*c["response_remove_prefixes"], prefix])],
             },
-        }
-    ]
+        },
+        "path": {"escapedSlashesAction": c["escaped_slashes_action"], "disableMergeSlashes": not c["merge_slashes"]},
+    }
+    if c["trusted_hops"]:
+        # W2: con 0 no se emite `clientIPDetection`. v1.9.3 resta 1 a `numTrustedHops` y configura la extension `xff` (con
+        # `use_remote_address: false`) aun con 0, y Envoy confiaria en el X-Forwarded-For del cliente.
+        spec["clientIPDetection"] = {"xForwardedFor": {"numTrustedHops": c["trusted_hops"]}}
+    return [{"apiVersion": EG_API, "kind": "ClientTrafficPolicy", "metadata": meta(ctx, CLIENT_POLICY), "spec": spec}]
 
 
 def reference_grants(ctx: Ctx) -> list[dict[str, Any]]:
@@ -484,6 +528,149 @@ def external_secrets(ctx: Ctx) -> list[dict[str, Any]]:
     return found
 
 
+# --- Paso 8: GatewayClass, Gateway, Certificate, EnvoyProxy, EnvoyPatchPolicy ------------------
+
+
+def gateway_classes(ctx: Ctx) -> list[dict[str, Any]]:
+    cls = ctx.routes["gateway_class"]
+    return [
+        {
+            "apiVersion": GW_API,
+            "kind": "GatewayClass",
+            "metadata": cluster_meta(cls["name"]),
+            "spec": {
+                "controllerName": cls["controller"],
+                "parametersRef": {"group": EG_GROUP, "kind": "EnvoyProxy", "name": ctx.routes["envoy_proxy"]["name"], "namespace": ctx.namespace},
+            },
+        }
+    ]
+
+
+def gateways(ctx: Ctx) -> list[dict[str, Any]]:
+    listener = ctx.routes["listener"]
+    return [
+        {
+            "apiVersion": GW_API,
+            "kind": "Gateway",
+            "metadata": meta(ctx, ctx.gateway),
+            "spec": {
+                "gatewayClassName": ctx.routes["gateway_class"]["name"],
+                "infrastructure": {"labels": dict(sorted(ctx.routes["infrastructure_labels"].items()))},
+                "listeners": [
+                    {
+                        "name": ctx.section,
+                        "port": listener["port"],
+                        "protocol": listener["protocol"],
+                        "hostname": ctx.hostname,
+                        "tls": {"mode": "Terminate", "certificateRefs": [{"group": "", "kind": "Secret", "name": listener["tls_secret"]}]},
+                    }
+                ],
+            },
+        }
+    ]
+
+
+def certificates(ctx: Ctx) -> list[dict[str, Any]]:
+    cert = ctx.routes["certificate"]
+    return [
+        {
+            "apiVersion": "cert-manager.io/v1",
+            "kind": "Certificate",
+            "metadata": meta(ctx, cert["name"]),
+            "spec": {
+                "secretName": ctx.routes["listener"]["tls_secret"],
+                "dnsNames": [ctx.hostname],
+                "issuerRef": {"group": cert["issuer_group"], "kind": cert["issuer_kind"], "name": ctx.issuer},
+            },
+        }
+    ]
+
+
+def envoy_proxies(ctx: Ctx) -> list[dict[str, Any]]:
+    e = ctx.routes["envoy_proxy"]
+    hpa, svc, spread = e["hpa"], e["service"], e["spread"]
+    log, tracing = ctx.routes["access_log"], ctx.routes["tracing"]
+    return [
+        {
+            "apiVersion": EG_API,
+            "kind": "EnvoyProxy",
+            "metadata": meta(ctx, e["name"]),
+            "spec": {
+                "provider": {
+                    "type": "Kubernetes",
+                    "kubernetes": {
+                        "envoyServiceAccount": {"name": e["service_account"]},
+                        "envoyDeployment": {
+                            "replicas": e["replicas"],
+                            "container": {"image": ctx.image, "resources": e["resources"], "securityContext": e["container_security_context"]},
+                            "pod": {
+                                "labels": dict(sorted(e["pod_labels"].items())),
+                                "priorityClassName": e["priority_class"],
+                                "securityContext": e["pod_security_context"],
+                                "topologySpreadConstraints": [
+                                    {
+                                        "maxSkew": spread["max_skew"],
+                                        "topologyKey": spread["key"],
+                                        "whenUnsatisfiable": spread["when_unsatisfiable"],
+                                        "labelSelector": {"matchLabels": dict(spread["selector"])},
+                                    }
+                                ],
+                            },
+                        },
+                        "envoyHpa": {
+                            "minReplicas": hpa["min"],
+                            "maxReplicas": hpa["max"],
+                            "metrics": [{"type": "Resource", "resource": {"name": "cpu", "target": {"type": "Utilization", "averageUtilization": hpa["cpu_utilization"]}}}],
+                        },
+                        "envoyPDB": {"minAvailable": e["pdb_min_available"]},
+                        "envoyService": {"type": svc["type"], "externalTrafficPolicy": svc["external_traffic_policy"], "labels": dict(svc["labels"])},
+                    },
+                },
+                "telemetry": {
+                    "accessLog": {"settings": [{"format": {"type": "JSON", "json": dict(log["fields"])}, "sinks": [{"type": "File", "file": {"path": log["path"]}}]}]},
+                    "tracing": {
+                        "samplingRate": tracing["sampling_percent"],
+                        "provider": {"type": "OpenTelemetry", "backendRefs": [{"name": tracing["service"], "namespace": tracing["namespace"], "port": tracing["port"]}]},
+                    },
+                },
+            },
+        }
+    ]
+
+
+def fail_closed_domain(ctx: Ctx) -> str:
+    """El dominio del filtro de rate limit que falla cerrado: el de la politica de la ruta con contadores propios (X1)."""
+    owners = sorted({i["route"] for i in ctx.routes["rate_limits"] if i.get("route") and ctx.enabled(i)})
+    if len(owners) != 1:
+        raise RoutesError(f"debia haber una sola ruta con contadores propios y hay {owners}")
+    (route,) = (r for r in ctx.active if r["name"] == owners[0])
+    (rule,) = route["rules"]
+    return f"{ctx.namespace}/{rule['name']}"
+
+
+def envoy_patch_policies(ctx: Ctx) -> list[dict[str, Any]]:
+    """P-U2-01, alternativa 2: `failure_mode_deny: true` y `status_on_error` solo en el filtro del dominio de `/auth/**`."""
+    selector = f"..http_filters[?(@.name=='{RATELIMIT_FILTER}/{fail_closed_domain(ctx)}')].typed_config"
+    listener = f"{ctx.namespace}/{ctx.gateway}/{ctx.section}"
+
+    def patch(path: str, value: Any) -> dict[str, Any]:
+        return {"type": LISTENER_TYPE, "name": listener, "operation": {"op": "add", "jsonPath": selector, "path": path, "value": value}}
+
+    fail = ctx.routes["fail_closed"]
+    return [
+        {
+            "apiVersion": EG_API,
+            "kind": "EnvoyPatchPolicy",
+            "metadata": meta(ctx, fail["patch_name"]),
+            "spec": {
+                "type": "JSONPatch",
+                "targetRef": gateway_ref(ctx),
+                "jsonPatches": [patch("failure_mode_deny", fail["failure_mode_deny"]), patch("status_on_error", {"code": fail["status_on_error"]})],
+            },
+        }
+    ]
+
+
 # --- salida ------------------------------------------------------------------------------------
 
 
@@ -497,7 +684,12 @@ def generate(routes: dict[str, Any], values: dict[str, Any]) -> dict[str, str]:
     ctx = Ctx(routes, values)
     files = {
         "backendtrafficpolicies.yaml": backend_traffic_policies(ctx),
+        "certificates.yaml": certificates(ctx),
         "clienttrafficpolicies.yaml": client_traffic_policies(ctx),
+        "envoypatchpolicies.yaml": envoy_patch_policies(ctx),
+        "envoyproxies.yaml": envoy_proxies(ctx),
+        "gatewayclasses.yaml": gateway_classes(ctx),
+        "gateways.yaml": gateways(ctx),
         "httproutefilters.yaml": http_route_filters(ctx),
         "httproutes.yaml": http_routes(ctx),
         "referencegrants.yaml": reference_grants(ctx),

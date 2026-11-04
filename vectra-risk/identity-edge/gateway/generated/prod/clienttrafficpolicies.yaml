@@ -9,9 +9,6 @@ metadata:
   name: edge-client
   namespace: vectra-edge
 spec:
-  clientIPDetection:
-    xForwardedFor:
-      numTrustedHops: 1
   headers:
     earlyRequestHeaders:
       removeOnMatch:

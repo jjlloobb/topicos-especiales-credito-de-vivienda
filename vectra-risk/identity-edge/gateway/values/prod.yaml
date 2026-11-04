@@ -3,3 +3,6 @@ hostname: vectra.banco.internal
 # `azp` de channel-simulator (F07): existe solo en kind y staging, y en produccion no hay regla ni autorizacion para el.
 channel_simulator_azp: null
 f09: { enabled: false } # V7: F09 deshabilitada por defecto
+# U02-T10 (Paso 8): issuer del Certificate (INF-U2-01) e imagen de Envoy con su digest (W4, INF-U2-02); sin digest, route-gen falla.
+issuer: banco-ca
+envoy_image: { repository: registro.banco.internal/vectra/envoy, digest: sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0 }

@@ -17,3 +17,8 @@ config:
       kubernetes:
         deploy:
           type: GatewayNamespace
+        # X3: el sidecar `shutdown-manager` de cada pod de Envoy corre en `vectra-edge` y toma su imagen de aqui, no del EnvoyProxy.
+        # Espejo de `docker.io/envoyproxy/gateway:v1.9.3` con el digest de upstream. En kind el registro es
+        # `kind-registry:5000/vectra/envoy-gateway`: ese cambio entra con el `kind_values` de la integracion (candidata).
+        shutdownManager:
+          image: registro.banco.internal/vectra/envoy-gateway@sha256:192fc9bdadb6d2462e8cf7bd702ce3dd9648f3310c6038787448a1f509b7cd9f

@@ -49,3 +49,12 @@ def deploy_type() -> str:
 
 def k14_row() -> str:
     return next(r for r in table_rows(DEPENDENCY) if r[0] == "K14")[3]
+
+
+def shutdown_manager_image() -> str:
+    """X3: el espejo de la imagen del controlador para el `shutdown-manager` (staging y prod; kind lleva `kind-registry`)."""
+    text = section(INFRASTRUCTURE, "### INF-U2-02")
+    line = next(ln for ln in text.splitlines() if ln.startswith("  - **Imagen del data plane**"))
+    found = re.search(r"Es `(registro[\w./-]+)` \(`kind-registry[\w.:/-]+` en kind\).*digest de upstream `(sha256:[0-9a-f]{64})`", line)
+    assert found, "INF-U2-02 sin la imagen del shutdown-manager"
+    return f"{found.group(1)}@{found.group(2)}"

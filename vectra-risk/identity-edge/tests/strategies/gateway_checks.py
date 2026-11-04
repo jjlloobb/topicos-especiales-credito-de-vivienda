@@ -27,6 +27,7 @@ CONFTEST = TOOLS_BIN / "conftest"
 KUBECONFORM = TOOLS_BIN / "kubeconform"
 CHART = _ROOT / "platform" / ".charts" / "envoy-gateway" / "gateway-helm"
 ESO_CHART = _ROOT / "platform" / ".charts" / "external-secrets" / "external-secrets"
+CERT_MANAGER_CHART = _ROOT / "platform" / ".charts" / "cert-manager" / "cert-manager"
 ENVS = ("kind", "staging", "prod")
 
 Docs = list[dict[str, Any]]

@@ -36,10 +36,12 @@ required := [
 	["BackendTrafficPolicy", "edge-rate-limits"], ["BackendTrafficPolicy", "closed"], ["BackendTrafficPolicy", "spa"],
 	["BackendTrafficPolicy", "console-read"], ["BackendTrafficPolicy", "console-write"], ["BackendTrafficPolicy", "intake-submit"],
 	["BackendTrafficPolicy", "promotion-models"], ["BackendTrafficPolicy", "promotion-activation"],
-	["BackendTrafficPolicy", "auth-read"], ["BackendTrafficPolicy", "auth-write"],
+	["BackendTrafficPolicy", "auth-rate-limits"],
 	["BackendTrafficPolicy", "grafana-read"], ["BackendTrafficPolicy", "grafana-write"],
 	["ClientTrafficPolicy", "edge-client"],
 	["ReferenceGrant", "edge-routes"],
+	["GatewayClass", "envoy-gateway"], ["Gateway", "api-gateway"], ["Certificate", "api-gateway"],
+	["EnvoyProxy", "api-gateway"], ["EnvoyPatchPolicy", "auth-fail-closed"],
 ]  # fmt: skip
 
 # Solo con F09 habilitada.
@@ -366,4 +368,143 @@ deny contains msg if {
 	env != "prod"
 	not simulator_rule
 	msg := sprintf("environment-values: %s no tiene el limite de channel-simulator", [env])
+}
+
+# regla: environment-issuer
+# INF-U2-01, NFR-U2-22: el ClusterIssuer del Certificate y el hostname del Gateway y del Certificate son los del entorno;
+# staging y prod nunca usan el de kind. La imagen de Envoy es el espejo del entorno (W4).
+issuers := {"kind": "vectra-internal-ca", "staging": "banco-ca", "prod": "banco-ca"}
+
+images := {
+	"kind": "kind-registry:5000/vectra/envoy",
+	"staging": "registro.banco.internal/vectra/envoy",
+	"prod": "registro.banco.internal/vectra/envoy",
+}
+
+deny contains msg if {
+	some env in envs
+	some cert in of_kind("Certificate")
+	not cert.spec.issuerRef.name == issuers[env]
+	msg := sprintf("environment-issuer: el Certificate de %s usa el issuer %s y debia ser %s", [env, cert.spec.issuerRef.name, issuers[env]])
+}
+
+deny contains msg if {
+	some env in envs
+	some cert in of_kind("Certificate")
+	not cert.spec.dnsNames == [hostnames[env]]
+	msg := sprintf("environment-issuer: el Certificate de %s debia emitirse para %s", [env, hostnames[env]])
+}
+
+deny contains msg if {
+	some env in envs
+	some gateway in of_kind("Gateway")
+	some listener in gateway.spec.listeners
+	not listener.hostname == hostnames[env]
+	msg := sprintf("environment-issuer: el listener del Gateway de %s debia tener el hostname %s", [env, hostnames[env]])
+}
+
+deny contains msg if {
+	some env in envs
+	some proxy in of_kind("EnvoyProxy")
+	image := proxy.spec.provider.kubernetes.envoyDeployment.container.image
+	not image == sprintf("%s@sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0", [images[env]])
+	msg := sprintf("environment-issuer: el EnvoyProxy de %s usa la imagen %s", [env, image])
+}
+
+# regla: gateway-wiring
+# El Gateway usa la GatewayClass que existe, la GatewayClass apunta al EnvoyProxy que existe, y el listener lee el Secret que escribe el Certificate.
+deny contains msg if {
+	some gateway in of_kind("Gateway")
+	not present("GatewayClass", gateway.spec.gatewayClassName)
+	msg := sprintf("gateway-wiring: el Gateway %s usa la GatewayClass %s, que no existe", [gateway.metadata.name, gateway.spec.gatewayClassName])
+}
+
+deny contains msg if {
+	some class in of_kind("GatewayClass")
+	not present("EnvoyProxy", class.spec.parametersRef.name)
+	msg := sprintf("gateway-wiring: la GatewayClass %s apunta al EnvoyProxy %s, que no existe", [class.metadata.name, class.spec.parametersRef.name])
+}
+
+deny contains msg if {
+	some gateway in of_kind("Gateway")
+	some listener in gateway.spec.listeners
+	some ref in listener.tls.certificateRefs
+	secrets := {c.spec.secretName | some c in of_kind("Certificate")}
+	not ref.name in secrets
+	msg := sprintf("gateway-wiring: el listener %s lee el Secret %s, que ningun Certificate escribe", [listener.name, ref.name])
+}
+
+deny contains msg if {
+	some route in of_kind("HTTPRoute")
+	some parent in route.spec.parentRefs
+	not present("Gateway", parent.name)
+	msg := sprintf("gateway-wiring: la HTTPRoute %s cuelga del Gateway %s, que no existe", [route.metadata.name, parent.name])
+}
+
+# regla: auth-rate-limit-isolated
+# P-U2-01 (X1): los dos contadores por IP de `/auth/**` van solos en la politica de ruta de la unica regla de `/auth/**`, sin
+# reintentos; ninguna otra politica los lleva, y `edge-rate-limits` conserva el resto (el limite global falla abierto).
+has_ip_counter(rule) if {
+	some s in rule.clientSelectors
+	s.sourceCIDR
+}
+
+policies_with_ip_counters := {btp.metadata.name |
+	some btp in of_kind("BackendTrafficPolicy")
+	some rule in btp.spec.rateLimit.global.rules
+	has_ip_counter(rule)
+}
+
+deny contains msg if {
+	policies_with_ip_counters != {"auth-rate-limits"}
+	msg := sprintf("auth-rate-limit-isolated: los contadores por IP deben estar solo en auth-rate-limits y estan en %v", [policies_with_ip_counters])
+}
+
+deny contains msg if {
+	some btp in of_kind("BackendTrafficPolicy")
+	btp.metadata.name == "auth-rate-limits"
+	not btp.spec.targetRefs == [{"group": "gateway.networking.k8s.io", "kind": "HTTPRoute", "name": "auth", "sectionName": "auth-rate-limits"}]
+	msg := "auth-rate-limit-isolated: auth-rate-limits debia apuntar a la unica regla de la ruta auth"
+}
+
+deny contains msg if {
+	some btp in of_kind("BackendTrafficPolicy")
+	btp.metadata.name == "auth-rate-limits"
+	count(btp.spec.rateLimit.global.rules) != 4
+	msg := "auth-rate-limit-isolated: auth-rate-limits debia tener los dos contadores por familia de direcciones"
+}
+
+deny contains msg if {
+	some btp in of_kind("BackendTrafficPolicy")
+	btp.metadata.name == "auth-rate-limits"
+	btp.spec.retry
+	msg := "auth-rate-limit-isolated: /auth/** no reintenta"
+}
+
+deny contains msg if {
+	some route in of_kind("HTTPRoute")
+	route.metadata.name == "auth"
+	count(route.spec.rules) != 1
+	msg := "auth-rate-limit-isolated: la ruta auth debia tener una sola regla"
+}
+
+deny contains msg if {
+	some btp in of_kind("BackendTrafficPolicy")
+	btp.metadata.name != "edge-rate-limits"
+	btp.metadata.name != "auth-rate-limits"
+	btp.spec.rateLimit
+	msg := sprintf("auth-rate-limit-isolated: %s declara un rateLimit y solo edge-rate-limits y auth-rate-limits lo hacen", [btp.metadata.name])
+}
+
+# regla: fail-closed-domain
+# El filtro que la EnvoyPatchPolicy pone en fail-closed es el del dominio `<namespace>/<politica>` de la politica con los contadores
+# de `/auth/**`, y ningun otro.
+deny contains msg if {
+	some patch_policy in of_kind("EnvoyPatchPolicy")
+	some patch in patch_policy.spec.jsonPatches
+	some btp in of_kind("BackendTrafficPolicy")
+	btp.metadata.name in policies_with_ip_counters
+	want := sprintf("..http_filters[?(@.name=='envoy.filters.http.ratelimit/%s/%s')].typed_config", [btp.metadata.namespace, btp.metadata.name])
+	not patch.operation.jsonPath == want
+	msg := sprintf("fail-closed-domain: el parche apunta a %s y el dominio de los contadores de /auth/** es %s", [patch.operation.jsonPath, want])
 }

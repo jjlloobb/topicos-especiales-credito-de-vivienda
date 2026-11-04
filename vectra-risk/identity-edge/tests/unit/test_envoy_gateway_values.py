@@ -57,6 +57,9 @@ def problems(docs: Docs) -> list[str]:
         found.append("deploy.type")
     if cfg.get("extensionApis", {}).get(design.patch_policy_key()) is not True:
         found.append("extensionApis")
+    shutdown = cfg.get("provider", {}).get("kubernetes", {}).get("shutdownManager", {}).get("image")
+    if shutdown != design.shutdown_manager_image():
+        found.append("shutdownManager.image")
     if "rateLimit" in cfg:
         found.append("rateLimit")
     if cfg.get("provider", {}).get("kubernetes", {}).get("leaderElection", {}).get("disable"):
@@ -77,6 +80,7 @@ def test_the_controller_render_follows_the_design() -> None:
         (("--set", "config.envoyGateway.provider.kubernetes.deploy.type=ControllerNamespace"), "deploy.type"),
         (("--set", "config.envoyGateway.extensionApis.enableEnvoyPatchPolicy=false"), "extensionApis"),
         (("--set", "config.envoyGateway.rateLimit.backend.type=Redis"), "rateLimit"),
+        (("--set", "config.envoyGateway.provider.kubernetes.shutdownManager.image=docker.io/envoyproxy/gateway:v1.9.3"), "shutdownManager.image"),
         (("--set", "config.envoyGateway.provider.kubernetes.leaderElection.disable=true"), "leaderElection"),
     ],
 )
@@ -86,10 +90,11 @@ def test_each_controller_check_fails_on_an_altered_render(args: tuple[str, ...],
 
 def test_the_design_values_are_read_from_the_documents() -> None:
     assert (design.controller_replicas(), design.controller_priority()) == (2, "vectra-high")
+    assert design.shutdown_manager_image() == "registro.banco.internal/vectra/envoy-gateway@sha256:192fc9bdadb6d2462e8cf7bd702ce3dd9648f3310c6038787448a1f509b7cd9f"
     assert design.controller_resources() == {"requests": {"cpu": "100m", "memory": "128Mi"}, "limits": {"cpu": "500m", "memory": "256Mi"}}
 
 
-# --- K14 -----------------------------------------------------------------------------------------
+# --- K14 (X2): el RBAC exacto del chart ------------------------------------------------------------
 
 
 def grants(docs: Docs) -> dict[tuple[str, str], tuple[set[str], set[str]]]:
@@ -109,37 +114,46 @@ def grants(docs: Docs) -> dict[tuple[str, str], tuple[set[str], set[str]]]:
     return dict(out)
 
 
-def allowed_by_k14(group: str, resource: str, verbs: set[str]) -> bool:
-    if group in GATEWAY_GROUPS and not resource.endswith("/status"):
-        return verbs <= READ
-    if (group, resource) in DATA_PLANE:
-        return verbs <= MANAGE
-    return False
+def rbac_lines(docs: Docs) -> list[str]:
+    return [
+        f"- `{group or 'core'}/{resource}`: {', '.join(sorted(verbs))} ({', '.join(sorted(scopes))})"
+        for (group, resource), (verbs, scopes) in sorted(grants(docs).items())
+    ]
 
 
-def excess_lines(docs: Docs) -> list[str]:
-    lines = []
-    for (group, resource), (verbs, scopes) in sorted(grants(docs).items()):
-        if not allowed_by_k14(group, resource, verbs):
-            lines.append(f"- `{group or 'core'}/{resource}`: {', '.join(sorted(verbs))} ({', '.join(sorted(scopes))})")
-    return lines
+def adr_rbac_lines() -> list[str]:
+    text = ADR.read_text(encoding="utf-8")
+    body = text[text.index(RBAC_HEADING) + len(RBAC_HEADING) :]
+    end = [i for i in (body.find("\n## "), body.find("\n### ")) if i != -1]
+    body = body[: min(end)] if end else body
+    return [line for line in body.splitlines() if line.startswith("- `")]
 
 
-def test_k14_text_is_what_the_comparison_assumes() -> None:
-    text = design.k14_row()
-    assert "Lectura de recursos de Gateway API y de Envoy Gateway" in text
-    assert "Deployments, Services y ConfigMaps" in text
+RBAC_HEADING = "### Reglas del RBAC del chart (K14)"
 
 
-def test_everything_the_chart_grants_beyond_k14_is_listed_in_the_adr() -> None:
-    lines = excess_lines(render())
-    assert lines, "el chart ya no concede de mas: actualiza el ADR"
-    adr = ADR.read_text(encoding="utf-8")
-    assert [line for line in lines if line not in adr] == []
+def test_k14_is_exactly_the_rbac_of_the_chart() -> None:
+    """X2: K14 es el RBAC del chart `gateway-helm` v1.9.3 listado en el ADR §5; si el chart cambia, la prueba falla."""
+    assert "listado en `identity-edge/docs/adr-envoy-gateway.md` §5" in design.k14_row()
+    assert rbac_lines(render()) == adr_rbac_lines()
 
 
-def test_the_comparison_sees_an_extra_grant() -> None:
+def test_the_k14_comparison_sees_a_changed_grant() -> None:
     docs = render()
     role = find(docs, "ClusterRole", "envoy-gateway-gateway-helm-envoy-gateway-role")
     role["rules"].append({"apiGroups": ["rbac.authorization.k8s.io"], "resources": ["clusterroles"], "verbs": ["escalate"]})
-    assert any("rbac.authorization.k8s.io/clusterroles" in line for line in excess_lines(docs))
+    assert rbac_lines(docs) != adr_rbac_lines()
+
+
+def test_the_k14_comparison_sees_a_dropped_grant() -> None:
+    docs = render()
+    role = find(docs, "ClusterRole", "envoy-gateway-gateway-helm-envoy-gateway-role")
+    role["rules"].pop()
+    assert rbac_lines(docs) != adr_rbac_lines()
+
+
+def test_the_k14_comparison_sees_a_wider_verb() -> None:
+    docs = render()
+    role = find(docs, "ClusterRole", "envoy-gateway-gateway-helm-envoy-gateway-role")
+    role["rules"][0]["verbs"].append("delete")
+    assert rbac_lines(docs) != adr_rbac_lines()

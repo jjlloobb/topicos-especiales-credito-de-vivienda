@@ -174,10 +174,12 @@ deny contains msg if {
 
 # regla: client-policy
 # NFR-U2-23, P-U2-06, BR-U2-10, BR-U2-14.
+# W2: con el balanceador L4 y `externalTrafficPolicy: Local`, Envoy toma la direccion remota. Envoy Gateway v1.9.3 resta 1 a
+# `numTrustedHops` y configura la extension `xff` aun con 0 (`use_remote_address: false`), asi que no debe haber `clientIPDetection`.
 deny contains msg if {
 	input.kind == "ClientTrafficPolicy"
-	not input.spec.clientIPDetection.xForwardedFor == {"numTrustedHops": 1}
-	msg := sprintf("client-policy: %s no confia en X-Forwarded-For de 1 salto", [label(input)])
+	input.spec.clientIPDetection
+	msg := sprintf("client-policy: %s declara clientIPDetection y debia tomar la direccion remota", [label(input)])
 }
 
 deny contains msg if {
