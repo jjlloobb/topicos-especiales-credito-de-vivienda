@@ -25,6 +25,17 @@ configurarlo (escenario «aprobador sin MFA» de US-601). WebAuthn es opcional c
 método. Para estos roles, el flujo de login exige el segundo factor siempre, así que su
 token tiene `acr = mfa`.
 
+> **Nota H12 (2026-11-05, decisión del usuario tras la ronda 1 de U02-T14).** Las acciones requeridas del
+> realm son `CONFIGURE_TOTP`, `webauthn-register` y `UPDATE_PASSWORD`; esta última se registra y se habilita
+> en `requiredActions` de los tres realms (`alias`, `providerId` `UPDATE_PASSWORD`, `enabled: true`,
+> `defaultAction: false`, nombre y prioridad 57 de `DefaultRequiredActions.addUpdatePasswordAction` en 26.8.1) y
+> `realm-lint` la exige (regla `accion-requerida`). Al importar un realm con `requiredActions`, Keycloak no
+> añade las acciones por defecto (`DefaultExportImportManager.java`, 366-376) y ignora una acción sin
+> registrar (`AuthenticationManager.java`, 1472-1479): sin ella, una contraseña temporal que fija un
+> administrador no obligaría a cambiarla. El `keycloak-config-cli` (v6.5.1, `import.managed.required-action`
+> en `full` por defecto, `RequiredActionsImportService.doImport`) borra las acciones que el realm de Git no
+> declara; por eso esta debe estar declarada y así no se borra.
+
 **BR-U2-04 — Step-up para firmar.** Un endpoint con `mfa_required` exige `acr = mfa` **y**
 `auth_time` de ≤ 900 s (BR-U0-72). El step-up es el de U10 BR-U10-06 (revisión del Infrastructure Design de U10, 2026-10-10): un
 Authorization Code con PKCE, `prompt=login`, `max_age=0` y `acr_values=mfa`, en una **ventana
@@ -124,6 +135,14 @@ usa el listener `jboss-logging`; el pipeline de logs de U1 (Alloy) descarta `use
 `email` de los eventos de Keycloak antes de Loki, con su prueba (enmienda del 2026-11-02,
 decisión del usuario tras la ronda 1 de U02-T04). La correlación con los logs de los
 servicios se hace por `userId` = `sub` = `principal_subject`. Retención: la de Loki (90 días, U1).
+
+> **Nota H11 (2026-11-05, decisión del usuario tras la ronda 1 de U02-T14).** El evento de bloqueo
+> `USER_DISABLED_BY_TEMPORARY_LOCKOUT` se construye con `builder.success()` (`DefaultBruteForceProtector.java`
+> de Keycloak 26.8.1, `sendEvent`), y `jboss-logging` escribe los eventos de éxito en `debug` salvo que
+> se configure `success-level` (`JBossLoggingEventListenerProviderFactory.java`, `init`). Para que Loki
+> reciba los eventos de éxito (el bloqueo y la auditoría de login), los tres entornos fijan en Keycloak
+> la opción del SPI `events-listener`, proveedor `jboss-logging`, propiedad `success-level`, con la
+> variable `KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL=info` en `extraEnv`.
 
 **BR-U2-17 — Alertas de identidad.**
 

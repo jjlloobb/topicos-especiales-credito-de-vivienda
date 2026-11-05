@@ -36,6 +36,7 @@ fixed_env := {
 	"KC_HTTPS_CERTIFICATE_FILE": "/etc/x509/https/tls.crt",
 	"KC_HTTPS_CERTIFICATE_KEY_FILE": "/etc/x509/https/tls.key",
 	"JAVA_OPTS_APPEND": "-XX:MaxRAMPercentage=70",
+	"KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL": "info",
 }
 
 secret_env := {

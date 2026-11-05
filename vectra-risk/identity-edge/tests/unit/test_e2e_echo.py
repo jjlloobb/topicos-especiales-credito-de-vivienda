@@ -142,7 +142,47 @@ def mut_criticality(docs):
     del deployment(docs, "case-service")["spec"]["template"]["metadata"]["labels"]["vectra.io/criticality"]
 
 
-STRUCTURE_MUTATIONS = [mut_namespace, mut_sa, mut_pod_label, mut_port, mut_service_port, mut_registry, mut_missing_service, mut_criticality]
+def mut_spread_selector(docs):
+    deployment(docs, "case-service")["spec"]["template"]["spec"]["topologySpreadConstraints"][0]["labelSelector"]["matchLabels"] = {"app.kubernetes.io/name": "other"}
+
+
+def mut_service_target_port(docs):
+    next(d for d in docs if d["kind"] == "Service" and d["metadata"]["name"] == "console-bff")["spec"]["ports"][0]["targetPort"] = "web"
+
+
+def mut_service_target_port_number(docs):
+    next(d for d in docs if d["kind"] == "Service" and d["metadata"]["name"] == "console-bff")["spec"]["ports"][0]["targetPort"] = 9999
+
+
+def mut_pdb_selector(docs):
+    next(d for d in docs if d["kind"] == "PodDisruptionBudget" and d["metadata"]["name"] == "governance-service")["spec"]["selector"]["matchLabels"] = {"app.kubernetes.io/name": "other"}
+
+
+def mut_http_probe(docs):
+    """F-05: un `httpGet` en un servicio con `Server` y rutas de Linkerd da 403 al kubelet: los pods no llegarían a Ready."""
+    c = deployment(docs, "governance-service")["spec"]["template"]["spec"]["containers"][0]
+    c["readinessProbe"] = {"httpGet": {"path": "/", "port": "http"}, "periodSeconds": 5}
+
+
+def mut_tcp_probe(docs):
+    c = deployment(docs, "case-service")["spec"]["template"]["spec"]["containers"][0]
+    c["livenessProbe"] = {"tcpSocket": {"port": "http"}, "periodSeconds": 10}
+
+
+def mut_probe_port(docs):
+    c = deployment(docs, "console-spa")["spec"]["template"]["spec"]["containers"][0]
+    c["readinessProbe"]["exec"]["command"] = [part.replace("8080", "9090") for part in c["readinessProbe"]["exec"]["command"]]
+
+
+def mut_no_probe(docs):
+    del deployment(docs, "console-bff")["spec"]["template"]["spec"]["containers"][0]["livenessProbe"]
+
+
+STRUCTURE_MUTATIONS = [
+    mut_namespace, mut_sa, mut_pod_label, mut_port, mut_service_port, mut_registry, mut_missing_service, mut_criticality,
+    mut_spread_selector, mut_service_target_port, mut_service_target_port_number, mut_pdb_selector,
+    mut_http_probe, mut_tcp_probe, mut_probe_port, mut_no_probe,
+]  # fmt: skip
 
 
 @pytest.mark.parametrize("mutate", STRUCTURE_MUTATIONS, ids=lambda f: f.__name__)

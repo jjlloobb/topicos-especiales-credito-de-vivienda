@@ -898,3 +898,38 @@ def test_resolve_ldap_role_uses_the_same_validation_as_the_table_lint() -> None:
     assert lint_group_role_map({"groups": bad})
     with pytest.raises(ValueError, match="superusuario"):
         resolve_ldap_role(["cn=x,ou=g"], bad)
+
+
+# --- H12: `UPDATE_PASSWORD` registrada y habilitada (BR-U2-03) ---------------------------------------------------------
+# Al importar un realm con `requiredActions`, Keycloak no añade las acciones por defecto (`DefaultExportImportManager.java`,
+# líneas 366-376) y una acción sin registrar se ignora (`AuthenticationManager.java`, líneas 1472-1479): una contraseña
+# temporal que fija un administrador no obligaría a cambiarla.
+
+
+@pytest.mark.parametrize("env", ["kind", "staging", "prod"])
+def test_h12_the_git_realms_register_update_password(env: str) -> None:
+    from realm_exports import load_git
+
+    (action,) = [a for a in load_git(env)["requiredActions"] if a["alias"] == "UPDATE_PASSWORD"]
+    assert action["providerId"] == "UPDATE_PASSWORD" and action["enabled"] is True
+    assert rules(load_git(env), env) == set()
+
+
+@pytest.mark.parametrize("env", ["kind", "staging", "prod"])
+def test_h12_realm_without_update_password_is_rejected(env: str) -> None:
+    realm = realm_copy(env)
+    realm["requiredActions"] = [a for a in realm["requiredActions"] if a["alias"] != "UPDATE_PASSWORD"]
+    assert "accion-requerida" in rules(realm, env)
+
+
+def test_h12_realm_without_the_required_actions_key_is_rejected() -> None:
+    realm = realm_copy("kind")
+    del realm["requiredActions"]
+    assert "accion-requerida" in rules(realm, "kind")
+
+
+@pytest.mark.parametrize("change", [{"enabled": False}, {"providerId": "CONFIGURE_TOTP"}, {"enabled": "true"}])
+def test_h12_update_password_disabled_or_with_another_provider_is_rejected(change: dict[str, object]) -> None:
+    realm = realm_copy("kind")
+    realm["requiredActions"][0].update(change)
+    assert "accion-requerida" in rules(realm, "kind")

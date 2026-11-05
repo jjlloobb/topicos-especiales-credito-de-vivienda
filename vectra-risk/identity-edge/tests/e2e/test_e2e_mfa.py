@@ -5,9 +5,10 @@ import time
 
 import e2e_support as support
 from e2e_support import Flow
+from vectra_contracts.routes import MFA_MAX_AGE
 
-# BR-U2-04: `auth_time` de <= 900 s para firmar (BR-U0-72).
-MAX_AUTH_AGE = 900
+# BR-U2-04: `auth_time` de <= `MFA_MAX_AGE` s para firmar (BR-U0-72), del catálogo de contratos.
+MAX_AUTH_AGE = MFA_MAX_AGE
 
 
 def test_approver_without_totp_gets_no_token(approver_without_totp: support.Account) -> None:
@@ -17,7 +18,7 @@ def test_approver_without_totp_gets_no_token(approver_without_totp: support.Acco
         step = flow.password(flow.start(), approver_without_totp.username, approver_without_totp.password)
         assert step.code is None and step.location is None, "el aprobador sin TOTP obtuvo un código de autorización"
         assert step.status == 200
-        assert re.search(r"totp|otp", step.html, re.IGNORECASE), "la página no es la de configurar el TOTP"
+        assert re.search(r'<form[^>]*id="kc-totp-settings-form"', step.html) and 'name="totp"' in step.html, "la página no es la de configurar el TOTP"
         # Ni siquiera con la contraseña por el endpoint de token: `vectra-console` no admite el grant de contraseña.
         response = flow.http.post(
             support.TOKEN_PATH,

@@ -294,6 +294,12 @@ requiredActions:
   enabled: true
   defaultAction: false
   priority: 20
+- alias: UPDATE_PASSWORD
+  name: Update Password
+  providerId: UPDATE_PASSWORD
+  enabled: true
+  defaultAction: false
+  priority: 57
 authenticationFlows:
 - alias: vectra-browser
   description: 'Login del realm vectra: LoA 1 (pwd) y LoA 2 (mfa) por rol'
@@ -331,7 +337,7 @@ authenticationFlows:
     authenticatorFlow: true
     flowAlias: vectra-mfa-cro
     requirement: CONDITIONAL
-    priority: 30
+    priority: 57
   - userSetupAllowed: false
     authenticatorFlow: true
     flowAlias: vectra-mfa-cumplimiento
@@ -410,7 +416,7 @@ authenticationFlows:
     authenticatorFlow: true
     flowAlias: vectra-mfa-ingeniero_riesgo factor
     requirement: REQUIRED
-    priority: 30
+    priority: 57
 - alias: vectra-mfa-cro factor
   description: 'Segundo factor: TOTP o WebAuthn'
   providerId: basic-flow
@@ -451,7 +457,7 @@ authenticationFlows:
     authenticatorFlow: true
     flowAlias: vectra-mfa-cro factor
     requirement: REQUIRED
-    priority: 30
+    priority: 57
 - alias: vectra-mfa-cumplimiento factor
   description: 'Segundo factor: TOTP o WebAuthn'
   providerId: basic-flow
@@ -492,7 +498,7 @@ authenticationFlows:
     authenticatorFlow: true
     flowAlias: vectra-mfa-cumplimiento factor
     requirement: REQUIRED
-    priority: 30
+    priority: 57
 - alias: vectra-mfa-operacion factor
   description: 'Segundo factor: TOTP o WebAuthn'
   providerId: basic-flow
@@ -533,7 +539,7 @@ authenticationFlows:
     authenticatorFlow: true
     flowAlias: vectra-mfa-operacion factor
     requirement: REQUIRED
-    priority: 30
+    priority: 57
 - alias: vectra-mfa-break-glass factor
   description: 'Segundo factor: TOTP o WebAuthn'
   providerId: basic-flow
@@ -574,7 +580,7 @@ authenticationFlows:
     authenticatorFlow: true
     flowAlias: vectra-mfa-break-glass factor
     requirement: REQUIRED
-    priority: 30
+    priority: 57
 - alias: vectra-mfa-analista factor
   description: 'Segundo factor: TOTP o WebAuthn'
   providerId: basic-flow
@@ -620,7 +626,7 @@ authenticationFlows:
     authenticatorFlow: true
     flowAlias: vectra-mfa-analista factor
     requirement: REQUIRED
-    priority: 30
+    priority: 57
 authenticatorConfig:
 - alias: loa-pwd
   config:

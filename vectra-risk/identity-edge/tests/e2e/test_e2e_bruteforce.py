@@ -13,6 +13,7 @@ import secrets
 import time
 from typing import Any
 
+import bruteforce_model
 import e2e_support as support
 from bruteforce_model import BruteForceModel, Params
 from e2e_support import Flow
@@ -44,7 +45,11 @@ def wrong_password() -> str:
 
 
 def lock(account: support.Account, admin: support.Admin) -> None:
-    for _ in range(FAILURE_FACTOR):
+    """`failureFactor` fallos separados más que `quickLoginCheckMilliSeconds`: si no, Keycloak aplica el bloqueo rápido
+    (`DefaultBruteForceProtector.java`, líneas 121-127) en el 2.o fallo y los demás no cuentan (F-01a)."""
+    for i in range(FAILURE_FACTOR):
+        if i:
+            time.sleep(PARAMS.quick_login_check_milliseconds / 1000 + bruteforce_model.QUICK_MARGIN_SECONDS)
         step = attempt(account.username, wrong_password())
         assert step.code is None
     status = admin.settled_status(account.user_id, lambda s: bool(s["disabled"]))
@@ -57,6 +62,7 @@ def test_five_failures_lock_the_user(ephemeral_user: Any, admin: support.Admin) 
     lock(account, admin)
     status = admin.brute_force_status(account.user_id)
     assert status["numFailures"] == FAILURE_FACTOR
+    assert status["numTemporaryLockouts"] == 1, "el bloqueo de `failureFactor` fallos es el primero de la serie, y no uno rápido"
     assert attempt(account.username, account.password).code is None, "con el usuario bloqueado, la contraseña correcta obtuvo un código"
 
 
@@ -119,6 +125,10 @@ class BruteForceMachine(RuleBasedStateMachine):
     @rule()
     def wrong_password_attempt(self) -> None:
         at = self.steady()
+        if not self.model.locked(at) and self.model.quiet_until() > at:
+            # F-01a: dos fallos a menos de `quickLoginCheckMilliSeconds` serían un bloqueo rápido, que el modelo no busca aquí
+            time.sleep(self.model.quiet_until() - at)
+            at = self.steady()
         step = attempt(self.account.username, wrong_password())
         assert step.code is None
         self.model.wrong(at)
@@ -143,7 +153,10 @@ class BruteForceMachine(RuleBasedStateMachine):
     def settle(self) -> None:
         at = self.steady()
         self.admin.settled_status(
-            self.account.user_id, lambda s: s["numFailures"] == self.model.failures and bool(s["disabled"]) == self.model.locked(at)
+            self.account.user_id,
+            lambda s: s["numFailures"] == self.model.failures
+            and s["numTemporaryLockouts"] == self.model.temporary_lockouts
+            and bool(s["disabled"]) == self.model.locked(at),
         )
 
     @invariant()
@@ -151,6 +164,7 @@ class BruteForceMachine(RuleBasedStateMachine):
         at = self.steady()
         status = self.admin.brute_force_status(self.account.user_id)
         assert status["numFailures"] == self.model.failures, f"fallos: Keycloak {status}, modelo {self.model.failures}"
+        assert status["numTemporaryLockouts"] == self.model.temporary_lockouts, f"bloqueos temporales: Keycloak {status}, modelo {self.model.temporary_lockouts}"
         assert bool(status["disabled"]) == self.model.locked(at), f"bloqueo: Keycloak {status}, modelo en {at:.0f} s"
 
 

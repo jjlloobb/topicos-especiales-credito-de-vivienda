@@ -39,6 +39,11 @@ MFA_REQUIRED_ROLES = frozenset({Role.INGENIERO_RIESGO.value, Role.CRO.value, Rol
     REALM_ADMIN,
 }
 TOTP_ACTION = "CONFIGURE_TOTP"
+# H12 (BR-U2-03): `UPDATE_PASSWORD` registrada y habilitada. Al importar un realm con `requiredActions`, Keycloak no añade las
+# acciones por defecto (`DefaultExportImportManager.java`, 366-376) y ignora una acción sin registrar (`AuthenticationManager.java`,
+# 1472-1479): sin ella, una contraseña temporal que fija un administrador no obliga a cambiarla.
+CREDENTIAL_UPDATE_ACTION = "UPDATE_PASSWORD"
+REQUIRED_REGISTERED_ACTIONS = (CREDENTIAL_UPDATE_ACTION,)
 # Credencial OTP con la semilla por referencia (U02-T05, forma unica de domain-entities §3):
 # `credentials: [{type: otp, secretData: '{"value":"$(env:SYNTH_<USUARIO>_TOTP_SEED)"}', credentialData: '{...,"secretEncoding":"BASE32"}'}]`.
 # `secretData` y `credentialData` son String JSON (CredentialRepresentation de Keycloak); `<USUARIO>` es el nombre del
@@ -391,6 +396,16 @@ def _check_parameters(realm: Mapping[str, Any], out: list[Violation]) -> None:
             out.append(Violation("parametro-del-realm", f"realm {key}", f"debe ser {expected!r}, es {actual!r}"))
 
 
+def _check_required_actions(realm: Mapping[str, Any], out: list[Violation]) -> None:
+    registered = {str(a.get("alias")): a for a in _list(realm.get("requiredActions")) if isinstance(a, dict)}
+    for alias in REQUIRED_REGISTERED_ACTIONS:
+        action = registered.get(alias)
+        if action is None:
+            out.append(Violation("accion-requerida", f"realm requiredActions {alias}", "falta: debe estar registrada (H12, BR-U2-03)"))
+        elif action.get("enabled") is not True or action.get("providerId") != alias:
+            out.append(Violation("accion-requerida", f"realm requiredActions {alias}", f"debe estar habilitada (`enabled: true`) con `providerId: {alias}`"))
+
+
 _TERM = re.compile(r"^\s*(\w+)(?:\((.*)\))?\s*$")
 
 
@@ -443,6 +458,7 @@ def lint_realm(realm: Any, env: str) -> list[Violation]:
         _check_client(client, env, out)
     _check_claims(realm, out)
     _check_parameters(realm, out)
+    _check_required_actions(realm, out)
     _check_password_policy(realm, out)
     return out
 

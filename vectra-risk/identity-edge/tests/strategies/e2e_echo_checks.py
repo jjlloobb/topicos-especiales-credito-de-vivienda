@@ -133,6 +133,26 @@ def _of(docs: list[dict[str, Any]], kind: str, name: str) -> dict[str, Any] | No
     return next((d for d in docs if d.get("kind") == kind and d["metadata"]["name"] == name), None)
 
 
+def probe_problems(service: str, container: dict[str, Any], port: int) -> list[str]:
+    """Sondas `exec` por el loopback del pod (F-05).
+
+    Los cuatro servicios destino tienen un `Server` de Linkerd con rutas (`platform/network/generated/kind/`): en un `Server` con
+    rutas Linkerd deja de autorizar solo las sondas del kubelet (`generate.py`, `probe_routes`) y `flows.yaml` no declara
+    `_probes` para ellos, así que un `httpGet` o un `tcpSocket` del kubelet daría 403 y los pods nunca llegarían a Ready. El `exec`
+    corre dentro del contenedor y llega por el loopback, que la malla no intercepta.
+    """
+    found: list[str] = []
+    for name in ("readinessProbe", "livenessProbe"):
+        probe = container.get(name)
+        if probe is None:
+            found.append(f"{service}: falta {name}")
+        elif "exec" not in probe:
+            found.append(f"{service}: {name} no es `exec`: el kubelet recibiría 403 de Linkerd")
+        elif f"127.0.0.1:{port}" not in " ".join(probe["exec"].get("command", [])):
+            found.append(f"{service}: {name} no consulta 127.0.0.1:{port}")
+    return found
+
+
 def structure_problems(docs: list[dict[str, Any]]) -> list[str]:
     """Nombres, SA, etiquetas, puerto e imagen contra el diseno."""
     found: list[str] = []
@@ -164,9 +184,13 @@ def structure_problems(docs: list[dict[str, Any]]) -> list[str]:
             containers = pod["spec"]["containers"]
             if [p["containerPort"] for c in containers for p in c.get("ports", [])] != [spec["port"]]:
                 found.append(f"{service}: el puerto del contenedor no es {spec['port']}")
+            for constraint in pod["spec"].get("topologySpreadConstraints", []):
+                if constraint.get("labelSelector", {}).get("matchLabels", {}).get("app.kubernetes.io/name") != spec["name"]:
+                    found.append(f"{service}: un topologySpreadConstraints no selecciona app.kubernetes.io/name = {spec['name']}")
             for container in containers:
                 if not container["image"].startswith(REGISTRY):
                     found.append(f"{service}: imagen fuera de {REGISTRY}: {container['image']}")
+                found += probe_problems(service, container, spec["port"])
             if dep["spec"].get("replicas", 1) < 2:
                 found.append(f"{service}: menos de 2 replicas")
         if svc is not None:
@@ -174,6 +198,15 @@ def structure_problems(docs: list[dict[str, Any]]) -> list[str]:
                 found.append(f"{service}: el Service no selecciona app.kubernetes.io/name = {spec['name']}")
             if [p["port"] for p in svc["spec"]["ports"]] != [spec["port"]]:
                 found.append(f"{service}: el puerto del Service no es {spec['port']}")
+            if dep is not None:
+                container_ports = [p for c in dep["spec"]["template"]["spec"]["containers"] for p in c.get("ports", [])]
+                reachable = {p.get("name") for p in container_ports} | {p["containerPort"] for p in container_ports}
+                for port in svc["spec"]["ports"]:
+                    if port.get("targetPort", port["port"]) not in reachable:
+                        found.append(f"{service}: el targetPort {port.get('targetPort')!r} del Service no existe en el contenedor")
+        pdb = _of(docs, "PodDisruptionBudget", spec["name"])
+        if pdb is not None and pdb["spec"]["selector"].get("matchLabels", {}).get("app.kubernetes.io/name") != spec["name"]:
+            found.append(f"{service}: el PodDisruptionBudget no selecciona app.kubernetes.io/name = {spec['name']}")
     names = sorted(d["metadata"]["name"] for d in docs if d["kind"] == "Deployment")
     if names != sorted(s["name"] for s in want.values()):
         found.append(f"Deployments {names}, esperados {sorted(s['name'] for s in want.values())}")

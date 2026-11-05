@@ -5,6 +5,7 @@ H2: «token de otro servicio» espera 403 en el gateway, que autoriza por `azp` 
 """
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import e2e_support as support
@@ -38,6 +39,26 @@ def test_injected_x_vectra_sub_has_no_effect(gateway: httpx.Client, console_toke
     arrived = echoed(gateway.get(CONSOLE, headers=support.bearer(console_token, **{"x-vectra-sub": "someone-else"})))
     assert "someone-else" not in arrived.values()
     assert not [name for name in arrived if name.startswith(PREFIX)]
+
+
+def test_injected_x_vectra_sub_does_not_change_the_rate_limit_counter(gateway: httpx.Client, console_token: str) -> None:
+    """Verificación de P-U2-06: un cliente que manda `x-vectra-sub: otro` no cambia su contador.
+
+    El contador de `/api/console/**` es por `sub` (`routes.yaml`, `console`). Una ráfaga de más del triple del límite, cada
+    solicitud con un `x-vectra-sub` distinto, llega a 429: si el gateway tomara la cabecera del cliente, cada valor tendría su
+    contador y ninguna pasaría del límite.
+    """
+    limit = support.rate_limit("console")["requests"]
+    total = 3 * limit
+
+    def call(n: int) -> int:
+        return gateway.get(CONSOLE, headers=support.bearer(console_token, **{"x-vectra-sub": f"otro-{n}"})).status_code
+
+    with ThreadPoolExecutor(max_workers=total) as pool:
+        statuses = list(pool.map(call, range(total)))
+    assert 429 in statuses, f"{total} solicitudes en ráfaga con `x-vectra-sub` distintos no llegaron a 429 (límite {limit} por `sub`)"
+    assert set(statuses) <= {200, 429}, set(statuses)
+    time.sleep(support.window_seconds("console") + 1)  # deja libre el contador para las demás pruebas
 
 
 def test_echo_idempotency_key_arrives_intact(gateway: httpx.Client, console_token: str, channel_token: str) -> None:

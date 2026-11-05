@@ -86,6 +86,21 @@ def rate_limit(name: str) -> dict[str, Any]:
     return next(r for r in routes()["rate_limits"] if r["name"] == name)
 
 
+# La unidad de un contador de `routes.yaml` es una `unit` de Envoy Ratelimit (Second, Minute, Hour, Day): su ventana en segundos.
+WINDOW_SECONDS = {"Second": 1, "Minute": 60, "Hour": 3600, "Day": 86400}
+
+
+def window_seconds(limit_name: str) -> int:
+    """La ventana del contador `limit_name` de `rate_limits` en `routes.yaml`. El contador es de ventana fija, alineada a la unidad."""
+    return WINDOW_SECONDS[rate_limit(limit_name)["unit"]]
+
+
+def wait_for_next_window(limit_name: str, margin: float = 1.0) -> None:
+    """Espera al comienzo de la siguiente ventana fija del contador, para que una ráfaga entera caiga en una sola ventana."""
+    window = window_seconds(limit_name)
+    time.sleep(window - (time.time() % window) + margin)
+
+
 def max_body_bytes(route_name: str) -> int:
     """`max_body` de la ruta (por ejemplo `64Ki`) en bytes."""
     found = re.fullmatch(r"(\d+)Ki", route(route_name)["max_body"])
@@ -173,12 +188,12 @@ _LAST_OTP: dict[str, str] = {}
 def totp_code(seed: str) -> str:
     """Un código TOTP que Keycloak no haya visto: reusar el de la misma ventana lo rechaza (BR-U2-03)."""
     totp = pyotp.TOTP(seed)
-    for offset in (0, 30):
+    for offset in (0, totp.interval):
         code = totp.at(time.time() + offset)
         if _LAST_OTP.get(seed) != code:
             _LAST_OTP[seed] = code
             return code
-    time.sleep(31)
+    time.sleep(totp.interval + 1)
     code = totp.now()
     _LAST_OTP[seed] = code
     return code

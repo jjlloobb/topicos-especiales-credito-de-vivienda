@@ -76,7 +76,7 @@ def test_rate_limit_returns_429_with_retry_after(gateway: httpx.Client, console_
     for reply in limited:
         assert reply.headers["retry-after"] == wanted
         assert reply.json()["code"] == "rate_limited"
-    time.sleep(2)  # la ventana de 1 s
+    time.sleep(support.window_seconds("console") + 1)  # deja pasar la ventana del contador
 
 
 def test_body_over_the_limit_returns_413_payload_too_large(gateway: httpx.Client, console_token: str) -> None:

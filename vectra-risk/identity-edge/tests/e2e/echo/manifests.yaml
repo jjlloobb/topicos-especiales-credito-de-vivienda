@@ -86,12 +86,15 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - { name: http, containerPort: 8080 }
+          # `exec` por el loopback: con el `Server` de Linkerd y sus rutas, un `httpGet` del kubelet daria 403 (F-05).
           readinessProbe:
-            httpGet: { path: /, port: http }
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
             periodSeconds: 5
+            timeoutSeconds: 3
           livenessProbe:
-            httpGet: { path: /, port: http }
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
             periodSeconds: 10
+            timeoutSeconds: 3
           securityContext:
             allowPrivilegeEscalation: false
             privileged: false
@@ -185,12 +188,15 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - { name: http, containerPort: 8080 }
+          # `exec` por el loopback: con el `Server` de Linkerd y sus rutas, un `httpGet` del kubelet daria 403 (F-05).
           readinessProbe:
-            httpGet: { path: /, port: http }
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
             periodSeconds: 5
+            timeoutSeconds: 3
           livenessProbe:
-            httpGet: { path: /, port: http }
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
             periodSeconds: 10
+            timeoutSeconds: 3
           securityContext:
             allowPrivilegeEscalation: false
             privileged: false
@@ -284,12 +290,15 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - { name: http, containerPort: 8080 }
+          # `exec` por el loopback: con el `Server` de Linkerd y sus rutas, un `httpGet` del kubelet daria 403 (F-05).
           readinessProbe:
-            httpGet: { path: /, port: http }
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
             periodSeconds: 5
+            timeoutSeconds: 3
           livenessProbe:
-            httpGet: { path: /, port: http }
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
             periodSeconds: 10
+            timeoutSeconds: 3
           securityContext:
             allowPrivilegeEscalation: false
             privileged: false
@@ -383,12 +392,15 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - { name: http, containerPort: 8080 }
+          # `exec` por el loopback: con el `Server` de Linkerd y sus rutas, un `httpGet` del kubelet daria 403 (F-05).
           readinessProbe:
-            httpGet: { path: /, port: http }
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
             periodSeconds: 5
+            timeoutSeconds: 3
           livenessProbe:
-            httpGet: { path: /, port: http }
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
             periodSeconds: 10
+            timeoutSeconds: 3
           securityContext:
             allowPrivilegeEscalation: false
             privileged: false
