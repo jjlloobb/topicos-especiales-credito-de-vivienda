@@ -149,7 +149,15 @@ Al preparar el Paso 11, el orquestador comparó la tabla con lo que el código e
   - `keycloak-config-cli` también tiene `realm-admin`, pero entra por `client_credentials` y emite `client_login`, no `login`;
   - la consola solo se alcanza por `hostname-admin` interno, con port-forward aprobado (BR-U2-12).
 
-  Cualquier otro humano que entre ahí también es SEV1. La opción de build es `event-metrics-user-enabled=true`, con `event-metrics-user-tags=realm,clientId` (`EventOptions.java`).
+  Cualquier otro humano que entre ahí también es SEV1.
+
+  **Corrección del 2026-11-05 (orquestador, tras la ronda 1 de U02-T13).** En `EventOptions.java` de 26.8.1, `event-metrics-user-enabled` es de build (`buildTime(true)`), pero `event-metrics-user-tags` es de ejecución (`buildTime(false)`), y `kc.sh build` lo ignora. Por eso:
+  - `--event-metrics-user-enabled=true` va en el `kc.sh build` de la imagen;
+  - `KC_EVENT_METRICS_USER_TAGS=realm,clientId` va en el `extraEnv` de `identity-edge/keycloak/values/common.yaml`, el arranque de los tres entornos.
+
+  La expresión de la alerta precisa dos cosas:
+  - `error=""`, porque `LOGIN_ERROR` también se emite como `event="login"`;
+  - una rama para la primera muestra de una serie nueva, porque `increase` no la ve.
 - **B2**: `RoleConflict` y `LdapUnavailable` se escriben contra nombres de métrica de contrato y se prueban con series sintéticas. Su fuente queda pendiente en `CANDIDATAS.md`; para `ROLE_CONFLICT`, ver BR-U2-17.
 - **B5**: los `ServiceMonitor`/`PodMonitor` de Keycloak (HTTPS, 9000), Envoy (19001), `envoy-ratelimit` (19001) y el exportador de Valkey (9121) son del Paso 11 y viven en `identity-edge/observability/`. Cada familia de métricas de las reglas tiene quien la emita, un monitor o una fuente de U1 (kube-state-metrics, Pushgateway), y un puerto F60.
 - **B6**: el `PrometheusRule` sigue el patrón de U1: un archivo de grupos que leen promtool y las pruebas, más el CR en `vectra-observability`, con la prueba de que los dos tienen los mismos `groups`. El Paso 12 suma las entradas `identity-rules` e `identity-monitors` en wave 4.

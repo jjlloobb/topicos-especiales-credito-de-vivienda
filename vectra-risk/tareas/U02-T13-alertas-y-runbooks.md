@@ -23,6 +23,16 @@ El usuario decidió B1–B9. Están en P-U2-09 («Fuentes, umbrales y despliegue
 >
 > Donde la tarea dice «Si `break-glass` no se puede distinguir... detente», ya no aplica.
 
+> **Arbitraje del 2026-11-05 tras la ronda 1 (orquestador; hallazgo 1 de tu bitácora).** Tienes razón: `event-metrics-user-tags` es de ejecución en 26.8.1, y la enmienda B10 lo ponía en el build por error del orquestador. Sin ese tag, `BreakGlassLogin` nunca dispara, y eso rompe el propio criterio de la tarea. **Entra en el alcance** (P-U2-09, corrección de B10):
+> - en `identity-edge/keycloak/values/common.yaml`, `extraEnv` agrega `KC_EVENT_METRICS_USER_TAGS` con el valor `realm,clientId`;
+> - se regenera `identity-edge/keycloak/rendered/<env>/` y pasan `check-keycloak-rendered`, `policy-keycloak` y `policy-keycloak-u1`;
+> - la opción de tags sale del `kc.sh build` del Dockerfile, que queda solo con `--event-metrics-user-enabled=true`;
+> - una prueba, nueva o en `test_keycloak_deploy.py`, comprueba que el contenedor de Keycloak de los tres renders lleva esa variable con `clientId`. Lee el valor del diseño, y falla si en una copia se quita la variable o el `clientId`;
+> - `test_keycloak_image.py` deja de exigir los tags en el build, y falla si vuelven a aparecer ahí;
+> - retira de `CANDIDATAS.md` la entrada del hallazgo 1.
+>
+> El orquestador da por buenos los hallazgos 2 y 3: `error=""` con la rama de primera muestra, y el runbook de failback que borra `valkey-b-0`. Quedan en el diseño. El 4 (`redis_up == 0` con una réplica) se queda en `CANDIDATAS.md`.
+
 ## Alcance
 
 **Dentro:** todo el Paso 11 del plan. Texto del plan, sin recortes:
