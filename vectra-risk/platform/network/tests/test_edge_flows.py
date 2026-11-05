@@ -13,7 +13,16 @@ import pytest
 import test_ratelimit_deployment as ratelimit
 import valkey_design as design
 import yaml
-from generate import ENVS, LINKERD_INBOUND_PORT, LINKERD_OPAQUE_PORTS, build, endpoint, exists_in, labels_of, load
+from generate import (
+    ENVS,
+    LINKERD_INBOUND_PORT,
+    LINKERD_OPAQUE_PORTS,
+    build,
+    endpoint,
+    exists_in,
+    labels_of,
+    load,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 DATA, FORBIDDEN = load()
