@@ -641,3 +641,24 @@ def test_realm_has_no_secret_values_detector_accepts_references() -> None:
         ]
     }
     assert literal_secrets(node) == []
+
+
+BASELINE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "realm-baseline-8c18021"
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_the_realms_only_differ_from_the_baseline_in_the_declared_fields(env: str) -> None:
+    """F-10: frente a 8c18021 el diff de los realms es `bruteForceStrategy`, `maxTemporaryLockouts` (H10) y `UPDATE_PASSWORD` (H12).
+
+    Cualquier otro campo (p. ej. las prioridades de `authenticationFlows`) rompe la prueba."""
+    baseline = yaml.safe_load((BASELINE_DIR / f"realm.{env}.yaml").read_text(encoding="utf-8"))
+    current = load(env)
+    actions = current["requiredActions"]
+    update_password = [a for a in actions if a["alias"] == "UPDATE_PASSWORD"]
+    assert len(update_password) == 1
+    current["requiredActions"] = [a for a in actions if a["alias"] != "UPDATE_PASSWORD"]
+    assert current.pop("bruteForceStrategy") == "LINEAR"
+    assert current.pop("maxTemporaryLockouts") == 15
+    assert baseline.pop("maxTemporaryLockouts") == 3
+    assert "bruteForceStrategy" not in baseline
+    assert current == baseline

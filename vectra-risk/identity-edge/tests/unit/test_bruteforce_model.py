@@ -170,7 +170,7 @@ def test_the_quick_lockout_does_not_count_as_a_temporary_lockout(params: Params)
 
 
 def test_a_success_forgets_the_last_failure_so_the_next_failure_is_not_quick(params: Params) -> None:
-    """`clearFailures` pone `lastFailure = 0` (LoginFailureEntity, líneas 126-132) y la regla pide `last > 0` (línea 122)."""
+    """`clearFailures` pone `lastFailure = 0` (LoginFailureEntity, líneas 126-132) y la regla pide `last > 0` (línea 123)."""
     model = BruteForceModel(params)
     model.wrong(at=0.0)
     assert model.right(at=0.1) is True
@@ -184,3 +184,15 @@ def test_the_quick_lockout_is_capped_by_the_maximum_wait() -> None:
     model.wrong(at=0.0)
     model.wrong(at=0.1)
     assert model.remaining(at=0.1) == 30  # línea 130-132: Math.min(maxFailureWaitSeconds, waitSeconds)
+
+
+def test_failure_factor_arriving_quickly_gets_the_series_wait_not_the_quick_lockout(params: Params) -> None:
+    """F-11: el fallo `failureFactor` a menos de `quickLoginCheckMilliSeconds` del anterior da la espera de la serie (guarda `wait <= 0`)."""
+    model = BruteForceModel(params)
+    for n in range(params.failure_factor - 1):
+        model.wrong(at=2.0 * n)
+    at = 2.0 * (params.failure_factor - 2) + 0.1  # rápido respecto del anterior
+    model.wrong(at=at)
+    assert model.failures == params.failure_factor
+    assert model.temporary_lockouts == 1
+    assert model.remaining(at) == pytest.approx(lockout_seconds(params, params.failure_factor))

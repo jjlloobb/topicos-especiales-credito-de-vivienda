@@ -131,6 +131,8 @@ class BruteForceMachine(RuleBasedStateMachine):
             at = self.steady()
         step = attempt(self.account.username, wrong_password())
         assert step.code is None
+        # F-12: Keycloak fecha el fallo al procesar el POST, no antes de enviarlo: se toma el instante después del intento
+        at = self.now()
         self.model.wrong(at)
         self.settle()
 
