@@ -12,6 +12,14 @@ Paso 10 del plan de U2. El 2026-11-05 el orquestador comparó `platform/network/
 
 Están en INF-U2-04 («Flujos y sondas»), en component-dependency (F60, F61, F91 y F92) y en la nota del Paso 10 del plan.
 
+> **Enmienda del 2026-11-05 (orquestador, decisión T5 del usuario tras la detención de la ronda 1):** T4 quedó confirmado contra Linkerd, pero `REDISCLI_AUTH` no basta para las sondas. Las sondas usan las credenciales de INF-U2-04 «Credenciales de las sondas»:
+> - **Valkey:** usuario `exporter`, con `VALKEY_PROBE_PASSWORD` desde la clave `exporter-password` de `valkey-acl`;
+> - **Sentinel:** usuario `ratelimit`, con el `REDISCLI_AUTH` que ya está en el pod.
+>
+> Las dos comparan la salida con `PONG`. Donde la tarea dice «autenticadas con `REDISCLI_AUTH`», rige T5. CA-3 exige además:
+> - que el oráculo lea del diseño el comando, el usuario y la clave del Secret;
+> - que conftest rechace una sonda sin `--user` o con la contraseña en la línea de comandos.
+
 ## Alcance
 
 **Dentro:** todo el Paso 10 del plan. Texto del plan, sin recortes:
