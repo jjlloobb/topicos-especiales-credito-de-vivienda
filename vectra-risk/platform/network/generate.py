@@ -69,7 +69,9 @@ def exists_in(ep: dict[str, Any], env: str) -> bool:
 
 
 def peer(ep: dict[str, Any]) -> dict[str, Any]:
-    selector: dict[str, Any] = {"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": ep["ns"]}}}
+    selector: dict[str, Any] = {
+        "namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": ep["ns"]}}
+    }
     if ep["kind"] == "workload":
         selector["podSelector"] = {"matchLabels": labels_of(ep)}
     return selector
@@ -93,18 +95,28 @@ def pod_selector(ep: dict[str, Any]) -> dict[str, Any]:
     return {"matchLabels": labels_of(ep)} if ep["kind"] == "workload" else {}
 
 
-def network_policy(name: str, ns: str, selector: dict[str, Any], rule_key: str, rule: dict[str, Any], flow_id: str) -> dict[str, Any]:
+def network_policy(
+    name: str, ns: str, selector: dict[str, Any], rule_key: str, rule: dict[str, Any], flow_id: str
+) -> dict[str, Any]:
     return {
         "apiVersion": "networking.k8s.io/v1",
         "kind": "NetworkPolicy",
         "metadata": {"name": name, "namespace": ns, "labels": {"vectra.io/flow": flow_id}},
-        "spec": {"podSelector": selector, "policyTypes": ["Ingress" if rule_key == "ingress" else "Egress"], rule_key: [rule]},
+        "spec": {
+            "podSelector": selector,
+            "policyTypes": ["Ingress" if rule_key == "ingress" else "Egress"],
+            rule_key: [rule],
+        },
     }
 
 
 def deny_all(ns: str) -> list[dict[str, Any]]:
     base = {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": {"namespace": ns}}
-    deny = {**base, "metadata": {**base["metadata"], "name": "deny-all"}, "spec": {"podSelector": {}, "policyTypes": ["Ingress", "Egress"]}}
+    deny = {
+        **base,
+        "metadata": {**base["metadata"], "name": "deny-all"},
+        "spec": {"podSelector": {}, "policyTypes": ["Ingress", "Egress"]},
+    }
     dns = {
         **base,
         "metadata": {**base["metadata"], "name": "allow-dns"},
@@ -113,7 +125,14 @@ def deny_all(ns: str) -> list[dict[str, Any]]:
             "policyTypes": ["Egress"],
             "egress": [
                 {
-                    "to": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "kube-system"}}, "podSelector": {"matchLabels": {"k8s-app": "kube-dns"}}}],
+                    "to": [
+                        {
+                            "namespaceSelector": {
+                                "matchLabels": {"kubernetes.io/metadata.name": "kube-system"}
+                            },
+                            "podSelector": {"matchLabels": {"k8s-app": "kube-dns"}},
+                        }
+                    ],
                     "ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}],
                 }
             ],
@@ -125,7 +144,10 @@ def deny_all(ns: str) -> list[dict[str, Any]]:
 def system_policies(ns: str, webhooks: list[int], api_cidr: str) -> list[dict[str, Any]]:
     """F125, F126 y F127: lo que un operador necesita dentro de su namespace, sin datos de negocio."""
     own = {"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": ns}}}
-    api = {"to": [{"ipBlock": {"cidr": api_cidr}}], "ports": [{"protocol": "TCP", "port": 443}, {"protocol": "TCP", "port": 6443}]}
+    api = {
+        "to": [{"ipBlock": {"cidr": api_cidr}}],
+        "ports": [{"protocol": "TCP", "port": 443}, {"protocol": "TCP", "port": 6443}],
+    }
     documents = [
         network_policy("allow-f125-same-namespace-ingress", ns, {}, "ingress", {"from": [own]}, "F125"),
         network_policy("allow-f125-same-namespace-egress", ns, {}, "egress", {"to": [own]}, "F125"),
@@ -148,7 +170,11 @@ def server_of(dest: dict[str, Any], port: int, protocol: str | None = None) -> d
         "apiVersion": "policy.linkerd.io/v1beta3",
         "kind": "Server",
         "metadata": {"name": f"{dest['name']}-{port}", "namespace": dest["ns"]},
-        "spec": {"podSelector": pod_selector(dest), "port": port, "proxyProtocol": protocol or ("opaque" if port in LINKERD_OPAQUE_PORTS else "unknown")},
+        "spec": {
+            "podSelector": pod_selector(dest),
+            "port": port,
+            "proxyProtocol": protocol or ("opaque" if port in LINKERD_OPAQUE_PORTS else "unknown"),
+        },
     }
 
 
@@ -164,7 +190,22 @@ def has_unmeshed_source(flow: dict[str, Any], sources: list[dict[str, Any]], por
     return unmeshed is True or any(s.get("name") in unmeshed for s in sources)
 
 
-def linkerd_policy(flow: dict[str, Any], dest: dict[str, Any], sources: list[dict[str, Any]], port: int, pod_cidr: str) -> list[dict[str, Any]]:
+def check_unmeshed_sources(flow: dict[str, Any], data: dict[str, Any]) -> None:
+    """Una lista `unmeshed_source` solo nombra origenes del flujo: una errata dejaria el origen sin autorizacion por red y sin error."""
+    unmeshed = flow.get("unmeshed_source")
+    if unmeshed is None or isinstance(unmeshed, bool):
+        return
+    origins = {endpoint(s, data).get("name") for s in flow["from"] if not s.startswith("external:")}
+    unknown = [n for n in unmeshed if n not in origins]
+    if unknown:
+        raise SystemExit(
+            f"{flow['id']}: unmeshed_source nombra {unknown}, que no son origen del flujo ({sorted(o for o in origins if o)})"
+        )
+
+
+def linkerd_policy(
+    flow: dict[str, Any], dest: dict[str, Any], sources: list[dict[str, Any]], port: int, pod_cidr: str
+) -> list[dict[str, Any]]:
     """`AuthorizationPolicy` por flujo sobre el `Server` del puerto (P-U1-02)."""
     server_name = f"{dest['name']}-{port}"
     name = f"{flow['id'].lower()}-{dest['name']}-{port}"
@@ -173,7 +214,9 @@ def linkerd_policy(flow: dict[str, Any], dest: dict[str, Any], sources: list[dic
     if identities:
         auth_name = f"{name}-mtls"
         documents.append(mesh_authentication(auth_name, dest["ns"], identities))
-        documents.append(authorization(name, dest["ns"], "MeshTLSAuthentication", auth_name, server=server_name))
+        documents.append(
+            authorization(name, dest["ns"], "MeshTLSAuthentication", auth_name, server=server_name)
+        )
     if has_unmeshed_source(flow, sources, port):
         auth_name = f"{name}-operator-network"
         documents.append(
@@ -184,7 +227,11 @@ def linkerd_policy(flow: dict[str, Any], dest: dict[str, Any], sources: list[dic
                 "spec": {"networks": [{"cidr": pod_cidr}]},
             }
         )
-        documents.append(authorization(f"{name}-operator", dest["ns"], "NetworkAuthentication", auth_name, server=server_name))
+        documents.append(
+            authorization(
+                f"{name}-operator", dest["ns"], "NetworkAuthentication", auth_name, server=server_name
+            )
+        )
     return documents
 
 
@@ -197,12 +244,16 @@ def mesh_authentication(name: str, ns: str, identities: list[str]) -> dict[str, 
     }
 
 
-def route_policy(source_name: str, source: dict[str, Any], dest: dict[str, Any], port: int, routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def route_policy(
+    source_name: str, source: dict[str, Any], dest: dict[str, Any], port: int, routes: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Rutas por identidad y metodo (P-U1-13). Lo que ninguna ruta admite no se autoriza."""
     return named_route_policy(f"{dest['name']}-{source_name}", [source], dest, port, routes)
 
 
-def named_route_policy(name: str, sources: list[dict[str, Any]], dest: dict[str, Any], port: int, routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def named_route_policy(
+    name: str, sources: list[dict[str, Any]], dest: dict[str, Any], port: int, routes: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Una `HTTPRoute`, y su autorizacion para todos los que pueden usarla."""
     matches = []
     for route in routes:
@@ -219,7 +270,12 @@ def named_route_policy(name: str, sources: list[dict[str, Any]], dest: dict[str,
             "apiVersion": "policy.linkerd.io/v1beta3",
             "kind": "HTTPRoute",
             "metadata": {"name": name, "namespace": dest["ns"]},
-            "spec": {"parentRefs": [{"group": "policy.linkerd.io", "kind": "Server", "name": f"{dest['name']}-{port}"}], "rules": [{"matches": matches}]},
+            "spec": {
+                "parentRefs": [
+                    {"group": "policy.linkerd.io", "kind": "Server", "name": f"{dest['name']}-{port}"}
+                ],
+                "rules": [{"matches": matches}],
+            },
         },
         mesh_authentication(f"{name}-mtls", dest["ns"], [identity_of(s) for s in sources]),
         {
@@ -228,7 +284,9 @@ def named_route_policy(name: str, sources: list[dict[str, Any]], dest: dict[str,
             "metadata": {"name": name, "namespace": dest["ns"]},
             "spec": {
                 "targetRef": {"group": "policy.linkerd.io", "kind": "HTTPRoute", "name": name},
-                "requiredAuthenticationRefs": [{"group": "policy.linkerd.io", "kind": "MeshTLSAuthentication", "name": f"{name}-mtls"}],
+                "requiredAuthenticationRefs": [
+                    {"group": "policy.linkerd.io", "kind": "MeshTLSAuthentication", "name": f"{name}-mtls"}
+                ],
             },
         },
     ]
@@ -239,7 +297,12 @@ def http_route(name: str, dest: dict[str, Any], port: int, matches: list[dict[st
         "apiVersion": "policy.linkerd.io/v1beta3",
         "kind": "HTTPRoute",
         "metadata": {"name": name, "namespace": dest["ns"]},
-        "spec": {"parentRefs": [{"group": "policy.linkerd.io", "kind": "Server", "name": f"{dest['name']}-{port}"}], "rules": [{"matches": matches}]},
+        "spec": {
+            "parentRefs": [
+                {"group": "policy.linkerd.io", "kind": "Server", "name": f"{dest['name']}-{port}"}
+            ],
+            "rules": [{"matches": matches}],
+        },
     }
 
 
@@ -248,7 +311,9 @@ def catch_all_route(name: str, dest: dict[str, Any], port: int) -> list[dict[str
     return [http_route(name, dest, port, [{"path": {"type": "PathPrefix", "value": "/"}}])]
 
 
-def probe_routes(dest: dict[str, Any], port: int, paths: list[str], node_cidr: str, pod_cidr: str) -> list[dict[str, Any]]:
+def probe_routes(
+    dest: dict[str, Any], port: int, paths: list[str], node_cidr: str, pod_cidr: str
+) -> list[dict[str, Any]]:
     """En un `Server` con rutas, Linkerd deja de autorizar solo las sondas del kubelet."""
     name = f"{dest['name']}-probes"
     matches = [{"path": {"type": "Exact", "value": p}, "method": "GET"} for p in paths]
@@ -267,13 +332,17 @@ def probe_routes(dest: dict[str, Any], port: int, paths: list[str], node_cidr: s
             "metadata": {"name": name, "namespace": dest["ns"]},
             "spec": {
                 "targetRef": {"group": "policy.linkerd.io", "kind": "HTTPRoute", "name": name},
-                "requiredAuthenticationRefs": [{"group": "policy.linkerd.io", "kind": "NetworkAuthentication", "name": f"{name}-nodes"}],
+                "requiredAuthenticationRefs": [
+                    {"group": "policy.linkerd.io", "kind": "NetworkAuthentication", "name": f"{name}-nodes"}
+                ],
             },
         },
     ]
 
 
-def namespace_metrics_policy(flow: dict[str, Any], dest: dict[str, Any], sources: list[dict[str, Any]], port: int, pod_cidr: str) -> list[dict[str, Any]]:
+def namespace_metrics_policy(
+    flow: dict[str, Any], dest: dict[str, Any], sources: list[dict[str, Any]], port: int, pod_cidr: str
+) -> list[dict[str, Any]]:
     """Un `Server` para todo el namespace en el puerto de metricas: F60 no nombra a cada servicio."""
     named = {**dest, "name": "metrics"}
     return linkerd_policy(flow, named, sources, port, pod_cidr)
@@ -287,7 +356,9 @@ def merged(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if key not in seen:
             seen[key] = document
         elif document["kind"] == "MeshTLSAuthentication":
-            seen[key]["spec"]["identities"] = sorted({*seen[key]["spec"]["identities"], *document["spec"]["identities"]})
+            seen[key]["spec"]["identities"] = sorted(
+                {*seen[key]["spec"]["identities"], *document["spec"]["identities"]}
+            )
     return list(seen.values())
 
 
@@ -303,7 +374,9 @@ def authorization(name: str, ns: str, kind: str, auth: str, server: str | None =
     }
 
 
-def build(env: str, data: dict[str, Any], forbidden: dict[str, Any]) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
+def build(
+    env: str, data: dict[str, Any], forbidden: dict[str, Any]
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
     docs: dict[str, list[dict[str, Any]]] = defaultdict(list)
     meshed = set(data["meshed_namespaces"])
     for ns in [*data["meshed_namespaces"], *data["system_namespaces"]]:
@@ -311,12 +384,15 @@ def build(env: str, data: dict[str, Any], forbidden: dict[str, Any]) -> tuple[di
             continue
         docs[ns].extend(deny_all(ns))
         if ns in data["system_internal"]:
-            docs[ns].extend(system_policies(ns, data["system_internal"][ns]["webhooks"], data["api_server_cidr"][env]))
+            docs[ns].extend(
+                system_policies(ns, data["system_internal"][ns]["webhooks"], data["api_server_cidr"][env])
+            )
     allowed: list[dict[str, Any]] = []
     disabled = data["env_disabled"][env]
     for flow in data["flows"]:
         if not active(flow, env, disabled):
             continue
+        check_unmeshed_sources(flow, data)
         pairs = [(flow["from"], flow["to"])] + [([a], [b]) for a, b in flow.get("also", [])]
         for sources_raw, dests_raw in pairs:
             sources = [endpoint(s, data) for s in sources_raw]
@@ -327,13 +403,29 @@ def build(env: str, data: dict[str, Any], forbidden: dict[str, Any]) -> tuple[di
             port_rules = [{"protocol": "TCP", "port": p} for p in network_ports(flow, ports)]
             for dest in dests:
                 for src in sources:
-                    allowed.append({"flow": flow["id"], "from": src.get("name") or src.get("ns"), "to": dest.get("name") or dest.get("ns"), "ports": ports})
+                    allowed.append(
+                        {
+                            "flow": flow["id"],
+                            "from": src.get("name") or src.get("ns"),
+                            "to": dest.get("name") or dest.get("ns"),
+                            "ports": ports,
+                        }
+                    )
                     if src["kind"] != "external":
                         target = {"ipBlock": {"cidr": ANY_CIDR}} if dest["kind"] == "external" else peer(dest)
                         src_label = src.get("name") or src["ns"]
                         dest_label = dest.get("name") or dest.get("ns")
                         docs[src["ns"]].append(
-                            network_policy(f"allow-{flow['id'].lower()}-{src_label}-to-{dest_label}-egress"[:63].rstrip("-"), src["ns"], pod_selector(src), "egress", {"to": [target], "ports": port_rules}, flow["id"])
+                            network_policy(
+                                f"allow-{flow['id'].lower()}-{src_label}-to-{dest_label}-egress"[:63].rstrip(
+                                    "-"
+                                ),
+                                src["ns"],
+                                pod_selector(src),
+                                "egress",
+                                {"to": [target], "ports": port_rules},
+                                flow["id"],
+                            )
                         )
                 if dest["kind"] == "external":
                     continue
@@ -344,38 +436,81 @@ def build(env: str, data: dict[str, Any], forbidden: dict[str, Any]) -> tuple[di
                 if len(source_peers) == len(sources):
                     rule = {"from": source_peers, "ports": port_rules}
                 docs[dest["ns"]].append(
-                    network_policy(f"allow-{flow['id'].lower()}-to-{dest_label}-ingress"[:63].rstrip("-"), dest["ns"], pod_selector(dest), "ingress", rule, flow["id"])
+                    network_policy(
+                        f"allow-{flow['id'].lower()}-to-{dest_label}-ingress"[:63].rstrip("-"),
+                        dest["ns"],
+                        pod_selector(dest),
+                        "ingress",
+                        rule,
+                        flow["id"],
+                    )
                 )
                 if dest["kind"] == "ns" and dest["ns"] in meshed and internal:
                     for port in ports:
-                        docs[dest["ns"]].extend(namespace_metrics_policy(flow, dest, internal, port, data["pod_cidr"][env]))
+                        docs[dest["ns"]].extend(
+                            namespace_metrics_policy(flow, dest, internal, port, data["pod_cidr"][env])
+                        )
                 if dest["kind"] == "workload" and dest["ns"] in meshed and internal:
                     routed = data["http_routes"].get(dest["name"])
                     for port in ports:
                         if not routed:
-                            docs[dest["ns"]].extend(linkerd_policy(flow, dest, internal, port, data["pod_cidr"][env]))
+                            docs[dest["ns"]].extend(
+                                linkerd_policy(flow, dest, internal, port, data["pod_cidr"][env])
+                            )
                             continue
                         for route_name, route in routed.get("_routes", {}).items():
                             clients = [endpoint(s, data) for s in route["sources"]]
-                            docs[dest["ns"]].extend(named_route_policy(f"{dest['name']}-{route_name}", [c for c in clients if exists_in(c, env)], dest, port, route["matches"]))
-                        for source_name in [s for s in sources_raw if "_routes" not in routed and exists_in(endpoint(s, data), env)]:
+                            docs[dest["ns"]].extend(
+                                named_route_policy(
+                                    f"{dest['name']}-{route_name}",
+                                    [c for c in clients if exists_in(c, env)],
+                                    dest,
+                                    port,
+                                    route["matches"],
+                                )
+                            )
+                        for source_name in [
+                            s
+                            for s in sources_raw
+                            if "_routes" not in routed and exists_in(endpoint(s, data), env)
+                        ]:
                             source = endpoint(source_name, data)
-                            docs[dest["ns"]].extend(route_policy(source_name, source, dest, port, routed[source_name]))
+                            docs[dest["ns"]].extend(
+                                route_policy(source_name, source, dest, port, routed[source_name])
+                            )
                         if "_catch_all" in routed:
                             docs[dest["ns"]].extend(catch_all_route(routed["_catch_all"], dest, port))
                         if "_probes" in routed:
-                            docs[dest["ns"]].extend(probe_routes(dest, port, routed["_probes"], data["node_cidr"][env], data["pod_cidr"][env]))
+                            docs[dest["ns"]].extend(
+                                probe_routes(
+                                    dest,
+                                    port,
+                                    routed["_probes"],
+                                    data["node_cidr"][env],
+                                    data["pod_cidr"][env],
+                                )
+                            )
     for key, subject in sorted(data["k_egress"].items()):
         workload = data["workloads"][subject] if isinstance(subject, str) else subject
         docs[workload["ns"]].append(
             network_policy(
-                f"allow-k8s-api-{key.lower()}", workload["ns"], {"matchLabels": labels_of(workload)}, "egress",
-                {"to": [{"ipBlock": {"cidr": data["api_server_cidr"][env]}}], "ports": [{"protocol": "TCP", "port": 443}, {"protocol": "TCP", "port": 6443}]},
+                f"allow-k8s-api-{key.lower()}",
+                workload["ns"],
+                {"matchLabels": labels_of(workload)},
+                "egress",
+                {
+                    "to": [{"ipBlock": {"cidr": data["api_server_cidr"][env]}}],
+                    "ports": [{"protocol": "TCP", "port": 443}, {"protocol": "TCP", "port": 6443}],
+                },
                 key,
             )
         )
     blocked = [c for c in forbidden["forbidden"] if env in c.get("envs", ENVS)]
-    return {ns: merged(items) for ns, items in docs.items()}, {"env": env, "allowed": allowed, "blocked": blocked}
+    return {ns: merged(items) for ns, items in docs.items()}, {
+        "env": env,
+        "allowed": allowed,
+        "blocked": blocked,
+    }
 
 
 def write(out: Path, data: dict[str, Any], forbidden: dict[str, Any]) -> None:
@@ -386,7 +521,9 @@ def write(out: Path, data: dict[str, Any], forbidden: dict[str, Any]) -> None:
         for ns, items in sorted(docs.items()):
             text = "---\n".join(yaml.safe_dump(item, sort_keys=True) for item in items)
             (folder / f"{ns}.yaml").write_text(text, encoding="utf-8")
-        (folder / "connectivity-suite.yaml").write_text(yaml.safe_dump(suite, sort_keys=True), encoding="utf-8")
+        (folder / "connectivity-suite.yaml").write_text(
+            yaml.safe_dump(suite, sort_keys=True), encoding="utf-8"
+        )
 
 
 def main() -> int:
@@ -402,7 +539,11 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         fresh = Path(tmp) / "generated"
         write(fresh, data, forbidden)
-        old = {p.relative_to(target): p.read_bytes() for p in target.rglob("*") if p.is_file()} if target.exists() else {}
+        old = (
+            {p.relative_to(target): p.read_bytes() for p in target.rglob("*") if p.is_file()}
+            if target.exists()
+            else {}
+        )
         new = {p.relative_to(fresh): p.read_bytes() for p in fresh.rglob("*") if p.is_file()}
     if old != new:
         print("platform/network/generated difiere: corre generate.py")

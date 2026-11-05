@@ -143,7 +143,7 @@ workloads:
   kyverno-admission: { ns: kyverno, sa: kyverno-admission-controller, labels: { app.kubernetes.io/part-of: kyverno } }
   eso: { ns: external-secrets, sa: external-secrets, name: external-secrets }
   vault: { ns: vault, sa: vault, name: vault, envs: [kind] }
-  envoy-gateway: { ns: envoy-gateway-system, sa: envoy-gateway, name: envoy-gateway }
+  envoy-gateway: { ns: envoy-gateway-system, sa: envoy-gateway, labels: { control-plane: envoy-gateway, app.kubernetes.io/name: gateway-helm, app.kubernetes.io/instance: envoy-gateway } }
   argocd-repo-server: { ns: argocd, sa: argocd-repo-server, name: argocd-repo-server }
 flows:
   - { id: F01, from: [external:banco], to: [api-gateway], port: 443, target_port: 10443 }

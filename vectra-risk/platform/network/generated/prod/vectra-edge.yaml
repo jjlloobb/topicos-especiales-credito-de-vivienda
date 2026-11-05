@@ -1240,7 +1240,9 @@ spec:
           kubernetes.io/metadata.name: envoy-gateway-system
       podSelector:
         matchLabels:
-          app.kubernetes.io/name: envoy-gateway
+          app.kubernetes.io/instance: envoy-gateway
+          app.kubernetes.io/name: gateway-helm
+          control-plane: envoy-gateway
   podSelector:
     matchLabels:
       gateway.envoyproxy.io/owning-gateway-name: api-gateway

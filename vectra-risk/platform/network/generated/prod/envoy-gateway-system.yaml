@@ -247,7 +247,9 @@ spec:
       protocol: TCP
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: envoy-gateway
+      app.kubernetes.io/instance: envoy-gateway
+      app.kubernetes.io/name: gateway-helm
+      control-plane: envoy-gateway
   policyTypes:
   - Ingress
 ---
@@ -270,6 +272,8 @@ spec:
         cidr: 0.0.0.0/32
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: envoy-gateway
+      app.kubernetes.io/instance: envoy-gateway
+      app.kubernetes.io/name: gateway-helm
+      control-plane: envoy-gateway
   policyTypes:
   - Egress
