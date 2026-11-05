@@ -47,7 +47,7 @@ spec:
           kubernetes.io/metadata.name: vectra-edge
       podSelector:
         matchLabels:
-          app.kubernetes.io/name: api-gateway
+          gateway.envoyproxy.io/owning-gateway-name: api-gateway
     ports:
     - port: 3000
       protocol: TCP
@@ -1577,6 +1577,83 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   labels:
+    vectra.io/flow: F60
+  name: allow-f60-prometheus-to-api-gateway-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 19001
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          gateway.envoyproxy.io/owning-gateway-name: api-gateway
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-prometheus-to-rate-limit-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 19001
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: envoy-gateway-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/component: ratelimit
+          app.kubernetes.io/managed-by: envoy-gateway
+          app.kubernetes.io/name: envoy-ratelimit
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-prometheus-to-valkey-egress
+  namespace: vectra-observability
+spec:
+  egress:
+  - ports:
+    - port: 9121
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: valkey
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
     vectra.io/flow: F61
   name: allow-f61-to-opentelemetry-collector-ingress
   namespace: vectra-observability
@@ -1607,6 +1684,14 @@ spec:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: vectra-restore-drill
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: envoy-gateway-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/component: ratelimit
+          app.kubernetes.io/managed-by: envoy-gateway
+          app.kubernetes.io/name: envoy-ratelimit
     ports:
     - port: 4317
       protocol: TCP
@@ -1643,6 +1728,7 @@ spec:
   - '*.vectra-restore-drill.serviceaccount.identity.linkerd.cluster.local'
   - '*.vectra-serving.serviceaccount.identity.linkerd.cluster.local'
   - '*.vectra-staging.serviceaccount.identity.linkerd.cluster.local'
+  - envoy-ratelimit.envoy-gateway-system.serviceaccount.identity.linkerd.cluster.local
 ---
 apiVersion: policy.linkerd.io/v1alpha1
 kind: AuthorizationPolicy
@@ -1654,6 +1740,30 @@ spec:
   - group: policy.linkerd.io
     kind: MeshTLSAuthentication
     name: f61-opentelemetry-collector-4317-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: opentelemetry-collector-4317
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: f61-opentelemetry-collector-4317-operator-network
+  namespace: vectra-observability
+spec:
+  networks:
+  - cidr: 192.168.0.0/16
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f61-opentelemetry-collector-4317-operator
+  namespace: vectra-observability
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: NetworkAuthentication
+    name: f61-opentelemetry-collector-4317-operator-network
   targetRef:
     group: policy.linkerd.io
     kind: Server

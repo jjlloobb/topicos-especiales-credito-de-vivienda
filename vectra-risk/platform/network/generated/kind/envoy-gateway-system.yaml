@@ -91,6 +91,145 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   labels:
+    vectra.io/flow: F60
+  name: allow-f60-to-rate-limit-ingress
+  namespace: envoy-gateway-system
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - port: 19001
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: ratelimit
+      app.kubernetes.io/managed-by: envoy-gateway
+      app.kubernetes.io/name: envoy-ratelimit
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F61
+  name: allow-f61-rate-limit-to-opentelemetry-collector-egress
+  namespace: envoy-gateway-system
+spec:
+  egress:
+  - ports:
+    - port: 4317
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: opentelemetry-collector
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: ratelimit
+      app.kubernetes.io/managed-by: envoy-gateway
+      app.kubernetes.io/name: envoy-ratelimit
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F90
+  name: allow-f90-to-rate-limit-ingress
+  namespace: envoy-gateway-system
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          gateway.envoyproxy.io/owning-gateway-name: api-gateway
+    ports:
+    - port: 8081
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: ratelimit
+      app.kubernetes.io/managed-by: envoy-gateway
+      app.kubernetes.io/name: envoy-ratelimit
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F91
+  name: allow-f91-rate-limit-to-valkey-egress
+  namespace: envoy-gateway-system
+spec:
+  egress:
+  - ports:
+    - port: 26379
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: valkey
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: ratelimit
+      app.kubernetes.io/managed-by: envoy-gateway
+      app.kubernetes.io/name: envoy-ratelimit
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F91
+  name: allow-f91-rate-limit-to-sentinel-egress
+  namespace: envoy-gateway-system
+spec:
+  egress:
+  - ports:
+    - port: 26379
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: sentinel
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: ratelimit
+      app.kubernetes.io/managed-by: envoy-gateway
+      app.kubernetes.io/name: envoy-ratelimit
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
     vectra.io/flow: F95
   name: allow-f95-to-envoy-gateway-ingress
   namespace: envoy-gateway-system
@@ -102,7 +241,7 @@ spec:
           kubernetes.io/metadata.name: vectra-edge
       podSelector:
         matchLabels:
-          app.kubernetes.io/name: api-gateway
+          gateway.envoyproxy.io/owning-gateway-name: api-gateway
     ports:
     - port: 18000
       protocol: TCP

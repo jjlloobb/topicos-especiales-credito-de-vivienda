@@ -496,6 +496,21 @@ allowed:
   ports:
   - 9000
   to: keycloak
+- flow: F60
+  from: prometheus
+  ports:
+  - 19001
+  to: api-gateway
+- flow: F60
+  from: prometheus
+  ports:
+  - 19001
+  to: rate-limit
+- flow: F60
+  from: prometheus
+  ports:
+  - 9121
+  to: valkey
 - flow: F61
   from: vectra-app
   ports: &id014
@@ -523,6 +538,10 @@ allowed:
   to: opentelemetry-collector
 - flow: F61
   from: vectra-restore-drill
+  ports: *id014
+  to: opentelemetry-collector
+- flow: F61
+  from: rate-limit
   ports: *id014
   to: opentelemetry-collector
 - flow: F62
@@ -755,7 +774,7 @@ allowed:
 - flow: F90
   from: api-gateway
   ports:
-  - 8083
+  - 8081
   to: rate-limit
 - flow: F91
   from: rate-limit
@@ -772,6 +791,11 @@ allowed:
   ports:
   - 6379
   to: valkey
+- flow: F92
+  from: valkey
+  ports:
+  - 26379
+  to: sentinel
 - flow: F93
   from: sentinel
   ports: &id023

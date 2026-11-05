@@ -84,7 +84,7 @@ LINKERD_INBOUND_PORT = 4143
 
 def network_ports(flow: dict[str, Any], ports: list[int]) -> list[int]:
     """Los puertos que la NetworkPolicy debe abrir para que el flujo funcione a traves de la malla."""
-    if flow.get("unmeshed_source") or not LINKERD_OPAQUE_PORTS.intersection(ports):
+    if flow.get("unmeshed_source") is True or not LINKERD_OPAQUE_PORTS.intersection(ports):
         return ports
     return [*ports, LINKERD_INBOUND_PORT]
 
@@ -148,8 +148,20 @@ def server_of(dest: dict[str, Any], port: int, protocol: str | None = None) -> d
         "apiVersion": "policy.linkerd.io/v1beta3",
         "kind": "Server",
         "metadata": {"name": f"{dest['name']}-{port}", "namespace": dest["ns"]},
-        "spec": {"podSelector": pod_selector(dest), "port": port, "proxyProtocol": protocol or ("opaque" if port == 5432 else "unknown")},
+        "spec": {"podSelector": pod_selector(dest), "port": port, "proxyProtocol": protocol or ("opaque" if port in LINKERD_OPAQUE_PORTS else "unknown")},
     }
+
+
+def has_unmeshed_source(flow: dict[str, Any], sources: list[dict[str, Any]], port: int) -> bool:
+    """Un origen fuera de la malla no presenta identidad de Linkerd: se autoriza por red (`pod_cidr`) en el `Server` del puerto.
+
+    `unmeshed_source: true` vale para todos los origenes del flujo (F80, F91); una lista nombra los que estan fuera de la malla dentro
+    de un flujo que tambien tiene origenes mallados (F61). `unmeshed_ports` limita los puertos (F80 solo lo necesita en el 5432).
+    """
+    unmeshed = flow.get("unmeshed_source")
+    if not unmeshed or port not in flow.get("unmeshed_ports", [port]):
+        return False
+    return unmeshed is True or any(s.get("name") in unmeshed for s in sources)
 
 
 def linkerd_policy(flow: dict[str, Any], dest: dict[str, Any], sources: list[dict[str, Any]], port: int, pod_cidr: str) -> list[dict[str, Any]]:
@@ -162,7 +174,7 @@ def linkerd_policy(flow: dict[str, Any], dest: dict[str, Any], sources: list[dic
         auth_name = f"{name}-mtls"
         documents.append(mesh_authentication(auth_name, dest["ns"], identities))
         documents.append(authorization(name, dest["ns"], "MeshTLSAuthentication", auth_name, server=server_name))
-    if flow.get("unmeshed_source") and port == 5432:
+    if has_unmeshed_source(flow, sources, port):
         auth_name = f"{name}-operator-network"
         documents.append(
             {

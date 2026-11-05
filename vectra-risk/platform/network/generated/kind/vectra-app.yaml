@@ -47,7 +47,7 @@ spec:
           kubernetes.io/metadata.name: vectra-edge
       podSelector:
         matchLabels:
-          app.kubernetes.io/name: api-gateway
+          gateway.envoyproxy.io/owning-gateway-name: api-gateway
     ports:
     - port: 8080
       protocol: TCP
@@ -108,7 +108,7 @@ spec:
           kubernetes.io/metadata.name: vectra-edge
       podSelector:
         matchLabels:
-          app.kubernetes.io/name: api-gateway
+          gateway.envoyproxy.io/owning-gateway-name: api-gateway
     ports:
     - port: 8080
       protocol: TCP
@@ -169,7 +169,7 @@ spec:
           kubernetes.io/metadata.name: vectra-edge
       podSelector:
         matchLabels:
-          app.kubernetes.io/name: api-gateway
+          gateway.envoyproxy.io/owning-gateway-name: api-gateway
     ports:
     - port: 8080
       protocol: TCP

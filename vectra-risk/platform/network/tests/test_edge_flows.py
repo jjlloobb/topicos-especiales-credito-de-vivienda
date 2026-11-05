@@ -13,7 +13,7 @@ import pytest
 import test_ratelimit_deployment as ratelimit
 import valkey_design as design
 import yaml
-from generate import ENVS, LINKERD_INBOUND_PORT, LINKERD_OPAQUE_PORTS, build, labels_of, load
+from generate import ENVS, LINKERD_INBOUND_PORT, LINKERD_OPAQUE_PORTS, build, endpoint, exists_in, labels_of, load
 
 ROOT = Path(__file__).resolve().parents[3]
 DATA, FORBIDDEN = load()
@@ -143,19 +143,20 @@ def check_f90(env: str, data: dict[str, Any]) -> Check:
 def limiter_source(env: str, data: dict[str, Any], flow_id: str, dest: str, port: int, others: list[dict[str, Any]], expected_ports: set[int]) -> Check:
     docs = documents(env, data)
     target = data["workloads"][dest]
+    shown = target.get("name", dest)  # el generador nombra los documentos con `name` del trabajador si lo tiene (otel-collector: opentelemetry-collector)
     labels = ratelimit.ratelimit_labels()
     limiter = {"namespaceSelector": {"matchLabels": {NS_KEY: LIMITER_NS}}, "podSelector": {"matchLabels": labels}}
     found = pair(
-        docs, flow_id, "rate-limit", dest, LIMITER_NS, target["ns"], labels, labels_of(target), [*others, limiter],
+        docs, flow_id, "rate-limit", shown, LIMITER_NS, target["ns"], labels, labels_of(target), [*others, limiter],
         {"namespaceSelector": {"matchLabels": {NS_KEY: target["ns"]}}, "podSelector": {"matchLabels": labels_of(target)}}, expected_ports,
     )  # fmt: skip
-    _, errors = server(docs, target["ns"], dest, port, labels_of(target))
+    _, errors = server(docs, target["ns"], shown, port, labels_of(target))
     found += errors
-    for srv in named(docs, "Server", f"{dest}-{port}"):
+    for srv in named(docs, "Server", f"{shown}-{port}"):
         want = "opaque" if port in LINKERD_OPAQUE_PORTS else "unknown"
         if srv["spec"]["proxyProtocol"] != want:
-            found.append(f"Server {dest}-{port}: proxyProtocol {srv['spec']['proxyProtocol']} y se esperaba {want}")
-    found += network_authorization(docs, target["ns"], flow_id, dest, port, data["pod_cidr"][env])
+            found.append(f"Server {shown}-{port}: proxyProtocol {srv['spec']['proxyProtocol']} y se esperaba {want}")
+    found += network_authorization(docs, target["ns"], flow_id, shown, port, data["pod_cidr"][env])
     return found
 
 
@@ -170,7 +171,7 @@ def check_f91(env: str, data: dict[str, Any]) -> Check:
 
 def check_f61(env: str, data: dict[str, Any]) -> Check:
     """F61: los namespaces de la malla siguen como estaban; `envoy-ratelimit` suma su origen sin malla en el mismo destino."""
-    meshed = [peer_ns for item in data["flows"] if item["id"] == "F61" and item["to"] == ["otel-collector"] for peer_ns in item["from"] if peer_ns.startswith("ns:")]
+    meshed = [peer_ns for item in data["flows"] if item["id"] == "F61" and item["to"] == ["otel-collector"] for peer_ns in item["from"] if peer_ns.startswith("ns:") and exists_in(endpoint(peer_ns, data), env)]
     others = [{"namespaceSelector": {"matchLabels": {NS_KEY: n.removeprefix("ns:")}}} for n in meshed]
     return limiter_source(env, data, "F61", "otel-collector", trace_port(), others, {trace_port()})
 

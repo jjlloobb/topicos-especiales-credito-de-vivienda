@@ -318,8 +318,17 @@ spec:
             - { name: SENTINEL_QUORUM, value: "2" }
             - { name: DEFAULT_PRIMARY, value: "valkey-a-0.valkey-a.vectra-edge.svc.cluster.local" }
             - { name: REDISCLI_AUTH, valueFrom: { secretKeyRef: { name: valkey-acl, key: sentinel-lookup-password } } }
-          readinessProbe: { tcpSocket: { port: sentinel }, periodSeconds: 5, failureThreshold: 3 }
-          livenessProbe: { tcpSocket: { port: sentinel }, periodSeconds: 10, failureThreshold: 6 }
+          # T4 y T5: la sonda entra como `ratelimit` de Sentinel (`+ping`) con el `REDISCLI_AUTH` del pod y compara con PONG.
+          readinessProbe:
+            exec:
+              command: [sh, -c, '[ "$(valkey-cli --user ratelimit -p 26379 ping)" = PONG ]']
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: [sh, -c, '[ "$(valkey-cli --user ratelimit -p 26379 ping)" = PONG ]']
+            periodSeconds: 10
+            failureThreshold: 6
           securityContext:
             allowPrivilegeEscalation: false
             privileged: false
@@ -418,8 +427,17 @@ spec:
             - { name: SENTINEL_QUORUM, value: "2" }
             - { name: DEFAULT_PRIMARY, value: "valkey-a-0.valkey-a.vectra-edge.svc.cluster.local" }
             - { name: REDISCLI_AUTH, valueFrom: { secretKeyRef: { name: valkey-acl, key: sentinel-lookup-password } } }
-          readinessProbe: { tcpSocket: { port: sentinel }, periodSeconds: 5, failureThreshold: 3 }
-          livenessProbe: { tcpSocket: { port: sentinel }, periodSeconds: 10, failureThreshold: 6 }
+          # T4 y T5: la sonda entra como `ratelimit` de Sentinel (`+ping`) con el `REDISCLI_AUTH` del pod y compara con PONG.
+          readinessProbe:
+            exec:
+              command: [sh, -c, '[ "$(valkey-cli --user ratelimit -p 26379 ping)" = PONG ]']
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: [sh, -c, '[ "$(valkey-cli --user ratelimit -p 26379 ping)" = PONG ]']
+            periodSeconds: 10
+            failureThreshold: 6
           securityContext:
             allowPrivilegeEscalation: false
             privileged: false
@@ -518,8 +536,19 @@ spec:
             - { name: REPLICA_PRIORITY, value: "10" }
             - { name: INITIAL_PRIMARY, value: "" }
             - { name: REDISCLI_AUTH, valueFrom: { secretKeyRef: { name: valkey-acl, key: sentinel-lookup-password } } }
-          readinessProbe: { tcpSocket: { port: redis }, periodSeconds: 5, failureThreshold: 3 }
-          livenessProbe: { tcpSocket: { port: redis }, periodSeconds: 10, failureThreshold: 6 }
+            # T5: la sonda entra como `exporter` (el de menos privilegio con `+ping`); `REDISCLI_AUTH` es la de la consulta al arrancar.
+            - { name: VALKEY_PROBE_PASSWORD, valueFrom: { secretKeyRef: { name: valkey-acl, key: exporter-password } } }
+          # T4 y T5: detras del proxy de Linkerd un `tcpSocket` lo contesta el proxy y no Valkey, asi que la sonda pregunta y compara con PONG.
+          readinessProbe:
+            exec:
+              command: [sh, -c, '[ "$(REDISCLI_AUTH="$VALKEY_PROBE_PASSWORD" valkey-cli --user exporter -p 6379 ping)" = PONG ]']
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: [sh, -c, '[ "$(REDISCLI_AUTH="$VALKEY_PROBE_PASSWORD" valkey-cli --user exporter -p 6379 ping)" = PONG ]']
+            periodSeconds: 10
+            failureThreshold: 6
           securityContext:
             allowPrivilegeEscalation: false
             privileged: false
@@ -642,8 +671,19 @@ spec:
             - { name: REPLICA_PRIORITY, value: "100" }
             - { name: INITIAL_PRIMARY, value: "valkey-a-0.valkey-a.vectra-edge.svc.cluster.local" }
             - { name: REDISCLI_AUTH, valueFrom: { secretKeyRef: { name: valkey-acl, key: sentinel-lookup-password } } }
-          readinessProbe: { tcpSocket: { port: redis }, periodSeconds: 5, failureThreshold: 3 }
-          livenessProbe: { tcpSocket: { port: redis }, periodSeconds: 10, failureThreshold: 6 }
+            # T5: la sonda entra como `exporter` (el de menos privilegio con `+ping`); `REDISCLI_AUTH` es la de la consulta al arrancar.
+            - { name: VALKEY_PROBE_PASSWORD, valueFrom: { secretKeyRef: { name: valkey-acl, key: exporter-password } } }
+          # T4 y T5: detras del proxy de Linkerd un `tcpSocket` lo contesta el proxy y no Valkey, asi que la sonda pregunta y compara con PONG.
+          readinessProbe:
+            exec:
+              command: [sh, -c, '[ "$(REDISCLI_AUTH="$VALKEY_PROBE_PASSWORD" valkey-cli --user exporter -p 6379 ping)" = PONG ]']
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: [sh, -c, '[ "$(REDISCLI_AUTH="$VALKEY_PROBE_PASSWORD" valkey-cli --user exporter -p 6379 ping)" = PONG ]']
+            periodSeconds: 10
+            failureThreshold: 6
           securityContext:
             allowPrivilegeEscalation: false
             privileged: false
