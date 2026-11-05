@@ -1,0 +1,115 @@
+{{- /* R3: un StatefulSet de 1 replica por zona. `valkey-a` arranca como primaria, `valkey-b` como replica de ella. */ -}}
+{{- $root := . -}}
+{{- $primary := dict -}}
+{{- range $key := keys .Values.valkey.nodes | sortAlpha -}}
+{{- $node := get $root.Values.valkey.nodes $key -}}
+{{- if $node.primary -}}{{- $_ := set $primary "name" $node.name -}}{{- end -}}
+{{- end -}}
+{{- $valkeyImage := include "valkey.image" (dict "root" . "key" "valkey" "image" .Values.images.valkey) -}}
+{{- $exporterImage := include "valkey.image" (dict "root" . "key" "exporter" "image" .Values.images.exporter) -}}
+{{- $sentinelHosts := include "valkey.sentinelHosts" . -}}
+{{- range $key := keys .Values.valkey.nodes | sortAlpha }}
+{{- $node := get $root.Values.valkey.nodes $key }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $node.name }}
+  namespace: {{ $root.Values.namespace }}
+  labels:
+    {{- include "valkey.labels" (dict "name" "valkey" "instance" $node.name) | nindent 4 }}
+spec:
+  clusterIP: None
+  # Sentinel resuelve a los nodos por nombre aunque aun no esten listos.
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "valkey.labels" (dict "name" "valkey" "instance" $node.name) | nindent 4 }}
+  ports:
+    - { name: redis, port: {{ $root.Values.valkey.port }}, targetPort: redis }
+    - { name: metrics, port: {{ $root.Values.exporter.port }}, targetPort: metrics }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $node.name }}
+  namespace: {{ $root.Values.namespace }}
+  labels:
+    {{- include "valkey.labels" (dict "name" "valkey" "instance" $node.name) | nindent 4 }}
+    vectra.io/criticality: {{ $root.Values.criticality }}
+spec:
+  serviceName: {{ $node.name }}
+  replicas: 1
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      {{- include "valkey.labels" (dict "name" "valkey" "instance" $node.name) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "valkey.labels" (dict "name" "valkey" "instance" $node.name) | nindent 8 }}
+        vectra.io/criticality: {{ $root.Values.criticality }}
+    spec:
+      serviceAccountName: valkey
+      automountServiceAccountToken: false
+      priorityClassName: {{ $root.Values.priorityClassName }}
+      securityContext:
+        {{- include "valkey.podSecurityContext" $root | nindent 8 }}
+      {{- include "valkey.zoneAffinity" (dict "zone" $node.zone) | nindent 6 }}
+      containers:
+        - name: valkey
+          image: {{ $valkeyImage | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [sh, /scripts/start-valkey.sh]
+          ports:
+            - { name: redis, containerPort: {{ $root.Values.valkey.port }} }
+          env:
+            - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+            - { name: SELF_FQDN, value: "$(POD_NAME).{{ $node.name }}.{{ $root.Values.namespace }}.{{ $root.Values.domain }}" }
+            - { name: MASTER_NAME, value: {{ $root.Values.master | quote }} }
+            - { name: VALKEY_PORT, value: {{ $root.Values.valkey.port | quote }} }
+            - { name: SENTINEL_PORT, value: {{ $root.Values.sentinel.port | quote }} }
+            - { name: SENTINEL_HOSTS, value: {{ $sentinelHosts | quote }} }
+            - { name: REPLICA_PRIORITY, value: {{ $node.replicaPriority | quote }} }
+            - { name: INITIAL_PRIMARY, value: {{ if $node.primary }}""{{ else }}{{ include "valkey.fqdn" (dict "root" $root "name" $primary.name "index" 0) | quote }}{{ end }} }
+            - { name: REDISCLI_AUTH, valueFrom: { secretKeyRef: { name: valkey-acl, key: sentinel-lookup-password } } }
+          readinessProbe: { tcpSocket: { port: redis }, periodSeconds: 5, failureThreshold: 3 }
+          livenessProbe: { tcpSocket: { port: redis }, periodSeconds: 10, failureThreshold: 6 }
+          securityContext:
+            {{- include "valkey.containerSecurityContext" $root | nindent 12 }}
+          resources:
+            {{- toYaml $root.Values.valkey.resources | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/valkey, readOnly: true }
+            - { name: scripts, mountPath: /scripts, readOnly: true }
+            - { name: acl, mountPath: /etc/valkey-secret, readOnly: true }
+            - { name: data, mountPath: /data }
+        # El exportador entra a Valkey con el usuario `exporter` (R5); el scrape al 9121 es del Paso 10.
+        - name: exporter
+          image: {{ $exporterImage | quote }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: metrics, containerPort: {{ $root.Values.exporter.port }} }
+          env:
+            - { name: REDIS_ADDR, value: "redis://127.0.0.1:{{ $root.Values.valkey.port }}" }
+            - { name: REDIS_USER, value: exporter }
+            - { name: REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: valkey-acl, key: exporter-password } } }
+          securityContext:
+            {{- include "valkey.containerSecurityContext" $root | nindent 12 }}
+          resources:
+            {{- toYaml $root.Values.exporter.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap: { name: valkey-config, items: [{ key: valkey.conf, path: valkey.conf }] }
+        - name: scripts
+          configMap: { name: valkey-scripts }
+        # 288 = 0440: el archivo lo lee el grupo del pod (fsGroup).
+        - name: acl
+          secret:
+            secretName: valkey-acl
+            defaultMode: 288
+            items:
+              - { key: users.acl, path: users.acl }
+              - { key: valkey-secret.conf, path: valkey-secret.conf }
+        - name: data
+          emptyDir: {}
+---
+{{- end }}

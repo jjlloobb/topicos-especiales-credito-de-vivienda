@@ -162,6 +162,20 @@ def test_eso_rbac_without_wildcards():
                 assert "*" not in rule["verbs"] + rule["resources"], (name, doc["metadata"]["name"])
 
 
+@pytest.mark.parametrize("env", ["kind", "staging", "prod"])
+def test_k11_lets_eso_write_secrets_in_the_ratelimit_namespace_in_every_env(env):
+    """U02-T11 (R1): el `ExternalSecret` de `envoy-ratelimit` vive en `envoy-gateway-system`; K11 lo cubre igual que a los demas namespaces."""
+    include = yaml.safe_load((GITOPS / "apps" / env / "secret-store.yaml").read_text(encoding="utf-8"))["spec"]["source"]["directory"]["include"]
+    assert "eso-rbac-k11.yaml" in include, env
+    docs = docs_of(PLATFORM / "secrets/eso-rbac-k11.yaml")
+    reference = next(d for d in docs if d["kind"] == "Role" and d["metadata"]["namespace"] == "vectra-edge")
+    role = next(d for d in docs if d["kind"] == "Role" and d["metadata"]["namespace"] == "envoy-gateway-system")
+    assert role["metadata"]["name"] == reference["metadata"]["name"] and role["rules"] == reference["rules"]
+    binding = next(d for d in docs if d["kind"] == "RoleBinding" and d["metadata"]["namespace"] == "envoy-gateway-system")
+    assert binding["roleRef"] == {"apiGroup": "rbac.authorization.k8s.io", "kind": "Role", "name": role["metadata"]["name"]}
+    assert binding["subjects"] == [{"kind": "ServiceAccount", "name": "external-secrets", "namespace": "external-secrets"}]
+
+
 def test_eso_cluster_roles_do_not_touch_secrets():
     for doc in docs_of(PLATFORM / "secrets/eso-rbac-cluster.yaml"):
         if doc["kind"] == "ClusterRole":

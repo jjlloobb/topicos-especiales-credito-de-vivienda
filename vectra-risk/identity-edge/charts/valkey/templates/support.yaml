@@ -1,0 +1,84 @@
+{{- /* Cuentas de servicio sin token, PDB y el ExternalSecret de las ACL (R4, R5). */ -}}
+{{- $ns := .Values.namespace -}}
+{{- range $name := list "valkey" "sentinel" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "valkey.labels" (dict "name" $name "instance" $name) | nindent 4 }}
+automountServiceAccountToken: false
+---
+{{- end }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: valkey
+  namespace: {{ $ns }}
+  labels:
+    {{- include "valkey.labels" (dict "name" "valkey" "instance" "valkey") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.valkey.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sentinel
+  namespace: {{ $ns }}
+  labels:
+    {{- include "valkey.labels" (dict "name" "sentinel" "instance" "sentinel") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.sentinel.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sentinel
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: valkey-acl
+  namespace: {{ $ns }}
+  labels:
+    {{- include "valkey.labels" (dict "name" "valkey" "instance" "valkey-acl") | nindent 4 }}
+spec:
+  secretStoreRef: { name: {{ .Values.vault.store }}, kind: ClusterSecretStore }
+  target:
+    name: valkey-acl
+    template:
+      data:
+        # R5: Valkey. Sin `+role` para `sentinel`; con `&__sentinel__:hello` (acl-pubsub-default es resetchannels).
+        users.acl: |
+          user default off
+          user ratelimit on >{{ "{{ .ratelimit }}" }} ~* +@read +@write +@connection -@dangerous
+          user replication on >{{ "{{ .replication }}" }} +psync +replconf +ping
+          user sentinel on >{{ "{{ .sentinel }}" }} +auth +client|setname +client|kill +config|rewrite +exec +info +multi +ping +publish +script|kill +slaveof +subscribe &__sentinel__:hello
+          user exporter on >{{ "{{ .exporter }}" }} +info +ping +client|setname +config|get +slowlog|get +slowlog|len +latency|latest +latency|histogram +command|info +commandlog|len
+        valkey-secret.conf: |
+          masteruser replication
+          masterauth {{ "{{ .replication }}" }}
+        # R5: Sentinel. `ratelimit` es el usuario de `envoy-ratelimit` (radix: SENTINEL MASTER, SLAVES, SENTINELS y SUBSCRIBE switch-master);
+        # `sentinel-peer`, el de los Sentinel entre si (`sentinel sentinel-user` y `sentinel sentinel-pass`).
+        sentinel-users.conf: |
+          user default off
+          user ratelimit on >{{ "{{ .sentinelRatelimit }}" }} +auth +hello +ping +subscribe +sentinel|master +sentinel|slaves +sentinel|sentinels &switch-master
+          user sentinel-peer on >{{ "{{ .sentinelPeer }}" }} +auth +ping +publish +client|setname +sentinel|is-master-down-by-addr &__sentinel__:hello
+          sentinel sentinel-user sentinel-peer
+          sentinel sentinel-pass {{ "{{ .sentinelPeer }}" }}
+        # Hacia el master y las replicas: el usuario `sentinel` de Valkey.
+        sentinel-auth.conf: |
+          sentinel auth-user {{ .Values.master }} sentinel
+          sentinel auth-pass {{ .Values.master }} {{ "{{ .sentinel }}" }}
+        exporter-password: {{ "'{{ .exporter }}'" }}
+        # Los nodos y los Sentinel preguntan por la primaria con el usuario `ratelimit` de Sentinel.
+        sentinel-lookup-password: {{ "'{{ .sentinelRatelimit }}'" }}
+  data:
+    - { secretKey: ratelimit, remoteRef: { key: {{ .Values.vault.key }}, property: ratelimit } }
+    - { secretKey: replication, remoteRef: { key: {{ .Values.vault.key }}, property: replication } }
+    - { secretKey: sentinel, remoteRef: { key: {{ .Values.vault.key }}, property: sentinel } }
+    - { secretKey: sentinelPeer, remoteRef: { key: {{ .Values.vault.key }}, property: sentinel-peer } }
+    - { secretKey: exporter, remoteRef: { key: {{ .Values.vault.key }}, property: exporter } }
+    - { secretKey: sentinelRatelimit, remoteRef: { key: {{ .Values.vault.key }}, property: sentinel-ratelimit } }

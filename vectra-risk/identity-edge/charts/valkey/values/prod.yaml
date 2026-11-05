@@ -1,0 +1,10 @@
+# prod: registro del espejo (INF-U2-04) y zonas (R3). Las zonas son las etiquetas `topology.kubernetes.io/zone` de los nodos.
+registry: registro.banco.internal/vectra
+valkey:
+  nodes:
+    a: { zone: zone-a }
+    b: { zone: zone-b }
+sentinel:
+  groups:
+    a: { zone: zone-a }
+    b: { zone: zone-b }

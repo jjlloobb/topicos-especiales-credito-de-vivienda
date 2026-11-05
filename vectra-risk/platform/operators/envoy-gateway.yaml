@@ -1,6 +1,7 @@
 # INF-U2-02: el data plane corre en el namespace del Gateway (`vectra-edge`), no en `envoy-gateway-system`.
 # U02-T10 (Paso 8): 2 replicas con la eleccion de lider del chart (NFR-U2-03), `vectra-high` (logical-components §1),
-# recursos de INF-U2-06 y EnvoyPatchPolicy habilitada (P-U2-01, alternativa 2). Sin `rateLimit` (W1, INF-U2-03).
+# recursos de INF-U2-06 y EnvoyPatchPolicy habilitada (P-U2-01, alternativa 2).
+# U02-T11 (Paso 9): `envoy-ratelimit` (W1, R1, R2; INF-U2-03). Corre en `envoy-gateway-system` y usa Valkey por Sentinel.
 deployment:
   replicas: 2
   priorityClassName: vectra-high
@@ -10,6 +11,20 @@ deployment:
       limits: { cpu: 500m, memory: 256Mi }
 config:
   envoyGateway:
+    # R1: el backend es Valkey por Sentinel. `<master>,<sentinel-a-0>,<sentinel-b-0>,<sentinel-b-1>` (los Services headless de `vectra-edge`).
+    # `failClosed: false`: el cierre de `/auth/**` lo hace la EnvoyPatchPolicy de P-U2-01. El timeout es el de v1.9.3 (20 ms).
+    rateLimit:
+      backend:
+        type: Redis
+        redis:
+          url: ratelimit,sentinel-a-0.sentinel-a.vectra-edge.svc.cluster.local:26379,sentinel-b-0.sentinel-b.vectra-edge.svc.cluster.local:26379,sentinel-b-1.sentinel-b.vectra-edge.svc.cluster.local:26379
+      failClosed: false
+      telemetry:
+        tracing:
+          samplingRate: 100
+          provider:
+            type: OpenTelemetry
+            url: otel-collector.vectra-observability.svc:4317
     extensionApis:
       enableEnvoyPatchPolicy: true
     provider:
@@ -22,3 +37,61 @@ config:
         # `kind-registry:5000/vectra/envoy-gateway`: ese cambio entra con el `kind_values` de la integracion (candidata).
         shutdownManager:
           image: registro.banco.internal/vectra/envoy-gateway@sha256:192fc9bdadb6d2462e8cf7bd702ce3dd9648f3310c6038787448a1f509b7cd9f
+        # R2: Kyverno no alcanza `envoy-gateway-system`; la regla de conftest `identity-edge/ratelimit/policy` exige cada campo.
+        # Imagen de `global.images.ratelimit` de v1.9.3 (`ratelimit:5ae0682e`), espejada con el mismo digest; en kind, `envoy-gateway-kind.yaml`.
+        # Puertos (no se configuran, los fija v1.9.3): gRPC 8081, health 8080, metricas 19001, xDS 18001.
+        rateLimitDeployment:
+          replicas: 2
+          container:
+            image: registro.banco.internal/vectra/ratelimit@sha256:b95206e32b1a5f824fb06062fbb85bbdfb7f5de54135e92afe8462f22c979681
+            resources:
+              requests: { cpu: 100m, memory: 64Mi }
+              limits: { cpu: 500m, memory: 128Mi }
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: { drop: [ALL] }
+              privileged: false
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 65534
+              runAsGroup: 65534
+              seccompProfile: { type: RuntimeDefault }
+            # R1: `usuario:contrasena` (`splitAuth`) desde el Secret que ESO materializa en este namespace. `REDIS_SOCKET_TYPE=tcp` lo pone el controlador.
+            env:
+              - { name: REDIS_TYPE, value: SENTINEL }
+              - { name: REDIS_AUTH, valueFrom: { secretKeyRef: { name: envoy-ratelimit-valkey, key: REDIS_AUTH } } }
+              - { name: REDIS_SENTINEL_AUTH, valueFrom: { secretKeyRef: { name: envoy-ratelimit-valkey, key: REDIS_SENTINEL_AUTH } } }
+          pod:
+            priorityClassName: vectra-high
+            labels:
+              vectra.io/criticality: high
+            securityContext:
+              runAsNonRoot: true
+              seccompProfile: { type: RuntimeDefault }
+            # Selecciona los pods de `envoy-ratelimit`: `rateLimitLabels()` de v1.9.3.
+            topologySpreadConstraints:
+              - maxSkew: 1
+                topologyKey: topology.kubernetes.io/zone
+                whenUnsatisfiable: DoNotSchedule
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: envoy-ratelimit
+                    app.kubernetes.io/component: ratelimit
+                    app.kubernetes.io/managed-by: envoy-gateway
+          # `require-criticality-label` mira la etiqueta del Deployment; v1.9.3 solo le pone `rateLimitLabels()`.
+          patch:
+            type: StrategicMerge
+            value:
+              metadata:
+                labels:
+                  vectra.io/criticality: high
+        rateLimitHpa:
+          minReplicas: 2
+          maxReplicas: 4
+          metrics:
+            - type: Resource
+              resource:
+                name: cpu
+                target: { type: Utilization, averageUtilization: 70 }
+        rateLimitPDB:
+          minAvailable: 1

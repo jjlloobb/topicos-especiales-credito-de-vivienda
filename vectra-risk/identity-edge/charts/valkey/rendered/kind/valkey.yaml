@@ -1,0 +1,754 @@
+---
+# Source: valkey/templates/support.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: valkey
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: valkey
+    app.kubernetes.io/part-of: identity-edge
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+
+---
+# Source: valkey/templates/support.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sentinel
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: sentinel
+    app.kubernetes.io/instance: sentinel
+    app.kubernetes.io/part-of: identity-edge
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sentinel
+
+---
+# Source: valkey/templates/support.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: valkey
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: valkey
+    app.kubernetes.io/part-of: identity-edge
+automountServiceAccountToken: false
+
+---
+# Source: valkey/templates/support.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sentinel
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: sentinel
+    app.kubernetes.io/instance: sentinel
+    app.kubernetes.io/part-of: identity-edge
+automountServiceAccountToken: false
+
+---
+# Source: valkey/templates/configmaps.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: valkey-config
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: valkey
+    app.kubernetes.io/part-of: identity-edge
+data:
+  # Sin persistencia (INF-U2-04): ni RDB ni AOF. Los contadores tienen TTL; `maxmemory` con `volatile-ttl`.
+  valkey.conf: |
+    port 6379
+    bind 0.0.0.0
+    protected-mode no
+    dir /data
+    save ""
+    appendonly no
+    maxmemory 128mb
+    maxmemory-policy volatile-ttl
+    replica-read-only yes
+    aclfile /etc/valkey-secret/users.acl
+    include /etc/valkey-secret/valkey-secret.conf
+
+---
+# Source: valkey/templates/configmaps.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sentinel-config
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: sentinel
+    app.kubernetes.io/instance: sentinel
+    app.kubernetes.io/part-of: identity-edge
+data:
+  # Antes de `sentinel monitor`: lo que fija como se interpretan los nombres.
+  sentinel-head.conf: |
+    port 26379
+    dir /data
+    protected-mode no
+    sentinel resolve-hostnames yes
+    sentinel announce-hostnames yes
+  # Despues de `sentinel monitor`: opciones del master.
+  sentinel-master.conf: |
+    sentinel down-after-milliseconds ratelimit 5000
+    sentinel failover-timeout ratelimit 60000
+    sentinel parallel-syncs ratelimit 1
+
+---
+# Source: valkey/templates/configmaps.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: valkey-scripts
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: valkey-scripts
+    app.kubernetes.io/part-of: identity-edge
+data:
+  # Pregunta a los Sentinel por la primaria actual con el usuario `ratelimit` (REDISCLI_AUTH): `sentinel|master` devuelve `ip` y `port`.
+  lookup.sh: |
+    lookup_primary() {
+      for sentinel in $SENTINEL_HOSTS; do
+        [ "$sentinel" = "$SELF_FQDN" ] && continue
+        reply=$(valkey-cli --no-auth-warning --user ratelimit -h "$sentinel" -p "$SENTINEL_PORT" sentinel master "$MASTER_NAME" 2>/dev/null) || continue
+        host=$(printf '%s\n' "$reply" | awk 'p == "ip" { print; exit } { p = $0 }')
+        port=$(printf '%s\n' "$reply" | awk 'p == "port" { print; exit } { p = $0 }')
+        if [ -n "$host" ] && [ -n "$port" ]; then
+          echo "$host $port"
+          return 0
+        fi
+      done
+      return 1
+    }
+  # R3: al reiniciar, el nodo pregunta a Sentinel por la primaria antes de declararse replica. Sin respuesta: `valkey-a` primaria y
+  # `valkey-b` replica de ella (INITIAL_PRIMARY).
+  start-valkey.sh: |
+    set -eu
+    . /scripts/lookup.sh
+    target=$(lookup_primary || true)
+    if [ -z "$target" ] && [ -n "${INITIAL_PRIMARY:-}" ]; then
+      target="$INITIAL_PRIMARY $VALKEY_PORT"
+    fi
+    set -- valkey-server /etc/valkey/valkey.conf --replica-priority "$REPLICA_PRIORITY" --replica-announce-ip "$SELF_FQDN"
+    case "$target" in
+      "" | "$SELF_FQDN "*) ;;
+      *) set -- "$@" --replicaof $target ;;
+    esac
+    exec "$@"
+  # Sentinel reescribe su configuracion: se arma una copia en el `emptyDir` en cada arranque, con el master que dicen los demas Sentinel.
+  start-sentinel.sh: |
+    set -eu
+    . /scripts/lookup.sh
+    target=$(lookup_primary || true)
+    if [ -z "$target" ]; then
+      target="$DEFAULT_PRIMARY $VALKEY_PORT"
+    fi
+    {
+      cat /etc/sentinel/sentinel-head.conf /etc/sentinel-secret/sentinel-users.conf
+      echo "sentinel announce-ip $SELF_FQDN"
+      echo "sentinel monitor $MASTER_NAME $target $SENTINEL_QUORUM"
+      cat /etc/sentinel/sentinel-master.conf /etc/sentinel-secret/sentinel-auth.conf
+    } > /data/sentinel.conf
+    exec valkey-sentinel /data/sentinel.conf
+
+---
+# Source: valkey/templates/sentinel.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-a
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: sentinel
+    app.kubernetes.io/instance: sentinel-a
+    app.kubernetes.io/part-of: identity-edge
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: sentinel
+    app.kubernetes.io/instance: sentinel-a
+    app.kubernetes.io/part-of: identity-edge
+  ports:
+    - { name: sentinel, port: 26379, targetPort: sentinel }
+
+---
+# Source: valkey/templates/sentinel.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-b
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: sentinel
+    app.kubernetes.io/instance: sentinel-b
+    app.kubernetes.io/part-of: identity-edge
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: sentinel
+    app.kubernetes.io/instance: sentinel-b
+    app.kubernetes.io/part-of: identity-edge
+  ports:
+    - { name: sentinel, port: 26379, targetPort: sentinel }
+
+---
+# Source: valkey/templates/valkey.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: valkey-a
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: valkey-a
+    app.kubernetes.io/part-of: identity-edge
+spec:
+  clusterIP: None
+  # Sentinel resuelve a los nodos por nombre aunque aun no esten listos.
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: valkey-a
+    app.kubernetes.io/part-of: identity-edge
+  ports:
+    - { name: redis, port: 6379, targetPort: redis }
+    - { name: metrics, port: 9121, targetPort: metrics }
+
+---
+# Source: valkey/templates/valkey.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: valkey-b
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: valkey-b
+    app.kubernetes.io/part-of: identity-edge
+spec:
+  clusterIP: None
+  # Sentinel resuelve a los nodos por nombre aunque aun no esten listos.
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: valkey-b
+    app.kubernetes.io/part-of: identity-edge
+  ports:
+    - { name: redis, port: 6379, targetPort: redis }
+    - { name: metrics, port: 9121, targetPort: metrics }
+
+---
+# Source: valkey/templates/sentinel.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sentinel-a
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: sentinel
+    app.kubernetes.io/instance: sentinel-a
+    app.kubernetes.io/part-of: identity-edge
+    vectra.io/criticality: high
+spec:
+  serviceName: sentinel-a
+  replicas: 1
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sentinel
+      app.kubernetes.io/instance: sentinel-a
+      app.kubernetes.io/part-of: identity-edge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sentinel
+        app.kubernetes.io/instance: sentinel-a
+        app.kubernetes.io/part-of: identity-edge
+        vectra.io/criticality: high
+    spec:
+      serviceAccountName: sentinel
+      automountServiceAccountToken: false
+      priorityClassName: vectra-high
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile: { type: RuntimeDefault }
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values: ["zone-a"]
+      containers:
+        - name: sentinel
+          image: "kind-registry:5000/vectra/valkey@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a"
+          imagePullPolicy: IfNotPresent
+          command: [sh, /scripts/start-sentinel.sh]
+          ports:
+            - { name: sentinel, containerPort: 26379 }
+          env:
+            - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+            - { name: SELF_FQDN, value: "$(POD_NAME).sentinel-a.vectra-edge.svc.cluster.local" }
+            - { name: MASTER_NAME, value: "ratelimit" }
+            - { name: VALKEY_PORT, value: "6379" }
+            - { name: SENTINEL_PORT, value: "26379" }
+            - { name: SENTINEL_HOSTS, value: "sentinel-a-0.sentinel-a.vectra-edge.svc.cluster.local sentinel-b-0.sentinel-b.vectra-edge.svc.cluster.local sentinel-b-1.sentinel-b.vectra-edge.svc.cluster.local" }
+            - { name: SENTINEL_QUORUM, value: "2" }
+            - { name: DEFAULT_PRIMARY, value: "valkey-a-0.valkey-a.vectra-edge.svc.cluster.local" }
+            - { name: REDISCLI_AUTH, valueFrom: { secretKeyRef: { name: valkey-acl, key: sentinel-lookup-password } } }
+          readinessProbe: { tcpSocket: { port: sentinel }, periodSeconds: 5, failureThreshold: 3 }
+          livenessProbe: { tcpSocket: { port: sentinel }, periodSeconds: 10, failureThreshold: 6 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 50m
+              memory: 32Mi
+          volumeMounts:
+            - { name: config, mountPath: /etc/sentinel, readOnly: true }
+            - { name: scripts, mountPath: /scripts, readOnly: true }
+            - { name: acl, mountPath: /etc/sentinel-secret, readOnly: true }
+            # Sentinel reescribe su configuracion: la copia de trabajo vive aqui (R3).
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: config
+          configMap: { name: sentinel-config }
+        - name: scripts
+          configMap: { name: valkey-scripts }
+        - name: acl
+          secret:
+            secretName: valkey-acl
+            defaultMode: 288
+            items:
+              - { key: sentinel-users.conf, path: sentinel-users.conf }
+              - { key: sentinel-auth.conf, path: sentinel-auth.conf }
+        - name: data
+          emptyDir: {}
+
+---
+# Source: valkey/templates/sentinel.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sentinel-b
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: sentinel
+    app.kubernetes.io/instance: sentinel-b
+    app.kubernetes.io/part-of: identity-edge
+    vectra.io/criticality: high
+spec:
+  serviceName: sentinel-b
+  replicas: 2
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sentinel
+      app.kubernetes.io/instance: sentinel-b
+      app.kubernetes.io/part-of: identity-edge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sentinel
+        app.kubernetes.io/instance: sentinel-b
+        app.kubernetes.io/part-of: identity-edge
+        vectra.io/criticality: high
+    spec:
+      serviceAccountName: sentinel
+      automountServiceAccountToken: false
+      priorityClassName: vectra-high
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile: { type: RuntimeDefault }
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values: ["zone-b"]
+      containers:
+        - name: sentinel
+          image: "kind-registry:5000/vectra/valkey@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a"
+          imagePullPolicy: IfNotPresent
+          command: [sh, /scripts/start-sentinel.sh]
+          ports:
+            - { name: sentinel, containerPort: 26379 }
+          env:
+            - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+            - { name: SELF_FQDN, value: "$(POD_NAME).sentinel-b.vectra-edge.svc.cluster.local" }
+            - { name: MASTER_NAME, value: "ratelimit" }
+            - { name: VALKEY_PORT, value: "6379" }
+            - { name: SENTINEL_PORT, value: "26379" }
+            - { name: SENTINEL_HOSTS, value: "sentinel-a-0.sentinel-a.vectra-edge.svc.cluster.local sentinel-b-0.sentinel-b.vectra-edge.svc.cluster.local sentinel-b-1.sentinel-b.vectra-edge.svc.cluster.local" }
+            - { name: SENTINEL_QUORUM, value: "2" }
+            - { name: DEFAULT_PRIMARY, value: "valkey-a-0.valkey-a.vectra-edge.svc.cluster.local" }
+            - { name: REDISCLI_AUTH, valueFrom: { secretKeyRef: { name: valkey-acl, key: sentinel-lookup-password } } }
+          readinessProbe: { tcpSocket: { port: sentinel }, periodSeconds: 5, failureThreshold: 3 }
+          livenessProbe: { tcpSocket: { port: sentinel }, periodSeconds: 10, failureThreshold: 6 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 50m
+              memory: 32Mi
+          volumeMounts:
+            - { name: config, mountPath: /etc/sentinel, readOnly: true }
+            - { name: scripts, mountPath: /scripts, readOnly: true }
+            - { name: acl, mountPath: /etc/sentinel-secret, readOnly: true }
+            # Sentinel reescribe su configuracion: la copia de trabajo vive aqui (R3).
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: config
+          configMap: { name: sentinel-config }
+        - name: scripts
+          configMap: { name: valkey-scripts }
+        - name: acl
+          secret:
+            secretName: valkey-acl
+            defaultMode: 288
+            items:
+              - { key: sentinel-users.conf, path: sentinel-users.conf }
+              - { key: sentinel-auth.conf, path: sentinel-auth.conf }
+        - name: data
+          emptyDir: {}
+
+---
+# Source: valkey/templates/valkey.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: valkey-a
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: valkey-a
+    app.kubernetes.io/part-of: identity-edge
+    vectra.io/criticality: high
+spec:
+  serviceName: valkey-a
+  replicas: 1
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+      app.kubernetes.io/instance: valkey-a
+      app.kubernetes.io/part-of: identity-edge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey
+        app.kubernetes.io/instance: valkey-a
+        app.kubernetes.io/part-of: identity-edge
+        vectra.io/criticality: high
+    spec:
+      serviceAccountName: valkey
+      automountServiceAccountToken: false
+      priorityClassName: vectra-high
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile: { type: RuntimeDefault }
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values: ["zone-a"]
+      containers:
+        - name: valkey
+          image: "kind-registry:5000/vectra/valkey@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a"
+          imagePullPolicy: IfNotPresent
+          command: [sh, /scripts/start-valkey.sh]
+          ports:
+            - { name: redis, containerPort: 6379 }
+          env:
+            - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+            - { name: SELF_FQDN, value: "$(POD_NAME).valkey-a.vectra-edge.svc.cluster.local" }
+            - { name: MASTER_NAME, value: "ratelimit" }
+            - { name: VALKEY_PORT, value: "6379" }
+            - { name: SENTINEL_PORT, value: "26379" }
+            - { name: SENTINEL_HOSTS, value: "sentinel-a-0.sentinel-a.vectra-edge.svc.cluster.local sentinel-b-0.sentinel-b.vectra-edge.svc.cluster.local sentinel-b-1.sentinel-b.vectra-edge.svc.cluster.local" }
+            - { name: REPLICA_PRIORITY, value: "10" }
+            - { name: INITIAL_PRIMARY, value: "" }
+            - { name: REDISCLI_AUTH, valueFrom: { secretKeyRef: { name: valkey-acl, key: sentinel-lookup-password } } }
+          readinessProbe: { tcpSocket: { port: redis }, periodSeconds: 5, failureThreshold: 3 }
+          livenessProbe: { tcpSocket: { port: redis }, periodSeconds: 10, failureThreshold: 6 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - { name: config, mountPath: /etc/valkey, readOnly: true }
+            - { name: scripts, mountPath: /scripts, readOnly: true }
+            - { name: acl, mountPath: /etc/valkey-secret, readOnly: true }
+            - { name: data, mountPath: /data }
+        # El exportador entra a Valkey con el usuario `exporter` (R5); el scrape al 9121 es del Paso 10.
+        - name: exporter
+          image: "kind-registry:5000/vectra/redis-exporter@sha256:19bb5c732f5812d5b60b2e0af3c6d82c5b3e418cd020068d65f588a56df4a118"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: metrics, containerPort: 9121 }
+          env:
+            - { name: REDIS_ADDR, value: "redis://127.0.0.1:6379" }
+            - { name: REDIS_USER, value: exporter }
+            - { name: REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: valkey-acl, key: exporter-password } } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 50m
+              memory: 32Mi
+      volumes:
+        - name: config
+          configMap: { name: valkey-config, items: [{ key: valkey.conf, path: valkey.conf }] }
+        - name: scripts
+          configMap: { name: valkey-scripts }
+        # 288 = 0440: el archivo lo lee el grupo del pod (fsGroup).
+        - name: acl
+          secret:
+            secretName: valkey-acl
+            defaultMode: 288
+            items:
+              - { key: users.acl, path: users.acl }
+              - { key: valkey-secret.conf, path: valkey-secret.conf }
+        - name: data
+          emptyDir: {}
+
+---
+# Source: valkey/templates/valkey.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: valkey-b
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: valkey-b
+    app.kubernetes.io/part-of: identity-edge
+    vectra.io/criticality: high
+spec:
+  serviceName: valkey-b
+  replicas: 1
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+      app.kubernetes.io/instance: valkey-b
+      app.kubernetes.io/part-of: identity-edge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey
+        app.kubernetes.io/instance: valkey-b
+        app.kubernetes.io/part-of: identity-edge
+        vectra.io/criticality: high
+    spec:
+      serviceAccountName: valkey
+      automountServiceAccountToken: false
+      priorityClassName: vectra-high
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile: { type: RuntimeDefault }
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values: ["zone-b"]
+      containers:
+        - name: valkey
+          image: "kind-registry:5000/vectra/valkey@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a"
+          imagePullPolicy: IfNotPresent
+          command: [sh, /scripts/start-valkey.sh]
+          ports:
+            - { name: redis, containerPort: 6379 }
+          env:
+            - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+            - { name: SELF_FQDN, value: "$(POD_NAME).valkey-b.vectra-edge.svc.cluster.local" }
+            - { name: MASTER_NAME, value: "ratelimit" }
+            - { name: VALKEY_PORT, value: "6379" }
+            - { name: SENTINEL_PORT, value: "26379" }
+            - { name: SENTINEL_HOSTS, value: "sentinel-a-0.sentinel-a.vectra-edge.svc.cluster.local sentinel-b-0.sentinel-b.vectra-edge.svc.cluster.local sentinel-b-1.sentinel-b.vectra-edge.svc.cluster.local" }
+            - { name: REPLICA_PRIORITY, value: "100" }
+            - { name: INITIAL_PRIMARY, value: "valkey-a-0.valkey-a.vectra-edge.svc.cluster.local" }
+            - { name: REDISCLI_AUTH, valueFrom: { secretKeyRef: { name: valkey-acl, key: sentinel-lookup-password } } }
+          readinessProbe: { tcpSocket: { port: redis }, periodSeconds: 5, failureThreshold: 3 }
+          livenessProbe: { tcpSocket: { port: redis }, periodSeconds: 10, failureThreshold: 6 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - { name: config, mountPath: /etc/valkey, readOnly: true }
+            - { name: scripts, mountPath: /scripts, readOnly: true }
+            - { name: acl, mountPath: /etc/valkey-secret, readOnly: true }
+            - { name: data, mountPath: /data }
+        # El exportador entra a Valkey con el usuario `exporter` (R5); el scrape al 9121 es del Paso 10.
+        - name: exporter
+          image: "kind-registry:5000/vectra/redis-exporter@sha256:19bb5c732f5812d5b60b2e0af3c6d82c5b3e418cd020068d65f588a56df4a118"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: metrics, containerPort: 9121 }
+          env:
+            - { name: REDIS_ADDR, value: "redis://127.0.0.1:6379" }
+            - { name: REDIS_USER, value: exporter }
+            - { name: REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: valkey-acl, key: exporter-password } } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 50m
+              memory: 32Mi
+      volumes:
+        - name: config
+          configMap: { name: valkey-config, items: [{ key: valkey.conf, path: valkey.conf }] }
+        - name: scripts
+          configMap: { name: valkey-scripts }
+        # 288 = 0440: el archivo lo lee el grupo del pod (fsGroup).
+        - name: acl
+          secret:
+            secretName: valkey-acl
+            defaultMode: 288
+            items:
+              - { key: users.acl, path: users.acl }
+              - { key: valkey-secret.conf, path: valkey-secret.conf }
+        - name: data
+          emptyDir: {}
+
+---
+# Source: valkey/templates/support.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: valkey-acl
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: valkey-acl
+    app.kubernetes.io/part-of: identity-edge
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: valkey-acl
+    template:
+      data:
+        # R5: Valkey. Sin `+role` para `sentinel`; con `&__sentinel__:hello` (acl-pubsub-default es resetchannels).
+        users.acl: |
+          user default off
+          user ratelimit on >{{ .ratelimit }} ~* +@read +@write +@connection -@dangerous
+          user replication on >{{ .replication }} +psync +replconf +ping
+          user sentinel on >{{ .sentinel }} +auth +client|setname +client|kill +config|rewrite +exec +info +multi +ping +publish +script|kill +slaveof +subscribe &__sentinel__:hello
+          user exporter on >{{ .exporter }} +info +ping +client|setname +config|get +slowlog|get +slowlog|len +latency|latest +latency|histogram +command|info +commandlog|len
+        valkey-secret.conf: |
+          masteruser replication
+          masterauth {{ .replication }}
+        # R5: Sentinel. `ratelimit` es el usuario de `envoy-ratelimit` (radix: SENTINEL MASTER, SLAVES, SENTINELS y SUBSCRIBE switch-master);
+        # `sentinel-peer`, el de los Sentinel entre si (`sentinel sentinel-user` y `sentinel sentinel-pass`).
+        sentinel-users.conf: |
+          user default off
+          user ratelimit on >{{ .sentinelRatelimit }} +auth +hello +ping +subscribe +sentinel|master +sentinel|slaves +sentinel|sentinels &switch-master
+          user sentinel-peer on >{{ .sentinelPeer }} +auth +ping +publish +client|setname +sentinel|is-master-down-by-addr &__sentinel__:hello
+          sentinel sentinel-user sentinel-peer
+          sentinel sentinel-pass {{ .sentinelPeer }}
+        # Hacia el master y las replicas: el usuario `sentinel` de Valkey.
+        sentinel-auth.conf: |
+          sentinel auth-user ratelimit sentinel
+          sentinel auth-pass ratelimit {{ .sentinel }}
+        exporter-password: '{{ .exporter }}'
+        # Los nodos y los Sentinel preguntan por la primaria con el usuario `ratelimit` de Sentinel.
+        sentinel-lookup-password: '{{ .sentinelRatelimit }}'
+  data:
+    - { secretKey: ratelimit, remoteRef: { key: edge/valkey, property: ratelimit } }
+    - { secretKey: replication, remoteRef: { key: edge/valkey, property: replication } }
+    - { secretKey: sentinel, remoteRef: { key: edge/valkey, property: sentinel } }
+    - { secretKey: sentinelPeer, remoteRef: { key: edge/valkey, property: sentinel-peer } }
+    - { secretKey: exporter, remoteRef: { key: edge/valkey, property: exporter } }
+    - { secretKey: sentinelRatelimit, remoteRef: { key: edge/valkey, property: sentinel-ratelimit } }
