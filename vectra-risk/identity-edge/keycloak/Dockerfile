@@ -9,7 +9,6 @@ RUN /opt/keycloak/bin/kc.sh build \
     --health-enabled=true \
     --metrics-enabled=true \
     --event-metrics-user-enabled=true \
-    --event-metrics-user-tags=realm,clientId \
     --cache=ispn \
     --http-relative-path=/auth
 

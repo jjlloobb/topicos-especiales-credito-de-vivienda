@@ -136,6 +136,10 @@ extraEnv: |
     value: /etc/x509/https/tls.key
   - name: JAVA_OPTS_APPEND
     value: -XX:MaxRAMPercentage=70
+  # B10 de P-U2-09: `event-metrics-user-tags` es de ejecucion (`kc.sh build` la ignora), por eso va aqui y no en la imagen.
+  # Sin `clientId` la metrica `keycloak_user_events_total` no lleva `client_id` y `BreakGlassLogin` no dispara.
+  - name: KC_EVENT_METRICS_USER_TAGS
+    value: realm,clientId
 
 # Con root de solo lectura (require-ro-rootfs), Keycloak escribe en /tmp y en /opt/keycloak/data.
 extraVolumes: |

@@ -36,6 +36,8 @@ fixed_env := {
 	"KC_HTTPS_CERTIFICATE_FILE": "/etc/x509/https/tls.crt",
 	"KC_HTTPS_CERTIFICATE_KEY_FILE": "/etc/x509/https/tls.key",
 	"JAVA_OPTS_APPEND": "-XX:MaxRAMPercentage=70",
+	# B10 de P-U2-09: etiquetas de `keycloak_user_events_total`; sin `clientId` no hay `client_id` y `BreakGlassLogin` no dispara.
+	"KC_EVENT_METRICS_USER_TAGS": "realm,clientId",
 }
 
 secret_env := {

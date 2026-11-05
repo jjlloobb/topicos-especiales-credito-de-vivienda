@@ -206,6 +206,16 @@ def find(docs: list[dict[str, Any]], kind: str, name: str) -> dict[str, Any]:
     return found
 
 
+def event_tags_problems(docs: list[dict[str, Any]], name: str, value: str) -> list[str]:
+    """B10 corregido: el contenedor de Keycloak lleva `name=value` (con `clientId`) en su entorno de arranque."""
+    env = container_env(docs).get(name)
+    if env is None:
+        return [f"falta la variable {name}"]
+    if env.get("value") != value:
+        return [f"{name} debe ser {value!r}: {env.get('value')!r}"]
+    return []
+
+
 def container_env(docs: list[dict[str, Any]]) -> dict[str, Any]:
     return {e["name"]: e for e in statefulset(docs)["spec"]["template"]["spec"]["containers"][0]["env"]}
 

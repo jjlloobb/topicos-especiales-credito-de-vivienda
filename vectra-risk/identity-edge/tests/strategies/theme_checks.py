@@ -104,10 +104,17 @@ def design_build_options() -> list[str]:
 
 
 def design_event_metric_options() -> list[str]:
-    """B10 de P-U2-09: las dos opciones que activan `keycloak_user_events_total` con `client_id`, en la forma de la linea de comandos."""
-    m = re.search(r"`(event-metrics-user-enabled=true)`, con `(event-metrics-user-tags=[\w,]+)`", NFR_PATTERNS)
-    assert m, "P-U2-09 (B10) no fija las opciones de las metricas de eventos de usuario"
-    return [f"--{m.group(1)}", f"--{m.group(2)}"]
+    """B10 corregido: la unica opcion de las metricas de eventos de usuario que va en `kc.sh build` (la de build)."""
+    m = re.search(r"`--(event-metrics-user-enabled=true)` va en el `kc\.sh build`", NFR_PATTERNS)
+    assert m, "P-U2-09 (B10) no fija la opcion de build de las metricas de eventos de usuario"
+    return [f"--{m.group(1)}"]
+
+
+def design_event_metric_env() -> tuple[str, str]:
+    """B10 corregido: la variable de arranque con las etiquetas de `keycloak_user_events_total` (de ejecucion, no de build)."""
+    m = re.search(r"`(KC_EVENT_METRICS_USER_TAGS)=([\w,]+)` va en el `extraEnv`", NFR_PATTERNS)
+    assert m, "P-U2-09 (B10) no fija la variable KC_EVENT_METRICS_USER_TAGS"
+    return m.group(1), m.group(2)
 
 
 def design_start_args() -> list[str]:

@@ -363,12 +363,15 @@ def test_the_pushgateway_is_reachable_by_prometheus():
     assert 9091 in prometheus_ports("pushgateway", "F88")
 
 
-def test_the_event_metric_options_are_in_the_image():
-    """B10: sin `event-metrics-user-enabled` no existe `keycloak_user_events_total`; sin `clientId` no existe `client_id`."""
+def test_the_event_metric_options_are_in_the_image_and_in_the_start_env():
+    """B10 corregido: `event-metrics-user-enabled` (build) activa `keycloak_user_events_total`; `KC_EVENT_METRICS_USER_TAGS` con `clientId` (arranque) da `client_id`."""
     text = (EDGE / "keycloak" / "Dockerfile").read_text(encoding="utf-8")
     options = tc.design_event_metric_options()
-    assert options == ["--event-metrics-user-enabled=true", "--event-metrics-user-tags=realm,clientId"]
+    assert options == ["--event-metrics-user-enabled=true"]
     assert all(option in text for option in options)
+    assert "event-metrics-user-tags" not in text
+    name, value = tc.design_event_metric_env()
+    assert (name, value) == ("KC_EVENT_METRICS_USER_TAGS", "realm,clientId")
 
 
 def source_mutations() -> dict[str, Any]:

@@ -20,7 +20,6 @@ def test_design_values_are_read_from_infrastructure_design():
         "--cache=ispn",
         "--db=postgres",
         "--event-metrics-user-enabled=true",
-        "--event-metrics-user-tags=realm,clientId",
         "--health-enabled=true",
         "--http-relative-path=/auth",
         "--metrics-enabled=true",
@@ -59,14 +58,16 @@ def test_missing_build_option_is_detected(option):
 
 
 def test_event_metric_options_come_from_b10():
-    """B10: la opcion de build activa `keycloak_user_events_total` y las etiquetas incluyen `clientId` (sin el no hay `client_id`)."""
-    assert tc.design_event_metric_options() == ["--event-metrics-user-enabled=true", "--event-metrics-user-tags=realm,clientId"]
+    """B10 corregido: solo la opcion de build va en `kc.sh build`; las etiquetas son de ejecucion y van en `extraEnv`."""
+    assert tc.design_event_metric_options() == ["--event-metrics-user-enabled=true"]
     assert all(option in TEXT for option in tc.design_event_metric_options())
 
 
-@pytest.mark.parametrize("tags", ["realm", "clientId", "realm,idp", "realm,clientid", "realm,idp,clientId"])
-def test_event_metric_tags_without_exactly_realm_and_clientid_are_detected(tags):
-    assert problems(TEXT.replace("--event-metrics-user-tags=realm,clientId", f"--event-metrics-user-tags={tags}"))
+@pytest.mark.parametrize("tags", ["realm,clientId", "realm", "clientId"])
+def test_event_metric_tags_in_the_build_are_detected(tags):
+    """`kc.sh build` ignora las opciones de ejecucion: si vuelven a aparecer ahi, es un defecto."""
+    assert not any("event-metrics-user-tags" in line for line in TEXT.splitlines())
+    assert problems(TEXT.replace("    --cache=ispn", f"    --event-metrics-user-tags={tags} \\\n    --cache=ispn"))
 
 
 def test_missing_event_metrics_enabled_is_detected():
