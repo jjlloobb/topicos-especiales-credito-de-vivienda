@@ -105,6 +105,29 @@ def selects(selector: dict[str, str], labels: dict[str, str]) -> bool:
     return all(labels.get(k) == v for k, v in selector.items())
 
 
+PROBE_KINDS = ("readinessProbe", "livenessProbe")
+
+
+def probe_problems(name: str, container: dict[str, Any], kind: str, text: str = INFRASTRUCTURE) -> list[str]:
+    """T4 y T5: las sondas del contenedor son el `exec` que el diseno fija (comando, usuario, puerto y origen de la contrasena)."""
+    want = design.probes(text)[kind]
+    found = []
+    port = container["ports"][0]["containerPort"]
+    if port != want["port"]:
+        found.append(f"{name}: el puerto del contenedor {kind} no es el de la sonda del diseno")
+    for probe in PROBE_KINDS:
+        got = container.get(probe, {})
+        if "tcpSocket" in got:
+            found.append(f"{name}: {probe} de {kind} es tcpSocket y la contesta el proxy de Linkerd")
+        elif got.get("exec", {}).get("command") != want["command"]:
+            found.append(f"{name}: {probe} de {kind} difiere del comando del diseno")
+    if kind == "valkey":
+        entry = env_of(container).get(want["env"], {})
+        if entry.get("valueFrom", {}).get("secretKeyRef") != want["secret"]:
+            found.append(f"{name}: {want['env']} no sale de {want['secret']['name']}/{want['secret']['key']}")
+    return found
+
+
 def problems(docs: Docs, env: str, text: str = INFRASTRUCTURE) -> list[str]:
     """Diferencias entre lo renderizado y el diseno. Vacio si coinciden."""
     found: list[str] = []
@@ -131,6 +154,7 @@ def problems(docs: Docs, env: str, text: str = INFRASTRUCTURE) -> list[str]:
         if by_name["exporter"]["resources"] != design.resources("Exportador", text):
             found.append(f"{name}: recursos del exportador")
         valkey_env = env_of(by_name["valkey"])
+        found += probe_problems(name, by_name["valkey"], "valkey", text)
         if valkey_env["REPLICA_PRIORITY"]["value"] != str(priority):
             found.append(f"{name}: replica-priority")
         if valkey_env["MASTER_NAME"]["value"] != master:
@@ -154,6 +178,7 @@ def problems(docs: Docs, env: str, text: str = INFRASTRUCTURE) -> list[str]:
         if sentinel["resources"] != design.resources("Sentinel (cada", text):
             found.append(f"{name}: recursos")
         sentinel_env = env_of(sentinel)
+        found += probe_problems(name, sentinel, "sentinel", text)
         if sentinel_env["SENTINEL_QUORUM"]["value"] != str(design.quorum(text)):
             found.append(f"{name}: quorum")
         if sentinel_env["MASTER_NAME"]["value"] != master:
@@ -346,6 +371,10 @@ DESIGN_CHANGES = [
     *[(f"tiempo de Sentinel {n}", lambda n=n: changed(f"`{design.sentinel_timings()[n]}`", f"`{design.sentinel_timings()[n]}0`")) for n in range(3)],
     ("nombre del master", lambda: changed("el master se llama `ratelimit`", "el master se llama `primary`")),
     ("propiedad de Vault", lambda: changed("`sentinel-peer`, `exporter` y `sentinel-ratelimit`", "`sentinel-peer`, `exporter`, `extra` y `sentinel-ratelimit`")),
+    ("usuario de la sonda de Valkey", lambda: changed("valkey-cli --user exporter -p 6379 ping", "valkey-cli --user replication -p 6379 ping")),
+    ("puerto de la sonda de Sentinel", lambda: changed("valkey-cli --user ratelimit -p 26379 ping", "valkey-cli --user ratelimit -p 26380 ping")),
+    ("clave del Secret de la sonda", lambda: changed("a la clave `exporter-password` del Secret `valkey-acl`, que ya existe", "a la clave `sentinel-lookup-password` del Secret `valkey-acl`, que ya existe")),
+    ("variable de la contrasena de la sonda", lambda: changed("`VALKEY_PROBE_PASSWORD`", "`OTRA_PASSWORD`")),
     ("recursos de Valkey", lambda: changed("| Valkey (cada nodo) | 100m / 128 MiB |", "| Valkey (cada nodo) | 200m / 128 MiB |")),
 ]
 
@@ -480,6 +509,78 @@ TEMPLATE = ["spec", "target", "template", "data"]
 SENTINEL_USERS_LINE = design.sentinel_acl()[0][2]
 VALKEY_CONF = ["data", "valkey.conf"]
 
+# --- sondas de Valkey y Sentinel (T4 y T5) ---------------------------------------------------------------------------
+
+
+def _shell_words(script: str) -> list[str]:
+    return script.replace("(", " ").replace(")", " ").replace('"', " ").split()
+
+
+@pytest.mark.parametrize("kind", ["valkey", "sentinel"])
+def test_the_probe_of_the_design_is_complete_and_consistent(kind: str) -> None:
+    """El comando del diseno es `sh -c`, lleva `--user` y `-p` del usuario y el puerto que el diseno declara, y compara con PONG."""
+    want = design.probes()[kind]
+    shell, flag, script = want["command"]
+    assert (shell, flag) == ("sh", "-c")
+    words = _shell_words(script)
+    assert words[words.index("--user") + 1] == want["user"]
+    assert int(words[words.index("-p") + 1]) == want["port"]
+    assert script.endswith("= PONG ]") and "valkey-cli" in words and "ping" in words
+    assert "-a" not in words and not any(w.startswith("--pass") for w in words)
+
+
+@pytest.mark.parametrize("kind", ["valkey", "sentinel"])
+@pytest.mark.parametrize("env", ENVS)
+def test_the_probes_are_exec_and_not_tcp(env: str, kind: str) -> None:
+    for name in design.replica_priorities() if kind == "valkey" else design.sentinel_layout():
+        container = containers(load(env), name)[kind]
+        for probe in PROBE_KINDS:
+            assert "tcpSocket" not in container[probe], (name, probe)
+            assert container[probe]["exec"]["command"] == design.probes()[kind]["command"], (name, probe)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_the_probe_password_of_valkey_comes_from_the_exporter_key_and_the_cli_variable_stays(env: str) -> None:
+    """T5: `VALKEY_PROBE_PASSWORD` sale de `exporter-password`; `REDISCLI_AUTH` del contenedor no cambia, porque lo usa la consulta al arrancar."""
+    for name in design.replica_priorities():
+        got = env_of(containers(load(env), name)["valkey"])
+        want = design.probes()["valkey"]
+        assert got[want["env"]]["valueFrom"]["secretKeyRef"] == want["secret"]
+        assert got["REDISCLI_AUTH"]["valueFrom"]["secretKeyRef"] == {"name": "valkey-acl", "key": "sentinel-lookup-password"}
+    for name in design.sentinel_layout():
+        assert env_of(containers(load(env), name)["sentinel"])["REDISCLI_AUTH"]["valueFrom"]["secretKeyRef"] == {"name": "valkey-acl", "key": "sentinel-lookup-password"}
+
+
+def _probe(sts: str, container: str, probe: str, handler: dict[str, Any]) -> Callable[[Docs], None]:
+    return _set("StatefulSet", sts, _container_path(sts, container, probe), {**handler, "periodSeconds": 5, "failureThreshold": 3})
+
+
+def _probe_script(sts: str, container: str, probe: str, script: str) -> Callable[[Docs], None]:
+    return _probe(sts, container, probe, {"exec": {"command": ["sh", "-c", script]}})
+
+
+PROBE_MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
+    ("tcpSocket de Valkey", "valkey-a", _probe("valkey-a", "valkey", "readinessProbe", {"tcpSocket": {"port": "redis"}})),
+    ("tcpSocket de Sentinel", "sentinel-b", _probe("sentinel-b", "sentinel", "livenessProbe", {"tcpSocket": {"port": "sentinel"}})),
+    ("sin --user en Valkey", "valkey-a", _probe_script("valkey-a", "valkey", "livenessProbe", '[ "$(REDISCLI_AUTH="$VALKEY_PROBE_PASSWORD" valkey-cli -p 6379 ping)" = PONG ]')),
+    ("sin --user en Sentinel", "sentinel-a", _probe_script("sentinel-a", "sentinel", "readinessProbe", '[ "$(valkey-cli -p 26379 ping)" = PONG ]')),
+    ("contrasena en la linea de comandos", "valkey-b", _probe_script("valkey-b", "valkey", "readinessProbe", '[ "$(valkey-cli --user exporter -a secreto -p 6379 ping)" = PONG ]')),
+    ("contrasena literal en REDISCLI_AUTH", "sentinel-a", _probe_script("sentinel-a", "sentinel", "livenessProbe", '[ "$(REDISCLI_AUTH=secreto valkey-cli --user ratelimit -p 26379 ping)" = PONG ]')),
+    ("solo el codigo de salida", "valkey-a", _probe_script("valkey-a", "valkey", "readinessProbe", 'REDISCLI_AUTH="$VALKEY_PROBE_PASSWORD" valkey-cli --user exporter -p 6379 ping')),
+    ("puerto de otro contenedor", "sentinel-a", _probe_script("sentinel-a", "sentinel", "readinessProbe", '[ "$(valkey-cli --user ratelimit -p 6379 ping)" = PONG ]')),
+    ("contrasena de otra clave", "valkey-a", _env_secret("valkey-a", "valkey", "VALKEY_PROBE_PASSWORD", "valkey-acl", "sentinel-lookup-password")),
+]
+
+
+@pytest.mark.parametrize(("case", "sts", "mutate"), PROBE_MUTATIONS, ids=[c for c, _, _ in PROBE_MUTATIONS])
+def test_the_oracle_and_the_probes_rule_see_an_altered_probe(case: str, sts: str, mutate: Callable[[Docs], None], prod: Docs) -> None:
+    docs = copy.deepcopy(prod)
+    mutate(docs)
+    assert problems(docs, "prod") != [], case
+    code, output = conftest(docs)
+    assert code != 0 and "probes: " in output, f"{case}\n{output}"
+
+
 MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
     ("namespace", "un Service en otro namespace", _set("Service", "valkey-a", ["metadata", "namespace"], "default")),
     ("images", "imagen de otro registro", _set("StatefulSet", "valkey-a", _container_path("valkey-a", "valkey", "image"), "docker.io/valkey/valkey@sha256:" + "0" * 64)),
@@ -516,6 +617,8 @@ MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
     ("exporter-sidecar", "la contrasena de otra clave", _env_secret("valkey-a", "exporter", "REDIS_PASSWORD", "valkey-acl", "sentinel-lookup-password")),
     ("no-plain-password", "masterauth en el ConfigMap", _text("ConfigMap", "valkey-config", VALKEY_CONF, "replica-read-only yes", "masterauth secreto")),
     ("no-plain-password", "contrasena como valor", _env_set("valkey-a", "exporter", "REDIS_PASSWORD", "secreto")),
+    ("no-plain-password", "contrasena de la sonda como valor", _env_set("valkey-a", "valkey", "VALKEY_PROBE_PASSWORD", "secreto")),
+    ("no-plain-password", "contrasena de la sonda de otro Secret", _env_secret("valkey-b", "valkey", "VALKEY_PROBE_PASSWORD", "otro", "exporter-password")),
     ("no-plain-password", "contrasena de otro Secret", _env_secret("sentinel-a", "sentinel", "REDISCLI_AUTH", "otro", "x")),
     ("resources", "CPU de Valkey ampliada", _set("StatefulSet", "valkey-a", _container_path("valkey-a", "valkey", "resources", "limits", "cpu"), "2")),
     ("resources", "Sentinel sin limits", _del("StatefulSet", "sentinel-a", _container_path("sentinel-a", "sentinel", "resources", "limits"))),
@@ -536,6 +639,7 @@ MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
     ("required-documents", "sin el PDB de Sentinel", _drop("PodDisruptionBudget", "sentinel")),
     ("zone-layout", "los dos nodos en la misma zona", _set("StatefulSet", "valkey-b", [*_pod("valkey-b"), "affinity", "nodeAffinity", "requiredDuringSchedulingIgnoredDuringExecution", "nodeSelectorTerms", 0, "matchExpressions", 0, "values"], [design.zones()[0]])),
     ("sentinel-total", "cuatro Sentinel", _set("StatefulSet", "sentinel-b", ["spec", "replicas"], 3)),
+    *[("probes", case, mutate) for case, _, mutate in PROBE_MUTATIONS],
     ("selectors", "el selector no selecciona el template", _set("StatefulSet", "valkey-a", ["spec", "selector", "matchLabels", "app.kubernetes.io/instance"], "otra")),
     ("selectors", "el Service no selecciona sus pods", _set("Service", "sentinel-b", ["spec", "selector", "app.kubernetes.io/instance"], "otra")),
     ("selectors", "el PDB no selecciona ningun pod", _set("PodDisruptionBudget", "valkey", ["spec", "selector", "matchLabels", "app.kubernetes.io/name"], "otra")),

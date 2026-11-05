@@ -50,6 +50,7 @@ def test_envoy_gateway_deploys_in_the_namespace_of_the_gateway():
 def test_u2_plan_sets_the_identity_flows_expects():
     flows = yaml.safe_load((ROOT / "platform/network/flows.yaml").read_text(encoding="utf-8"))
     gateway = flows["workloads"]["api-gateway"]
-    assert (gateway["sa"], gateway["name"]) == ("api-gateway", "api-gateway")
+    owning = "gateway.envoyproxy.io/owning-gateway-name"
+    assert (gateway["sa"], gateway["labels"]) == ("api-gateway", {owning: "api-gateway"})  # Z1: el data plane se selecciona por el Gateway que lo posee
     text = (PLANS / "identity-edge-code-generation-plan.md").read_text(encoding="utf-8")
-    assert "envoyServiceAccount.name: api-gateway" in text and "app.kubernetes.io/name: api-gateway" in text
+    assert "envoyServiceAccount.name: api-gateway" in text and f"{owning}: api-gateway" in text
