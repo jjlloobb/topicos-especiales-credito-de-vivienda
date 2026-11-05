@@ -16,7 +16,15 @@ def problems(text: str) -> list[str]:
 def test_design_values_are_read_from_infrastructure_design():
     assert IMAGE.startswith("quay.io/keycloak/keycloak:26.")
     assert DIGEST.startswith("sha256:") and len(DIGEST) == 71
-    assert sorted(OPTIONS) == ["--cache=ispn", "--db=postgres", "--health-enabled=true", "--http-relative-path=/auth", "--metrics-enabled=true"]
+    assert sorted(OPTIONS) == [
+        "--cache=ispn",
+        "--db=postgres",
+        "--event-metrics-user-enabled=true",
+        "--event-metrics-user-tags=realm,clientId",
+        "--health-enabled=true",
+        "--http-relative-path=/auth",
+        "--metrics-enabled=true",
+    ]
     assert START == ["start", "--optimized"]
 
 
@@ -48,6 +56,22 @@ def test_other_tag_is_detected():
 @pytest.mark.parametrize("option", OPTIONS)
 def test_missing_build_option_is_detected(option):
     assert any(p.startswith(f"kc.sh build debe llevar {option}") for p in problems(TEXT.replace(f"    {option}", "    --log-level=info")))
+
+
+def test_event_metric_options_come_from_b10():
+    """B10: la opcion de build activa `keycloak_user_events_total` y las etiquetas incluyen `clientId` (sin el no hay `client_id`)."""
+    assert tc.design_event_metric_options() == ["--event-metrics-user-enabled=true", "--event-metrics-user-tags=realm,clientId"]
+    assert all(option in TEXT for option in tc.design_event_metric_options())
+
+
+@pytest.mark.parametrize("tags", ["realm", "clientId", "realm,idp", "realm,clientid", "realm,idp,clientId"])
+def test_event_metric_tags_without_exactly_realm_and_clientid_are_detected(tags):
+    assert problems(TEXT.replace("--event-metrics-user-tags=realm,clientId", f"--event-metrics-user-tags={tags}"))
+
+
+def test_missing_event_metrics_enabled_is_detected():
+    assert problems(TEXT.replace("    --event-metrics-user-enabled=true \\\n", ""))
+    assert problems(TEXT.replace("--event-metrics-user-enabled=true", "--event-metrics-user-enabled=false"))
 
 
 def test_missing_optimized_is_detected():

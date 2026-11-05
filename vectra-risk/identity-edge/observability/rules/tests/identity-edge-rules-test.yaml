@@ -1,0 +1,442 @@
+rule_files:
+- ../identity-edge-rules.yaml
+evaluation_interval: 1m
+tests:
+# KeycloakDown (1m)
+- interval: 1m
+  input_series:
+  - series: 'kube_statefulset_status_replicas_ready{namespace="vectra-identity",statefulset="keycloak"}'
+    values: '0x6'
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: KeycloakDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        namespace: vectra-identity
+        statefulset: keycloak
+      exp_annotations:
+        summary: KeycloakDown
+        runbook_url: identity-edge/runbooks/keycloak-down.md
+- interval: 1m
+  input_series:
+  - series: 'kube_statefulset_status_replicas_ready{namespace="vectra-identity",statefulset="keycloak"}'
+    values: '1 1 0 1 1 1'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: KeycloakDown
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'kube_statefulset_status_replicas_ready{namespace="vectra-identity",statefulset="keycloak"}'
+    values: '1x6'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: KeycloakDown
+    exp_alerts: []
+# RateLimitBackendDown (2m)
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="envoy-ratelimit"}'
+    values: '0x8'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: RateLimitBackendDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: RateLimitBackendDown
+        runbook_url: identity-edge/runbooks/rate-limit-backend-down.md
+- interval: 1m
+  input_series:
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-a"}'
+    values: '0x8'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-b"}'
+    values: '0x8'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: RateLimitBackendDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: RateLimitBackendDown
+        runbook_url: identity-edge/runbooks/rate-limit-backend-down.md
+- interval: 1m
+  input_series:
+  - series: 'redis_up{job="valkey",instance="10.0.0.5:9121",pod="valkey-a-0"}'
+    values: '0x8'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: RateLimitBackendDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        job: valkey
+        instance: 10.0.0.5:9121
+        pod: valkey-a-0
+      exp_annotations:
+        summary: RateLimitBackendDown
+        runbook_url: identity-edge/runbooks/rate-limit-backend-down.md
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="envoy-ratelimit"}'
+    values: '1x8'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-a"}'
+    values: '0x8'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-b"}'
+    values: '1x8'
+  - series: 'redis_up{job="valkey",pod="valkey-a-0"}'
+    values: '1x8'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: RateLimitBackendDown
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="envoy-ratelimit"}'
+    values: '1 1 0 0 1 1 1 1'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: RateLimitBackendDown
+    exp_alerts: []
+# AuthDeniedBurst (>20 por minuto, 5m)
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",error="invalid_user_credentials",realm="vectra",pod="keycloak-0"}'
+    values: '0+40x15'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: AuthDeniedBurst
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: AuthDeniedBurst
+        runbook_url: identity-edge/runbooks/auth-denied-burst.md
+- interval: 1m
+  input_series:
+  - series: 'vectra_authz_denied_total{code="403",route_template="/v1/cases",pod="case-service-0"}'
+    values: '0+30x15'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: AuthDeniedBurst
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: AuthDeniedBurst
+        runbook_url: identity-edge/runbooks/auth-denied-burst.md
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",error="invalid_user_credentials",realm="vectra",pod="keycloak-0"}'
+    values: '0+12x15'
+  - series: 'vectra_authz_denied_total{code="403",route_template="/v1/cases",pod="case-service-0"}'
+    values: '0+12x15'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: AuthDeniedBurst
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: AuthDeniedBurst
+        runbook_url: identity-edge/runbooks/auth-denied-burst.md
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",error="invalid_user_credentials",realm="vectra",pod="keycloak-0"}'
+    values: '0+10x15'
+  - series: 'vectra_authz_denied_total{code="403",route_template="/v1/cases",pod="case-service-0"}'
+    values: '0+10x15'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: AuthDeniedBurst
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",error="",realm="vectra",pod="keycloak-0"}'
+    values: '0+500x15'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: AuthDeniedBurst
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'vectra_authz_denied_total{code="403",route_template="/v1/cases",pod="case-service-0"}'
+    values: '0+60x4 240x20'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: AuthDeniedBurst
+    exp_alerts: []
+# BreakGlassLogin (0m): login en security-admin-console, en cualquier realm
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",pod="keycloak-0"}'
+    values: '0 0 0 1 1 1'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",pod="keycloak-0"}'
+    values: '_ _ _ 1 1 1'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="otro",pod="keycloak-0"}'
+    values: '0 0 0 2 2 2'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: otro
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="client_login",client_id="keycloak-config-cli",error="",realm="vectra",pod="keycloak-0"}'
+    values: '0 0 0 1 2 3'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="vectra-console",error="",realm="vectra",pod="keycloak-0"}'
+    values: '0 0 0 1 2 3'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="invalid_user_credentials",realm="vectra",pod="keycloak-0"}'
+    values: '0 0 0 1 2 3'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",pod="keycloak-0"}'
+    values: '1x20'
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# RealmDrift (0m)
+- interval: 1m
+  input_series:
+  - series: 'vectra_realm_drift{job="realm-drift"}'
+    values: '2x5'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: RealmDrift
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        job: realm-drift
+      exp_annotations:
+        summary: RealmDrift
+        runbook_url: identity-edge/runbooks/realm-drift.md
+- interval: 1m
+  input_series:
+  - series: 'vectra_realm_drift{job="realm-drift"}'
+    values: '0x5'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: RealmDrift
+    exp_alerts: []
+# RoleConflict (increase en 15m, 5m)
+- interval: 1m
+  input_series:
+  - series: 'vectra_role_conflict_total'
+    values: '0 0 0 0 0 1 2 3 4 5 6 7 8 9 10'
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: RoleConflict
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: RoleConflict
+        runbook_url: identity-edge/runbooks/role-conflict.md
+- interval: 1m
+  input_series:
+  - series: 'vectra_role_conflict_total'
+    values: '3x30'
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: RoleConflict
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'vectra_role_conflict_total'
+    values: '0 0 0 1 1 1 1 1 1'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: RoleConflict
+    exp_alerts: []
+# LdapUnavailable (increase en 5m, 5m)
+- interval: 1m
+  input_series:
+  - series: 'vectra_ldap_connection_failures_total'
+    values: '0+1x20'
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: LdapUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: LdapUnavailable
+        runbook_url: identity-edge/runbooks/ldap-unavailable.md
+- interval: 1m
+  input_series:
+  - series: 'vectra_ldap_connection_failures_total'
+    values: '4x20'
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: LdapUnavailable
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'vectra_ldap_connection_failures_total'
+    values: '0+1x4 4x20'
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: LdapUnavailable
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'vectra_ldap_connection_failures_total'
+    values: '0+1x4 4x20'
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: LdapUnavailable
+    exp_alerts: []
+# GatewayHighLatency (p95 cliente - p95 backend > 5 ms, 15m)
+- interval: 1m
+  input_series:
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+    values: '0+100x40'
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: GatewayHighLatency
+    exp_alerts:
+    - exp_labels:
+        severity: SEV3
+      exp_annotations:
+        summary: GatewayHighLatency
+        runbook_url: identity-edge/runbooks/gateway-high-latency.md
+- interval: 1m
+  input_series:
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+    values: '0+100x40'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: GatewayHighLatency
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+    values: '0+100x40'
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: GatewayHighLatency
+    exp_alerts: []

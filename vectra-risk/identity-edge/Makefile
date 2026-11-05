@@ -20,7 +20,7 @@ JOBS := $(ROOT)/identity-edge/jobs
 # Destino del render de los jobs. Por defecto, el versionado; `check-jobs-rendered` lo cambia por un directorio temporal.
 JOBS_OUT ?= $(JOBS)/rendered
 
-.PHONY: policy-ratelimit render-valkey check-valkey-rendered policy-valkey policy-valkey-u1 lint test check route-gen check-route-gen schemas-gateway kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
+.PHONY: rules runbooks policy-ratelimit render-valkey check-valkey-rendered policy-valkey policy-valkey-u1 lint test check route-gen check-route-gen schemas-gateway kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
 
 lint:
 	$(UV) ruff check identity-edge
@@ -130,7 +130,7 @@ policy-gateway:
 	done
 
 # Verificaciones estaticas (AUTONOMIA-01). Crece con los pasos del plan.
-check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 check-route-gen kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway policy-ratelimit check-valkey-rendered policy-valkey policy-valkey-u1 test
+check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 check-route-gen kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway policy-ratelimit check-valkey-rendered policy-valkey policy-valkey-u1 rules runbooks test
 
 # `helm template` del chart gateway-helm v1.9.3 con los values del controlador (U02-T10, Paso 8). Lo renderizado no se versiona.
 EG_RENDER := $(ROOT)/identity-edge/.tools/envoy-gateway/render.yaml
@@ -192,3 +192,19 @@ policy-valkey-u1:
 	  $(CONFTEST) test --policy $(U1_POLICIES)/rego $(VALKEY)/rendered/$$env/ || exit 1; \
 	  $(CONFTEST) test --combine --namespace hpa --policy $(U1_POLICIES)/rego $(VALKEY)/rendered/$$env/ || exit 1; \
 	done
+
+# --- U02-T13 (Paso 11): alertas y runbooks ---------------------------------------------------------------------------------
+
+PROMTOOL := $(TOOLS)/promtool
+RULES := $(ROOT)/identity-edge/observability/rules
+
+# `promtool check rules` sobre el archivo de grupos y `promtool test rules` sobre cada caso (cada alerta dispara y no dispara).
+rules:
+	$(PROMTOOL) check rules $(RULES)/identity-edge-rules.yaml
+	$(PROMTOOL) test rules $(RULES)/tests/*.yaml
+
+# Cada alerta de U2 tiene `severity` valida y un `runbook_url` hacia un runbook con las secciones de la plantilla; y cada paso de
+# `Verificacion` de los runbooks de identity-edge nombra un comando.
+runbooks:
+	$(UV) python platform/tests/test_runbooks.py --root identity-edge
+	$(UV) python platform/tests/test_runbooks.py --root identity-edge --operational

@@ -85,7 +85,7 @@ REFERENCE_DIR = reference_dir()
 
 
 def design_build_options() -> list[str]:
-    """Las cinco opciones de `kc.sh build` de INF-U2-08, en la forma de la linea de comandos."""
+    """Las opciones de `kc.sh build`: las cinco de INF-U2-08 y las dos de metricas de eventos de B10 (P-U2-09)."""
     text = INF_U2_08
     opts = []
     m = re.search(r"base de datos `(\w+)`", text)
@@ -99,7 +99,15 @@ def design_build_options() -> list[str]:
     m = re.search(r"`kc\.sh build` lleva además `(--http-relative-path=/\w+)`", text)
     assert m, "INF-U2-08 no fija --http-relative-path"
     opts.append(m.group(1))
+    opts += design_event_metric_options()
     return opts
+
+
+def design_event_metric_options() -> list[str]:
+    """B10 de P-U2-09: las dos opciones que activan `keycloak_user_events_total` con `client_id`, en la forma de la linea de comandos."""
+    m = re.search(r"`(event-metrics-user-enabled=true)`, con `(event-metrics-user-tags=[\w,]+)`", NFR_PATTERNS)
+    assert m, "P-U2-09 (B10) no fija las opciones de las metricas de eventos de usuario"
+    return [f"--{m.group(1)}", f"--{m.group(2)}"]
 
 
 def design_start_args() -> list[str]:
