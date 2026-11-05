@@ -5696,3 +5696,28 @@ El orquestador ratificó F-03 (`test_integration.py`) y F-04 (consulta con el us
 **Context**: Construcción de U2, U02-T11.
 
 ---
+
+## PR 65 aprobado y fusionado
+**Timestamp**: 2026-11-05T03:44:19Z
+**User Input**: "ya aprobé el PR 65, prepara U02-T12"
+**AI Response**: El PR 65 (U02-T11, Paso 9) quedó aprobado y fusionado por una persona (`joseluisjedi`) a las 2026-11-05T03:44:19Z. El commit de fusión en `main` es 25c1019. El agente no fusionó.
+**Context**: Construcción de U2, U02-T11.
+
+---
+
+## Preparación de U02-T12 (Paso 10) y decisiones T1 a T4
+**Timestamp**: 2026-11-05T04:10:00Z
+**User Input**: "ya aprobé el PR 65, prepara U02-T12"; T1 "NetworkAuthentication (Recommended)"; T2 "Segunda línea de F92 (Recommended)"; T3 "Agregar sus puertos a F60 (Recommended)"; T4 "Sondas exec en U02-T12 (Recommended)"
+**AI Response**: El orquestador comparó `platform/network/flows.yaml` y `generate.py` con el diseño enmendado por R1–R8. Encontró lo siguiente:
+- el workload `rate-limit` sigue en `vectra-edge` y F90 en el 8083. En v1.9.3 es `envoy-ratelimit`, en `envoy-gateway-system` (ServiceAccount e `InfraName` `envoy-ratelimit`, etiquetas de `rateLimitLabels()`), en el 8081;
+- `envoy-ratelimit` no está en la malla, y los `Server` de Valkey, Sentinel y `otel-collector` solo autorizan mTLS. `generate.py` solo admite un origen sin malla en el 5432 (F80);
+- falta Valkey → Sentinel en el 26379, para la consulta al arrancar de INF-U2-04;
+- F60 solo raspa el 8081 en `vectra-edge`; Envoy y `envoy-ratelimit` publican en el 19001 y el exportador en el 9121;
+- F61 no incluye `envoy-gateway-system`, y el tracing de R8 lo necesita;
+- las sondas `tcpSocket` de Valkey y Sentinel pasan por el proxy de Linkerd;
+- `api-gateway` sigue seleccionando por `app.kubernetes.io/name` (Z1 lo cambia).
+
+El usuario decidió T1–T4, todas por la opción recomendada. Se enmendaron INF-U2-04 («Flujos y sondas»), component-dependency (F60, F61, F91 y F92) y el Paso 10 del plan. Se redactó `tareas/U02-T12-flujos-y-rbac.md` con el texto del Paso 10 sin recortes y 5 CAs. La tarea no se despacha hasta que el usuario lo pida.
+**Context**: Construcción de U2, U02-T12.
+
+---
