@@ -165,8 +165,8 @@ Tipo: **S** = llamada síncrona request/response · **R** = lectura · **A** = a
 
 | ID | Origen | Destino | Puerto | Tipo | Propósito |
 |---|---|---|---|---|---|
-| F60 | Prometheus | Todos los pods de `vectra-app`, `vectra-edge`, `vectra-serving`, `vectra-mock` (8081); PostgreSQL (exporter, 9187) y Keycloak (administración, 9000) (2026-11-01; Argo CD se dejó de raspar: ninguna alerta lo usa) | 8081 (o puerto de métricas del componente) | O | Scrape de métricas; incluye el gauge `vectra_registry_monitoring_lag_seconds` de `decision-registry-service` (U3 BR-U3-17, INF-U3-06; quinta revisión del FD de U9, 2026-10-10) |
-| F61 | Todos los pods de aplicación | OpenTelemetry Collector | 4317 | O | Trazas (y logs si se usa OTLP) |
+| F60 | Prometheus | Todos los pods de `vectra-app`, `vectra-edge`, `vectra-serving`, `vectra-mock` (8081); PostgreSQL (exporter, 9187) y Keycloak (administración, 9000) (2026-11-01; Argo CD se dejó de raspar: ninguna alerta lo usa). **Enmienda del 2026-11-05 (decisión T3 del usuario al preparar U02-T12):** también Envoy (data plane, `vectra-edge`, 19001), `envoy-ratelimit` (`envoy-gateway-system`, 19001) y el exportador de Valkey (`vectra-edge`, 9121). Los dos 19001 los fija Envoy Gateway v1.9.3 | 8081 (o puerto de métricas del componente) | O | Scrape de métricas; incluye el gauge `vectra_registry_monitoring_lag_seconds` de `decision-registry-service` (U3 BR-U3-17, INF-U3-06; quinta revisión del FD de U9, 2026-10-10) |
+| F61 | Todos los pods de aplicación; `envoy-ratelimit` (`envoy-gateway-system`; enmienda del 2026-11-05, R8 de U02-T11 y T1 de U02-T12) | OpenTelemetry Collector | 4317 | O | Trazas (y logs si se usa OTLP). `envoy-ratelimit` no está en la malla: se autoriza por `NetworkAuthentication` (T1) |
 | F62 | OpenTelemetry Collector | Tempo / Loki | 4317 / 3100 | O | Almacenamiento de trazas y logs |
 | F63 | Agente de logs: Grafana Alloy (DaemonSet) | Loki | 3100 | O | Logs de stdout de los contenedores |
 | F64 | Prometheus | Alertmanager | 9093 | O | Envío de alertas |
@@ -197,8 +197,8 @@ Ningún componente de observabilidad exporta fuera del clúster, salvo la notifi
 | ID | Origen | Destino | Puerto | Tipo | Propósito |
 |---|---|---|---|---|---|
 | F90 | Envoy (data plane) | Servicio de rate limit (`envoy-ratelimit`, `envoy-gateway-system`) | 8081 | S | Decisiones de rate limit global (P-U2-01, 06). Puerto y namespace los fija Envoy Gateway v1.9.3 (enmienda del 2026-11-04, R1 de U02-T11; antes 8083 en `vectra-edge`) |
-| F91 | Servicio de rate limit (`envoy-gateway-system`) | Valkey (vía Sentinel, `vectra-edge`) | 26379 / 6379 | W | Contadores efímeros con TTL (enmienda del 2026-11-04, R1 de U02-T11: el origen está en `envoy-gateway-system`) |
-| F92 | Valkey réplica | Valkey primaria | 6379 | Replicación | Réplica en otra zona |
+| F91 | Servicio de rate limit (`envoy-gateway-system`) | Valkey (vía Sentinel, `vectra-edge`) | 26379 / 6379 | W | Contadores efímeros con TTL (enmienda del 2026-11-04, R1 de U02-T11: el origen está en `envoy-gateway-system`). **Enmienda del 2026-11-05 (decisión T1 del usuario al preparar U02-T12):** el origen no está en la malla; Linkerd lo autoriza en los `Server` de Valkey y Sentinel con una `NetworkAuthentication` por `pod_cidr`, como F80, y la NetworkPolicy limita el origen a los pods de `envoy-ratelimit` |
+| F92 | Valkey réplica; Valkey (cualquier nodo, al arrancar) | Valkey primaria (6379); Sentinel (26379) | 6379 / 26379 | Replicación / R | Réplica en otra zona. **Enmienda del 2026-11-05 (decisión T2 del usuario al preparar U02-T12):** al arrancar, cada nodo pregunta a Sentinel por la primaria actual (INF-U2-04, «Consulta al arrancar») |
 | F93 | Sentinel | Valkey y otros Sentinel | 6379 / 26379 | O | Monitoreo y failover |
 | F94 | `keycloak-config-cli`, `realm-drift`, `signing-key-age` | Keycloak (API de administración, interna) | 8443 | W / R | Aplicar el realm en el sync manual; exportarlo para detectar deriva (BR-U2-12) |
 | F95 | Envoy (data plane) | Controlador de Envoy Gateway (`envoy-gateway-system`) | 18000 | O | Configuración xDS: Envoy inicia la conexión y el controlador la sirve (cuarta revisión de coherencia entre unidades, 2026-10-31) |

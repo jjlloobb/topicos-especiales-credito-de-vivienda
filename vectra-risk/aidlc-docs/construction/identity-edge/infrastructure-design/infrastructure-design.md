@@ -161,6 +161,12 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
     - el scrape de `envoy-ratelimit` va al 19001 y el del exportador al 9121.
 
     La NetworkPolicy de Valkey solo admite a F91–F93.
+  - **Flujos y sondas (decisiones T1 a T4 del usuario al preparar U02-T12, 2026-11-05):**
+    - **T1.** `envoy-ratelimit` no está en la malla. En los `Server` de Linkerd de Valkey (6379), Sentinel (26379) y `otel-collector` (4317) se autoriza con una `NetworkAuthentication` por `pod_cidr`, como F80; `unmeshed_source` de `platform/network/generate.py` deja de estar limitado al 5432. La NetworkPolicy limita el origen a los pods de `envoy-ratelimit` (`app.kubernetes.io/name: envoy-ratelimit`, `app.kubernetes.io/component: ratelimit`, `app.kubernetes.io/managed-by: envoy-gateway`; ServiceAccount `envoy-ratelimit`; `rateLimitLabels()` e `InfraName` de v1.9.3). En staging y prod, `pod_cidr` vale `0.0.0.0/32` hasta que el banco entregue el rango, así que F91 y su tracing no se autorizan antes.
+    - **T2.** F92 suma Valkey → Sentinel en el 26379, para la consulta al arrancar.
+    - **T3.** F60 suma Envoy (data plane) en el 19001, `envoy-ratelimit` en el 19001 y el exportador de Valkey en el 9121.
+    - **T4.** Detrás del proxy de Linkerd, una sonda `tcpSocket` la contesta el proxy y no Valkey. Las sondas de Valkey y Sentinel pasan a `exec` con `valkey-cli ping` (contra el 6379 y el 26379, con `REDISCLI_AUTH`), si se confirma ese comportamiento contra el código de Linkerd de la versión pinneada. Si no se confirma, se detiene y se reporta.
+    - La identidad `api-gateway` selecciona el data plane por `gateway.envoyproxy.io/owning-gateway-name: api-gateway` (Z1, INF-U2-02).
 
 ### INF-U2-05a — Credencial de administración (seguimiento de la quinta revisión de coherencia, 2026-10-31)
 - Dos clientes de administración del realm `vectra`, por F94, con `private_key_jwt` desde ESO (enmienda del 2026-11-02, decisión del usuario tras la ronda 3 de U02-T03):
