@@ -18,6 +18,15 @@ El usuario decidió R1–R4: R1, la conexión por Sentinel; R2, el endurecimient
 > - el master se llama `ratelimit`;
 > - las propiedades de `edge/valkey` son `ratelimit`, `replication`, `sentinel`, `sentinel-peer`, `exporter` y `sentinel-ratelimit`.
 
+> **Enmienda del 2026-11-04 (orquestador, decisiones R6–R8 del usuario tras la ronda 1; `revisiones/U02-T11/ronda-1.md`):**
+> - **R6 (F-01):** las zonas son `zone-a` y `zone-b` en kind, staging y prod (INF-U2-04 e INF-U1-01). `test_valkey_chart.py` comprueba la zona de cada StatefulSet en los tres entornos, leída del diseño, y conftest la exige. Debe fallar con otra zona en `values/prod.yaml` o `values/staging.yaml`.
+> - **R7 (F-01):** los tiempos de Sentinel son `down-after-milliseconds 5000`, `failover-timeout 60000` y `parallel-syncs 1` (INF-U2-04). El oráculo los lee del diseño y conftest los exige, cada uno con su caso que falla. Un tiempo distinto en los values debe hacer fallar CA-3.
+> - **R8 (candidata del revisor):** `rateLimitDeployment.container.env` agrega `TRACING_EXPORTER_PROTOCOL=grpc` (INF-U2-03). `test_envoy_gateway_values.py` lo lee del diseño, `test_ratelimit_deployment.py` lo comprueba en la env final del modelo y `policy-ratelimit` lo exige con su caso que falla.
+> - **F-04, ratificado:** los pods de Valkey y Sentinel consultan a Sentinel con el usuario `ratelimit` de Sentinel (INF-U2-04, «Consulta al arrancar»). No hay que cambiarlo.
+> - **F-03, ratificado:** el cambio en `platform/tests/test_integration.py` entra en el alcance. La quita queda como candidata para el Paso 12.
+> - **F-05:** la candidata de `readOnlyRootFilesystem` y `RUNTIME_ROOT` se retira de la bitácora, porque no aplica con `GRPC_XDS_SOTW`.
+> - Ninguna prueba debe fijar estos valores con un literal propio. Si cambia el diseño y el oráculo no, falla.
+
 ## Alcance
 
 **Dentro:** todo el Paso 9 del plan. Texto del plan, sin recortes:

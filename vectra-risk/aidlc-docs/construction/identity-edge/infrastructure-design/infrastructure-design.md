@@ -94,6 +94,7 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 
     La imagen es `envoyproxy/ratelimit:5ae0682e`, la de `global.images.ratelimit` de v1.9.3, con `@sha256:b95206e32b1a5f824fb06062fbb85bbdfb7f5de54135e92afe8462f22c979681`. Se espeja en `registro.banco.internal/vectra/ratelimit`, y en kind en `kind-registry:5000/vectra/ratelimit` por `envoy-gateway-kind.yaml`.
   - **Telemetría.** Métricas Prometheus activas (el default) y tracing OpenTelemetry hacia `otel-collector.vectra-observability.svc:4317` con muestreo del 100 %, como el data plane (W6).
+    - **Enmienda del 2026-11-04 (decisión R8 del usuario tras la ronda 1 de U02-T11).** `envoyproxy/ratelimit` `5ae0682e` exporta por OTLP HTTP salvo que se diga otra cosa: `TRACING_EXPORTER_PROTOCOL` vale `"http"` por defecto (`src/settings/settings.go:316`). El 4317 es OTLP gRPC. Por eso `rateLimitDeployment.container.env` agrega `TRACING_EXPORTER_PROTOCOL=grpc`, y el endpoint sigue en el 4317, como el resto de componentes.
   - **Descriptores.** No los genera `route-gen`: el controlador los arma por xDS desde las `BackendTrafficPolicy` (`edge-rate-limits` y `auth-rate-limits`). Se comprueban offline con el IR de `egctl x translate --to ir`.
 - *(Superado por la enmienda anterior.)* `envoyproxy/ratelimit` en `vectra-edge`: HPA de 2 a 4 por CPU, repartido por zona, PDB. Sin HPA ni exención, `require-hpa-bounds` lo rechazaría (quinta revisión de coherencia entre unidades, 2026-10-31).
 - *(Superado: el puerto lo fija v1.9.3, ver la enmienda de R1 y R2.)* **gRPC en el puerto 8083.** Se cambia el 8081 por defecto, que en Vectra está reservado para health y métricas (convención de U0). Métricas y health en 8081.
@@ -145,6 +146,15 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
       - `sentinel-peer`: `+auth +ping +publish +client|setname +sentinel|is-master-down-by-addr &__sentinel__:hello`, más `sentinel sentinel-user sentinel-peer` y `sentinel sentinel-pass`.
       - `sentinel auth-user sentinel` y `auth-pass` siguen igual, hacia el master y las réplicas.
     - **Nombres:** el master se llama `ratelimit` (deployment-architecture). Las propiedades de la clave de Vault `edge/valkey` son `ratelimit`, `replication`, `sentinel`, `sentinel-peer`, `exporter` y `sentinel-ratelimit`.
+  - **Zonas, tiempos de Sentinel y consulta al arrancar (decisiones R6 y R7 del usuario tras la ronda 1 de U02-T11, 2026-11-04; hallazgos F-01 y F-04).**
+    - **Zonas (R6).** Las zonas se llaman `zone-a` y `zone-b` en los tres entornos, no solo en kind. Es un requisito para la plataforma del banco: sus nodos llevan esos valores en `topology.kubernetes.io/zone` (INF-U1-01, enmendado igual). `valkey-a` y `sentinel-a` van a `zone-a`, y `valkey-b` y `sentinel-b` a `zone-b`, en kind, staging y prod.
+    - **Tiempos de Sentinel (R7).** Para el master `ratelimit`:
+      - `sentinel down-after-milliseconds ratelimit 5000`;
+      - `sentinel failover-timeout ratelimit 60000`;
+      - `sentinel parallel-syncs ratelimit 1`.
+
+      Con quórum 2, la primaria se da por caída a los 5 s. Ese tiempo, más la promoción, es lo que dura el 503 de `/auth/**` en una conmutación.
+    - **Consulta al arrancar.** Para preguntar por la primaria actual, los pods de Valkey y de Sentinel usan el usuario `ratelimit` de Sentinel, con la contraseña `sentinel-ratelimit` de `edge/valkey`. Es el único usuario de R5 que tiene `+sentinel|master`. Lo ratificó el orquestador tras la ronda 1 de U02-T11 (F-04).
   - **Flujos (para el Paso 10):**
     - F90 pasa a ser Envoy (`vectra-edge`) → `envoy-ratelimit` (`envoy-gateway-system`) en el 8081;
     - F91 sale de `envoy-ratelimit` en `envoy-gateway-system` hacia Valkey y Sentinel en `vectra-edge`;

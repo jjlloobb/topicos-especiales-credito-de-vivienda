@@ -31,6 +31,7 @@ nube. Los IDs `INF-U1-xx` se referencian en el plan de tareas.
 
 - Los tamaños son iniciales y se ajustan con la prueba de carga (NFR-U1-11) y las cuotas (NFR-U1-13).
 - Etiqueta `topology.kubernetes.io/zone` en todos los nodos; en kind se asigna en la configuración del clúster.
+  - **Enmienda del 2026-11-04 (decisión R6 del usuario tras la ronda 1 de U02-T11).** Los valores son `zone-a` y `zone-b` en todos los entornos. En staging y prod es un requisito para la plataforma del banco, porque U2 fija `nodeAffinity` obligatoria a esos nombres (INF-U2-04).
 - **Justificación de los 4 workers en kind y de los 2 nodos de datos por zona**: con anti-afinidad obligatoria por nodo, la zona que sobrevive necesita un nodo libre para que CloudNativePG clone la réplica nueva (NFR-U1-03).
 
 ## 3. Almacenamiento
