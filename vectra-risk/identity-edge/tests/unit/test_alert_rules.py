@@ -115,6 +115,32 @@ def plan_runbooks() -> list[str]:
     return re.findall(r"`([\w-]+)`", line)
 
 
+def b11_text() -> str:
+    """El texto de la decision B11 de P-U2-09 (la viñeta, hasta B1)."""
+    start = PATTERNS.index("- **B11**")
+    return PATTERNS[start:].split("\n- **B1**", 1)[0]
+
+
+def b11_break_glass_expr() -> str:
+    """La expresion de `BreakGlassLogin` de B11, con `X` y `N` sustituidos por lo que el diseno define en B10 y en la propia B11."""
+    text = b11_text()
+    x_labels = b10_labels()
+    x = f'keycloak_user_events_total{{event="{x_labels["event"]}",client_id="{x_labels["client_id"]}",error=""}}'
+    n_def = re.search(r"`N = (\(.+?\))`", text).group(1)  # type: ignore[union-attr]
+    expr = re.search(r"la expresión es `(.+?)`\.", text).group(1)  # type: ignore[union-attr]
+    n = n_def.replace("X", x)
+    return " ".join(expr.replace("increase(X[5m])", f"increase({x}[5m])").replace("(N ", f"({n} ").replace("last_over_time(X[1h]", f"last_over_time({x}[1h]").replace("X * 0", f"{x} * 0").split())
+
+
+def b11_metrics_down() -> dict[str, str]:
+    """B11: severidad, `for`, expresion y runbook de `KeycloakMetricsDown` (fila de la tabla y viñeta de B11)."""
+    row = DESIGN["KeycloakMetricsDown"]
+    text = b11_text()
+    absent = re.search(r"`(absent\(up\{job=\"keycloak\"\}\))`", text).group(1)  # type: ignore[union-attr]
+    runbook = re.search(r"Runbook `([\w-]+)`", text).group(1)  # type: ignore[union-attr]
+    return {**row, "absent": absent, "runbook": runbook}
+
+
 def operational_runbook() -> str:
     """El runbook operativo de la vuelta de Valkey a la zona A, sin alerta (B7, INF-U2-04). Lo nombra la tarea, no el diseno."""
     assert "**B7**" in PATTERNS and "INF-U2-04" in PATTERNS
@@ -157,8 +183,17 @@ def rule_problems(groups: Groups) -> list[str]:
         expected = design_runbook(name)
         if expected and url != f"identity-edge/runbooks/{expected}.md":
             found.append(f"{name}: el diseno manda al runbook {expected} y la alerta apunta a {url}")
+    if "KeycloakMetricsDown" in rules:
+        expr = str(rules["KeycloakMetricsDown"]["expr"])
+        md = b11_metrics_down()
+        if md["absent"] not in expr or 'up{job="keycloak"} == 0' not in expr:
+            found.append("KeycloakMetricsDown: B11 pide up{job=\"keycloak\"} == 0 o absent(...)")
+        if rules["KeycloakMetricsDown"]["annotations"]["runbook_url"] != f"identity-edge/runbooks/{md['runbook']}.md":
+            found.append(f"KeycloakMetricsDown: B11 manda al runbook {md['runbook']}")
     if "BreakGlassLogin" in rules:
         expr = str(rules["BreakGlassLogin"]["expr"])
+        if " ".join(expr.split()) != b11_break_glass_expr():
+            found.append("BreakGlassLogin: la expresion no es la de B11")
         labels = b10_labels()
         for key, value in labels.items():
             if f'{key}="{value}"' not in expr:
@@ -188,6 +223,16 @@ def test_the_design_table_is_read():
         assert design_windows(name) and all(f"[{w}]" in DESIGN[name]["expr"] or w in DESIGN[name]["expr"] for w in design_windows(name))
     labels = b10_labels()
     assert labels["event"] and labels["client_id"] and all(f"`{v}`" in DESIGN["BreakGlassLogin"]["expr"] or f'"{v}"' in DESIGN["BreakGlassLogin"]["expr"] for v in labels.values())
+
+
+def test_the_b11_text_is_read():
+    """Lo que se lee de B11 es lo que dice el texto, y la regla de `BreakGlassLogin` es esa expresion."""
+    expr = b11_break_glass_expr()
+    assert expr.count("increase(") == 1 and expr.count("last_over_time(") == 1 and 'up{job="keycloak"} offset 5m == 1' in expr
+    assert "N" not in re.findall(r"\b[A-Z]\b", expr) and "X" not in re.findall(r"\b[A-Z]\b", expr)
+    md = b11_metrics_down()
+    assert md["severity"] == "SEV2" and md["for"] == "5m" and md["runbook"] == "keycloak-metrics-down"
+    assert " ".join(str(alerts(load_groups())["BreakGlassLogin"]["expr"]).split()) == expr
 
 
 def test_rules_are_the_ones_of_the_design():
@@ -249,6 +294,14 @@ def rules_mutations() -> dict[str, Any]:
         "cliente de BreakGlassLogin": edit("BreakGlassLogin", "expr", 'client_id="security-admin-console"', 'client_id="vectra-console"'),
         "evento de BreakGlassLogin": edit("BreakGlassLogin", "expr", 'event="login"', 'event="client_login"'),
         "BreakGlassLogin cuenta el login fallido": edit("BreakGlassLogin", "expr", ',error=""', ""),
+        "BreakGlassLogin sin la rama de la ultima hora": edit("BreakGlassLogin", "expr", "last_over_time(", "max_over_time("),
+        "BreakGlassLogin sin up": edit("BreakGlassLogin", "expr", "offset 5m == 1", "offset 5m >= 0"),
+        "BreakGlassLogin con ventana de 30m": edit("BreakGlassLogin", "expr", "[1h] offset 5m", "[30m] offset 5m"),
+        "KeycloakMetricsDown sin absent": edit("KeycloakMetricsDown", "expr", " or absent(up{job=\"keycloak\"})", ""),
+        "KeycloakMetricsDown sin == 0": edit("KeycloakMetricsDown", "expr", "up{job=\"keycloak\"} == 0", "up{job=\"keycloak\"} == 1"),
+        "for de KeycloakMetricsDown": edit("KeycloakMetricsDown", "for", "", "1m"),
+        "severidad de KeycloakMetricsDown": labels("KeycloakMetricsDown", "SEV1"),
+        "runbook de KeycloakMetricsDown": edit("KeycloakMetricsDown", "annotations", "", {"summary": "x", "runbook_url": "identity-edge/runbooks/keycloak-down.md"}),
         "BreakGlassLogin solo en un realm": edit("BreakGlassLogin", "expr", 'event="login"', 'event="login",realm="vectra"'),
         "metrica de RoleConflict": edit("RoleConflict", "expr", "vectra_role_conflict_total", "vectra_roles_total"),
         "namespace de KeycloakDown": edit("KeycloakDown", "expr", 'namespace="vectra-identity"', 'namespace="vectra-edge"'),
@@ -273,7 +326,7 @@ def test_the_cr_differs_when_a_group_changes():
 
 # --- fuentes de las familias de metricas ---------------------------------------------------------------------------------------
 
-PROMQL_WORDS = {"histogram_quantile", "group_left", "group_right", "label_replace", "label_join"}
+PROMQL_WORDS = {"last_over_time", "histogram_quantile", "group_left", "group_right", "label_replace", "label_join"}
 
 
 def families(groups: Groups) -> set[str]:
@@ -560,7 +613,7 @@ def test_a_monitor_that_does_not_select_the_pods_is_detected(case):
 
 def runbook_problems(folder: Path, groups: Groups) -> list[str]:
     found: list[str] = []
-    expected = set(plan_runbooks()) | {operational_runbook()}
+    expected = set(plan_runbooks()) | {operational_runbook(), b11_metrics_down()["runbook"]}
     present = {p.stem for p in folder.glob("*.md")}
     if present != expected:
         found.append(f"runbooks: sobran {sorted(present - expected)}, faltan {sorted(expected - present)}")
@@ -569,12 +622,12 @@ def runbook_problems(folder: Path, groups: Groups) -> list[str]:
         headings = {line.strip() for line in path.read_text(encoding="utf-8").splitlines()}
         found += [f"{path.name}: falta {s}" for s in sections if s not in headings]
     urls = {Path(r["annotations"]["runbook_url"]).stem for r in alerts(groups).values()}
-    found += [f"{n}: ninguna alerta lo usa" for n in sorted(set(plan_runbooks()) - urls)]
+    found += [f"{n}: ninguna alerta lo usa" for n in sorted((set(plan_runbooks()) | {b11_metrics_down()["runbook"]}) - urls)]
     return found
 
 
-def test_the_runbooks_are_the_plan_list_plus_the_valkey_failback():
-    assert len(plan_runbooks()) == 9 and operational_runbook() == "valkey-zone-failback"
+def test_the_runbooks_are_the_plan_list_plus_the_valkey_failback_and_the_b11_one():
+    assert len(plan_runbooks()) == 9 and operational_runbook() == "valkey-zone-failback" and b11_metrics_down()["runbook"] == "keycloak-metrics-down"
     assert runbook_problems(RUNBOOKS, load_groups()) == []
 
 

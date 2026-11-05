@@ -1,4 +1,4 @@
-# Alertas de U2 (P-U2-09, enmienda B1-B10). Este archivo solo lleva `groups`: lo leen promtool y las pruebas.
+# Alertas de U2 (P-U2-09, enmienda B1-B11). Este archivo solo lleva `groups`: lo leen promtool y las pruebas.
 # El CR de al lado (`identity-edge-rules.prometheusrule.yaml`) lleva los mismos grupos; `test_alert_rules.py` los compara.
 groups:
 - name: identity-edge
@@ -28,12 +28,20 @@ groups:
       summary: AuthDeniedBurst
       runbook_url: identity-edge/runbooks/auth-denied-burst.md
   - alert: BreakGlassLogin
-    expr: '(increase(keycloak_user_events_total{event="login",client_id="security-admin-console",error=""}[5m]) > 0) or ((keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} > 0 unless keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} offset 5m) and on(namespace, pod) (up{job="keycloak"} offset 5m == 1))'
+    expr: '(increase(keycloak_user_events_total{event="login",client_id="security-admin-console",error=""}[5m]) > 0) or ((keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} > 0 unless keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} offset 5m) > (last_over_time(keycloak_user_events_total{event="login",client_id="security-admin-console",error=""}[1h] offset 5m) or keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} * 0)) or ((keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} > 0 unless keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} offset 5m) and on(namespace, pod) (up{job="keycloak"} offset 5m == 1))'
     labels:
       severity: SEV1
     annotations:
       summary: BreakGlassLogin
       runbook_url: identity-edge/runbooks/break-glass-login.md
+  - alert: KeycloakMetricsDown
+    expr: '(up{job="keycloak"} == 0) or absent(up{job="keycloak"})'
+    for: 5m
+    labels:
+      severity: SEV2
+    annotations:
+      summary: KeycloakMetricsDown
+      runbook_url: identity-edge/runbooks/keycloak-metrics-down.md
   - alert: RealmDrift
     expr: 'vectra_realm_drift{job="realm-drift"} > 0'
     labels:

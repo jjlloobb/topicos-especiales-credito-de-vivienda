@@ -254,7 +254,7 @@ tests:
   - eval_time: 16m
     alertname: BreakGlassLogin
     exp_alerts: []
-# solo otro pod se raspaba bien: no cuenta para keycloak-0
+# B11: una serie que no se vio en la ultima hora cuenta como login nuevo aunque solo otro pod se raspara bien
 - interval: 1m
   input_series:
   - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
@@ -264,8 +264,18 @@ tests:
   alert_rule_test:
   - eval_time: 7m
     alertname: BreakGlassLogin
-    exp_alerts: []
-# sin up de ningun pod: no hay evidencia de que no hubiera hueco
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+# B11: idem sin ningun up (la segunda rama no necesita up)
 - interval: 1m
   input_series:
   - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
@@ -273,7 +283,17 @@ tests:
   alert_rule_test:
   - eval_time: 7m
     alertname: BreakGlassLogin
-    exp_alerts: []
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
 # login en otro realm que solo ve la rama de increase (la serie ya existia hace 5m)
 - interval: 1m
   input_series:
@@ -340,6 +360,128 @@ tests:
   alert_rule_test:
   - eval_time: 15m
     alertname: BreakGlassLogin
+    exp_alerts: []
+# KeycloakMetricsDown (5m): up{job="keycloak"} == 0 o ausente (B11)
+- interval: 1m
+  input_series:
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '0x10'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: KeycloakMetricsDown
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: KeycloakMetricsDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        job: keycloak
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: KeycloakMetricsDown
+        runbook_url: identity-edge/runbooks/keycloak-metrics-down.md
+  - eval_time: 9m
+    alertname: KeycloakMetricsDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        job: keycloak
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: KeycloakMetricsDown
+        runbook_url: identity-edge/runbooks/keycloak-metrics-down.md
+# up ausente: Prometheus no raspa nada de Keycloak (ni siquiera hay serie up del job)
+- interval: 1m
+  input_series:
+  - series: 'up{job="envoy-data-plane",namespace="vectra-edge",pod="api-gateway-0"}'
+    values: '1x10'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: KeycloakMetricsDown
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: KeycloakMetricsDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        job: keycloak
+      exp_annotations:
+        summary: KeycloakMetricsDown
+        runbook_url: identity-edge/runbooks/keycloak-metrics-down.md
+  - eval_time: 9m
+    alertname: KeycloakMetricsDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        job: keycloak
+      exp_annotations:
+        summary: KeycloakMetricsDown
+        runbook_url: identity-edge/runbooks/keycloak-metrics-down.md
+# sin serie up de ningun job
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="vectra-console",error="",realm="vectra",pod="keycloak-0"}'
+    values: '1x10'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: KeycloakMetricsDown
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: KeycloakMetricsDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        job: keycloak
+      exp_annotations:
+        summary: KeycloakMetricsDown
+        runbook_url: identity-edge/runbooks/keycloak-metrics-down.md
+# no dispara: up a 1
+- interval: 1m
+  input_series:
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x10'
+  alert_rule_test:
+  - eval_time: 9m
+    alertname: KeycloakMetricsDown
+    exp_alerts: []
+# no dispara: up a 0 menos de 5 min (recupera antes del for)
+- interval: 1m
+  input_series:
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1 0 0 0 0 1 1 1 1 1 1'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: KeycloakMetricsDown
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: KeycloakMetricsDown
+    exp_alerts: []
+# no dispara: uno de dos pods con up a 0 (el otro a 1) solo por 3 min
+- interval: 1m
+  input_series:
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '0 0 0 1 1 1 1 1'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-1"}'
+    values: '1x7'
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: KeycloakMetricsDown
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: KeycloakMetricsDown
+    exp_alerts: []
+# no dispara: otro job con up a 0 (Keycloak se raspa bien)
+- interval: 1m
+  input_series:
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x10'
+  - series: 'up{job="envoy-data-plane",namespace="vectra-edge",pod="api-gateway-0"}'
+    values: '0x10'
+  alert_rule_test:
+  - eval_time: 9m
+    alertname: KeycloakMetricsDown
     exp_alerts: []
 # RealmDrift (0m)
 - interval: 1m
