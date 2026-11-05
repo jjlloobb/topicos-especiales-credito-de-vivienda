@@ -140,9 +140,14 @@ Al preparar el Paso 11, el orquestador comparó la tabla con lo que el código e
 | `SigningKeyAgeHigh` | SEV3 | Edad de `vectra_signing_key_created_timestamp_seconds` > 80 días | 1h |
 | `LdapUnavailable` | SEV2 | `increase(vectra_ldap_connection_failures_total[5m]) > 0`. **Métrica de contrato** (B2). Una sola regla para todos los entornos: en kind y staging no hay series, así que no dispara (B9) | 5m |
 | `GatewayHighLatency` | SEV3 | p95 de `envoy_http_downstream_rq_time` − p95 de `envoy_cluster_upstream_rq_time` > 5 ms | 15m |
+| `KeycloakMetricsDown` | SEV2 | `up{job="keycloak"} == 0` o ausente (B11) | 5m |
 | `RealmDriftStale` | SEV3 | `time() - push_time_seconds{job="realm-drift"} > 26h`. El CronJob corre a diario (B8); runbook `realm-drift` | 0m |
 | `SigningKeyAgeStale` | SEV3 | `time() - push_time_seconds{job="signing-key-age"} > 3h`. El CronJob corre cada hora (B8); runbook `signing-key-rotation` | 0m |
 
+- **B11** (2026-11-05, decisión del usuario tras la ronda 2 de revisión de U02-T13; `revisiones/U02-T13/ronda-2.md`). Con el contador de eventos, un login aislado no se detecta bien en Prometheus. Rige:
+  - **`BreakGlassLogin`**: con `X` el contador de B10 y `N = (X > 0 unless X offset 5m)`, la expresión es `(increase(X[5m]) > 0) or (N > (last_over_time(X[1h] offset 5m) or X * 0)) or (N and on(namespace, pod) (up{job="keycloak"} offset 5m == 1))`. Así una serie que no se vio en la última hora cuenta como login nuevo;
+  - **límites aceptados**: un falso positivo si el hueco de scrape dura más de 1 h, y una omisión si el pod se reinicia durante el hueco y luego hay un login. El runbook `break-glass-login` los describe tal como se midieron;
+  - **alerta nueva `KeycloakMetricsDown`**, SEV2, `for` 5m: `up{job="keycloak"} == 0` o ausente (`absent(up{job="keycloak"})`). Runbook `keycloak-metrics-down`. Sin ella, `BreakGlassLogin` puede quedar ciega sin que nadie lo sepa.
 - **B1**: la imagen de Keycloak activa las métricas de eventos de usuario (`user-event-metrics`), con lo que existe `keycloak_user_events_total`. La opción y si es de build se comprueban en la documentación y el código de 26.8.1.
 - **B10** (2026-11-05, decisión del usuario tras la parada de la ronda 1 de U02-T13). La métrica de 26.8.1 emite `event`, `error`, `realm`, `idp` y `client_id`, pero no el usuario: `MicrometerUserEventMetricsEventListenerProvider.java`. Por eso `BreakGlassLogin` no puede filtrar por `break-glass` y dispara con cualquier `login` en `security-admin-console`. Las razones:
   - en prod, `break-glass` es el único humano con `realm-admin`;
