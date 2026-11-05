@@ -32,7 +32,7 @@ spec:
         summary: AuthDeniedBurst
         runbook_url: identity-edge/runbooks/auth-denied-burst.md
     - alert: BreakGlassLogin
-      expr: '(increase(keycloak_user_events_total{event="login",client_id="security-admin-console",error=""}[5m]) > 0) or (keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} > 0 unless keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} offset 5m)'
+      expr: '(increase(keycloak_user_events_total{event="login",client_id="security-admin-console",error=""}[5m]) > 0) or ((keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} > 0 unless keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} offset 5m) and on(namespace, pod) (up{job="keycloak"} offset 5m == 1))'
       labels:
         severity: SEV1
       annotations:

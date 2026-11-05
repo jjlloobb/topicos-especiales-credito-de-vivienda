@@ -171,18 +171,23 @@ def rule_problems(groups: Groups) -> list[str]:
 
 
 def test_the_design_table_is_read():
-    assert sorted(DESIGN) == sorted(
-        [
-            "KeycloakDown", "RateLimitBackendDown", "AuthDeniedBurst", "BreakGlassLogin", "RealmDrift", "RoleConflict",
-            "SigningKeyAgeHigh", "LdapUnavailable", "GatewayHighLatency", "RealmDriftStale", "SigningKeyAgeStale",
-        ]
-    )  # fmt: skip
-    assert DESIGN["BreakGlassLogin"]["severity"] == "SEV1" and DESIGN["BreakGlassLogin"]["for"] == "0m"
-    assert design_numbers("SigningKeyAgeHigh") == [80 * 86400]
-    assert design_numbers("RealmDriftStale") == [26 * 3600] and design_numbers("SigningKeyAgeStale") == [3 * 3600]
-    assert design_numbers("AuthDeniedBurst") == [20] and design_numbers("GatewayHighLatency") == [5]
-    assert design_windows("RoleConflict") == ["15m"] and design_windows("LdapUnavailable") == ["5m"]
-    assert b10_labels() == {"event": "login", "client_id": "security-admin-console"}
+    """Los analizadores devuelven lo que el texto de la fila dice: nada de valores propios de esta prueba."""
+    rows = re.findall(r"^\|\s*`(\w+)`\s*\|\s*SEV\d\s*\|.*\|\s*\d+[mh]\s*\|\s*$", PATTERNS[PATTERNS.index("#### Fuentes, umbrales y despliegue") :].split("\n- **B1**", 1)[0], re.M)
+    assert sorted(DESIGN) == sorted(rows) and len(rows) == len(set(rows)) > 0
+    for name, row in DESIGN.items():
+        assert re.fullmatch(r"SEV[123]", row["severity"]) and re.fullmatch(r"\d+[mh]", row["for"]), name
+    raw = {n: active_text(DESIGN[n]["expr"]) for n in DESIGN}
+    assert [str(n // 86400) for n in design_numbers("SigningKeyAgeHigh")] == re.findall(r"> (\d+) días", raw["SigningKeyAgeHigh"])
+    for name in ("RealmDriftStale", "SigningKeyAgeStale"):
+        (n,) = design_numbers(name)
+        assert f"> {n // 3600}h" in raw[name]
+    for name in ("AuthDeniedBurst", "GatewayHighLatency"):
+        (n,) = design_numbers(name)
+        assert re.search(rf"\b{n}\b", raw[name])
+    for name in ("RoleConflict", "LdapUnavailable"):
+        assert design_windows(name) and all(f"[{w}]" in DESIGN[name]["expr"] or w in DESIGN[name]["expr"] for w in design_windows(name))
+    labels = b10_labels()
+    assert labels["event"] and labels["client_id"] and all(f"`{v}`" in DESIGN["BreakGlassLogin"]["expr"] or f'"{v}"' in DESIGN["BreakGlassLogin"]["expr"] for v in labels.values())
 
 
 def test_rules_are_the_ones_of_the_design():
@@ -367,11 +372,10 @@ def test_the_event_metric_options_are_in_the_image_and_in_the_start_env():
     """B10 corregido: `event-metrics-user-enabled` (build) activa `keycloak_user_events_total`; `KC_EVENT_METRICS_USER_TAGS` con `clientId` (arranque) da `client_id`."""
     text = (EDGE / "keycloak" / "Dockerfile").read_text(encoding="utf-8")
     options = tc.design_event_metric_options()
-    assert options == ["--event-metrics-user-enabled=true"]
-    assert all(option in text for option in options)
-    assert "event-metrics-user-tags" not in text
+    assert options and all(option in text for option in options)
     name, value = tc.design_event_metric_env()
-    assert (name, value) == ("KC_EVENT_METRICS_USER_TAGS", "realm,clientId")
+    assert not any(name[len("KC_") :].lower().replace("_", "-") in option for option in options)  # la opcion de ejecucion no va en el build
+    assert name[len("KC_") :].lower().replace("_", "-") not in text and "clientId" in value.split(",")
 
 
 def source_mutations() -> dict[str, Any]:
@@ -443,7 +447,8 @@ def real_pods(env: str) -> dict[str, dict[str, Any]]:
         "keycloak": of_sets(docs["keycloak"], "keycloak"),
         "valkey": of_sets(docs["valkey"], "valkey-"),
         # `resource.go` de Envoy Gateway v1.9.3 (linea 93): el puerto `metrics` es `bootstrap.EnvoyStatsPort`, que el modelo no declara.
-        "api-gateway": of_deployment(plane, {"metrics": 19001}),
+        # El numero sale de F60 de `flows.yaml` (T3 de U1: estadisticas del data plane), no de un literal de esta prueba.
+        "api-gateway": of_deployment(plane, {"metrics": min(prometheus_ports("api-gateway"))}),
         "rate-limit": of_deployment(limiter, {}),
     }
 

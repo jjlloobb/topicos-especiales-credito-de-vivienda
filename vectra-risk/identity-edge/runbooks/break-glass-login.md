@@ -6,6 +6,8 @@
 ## Síntoma
 Hubo un login con éxito en el cliente `security-admin-console` (`keycloak_user_events_total{event="login",client_id="security-admin-console",error=""}`), en cualquier realm. La métrica de Keycloak 26.8.1 no lleva el usuario: la alerta no distingue quién entró (decisión B10).
 
+**Límites de la alerta** (la expresión lleva dos ramas): `increase` ve los logins sobre una serie que ya existía; para el primer login de una serie nueva, la segunda rama solo dispara si el target `keycloak` se raspó con `up == 1` hace 5 minutos (así un hueco de scrape no la dispara por un login antiguo). Riesgo residual: el primer login de un pod que lleva menos de 5 minutos raspándose, o de uno cuyo target no se raspaba hace 5 minutos, no dispara hasta el siguiente login. Si `up{job="keycloak"}` falla durante una sesión de break-glass, busca los eventos `LOGIN` en Loki o en el log, como en el diagnóstico.
+
 ## Impacto
 En prod, el único humano con `realm-admin` es `break-glass`, y la consola solo se alcanza por `hostname-admin` interno con un port-forward aprobado (BR-U2-12). Un login ahí sin aprobación es un acceso administrativo no autorizado. Cualquier otro humano que entre también es SEV1.
 

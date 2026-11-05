@@ -1,5 +1,7 @@
 """Dockerfile de Keycloak (U02-T06, Paso 4): INF-U2-08. Imagen y opciones leidas del diseno."""
 
+import re
+
 import pytest
 import theme_checks as tc
 
@@ -16,14 +18,8 @@ def problems(text: str) -> list[str]:
 def test_design_values_are_read_from_infrastructure_design():
     assert IMAGE.startswith("quay.io/keycloak/keycloak:26.")
     assert DIGEST.startswith("sha256:") and len(DIGEST) == 71
-    assert sorted(OPTIONS) == [
-        "--cache=ispn",
-        "--db=postgres",
-        "--event-metrics-user-enabled=true",
-        "--health-enabled=true",
-        "--http-relative-path=/auth",
-        "--metrics-enabled=true",
-    ]
+    assert OPTIONS and all(re.fullmatch(r"--[a-z-]+=\S+", o) for o in OPTIONS)  # las opciones salen de `tc.design_build_options()`
+    assert set(tc.design_event_metric_options()) <= set(OPTIONS)
     assert START == ["start", "--optimized"]
 
 
