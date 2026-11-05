@@ -5721,3 +5721,27 @@ El usuario decidió T1–T4, todas por la opción recomendada. Se enmendaron INF
 **Context**: Construcción de U2, U02-T12.
 
 ---
+
+## PR 66 aprobado y fusionado; ronda 1 de U02-T12 y decisión T5
+**Timestamp**: 2026-11-05T04:40:00Z
+**User Input**: "ya aprobé el PR 66, despacha U02-T12"; T5 Valkey "Usuario exporter (Recommended)"; Sentinel "Sí, --user ratelimit (Recommended)"
+**AI Response**: Una persona (`joseluisjedi`) aprobó y fusionó el PR 66 (preparación de U02-T12) a las 2026-11-05T04:22:41Z, en 4e1c702. El agente no fusionó. Se despachó al codificador en `wt-U02-T12`, rama `tarea/U02-T12`. Se detuvo antes de escribir código (418438d). T4 quedó confirmado contra Linkerd edge-26.10.2: el proxy acepta la conexión TCP antes de abrir la de la aplicación. Pero `REDISCLI_AUTH` es la contraseña del usuario `ratelimit` de Sentinel, y sin `--user` `valkey-cli` se autentica como `default`, que está deshabilitado. El usuario decidió T5: la sonda de Valkey usa `exporter` con `VALKEY_PROBE_PASSWORD`, y la de Sentinel `--user ratelimit`; las dos comparan la salida con `PONG`. Se enmendaron INF-U2-04 y la tarea (e938635).
+**Context**: Construcción de U2, U02-T12.
+
+---
+
+## Revisión de la ronda 1 de U02-T12
+**Timestamp**: 2026-11-05T06:00:00Z
+**User Input**: "dale, avísame cuando termine el revisor"
+**AI Response**: Ronda 1 NO-VERDE sobre eb99051. F-01 ROJO: el selector `app.kubernetes.io/name: envoy-gateway` de F95 y K14 no seleccionaba el pod del controlador de `gateway-helm` v1.9.3, que lleva `gateway-helm`. El codificador lo había dejado como candidata, y el orquestador lo puso dentro del alcance porque el Paso 10 pide verificar F95 y K14. F-02 (validar `unmeshed_source`) también entró. F-03 a F-05 y la candidata de `-LOADING` pasaron a CANDIDATAS. Se ratificaron `unmeshed_ports: [5432]` en F80, la lista en F61, `opaque` en el 6379 y Z1 (8cfb7ef).
+**Context**: Construcción de U2, U02-T12.
+
+---
+
+## Ronda 2 de U02-T12 (Paso 10)
+**Timestamp**: 2026-11-05T07:10:00Z
+**User Input**: "dale, avísame cuando termine el codificador"
+**AI Response**: Ronda 2 VERDE sobre 9f946e0. El revisor corrió CA-1 a CA-5 en serie: `identity-edge check` con 2367 pruebas y `platform check-local` con 745, sin omitidas. Con sus mutaciones, el selector de `envoy-gateway` sale del render de `gateway-helm` v1.9.3, y lo generado solo cambia en los tres selectores afectados por entorno. Un AMARILLO (reformateo de ruff) pasó a CANDIDATAS. Paso 10 marcado `[x]` en el plan. Se abre el PR para revisión humana; el agente no fusiona.
+**Context**: Construcción de U2, U02-T12.
+
+---
