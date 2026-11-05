@@ -5832,3 +5832,22 @@ Se redactaron `tareas/U02-T13-alertas-y-runbooks.md`, `tareas/U02-T14-especifica
 **Context**: Construcción de U2, U02-T12.
 
 ---
+
+## U02-T13 y U02-T14: decisiones B10, H10, H11 y H12 y rondas de revisión
+**Timestamp**: 2026-11-05T21:23:07Z
+**User Input**: B10 "Login en consola admin (Recomendado)"; H10 "Ajustar realm (Recomendado)"; H11 "success-level en info (Recomendado)"; H12 "Registrarla en los realms (Recomendado)"; "dale, avísame cuando termine los codificadores"
+**AI Response**:
+- **U02-T13**:
+  - se detuvo porque `keycloak_user_events_total` no tiene etiqueta de usuario. B10: `BreakGlassLogin` dispara con un `login` en `security-admin-console`;
+  - el orquestador corrigió B10: los tags son una opción de arranque (`KC_EVENT_METRICS_USER_TAGS`), no de build;
+  - la ronda 1 de revisión salió NO-VERDE (falso SEV1 tras un hueco de scrape y casos de promtool débiles). Está en la ronda 2.
+- **U02-T14**:
+  - se detuvo porque Keycloak 26.8.1 bloquea de forma permanente en el fallo 8. H10: `LINEAR` y `maxTemporaryLockouts: 15`;
+  - la ronda 1 de revisión salió NO-VERDE: el bloqueo rápido, el evento en DEBUG y `UPDATE_PASSWORD` sin registrar. El orquestador resolvió el bloqueo rápido en la prueba;
+  - H11: el listener `jboss-logging` pasa `success-level` a info;
+  - H12: `UPDATE_PASSWORD` se registra en los realms.
+
+Informes y arbitrajes en `revisiones/U02-T13/` y `revisiones/U02-T14/`.
+**Context**: Construcción de U2, U02-T13 y U02-T14.
+
+---
