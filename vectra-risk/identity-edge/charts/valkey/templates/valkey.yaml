@@ -71,8 +71,19 @@ spec:
             - { name: REPLICA_PRIORITY, value: {{ $node.replicaPriority | quote }} }
             - { name: INITIAL_PRIMARY, value: {{ if $node.primary }}""{{ else }}{{ include "valkey.fqdn" (dict "root" $root "name" $primary.name "index" 0) | quote }}{{ end }} }
             - { name: REDISCLI_AUTH, valueFrom: { secretKeyRef: { name: valkey-acl, key: sentinel-lookup-password } } }
-          readinessProbe: { tcpSocket: { port: redis }, periodSeconds: 5, failureThreshold: 3 }
-          livenessProbe: { tcpSocket: { port: redis }, periodSeconds: 10, failureThreshold: 6 }
+            # T5: la sonda entra como `exporter` (el de menos privilegio con `+ping`); `REDISCLI_AUTH` es la de la consulta al arrancar.
+            - { name: VALKEY_PROBE_PASSWORD, valueFrom: { secretKeyRef: { name: valkey-acl, key: exporter-password } } }
+          # T4 y T5: detras del proxy de Linkerd un `tcpSocket` lo contesta el proxy y no Valkey, asi que la sonda pregunta y compara con PONG.
+          readinessProbe:
+            exec:
+              command: [sh, -c, '[ "$(REDISCLI_AUTH="$VALKEY_PROBE_PASSWORD" valkey-cli --user exporter -p {{ $root.Values.valkey.port }} ping)" = PONG ]']
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: [sh, -c, '[ "$(REDISCLI_AUTH="$VALKEY_PROBE_PASSWORD" valkey-cli --user exporter -p {{ $root.Values.valkey.port }} ping)" = PONG ]']
+            periodSeconds: 10
+            failureThreshold: 6
           securityContext:
             {{- include "valkey.containerSecurityContext" $root | nindent 12 }}
           resources:

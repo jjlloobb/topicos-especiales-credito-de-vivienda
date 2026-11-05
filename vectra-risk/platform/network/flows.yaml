@@ -4,7 +4,8 @@ meshed_namespaces: [vectra-edge, vectra-app, vectra-serving, vectra-staging, vec
 system_namespaces: [cnpg-system, cert-manager, linkerd, kyverno, external-secrets, envoy-gateway-system, argocd, kserve, vault]
 #: En kind F22 se puede deshabilitar para el PR de RT-3 (BR-U12-04); nunca en staging ni en produccion.
 env_disabled: { kind: [], staging: [], prod: [] }
-#: Rango de pods para la NetworkAuthentication de F80. 0.0.0.0/32 no autoriza a nadie hasta que el banco entregue el rango.
+#: Rango de pods para la NetworkAuthentication de los flujos con origen sin malla: F80 (operador de CNPG), F91 y F61 (`envoy-ratelimit`, T1).
+#: 0.0.0.0/32 no autoriza a nadie hasta que el banco entregue el rango.
 pod_cidr: { kind: 192.168.0.0/16, staging: 0.0.0.0/32, prod: 0.0.0.0/32 }
 #: Destino real de la API de Kubernetes (Calico evalua tras el DNAT). En kind, la red de Docker: compruebalo en el Paso 19.
 api_server_cidr: { kind: 172.18.0.0/16, staging: 0.0.0.0/32, prod: 0.0.0.0/32 }
@@ -77,9 +78,12 @@ http_routes:
 workloads:
   trust-manager: { ns: cert-manager, sa: trust-manager, name: trust-manager }
   prometheus-operator: { ns: vectra-observability, sa: prometheus-operator, name: kube-prometheus-stack-prometheus-operator }
-  api-gateway: { ns: vectra-edge, sa: api-gateway, name: api-gateway }
+  # Z1 (INF-U2-02): el data plane lo selecciona la etiqueta del Gateway que lo posee, la que Envoy Gateway pone a sus pods.
+  api-gateway: { ns: vectra-edge, sa: api-gateway, labels: { gateway.envoyproxy.io/owning-gateway-name: api-gateway } }
   console-spa: { ns: vectra-edge, sa: console-spa, name: console-spa }
-  rate-limit: { ns: vectra-edge, sa: rate-limit, name: rate-limit }
+  # T1 (INF-U2-03): `envoy-ratelimit` lo crea el controlador en su namespace, sin malla. La clave `rate-limit` no cambia (FIXED_WAVES);
+  # las etiquetas son `rateLimitLabels()` y la cuenta `InfraName` de Envoy Gateway v1.9.3.
+  rate-limit: { ns: envoy-gateway-system, sa: envoy-ratelimit, labels: { app.kubernetes.io/name: envoy-ratelimit, app.kubernetes.io/component: ratelimit, app.kubernetes.io/managed-by: envoy-gateway } }
   valkey: { ns: vectra-edge, sa: valkey, name: valkey }
   sentinel: { ns: vectra-edge, sa: sentinel, name: sentinel }
   console-bff: { ns: vectra-app, sa: console-bff, name: console-bff }
@@ -139,7 +143,7 @@ workloads:
   kyverno-admission: { ns: kyverno, sa: kyverno-admission-controller, labels: { app.kubernetes.io/part-of: kyverno } }
   eso: { ns: external-secrets, sa: external-secrets, name: external-secrets }
   vault: { ns: vault, sa: vault, name: vault, envs: [kind] }
-  envoy-gateway: { ns: envoy-gateway-system, sa: envoy-gateway, name: envoy-gateway }
+  envoy-gateway: { ns: envoy-gateway-system, sa: envoy-gateway, labels: { control-plane: envoy-gateway, app.kubernetes.io/name: gateway-helm, app.kubernetes.io/instance: envoy-gateway } }
   argocd-repo-server: { ns: argocd, sa: argocd-repo-server, name: argocd-repo-server }
 flows:
   - { id: F01, from: [external:banco], to: [api-gateway], port: 443, target_port: 10443 }
@@ -217,7 +221,10 @@ flows:
   - { id: F60, from: [prometheus], to: ["ns:vectra-app", "ns:vectra-edge", "ns:vectra-serving", "ns:vectra-mock"], port: 8081 }
   - { id: F60, from: [prometheus], to: [case-db, governance-db, registry-db, keycloak-db], port: 9187 } # exporter de CloudNativePG
   - { id: F60, from: [prometheus], to: [keycloak], port: 9000 } # puerto de administracion
-  - { id: F61, from: ["ns:vectra-app", "ns:vectra-serving", "ns:vectra-edge", "ns:vectra-staging", "ns:vectra-identity", "ns:vectra-mock", "ns:vectra-data", "ns:vectra-restore-drill"], to: [otel-collector], port: 4317 }
+  - { id: F60, from: [prometheus], to: [api-gateway], port: 19001 } # T3: estadisticas del data plane (EnvoyStatsPort)
+  - { id: F60, from: [prometheus], to: [rate-limit], port: 19001 } # T3: metricas de envoy-ratelimit (PrometheusPort)
+  - { id: F60, from: [prometheus], to: [valkey], port: 9121 } # T3: exportador de Valkey
+  - { id: F61, from: ["ns:vectra-app", "ns:vectra-serving", "ns:vectra-edge", "ns:vectra-staging", "ns:vectra-identity", "ns:vectra-mock", "ns:vectra-data", "ns:vectra-restore-drill", rate-limit], to: [otel-collector], port: 4317, unmeshed_source: [rate-limit] } # T1: envoy-ratelimit no esta en la malla
   - { id: F62, from: [otel-collector], to: [tempo, loki], ports: [4317, 3100] }
   - { id: F63, from: [alloy], to: [loki], port: 3100 }
   - { id: F64, from: [prometheus], to: [alertmanager], port: 9093 }
@@ -236,7 +243,7 @@ flows:
   - { id: F77, from: [registry-checkpoint], to: [external:backups], port: 443, envs: [staging, prod] }
   - { id: F78, from: [registry-archive], to: [external:backups], port: 443, envs: [staging, prod] }
   - { id: F79, from: [registry-verify], to: [external:backups], port: 443, envs: [staging, prod] }
-  - { id: F80, from: [cnpg-operator], to: [case-db, governance-db, registry-db, keycloak-db, restore-cluster], ports: [8000, 5432], unmeshed_source: true }
+  - { id: F80, from: [cnpg-operator], to: [case-db, governance-db, registry-db, keycloak-db, restore-cluster], ports: [8000, 5432], unmeshed_source: true, unmeshed_ports: [5432] }
   - { id: F81, from: [external:kube-apiserver], to: [cnpg-operator], port: 9443 }
   - { id: F82, from: [external:kube-apiserver], to: [cert-manager-webhook], port: 10250 }
   - { id: F83, from: ["ns:vectra-edge", "ns:vectra-app", "ns:vectra-serving", "ns:vectra-staging", "ns:vectra-data", "ns:vectra-identity", "ns:vectra-mock", "ns:vectra-observability", "ns:vectra-restore-drill"], to: [linkerd-control], ports: [8086, 8080, 8090] }
@@ -249,9 +256,10 @@ flows:
   - { id: F87, from: [restore-drill], to: [pushgateway], port: 9091 }
   - { id: F88, from: [prometheus], to: [pushgateway], port: 9091 }
   - { id: F106, from: [bias-monitoring-job], to: [pushgateway], port: 9091 }
-  - { id: F90, from: [api-gateway], to: [rate-limit], port: 8083 }
-  - { id: F91, from: [rate-limit], to: [valkey, sentinel], ports: [26379, 6379] }
+  - { id: F90, from: [api-gateway], to: [rate-limit], port: 8081 }
+  - { id: F91, from: [rate-limit], to: [valkey, sentinel], ports: [26379, 6379], unmeshed_source: true }
   - { id: F92, from: [valkey], to: [valkey], port: 6379 }
+  - { id: F92, from: [valkey], to: [sentinel], port: 26379 } # T2: la consulta al arrancar
   - { id: F93, from: [sentinel], to: [valkey, sentinel], ports: [6379, 26379] }
   - { id: F94, from: [keycloak-config-cli, realm-drift, signing-key-age], to: [keycloak], port: 8443 }
   - { id: F95, from: [api-gateway], to: [envoy-gateway], port: 18000 }

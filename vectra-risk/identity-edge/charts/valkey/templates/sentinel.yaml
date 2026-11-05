@@ -68,8 +68,17 @@ spec:
             - { name: SENTINEL_QUORUM, value: {{ $root.Values.sentinel.quorum | quote }} }
             - { name: DEFAULT_PRIMARY, value: {{ $defaultPrimary | quote }} }
             - { name: REDISCLI_AUTH, valueFrom: { secretKeyRef: { name: valkey-acl, key: sentinel-lookup-password } } }
-          readinessProbe: { tcpSocket: { port: sentinel }, periodSeconds: 5, failureThreshold: 3 }
-          livenessProbe: { tcpSocket: { port: sentinel }, periodSeconds: 10, failureThreshold: 6 }
+          # T4 y T5: la sonda entra como `ratelimit` de Sentinel (`+ping`) con el `REDISCLI_AUTH` del pod y compara con PONG.
+          readinessProbe:
+            exec:
+              command: [sh, -c, '[ "$(valkey-cli --user ratelimit -p {{ $root.Values.sentinel.port }} ping)" = PONG ]']
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: [sh, -c, '[ "$(valkey-cli --user ratelimit -p {{ $root.Values.sentinel.port }} ping)" = PONG ]']
+            periodSeconds: 10
+            failureThreshold: 6
           securityContext:
             {{- include "valkey.containerSecurityContext" $root | nindent 12 }}
           resources:

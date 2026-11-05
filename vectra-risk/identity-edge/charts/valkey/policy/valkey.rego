@@ -73,7 +73,7 @@ sentinel_head_conf := [
 # Directivas que llevan una contrasena: no pueden estar en un ConfigMap.
 password_directives := {"masterauth", "primaryauth", "requirepass", "auth-pass", "sentinel-pass", "user"}
 
-password_env_names := {"REDIS_PASSWORD", "REDISCLI_AUTH", "REDIS_AUTH", "REDIS_SENTINEL_AUTH"}
+password_env_names := {"REDIS_PASSWORD", "REDISCLI_AUTH", "REDIS_AUTH", "REDIS_SENTINEL_AUTH", "VALKEY_PROBE_PASSWORD"}
 
 statefulset_names := {"valkey-a", "valkey-b", "sentinel-a", "sentinel-b"}
 
@@ -88,6 +88,18 @@ is_sentinel_group if {
 	is_statefulset
 	startswith(input.metadata.name, "sentinel-")
 }
+
+# T4 y T5 (INF-U2-04, «Credenciales de las sondas»): detras del proxy de Linkerd un `tcpSocket` lo contesta el proxy, asi que las sondas
+# de Valkey y Sentinel son `exec` con `valkey-cli ping`, con usuario, y comparan la salida con PONG. Valkey entra como `exporter` con
+# `VALKEY_PROBE_PASSWORD` (clave `exporter-password` de `valkey-acl`); Sentinel, como `ratelimit` con el `REDISCLI_AUTH` del pod.
+probe_scripts := {
+	"valkey": `[ "$(REDISCLI_AUTH="$VALKEY_PROBE_PASSWORD" valkey-cli --user exporter -p 6379 ping)" = PONG ]`,
+	"sentinel": `[ "$(valkey-cli --user ratelimit -p 26379 ping)" = PONG ]`,
+}
+
+probe_kinds := {"readinessProbe", "livenessProbe"}
+
+probe_secret := {"name": "valkey-acl", "key": "exporter-password"}
 
 pod := input.spec.template.spec
 
@@ -436,6 +448,73 @@ deny contains msg if {
 	e.name in password_env_names
 	not e.valueFrom.secretKeyRef.name == "valkey-acl"
 	msg := sprintf("no-plain-password: %s/%s toma %s de otro Secret", [input.metadata.name, c.name, e.name])
+}
+
+# regla: probes
+deny contains msg if {
+	is_statefulset
+	some c in pod.containers
+	c.name in object.keys(probe_scripts)
+	some kind in probe_kinds
+	c[kind].tcpSocket
+	msg := sprintf("probes: %s/%s %s es tcpSocket y la contesta el proxy de Linkerd, no la aplicacion (T4)", [input.metadata.name, c.name, kind])
+}
+
+deny contains msg if {
+	is_statefulset
+	some c in pod.containers
+	c.name in object.keys(probe_scripts)
+	some kind in probe_kinds
+	not c[kind].exec.command == ["sh", "-c", probe_scripts[c.name]]
+	msg := sprintf("probes: %s/%s %s debe ser el exec `sh -c` de INF-U2-04 (valkey-cli ping con usuario, comparado con PONG)", [input.metadata.name, c.name, kind])
+}
+
+deny contains msg if {
+	is_statefulset
+	some c in pod.containers
+	c.name in object.keys(probe_scripts)
+	some kind in probe_kinds
+	script := c[kind].exec.command[2]
+	not contains(script, " --user ")
+	msg := sprintf("probes: %s/%s %s sin --user: valkey-cli entraria como `default`, que esta deshabilitado (T5)", [input.metadata.name, c.name, kind])
+}
+
+deny contains msg if {
+	is_statefulset
+	some c in pod.containers
+	c.name in object.keys(probe_scripts)
+	some kind in probe_kinds
+	script := c[kind].exec.command[2]
+	some word in split(script, " ")
+	word in {"-a", "--pass", "--askpass", "-u", "--uri"}
+	msg := sprintf("probes: %s/%s %s lleva la contrasena en la linea de comandos con `%s` (T5)", [input.metadata.name, c.name, kind, word])
+}
+
+deny contains msg if {
+	is_statefulset
+	some c in pod.containers
+	c.name in object.keys(probe_scripts)
+	some kind in probe_kinds
+	script := c[kind].exec.command[2]
+	contains(script, "REDISCLI_AUTH=")
+	not contains(script, `REDISCLI_AUTH="$VALKEY_PROBE_PASSWORD"`)
+	msg := sprintf("probes: %s/%s %s asigna REDISCLI_AUTH con algo distinto de $VALKEY_PROBE_PASSWORD: la contrasena no va en la linea de comandos (T5)", [input.metadata.name, c.name, kind])
+}
+
+deny contains msg if {
+	is_statefulset
+	some c in pod.containers
+	c.name in object.keys(probe_scripts)
+	some kind in probe_kinds
+	script := c[kind].exec.command[2]
+	not endswith(script, " = PONG ]")
+	msg := sprintf("probes: %s/%s %s no compara la salida con PONG (T5)", [input.metadata.name, c.name, kind])
+}
+
+deny contains msg if {
+	is_valkey_node
+	not env_map(container("valkey"))["VALKEY_PROBE_PASSWORD"].valueFrom.secretKeyRef == probe_secret
+	msg := sprintf("probes: la contrasena de la sonda de %s sale de la clave exporter-password de valkey-acl (T5)", [input.metadata.name])
 }
 
 # regla: resources

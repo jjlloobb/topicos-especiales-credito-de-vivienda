@@ -5,7 +5,9 @@ la comparacion con lo renderizado falla.
 """
 
 import re
+import shlex
 from pathlib import Path
+from typing import Any
 
 from design_values import INFRASTRUCTURE, section, table_rows
 
@@ -250,3 +252,33 @@ def ratelimit_failclosed(text: str = INFRASTRUCTURE) -> bool:
     found = re.search(r"`rateLimit\.failClosed: (true|false)`", inf03(text))
     assert found, "INF-U2-03 sin failClosed"
     return found.group(1) == "true"
+
+
+# --- sondas y scrape (INF-U2-04: T3, T4 y T5) ---------------------------------------------------------------------
+
+
+def scrape_ports(text: str = INFRASTRUCTURE) -> dict[str, int]:
+    """T3: los puertos que F60 suma, como los dice INF-U2-04."""
+    found = re.search(r"\*\*T3\.\*\* F60 suma Envoy \(data plane\) en el (\d+), `envoy-ratelimit` en el (\d+) y el exportador de Valkey en el (\d+)", inf04(text))
+    assert found, "INF-U2-04 sin los puertos de T3"
+    return {"envoy": int(found.group(1)), "ratelimit": int(found.group(2)), "exporter": int(found.group(3))}
+
+
+def probes(text: str = INFRASTRUCTURE) -> dict[str, dict[str, Any]]:
+    """T4 y T5: la sonda `exec` de Valkey y la de Sentinel. Cada una trae el puerto, el usuario, el comando (`sh -c '...'`, ya partido)
+    y, la de Valkey, la variable que lleva la contrasena y el `secretKeyRef` de donde sale."""
+    body = inf04(text)
+    valkey = re.search(
+        r"\*\*Valkey \((\d+)\):\*\* la sonda usa el usuario `(\w+)`.*?recibe `(\w+)` por `secretKeyRef` a la clave `([\w-]+)` del Secret `([\w-]+)`.*?La sonda es `(sh -c \'[^`]*\')`",
+        body,
+        re.DOTALL,
+    )
+    sentinel = re.search(r"\*\*Sentinel \((\d+)\):\*\* la sonda usa el usuario `(\w+)` de Sentinel.*?: `(sh -c \'[^`]*\')`", body, re.DOTALL)
+    assert valkey and sentinel, "INF-U2-04 sin las credenciales de las sondas (T5)"
+    return {
+        "valkey": {
+            "port": int(valkey.group(1)), "user": valkey.group(2), "env": valkey.group(3),
+            "secret": {"name": valkey.group(5), "key": valkey.group(4)}, "command": shlex.split(valkey.group(6)),
+        },  # fmt: skip
+        "sentinel": {"port": int(sentinel.group(1)), "user": sentinel.group(2), "command": shlex.split(sentinel.group(3))},
+    }

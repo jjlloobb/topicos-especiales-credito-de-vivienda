@@ -46,7 +46,7 @@ spec:
       protocol: TCP
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: api-gateway
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
   policyTypes:
   - Ingress
 ---
@@ -71,7 +71,7 @@ spec:
           app.kubernetes.io/name: console-spa
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: api-gateway
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
   policyTypes:
   - Egress
 ---
@@ -90,7 +90,7 @@ spec:
           kubernetes.io/metadata.name: vectra-edge
       podSelector:
         matchLabels:
-          app.kubernetes.io/name: api-gateway
+          gateway.envoyproxy.io/owning-gateway-name: api-gateway
     ports:
     - port: 8080
       protocol: TCP
@@ -157,7 +157,7 @@ spec:
           app.kubernetes.io/name: console-bff
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: api-gateway
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
   policyTypes:
   - Egress
 ---
@@ -182,7 +182,7 @@ spec:
           app.kubernetes.io/name: case-service
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: api-gateway
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
   policyTypes:
   - Egress
 ---
@@ -207,7 +207,7 @@ spec:
           app.kubernetes.io/name: keycloak
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: api-gateway
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
   policyTypes:
   - Egress
 ---
@@ -232,7 +232,7 @@ spec:
           app.kubernetes.io/name: grafana
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: api-gateway
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
   policyTypes:
   - Egress
 ---
@@ -250,7 +250,7 @@ spec:
       protocol: TCP
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: api-gateway
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
   policyTypes:
   - Ingress
 ---
@@ -268,7 +268,7 @@ spec:
       protocol: TCP
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: api-gateway
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
   policyTypes:
   - Ingress
 ---
@@ -293,7 +293,7 @@ spec:
           app.kubernetes.io/name: governance-service
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: api-gateway
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
   policyTypes:
   - Egress
 ---
@@ -318,7 +318,7 @@ spec:
           app.kubernetes.io/name: keycloak
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: api-gateway
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
   policyTypes:
   - Egress
 ---
@@ -383,6 +383,128 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   labels:
+    vectra.io/flow: F60
+  name: allow-f60-to-api-gateway-ingress
+  namespace: vectra-edge
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - port: 19001
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: api-gateway-19001
+  namespace: vectra-edge
+spec:
+  podSelector:
+    matchLabels:
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
+  port: 19001
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f60-api-gateway-19001-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - prometheus.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f60-api-gateway-19001
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f60-api-gateway-19001-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: api-gateway-19001
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F60
+  name: allow-f60-to-valkey-ingress
+  namespace: vectra-edge
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-observability
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - port: 9121
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: valkey-9121
+  namespace: vectra-edge
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  port: 9121
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f60-valkey-9121-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - prometheus.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f60-valkey-9121
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f60-valkey-9121-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: valkey-9121
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
     vectra.io/flow: F61
   name: allow-f61-vectra-edge-to-opentelemetry-collector-egress
   namespace: vectra-edge
@@ -439,108 +561,20 @@ metadata:
 spec:
   egress:
   - ports:
-    - port: 8083
+    - port: 8081
       protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: vectra-edge
+          kubernetes.io/metadata.name: envoy-gateway-system
       podSelector:
         matchLabels:
-          app.kubernetes.io/name: rate-limit
+          app.kubernetes.io/component: ratelimit
+          app.kubernetes.io/managed-by: envoy-gateway
+          app.kubernetes.io/name: envoy-ratelimit
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: api-gateway
-  policyTypes:
-  - Egress
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  labels:
-    vectra.io/flow: F90
-  name: allow-f90-to-rate-limit-ingress
-  namespace: vectra-edge
-spec:
-  ingress:
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: vectra-edge
-      podSelector:
-        matchLabels:
-          app.kubernetes.io/name: api-gateway
-    ports:
-    - port: 8083
-      protocol: TCP
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: rate-limit
-  policyTypes:
-  - Ingress
----
-apiVersion: policy.linkerd.io/v1beta3
-kind: Server
-metadata:
-  name: rate-limit-8083
-  namespace: vectra-edge
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: rate-limit
-  port: 8083
-  proxyProtocol: unknown
----
-apiVersion: policy.linkerd.io/v1alpha1
-kind: MeshTLSAuthentication
-metadata:
-  name: f90-rate-limit-8083-mtls
-  namespace: vectra-edge
-spec:
-  identities:
-  - api-gateway.vectra-edge.serviceaccount.identity.linkerd.cluster.local
----
-apiVersion: policy.linkerd.io/v1alpha1
-kind: AuthorizationPolicy
-metadata:
-  name: f90-rate-limit-8083
-  namespace: vectra-edge
-spec:
-  requiredAuthenticationRefs:
-  - group: policy.linkerd.io
-    kind: MeshTLSAuthentication
-    name: f90-rate-limit-8083-mtls
-  targetRef:
-    group: policy.linkerd.io
-    kind: Server
-    name: rate-limit-8083
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  labels:
-    vectra.io/flow: F91
-  name: allow-f91-rate-limit-to-valkey-egress
-  namespace: vectra-edge
-spec:
-  egress:
-  - ports:
-    - port: 26379
-      protocol: TCP
-    - port: 6379
-      protocol: TCP
-    - port: 4143
-      protocol: TCP
-    to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: vectra-edge
-      podSelector:
-        matchLabels:
-          app.kubernetes.io/name: valkey
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: rate-limit
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
   policyTypes:
   - Egress
 ---
@@ -556,16 +590,16 @@ spec:
   - from:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: vectra-edge
+          kubernetes.io/metadata.name: envoy-gateway-system
       podSelector:
         matchLabels:
-          app.kubernetes.io/name: rate-limit
+          app.kubernetes.io/component: ratelimit
+          app.kubernetes.io/managed-by: envoy-gateway
+          app.kubernetes.io/name: envoy-ratelimit
     ports:
     - port: 26379
       protocol: TCP
     - port: 6379
-      protocol: TCP
-    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -592,7 +626,7 @@ metadata:
   namespace: vectra-edge
 spec:
   identities:
-  - rate-limit.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+  - envoy-ratelimit.envoy-gateway-system.serviceaccount.identity.linkerd.cluster.local
 ---
 apiVersion: policy.linkerd.io/v1alpha1
 kind: AuthorizationPolicy
@@ -609,6 +643,30 @@ spec:
     kind: Server
     name: valkey-26379
 ---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: f91-valkey-26379-operator-network
+  namespace: vectra-edge
+spec:
+  networks:
+  - cidr: 192.168.0.0/16
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f91-valkey-26379-operator
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: NetworkAuthentication
+    name: f91-valkey-26379-operator-network
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: valkey-26379
+---
 apiVersion: policy.linkerd.io/v1beta3
 kind: Server
 metadata:
@@ -619,7 +677,7 @@ spec:
     matchLabels:
       app.kubernetes.io/name: valkey
   port: 6379
-  proxyProtocol: unknown
+  proxyProtocol: opaque
 ---
 apiVersion: policy.linkerd.io/v1alpha1
 kind: MeshTLSAuthentication
@@ -628,7 +686,7 @@ metadata:
   namespace: vectra-edge
 spec:
   identities:
-  - rate-limit.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+  - envoy-ratelimit.envoy-gateway-system.serviceaccount.identity.linkerd.cluster.local
 ---
 apiVersion: policy.linkerd.io/v1alpha1
 kind: AuthorizationPolicy
@@ -645,34 +703,29 @@ spec:
     kind: Server
     name: valkey-6379
 ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
 metadata:
-  labels:
-    vectra.io/flow: F91
-  name: allow-f91-rate-limit-to-sentinel-egress
+  name: f91-valkey-6379-operator-network
   namespace: vectra-edge
 spec:
-  egress:
-  - ports:
-    - port: 26379
-      protocol: TCP
-    - port: 6379
-      protocol: TCP
-    - port: 4143
-      protocol: TCP
-    to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: vectra-edge
-      podSelector:
-        matchLabels:
-          app.kubernetes.io/name: sentinel
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: rate-limit
-  policyTypes:
-  - Egress
+  networks:
+  - cidr: 192.168.0.0/16
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f91-valkey-6379-operator
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: NetworkAuthentication
+    name: f91-valkey-6379-operator-network
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: valkey-6379
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -686,16 +739,16 @@ spec:
   - from:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: vectra-edge
+          kubernetes.io/metadata.name: envoy-gateway-system
       podSelector:
         matchLabels:
-          app.kubernetes.io/name: rate-limit
+          app.kubernetes.io/component: ratelimit
+          app.kubernetes.io/managed-by: envoy-gateway
+          app.kubernetes.io/name: envoy-ratelimit
     ports:
     - port: 26379
       protocol: TCP
     - port: 6379
-      protocol: TCP
-    - port: 4143
       protocol: TCP
   podSelector:
     matchLabels:
@@ -722,7 +775,7 @@ metadata:
   namespace: vectra-edge
 spec:
   identities:
-  - rate-limit.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+  - envoy-ratelimit.envoy-gateway-system.serviceaccount.identity.linkerd.cluster.local
 ---
 apiVersion: policy.linkerd.io/v1alpha1
 kind: AuthorizationPolicy
@@ -739,6 +792,30 @@ spec:
     kind: Server
     name: sentinel-26379
 ---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: f91-sentinel-26379-operator-network
+  namespace: vectra-edge
+spec:
+  networks:
+  - cidr: 192.168.0.0/16
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f91-sentinel-26379-operator
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: NetworkAuthentication
+    name: f91-sentinel-26379-operator-network
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: sentinel-26379
+---
 apiVersion: policy.linkerd.io/v1beta3
 kind: Server
 metadata:
@@ -749,7 +826,7 @@ spec:
     matchLabels:
       app.kubernetes.io/name: sentinel
   port: 6379
-  proxyProtocol: unknown
+  proxyProtocol: opaque
 ---
 apiVersion: policy.linkerd.io/v1alpha1
 kind: MeshTLSAuthentication
@@ -758,7 +835,7 @@ metadata:
   namespace: vectra-edge
 spec:
   identities:
-  - rate-limit.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+  - envoy-ratelimit.envoy-gateway-system.serviceaccount.identity.linkerd.cluster.local
 ---
 apiVersion: policy.linkerd.io/v1alpha1
 kind: AuthorizationPolicy
@@ -770,6 +847,30 @@ spec:
   - group: policy.linkerd.io
     kind: MeshTLSAuthentication
     name: f91-sentinel-6379-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: sentinel-6379
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: f91-sentinel-6379-operator-network
+  namespace: vectra-edge
+spec:
+  networks:
+  - cidr: 192.168.0.0/16
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f91-sentinel-6379-operator
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: NetworkAuthentication
+    name: f91-sentinel-6379-operator-network
   targetRef:
     group: policy.linkerd.io
     kind: Server
@@ -852,6 +953,80 @@ spec:
     group: policy.linkerd.io
     kind: Server
     name: valkey-6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F92
+  name: allow-f92-valkey-to-sentinel-egress
+  namespace: vectra-edge
+spec:
+  egress:
+  - ports:
+    - port: 26379
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: sentinel
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    vectra.io/flow: F92
+  name: allow-f92-to-sentinel-ingress
+  namespace: vectra-edge
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-edge
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: valkey
+    ports:
+    - port: 26379
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sentinel
+  policyTypes:
+  - Ingress
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f92-sentinel-26379-mtls
+  namespace: vectra-edge
+spec:
+  identities:
+  - valkey.vectra-edge.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f92-sentinel-26379
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f92-sentinel-26379-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: sentinel-26379
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -1083,9 +1258,11 @@ spec:
           kubernetes.io/metadata.name: envoy-gateway-system
       podSelector:
         matchLabels:
-          app.kubernetes.io/name: envoy-gateway
+          app.kubernetes.io/instance: envoy-gateway
+          app.kubernetes.io/name: gateway-helm
+          control-plane: envoy-gateway
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: api-gateway
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
   policyTypes:
   - Egress
