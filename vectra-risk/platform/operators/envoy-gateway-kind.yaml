@@ -1,8 +1,12 @@
 # Solo kind (U02-T10, decision Y3): el registro del espejo del sidecar `shutdown-manager` (X3). Se agrega a
 # `platform/operators/envoy-gateway.yaml`, que lleva el del banco; el digest es el mismo (el de `docker.io/envoyproxy/gateway:v1.9.3`).
+# U02-T11 (R2): lo mismo para la imagen de `envoy-ratelimit`, con el digest de `docker.io/envoyproxy/ratelimit:5ae0682e`.
 config:
   envoyGateway:
     provider:
       kubernetes:
         shutdownManager:
           image: kind-registry:5000/vectra/envoy-gateway@sha256:192fc9bdadb6d2462e8cf7bd702ce3dd9648f3310c6038787448a1f509b7cd9f
+        rateLimitDeployment:
+          container:
+            image: kind-registry:5000/vectra/ratelimit@sha256:b95206e32b1a5f824fb06062fbb85bbdfb7f5de54135e92afe8462f22c979681

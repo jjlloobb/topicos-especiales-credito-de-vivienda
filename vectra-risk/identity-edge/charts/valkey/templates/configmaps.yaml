@@ -1,0 +1,97 @@
+{{- /* Sin contrasenas (NFR-U2-27): `aclfile`, `masterauth` y los usuarios de Sentinel salen del Secret `valkey-acl` (ESO). */ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: valkey-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "valkey.labels" (dict "name" "valkey" "instance" "valkey") | nindent 4 }}
+data:
+  # Sin persistencia (INF-U2-04): ni RDB ni AOF. Los contadores tienen TTL; `maxmemory` con `volatile-ttl`.
+  valkey.conf: |
+    port {{ .Values.valkey.port }}
+    bind 0.0.0.0
+    protected-mode no
+    dir /data
+    save ""
+    appendonly no
+    maxmemory {{ .Values.valkey.maxmemory }}
+    maxmemory-policy {{ .Values.valkey.maxmemoryPolicy }}
+    replica-read-only yes
+    aclfile /etc/valkey-secret/users.acl
+    include /etc/valkey-secret/valkey-secret.conf
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sentinel-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "valkey.labels" (dict "name" "sentinel" "instance" "sentinel") | nindent 4 }}
+data:
+  # Antes de `sentinel monitor`: lo que fija como se interpretan los nombres.
+  sentinel-head.conf: |
+    port {{ .Values.sentinel.port }}
+    dir /data
+    protected-mode no
+    sentinel resolve-hostnames yes
+    sentinel announce-hostnames yes
+  # Despues de `sentinel monitor`: opciones del master.
+  sentinel-master.conf: |
+    sentinel down-after-milliseconds {{ .Values.master }} {{ .Values.sentinel.downAfterMilliseconds }}
+    sentinel failover-timeout {{ .Values.master }} {{ .Values.sentinel.failoverTimeout }}
+    sentinel parallel-syncs {{ .Values.master }} {{ .Values.sentinel.parallelSyncs }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: valkey-scripts
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "valkey.labels" (dict "name" "valkey" "instance" "valkey-scripts") | nindent 4 }}
+data:
+  # Pregunta a los Sentinel por la primaria actual con el usuario `ratelimit` (REDISCLI_AUTH): `sentinel|master` devuelve `ip` y `port`.
+  lookup.sh: |
+    lookup_primary() {
+      for sentinel in $SENTINEL_HOSTS; do
+        [ "$sentinel" = "$SELF_FQDN" ] && continue
+        reply=$(valkey-cli --no-auth-warning --user ratelimit -h "$sentinel" -p "$SENTINEL_PORT" sentinel master "$MASTER_NAME" 2>/dev/null) || continue
+        host=$(printf '%s\n' "$reply" | awk 'p == "ip" { print; exit } { p = $0 }')
+        port=$(printf '%s\n' "$reply" | awk 'p == "port" { print; exit } { p = $0 }')
+        if [ -n "$host" ] && [ -n "$port" ]; then
+          echo "$host $port"
+          return 0
+        fi
+      done
+      return 1
+    }
+  # R3: al reiniciar, el nodo pregunta a Sentinel por la primaria antes de declararse replica. Sin respuesta: `valkey-a` primaria y
+  # `valkey-b` replica de ella (INITIAL_PRIMARY).
+  start-valkey.sh: |
+    set -eu
+    . /scripts/lookup.sh
+    target=$(lookup_primary || true)
+    if [ -z "$target" ] && [ -n "${INITIAL_PRIMARY:-}" ]; then
+      target="$INITIAL_PRIMARY $VALKEY_PORT"
+    fi
+    set -- valkey-server /etc/valkey/valkey.conf --replica-priority "$REPLICA_PRIORITY" --replica-announce-ip "$SELF_FQDN"
+    case "$target" in
+      "" | "$SELF_FQDN "*) ;;
+      *) set -- "$@" --replicaof $target ;;
+    esac
+    exec "$@"
+  # Sentinel reescribe su configuracion: se arma una copia en el `emptyDir` en cada arranque, con el master que dicen los demas Sentinel.
+  start-sentinel.sh: |
+    set -eu
+    . /scripts/lookup.sh
+    target=$(lookup_primary || true)
+    if [ -z "$target" ]; then
+      target="$DEFAULT_PRIMARY $VALKEY_PORT"
+    fi
+    {
+      cat /etc/sentinel/sentinel-head.conf /etc/sentinel-secret/sentinel-users.conf
+      echo "sentinel announce-ip $SELF_FQDN"
+      echo "sentinel monitor $MASTER_NAME $target $SENTINEL_QUORUM"
+      cat /etc/sentinel/sentinel-master.conf /etc/sentinel-secret/sentinel-auth.conf
+    } > /data/sentinel.conf
+    exec valkey-sentinel /data/sentinel.conf

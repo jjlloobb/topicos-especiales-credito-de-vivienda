@@ -178,7 +178,7 @@ vectra-risk/identity-edge/
     - `egctl x translate --from gateway-api --to xds -f identity-edge/gateway/generated/` (traducción offline, sin clúster) y una prueba que inspecciona el xDS: el filtro de rate limit de la ruta `/auth/**` tiene `failure_mode_deny: true` y el de las demás no;
     - `test -s identity-edge/docs/adr-envoy-gateway.md`.
 
-- [ ] **Paso 9 — Servicio de rate limit y Valkey**
+- [x] **Paso 9 — Servicio de rate limit y Valkey** (U02-T11)
   - `envoyproxy/ratelimit` (HPA de 2 a 4, quinta revisión de coherencia entre unidades, 2026-10-31; gRPC en 8083, métricas en 8081) con la configuración de descriptores generada por `route-gen`.
   - Chart propio de Valkey 8: 2 nodos en zonas distintas, primaria preferida en la zona A, 3 Sentinel, sin persistencia, PDB, exportador como sidecar, ACL `ratelimit`, de replicación y de Sentinel desde ESO (seguimiento de la quinta revisión de coherencia, 2026-10-31), usuario `default` deshabilitado, `maxmemory 128mb`, `volatile-ttl`, prioridad `vectra-high`.
   - **Nota del 2026-11-04 (decisión W1 del usuario al preparar U02-T10):** el servicio de rate limit es el `envoy-ratelimit` que despliega Envoy Gateway, no un `envoyproxy/ratelimit` propio en el 8083 con configuración de `route-gen` (INF-U2-03). Este paso se rediseña al prepararlo.

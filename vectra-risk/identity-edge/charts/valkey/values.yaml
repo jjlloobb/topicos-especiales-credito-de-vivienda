@@ -1,0 +1,56 @@
+# Values comunes del chart propio de Valkey (U02-T11, Paso 9). Los de cada entorno estan en values/<env>.yaml y fijan
+# `registry` y las zonas; sin ellos la plantilla falla.
+namespace: vectra-edge
+priorityClassName: vectra-high
+criticality: high
+# R5: el master se llama `ratelimit` (el nombre que lleva `rateLimit.backend.redis.url` del controlador).
+master: ratelimit
+domain: svc.cluster.local
+
+# Sin valor por defecto: cada entorno fija el registro donde se espeja (restrict-registries).
+registry: ""
+
+# R2: valkey/valkey:8.1.11-alpine (Valkey y Sentinel) y oliver006/redis_exporter:v1.95.0-alpine, por digest.
+images:
+  valkey: { name: valkey, digest: sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a }
+  exporter: { name: redis-exporter, digest: sha256:19bb5c732f5812d5b60b2e0af3c6d82c5b3e418cd020068d65f588a56df4a118 }
+
+# R3: dos StatefulSets de 1 replica, uno por zona. `primary` arranca como primaria; el otro, como replica de ella.
+valkey:
+  port: 6379
+  maxmemory: 128mb
+  maxmemoryPolicy: volatile-ttl
+  nodes:
+    a: { name: valkey-a, zone: "", replicaPriority: 10, primary: true }
+    b: { name: valkey-b, zone: "", replicaPriority: 100 }
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+  pdb: { minAvailable: 1 }
+
+exporter:
+  port: 9121
+  resources:
+    requests: { cpu: 50m, memory: 32Mi }
+    limits: { cpu: 100m, memory: 64Mi }
+
+# R7: tiempos de Sentinel (INF-U2-04). R3: `sentinel-a` (1, zona A) y `sentinel-b` (2, zona B), quorum 2.
+sentinel:
+  port: 26379
+  quorum: 2
+  downAfterMilliseconds: 5000
+  failoverTimeout: 60000
+  parallelSyncs: 1
+  groups:
+    a: { name: sentinel-a, replicas: 1, zone: "" }
+    b: { name: sentinel-b, replicas: 2, zone: "" }
+  resources:
+    requests: { cpu: 50m, memory: 32Mi }
+    limits: { cpu: 100m, memory: 64Mi }
+  pdb: { minAvailable: 2 }
+
+# R4/R5: ESO arma los archivos de ACL desde la clave `edge/valkey` de la boveda. Propiedades: ratelimit, replication, sentinel,
+# sentinel-peer, exporter y sentinel-ratelimit.
+vault:
+  store: vectra-store
+  key: edge/valkey

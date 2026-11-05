@@ -94,6 +94,7 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 
     La imagen es `envoyproxy/ratelimit:5ae0682e`, la de `global.images.ratelimit` de v1.9.3, con `@sha256:b95206e32b1a5f824fb06062fbb85bbdfb7f5de54135e92afe8462f22c979681`. Se espeja en `registro.banco.internal/vectra/ratelimit`, y en kind en `kind-registry:5000/vectra/ratelimit` por `envoy-gateway-kind.yaml`.
   - **Telemetría.** Métricas Prometheus activas (el default) y tracing OpenTelemetry hacia `otel-collector.vectra-observability.svc:4317` con muestreo del 100 %, como el data plane (W6).
+    - **Enmienda del 2026-11-04 (decisión R8 del usuario tras la ronda 1 de U02-T11).** `envoyproxy/ratelimit` `5ae0682e` exporta por OTLP HTTP salvo que se diga otra cosa: `TRACING_EXPORTER_PROTOCOL` vale `"http"` por defecto (`src/settings/settings.go:316`). El 4317 es OTLP gRPC. Por eso `rateLimitDeployment.container.env` agrega `TRACING_EXPORTER_PROTOCOL=grpc`, y el endpoint sigue en el 4317, como el resto de componentes.
   - **Descriptores.** No los genera `route-gen`: el controlador los arma por xDS desde las `BackendTrafficPolicy` (`edge-rate-limits` y `auth-rate-limits`). Se comprueban offline con el IR de `egctl x translate --to ir`.
 - *(Superado por la enmienda anterior.)* `envoyproxy/ratelimit` en `vectra-edge`: HPA de 2 a 4 por CPU, repartido por zona, PDB. Sin HPA ni exención, `require-hpa-bounds` lo rechazaría (quinta revisión de coherencia entre unidades, 2026-10-31).
 - *(Superado: el puerto lo fija v1.9.3, ver la enmienda de R1 y R2.)* **gRPC en el puerto 8083.** Se cambia el 8081 por defecto, que en Vectra está reservado para health y métricas (convención de U0). Métricas y health en 8081.
@@ -112,7 +113,7 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
 - **Enmienda del 2026-11-04 (decisiones R2 a R4 del usuario al preparar U02-T11).**
   - **Imágenes (R2).** `valkey/valkey:8.1.11-alpine` `@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a`, para Valkey y para Sentinel. El exportador es `oliver006/redis_exporter:v1.95.0-alpine` `@sha256:19bb5c732f5812d5b60b2e0af3c6d82c5b3e418cd020068d65f588a56df4a118`. Se espejan en `registro.banco.internal/vectra/valkey` y `.../redis-exporter`, y en kind en `kind-registry:5000/vectra/...`.
   - **Topología (R3).**
-    - Valkey va en dos StatefulSets de 1 réplica, `valkey-a` y `valkey-b`, cada uno con `nodeAffinity` obligatoria a `topology.kubernetes.io/zone` (`zone-a` y `zone-b` en kind; las zonas de cada entorno van en los values). `valkey-a` arranca como primaria y `valkey-b` como réplica de ella.
+    - Valkey va en dos StatefulSets de 1 réplica, `valkey-a` y `valkey-b`, cada uno con `nodeAffinity` obligatoria a `topology.kubernetes.io/zone` (`zone-a` y `zone-b`; *superado* «solo en kind; las zonas de cada entorno van en los values» por la decisión R6, más abajo: son `zone-a` y `zone-b` en los tres entornos). `valkey-a` arranca como primaria y `valkey-b` como réplica de ella.
     - `replica-priority` favorece a A: 10 en `valkey-a` y 100 en `valkey-b`. Así, Sentinel promueve a A cuando vuelve y el runbook de INF-U2-04 solo tiene que forzar el failover.
     - Sentinel va en `sentinel-a` (1 réplica, zona A) y `sentinel-b` (2 réplicas, zona B), con quórum 2. Usa `resolve-hostnames yes` y `announce-hostnames yes` sobre Services headless.
     - Al reiniciar, un nodo pregunta a Sentinel por la primaria actual antes de declararse réplica. Sentinel reescribe su configuración, así que la copia a un `emptyDir` al arrancar.
@@ -127,6 +128,33 @@ la infraestructura compartida de U1 (`construction/shared-infrastructure.md`). L
     - El `sentinel.conf` lleva `user default off` y un usuario `ratelimit` limitado a `+sentinel|get-master-addr-by-name +sentinel|sentinels +sentinel|replicas +subscribe +ping +auth +hello &*`, más `sentinel auth-user`/`auth-pass` con el usuario `sentinel`.
     - Los Secrets van en `vectra-edge`. El de `envoy-ratelimit` (`REDIS_AUTH` y `REDIS_SENTINEL_AUTH`, `ratelimit:<contraseña>`) es un segundo `ExternalSecret` en `envoy-gateway-system`, y K11 se amplía a ese namespace.
     - Valkey y Sentinel arrancan con `aclfile` montado de solo lectura; nunca se escribe una contraseña en un ConfigMap.
+  - **ACL definitivas (decisión R5 del usuario, 2026-11-04, tras la detención de la ronda 1 de U02-T11; reemplazan las listas de R4).** El orquestador comprobó el informe del codificador contra Valkey 8.1.11 y contra radix v4.1.4, el cliente de `envoyproxy/ratelimit` `5ae0682e`:
+    - en `sentinel.c:1938`, Sentinel tiene `sentinel-user` y `sentinel-pass` para hablar con sus pares, aparte de `auth-user`;
+    - Sentinel usa el canal `__sentinel__:hello`, y `acl-pubsub-default` es `resetchannels`;
+    - radix envía `SENTINEL MASTER`, `SLAVES` y `SENTINELS` (`sentinel.go:285-391`) y se suscribe a `switch-master`. En Valkey, `sentinel|master` y `sentinel|slaves` son subcomandos distintos de `primary` y `replicas`.
+
+    Las listas quedan así:
+    - **`users.acl` de Valkey:**
+      - `user default off`;
+      - `ratelimit`: `~* +@read +@write +@connection -@dangerous`, sin cambios;
+      - `replication`: `+psync +replconf +ping`, sin cambios;
+      - `sentinel`: `+auth +client|setname +client|kill +config|rewrite +exec +info +multi +ping +publish +script|kill +slaveof +subscribe &__sentinel__:hello`, sin `+role`;
+      - `exporter`: `+info +ping +client|setname +config|get +slowlog|get +slowlog|len +latency|latest +latency|histogram +command|info +commandlog|len`, que es lo que usa redis_exporter v1.95.0 por defecto.
+    - **ACL de cada `sentinel.conf`:**
+      - `user default off`;
+      - `ratelimit`: `+auth +hello +ping +subscribe +sentinel|master +sentinel|slaves +sentinel|sentinels &switch-master`;
+      - `sentinel-peer`: `+auth +ping +publish +client|setname +sentinel|is-master-down-by-addr &__sentinel__:hello`, más `sentinel sentinel-user sentinel-peer` y `sentinel sentinel-pass`.
+      - `sentinel auth-user sentinel` y `auth-pass` siguen igual, hacia el master y las réplicas.
+    - **Nombres:** el master se llama `ratelimit` (deployment-architecture). Las propiedades de la clave de Vault `edge/valkey` son `ratelimit`, `replication`, `sentinel`, `sentinel-peer`, `exporter` y `sentinel-ratelimit`.
+  - **Zonas, tiempos de Sentinel y consulta al arrancar (decisiones R6 y R7 del usuario tras la ronda 1 de U02-T11, 2026-11-04; hallazgos F-01 y F-04).**
+    - **Zonas (R6).** Las zonas se llaman `zone-a` y `zone-b` en los tres entornos, no solo en kind. Es un requisito para la plataforma del banco: sus nodos llevan esos valores en `topology.kubernetes.io/zone` (INF-U1-01, enmendado igual). `valkey-a` y `sentinel-a` van a `zone-a`, y `valkey-b` y `sentinel-b` a `zone-b`, en kind, staging y prod.
+    - **Tiempos de Sentinel (R7).** Para el master `ratelimit`:
+      - `sentinel down-after-milliseconds ratelimit 5000`;
+      - `sentinel failover-timeout ratelimit 60000`;
+      - `sentinel parallel-syncs ratelimit 1`.
+
+      Con quórum 2, la primaria se da por caída a los 5 s. Ese tiempo, más la promoción, es lo que dura el 503 de `/auth/**` en una conmutación.
+    - **Consulta al arrancar.** Para preguntar por la primaria actual, los pods de Valkey y de Sentinel usan el usuario `ratelimit` de Sentinel, con la contraseña `sentinel-ratelimit` de `edge/valkey`. Es el único usuario de R5 que tiene `+sentinel|master`. Lo ratificó el orquestador tras la ronda 1 de U02-T11 (F-04).
   - **Flujos (para el Paso 10):**
     - F90 pasa a ser Envoy (`vectra-edge`) → `envoy-ratelimit` (`envoy-gateway-system`) en el 8081;
     - F91 sale de `envoy-ratelimit` en `envoy-gateway-system` hacia Valkey y Sentinel en `vectra-edge`;

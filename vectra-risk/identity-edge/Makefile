@@ -20,7 +20,7 @@ JOBS := $(ROOT)/identity-edge/jobs
 # Destino del render de los jobs. Por defecto, el versionado; `check-jobs-rendered` lo cambia por un directorio temporal.
 JOBS_OUT ?= $(JOBS)/rendered
 
-.PHONY: lint test check route-gen check-route-gen schemas-gateway kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
+.PHONY: policy-ratelimit render-valkey check-valkey-rendered policy-valkey policy-valkey-u1 lint test check route-gen check-route-gen schemas-gateway kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
 
 lint:
 	$(UV) ruff check identity-edge
@@ -130,7 +130,7 @@ policy-gateway:
 	done
 
 # Verificaciones estaticas (AUTONOMIA-01). Crece con los pasos del plan.
-check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 check-route-gen kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway test
+check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 check-route-gen kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway policy-ratelimit check-valkey-rendered policy-valkey policy-valkey-u1 test
 
 # `helm template` del chart gateway-helm v1.9.3 con los values del controlador (U02-T10, Paso 8). Lo renderizado no se versiona.
 EG_RENDER := $(ROOT)/identity-edge/.tools/envoy-gateway/render.yaml
@@ -142,3 +142,53 @@ render-envoy-gateway:
 # Traduccion offline de `gateway/generated/<env>/` a xDS con `egctl` (U02-T10, Paso 8): sin clúster, con un Secret TLS desechable.
 xds-gateway:
 	$(UV) python identity-edge/tools/xds_gateway.py
+
+# --- U02-T11 (Paso 9): envoy-ratelimit y Valkey --------------------------------------------------------------------------
+
+RATELIMIT := $(ROOT)/identity-edge/ratelimit
+VALKEY := $(ROOT)/identity-edge/charts/valkey
+# Destino del render de Valkey. Por defecto, el versionado; `check-valkey-rendered` lo cambia por un directorio temporal.
+VALKEY_OUT ?= $(VALKEY)/rendered
+CONTROLLER_VALUES := $(ROOT)/platform/operators/envoy-gateway.yaml
+CONTROLLER_KIND_VALUES := $(ROOT)/platform/operators/envoy-gateway-kind.yaml
+GATEWAY_HELM := $(ROOT)/platform/.charts/envoy-gateway/gateway-helm
+
+# Las reglas de conftest sobre el render de `gateway-helm` con los values del controlador, en el banco (staging y prod comparten
+# values) y en kind (que suma `envoy-gateway-kind.yaml`), y sobre el `ExternalSecret` de `envoy-gateway-system`. Kyverno no alcanza
+# ese namespace: estas reglas exigen lo mismo que exigirian sus politicas (R2).
+policy-ratelimit:
+	tmp="$$(mktemp -d)" && trap 'rm -rf "$$tmp"' EXIT && mkdir "$$tmp/bank" "$$tmp/kind" && \
+	$(HELM) template envoy-gateway $(GATEWAY_HELM) --namespace envoy-gateway-system --skip-crds -f $(CONTROLLER_VALUES) > "$$tmp/bank/render.yaml" && \
+	$(HELM) template envoy-gateway $(GATEWAY_HELM) --namespace envoy-gateway-system --skip-crds -f $(CONTROLLER_VALUES) -f $(CONTROLLER_KIND_VALUES) > "$$tmp/kind/render.yaml" && \
+	$(CONFTEST) test --policy $(RATELIMIT)/policy "$$tmp/bank/render.yaml" "$$tmp/kind/render.yaml" $(RATELIMIT)/external-secret.yaml && \
+	$(CONFTEST) test --combine --namespace ratelimit_set --policy $(RATELIMIT)/policy "$$tmp/bank/render.yaml" "$$tmp/kind/render.yaml"
+
+# `helm template` del chart propio de Valkey con los values comunes y los de cada entorno.
+render-valkey:
+	for env in $(ENVS); do \
+	  mkdir -p $(VALKEY_OUT)/$$env && \
+	  $(HELM) template valkey $(VALKEY) --namespace vectra-edge -f $(VALKEY)/values/$$env.yaml > $(VALKEY_OUT)/$$env/valkey.yaml || exit 1; \
+	done
+
+# Lo versionado coincide con el render de ahora (sin tocar lo versionado).
+check-valkey-rendered:
+	tmp="$$(mktemp -d)" && trap 'rm -rf "$$tmp"' EXIT && \
+	$(MAKE) -f $(lastword $(MAKEFILE_LIST)) render-valkey VALKEY_OUT="$$tmp" && \
+	diff -r "$$tmp" $(VALKEY)/rendered
+
+policy-valkey:
+	$(CONFTEST) test --policy $(VALKEY)/policy $(VALKEY)/rendered/
+	for env in $(ENVS); do \
+	  $(CONFTEST) test --combine --namespace valkey_set --policy $(VALKEY)/policy $(VALKEY)/rendered/$$env/ || exit 1; \
+	done
+
+# Las politicas de U1 (Kyverno y Rego) sobre lo renderizado, en los tres entornos (mismo metodo que `policy-keycloak-u1`).
+policy-valkey-u1:
+	tmp="$$(mktemp -d)" && trap 'rm -rf "$$tmp"' EXIT && mkdir "$$tmp/policies" && \
+	cp $(foreach p,$(STATIC_POLICIES),$(U1_POLICIES)/kyverno/$(p)) "$$tmp/policies/" && \
+	for env in $(ENVS); do \
+	  $(KYVERNO) apply "$$tmp/policies" --resource $(VALKEY)/rendered/$$env/ > "$$tmp/report-$$env.txt" 2>&1; \
+	  grep -E '$(KYVERNO_OK)' "$$tmp/report-$$env.txt" || { grep -E 'fail:|FAIL|error' "$$tmp/report-$$env.txt" | head -40; exit 1; }; \
+	  $(CONFTEST) test --policy $(U1_POLICIES)/rego $(VALKEY)/rendered/$$env/ || exit 1; \
+	  $(CONFTEST) test --combine --namespace hpa --policy $(U1_POLICIES)/rego $(VALKEY)/rendered/$$env/ || exit 1; \
+	done

@@ -5659,3 +5659,40 @@ El usuario decidió R1–R4, todas por la opción recomendada. Se enmendaron INF
 **Context**: Construcción de U2, U02-T11.
 
 ---
+
+## Detención de la ronda 1 de U02-T11 y decisión R5
+**Timestamp**: 2026-11-04T22:56:48Z
+**User Input**: (decisión R5 del usuario en otra sesión; su texto literal no quedó registrado aquí. Esta entrada se reconstruyó el 2026-11-05T03:32:39Z a partir de los commits 3cab175 y e74d6d0)
+**AI Response**: Se despachó al codificador la ronda 1 de U02-T11 en el worktree `wt-U02-T11`, rama `tarea/U02-T11`, desde `main` en 1cd6bfd. El codificador se detuvo antes de escribir código (3cab175): las listas de ACL de R4 no funcionaban en Valkey 8.1.11 ni con radix v4.1.4. El usuario decidió R5, las listas definitivas. Se enmendaron INF-U2-04 y la tarea (e74d6d0).
+**Context**: Construcción de U2, U02-T11.
+
+---
+
+## Revisión de la ronda 1 de U02-T11 y decisiones R6 a R8
+**Timestamp**: 2026-11-05T00:30:00Z
+**User Input**: "podemos seguir con las siguientes unidades del proyecto?"; R6 "zone-a/zone-b en todo (Recommended)"; R7 "Fijar los del codificador (Recommended)"; R8 "grpc en la ronda 2 (Recommended)"
+**AI Response**: La continuación de la ronda 1 terminó en 54d76a3. Ronda 1 NO-VERDE (076135f): F-01 NARANJA, porque las zonas de staging y prod y los tiempos de Sentinel no tenían fuente en el diseño. El revisor encontró además que el tracing de `envoy-ratelimit` usaba OTLP HTTP contra el 4317. El usuario decidió:
+- R6: `zone-a` y `zone-b` en los tres entornos, como requisito para los nodos del banco (INF-U2-04 e INF-U1-01);
+- R7: `down-after-milliseconds 5000`, `failover-timeout 60000` y `parallel-syncs 1`;
+- R8: `TRACING_EXPORTER_PROTOCOL=grpc`.
+
+El orquestador ratificó F-03 (`test_integration.py`) y F-04 (consulta con el usuario `ratelimit` de Sentinel), y retiró la candidata de `RUNTIME_ROOT` (F-05). Se enmendaron INF-U2-03, INF-U2-04, INF-U1-01 y la tarea (67c3e0c), y se despachó la ronda 2.
+**Context**: Construcción de U2, U02-T11.
+
+---
+
+## Revisión de la ronda 2 de U02-T11
+**Timestamp**: 2026-11-05T02:00:00Z
+**User Input**: "dale, avísame cuando termine el revisor"
+**AI Response**: Ronda 2 NO-VERDE sobre 4ec7946. F-01 NARANJA: el oráculo no comparaba la zona de Sentinel. F-02 NARANJA: había pruebas con literales de R6–R8. El orquestador mantuvo los dos como NARANJA, porque la prohibición de literales vale para pytest y no para Rego. También marcó como superada la línea de INF-U2-04 sobre las zonas en los values (8f78621) y despachó la ronda 3.
+**Context**: Construcción de U2, U02-T11.
+
+---
+
+## Ronda 3 de U02-T11 (Paso 9)
+**Timestamp**: 2026-11-05T03:32:39Z
+**User Input**: "dale, avísame cuando termine el revisor"
+**AI Response**: Ronda 3 VERDE sobre 0ff4364. El revisor corrió CA-1 a CA-5 en serie: `identity-edge check` con 2332 pruebas y `platform check-local` con 622, ninguna omitida. Con sus mutaciones, el oráculo falla si se mueve un solo grupo de Sentinel, y ninguna prueba de pytest copia valores de R6–R8. Un AMARILLO y dos candidatas pasaron a CANDIDATAS. Paso 9 marcado `[x]` en el plan. Se abre el PR para revisión humana; el agente no fusiona.
+**Context**: Construcción de U2, U02-T11.
+
+---

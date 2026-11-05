@@ -1,0 +1,98 @@
+{{- /* R3: `sentinel-a` (1, zona A) y `sentinel-b` (2, zona B), quorum 2, sobre Services headless. */ -}}
+{{- $root := . -}}
+{{- $valkeyImage := include "valkey.image" (dict "root" . "key" "valkey" "image" .Values.images.valkey) -}}
+{{- $sentinelHosts := include "valkey.sentinelHosts" . -}}
+{{- $defaultPrimary := "" -}}
+{{- range $key := keys .Values.valkey.nodes | sortAlpha -}}
+{{- $node := get $root.Values.valkey.nodes $key -}}
+{{- if $node.primary -}}{{- $defaultPrimary = include "valkey.fqdn" (dict "root" $root "name" $node.name "index" 0) -}}{{- end -}}
+{{- end -}}
+{{- range $key := keys .Values.sentinel.groups | sortAlpha }}
+{{- $group := get $root.Values.sentinel.groups $key }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $group.name }}
+  namespace: {{ $root.Values.namespace }}
+  labels:
+    {{- include "valkey.labels" (dict "name" "sentinel" "instance" $group.name) | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "valkey.labels" (dict "name" "sentinel" "instance" $group.name) | nindent 4 }}
+  ports:
+    - { name: sentinel, port: {{ $root.Values.sentinel.port }}, targetPort: sentinel }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $group.name }}
+  namespace: {{ $root.Values.namespace }}
+  labels:
+    {{- include "valkey.labels" (dict "name" "sentinel" "instance" $group.name) | nindent 4 }}
+    vectra.io/criticality: {{ $root.Values.criticality }}
+spec:
+  serviceName: {{ $group.name }}
+  replicas: {{ $group.replicas }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      {{- include "valkey.labels" (dict "name" "sentinel" "instance" $group.name) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "valkey.labels" (dict "name" "sentinel" "instance" $group.name) | nindent 8 }}
+        vectra.io/criticality: {{ $root.Values.criticality }}
+    spec:
+      serviceAccountName: sentinel
+      automountServiceAccountToken: false
+      priorityClassName: {{ $root.Values.priorityClassName }}
+      securityContext:
+        {{- include "valkey.podSecurityContext" $root | nindent 8 }}
+      {{- include "valkey.zoneAffinity" (dict "zone" $group.zone) | nindent 6 }}
+      containers:
+        - name: sentinel
+          image: {{ $valkeyImage | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [sh, /scripts/start-sentinel.sh]
+          ports:
+            - { name: sentinel, containerPort: {{ $root.Values.sentinel.port }} }
+          env:
+            - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+            - { name: SELF_FQDN, value: "$(POD_NAME).{{ $group.name }}.{{ $root.Values.namespace }}.{{ $root.Values.domain }}" }
+            - { name: MASTER_NAME, value: {{ $root.Values.master | quote }} }
+            - { name: VALKEY_PORT, value: {{ $root.Values.valkey.port | quote }} }
+            - { name: SENTINEL_PORT, value: {{ $root.Values.sentinel.port | quote }} }
+            - { name: SENTINEL_HOSTS, value: {{ $sentinelHosts | quote }} }
+            - { name: SENTINEL_QUORUM, value: {{ $root.Values.sentinel.quorum | quote }} }
+            - { name: DEFAULT_PRIMARY, value: {{ $defaultPrimary | quote }} }
+            - { name: REDISCLI_AUTH, valueFrom: { secretKeyRef: { name: valkey-acl, key: sentinel-lookup-password } } }
+          readinessProbe: { tcpSocket: { port: sentinel }, periodSeconds: 5, failureThreshold: 3 }
+          livenessProbe: { tcpSocket: { port: sentinel }, periodSeconds: 10, failureThreshold: 6 }
+          securityContext:
+            {{- include "valkey.containerSecurityContext" $root | nindent 12 }}
+          resources:
+            {{- toYaml $root.Values.sentinel.resources | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/sentinel, readOnly: true }
+            - { name: scripts, mountPath: /scripts, readOnly: true }
+            - { name: acl, mountPath: /etc/sentinel-secret, readOnly: true }
+            # Sentinel reescribe su configuracion: la copia de trabajo vive aqui (R3).
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: config
+          configMap: { name: sentinel-config }
+        - name: scripts
+          configMap: { name: valkey-scripts }
+        - name: acl
+          secret:
+            secretName: valkey-acl
+            defaultMode: 288
+            items:
+              - { key: sentinel-users.conf, path: sentinel-users.conf }
+              - { key: sentinel-auth.conf, path: sentinel-auth.conf }
+        - name: data
+          emptyDir: {}
+---
+{{- end }}

@@ -199,8 +199,15 @@ def source_texts():
                 yield path, path.read_text(encoding="utf-8")
 
 
+# U02-T11 (R1): `platform/operators/envoy-gateway.yaml` apunta a los Sentinel de `vectra-edge`, que da el chart de Valkey de U2. Todavia no es
+# un componente de `components.yaml` (Paso 12 de U2), asi que sus Services se toman del render versionado de ese chart.
+VALKEY_RENDERED = ROOT / "identity-edge/charts/valkey/rendered/prod/valkey.yaml"
+
+
 def services():
-    return {(d["metadata"]["namespace"], d["metadata"]["name"]): {p["port"] for p in d["spec"]["ports"]} for d in in_vectra() if d["kind"] == "Service"}
+    found = [d for d in in_vectra() if d["kind"] == "Service"]
+    found += [d for d in yaml.safe_load_all(VALKEY_RENDERED.read_text(encoding="utf-8")) if d and d["kind"] == "Service"]
+    return {(d["metadata"]["namespace"], d["metadata"]["name"]): {p["port"] for p in d["spec"]["ports"]} for d in found}
 
 
 def test_every_internal_url_points_at_a_real_service_and_port():
