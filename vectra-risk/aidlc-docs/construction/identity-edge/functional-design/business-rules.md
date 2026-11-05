@@ -41,6 +41,13 @@ La entrada del registro guarda el `acr` y el `auth_time` de la firma.
 
 Campos de Keycloak: `bruteForceProtected: true`, `permanentLockout: true`, `maxTemporaryLockouts: 3`, `failureFactor: 5`, `waitIncrementSeconds: 60`, `maxFailureWaitSeconds: 900`, `maxDeltaTimeSeconds: 43200`. La espera crece de forma lineal porque Keycloak no la duplica de forma nativa; antes el diseño decía «se duplica» (enmienda del 2026-11-02, decisión del usuario en la ronda 1 de U02-T03).
 
+**Enmienda del 2026-11-05 (decisión H10 del usuario, tras la ronda 1 de U02-T14).** Keycloak 26.8.1 (`DefaultBruteForceProtector.java`, líneas 106-142 y 161-164) no bloquea «por series». Con la estrategia por defecto `MULTIPLE` y `maxTemporaryLockouts: 3`, cada fallo desde el 5.º es un bloqueo de 60 s y el permanente llega en el **fallo 8**. Rige:
+- `bruteForceStrategy: LINEAR` y `maxTemporaryLockouts: 15`, fijados en Git en los tres realms. Los demás campos no cambian;
+- desde el 5.º fallo dentro de `maxDeltaTimeSeconds` (12 h), cada fallo es un bloqueo temporal de `60 × (n − 4)` s: 60, 120, 180… con un máximo de 900 s;
+- el 16.º bloqueo, en el **fallo 20**, es permanente.
+
+Así se cumplen los valores de las viñetas de arriba. Donde dicen «serie» o «4.º bloqueo», léase esta semántica.
+
 Cada bloqueo emite un evento que alimenta la alerta `AuthDeniedBurst` (SEV2). El rate
 limit de `/auth/**` (BR-U2-08) actúa antes.
 
