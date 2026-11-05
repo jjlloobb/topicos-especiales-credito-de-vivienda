@@ -12,6 +12,7 @@ en kind, `envoy-gateway-kind.yaml`), y comprueba sobre eso lo que el diseno fija
 
 import copy
 import re
+import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable
@@ -28,7 +29,9 @@ EDGE = ROOT / "identity-edge"
 RATELIMIT = EDGE / "ratelimit"
 POLICY = RATELIMIT / "policy"
 EXTERNAL_SECRET = RATELIMIT / "external-secret.yaml"
-HELM = ROOT / "platform" / ".tools" / "bin" / "helm"
+_PINNED_HELM = ROOT / "platform" / ".tools" / "bin" / "helm"
+# En CI no hay `platform/.tools`: `.github/actions/setup-helm` deja en el PATH el helm de `platform/tools.env`. En local gana el fijado.
+HELM = _PINNED_HELM if _PINNED_HELM.exists() else Path(shutil.which("helm") or _PINNED_HELM)
 CONFTEST = ROOT / "platform" / ".tools" / "bin" / "conftest"
 KYVERNO = ROOT / "platform" / ".tools" / "bin" / "kyverno"
 CHART = ROOT / "platform" / ".charts" / "envoy-gateway" / "gateway-helm"
