@@ -5745,3 +5745,90 @@ El usuario decidió T1–T4, todas por la opción recomendada. Se enmendaron INF
 **Context**: Construcción de U2, U02-T12.
 
 ---
+
+## Siguiente trabajo tras U02-T12
+**Timestamp**: 2026-11-05T15:24:44Z
+**User Input**: "podemos seguir con las siguientes unidades del proyecto?"; respuesta "Terminar U2 (Recommended)"
+**AI Response**: U02-T12 (Paso 10) salió VERDE y está en el PR 67, esperando revisión humana. A U2 le faltan los Pasos 11 a 18. En el grafo, U3 depende de U2, y para U3–U12 sigue vigente la restricción de no escribir código. El usuario eligió terminar U2. Los Pasos 11, 13 y 14 se preparan como una ola.
+**Context**: Construcción de U2.
+
+---
+
+## PR 67 aprobado, bloqueado por CI
+**Timestamp**: 2026-11-05T15:24:44Z
+**User Input**: "ya aprobe el PR"; "revisa el PR"
+**AI Response**: El PR 67 está aprobado, pero GitHub no deja fusionarlo (`BLOCKED`). En el workflow `platform`, los jobs `tests` y `evidence` fallan en `test_edge_selectors.py` (33 failed, 712 passed): la prueba usa `platform/.tools/bin/helm`, que CI no tiene. El orquestador registró el hallazgo CI-01 en `revisiones/U02-T12/ci-ronda-2.md` y despachó al codificador para la ronda 3. El agente no fusiona.
+**Context**: Construcción de U2, U02-T12.
+
+---
+
+## Preparación de U02-T13, U02-T14 y U02-T15 (Pasos 11, 13 y 14) y decisiones B, H y J
+**Timestamp**: 2026-11-05T15:24:44Z
+**User Input**: P11 "Mixto (Recomendado)"; P13 "Eco solo en kind (Recomendado)"; P14 "Usuarios load-* + binario (Recomendado)"; resto "Aceptar todas (Recomendado)"
+**AI Response**: Tres análisis de solo lectura compararon los Pasos 11, 13 y 14 con el diseño y el código. Hallazgos principales:
+- **Paso 11**:
+  - 4 de las 9 alertas no tienen métrica fuente: BreakGlassLogin, AuthDeniedBurst (la parte de Keycloak), RoleConflict y LdapUnavailable;
+  - solo 2 tienen umbral y ninguna tiene `for`;
+  - ningún paso crea los ServiceMonitor;
+  - el runbook de la vuelta de Valkey a la zona A no está en el plan.
+- **Paso 13**:
+  - no hay backend de eco ni servicios destino en kind;
+  - el realm no tiene ningún aprobador sin TOTP;
+  - el gateway da 403, no 401, a un token de otro servicio;
+  - `make check` ejecutaría las e2e;
+  - faltan dependencias.
+- **Paso 14**:
+  - kind tiene solo 10 usuarios, todos con TOTP no reutilizable;
+  - `/auth` limita a 600/min por IP;
+  - NFR-U2-11 y 12 no se pueden expresar como `thresholds` de una corrida;
+  - la consola no tiene backend;
+  - k6 no está instalado.
+
+El usuario eligió la opción recomendada en todo. Quedó así:
+- **B1–B9**, en P-U2-09 («Fuentes, umbrales y despliegue»):
+  - tabla de 11 alertas con su expresión y su `for`;
+  - métricas de eventos de usuario en la imagen de Keycloak;
+  - métricas de contrato para RoleConflict y LdapUnavailable;
+  - monitores en el Paso 11;
+  - CR en `vectra-observability`;
+  - runbook de la vuelta a la zona A;
+  - alertas de push vencido;
+  - una sola regla de LDAP para todos los entornos.
+- **H1–H9**, en el Paso 13:
+  - eco solo en kind;
+  - 403 en el gateway;
+  - e2e fuera de `check`, con el target `collect-e2e`;
+  - dependencias nuevas con `uv lock`;
+  - aprobador efímero creado por la Admin API;
+  - Loki para el evento y la IP;
+  - los casos de PBT-10 que faltan pasan a candidatas;
+  - perfil `kind-e2e` para PBT-U2-08;
+  - tipo de evento del bloqueo fijado contra Keycloak 26.8.1.
+- **J1–J7**, en el Paso 14, en la enmienda de NFR-U2-12 y en la excepción J2 del Infrastructure Design de U12:
+  - usuarios `load-*` sin MFA, solo en kind;
+  - k6 como binario pinneado;
+  - NFR-U2-11 contra el eco, con y sin gateway; NFR-U2-12 por PromQL;
+  - ráfagas de la consola al eco;
+  - logins por debajo de 10/s;
+  - llaves de cliente en `K6_CLIENT_KEYS_DIR`;
+  - perfil de 2 min de subida y 15 min sostenidos.
+
+El Paso 12 suma `identity-rules` e `identity-monitors` en wave 4 (B6).
+
+Se redactaron `tareas/U02-T13-alertas-y-runbooks.md`, `tareas/U02-T14-especificacion-e2e.md` y `tareas/U02-T15-especificacion-carga.md`, con el texto de cada paso sin recortes. Orden de despacho:
+- U02-T13, cuando el PR 67 esté en `main`, en paralelo con U02-T14;
+- U02-T15, después de U02-T14.
+**Context**: Construcción de U2, U02-T13 a U02-T15.
+
+---
+
+## PR 67 fusionado
+**Timestamp**: 2026-11-05T15:52:17Z
+**User Input**: "revisa el PR"
+**AI Response**: Una persona (`joseluisjedi`) fusionó el PR 67 (U02-T12, Paso 10) a las 2026-11-05T15:51:04Z, en 49c3b5d. El agente no fusionó.
+- La ronda 3 (CI-01, en c542776) pasó CI en todos los jobs del workflow `platform`.
+- Al fusionar, el revisor todavía no había dado su veredicto de la ronda 3. Su informe se registrará en `revisiones/U02-T12/ronda-3.md` cuando llegue.
+- El PR 68 (preparación de U02-T13 a U02-T15) se rebasó sobre 49c3b5d para resolver el conflicto en este archivo.
+**Context**: Construcción de U2, U02-T12.
+
+---

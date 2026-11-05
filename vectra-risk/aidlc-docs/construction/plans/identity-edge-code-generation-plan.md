@@ -205,11 +205,19 @@ vectra-risk/identity-edge/
 
 - [ ] **Paso 11 — Alertas y runbooks**
   - `PrometheusRule` con las alertas de P-U2-09, incluida `LdapUnavailable`. Runbooks: `keycloak-down`, `rate-limit-backend-down`, `auth-denied-burst`, `break-glass-login`, `realm-drift`, `role-conflict`, `signing-key-rotation`, `gateway-high-latency`, `ldap-unavailable`.
+  - **Nota del 2026-11-05 (decisiones B1–B9 del usuario al preparar U02-T13; P-U2-09 «Fuentes, umbrales y despliegue»):**
+    - expresiones, umbrales y `for` de las 9 alertas, más `RealmDriftStale` y `SigningKeyAgeStale` (B3, B8);
+    - métricas de eventos de usuario en la imagen de Keycloak (B1);
+    - `RoleConflict` y `LdapUnavailable` sobre métricas de contrato (B2);
+    - los `ServiceMonitor`/`PodMonitor` de U2 en `observability/` (B5);
+    - el CR en `vectra-observability` con el patrón de U1 (B6);
+    - el runbook operativo de la vuelta de Valkey a la zona A (B7).
   - Diseño: P-U2-09; BR-U2-17; P-U2-05; NFR-U2-05 (`KeycloakDown`).
   - **Aceptación**: `promtool test rules identity-edge/observability/rules/tests/*.yaml` y `uv run python platform/tests/test_runbooks.py --root identity-edge` (`severity` válida y `runbook_url` existente).
 
 - [ ] **Paso 12 — Applications de GitOps**
   - Entradas en `vectra-risk-gitops/components.yaml` con sus waves: Valkey (2), Keycloak + `keycloak-config-cli` y gateway + rate limit (3); los CRDs de Gateway API y el controlador (0) ya están en la entrada `envoy-gateway` de U1. `generate.py` escribe las Applications. Values por entorno en `vectra-risk-gitops/values/<env>/<componente>.yaml`: hostnames (INF-U2-01), issuer y LDAP (prod) (revisión de consistencia entre unidades, 2026-11-01).
+  - **Nota del 2026-11-05 (decisión B6 del usuario al preparar U02-T13):** el paso también suma las entradas `identity-rules` e `identity-monitors` en wave 4, con las reglas y los monitores que deja el Paso 11 en `identity-edge/observability/`.
   - Diseño: P-U1-12; INF-U2-01.
   - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`, `uv run python platform/tests/test_waves.py` y `kyverno test` de `disallow-argocd-auto-sync` sobre las Applications nuevas (revisión de consistencia entre unidades, 2026-11-01).
 
@@ -229,11 +237,31 @@ vectra-risk/identity-edge/
     - backend de eco: `Idempotency-Key` (en `/api/intake/**` y `/api/console/**`) y `X-Test-Scenario` (en `/api/intake/**`) llegan intactas, y ninguna `x-vectra-*` entrante llega (P-U2-06; precisado el 2026-10-06, revisión del FD de U8);
     - accesibilidad del login.
   - PBT-U2-08: modelo de estados de la fuerza bruta contra el Keycloak de kind.
+  - **Nota del 2026-11-05 (decisiones H1–H9 del usuario al preparar U02-T14):**
+    - **H1**: backend de eco solo para kind, en `tests/e2e/echo/`. Lleva los nombres, la SA y las etiquetas reales de `console-spa`, `console-bff`, `case-service` y `governance-service`, y se valida en estático. Lo aplica el operador en el Paso 16.
+    - **H2**: «token de otro servicio» espera **403** en el gateway, que autoriza por `azp` y scope sin `audiences`. El 401 por audiencia es de U8.
+    - **H3**: `make check` no ejecuta las e2e (`--ignore`). `collect-e2e` sí entra en `check`, y el target `e2e` es para el Paso 16.
+    - **H4**: dependencias `playwright`, `pytest-playwright`, `pyotp` y `axe-playwright-python`, con `httpx` explícito y `uv lock` con red.
+    - **H5**: el aprobador sin TOTP lo crea y lo borra una fixture por la Admin API.
+    - **H6**: el evento del bloqueo y la IP registrada se observan en Loki (LogQL); la IP, también por el contador de `/auth`.
+    - **H7**: los casos de PBT-10 sobre `governance:freeze` y `core:read-credit` quedan fuera y pasan a `CANDIDATAS.md`.
+    - **H8**: PBT-U2-08 usa el perfil de Hypothesis `kind-e2e`, con un usuario efímero por ejemplo.
+    - **H9**: el tipo de evento del bloqueo se fija contra el código de Keycloak 26.8.1.
   - Diseño: PBT-10; NFR-U2-42; BR-U2-03..08, 10, 13, 16; P-U2-06, 08. Historias: US-601, US-611.
   - **Aceptación** (estática): `uv run ruff check identity-edge/tests/e2e` y `uv run pytest identity-edge/tests/e2e --collect-only` lista todos los casos nombrados. La ejecución es del Paso 16.
 
 - [ ] **Paso 14 — Especificación de la prueba de carga**
   - Script k6: 200 usuarios concurrentes con login y token, 10 identidades de servicio renovando cada 5 min (incluidas `case-worker` y `bias-monitoring-job`), ráfagas contra la consola; umbrales de NFR-U2-10..12 como `thresholds`.
+  - **Nota del 2026-11-05 (decisiones J1–J7 del usuario al preparar U02-T15):**
+    - **J1**: 200 usuarios `load-001..200` solo en kind, con un rol al que BR-U2-03 no exige MFA. Los crea un script de este paso por la Admin API; lo ejecuta el operador en el Paso 16 y no va al realm versionado.
+    - **J2**: k6 como binario pinneado con SHA-256 en `platform/install-tools.sh` y `tools.env`. Es una excepción explícita a la decisión de U12 de usar contenedor, porque `check` corre sin Docker.
+    - **J3**: NFR-U2-11 y 12 como en su enmienda de NFR Requirements.
+    - **J4**: las ráfagas contra la consola van al eco del Paso 13 y esperan 429 con `Retry-After: 1` por encima de 20/s por usuario.
+    - **J5**: los logins se escalonan por debajo de 10/s, por el límite de 600/min por IP de `/auth/**`, y un 429 cuenta como fallo.
+    - **J6**: las llaves privadas de los clientes se leen de `K6_CLIENT_KEYS_DIR`, que el operador llena desde Vault.
+    - **J7**: perfil de 2 min de subida y 15 min sostenidos, con `http_req_failed` < 1 %.
+    - Las 10 identidades de servicio son los 14 clientes con service account de `realm.kind.yaml`, menos `keycloak-config-cli`, `keycloak-reader`, `verification-reader` y `channel-simulator`.
+    - Depende del Paso 13, por el eco.
   - Diseño: NFR-U2-10..12.
   - **Aceptación** (estática): `k6 inspect identity-edge/tests/load/identity.js` muestra los umbrales p95 de login (500 ms), token (200 ms) y JWKS (50 ms). La ejecución es del Paso 16.
 

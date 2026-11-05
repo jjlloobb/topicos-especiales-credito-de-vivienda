@@ -125,6 +125,30 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 - Toda alerta tiene `runbook_url` (P-U1-10).
 - **Verificación**: `promtool test rules identity-edge/observability/rules/tests/*.yaml` (cada alerta se dispara con series sintéticas) y el test de runbooks de U1 (`severity` válida y `runbook_url` hacia un archivo existente).
 
+#### Fuentes, umbrales y despliegue (enmienda del 2026-11-05, decisiones B1–B9 del usuario al preparar U02-T13)
+
+Al preparar el Paso 11, el orquestador comparó la tabla con lo que el código emite hoy. 4 de las 9 alertas no tenían ninguna métrica que las alimentara, solo 2 tenían umbral y ninguna tenía `for`. Rige lo siguiente:
+
+| Alerta | Severidad | Expresión (fuente) | `for` |
+|---|---|---|---|
+| `KeycloakDown` | SEV1 | `kube_statefulset_status_replicas_ready{namespace="vectra-identity",statefulset="keycloak"} == 0` (kube-state-metrics de U1) | 1m |
+| `RateLimitBackendDown` | SEV2 | Réplicas disponibles en 0 de `envoy-ratelimit` (`envoy-gateway-system`) o del StatefulSet de Valkey, según kube-state-metrics, **o** `redis_up == 0` del exportador (9121) (B4) | 2m |
+| `AuthDeniedBurst` | SEV2 | Más de 20 denegaciones por minuto: `LOGIN_ERROR` de `keycloak_user_events_total` + `vectra_authz_denied_total` de U0 (B1, B3) | 5m |
+| `BreakGlassLogin` | SEV1 | Un `LOGIN` del usuario `break-glass` en `keycloak_user_events_total` (B1). Las etiquetas que lo distinguen se fijan contra Keycloak 26.8.1. | 0m |
+| `RealmDrift` | SEV2 | `vectra_realm_drift > 0` (Pushgateway, `job="realm-drift"`) | 0m |
+| `RoleConflict` | SEV2 | `increase(vectra_role_conflict_total[15m]) > 0`. **Métrica de contrato** (B2): todavía no la emite nada; la fuente sigue en `CANDIDATAS.md` | 5m |
+| `SigningKeyAgeHigh` | SEV3 | Edad de `vectra_signing_key_created_timestamp_seconds` > 80 días | 1h |
+| `LdapUnavailable` | SEV2 | `increase(vectra_ldap_connection_failures_total[5m]) > 0`. **Métrica de contrato** (B2). Una sola regla para todos los entornos: en kind y staging no hay series, así que no dispara (B9) | 5m |
+| `GatewayHighLatency` | SEV3 | p95 de `envoy_http_downstream_rq_time` − p95 de `envoy_cluster_upstream_rq_time` > 5 ms | 15m |
+| `RealmDriftStale` | SEV3 | `time() - push_time_seconds{job="realm-drift"} > 26h`. El CronJob corre a diario (B8); runbook `realm-drift` | 0m |
+| `SigningKeyAgeStale` | SEV3 | `time() - push_time_seconds{job="signing-key-age"} > 3h`. El CronJob corre cada hora (B8); runbook `signing-key-rotation` | 0m |
+
+- **B1**: la imagen de Keycloak activa las métricas de eventos de usuario (`user-event-metrics`), con lo que existe `keycloak_user_events_total`. La opción y si es de build se comprueban en la documentación y el código de 26.8.1.
+- **B2**: `RoleConflict` y `LdapUnavailable` se escriben contra nombres de métrica de contrato y se prueban con series sintéticas. Su fuente queda pendiente en `CANDIDATAS.md`; para `ROLE_CONFLICT`, ver BR-U2-17.
+- **B5**: los `ServiceMonitor`/`PodMonitor` de Keycloak (HTTPS, 9000), Envoy (19001), `envoy-ratelimit` (19001) y el exportador de Valkey (9121) son del Paso 11 y viven en `identity-edge/observability/`. Cada familia de métricas de las reglas tiene quien la emita, un monitor o una fuente de U1 (kube-state-metrics, Pushgateway), y un puerto F60.
+- **B6**: el `PrometheusRule` sigue el patrón de U1: un archivo de grupos que leen promtool y las pruebas, más el CR en `vectra-observability`, con la prueba de que los dos tienen los mismos `groups`. El Paso 12 suma las entradas `identity-rules` e `identity-monitors` en wave 4.
+- **B7**: el runbook operativo de la vuelta de la primaria de Valkey a la zona A (INF-U2-04) es del Paso 11. No tiene alerta y se valida con `test_runbooks.py --operational`.
+
 ## 5. Cumplimiento de extensiones (NFR Design U2)
 
 | Regla | Estado | Evidencia |
