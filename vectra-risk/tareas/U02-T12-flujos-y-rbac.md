@@ -20,6 +20,20 @@ Están en INF-U2-04 («Flujos y sondas»), en component-dependency (F60, F61, F9
 > - que el oráculo lea del diseño el comando, el usuario y la clave del Secret;
 > - que conftest rechace una sonda sin `--user` o con la contraseña en la línea de comandos.
 
+> **Arbitraje del 2026-11-05 tras la ronda 1 (orquestador; `revisiones/U02-T12/ronda-1.md`):**
+> - **F-01 (ROJO), dentro del alcance.** El Paso 10 pide verificar F95 y K14. El workload `envoy-gateway` de `flows.yaml` selecciona por las etiquetas de `spec.selector.matchLabels` del Deployment del controlador en el render de `gateway-helm` v1.9.3 con `platform/operators/envoy-gateway.yaml`, no por un literal propio. `envoy-gateway` entra en `EDGE_WORKLOADS` de `test_edge_selectors.py`, con su caso contrario. El pod real sale de ese render. La candidata del selector sale de `CANDIDATAS.md`.
+> - **F-02 (AMARILLO), dentro.** `generate.py` falla si una entrada de una lista `unmeshed_source` no es origen del flujo, con un caso que lo demuestra.
+> - **F-03, F-04 y F-05 (AMARILLO), a `CANDIDATAS.md`:**
+>   - F-03: renombrar `*-operator-network` cambiaría la salida de F80, que la tarea manda no tocar;
+>   - F-04: `--check` ya garantiza que F80 no cambia;
+>   - F-05: la clave `sentinel-lookup-password` es interna del chart.
+> - **Ratificado sin cambios:**
+>   - `unmeshed_ports: [5432]` en F80;
+>   - `unmeshed_source` como lista en F61;
+>   - los `Server` del 6379 pasan a `opaque`;
+>   - los cambios de Z1 en `vectra-app` y `vectra-identity`.
+> - **Candidata nueva del revisor** (la sonda de liveness `exec` frente a `-LOADING`): a `CANDIDATAS.md`, para el Paso 16.
+
 ## Alcance
 
 **Dentro:** todo el Paso 10 del plan. Texto del plan, sin recortes:
