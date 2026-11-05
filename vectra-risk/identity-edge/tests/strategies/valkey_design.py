@@ -89,10 +89,18 @@ def pdb(text: str = INFRASTRUCTURE) -> dict[str, int]:
     return {"valkey": int(found.group(1)), "sentinel": int(found.group(2))}
 
 
-def kind_zones(text: str = INFRASTRUCTURE) -> tuple[str, str]:
-    found = re.search(r"\(`(zone-a)` y `(zone-b)` en kind", inf04(text))
-    assert found, "INF-U2-04 sin las zonas de kind"
+def zones(text: str = INFRASTRUCTURE) -> tuple[str, str]:
+    """R6: las zonas de A y B son las mismas en kind, staging y prod."""
+    found = re.search(r"Las zonas se llaman `([\w-]+)` y `([\w-]+)` en los tres entornos", inf04(text))
+    assert found, "INF-U2-04 sin las zonas de los tres entornos (R6)"
     return found.group(1), found.group(2)
+
+
+def sentinel_timings(text: str = INFRASTRUCTURE) -> list[str]:
+    """R7: las tres directivas del master, en el orden del diseno."""
+    found = re.findall(r"`(sentinel (?:down-after-milliseconds|failover-timeout|parallel-syncs) [\w-]+ \d+)`", inf04(text))
+    assert len(found) == 3, "INF-U2-04 sin los tres tiempos de Sentinel (R7)"
+    return found
 
 
 def master_name(text: str = INFRASTRUCTURE) -> str:
@@ -209,6 +217,13 @@ def ratelimit_tracing(text: str = INFRASTRUCTURE) -> tuple[str, int]:
     found = re.search(r"tracing OpenTelemetry hacia `([\w.:-]+)` con muestreo del (\d+) %", inf03(text))
     assert found, "INF-U2-03 sin el tracing"
     return found.group(1), int(found.group(2))
+
+
+def ratelimit_tracing_protocol(text: str = INFRASTRUCTURE) -> str:
+    """R8: el protocolo del exportador de trazas de envoy-ratelimit (por defecto es `http`, y el 4317 es gRPC)."""
+    found = re.search(r"agrega `TRACING_EXPORTER_PROTOCOL=(\w+)`", inf03(text))
+    assert found, "INF-U2-03 sin TRACING_EXPORTER_PROTOCOL (R8)"
+    return found.group(1)
 
 
 def ratelimit_ports(text: str = INFRASTRUCTURE) -> dict[str, int]:

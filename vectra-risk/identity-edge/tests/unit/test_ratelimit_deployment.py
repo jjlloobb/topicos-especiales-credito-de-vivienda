@@ -275,6 +275,8 @@ def problems(docs: Docs, env: str, secret: dict[str, Any] | None = None) -> list
     trace_url, trace_rate = design.ratelimit_tracing()
     if envs.get("OTEL_EXPORTER_OTLP_ENDPOINT", {}).get("value") != f"http://{trace_url}" or envs.get("TRACING_SAMPLING_RATE", {}).get("value") != f"{trace_rate / 100:.1f}":
         found.append("tracing")
+    if envs.get("TRACING_EXPORTER_PROTOCOL", {}) != {"name": "TRACING_EXPORTER_PROTOCOL", "value": design.ratelimit_tracing_protocol()}:
+        found.append("protocolo del tracing")
     if envs.get("PROMETHEUS_ADDR", {}).get("value") != f":{ports['metrics']}":
         found.append("metricas")
     image = f"{design.ratelimit_registries()[env]}@{design.ratelimit_digest()}"
@@ -350,6 +352,7 @@ def test_the_design_values_are_read_from_the_documents() -> None:
     )
     assert (design.ratelimit_replicas(), design.ratelimit_hpa(), design.ratelimit_pdb(), design.ratelimit_failclosed()) == (2, (2, 4, 70), 1, False)
     assert design.ratelimit_tracing() == ("otel-collector.vectra-observability.svc:4317", 100)
+    assert design.ratelimit_tracing_protocol() == "grpc"
     assert design.ratelimit_registries()["kind"] == "kind-registry:5000/vectra/ratelimit"
 
 
@@ -361,6 +364,8 @@ def test_the_design_values_are_read_from_the_documents() -> None:
         ("REDIS_AUTH", lambda c: c["provider"]["kubernetes"]["rateLimitDeployment"]["container"]["env"].__setitem__(1, {"name": "REDIS_AUTH", "value": "ratelimit:x"})),
         ("REDIS_SENTINEL_AUTH", lambda c: c["provider"]["kubernetes"]["rateLimitDeployment"]["container"]["env"].pop(2)),
         ("tracing", lambda c: c["rateLimit"]["telemetry"]["tracing"].update(samplingRate=10)),
+        ("protocolo del tracing", lambda c: _container(c).update(env=[e for e in _container(c)["env"] if e["name"] != "TRACING_EXPORTER_PROTOCOL"])),
+        ("protocolo del tracing", lambda c: _container(c).update(env=[{"name": e["name"], "value": "http"} if e["name"] == "TRACING_EXPORTER_PROTOCOL" else e for e in _container(c)["env"]])),
         ("metricas", lambda c: c["rateLimit"].setdefault("telemetry", {}).setdefault("metrics", {}).update(prometheus={"disable": True})),
         ("imagen", lambda c: c["provider"]["kubernetes"]["rateLimitDeployment"]["container"].update(image="docker.io/envoyproxy/ratelimit:5ae0682e")),
         ("recursos", lambda c: c["provider"]["kubernetes"]["rateLimitDeployment"]["container"]["resources"]["limits"].update(cpu="1")),
@@ -533,6 +538,8 @@ CONFIG_MUTATIONS: list[tuple[str, str, Callable[[dict[str, Any]], None]]] = [
     ("telemetry", "otro collector", lambda c: c["rateLimit"]["telemetry"]["tracing"]["provider"].update(url="otel.example:4317")),
     ("telemetry", "muestreo 10", lambda c: c["rateLimit"]["telemetry"]["tracing"].update(samplingRate=10)),
     ("telemetry", "sin tracing", lambda c: c["rateLimit"]["telemetry"].pop("tracing")),
+    ("telemetry", "sin TRACING_EXPORTER_PROTOCOL", _drop_env("TRACING_EXPORTER_PROTOCOL")),
+    ("telemetry", "TRACING_EXPORTER_PROTOCOL http", _set_env("TRACING_EXPORTER_PROTOCOL", {"name": "TRACING_EXPORTER_PROTOCOL", "value": "http"})),
     ("telemetry", "Prometheus deshabilitado", lambda c: c["rateLimit"]["telemetry"].setdefault("metrics", {}).update(prometheus={"disable": True})),
     ("sentinel-env", "sin REDIS_TYPE", _drop_env("REDIS_TYPE")),
     ("sentinel-env", "REDIS_TYPE cluster", _set_env("REDIS_TYPE", {"name": "REDIS_TYPE", "value": "CLUSTER"})),

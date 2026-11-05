@@ -257,7 +257,40 @@ zone_expression(e) if {
 	e.key == "topology.kubernetes.io/zone"
 	e.operator == "In"
 	count(e.values) == 1
-	e.values[0] != ""
+	e.values[0] in {"zone-a", "zone-b"}
+}
+
+# R6 (INF-U2-04): A va a zone-a y B a zone-b en kind, staging y prod.
+node_zone := {"valkey-a": "zone-a", "sentinel-a": "zone-a", "valkey-b": "zone-b", "sentinel-b": "zone-b"}
+
+deny contains msg if {
+	is_statefulset
+	some term in pod.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms
+	some e in term.matchExpressions
+	zone_expression(e)
+	not e.values[0] == node_zone[input.metadata.name]
+	msg := sprintf("zones: %s debe ir a la zona %s (R6)", [input.metadata.name, node_zone[input.metadata.name]])
+}
+
+# regla: sentinel-timing
+sentinel_master_conf := [
+	"sentinel down-after-milliseconds ratelimit 5000",
+	"sentinel failover-timeout ratelimit 60000",
+	"sentinel parallel-syncs ratelimit 1",
+]
+
+deny contains msg if {
+	config_map("sentinel-config")
+	some want in sentinel_master_conf
+	directive := split(want, " ")[1]
+	not want in lines(input.data["sentinel-master.conf"])
+	msg := sprintf("sentinel-timing: %s debe ser `%s` (R7)", [directive, want])
+}
+
+deny contains msg if {
+	config_map("sentinel-config")
+	lines(input.data["sentinel-master.conf"]) != sentinel_master_conf
+	msg := "sentinel-timing: sentinel-master.conf difiere de R7 (down-after-milliseconds, failover-timeout y parallel-syncs)"
 }
 
 # regla: replica-priority

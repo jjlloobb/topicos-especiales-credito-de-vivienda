@@ -34,12 +34,13 @@ exporter:
     requests: { cpu: 50m, memory: 32Mi }
     limits: { cpu: 100m, memory: 64Mi }
 
-# R3: `sentinel-a` (1, zona A) y `sentinel-b` (2, zona B), quorum 2.
+# R7: tiempos de Sentinel (INF-U2-04). R3: `sentinel-a` (1, zona A) y `sentinel-b` (2, zona B), quorum 2.
 sentinel:
   port: 26379
   quorum: 2
   downAfterMilliseconds: 5000
   failoverTimeout: 60000
+  parallelSyncs: 1
   groups:
     a: { name: sentinel-a, replicas: 1, zone: "" }
     b: { name: sentinel-b, replicas: 2, zone: "" }

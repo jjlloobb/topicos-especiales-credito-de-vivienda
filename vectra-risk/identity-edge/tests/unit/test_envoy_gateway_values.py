@@ -55,6 +55,8 @@ def ratelimit_problems(cfg: dict[str, Any], env: str) -> list[str]:
     tracing = rate_limit.get("telemetry", {}).get("tracing", {})
     if (tracing.get("provider", {}).get("type"), tracing.get("provider", {}).get("url"), tracing.get("samplingRate")) != ("OpenTelemetry", *rl.ratelimit_tracing()):
         found.append("rateLimit.telemetry.tracing")
+    if {"name": "TRACING_EXPORTER_PROTOCOL", "value": rl.ratelimit_tracing_protocol()} not in deployment.get("container", {}).get("env", []):
+        found.append("rateLimitDeployment.env.TRACING_EXPORTER_PROTOCOL")
     if deployment.get("replicas") != rl.ratelimit_replicas():
         found.append("rateLimitDeployment.replicas")
     container = deployment.get("container", {})
@@ -115,6 +117,7 @@ def test_the_controller_render_follows_the_design() -> None:
         (("--set", "config.envoyGateway.rateLimit.failClosed=true"), "rateLimit.failClosed"),
         (("--set", "config.envoyGateway.rateLimit.telemetry.tracing.samplingRate=10"), "rateLimit.telemetry.tracing"),
         (("--set", "config.envoyGateway.provider.kubernetes.rateLimitDeployment.replicas=1"), "rateLimitDeployment.replicas"),
+        (("--set-json", 'config.envoyGateway.provider.kubernetes.rateLimitDeployment.container.env=[{"name":"REDIS_TYPE","value":"SENTINEL"}]'), "rateLimitDeployment.env.TRACING_EXPORTER_PROTOCOL"),
         (("--set", "config.envoyGateway.provider.kubernetes.rateLimitDeployment.container.image=docker.io/envoyproxy/ratelimit:5ae0682e"), "rateLimitDeployment.image"),
         (("--set", "config.envoyGateway.provider.kubernetes.rateLimitDeployment.container.resources.limits.cpu=2"), "rateLimitDeployment.resources"),
         (("--set", "config.envoyGateway.provider.kubernetes.rateLimitDeployment.pod.priorityClassName=vectra-low"), "rateLimitDeployment.priorityClassName"),

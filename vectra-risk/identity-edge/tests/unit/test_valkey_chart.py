@@ -115,7 +115,7 @@ def problems(docs: Docs, env: str, text: str = INFRASTRUCTURE) -> list[str]:
     registry = design.registries(text)[env]
     valkey_image = f"{registry}/valkey@{design.valkey_digest(text)}"
     exporter_image = f"{registry}/redis-exporter@{design.exporter_digest(text)}"
-    zone_a, zone_b = design.kind_zones(text)
+    zone_a, zone_b = design.zones(text)
     zones = {"valkey-a": zone_a, "sentinel-a": zone_a, "valkey-b": zone_b, "sentinel-b": zone_b}
     priorities = design.replica_priorities(text)
     primary = min(priorities, key=lambda n: priorities[n])
@@ -140,7 +140,7 @@ def problems(docs: Docs, env: str, text: str = INFRASTRUCTURE) -> list[str]:
         if valkey_env["INITIAL_PRIMARY"]["value"] != want_initial:
             found.append(f"{name}: primaria inicial")
         term = pod["affinity"]["nodeAffinity"]["requiredDuringSchedulingIgnoredDuringExecution"]["nodeSelectorTerms"]
-        if term != [{"matchExpressions": [{"key": "topology.kubernetes.io/zone", "operator": "In", "values": [zones[name]]}]}] and env == "kind":
+        if term != [{"matchExpressions": [{"key": "topology.kubernetes.io/zone", "operator": "In", "values": [zones[name]]}]}]:
             found.append(f"{name}: zona")
         if find(docs, "StatefulSet", name)["spec"]["replicas"] != 1:
             found.append(f"{name}: replicas")
@@ -163,6 +163,9 @@ def problems(docs: Docs, env: str, text: str = INFRASTRUCTURE) -> list[str]:
     for name, minimum in design.pdb(text).items():
         if find(docs, "PodDisruptionBudget", name)["spec"]["minAvailable"] != minimum:
             found.append(f"pdb {name}")
+    master_conf = lines(find(docs, "ConfigMap", "sentinel-config")["data"]["sentinel-master.conf"])
+    if master_conf != design.sentinel_timings(text):
+        found.append(f"tiempos de Sentinel {master_conf}")
     maxmemory, policy = design.maxmemory(text)
     conf = lines(find(docs, "ConfigMap", "valkey-config")["data"]["valkey.conf"])
     for want in (f"maxmemory {maxmemory}", f"maxmemory-policy {policy}", 'save ""', "appendonly no"):
@@ -216,12 +219,52 @@ def test_the_set_of_documents_is_exactly_the_oracle(env: str) -> None:
     assert got == sorted(expected_documents())
 
 
-def test_the_zones_of_kind_are_the_ones_of_the_design() -> None:
-    zone_a, zone_b = design.kind_zones()
-    term = find(load("kind"), "StatefulSet", "valkey-a")["spec"]["template"]["spec"]["affinity"]["nodeAffinity"]
-    assert term["requiredDuringSchedulingIgnoredDuringExecution"]["nodeSelectorTerms"][0]["matchExpressions"][0]["values"] == [zone_a]
-    term = find(load("kind"), "StatefulSet", "valkey-b")["spec"]["template"]["spec"]["affinity"]["nodeAffinity"]
-    assert term["requiredDuringSchedulingIgnoredDuringExecution"]["nodeSelectorTerms"][0]["matchExpressions"][0]["values"] == [zone_b]
+@pytest.mark.parametrize("env", ENVS)
+def test_the_zones_of_every_environment_are_the_ones_of_the_design(env: str) -> None:
+    """R6: zone-a y zone-b en kind, staging y prod, leidas del diseno."""
+    zone_a, zone_b = design.zones()
+    assert (zone_a, zone_b) == ("zone-a", "zone-b")
+    for name, zone in (("valkey-a", zone_a), ("sentinel-a", zone_a), ("valkey-b", zone_b), ("sentinel-b", zone_b)):
+        term = find(load(env), "StatefulSet", name)["spec"]["template"]["spec"]["affinity"]["nodeAffinity"]
+        assert term["requiredDuringSchedulingIgnoredDuringExecution"]["nodeSelectorTerms"][0]["matchExpressions"][0]["values"] == [zone]
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_another_zone_in_the_values_fails_the_oracle_and_conftest(env: str) -> None:
+    """R6: otras zonas en `values/<env>.yaml` (la mutacion del revisor) no pasan. Se renderiza con helm de verdad."""
+    run = helm_template(env, "--set", "valkey.nodes.a.zone=banco-z1", "--set", "valkey.nodes.b.zone=banco-z2", "--set", "sentinel.groups.a.zone=banco-z1", "--set", "sentinel.groups.b.zone=banco-z2")
+    assert run.returncode == 0, run.stderr
+    docs = [d for d in yaml.safe_load_all(run.stdout) if d]
+    assert any(p.endswith("zona") for p in problems(docs, env))
+    code, output = conftest(docs)
+    assert code != 0 and "zones: " in output, output
+
+
+@pytest.mark.parametrize(
+    ("setting", "directive"),
+    [
+        ("sentinel.downAfterMilliseconds=3000", "down-after-milliseconds"),
+        ("sentinel.failoverTimeout=30000", "failover-timeout"),
+        ("sentinel.parallelSyncs=2", "parallel-syncs"),
+    ],
+)
+@pytest.mark.parametrize("env", ENVS)
+def test_another_sentinel_time_in_the_values_fails_the_oracle_and_conftest(env: str, setting: str, directive: str) -> None:
+    """R7: un tiempo distinto en los values hace fallar el oraculo y conftest."""
+    run = helm_template(env, "--set", setting)
+    assert run.returncode == 0, run.stderr
+    docs = [d for d in yaml.safe_load_all(run.stdout) if d]
+    assert any(p.startswith("tiempos de Sentinel") for p in problems(docs, env))
+    code, output = conftest(docs)
+    assert code != 0 and f"sentinel-timing: {directive}" in output, output
+
+
+def test_the_sentinel_times_are_read_from_the_design() -> None:
+    assert design.sentinel_timings() == [
+        "sentinel down-after-milliseconds ratelimit 5000",
+        "sentinel failover-timeout ratelimit 60000",
+        "sentinel parallel-syncs ratelimit 1",
+    ]
 
 
 def test_the_images_use_the_registry_of_each_environment() -> None:
@@ -283,6 +326,10 @@ DESIGN_CHANGES = [
     ("permiso de canal del usuario sentinel", lambda: changed("+subscribe &__sentinel__:hello`, sin `+role`", "+subscribe`, sin `+role`")),
     ("comando de Sentinel para ratelimit", lambda: changed("+sentinel|slaves", "+sentinel|replicas")),
     ("usuario de pares", lambda: changed("`sentinel sentinel-user sentinel-peer`", "`sentinel sentinel-user otro`")),
+    ("zonas", lambda: changed("Las zonas se llaman `zone-a` y `zone-b`", "Las zonas se llaman `zone-x` y `zone-y`")),
+    ("down-after-milliseconds", lambda: changed("`sentinel down-after-milliseconds ratelimit 5000`", "`sentinel down-after-milliseconds ratelimit 4000`")),
+    ("failover-timeout", lambda: changed("`sentinel failover-timeout ratelimit 60000`", "`sentinel failover-timeout ratelimit 50000`")),
+    ("parallel-syncs", lambda: changed("`sentinel parallel-syncs ratelimit 1`", "`sentinel parallel-syncs ratelimit 2`")),
     ("nombre del master", lambda: changed("el master se llama `ratelimit`", "el master se llama `primary`")),
     ("propiedad de Vault", lambda: changed("`sentinel-peer`, `exporter` y `sentinel-ratelimit`", "`sentinel-peer`, `exporter`, `extra` y `sentinel-ratelimit`")),
     ("recursos de Valkey", lambda: changed("| Valkey (cada nodo) | 100m / 128 MiB |", "| Valkey (cada nodo) | 200m / 128 MiB |")),
@@ -437,6 +484,10 @@ MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
     ("maxmemory", "otra politica de desalojo", _text("ConfigMap", "valkey-config", VALKEY_CONF, "maxmemory-policy volatile-ttl", "maxmemory-policy allkeys-lru")),
     ("zones", "sin nodeAffinity", _del("StatefulSet", "valkey-a", [*_pod("valkey-a"), "affinity"])),
     ("zones", "afinidad por NotIn", _set("StatefulSet", "valkey-b", [*_pod("valkey-b"), "affinity", "nodeAffinity", "requiredDuringSchedulingIgnoredDuringExecution", "nodeSelectorTerms", 0, "matchExpressions", 0, "operator"], "NotIn")),
+    ("zones", "zona ajena al diseno", _set("StatefulSet", "valkey-a", [*_pod("valkey-a"), "affinity", "nodeAffinity", "requiredDuringSchedulingIgnoredDuringExecution", "nodeSelectorTerms", 0, "matchExpressions", 0, "values"], ["banco-z1"])),
+    ("sentinel-timing", "down-after distinto", _text("ConfigMap", "sentinel-config", ["data", "sentinel-master.conf"], "sentinel down-after-milliseconds ratelimit 5000", "sentinel down-after-milliseconds ratelimit 3000")),
+    ("sentinel-timing", "failover-timeout distinto", _text("ConfigMap", "sentinel-config", ["data", "sentinel-master.conf"], "sentinel failover-timeout ratelimit 60000", "sentinel failover-timeout ratelimit 30000")),
+    ("sentinel-timing", "parallel-syncs distinto", _text("ConfigMap", "sentinel-config", ["data", "sentinel-master.conf"], "sentinel parallel-syncs ratelimit 1", "sentinel parallel-syncs ratelimit 2")),
     ("replica-priority", "la misma prioridad", _env_set("valkey-a", "valkey", "REPLICA_PRIORITY", "100")),
     ("initial-primary", "valkey-a como replica", _env_set("valkey-a", "valkey", "INITIAL_PRIMARY", "valkey-b-0.valkey-b.vectra-edge.svc.cluster.local")),
     ("replicas", "valkey-a con 2 replicas", _set("StatefulSet", "valkey-a", ["spec", "replicas"], 2)),

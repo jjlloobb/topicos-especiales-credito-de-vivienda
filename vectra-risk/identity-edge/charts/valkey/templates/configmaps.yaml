@@ -40,7 +40,7 @@ data:
   sentinel-master.conf: |
     sentinel down-after-milliseconds {{ .Values.master }} {{ .Values.sentinel.downAfterMilliseconds }}
     sentinel failover-timeout {{ .Values.master }} {{ .Values.sentinel.failoverTimeout }}
-    sentinel parallel-syncs {{ .Values.master }} 1
+    sentinel parallel-syncs {{ .Values.master }} {{ .Values.sentinel.parallelSyncs }}
 ---
 apiVersion: v1
 kind: ConfigMap

@@ -85,6 +85,13 @@ deny contains msg if {
 	msg := "telemetry: las metricas Prometheus de envoy-ratelimit estan deshabilitadas"
 }
 
+# R8: el 4317 es OTLP gRPC, y ratelimit exporta por HTTP salvo que se diga otra cosa.
+deny contains msg if {
+	is_controller_config
+	not env_of("TRACING_EXPORTER_PROTOCOL") == [{"name": "TRACING_EXPORTER_PROTOCOL", "value": "grpc"}]
+	msg := "telemetry: TRACING_EXPORTER_PROTOCOL debe ser grpc, porque el collector recibe OTLP gRPC en el 4317 (R8)"
+}
+
 # regla: sentinel-env
 env_of(name) := [e | some e in container.env; e.name == name]
 
@@ -104,7 +111,7 @@ deny contains msg if {
 deny contains msg if {
 	is_controller_config
 	some e in container.env
-	not e.name in {"REDIS_TYPE", "REDIS_AUTH", "REDIS_SENTINEL_AUTH"}
+	not e.name in {"REDIS_TYPE", "REDIS_AUTH", "REDIS_SENTINEL_AUTH", "TRACING_EXPORTER_PROTOCOL"}
 	msg := sprintf("sentinel-env: variable %s fuera del diseno", [e.name])
 }
 
