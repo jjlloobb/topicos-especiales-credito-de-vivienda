@@ -27,6 +27,12 @@ El usuario decidió R1–R4: R1, la conexión por Sentinel; R2, el endurecimient
 > - **F-05:** la candidata de `readOnlyRootFilesystem` y `RUNTIME_ROOT` se retira de la bitácora, porque no aplica con `GRPC_XDS_SOTW`.
 > - Ninguna prueba debe fijar estos valores con un literal propio. Si cambia el diseño y el oráculo no, falla.
 
+> **Arbitraje del 2026-11-04 tras la ronda 2 (orquestador; `revisiones/U02-T11/ronda-2.md`):**
+> - **F-01 (NARANJA):** se mantiene. El oráculo de `test_valkey_chart.py` debe comparar con el diseño la zona de los cuatro StatefulSet: `valkey-a`, `valkey-b`, `sentinel-a` y `sentinel-b`. Debe fallar si solo se mueve un Sentinel de zona, como en la mutación M4 del revisor.
+> - **F-02 (NARANJA):** se mantiene. La regla «ninguna prueba debe fijar estos valores con un literal propio» vale para las pruebas de pytest, no solo para el oráculo. Las pruebas no repiten `zone-a`, `zone-b`, los tiempos de Sentinel ni `grpc`, y comprueban que el valor sale del diseño. Los literales de las políticas de Rego se aceptan, como en la ronda 1, porque son la política misma.
+> - **F-03 (AMARILLO):** en la bitácora, la candidata de `RUNTIME_ROOT` se marca como retirada y la respuesta a F-05 dice lo que de verdad se hizo.
+> - **La candidata del diseño** la corrigió el orquestador: la línea de INF-U2-04 que decía «zonas en los values» quedó marcada como superada por R6. Comprueba que los lectores del diseño sigan leyendo bien.
+
 ## Alcance
 
 **Dentro:** todo el Paso 9 del plan. Texto del plan, sin recortes:
