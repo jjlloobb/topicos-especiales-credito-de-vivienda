@@ -21,6 +21,7 @@ from typing import Any
 import pytest
 import valkey_design as design
 import yaml
+from design_values import INFRASTRUCTURE
 
 ROOT = Path(__file__).resolve().parents[3]
 EDGE = ROOT / "identity-edge"
@@ -44,6 +45,7 @@ Docs = list[dict[str, Any]]
 
 # Constantes de `resource.go` de v1.9.3. Los puertos no se configuran; el diseno (INF-U2-03) los repite y se compara con estas.
 INFRA_NAME = "envoy-ratelimit"
+OTHER_PROTOCOL = "http" if design.ratelimit_tracing_protocol() != "http" else "grpc"  # un protocolo que no es el del diseno (mutacion)
 INFRA_GRPC_PORT = 8081
 READINESS_PORT = 8080
 PROMETHEUS_PORT = 19001
@@ -352,7 +354,8 @@ def test_the_design_values_are_read_from_the_documents() -> None:
     )
     assert (design.ratelimit_replicas(), design.ratelimit_hpa(), design.ratelimit_pdb(), design.ratelimit_failclosed()) == (2, (2, 4, 70), 1, False)
     assert design.ratelimit_tracing() == ("otel-collector.vectra-observability.svc:4317", 100)
-    assert design.ratelimit_tracing_protocol() == "grpc"
+    protocol = design.ratelimit_tracing_protocol()
+    assert f"`TRACING_EXPORTER_PROTOCOL={protocol}`" in INFRASTRUCTURE
     assert design.ratelimit_registries()["kind"] == "kind-registry:5000/vectra/ratelimit"
 
 
@@ -365,7 +368,7 @@ def test_the_design_values_are_read_from_the_documents() -> None:
         ("REDIS_SENTINEL_AUTH", lambda c: c["provider"]["kubernetes"]["rateLimitDeployment"]["container"]["env"].pop(2)),
         ("tracing", lambda c: c["rateLimit"]["telemetry"]["tracing"].update(samplingRate=10)),
         ("protocolo del tracing", lambda c: _container(c).update(env=[e for e in _container(c)["env"] if e["name"] != "TRACING_EXPORTER_PROTOCOL"])),
-        ("protocolo del tracing", lambda c: _container(c).update(env=[{"name": e["name"], "value": "http"} if e["name"] == "TRACING_EXPORTER_PROTOCOL" else e for e in _container(c)["env"]])),
+        ("protocolo del tracing", lambda c: _container(c).update(env=[{"name": e["name"], "value": OTHER_PROTOCOL} if e["name"] == "TRACING_EXPORTER_PROTOCOL" else e for e in _container(c)["env"]])),
         ("metricas", lambda c: c["rateLimit"].setdefault("telemetry", {}).setdefault("metrics", {}).update(prometheus={"disable": True})),
         ("imagen", lambda c: c["provider"]["kubernetes"]["rateLimitDeployment"]["container"].update(image="docker.io/envoyproxy/ratelimit:5ae0682e")),
         ("recursos", lambda c: c["provider"]["kubernetes"]["rateLimitDeployment"]["container"]["resources"]["limits"].update(cpu="1")),
@@ -539,7 +542,7 @@ CONFIG_MUTATIONS: list[tuple[str, str, Callable[[dict[str, Any]], None]]] = [
     ("telemetry", "muestreo 10", lambda c: c["rateLimit"]["telemetry"]["tracing"].update(samplingRate=10)),
     ("telemetry", "sin tracing", lambda c: c["rateLimit"]["telemetry"].pop("tracing")),
     ("telemetry", "sin TRACING_EXPORTER_PROTOCOL", _drop_env("TRACING_EXPORTER_PROTOCOL")),
-    ("telemetry", "TRACING_EXPORTER_PROTOCOL http", _set_env("TRACING_EXPORTER_PROTOCOL", {"name": "TRACING_EXPORTER_PROTOCOL", "value": "http"})),
+    ("telemetry", "TRACING_EXPORTER_PROTOCOL distinto del diseno", _set_env("TRACING_EXPORTER_PROTOCOL", {"name": "TRACING_EXPORTER_PROTOCOL", "value": OTHER_PROTOCOL})),
     ("telemetry", "Prometheus deshabilitado", lambda c: c["rateLimit"]["telemetry"].setdefault("metrics", {}).update(prometheus={"disable": True})),
     ("sentinel-env", "sin REDIS_TYPE", _drop_env("REDIS_TYPE")),
     ("sentinel-env", "REDIS_TYPE cluster", _set_env("REDIS_TYPE", {"name": "REDIS_TYPE", "value": "CLUSTER"})),
