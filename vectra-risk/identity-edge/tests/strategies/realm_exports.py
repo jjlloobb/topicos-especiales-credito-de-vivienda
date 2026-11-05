@@ -60,7 +60,7 @@ def keycloak_view(git: dict[str, Any], variant: str = "") -> dict[str, Any]:
     kc = _fill_markers(copy.deepcopy(git))
     kc["id"] = f"realm-uuid{variant}"
     kc["notBefore"] = 1730000000 + len(variant)
-    kc["bruteForceStrategy"] = "MULTIPLE"  # un valor por defecto que Git no fija
+    kc["bruteForceStrategy"] = git["bruteForceStrategy"]  # H10: ya no es un valor por defecto: Git lo fija
     for client in kc["clients"]:
         _noise(client, client["clientId"], variant)
         client["secret"] = f"secreto-de-keycloak{variant}"

@@ -48,6 +48,30 @@ def test_a_default_value_that_is_not_in_git_is_zero(pair: tuple[Realm, Realm]) -
     assert count(git, kc) == 0
 
 
+def test_h10_git_fixes_the_brute_force_strategy_and_the_keycloak_view_takes_it_from_git(pair: tuple[Realm, Realm]) -> None:
+    git, kc = pair
+    assert git["bruteForceStrategy"] == "LINEAR"
+    assert kc["bruteForceStrategy"] == git["bruteForceStrategy"]
+
+
+def test_h10_keycloak_with_another_brute_force_strategy_is_one(pair: tuple[Realm, Realm]) -> None:
+    git, kc = pair
+    kc["bruteForceStrategy"] = "MULTIPLE"
+    assert count(git, kc) == 1
+
+
+def test_h10_keycloak_without_the_brute_force_strategy_is_one(pair: tuple[Realm, Realm]) -> None:
+    git, kc = pair
+    del kc["bruteForceStrategy"]
+    assert count(git, kc) == 1
+
+
+def test_h10_keycloak_with_another_max_temporary_lockouts_is_one(pair: tuple[Realm, Realm]) -> None:
+    git, kc = pair
+    kc["maxTemporaryLockouts"] = 3
+    assert count(git, kc) == 1
+
+
 def test_a_field_of_git_with_another_value_is_one(pair: tuple[Realm, Realm]) -> None:
     git, kc = pair
     kc["accessTokenLifespan"] += 1

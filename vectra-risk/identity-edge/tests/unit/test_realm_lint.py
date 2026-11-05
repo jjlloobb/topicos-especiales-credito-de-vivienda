@@ -728,6 +728,11 @@ def test_scope_mapper_with_forbidden_claim_is_rejected() -> None:
         ("maxDeltaTimeSeconds", 3600),
         ("permanentLockout", False),
         ("maxTemporaryLockouts", 10),
+        # H10: la estrategia lineal y 15 bloqueos temporales; `MULTIPLE` y 3 llevan al bloqueo permanente en el fallo 8.
+        ("bruteForceStrategy", "MULTIPLE"),
+        ("maxTemporaryLockouts", 3),
+        ("maxTemporaryLockouts", 15.0),
+        ("bruteForceStrategy", "linear"),
         # Igual en valor pero de otro tipo: `1 == True` y `5.0 == 5` en Python.
         ("bruteForceProtected", 1),
         ("permanentLockout", 1),
@@ -741,7 +746,7 @@ def test_realm_parameter_out_of_spec_is_rejected(key: str, value: object) -> Non
     assert "parametro-del-realm" in rules(realm, "kind")
 
 
-@pytest.mark.parametrize("key", ["accessTokenLifespan", "failureFactor", "permanentLockout"])
+@pytest.mark.parametrize("key", ["accessTokenLifespan", "failureFactor", "permanentLockout", "bruteForceStrategy", "maxTemporaryLockouts"])
 def test_missing_realm_parameter_is_rejected(key: str) -> None:
     realm = realm_copy("kind")
     del realm[key]
@@ -750,10 +755,11 @@ def test_missing_realm_parameter_is_rejected(key: str) -> None:
 
 def test_brute_force_fields_are_exactly_those_of_br_u2_05() -> None:
     realm = realm_copy("kind")
-    assert {k: realm[k] for k in ("bruteForceProtected", "permanentLockout", "maxTemporaryLockouts", "failureFactor", "waitIncrementSeconds", "maxFailureWaitSeconds", "maxDeltaTimeSeconds")} == {
+    assert {k: realm[k] for k in ("bruteForceProtected", "bruteForceStrategy", "permanentLockout", "maxTemporaryLockouts", "failureFactor", "waitIncrementSeconds", "maxFailureWaitSeconds", "maxDeltaTimeSeconds")} == {
         "bruteForceProtected": True,
+        "bruteForceStrategy": "LINEAR",
         "permanentLockout": True,
-        "maxTemporaryLockouts": 3,
+        "maxTemporaryLockouts": 15,
         "failureFactor": 5,
         "waitIncrementSeconds": 60,
         "maxFailureWaitSeconds": 900,

@@ -80,20 +80,23 @@ NON_PROD_ONLY_CLIENTS = ("channel-simulator", "verification-reader")
 CORE_SCOPE = Scope.CORE_READ_CREDIT.value
 CORE_AUDIENCE = "core-banking-mock"
 
-# domain-entities §6 y BR-U2-05, 06. Campos exactos de BR-U2-05: con `permanentLockout: true`,
-# `maxTemporaryLockouts = 3` y `failureFactor = 5`, el 4.o bloqueo (fallo 20 en `maxDeltaTimeSeconds`,
-# 12 h) es permanente; la espera crece `waitIncrementSeconds` por serie hasta `maxFailureWaitSeconds`.
+# domain-entities §6 y BR-U2-05, 06. Campos exactos de BR-U2-05 (enmienda H10, Keycloak 26.8.1): con
+# `bruteForceStrategy = LINEAR`, `failureFactor = 5` y `waitIncrementSeconds = 60`, cada fallo desde el 5.o dentro de
+# `maxDeltaTimeSeconds` (12 h) es un bloqueo temporal de 60 x (n - 4) s (60, 120, 180...) con tope `maxFailureWaitSeconds`
+# (900 s en el fallo 19). Con `permanentLockout: true` y `maxTemporaryLockouts = 15`, el 16.o bloqueo (fallo 20) es
+# permanente. Con la estrategia por defecto `MULTIPLE` y 3, el permanente llegaria en el fallo 8: por eso se fijan ambos.
 REALM_PARAMETERS: Mapping[str, Any] = {
     "accessTokenLifespan": 300,
     "ssoSessionIdleTimeout": 1800,
     "ssoSessionMaxLifespan": 36000,
     "bruteForceProtected": True,
+    "bruteForceStrategy": "LINEAR",
     "failureFactor": 5,
     "waitIncrementSeconds": 60,
     "maxFailureWaitSeconds": 900,
     "maxDeltaTimeSeconds": 43200,
     "permanentLockout": True,
-    "maxTemporaryLockouts": 3,
+    "maxTemporaryLockouts": 15,
 }
 # NFR-U2-24.
 PASSWORD_MIN_LENGTH = 14

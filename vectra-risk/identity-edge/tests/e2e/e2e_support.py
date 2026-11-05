@@ -109,7 +109,7 @@ def public_host() -> str:
 
 
 def brute_force() -> dict[str, Any]:
-    keys = ("failureFactor", "waitIncrementSeconds", "maxFailureWaitSeconds", "maxDeltaTimeSeconds", "maxTemporaryLockouts", "permanentLockout")
+    keys = ("failureFactor", "waitIncrementSeconds", "maxFailureWaitSeconds", "maxDeltaTimeSeconds", "maxTemporaryLockouts", "permanentLockout", "bruteForceStrategy")
     return {k: realm()[k] for k in keys}
 
 

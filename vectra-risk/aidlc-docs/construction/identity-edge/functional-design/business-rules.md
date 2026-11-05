@@ -39,7 +39,7 @@ La entrada del registro guarda el `acr` y el `auth_time` de la firma.
 - 5 fallos consecutivos → bloqueo temporal; la espera empieza en 60 s y crece 60 s en cada nueva serie (60, 120, 180 s), con un máximo de 900 s;
 - 20 fallos en 12 h (el 4.º bloqueo) → bloqueo permanente, que solo levanta un administrador.
 
-Campos de Keycloak: `bruteForceProtected: true`, `permanentLockout: true`, `maxTemporaryLockouts: 3`, `failureFactor: 5`, `waitIncrementSeconds: 60`, `maxFailureWaitSeconds: 900`, `maxDeltaTimeSeconds: 43200`. La espera crece de forma lineal porque Keycloak no la duplica de forma nativa; antes el diseño decía «se duplica» (enmienda del 2026-11-02, decisión del usuario en la ronda 1 de U02-T03).
+Campos de Keycloak: `bruteForceProtected: true`, `bruteForceStrategy: LINEAR`, `permanentLockout: true`, `maxTemporaryLockouts: 15`, `failureFactor: 5`, `waitIncrementSeconds: 60`, `maxFailureWaitSeconds: 900`, `maxDeltaTimeSeconds: 43200`. La espera crece de forma lineal porque Keycloak no la duplica de forma nativa; antes el diseño decía «se duplica» (enmienda del 2026-11-02, decisión del usuario en la ronda 1 de U02-T03).
 
 **Enmienda del 2026-11-05 (decisión H10 del usuario, tras la ronda 1 de U02-T14).** Keycloak 26.8.1 (`DefaultBruteForceProtector.java`, líneas 106-142 y 161-164) no bloquea «por series». Con la estrategia por defecto `MULTIPLE` y `maxTemporaryLockouts: 3`, cada fallo desde el 5.º es un bloqueo de 60 s y el permanente llega en el **fallo 8**. Rige:
 - `bruteForceStrategy: LINEAR` y `maxTemporaryLockouts: 15`, fijados en Git en los tres realms. Los demás campos no cambian;
