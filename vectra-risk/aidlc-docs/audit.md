@@ -5889,3 +5889,28 @@ Informes y arbitrajes en `revisiones/U02-T13/` y `revisiones/U02-T14/`.
 **Context**: Construcción de U2, U02-T13 y U02-T14.
 
 ---
+
+## U02-T15: arbitraje de la ronda 1 y U02-T16 a revisión
+**Timestamp**: 2026-11-06T15:00:00Z
+**User Input**: "podemos seguir con las siguientes unidades del proyecto?"; U02-T15 J3 "Ratificar sustituto (Recomendado)"
+**AI Response**:
+- U02-T13 (PR 71) está VERDE, esperando revisión humana.
+- U02-T16 (`test_e2e_inventory.py` con cualquier estado del checkbox) pasa a la ronda 1 de revisión.
+- U02-T15: la ronda 1 salió NO-VERDE (F-01 a F-03 NARANJA). El usuario ratificó el sustituto de J3: `handleSummary` escribe `overhead-verdict.json` y `make -C identity-edge load` falla si no se cumple NFR-U2-11. Se enmiendan la nota J3, NFR-U2-11/12 y la tarea. F-01 a F-06 van a la ronda 2.
+
+Arbitraje en `revisiones/U02-T15/arbitraje-ronda-1.md`.
+**Context**: Construcción de U2, U02-T15 y U02-T16.
+
+---
+
+## U02-T15: ronda 2 VERDE y cierre del Paso 14
+**Timestamp**: 2026-11-06T18:00:00Z
+**User Input**: "dale, avísame cuando termine los codificadores"
+**AI Response**:
+- U02-T15: la ronda 2 salió VERDE, con un AMARILLO (F-08) que pasa a `CANDIDATAS.md` junto con las candidatas de la ronda 1 (F-07). Se cierra el Paso 14 y se abre el PR.
+- U02-T16: la ronda 2 está en revisión.
+
+Informes y arbitraje en `revisiones/U02-T15/`.
+**Context**: Construcción de U2, U02-T15 y U02-T16.
+
+---

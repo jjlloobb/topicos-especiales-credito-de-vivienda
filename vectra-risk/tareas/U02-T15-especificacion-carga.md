@@ -38,7 +38,7 @@ Precisiones del diseño que la tarea aplica. La fuente de cada una va entre par�
     - Las llaves PEM se leen de `K6_CLIENT_KEYS_DIR`, una por `clientId` (J6). La firma usa la WebCrypto de k6.
   - `jwks`: lecturas del JWKS del realm.
   - `console-burst`: ráfagas de un mismo usuario contra `/api/console/**`, que llegan al eco del Paso 13 (J4). Por encima del límite de la consola, 20/s por `sub` en `routes.yaml`, se espera 429 con `Retry-After: 1`, con `checks`.
-  - `overhead`: el mismo request al eco, a través del gateway y directo (`K6_ECHO_DIRECT_URL`, port-forward del operador). El umbral de NFR-U2-11 se aplica a la diferencia de los p95, calculada en `handleSummary`, que termina con error si se excede (J3).
+  - `overhead`: el mismo request al eco, a través del gateway y directo (`K6_ECHO_DIRECT_URL`, port-forward del operador). El umbral de NFR-U2-11 se aplica a la diferencia de los p95, calculada en `handleSummary` (J3). Enmienda del 2026-11-06: como k6 v2.3.0 no deja que `handleSummary` cambie el código de salida, escribe `overhead-verdict.json` y `make -C identity-edge load` sale con error si el veredicto no se cumple.
 - **Umbrales.**
   - `http_req_duration{flow:login}` p95 < 500;
   - `http_req_duration{flow:token}` p95 < 200;
