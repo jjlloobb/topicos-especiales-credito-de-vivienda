@@ -5936,3 +5936,13 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **Context**: Construcción de U2, U02-T15 y U02-T16.
 
 ---
+
+## U02-T15: ronda 3 y ronda 4 acotada
+**Timestamp**: 2026-11-06T21:00:00Z
+**User Input**: "revisa los PR"; U02-T15 "Round 4 limited to F-09 (Recommended)"
+**AI Response**:
+- U02-T15: la ronda 3 cerró R-01 a R-05 (R-02 no era defecto, verificado con k6 v2.3.0) y salió NO-VERDE por F-09 (continuidad del jar entre el GET y el POST del login sin prueba). Al llegar a la ronda 4 se paró y el usuario la acotó a F-09. F-10 pasa a `CANDIDATAS.md`.
+- PR 73 fusionado; PR 71 actualizado con `main` y en verde (2643 passed).
+**Context**: Construcción de U2, U02-T15.
+
+---
