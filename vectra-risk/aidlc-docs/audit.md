@@ -5889,3 +5889,15 @@ Informes y arbitrajes en `revisiones/U02-T13/` y `revisiones/U02-T14/`.
 **Context**: Construcción de U2, U02-T13 y U02-T14.
 
 ---
+
+## U02-T16: ronda 3 VERDE
+**Timestamp**: 2026-11-06T19:30:00Z
+**User Input**: "dale, avísame cuando termine los codificadores"; "revisa el PR"
+**AI Response**:
+- U02-T16 (`test_e2e_inventory.py` con cualquier estado del checkbox): ronda 1 NO-VERDE (F-01, CA-2 sobre texto sintético), ronda 2 NO-VERDE (F-04, faltaba el rojo contra 08e29d2) y ronda 3 VERDE. Devuelve `make -C identity-edge check` a verde. Se abre el PR.
+- Revisión de código del PR 72 (U02-T15) a pedido del usuario: 10 hallazgos sin verificar con ejecución. Queda pendiente la decisión del usuario sobre una ronda 3 de U02-T15.
+
+Informes y arbitrajes en `revisiones/U02-T16/`.
+**Context**: Construcción de U2, U02-T15 y U02-T16.
+
+---
