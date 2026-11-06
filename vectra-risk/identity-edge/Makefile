@@ -20,7 +20,7 @@ JOBS := $(ROOT)/identity-edge/jobs
 # Destino del render de los jobs. Por defecto, el versionado; `check-jobs-rendered` lo cambia por un directorio temporal.
 JOBS_OUT ?= $(JOBS)/rendered
 
-.PHONY: collect-e2e e2e policy-ratelimit render-valkey check-valkey-rendered policy-valkey policy-valkey-u1 lint test check route-gen check-route-gen schemas-gateway kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
+.PHONY: load-inspect load collect-e2e e2e policy-ratelimit render-valkey check-valkey-rendered policy-valkey policy-valkey-u1 lint test check route-gen check-route-gen schemas-gateway kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
 
 lint:
 	$(UV) ruff check identity-edge
@@ -32,6 +32,23 @@ test:
 # La suite e2e solo se colecta: lista todos los casos sin ninguna variable de entorno del clúster (U02-T14, H3).
 collect-e2e:
 	cd $(ROOT) && uv run pytest identity-edge/tests/e2e --collect-only -q
+
+# La especificacion de la prueba de carga (U02-T15, Paso 14): k6 ejecuta el init context sin variables de entorno y muestra los
+# umbrales; luego `load_checks.py` lo compara con el diseno (umbrales, escenarios, perfil). No corre la carga.
+LOAD := $(ROOT)/identity-edge/tests/load
+K6 := $(TOOLS)/k6
+load-inspect:
+	cd $(ROOT) && env -i PATH="$$PATH" $(K6) inspect $(LOAD)/identity.js > /dev/null
+	$(UV) python identity-edge/tests/strategies/load_checks.py
+
+# La corrida del Paso 16 (con aprobacion del operador y las variables `K6_*` de tests/load/README.md). NO entra en `check`.
+# k6 v2.3.0 sale en 0 aunque `handleSummary` falle (probado), asi que el veredicto de NFR-U2-11 (J3) se lee de `overhead-verdict.json`.
+LOAD_OUT := $(ROOT)/identity-edge/.tools/load
+load:
+	mkdir -p $(LOAD_OUT) && rm -f $(LOAD_OUT)/overhead-verdict.json && \
+	{ cd $(LOAD_OUT) && $(K6) run $(LOAD)/identity.js; code=$$?; \
+	  cd $(ROOT) && $(UV) python identity-edge/tests/strategies/load_checks.py --verdict $(LOAD_OUT)/overhead-verdict.json || code=1; \
+	  exit $$code; }
 
 # Ejecuta la suite e2e contra kind (Paso 16, con aprobación del operador y las variables `VECTRA_E2E_*` y `SYNTH_*`). El perfil de Hypothesis `kind-e2e` lo registra el conftest de e2e. NO entra en `check`.
 e2e:
@@ -139,7 +156,7 @@ policy-gateway:
 	done
 
 # Verificaciones estaticas (AUTONOMIA-01). Crece con los pasos del plan.
-check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 check-route-gen kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway policy-ratelimit check-valkey-rendered policy-valkey policy-valkey-u1 collect-e2e test
+check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 check-route-gen kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway policy-ratelimit check-valkey-rendered policy-valkey policy-valkey-u1 collect-e2e load-inspect test
 
 # `helm template` del chart gateway-helm v1.9.3 con los values del controlador (U02-T10, Paso 8). Lo renderizado no se versiona.
 EG_RENDER := $(ROOT)/identity-edge/.tools/envoy-gateway/render.yaml
