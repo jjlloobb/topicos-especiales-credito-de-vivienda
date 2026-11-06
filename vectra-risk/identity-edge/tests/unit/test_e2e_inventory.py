@@ -151,6 +151,16 @@ def test_an_indented_mention_of_step_14_inside_step_13_does_not_end_the_block():
     assert plan_bullets("\n".join(lines)) == plan_bullets()
 
 
+def test_an_indented_mention_of_step_13_before_step_13_does_not_start_the_block():
+    text = PLAN.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    at = next(i for i, line in enumerate(lines) if STEP.match(line))
+    lines.insert(at, "  - [ ] **Paso 13 — Especificación de las pruebas de extremo a extremo**")
+    variant = "\n".join(lines)
+    assert step_13_block(variant) == step_13_block(text)
+    assert plan_bullets(variant) == plan_bullets()
+
+
 def test_every_id_is_unique_across_the_inventory():
     ids = [i for ids in INVENTORY.values() for i in ids]
     assert len(ids) == len(set(ids))
