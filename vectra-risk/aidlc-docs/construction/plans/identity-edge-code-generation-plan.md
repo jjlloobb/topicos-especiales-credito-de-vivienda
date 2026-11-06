@@ -250,7 +250,7 @@ vectra-risk/identity-edge/
   - Diseño: PBT-10; NFR-U2-42; BR-U2-03..08, 10, 13, 16; P-U2-06, 08. Historias: US-601, US-611.
   - **Aceptación** (estática): `uv run ruff check identity-edge/tests/e2e` y `uv run pytest identity-edge/tests/e2e --collect-only` lista todos los casos nombrados. La ejecución es del Paso 16.
 
-- [ ] **Paso 14 — Especificación de la prueba de carga**
+- [x] **Paso 14 — Especificación de la prueba de carga** (U02-T15)
   - Script k6: 200 usuarios concurrentes con login y token, 10 identidades de servicio renovando cada 5 min (incluidas `case-worker` y `bias-monitoring-job`), ráfagas contra la consola; umbrales de NFR-U2-10..12 como `thresholds`.
   - **Nota del 2026-11-05 (decisiones J1–J7 del usuario al preparar U02-T15):**
     - **J1**: 200 usuarios `load-001..200` solo en kind, con un rol al que BR-U2-03 no exige MFA. Los crea un script de este paso por la Admin API; lo ejecuta el operador en el Paso 16 y no va al realm versionado.

@@ -5902,3 +5902,15 @@ Arbitraje en `revisiones/U02-T15/arbitraje-ronda-1.md`.
 **Context**: Construcción de U2, U02-T15 y U02-T16.
 
 ---
+
+## U02-T15: ronda 2 VERDE y cierre del Paso 14
+**Timestamp**: 2026-11-06T18:00:00Z
+**User Input**: "dale, avísame cuando termine los codificadores"
+**AI Response**:
+- U02-T15: la ronda 2 salió VERDE, con un AMARILLO (F-08) que pasa a `CANDIDATAS.md` junto con las candidatas de la ronda 1 (F-07). Se cierra el Paso 14 y se abre el PR.
+- U02-T16: la ronda 2 está en revisión.
+
+Informes y arbitraje en `revisiones/U02-T15/`.
+**Context**: Construcción de U2, U02-T15 y U02-T16.
+
+---
