@@ -5910,3 +5910,14 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **Context**: Construcción de U2, U02-T15 y U02-T16.
 
 ---
+
+## Preparación de U02-T17 (endurecimiento de alertas)
+**Timestamp**: 2026-11-06T22:00:00Z
+**User Input**: "revisa los PR"; contadores "Increase or new series, for 0m (Recommended)"; absent() "Yes, on all three (Recommended)"; latencia "Filter to the api-gateway (Recommended)"; break-glass "Accept it as a limit (Recommended)"
+**AI Response**:
+- PR 71 fusionado (0e3a1f3). Las reglas aplicaban P-U2-09 al pie de la letra: los hallazgos de la revisión eran huecos del diseño.
+- Decisiones B12–B15 en P-U2-09 («Endurecimiento de las alertas») y en la tabla enmendada; nota en el Paso 11 del plan.
+- Tarea `tareas/U02-T17-endurecimiento-alertas.md`. Los hallazgos menores del PR 71 pasan a `CANDIDATAS.md`.
+**Context**: Construcción de U2, U02-T17.
+
+---

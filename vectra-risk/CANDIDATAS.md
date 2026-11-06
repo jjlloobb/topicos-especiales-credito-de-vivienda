@@ -146,3 +146,7 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - el caso de la mención sangrada del Paso 14 no compara `step_13_block`, solo `plan_bullets`;
   - el plan se lee del disco en cada llamada (unas 60 veces por corrida), y `plan_bullets(text=None)` mezcla lectura y análisis. Bastan una constante de módulo y un helper de reescritura;
   - la sección «Cambio» de la ronda 1 de `bitacoras/U02-T16.md` describe el patrón `[ x]` con 8 casos.
+- Revisión de código del PR 71 (U02-T13), hallazgos menores sin verificar con ejecución; el usuario dejó fuera de U02-T17 los que no son B12–B15:
+  - `BreakGlassLogin` repite el selector `keycloak_user_events_total{event="login",client_id="security-admin-console",error=""}` 7 veces, en cada uno de los 2 archivos. Una regla de grabación lo dejaría en un solo lugar;
+  - `identity-edge/tests/unit/test_keycloak_image.py:21` cambió la aserción exacta de las opciones de build por una regex de forma: si `design_build_options()` pierde una opción, la prueba no falla;
+  - `event_tags_problems()` de `identity-edge/tests/strategies/keycloak_deploy_checks.py:209` repite lo que ya fijan `fixed_env` de `keycloak.rego` y sus casos de mutación.

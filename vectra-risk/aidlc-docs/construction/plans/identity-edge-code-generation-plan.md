@@ -212,6 +212,7 @@ vectra-risk/identity-edge/
     - los `ServiceMonitor`/`PodMonitor` de U2 en `observability/` (B5);
     - el CR en `vectra-observability` con el patrón de U1 (B6);
     - el runbook operativo de la vuelta de Valkey a la zona A (B7).
+  - **Nota del 2026-11-06 (decisiones B12–B15 del usuario tras revisar el PR 71; P-U2-09 «Endurecimiento de las alertas»):** U02-T17 aplica a las reglas del paso la rama de serie nueva y `for` 0m en `LdapUnavailable` y `RoleConflict` (B12), `absent()` en `RateLimitBackendDown`, `RealmDriftStale` y `SigningKeyAgeStale` (B13), el filtro del `api-gateway` en `GatewayHighLatency` (B14) y el límite aceptado del reinicio normal en `BreakGlassLogin` (B15).
   - Diseño: P-U2-09; BR-U2-17; P-U2-05; NFR-U2-05 (`KeycloakDown`).
   - **Aceptación**: `promtool test rules identity-edge/observability/rules/tests/*.yaml` y `uv run python platform/tests/test_runbooks.py --root identity-edge` (`severity` válida y `runbook_url` existente).
 

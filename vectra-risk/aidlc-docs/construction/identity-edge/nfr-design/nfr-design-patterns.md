@@ -132,17 +132,17 @@ Al preparar el Paso 11, el orquestador comparó la tabla con lo que el código e
 | Alerta | Severidad | Expresión (fuente) | `for` |
 |---|---|---|---|
 | `KeycloakDown` | SEV1 | `kube_statefulset_status_replicas_ready{namespace="vectra-identity",statefulset="keycloak"} == 0` (kube-state-metrics de U1) | 1m |
-| `RateLimitBackendDown` | SEV2 | Réplicas disponibles en 0 de `envoy-ratelimit` (`envoy-gateway-system`) o del StatefulSet de Valkey, según kube-state-metrics, **o** `redis_up == 0` del exportador (9121) (B4) | 2m |
+| `RateLimitBackendDown` | SEV2 | Réplicas disponibles en 0 de `envoy-ratelimit` (`envoy-gateway-system`) o del StatefulSet de Valkey, según kube-state-metrics, **o** `redis_up == 0` del exportador (9121) (B4), **o** ausente la serie de kube-state-metrics del Deployment o del StatefulSet (`absent(...)`, B13) | 2m |
 | `AuthDeniedBurst` | SEV2 | Más de 20 denegaciones por minuto: `LOGIN_ERROR` de `keycloak_user_events_total` + `vectra_authz_denied_total` de U0 (B1, B3) | 5m |
 | `BreakGlassLogin` | SEV1 | ~~Un `LOGIN` del usuario `break-glass` en `keycloak_user_events_total` (B1)~~ **Superada por B10:** un `login` en `keycloak_user_events_total` con `client_id="security-admin-console"`, en cualquier realm | 0m |
 | `RealmDrift` | SEV2 | `vectra_realm_drift > 0` (Pushgateway, `job="realm-drift"`) | 0m |
-| `RoleConflict` | SEV2 | `increase(vectra_role_conflict_total[15m]) > 0`. **Métrica de contrato** (B2): todavía no la emite nada; la fuente sigue en `CANDIDATAS.md` | 5m |
+| `RoleConflict` | SEV2 | ~~`increase(vectra_role_conflict_total[15m]) > 0`, `for` 5m~~ **B12:** `increase(vectra_role_conflict_total[15m]) > 0` **o** una serie nueva (`vectra_role_conflict_total > 0 unless vectra_role_conflict_total offset 5m`). **Métrica de contrato** (B2): todavía no la emite nada; la fuente sigue en `CANDIDATAS.md` | 0m |
 | `SigningKeyAgeHigh` | SEV3 | Edad de `vectra_signing_key_created_timestamp_seconds` > 80 días | 1h |
-| `LdapUnavailable` | SEV2 | `increase(vectra_ldap_connection_failures_total[5m]) > 0`. **Métrica de contrato** (B2). Una sola regla para todos los entornos: en kind y staging no hay series, así que no dispara (B9) | 5m |
-| `GatewayHighLatency` | SEV3 | p95 de `envoy_http_downstream_rq_time` − p95 de `envoy_cluster_upstream_rq_time` > 5 ms | 15m |
+| `LdapUnavailable` | SEV2 | ~~`increase(vectra_ldap_connection_failures_total[5m]) > 0`, `for` 5m~~ **B12:** `increase(vectra_ldap_connection_failures_total[5m]) > 0` **o** una serie nueva (`vectra_ldap_connection_failures_total > 0 unless vectra_ldap_connection_failures_total offset 5m`). **Métrica de contrato** (B2). Una sola regla para todos los entornos: en kind y staging no hay series, así que no dispara (B9) | 0m |
+| `GatewayHighLatency` | SEV3 | p95 de `envoy_http_downstream_rq_time` − p95 de `envoy_cluster_upstream_rq_time` > 5 ms, **B14:** el downstream solo del listener HTTP del `api-gateway` y el upstream solo de los clusters de sus rutas (sin el cluster del rate limit ni los listeners de estadísticas y de readiness) | 15m |
 | `KeycloakMetricsDown` | SEV2 | `up{job="keycloak"} == 0` o ausente (B11) | 5m |
-| `RealmDriftStale` | SEV3 | `time() - push_time_seconds{job="realm-drift"} > 26h`. El CronJob corre a diario (B8); runbook `realm-drift` | 0m |
-| `SigningKeyAgeStale` | SEV3 | `time() - push_time_seconds{job="signing-key-age"} > 3h`. El CronJob corre cada hora (B8); runbook `signing-key-rotation` | 0m |
+| `RealmDriftStale` | SEV3 | `time() - push_time_seconds{job="realm-drift"} > 26h`, **o** ausente el grupo (`absent(push_time_seconds{job="realm-drift"})`, B13). El CronJob corre a diario (B8); runbook `realm-drift` | 0m |
+| `SigningKeyAgeStale` | SEV3 | `time() - push_time_seconds{job="signing-key-age"} > 3h`, **o** ausente el grupo (`absent(push_time_seconds{job="signing-key-age"})`, B13). El CronJob corre cada hora (B8); runbook `signing-key-rotation` | 0m |
 
 - **B11** (2026-11-05, decisión del usuario tras la ronda 2 de revisión de U02-T13; `revisiones/U02-T13/ronda-2.md`). Con el contador de eventos, un login aislado no se detecta bien en Prometheus. Rige:
   - **`BreakGlassLogin`**: con `X` el contador de B10 y `N = (X > 0 unless X offset 5m)`, la expresión es `(increase(X[5m]) > 0) or (N > (last_over_time(X[1h] offset 5m) or X * 0)) or (N and on(namespace, pod) (up{job="keycloak"} offset 5m == 1))`. Así una serie que no se vio en la última hora cuenta como login nuevo;
@@ -167,6 +167,15 @@ Al preparar el Paso 11, el orquestador comparó la tabla con lo que el código e
 - **B5**: los `ServiceMonitor`/`PodMonitor` de Keycloak (HTTPS, 9000), Envoy (19001), `envoy-ratelimit` (19001) y el exportador de Valkey (9121) son del Paso 11 y viven en `identity-edge/observability/`. Cada familia de métricas de las reglas tiene quien la emita, un monitor o una fuente de U1 (kube-state-metrics, Pushgateway), y un puerto F60.
 - **B6**: el `PrometheusRule` sigue el patrón de U1: un archivo de grupos que leen promtool y las pruebas, más el CR en `vectra-observability`, con la prueba de que los dos tienen los mismos `groups`. El Paso 12 suma las entradas `identity-rules` e `identity-monitors` en wave 4.
 - **B7**: el runbook operativo de la vuelta de la primaria de Valkey a la zona A (INF-U2-04) es del Paso 11. No tiene alerta y se valida con `test_runbooks.py --operational`.
+
+#### Endurecimiento de las alertas (enmienda del 2026-11-06, decisiones B12–B15 del usuario tras revisar el PR 71)
+
+La revisión de código del PR 71 (U02-T13) encontró que la tabla, aplicada al pie de la letra, deja alertas que callan. Rige lo siguiente; lo aplica U02-T17:
+
+- **B12** (`LdapUnavailable`, `RoleConflict`): `increase` no ve la primera muestra de una serie que nace con el primer evento, y en `LdapUnavailable` una ventana de 5m con `for` 5m no dispara con un fallo corto. Las dos llevan la rama de serie nueva (`X > 0 unless X offset 5m`, la misma de B11) y `for` 0m.
+- **B13** (`RateLimitBackendDown`, `RealmDriftStale`, `SigningKeyAgeStale`): una serie ausente no es un valor 0, y la comparación no devuelve nada. Cada una lleva `or absent(...)` sobre la serie de la que depende: la del Deployment `envoy-ratelimit` y la del StatefulSet de Valkey en kube-state-metrics, y `push_time_seconds` de cada grupo del Pushgateway. En kind, si los CronJobs no corren, las dos `*Stale` disparan: es lo esperado y lo dice el runbook.
+- **B14** (`GatewayHighLatency`): la suma de todos los listeners y clusters de Envoy mezcla las llamadas gRPC al rate limit y los listeners de estadísticas y de readiness. El p95 de downstream se filtra al listener HTTP del `api-gateway` y el de upstream a los clusters de sus rutas. Los nombres de las etiquetas (`envoy_http_conn_manager_prefix`, `envoy_cluster_name` u otros) y sus valores se confirman en Envoy Gateway v1.9.3 antes de escribirlos.
+- **B15** (`BreakGlassLogin`): se acepta como límite el reinicio normal del pod, medido en U02-T13 (escenarios `RN_0` a `RN_6` del runbook `break-glass-login`). Si el login cae en el mismo scrape en que vuelve el pod y el contador ya valía 1, no dispara; de 1 a 4 min después, dispara con retraso. Queda junto a los límites de B11. La solución en la fuente (ruler de Loki sobre el evento `LOGIN`) sigue en `CANDIDATAS.md`.
 
 ## 5. Cumplimiento de extensiones (NFR Design U2)
 
