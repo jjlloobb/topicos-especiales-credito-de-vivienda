@@ -5914,3 +5914,14 @@ Informes y arbitraje en `revisiones/U02-T15/`.
 **Context**: Construcción de U2, U02-T15 y U02-T16.
 
 ---
+
+## Revisión de los PR 71, 72 y 73
+**Timestamp**: 2026-11-06T20:00:00Z
+**User Input**: "revisa el PR"; "revisa los PR"; PR 73 "Merge it, findings to candidates (Recommended)"; PR 71 "Merge it and open U02-T17 (Recommended)"; PR 72 "Round 3 of U02-T15 (Recommended)"
+**AI Response**:
+- PR 73 (U02-T16): sin defectos del arreglo; 10 hallazgos de robustez a `CANDIDATAS.md`. Lo fusiona el usuario.
+- PR 71 (U02-T13): 9 hallazgos sobre alertas. El usuario lo fusiona y se prepara U02-T17 (endurecimiento de alertas), con las decisiones de diseño antes de despachar.
+- PR 72 (U02-T15): ronda 3 con R-01 a R-05; R-06 a R-10 a `CANDIDATAS.md`.
+**Context**: Construcción de U2.
+
+---

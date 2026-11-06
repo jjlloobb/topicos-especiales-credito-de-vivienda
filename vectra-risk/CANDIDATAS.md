@@ -130,3 +130,9 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
 - Nota J5 del Paso 14: dice «por debajo de 10/s», pero el contador de `/auth/**` cuenta 2 requests por login (GET auth y POST `login-actions`), así que el techo real es 5 logins/s. Precisar la nota (codificador y revisor, U02-T15).
 - `ruff format` no se exige y los archivos nuevos de U02-T15 tampoco están formateados (codificador, U02-T15; misma decisión pendiente que la de U02-T12).
 - `identity-edge/tests/unit/test_load_spec.py:80`: el mutante `console-burst:tasa` resta 5 al límite de la consola y daría una tasa nula o negativa si `routes.yaml` bajara a 5/s o menos (revisor, U02-T15, ronda 2, AMARILLO F-08).
+- Revisión de código del PR 72 (U02-T15), sin verificar con ejecución; el usuario las mandó a candidatas (`revisiones/U02-T15/revision-codigo-pr72.md`):
+  - R-06: `seed_users.py` no repara al usuario existente (OTP, `requiredActions`, habilitado), aunque el docstring lo dice;
+  - R-07: la comprobación de llaves faltantes de `setup()` en `identity.js` es código muerto, porque `open()` falla antes en init;
+  - R-08: `make check` corre dos `make load` reales de unos 30 s; ponerlos detrás de un marcador o de otro target;
+  - R-09: `load-inspect` corre `k6 inspect` dos veces;
+  - R-10: `_max_vu_growth_per_second` en `load_checks.py` divide sin guarda, y el chequeo de J5 ignora los 2 hits por login y los logins de `burst` y `overhead`.
