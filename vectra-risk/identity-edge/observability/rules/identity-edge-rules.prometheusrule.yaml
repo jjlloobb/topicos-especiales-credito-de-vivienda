@@ -1,0 +1,101 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: identity-edge
+  namespace: vectra-observability
+spec:
+  groups:
+  - name: identity-edge
+    rules:
+    - alert: KeycloakDown
+      expr: 'kube_statefulset_status_replicas_ready{namespace="vectra-identity",statefulset="keycloak"} == 0'
+      for: 1m
+      labels:
+        severity: SEV1
+      annotations:
+        summary: KeycloakDown
+        runbook_url: identity-edge/runbooks/keycloak-down.md
+    - alert: RateLimitBackendDown
+      expr: '(sum(kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="envoy-ratelimit"}) == 0) or (sum(kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset=~"valkey-.+"}) == 0) or (redis_up{job="valkey"} == 0)'
+      for: 2m
+      labels:
+        severity: SEV2
+      annotations:
+        summary: RateLimitBackendDown
+        runbook_url: identity-edge/runbooks/rate-limit-backend-down.md
+    - alert: AuthDeniedBurst
+      expr: '((sum(rate(keycloak_user_events_total{event="login",error!=""}[5m])) or vector(0)) * 60) + ((sum(rate(vectra_authz_denied_total[5m])) or vector(0)) * 60) > 20'
+      for: 5m
+      labels:
+        severity: SEV2
+      annotations:
+        summary: AuthDeniedBurst
+        runbook_url: identity-edge/runbooks/auth-denied-burst.md
+    - alert: BreakGlassLogin
+      expr: '(increase(keycloak_user_events_total{event="login",client_id="security-admin-console",error=""}[5m]) > 0) or ((keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} > 0 unless keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} offset 5m) > (last_over_time(keycloak_user_events_total{event="login",client_id="security-admin-console",error=""}[1h] offset 5m) or keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} * 0)) or ((keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} > 0 unless keycloak_user_events_total{event="login",client_id="security-admin-console",error=""} offset 5m) and on(namespace, pod) (up{job="keycloak"} offset 5m == 1))'
+      labels:
+        severity: SEV1
+      annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+    - alert: KeycloakMetricsDown
+      expr: '(up{job="keycloak"} == 0) or absent(up{job="keycloak"})'
+      for: 5m
+      labels:
+        severity: SEV2
+      annotations:
+        summary: KeycloakMetricsDown
+        runbook_url: identity-edge/runbooks/keycloak-metrics-down.md
+    - alert: RealmDrift
+      expr: 'vectra_realm_drift{job="realm-drift"} > 0'
+      labels:
+        severity: SEV2
+      annotations:
+        summary: RealmDrift
+        runbook_url: identity-edge/runbooks/realm-drift.md
+    - alert: RoleConflict
+      expr: 'increase(vectra_role_conflict_total[15m]) > 0'
+      for: 5m
+      labels:
+        severity: SEV2
+      annotations:
+        summary: RoleConflict
+        runbook_url: identity-edge/runbooks/role-conflict.md
+    - alert: SigningKeyAgeHigh
+      expr: 'time() - vectra_signing_key_created_timestamp_seconds{job="signing-key-age"} > 6912000'
+      for: 1h
+      labels:
+        severity: SEV3
+      annotations:
+        summary: SigningKeyAgeHigh
+        runbook_url: identity-edge/runbooks/signing-key-rotation.md
+    - alert: LdapUnavailable
+      expr: 'increase(vectra_ldap_connection_failures_total[5m]) > 0'
+      for: 5m
+      labels:
+        severity: SEV2
+      annotations:
+        summary: LdapUnavailable
+        runbook_url: identity-edge/runbooks/ldap-unavailable.md
+    - alert: GatewayHighLatency
+      expr: 'histogram_quantile(0.95, sum by (le) (rate(envoy_http_downstream_rq_time_bucket{job="envoy-data-plane"}[5m]))) - histogram_quantile(0.95, sum by (le) (rate(envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane"}[5m]))) > 5'
+      for: 15m
+      labels:
+        severity: SEV3
+      annotations:
+        summary: GatewayHighLatency
+        runbook_url: identity-edge/runbooks/gateway-high-latency.md
+    - alert: RealmDriftStale
+      expr: 'time() - push_time_seconds{job="realm-drift"} > 93600'
+      labels:
+        severity: SEV3
+      annotations:
+        summary: RealmDriftStale
+        runbook_url: identity-edge/runbooks/realm-drift.md
+    - alert: SigningKeyAgeStale
+      expr: 'time() - push_time_seconds{job="signing-key-age"} > 10800'
+      labels:
+        severity: SEV3
+      annotations:
+        summary: SigningKeyAgeStale
+        runbook_url: identity-edge/runbooks/signing-key-rotation.md

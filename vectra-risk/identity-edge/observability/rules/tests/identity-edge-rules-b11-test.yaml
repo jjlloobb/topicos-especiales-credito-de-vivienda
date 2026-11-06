@@ -1,0 +1,2180 @@
+rule_files:
+- ../identity-edge-rules.yaml
+evaluation_interval: 1m
+tests:
+# A: pod nuevo con up desde el minuto 0; el login aparece en el minuto 2
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '_x2 1x22'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x25'
+  alert_rule_test:
+  - eval_time: 0m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 1m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 2m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 3m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 4m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# A2: lo mismo con el login en el minuto 4
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '_x4 1x20'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x25'
+  alert_rule_test:
+  - eval_time: 0m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 1m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 2m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 4m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# B: el login ya esta en el primer scrape (serie y up empiezan juntos)
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x25'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x25'
+  alert_rule_test:
+  - eval_time: 0m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 1m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 2m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 3m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 4m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# C: primer login real durante un hueco con up=0
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '_x14 1x10'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 0x8 1x10'
+  alert_rule_test:
+  - eval_time: 0m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 1m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 2m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 4m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# D: login real durante el hueco, con un contador que ya existia
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 stale _x8 2x10'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 0x8 1x10'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# G1: hueco con up=0 y la serie vuelve con el mismo valor: sin login
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 stale _x7 1x12'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 0x8 1x10'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# G2: limite medido, modelo X con stale y up sin stale: hueco de 8 min de up (las muestras de X ya tenian marca de stale) y la serie vuelve igual: falso positivo de 1 min. Duracion por tamano de hueco en LIMITES (probe)
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 stale _x7 1x12'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 _x8 1x10'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# G3: Prometheus caido 15 min (mas que el lookback) y la serie vuelve igual: sin login
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 stale _x14 1x12'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 _x15 1x12'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 25m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 26m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 27m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 28m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 29m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 30m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 31m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 32m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 33m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 34m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# E: limite aceptado, modelo X con stale y up sin stale: el pod se reinicia durante un hueco de 15 min y luego hay un login (contador de 3 a 1): omision. Desde que hueco empieza, por modelo, en LIMITES (probe)
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '3x5 stale _x14 1x12'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 _x15 1x12'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 25m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 26m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 27m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 28m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 29m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 30m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 31m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 32m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 33m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 34m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# L: limite aceptado: hueco de mas de 1 h (la serie no se vio en la ultima hora) y vuelve con el mismo valor: falso positivo de 5 min
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 stale _x70 1x25'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 _x71 1x25'
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 71m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 72m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 73m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 74m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 75m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 76m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 77m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 78m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 79m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 80m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 81m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 82m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 83m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 84m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 85m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 86m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 87m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 88m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 89m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 90m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 91m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 92m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 93m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 94m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 95m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 96m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 97m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 98m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 99m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# L2: hueco de 45 min (dentro de la hora) y la serie vuelve con el mismo valor: sin login (la ventana de last_over_time es de 1 h)
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 stale _x45 1x20'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 _x46 1x20'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 25m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 26m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 27m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 28m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 29m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 30m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 31m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 32m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 33m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 34m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 35m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 36m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 37m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 38m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 39m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 40m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 41m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 42m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 43m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 44m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 45m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 46m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 47m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 48m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 49m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 50m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 51m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 52m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 53m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 54m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 55m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 56m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 57m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 58m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 59m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 60m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 61m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 62m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 63m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 64m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 65m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 66m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 67m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 68m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 69m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 70m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 71m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 72m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 73m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 74m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 75m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 76m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 77m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 78m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 79m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# R: el contador se reinicio antes del hueco (3 a 1) y vuelve con 2 tras el hueco: login real, last_over_time toma el ultimo valor (1), no el maximo (3)
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '3x2 1x3 stale _x8 2x10'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x5 0x8 1x10'
+  alert_rule_test:
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# Rr: el contador se reinicia dentro de un hueco y vuelve con un valor menor que el ultimo y mayor que uno anterior (1, 5, hueco, 3): no es un login; last_over_time[offset 5m] toma el 5, con offset 10m tomaria el 1
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x2 5 stale _x7 3x12'
+  alert_rule_test:
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# Z: una serie nueva con valor 0 no es un login
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '_x3 0x20'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x25'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# I: login sobre una serie vieja (0 a 1, sin hueco): solo lo ve la rama increase, durante la ventana de 5 min
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '0x8 1x16'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x25'
+  alert_rule_test:
+  - eval_time: 0m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 1m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 2m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 4m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# Zf: un login fallido (error distinto de "") sobre una serie nueva no es un login con exito: la rama 3 exige error="" en N
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="invalid_user_credentials",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '_x3 1x20'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x25'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# H: la serie reaparece por reinicio (3 a 1) sin hueco de scrape: solo la tercera rama (up a 1 hace 5 min)
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '3x4 stale _x3 1x15'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x25'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts:
+    - exp_labels:
+        severity: SEV1
+        event: login
+        client_id: security-admin-console
+        realm: vectra
+        namespace: vectra-identity
+        pod: keycloak-0
+      exp_annotations:
+        summary: BreakGlassLogin
+        runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# H_ns: idem, pero el unico up es del mismo pod en otro namespace: no cuenta (on(namespace, pod))
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '3x4 stale _x3 1x15'
+  - series: 'up{job="keycloak",namespace="vectra-edge",pod="keycloak-0"}'
+    values: '1x25'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# H_job: idem, pero el unico up es de otro job sobre el mismo pod: no cuenta (job="keycloak")
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '3x4 stale _x3 1x15'
+  - series: 'up{job="envoy-data-plane",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x25'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# H_pod: idem, pero el unico up es de otro pod del mismo namespace: no cuenta
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '3x4 stale _x3 1x15'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-1"}'
+    values: '1x25'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# H_noup: idem, sin ningun up: no cuenta
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '3x4 stale _x3 1x15'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []

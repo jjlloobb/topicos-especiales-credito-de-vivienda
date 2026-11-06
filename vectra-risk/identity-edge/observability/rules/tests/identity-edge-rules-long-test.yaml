@@ -1,0 +1,89 @@
+rule_files:
+- ../identity-edge-rules.yaml
+evaluation_interval: 1h
+tests:
+# SigningKeyAgeHigh (> 80 dias, 1h): el valor es el instante de creacion; time() es el eval_time
+- interval: 1h
+  input_series:
+  - series: 'vectra_signing_key_created_timestamp_seconds{job="signing-key-age",kid="k1",algorithm="RS256"}'
+    values: '0x2000'
+  alert_rule_test:
+  - eval_time: 1923h
+    alertname: SigningKeyAgeHigh
+    exp_alerts:
+    - exp_labels:
+        severity: SEV3
+        job: signing-key-age
+        kid: k1
+        algorithm: RS256
+      exp_annotations:
+        summary: SigningKeyAgeHigh
+        runbook_url: identity-edge/runbooks/signing-key-rotation.md
+  - eval_time: 1921h
+    alertname: SigningKeyAgeHigh
+    exp_alerts: []
+- interval: 1h
+  input_series:
+  - series: 'vectra_signing_key_created_timestamp_seconds{job="signing-key-age",kid="k1",algorithm="RS256"}'
+    values: '3600000x2000'
+  alert_rule_test:
+  - eval_time: 1923h
+    alertname: SigningKeyAgeHigh
+    exp_alerts: []
+# RealmDriftStale (> 26h) y SigningKeyAgeStale (> 3h), sobre push_time_seconds del Pushgateway
+- interval: 1h
+  input_series:
+  - series: 'push_time_seconds{job="realm-drift"}'
+    values: '0x40'
+  alert_rule_test:
+  - eval_time: 27h
+    alertname: RealmDriftStale
+    exp_alerts:
+    - exp_labels:
+        severity: SEV3
+        job: realm-drift
+      exp_annotations:
+        summary: RealmDriftStale
+        runbook_url: identity-edge/runbooks/realm-drift.md
+  - eval_time: 26h
+    alertname: RealmDriftStale
+    exp_alerts: []
+  - eval_time: 25h
+    alertname: RealmDriftStale
+    exp_alerts: []
+- interval: 1h
+  input_series:
+  - series: 'push_time_seconds{job="realm-drift"}'
+    values: '0+86400x40'
+  alert_rule_test:
+  - eval_time: 30h
+    alertname: RealmDriftStale
+    exp_alerts: []
+- interval: 1h
+  input_series:
+  - series: 'push_time_seconds{job="signing-key-age"}'
+    values: '0x40'
+  alert_rule_test:
+  - eval_time: 4h
+    alertname: SigningKeyAgeStale
+    exp_alerts:
+    - exp_labels:
+        severity: SEV3
+        job: signing-key-age
+      exp_annotations:
+        summary: SigningKeyAgeStale
+        runbook_url: identity-edge/runbooks/signing-key-rotation.md
+  - eval_time: 3h
+    alertname: SigningKeyAgeStale
+    exp_alerts: []
+  - eval_time: 2h
+    alertname: SigningKeyAgeStale
+    exp_alerts: []
+- interval: 1h
+  input_series:
+  - series: 'push_time_seconds{job="signing-key-age"}'
+    values: '0+3600x40'
+  alert_rule_test:
+  - eval_time: 30h
+    alertname: SigningKeyAgeStale
+    exp_alerts: []

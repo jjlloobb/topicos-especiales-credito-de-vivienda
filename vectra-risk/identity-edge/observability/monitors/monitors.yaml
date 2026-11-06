@@ -1,0 +1,43 @@
+# Fuente de las metricas de las alertas de U2 que vienen de un pod (B5, P-U2-09). Los `job` son los que usa identity-edge-rules.yaml.
+# Prometheus los alcanza por F60 de platform/network/flows.yaml (9000, 19001 y 9121). El Prometheus de U1 lee monitores de cualquier
+# namespace (`podMonitorSelectorNilUsesHelmValues: false`).
+# Keycloak: el puerto de gestion (9000) hereda el TLS de 8443 porque HTTP esta apagado, y la ruta de `http-relative-path` (/auth).
+# El monitor vive en vectra-identity porque el Secret con la CA (`identity-ca`) solo se puede referenciar desde su propio namespace.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: keycloak, namespace: vectra-identity, labels: { vectra.io/criticality: high } }
+spec:
+  selector: { matchLabels: { app.kubernetes.io/name: keycloak } }
+  podMetricsEndpoints:
+    - port: http-internal
+      scheme: https
+      path: /auth/metrics
+      tlsConfig: { ca: { secret: { name: identity-ca, key: ca.crt } }, serverName: keycloak.vectra-identity.svc }
+      relabelings: [{ targetLabel: job, replacement: keycloak }]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: envoy-data-plane, namespace: vectra-observability, labels: { vectra.io/criticality: high } }
+spec:
+  namespaceSelector: { matchNames: [vectra-edge] }
+  selector: { matchLabels: { gateway.envoyproxy.io/owning-gateway-name: api-gateway } }
+  podMetricsEndpoints:
+    - { port: metrics, path: /stats/prometheus, relabelings: [{ targetLabel: job, replacement: envoy-data-plane }] }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: envoy-ratelimit, namespace: vectra-observability, labels: { vectra.io/criticality: high } }
+spec:
+  namespaceSelector: { matchNames: [envoy-gateway-system] }
+  selector: { matchLabels: { app.kubernetes.io/name: envoy-ratelimit, app.kubernetes.io/component: ratelimit, app.kubernetes.io/managed-by: envoy-gateway } }
+  podMetricsEndpoints:
+    - { port: metrics, path: /metrics, relabelings: [{ targetLabel: job, replacement: envoy-ratelimit }] }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: valkey, namespace: vectra-observability, labels: { vectra.io/criticality: high } }
+spec:
+  namespaceSelector: { matchNames: [vectra-edge] }
+  selector: { matchLabels: { app.kubernetes.io/name: valkey, app.kubernetes.io/part-of: identity-edge } }
+  podMetricsEndpoints:
+    - { port: metrics, relabelings: [{ targetLabel: job, replacement: valkey }] }
