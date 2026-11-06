@@ -24,6 +24,7 @@ ENVS = ("kind", "staging", "prod")
 NAMESPACE = "vectra-identity"
 
 _FD = _ROOT / "aidlc-docs" / "construction" / "identity-edge"
+BUSINESS_RULES = (_FD / "functional-design" / "business-rules.md").read_text(encoding="utf-8")
 INFRASTRUCTURE = (_FD / "infrastructure-design" / "infrastructure-design.md").read_text(encoding="utf-8")
 NFR_REQUIREMENTS = (_FD / "nfr-requirements" / "nfr-requirements.md").read_text(encoding="utf-8")
 NFR_PATTERNS = (_FD / "nfr-design" / "nfr-design-patterns.md").read_text(encoding="utf-8")
@@ -87,6 +88,13 @@ def design_max_ram_percentage() -> str:
     m = re.search(r"^\| Keycloak \|[^|]+\|[^|]+\| `(-XX:MaxRAMPercentage=\d+)` \|", INF_U2_06, re.MULTILINE)
     assert m, "INF-U2-06 no fija MaxRAMPercentage"
     return m.group(1)
+
+
+def design_event_success_level() -> tuple[str, str]:
+    """(variable, valor) de la nota H11 de BR-U2-16: el listener `jboss-logging` escribe los eventos de exito en `info`."""
+    m = re.search(r"Nota H11.*?variable `(KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL)=(\w+)`", BUSINESS_RULES, re.DOTALL)
+    assert m, "BR-U2-16 no fija la variable de la nota H11"
+    return m.group(1), m.group(2)
 
 
 def design_replicas() -> tuple[int, int]:
