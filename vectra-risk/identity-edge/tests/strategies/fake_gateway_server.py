@@ -23,8 +23,18 @@ def _b64d(text: str) -> bytes:
 
 
 class FakeGateway:
-    def __init__(self, public_keys: dict[str, ec.EllipticCurvePublicKey], password: str, limit: int, retry_after: str) -> None:
+    def __init__(
+        self,
+        public_keys: dict[str, ec.EllipticCurvePublicKey],
+        password: str,
+        limit: int,
+        retry_after: str,
+        overhead_delay_s: float = 0.0,
+    ) -> None:
         self.public_keys, self.password, self.limit, self.retry_after = public_keys, password, limit, retry_after
+        self.overhead_delay_s = overhead_delay_s  # espera antes de contestar /overhead: simula el sobrecosto de un tramo
+        self.overhead_hits = 0
+        self.paths: list[str] = []
         self.lock = threading.Lock()
         self.codes: dict[str, str] = {}
         self.refresh_tokens: set[str] = set()
@@ -83,6 +93,12 @@ class FakeGateway:
                     )
                 if parts.path.endswith("/openid-connect/certs"):
                     return self.reply(200, {"keys": [{"kid": "k", "alg": "ES256"}]})
+                with outer.lock:
+                    outer.paths.append(parts.path)
+                if "/overhead" in parts.path:
+                    with outer.lock:
+                        outer.overhead_hits += 1
+                    time.sleep(outer.overhead_delay_s)
                 if parts.path.startswith("/api/console"):
                     if not self.headers.get("Authorization", "").startswith("Bearer access-"):
                         outer.bad_requests.append("consola sin Bearer")

@@ -1,7 +1,7 @@
 """Comprobaciones de la especificacion de carga (U02-T15, Paso 14) sobre la salida de `k6 inspect`.
 
-`k6 inspect` (v2.3.0) ejecuta el init context del script y imprime las `options` como JSON; los `thresholds` salen en
-`options.thresholds` (clave: metrica con su filtro; valor: lista de expresiones) y los escenarios en `options.scenarios`.
+`k6 inspect` (v2.3.0) ejecuta el init context del script e imprime las `options` como JSON; `thresholds` y `scenarios` salen en el
+primer nivel de ese JSON, no dentro de `options` (`thresholds`: metrica con su filtro -> lista de expresiones).
 Cada funcion devuelve la lista de fallos (vacia si el script corresponde al diseno); los identificadores de fallo son
 prefijos estables que las pruebas buscan en las copias mutadas.
 """
@@ -73,6 +73,10 @@ def threshold_problems(options: dict[str, Any]) -> list[str]:
     wanted = f"rate<{expected.failed_rate:g}"
     if wanted not in (found.get("http_req_failed") or []):
         problems.append(f"umbral:failed: http_req_failed debe llevar {wanted}, lleva {found.get('http_req_failed')}")
+    # J5: un 429 de los logins falla con `checks` y con `http_req_failed`; los dos con la misma tolerancia de J7 (la fraccion de aciertos).
+    wanted_checks = f"rate>{round(1 - expected.failed_rate, 10):g}"
+    if wanted_checks not in (found.get("checks") or []):
+        problems.append(f"umbral:checks: checks debe llevar {wanted_checks} (1 - J7), lleva {found.get('checks')}")
     return problems
 
 

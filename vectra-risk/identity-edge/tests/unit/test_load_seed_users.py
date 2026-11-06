@@ -36,8 +36,8 @@ def admin() -> fake_admin.FakeAdmin:
     return fake_admin.FakeAdmin(ld.realm())
 
 
-def test_it_creates_the_users_with_the_role_without_mfa_and_without_otp(admin):
-    seeder(admin).create(LAST - FIRST + 1)
+def assert_users_follow_the_design(admin: fake_admin.FakeAdmin) -> None:
+    """El oraculo de CA-4: los usuarios de J1, con un rol sin MFA obligatorio (BR-U2-03), sin OTP y sin acciones pendientes."""
     assert sorted(u["username"] for u in admin.users.values()) == NAMES
     assert len(admin.users) == ld.concurrent_users()
     role = ld.load_role()
@@ -46,6 +46,11 @@ def test_it_creates_the_users_with_the_role_without_mfa_and_without_otp(admin):
         assert user["otp"] is False and user["requiredActions"] == [] and user["enabled"] is True
         assert admin.mapped[user["id"]] == [role]
         assert admin.passwords[user["id"]] == PASSWORD
+
+
+def test_it_creates_the_users_with_the_role_without_mfa_and_without_otp(admin):
+    seeder(admin).create(LAST - FIRST + 1)
+    assert_users_follow_the_design(admin)
 
 
 def test_it_is_idempotent(admin):
@@ -92,26 +97,26 @@ def test_the_script_does_not_run_anything_on_import(admin):
     assert admin.requests == []
 
 
+def _create_with_copy(tmp_path, admin, old: str, new: str) -> None:
+    """Crea los usuarios con una copia mutada de `seed_users.py` (la mutacion debe encontrarse en el texto)."""
+    assert old in SEED_TEXT, f"la mutacion no encuentra {old!r}"
+    copy = tmp_path / "seed_users.py"
+    copy.write_text(SEED_TEXT.replace(old, new), encoding="utf-8")
+    seeder(admin, load_module(copy)).create(LAST - FIRST + 1)
+
+
 @pytest.mark.parametrize("bad_role", sorted(mfa_required_roles()))
-def test_a_copy_with_a_role_that_requires_mfa_fails(tmp_path, admin, bad_role):
+def test_a_copy_with_a_role_that_requires_mfa_fails_the_oracle(tmp_path, admin, bad_role):
     role = ld.load_role()
-    assert f'LOAD_ROLE = "{role}"' in SEED_TEXT
-    copy = tmp_path / "seed_users.py"
-    copy.write_text(SEED_TEXT.replace(f'LOAD_ROLE = "{role}"', f'LOAD_ROLE = "{bad_role}"'), encoding="utf-8")
-    module = load_module(copy)
-    seeder(admin, module).create(2)
-    created = {r for u in admin.users for r in admin.mapped[u]}
-    assert created == {bad_role}
-    assert not created <= {ld.load_role()}, "la copia mutada deberia crear un rol distinto del esperado"
-    assert created & mfa_required_roles(), "el rol mutado exige MFA (BR-U2-03): el control de la prueba lo detecta"
+    _create_with_copy(tmp_path, admin, f'LOAD_ROLE = "{role}"', f'LOAD_ROLE = "{bad_role}"')
+    with pytest.raises(AssertionError):
+        assert_users_follow_the_design(admin)
 
 
-def test_a_copy_that_enrols_otp_is_detected(tmp_path, admin):
-    assert '"requiredActions": []' in SEED_TEXT
-    copy = tmp_path / "seed_users.py"
-    copy.write_text(SEED_TEXT.replace('"requiredActions": []', '"requiredActions": ["CONFIGURE_TOTP"]'), encoding="utf-8")
-    seeder(admin, load_module(copy)).create(1)
-    assert any(u["requiredActions"] for u in admin.users.values())
+def test_a_copy_that_enrols_otp_fails_the_oracle(tmp_path, admin):
+    _create_with_copy(tmp_path, admin, '"requiredActions": []', '"requiredActions": ["CONFIGURE_TOTP"]')
+    with pytest.raises(AssertionError):
+        assert_users_follow_the_design(admin)
 
 
 def test_the_constants_follow_j1():

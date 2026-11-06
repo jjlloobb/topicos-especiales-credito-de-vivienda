@@ -137,7 +137,7 @@ export const options = {
     'http_req_duration{flow:token}': ['p(95)<200'], // NFR-U2-10
     'http_req_duration{flow:jwks}': ['p(95)<50'], // NFR-U2-10
     http_req_failed: ['rate<0.01'], // J7; un 429 de los logins cuenta como fallo (J5)
-    checks: ['rate>0.99'],
+    checks: ['rate>0.99'], // 1 - la tolerancia de J7: las comprobaciones de J4 y J5 (429 de login, Retry-After) fallan la corrida
     // Sin un umbral, k6 no entrega estas submetricas a `handleSummary`. Este no restringe nada: NFR-U2-11 se evalua alli (J3).
     'http_req_duration{leg:gateway}': ['max>=0'],
     'http_req_duration{leg:direct}': ['max>=0'],
