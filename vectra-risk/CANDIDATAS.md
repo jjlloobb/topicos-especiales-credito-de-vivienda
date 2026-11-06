@@ -126,3 +126,11 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - F-17: `test_realm_files.py:669` escribe `"vectra-mfa-break-glass"` como literal (existe `BREAK_GLASS` en `realm_lint.py:61`), y `sorted(design.optional_mfa_roles())` impondría un orden alfabético sin fuente si hubiera más de un rol opcional.
 - Higiene del loop: los revisores de tareas en paralelo comparten el scratchpad y nombres genéricos de log (`ca5.log`, `ca6.log`); en U02-T13 y U02-T14 un log pisó a otro. Cada despacho debe fijar un subdirectorio por tarea (revisor, U02-T14, ronda 4).
 - Higiene del loop: en U02-T16 ronda 3, el codificador y el revisor usaron el mismo subdirectorio del scratchpad (`U02-T16-r3/`), y el codificador sobrescribió la copia con la que había hecho su rojo. Fijar en cada despacho un subdirectorio distinto por papel y ronda (revisor, U02-T16, ronda 3).
+- Revisión de código del PR 73 (U02-T16), sin verificar con ejecución; el usuario decidió fusionarlo y dejarlas como candidatas. Todas en `identity-edge/tests/unit/test_e2e_inventory.py`:
+  - el caso de los 18 estados compara contra el plan vivo (`plan_bullets()`), así que el rojo contra 08e29d2 incluye `[ ]--[ ]`, que fallaba por la línea base y no por la variante. Comparar contra una copia normalizada a `[ ]`;
+  - `plan_with_marks` reescribe el Paso 14 con `count=1`, y por eso `n14 == 1` no detecta un encabezado duplicado;
+  - `suffix` es el mismo para los dos pasos: no prueba el Paso 13 con sufijo y el 14 sin él;
+  - `NEXT_STEP` no fija nada después de `Paso 14` y también corta en `Paso 140` o `Paso 14b`. Anclar en `\*\*Paso 14 —`;
+  - el caso de la mención sangrada del Paso 14 no compara `step_13_block`, solo `plan_bullets`;
+  - el plan se lee del disco en cada llamada (unas 60 veces por corrida), y `plan_bullets(text=None)` mezcla lectura y análisis. Bastan una constante de módulo y un helper de reescritura;
+  - la sección «Cambio» de la ronda 1 de `bitacoras/U02-T16.md` describe el patrón `[ x]` con 8 casos.
