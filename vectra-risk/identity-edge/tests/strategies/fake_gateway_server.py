@@ -12,7 +12,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, utils
@@ -30,13 +30,20 @@ class FakeGateway:
         limit: int,
         retry_after: str,
         overhead_delay_s: float = 0.0,
+        limited_body: bytes | None = None,
+        allowed_redirects: set[str] | None = None,
     ) -> None:
         self.public_keys, self.password, self.limit, self.retry_after = public_keys, password, limit, retry_after
         self.overhead_delay_s = overhead_delay_s  # espera antes de contestar /overhead: simula el sobrecosto de un tramo
         self.overhead_hits = 0
+        self.limited_body = limited_body  # el cuerpo del 429 (None: el JSON `rate_limited`); b"" simula un 429 sin cuerpo
+        self.allowed_redirects = allowed_redirects  # los redirect URI registrados del cliente (None: no se validan)
+        self.redirects_seen: set[str] = set()
+        self.sso_hits = 0  # peticiones de autorizacion que llegaron con la cookie SSO (Keycloak las autentica solas)
         self.paths: list[str] = []
         self.lock = threading.Lock()
         self.codes: dict[str, str] = {}
+        self.redirects: dict[str, str] = {}
         self.refresh_tokens: set[str] = set()
         self.logins: set[str] = set()
         self.signed_clients: set[str] = set()
@@ -56,6 +63,20 @@ class FakeGateway:
     def __exit__(self, *_: object) -> None:
         self.server.shutdown()
         self.server.server_close()
+
+    def issue_code(self, challenge: str, redirect: str) -> str:
+        with self.lock:
+            code = f"code-{time.time_ns()}-{challenge[:8]}"
+            self.codes[code] = challenge
+            self.redirects[code] = redirect
+        return code
+
+    def check_redirect(self, redirect: str) -> None:
+        """Keycloak responde 400 `Invalid redirect_uri` si no es uno de los registrados del cliente."""
+        with self.lock:
+            self.redirects_seen.add(redirect)
+            if self.allowed_redirects is not None and redirect not in self.allowed_redirects:
+                self.bad_requests.append(f"Invalid redirect_uri: {redirect}")
 
     def _handler(self) -> type[BaseHTTPRequestHandler]:
         outer = self
@@ -82,9 +103,18 @@ class FakeGateway:
                 if parts.path.endswith("/openid-connect/auth"):
                     if query.get("code_challenge_method") != ["S256"] or query.get("client_id") != ["vectra-console"]:
                         outer.bad_requests.append(f"auth sin PKCE S256: {query}")
+                    redirect = query.get("redirect_uri", [""])[0]
+                    outer.check_redirect(redirect)
+                    if "KC_SSO=1" in self.headers.get("Cookie", ""):
+                        # Como Keycloak: con la cookie SSO (Path=/auth/realms/vectra/) no pide credenciales y redirige con el codigo.
+                        with outer.lock:
+                            outer.sso_hits += 1
+                        code = outer.issue_code(query["code_challenge"][0], redirect)
+                        return self.reply(302, b"", "text/html", (("Location", f"{redirect}?code={code}&state=s"),))
                     action = (
                         f"{outer.url}/auth/realms/vectra/login-actions/authenticate"
                         f"?session_code=a&amp;tab_id=b&amp;challenge={query['code_challenge'][0]}"
+                        f"&amp;redirect_uri={quote(redirect, safe='')}"
                     )
                     return self.reply(
                         200,
@@ -108,9 +138,8 @@ class FakeGateway:
                         over = outer.console_hits[second] > outer.limit and "/overhead" not in parts.path
                         outer.limited += over
                     if over:
-                        return self.reply(
-                            429, {"code": "rate_limited"}, "application/problem+json", (("Retry-After", outer.retry_after),)
-                        )
+                        body = {"code": "rate_limited"} if outer.limited_body is None else outer.limited_body
+                        return self.reply(429, body, "application/problem+json", (("Retry-After", outer.retry_after),))
                     return self.reply(200, {"ok": True})
                 self.reply(404, {})
 
@@ -121,13 +150,15 @@ class FakeGateway:
                 if "login-actions" in parts.path:
                     if form.get("password") != outer.password or "credentialId" not in form:
                         outer.bad_requests.append(f"login-actions: {sorted(form)}")
-                    challenge = parse_qs(parts.query)["challenge"][0]
-                    code = f"code-{len(outer.codes)}-{challenge[:8]}"
+                    query = parse_qs(parts.query)
+                    redirect = query.get("redirect_uri", [""])[0]
+                    code = outer.issue_code(query["challenge"][0], redirect)
                     with outer.lock:
-                        outer.codes[code] = challenge
                         outer.logins.add(form.get("username", ""))
-                    location = f"https://127.0.0.1:{outer.port}/callback?code={code}&state=s"
-                    return self.reply(302, b"", "text/html", (("Location", location),))
+                    return self.reply(
+                        302, b"", "text/html",
+                        (("Location", f"{redirect}?code={code}&state=s"), ("Set-Cookie", "KC_SSO=1; Path=/auth/realms/vectra/; HttpOnly")),
+                    )  # fmt: skip
                 if parts.path.endswith("/openid-connect/token"):
                     return self.token(form)
                 self.reply(404, {})
@@ -136,6 +167,9 @@ class FakeGateway:
                 grant = form.get("grant_type")
                 if grant == "authorization_code":
                     challenge = outer.codes.pop(form.get("code", ""), None)
+                    outer.check_redirect(form.get("redirect_uri", ""))
+                    if outer.redirects.get(form.get("code", "")) != form.get("redirect_uri"):
+                        outer.bad_requests.append("token: el redirect_uri no es el de la autorizacion")
                     digest = base64.urlsafe_b64encode(hashlib.sha256(form["code_verifier"].encode()).digest()).rstrip(b"=").decode()
                     if challenge != digest:
                         outer.bad_requests.append("PKCE: el verifier no coincide con el challenge")

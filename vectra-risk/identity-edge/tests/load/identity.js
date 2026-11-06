@@ -17,6 +17,8 @@ import { Counter } from 'k6/metrics';
 // --- el diseno --------------------------------------------------------------------------------------------------------------
 const USERS = 200; // NFR-U2-10
 const USER_PREFIX = 'load-'; // J1: load-001..200
+const USER_FIRST = 1;
+const USER_LAST = USER_FIRST + USERS - 1;
 const RAMP_S = 120; // J7: 2 min de subida
 const SUSTAIN_S = 900; // J7: 15 min sostenidos
 const RENEW_S = 300; // NFR-U2-10: las identidades de servicio renuevan cada 5 min
@@ -60,7 +62,9 @@ if (KEYS_DIR) {
 const OIDC = '/auth/realms/vectra/protocol/openid-connect';
 const CONSOLE_PATH = '/api/console/v1/load';
 const OVERHEAD_PATH = '/api/console/v1/overhead';
-const REDIRECT_URI = `https://${BASE_URL.replace(/^https?:\/\//, '')}/callback`;
+// El redirect URI de `vectra-console` registrado en el realm es `https://<PUBLIC_HOSTNAME>/callback`: sin puerto, sin ruta y siempre https,
+// aunque K6_BASE_URL lleve un puerto (port-forward) o sea http. El script nunca lo sigue: solo tiene que coincidir con el registrado.
+const REDIRECT_URI = `https://${BASE_URL.replace(/^https?:\/\//, '').replace(/[:/].*$/, '')}/callback`;
 
 const consoleOk = new Counter('console_ok');
 const consoleRateLimited = new Counter('console_rate_limited');
@@ -90,7 +94,8 @@ export const options = {
         { duration: `${SUSTAIN_S}s`, target: USERS },
       ],
       gracefulRampDown: '0s',
-      env: { USER_PREFIX: 'load-', USER_FIRST: '1', USER_LAST: String(USERS) },
+      // Los usuarios de `usersFlow` salen de este env (no de las constantes); el env sale de las constantes del diseno.
+      env: { USER_PREFIX, USER_FIRST: String(USER_FIRST), USER_LAST: String(USER_LAST) },
     },
     services: {
       executor: 'constant-arrival-rate',
@@ -129,6 +134,7 @@ export const options = {
       duration: `${RAMP_S + SUSTAIN_S}s`,
       preAllocatedVUs: 3,
       maxVUs: 10,
+      // `handleSummary` lee el presupuesto de aqui (`exec.test.options`), asi que lo que valida `load_checks` es lo que decide.
       env: { MAX_DIFF_P95_MS: String(OVERHEAD_P95_BUDGET_MS) },
     },
   },
@@ -151,8 +157,8 @@ function randomUrlSafe(bytes) {
   return encoding.b64encode(buffer.buffer, 'rawurl');
 }
 
-function userName(index) {
-  return `${USER_PREFIX}${String(index).padStart(3, '0')}`;
+function userName(index, prefix = USER_PREFIX) {
+  return `${prefix}${String(index).padStart(3, '0')}`;
 }
 
 function unescapeHtml(text) {
@@ -183,7 +189,9 @@ function tokenSession(body) {
 
 // El login del navegador de vectra-console: GET de autorizacion, POST de la contrasena y canje del codigo (PKCE S256).
 async function login(username) {
-  http.cookieJar().clear(BASE_URL);
+  // Un jar nuevo por login: Keycloak deja la cookie SSO en `/auth/realms/vectra/` y `clear(BASE_URL)` (ruta `/`) no la borra, con lo que
+  // el segundo login del VU entraria solo y el GET de autorizacion respondería 302 en vez del formulario.
+  const jar = new http.CookieJar();
   const verifier = randomUrlSafe(48);
   const challenge = encoding.b64encode(
     await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)),
@@ -202,6 +210,7 @@ async function login(username) {
   const qs = Object.keys(query).map((k) => `${k}=${encodeURIComponent(query[k])}`).join('&');
   const page = http.get(`${BASE_URL}${OIDC}/auth?${qs}`, {
     redirects: 0,
+    jar,
     tags: { flow: 'login', name: 'GET auth' },
   });
   const action = page.status === 200 ? formAction(page.body) : null;
@@ -209,6 +218,7 @@ async function login(username) {
 
   const posted = http.post(action, { ...hiddenFields(page.body), username, password: LOAD_PASSWORD }, {
     redirects: 0,
+    jar,
     tags: { flow: 'login', name: 'POST login-actions' },
   });
   const location = posted.headers.Location || '';
@@ -248,17 +258,20 @@ async function accessToken(username) {
 }
 
 // --- escenarios -------------------------------------------------------------------------------------------------------------
-// Cada VU del escenario hace una sola iteracion larga: la que ocupa el lugar N en `iterationInInstance` es el usuario load-(N+1).
+// Cada VU del escenario hace una sola iteracion larga: la que ocupa el lugar N en `iterationInInstance` es el usuario USER_FIRST+N.
 // (`exec.vu.idInInstance` cuenta los VU de todos los escenarios, asi que no sirve para numerar usuarios.) Hace un solo login y despues
 // solo renueva el token cada USER_RENEW_S; tras un fallo espera otra renovacion entera antes de reintentar.
 export async function usersFlow() {
+  const prefix = __ENV.USER_PREFIX;
+  const first = Number(__ENV.USER_FIRST);
+  const count = Number(__ENV.USER_LAST) - first + 1;
   const index = exec.scenario.iterationInInstance;
   const endsAt = exec.scenario.startTime + (RAMP_S + SUSTAIN_S) * 1000;
-  if (index >= USERS) {
+  if (index >= count) {
     sleep(Math.max(0, (endsAt - Date.now()) / 1000)); // un VU que reinicia no es un usuario nuevo
     return;
   }
-  const username = userName(index + 1);
+  const username = userName(first + index, prefix);
   let session = await login(username);
   while (Date.now() < endsAt) {
     sleep(Math.min(USER_RENEW_S, Math.max(0, (endsAt - Date.now()) / 1000)));
@@ -319,7 +332,7 @@ export function jwksFlow() {
 }
 
 export async function burstFlow() {
-  const token = await accessToken(userName(1));
+  const token = await accessToken(userName(USER_FIRST));
   if (!check(token, { 'consola: hay token': (t) => t !== null })) return;
   const response = http.get(`${BASE_URL}${CONSOLE_PATH}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -337,7 +350,7 @@ export async function burstFlow() {
 }
 
 export async function overheadFlow() {
-  const token = await accessToken(userName(2));
+  const token = await accessToken(userName(USER_FIRST + 1));
   if (!check(token, { 'overhead: hay token': (t) => t !== null })) return;
   const headers = { Authorization: `Bearer ${token}` };
   const legs = [
@@ -372,14 +385,16 @@ export function handleSummary(data) {
   const gateway = p95('http_req_duration{leg:gateway}');
   const direct = p95('http_req_duration{leg:direct}');
   const diff = gateway - direct;
+  // El presupuesto es el que lleva el escenario `overhead` (el que valida `load_checks`); si falta, NaN y el veredicto falla.
+  const budget = Number(exec.test.options.scenarios.overhead.env.MAX_DIFF_P95_MS);
   const limited = data.metrics.console_rate_limited ? data.metrics.console_rate_limited.values.count : 0;
   const verdict = {
     overhead: {
       gateway_p95_ms: gateway,
       direct_p95_ms: direct,
       diff_p95_ms: diff,
-      budget_ms: OVERHEAD_P95_BUDGET_MS,
-      ok: Number.isFinite(diff) && diff <= OVERHEAD_P95_BUDGET_MS,
+      budget_ms: budget,
+      ok: Number.isFinite(diff) && diff <= budget,
     },
     console: { rate_limited: limited, ok: limited > 0 },
   };
@@ -390,7 +405,7 @@ export function handleSummary(data) {
     }
   }
   lines.push(
-    `  NFR-U2-11 sobrecosto p95 gateway ${gateway} ms - directo ${direct} ms = ${diff} ms (maximo ${OVERHEAD_P95_BUDGET_MS} ms): ${verdict.overhead.ok ? 'OK' : 'FALLA'}`,
+    `  NFR-U2-11 sobrecosto p95 gateway ${gateway} ms - directo ${direct} ms = ${diff} ms (maximo ${budget} ms): ${verdict.overhead.ok ? 'OK' : 'FALLA'}`,
     `  consola: ${limited} respuestas 429 en las rafagas: ${verdict.console.ok ? 'OK' : 'FALLA'}`,
     '',
   );

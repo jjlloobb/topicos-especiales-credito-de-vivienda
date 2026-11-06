@@ -85,7 +85,10 @@ MUTANTS = [
     ("overhead:umbral", rf"const OVERHEAD_P95_BUDGET_MS = {_T.overhead_p95_ms}\b", f"const OVERHEAD_P95_BUDGET_MS = {_worse(_T.overhead_p95_ms)}"),
     ("services:renovacion", rf"const RENEW_S = {ld.renew_seconds()}\b", f"const RENEW_S = {ld.renew_seconds() * 2}"),
     ("escenarios", r"\bjwks: \{", "jwks2: {"),
-    ("users:nombres", rf"USER_PREFIX: '{_PREFIX}'", f"USER_PREFIX: 'x{_PREFIX}'"),
+    ("users:nombres", rf"const USER_PREFIX = '{_PREFIX}'", f"const USER_PREFIX = 'x{_PREFIX}'"),
+    ("users:nombres", r"env: \{ USER_PREFIX,", "env: { USER_PREFIX: 'x',"),
+    ("users:nombres", r"const USER_FIRST = \d+", "const USER_FIRST = 2"),
+    ("overhead:umbral", r"MAX_DIFF_P95_MS: String\(OVERHEAD_P95_BUDGET_MS\)", "MAX_DIFF_P95_MS: '50'"),
 ]
 
 
@@ -147,7 +150,12 @@ def _run_load(tmp_path: Path, delay_s: float) -> dict:
     load_dir = _scaled_script(tmp_path)
     out = tmp_path / "out"
     limit, retry = int(ld.console_limit_per_second()), ld.console_retry_after()
-    with fg.FakeGateway(public, "pw-de-carga", limit, retry, delay_s) as gateway, fg.FakeGateway(public, "pw-de-carga", limit, retry) as direct:
+    # El cliente `vectra-console` solo tiene registrados los redirect URI del realm (https, sin puerto): como Keycloak, el falso los exige.
+    registered = ld.console_redirect_uris("127.0.0.1")
+    with (
+        fg.FakeGateway(public, "pw-de-carga", limit, retry, delay_s, None, registered) as gateway,
+        fg.FakeGateway(public, "pw-de-carga", limit, retry) as direct,
+    ):
         env = {
             **os.environ, "K6_BASE_URL": gateway.url, "K6_ECHO_DIRECT_URL": direct.url,
             "K6_CLIENT_KEYS_DIR": str(keys_dir), "K6_LOAD_PASSWORD": "pw-de-carga", "K6_OUT": f"json={tmp_path / 'points.json'}",
@@ -157,7 +165,7 @@ def _run_load(tmp_path: Path, delay_s: float) -> dict:
             env=env, capture_output=True, text=True, check=False, timeout=240,
         )  # fmt: skip
     verdict = json.loads((out / "overhead-verdict.json").read_text(encoding="utf-8"))
-    return {"done": done, "verdict": verdict, "gateway": gateway, "direct": direct, "points": tmp_path / "points.json"}
+    return {"done": done, "out": out, "verdict": verdict, "gateway": gateway, "direct": direct, "points": tmp_path / "points.json"}
 
 
 @pytest.fixture(scope="module")
@@ -185,6 +193,45 @@ def test_the_script_runs_against_a_fake_gateway_scaled_down(within_budget):
     assert verdict["console"]["ok"] is True and verdict["overhead"]["budget_ms"] == ld.thresholds().overhead_p95_ms
     assert verdict["overhead"]["ok"] is True
     assert lc.verdict_problems(verdict) == []
+
+
+def test_the_redirect_uri_is_one_of_the_registered_ones(within_budget):
+    """R-05: el redirect URI sale solo del host de `K6_BASE_URL` (sin puerto y siempre https): es uno de los del realm de kind."""
+    gateway = within_budget["gateway"]
+    assert gateway.redirects_seen, "el script no mando ningun redirect_uri"
+    assert gateway.redirects_seen <= ld.console_redirect_uris("127.0.0.1"), gateway.redirects_seen
+    assert not [b for b in gateway.bad_requests if "redirect_uri" in b]
+
+
+def test_a_relogin_in_the_same_vu_does_not_reuse_the_sso_cookie(tmp_path):
+    """R-01: tras un login Keycloak deja la cookie SSO en `/auth/realms/vectra/`; el segundo login del VU debe pedir la contrasena otra vez."""
+    import fake_gateway_server as fg
+
+    script = tmp_path / "relogin.js"
+    script.write_text(
+        SCRIPT_TEXT.replace("export function setup() {", "function setup() {")  # sin llaves de servicio ni eco directo
+        + """
+options.scenarios = { relogin: { executor: 'per-vu-iterations', exec: 'reloginFlow', vus: 1, iterations: 1 } };
+options.thresholds = {};
+export async function reloginFlow() {
+  const first = await login('load-001');
+  const second = await login('load-001');
+  console.log(`RELOGIN ${first !== null} ${second !== null}`);
+}
+""",
+        encoding="utf-8",
+    )
+    with fg.FakeGateway({}, "pw-de-carga", 20, "1", allowed_redirects=ld.console_redirect_uris("127.0.0.1")) as gateway:
+        env = {
+            **os.environ, "K6_BASE_URL": gateway.url, "K6_LOAD_PASSWORD": "pw-de-carga",
+        }  # fmt: skip
+        done = subprocess.run(  # noqa: S603
+            [str(ld.K6), "run", "--quiet", "--no-usage-report", str(script)], env=env, cwd=tmp_path,
+            capture_output=True, text=True, check=False, timeout=60,
+        )  # fmt: skip
+    assert "RELOGIN true true" in done.stdout + done.stderr, done.stdout[-800:] + done.stderr[-800:]
+    assert gateway.sso_hits == 0, "el segundo login llego con la cookie SSO: clear() no la borro"
+    assert gateway.bad_requests == []
 
 
 def test_the_two_legs_of_the_overhead_go_to_different_targets(within_budget):

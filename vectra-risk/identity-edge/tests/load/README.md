@@ -26,7 +26,7 @@ de autorización y el POST de la contraseña; el canje del código y la renovaci
 2. El eco del Paso 13 desplegado como `console-bff`, y un port-forward a él.
 3. Variables de k6: `K6_BASE_URL` (`https://vectra.localtest.me`), `K6_ECHO_DIRECT_URL` (el port-forward, `http://127.0.0.1:<puerto>`),
    `K6_CLIENT_KEYS_DIR` (ruta **absoluta** con `<clientId>.pem`, llave ES256 en PKCS#8 `BEGIN PRIVATE KEY`, desde Vault; J6), `K6_LOAD_PASSWORD`.
-   La CA del gateway: `SSL_CERT_FILE=<bundle>` (k6 no tiene opción propia). Sin esas variables `setup()` falla nombrándolas.
+   La CA del gateway: `SSL_CERT_FILE=<bundle>` (k6 no tiene opción propia). Sin esas variables `setup()` falla nombrándolas. El redirect URI sale solo del host (https, sin puerto ni ruta), como el registrado en el realm; el puerto de `K6_BASE_URL`, si lo hay, no entra.
 4. `make -C identity-edge load` (no entra en `check`). Escribe `summary.json` y `overhead-verdict.json` en `identity-edge/.tools/load/`.
    k6 v2.3.0 sale en 0 aunque `handleSummary` falle, por eso el target lee el veredicto y sale con error si NFR-U2-11 no se cumple.
 

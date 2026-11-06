@@ -152,3 +152,9 @@ def load_role() -> str:
     assert len(viable) == 1, f"ningun rol (o varios) entra sin TOTP: {candidates} -> {viable}"
     return viable[0]
 
+
+
+def console_redirect_uris(hostname: str) -> set[str]:
+    """Los redirect URI registrados de `vectra-console` en el realm, con `$(env:PUBLIC_HOSTNAME)` = `hostname` (sin puerto)."""
+    client = next(c for c in realm()["clients"] if c["clientId"] == "vectra-console")
+    return {uri.replace("$(env:PUBLIC_HOSTNAME)", hostname) for uri in client["redirectUris"]}
