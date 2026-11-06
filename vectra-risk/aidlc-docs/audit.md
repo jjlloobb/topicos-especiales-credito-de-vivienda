@@ -5832,3 +5832,15 @@ Se redactaron `tareas/U02-T13-alertas-y-runbooks.md`, `tareas/U02-T14-especifica
 **Context**: Construcción de U2, U02-T12.
 
 ---
+
+## U02-T13: ronda 4 VERDE
+**Timestamp**: 2026-11-06T05:08:17Z
+**User Input**: "dale, avísame cuando termine los codificadores"; "ya aprobe el PR"
+**AI Response**:
+- **U02-T13**: la ronda 4, acotada a F-04 a F-08 por decisión del usuario, salió VERDE con cuatro AMARILLO (F-09 a F-12, sobre la redacción de los límites de B11 y una aserción tautológica), que pasan a `CANDIDATAS.md`. Se cierra el Paso 11 y se abre el PR.
+- **U02-T14**: el usuario aprobó el PR 70; al registrar esta entrada sigue abierto, con CI en curso. U02-T15 se despacha cuando esté fusionado.
+
+Informes y arbitrajes en `revisiones/U02-T13/`.
+**Context**: Construcción de U2, U02-T13.
+
+---
