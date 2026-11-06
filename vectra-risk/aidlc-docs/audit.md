@@ -5858,6 +5858,38 @@ El PR 67 ya lo había fusionado una persona antes del veredicto. El informe qued
 
 ---
 
+## U02-T13 y U02-T14: decisiones B10, H10, H11 y H12 y rondas de revisión
+**Timestamp**: 2026-11-05T21:23:07Z
+**User Input**: B10 "Login en consola admin (Recomendado)"; H10 "Ajustar realm (Recomendado)"; H11 "success-level en info (Recomendado)"; H12 "Registrarla en los realms (Recomendado)"; "dale, avísame cuando termine los codificadores"
+**AI Response**:
+- **U02-T13**:
+  - se detuvo porque `keycloak_user_events_total` no tiene etiqueta de usuario. B10: `BreakGlassLogin` dispara con un `login` en `security-admin-console`;
+  - el orquestador corrigió B10: los tags son una opción de arranque (`KC_EVENT_METRICS_USER_TAGS`), no de build;
+  - la ronda 1 de revisión salió NO-VERDE (falso SEV1 tras un hueco de scrape y casos de promtool débiles). Está en la ronda 2.
+- **U02-T14**:
+  - se detuvo porque Keycloak 26.8.1 bloquea de forma permanente en el fallo 8. H10: `LINEAR` y `maxTemporaryLockouts: 15`;
+  - la ronda 1 de revisión salió NO-VERDE: el bloqueo rápido, el evento en DEBUG y `UPDATE_PASSWORD` sin registrar. El orquestador resolvió el bloqueo rápido en la prueba;
+  - H11: el listener `jboss-logging` pasa `success-level` a info;
+  - H12: `UPDATE_PASSWORD` se registra en los realms.
+
+Informes y arbitrajes en `revisiones/U02-T13/` y `revisiones/U02-T14/`.
+**Context**: Construcción de U2, U02-T13 y U02-T14.
+
+---
+
+## U02-T13 y U02-T14: rondas 3 y 4
+**Timestamp**: 2026-11-06T04:44:18Z
+**User Input**: "podemos seguir con las siguientes unidades del proyecto?"; U02-T14 "Ronda 4 acotada (Recomendado)"; "dale, avísame cuando termine los codificadores"; U02-T13 "Ronda 4 acotada (Recomendado)"; "podemos seguir con las siguientes unidades del proyecto?"; "dale, avísame cuando termine los codificadores"
+**AI Response**:
+- U3 a U12 siguen sin código (restricción de alcance vigente). U2 no está cerrada: faltan los Pasos 11, 12, 14, 15, 16 y 18.
+- **U02-T14**: la ronda 3 salió NO-VERDE (F-14, la salvaguarda de F-10 era una copia de los realms). Al llegar a la ronda 4 se paró y el usuario la acotó a F-14 y F-15. La ronda 4 salió VERDE con dos AMARILLO, que pasan a `CANDIDATAS.md`. Se cierra el Paso 13 y se abre el PR.
+- **U02-T13**: la ronda 3 salió NO-VERDE (F-04 evidencia de CA-2 de otro comando, F-05 límites de B11 no medidos). El usuario acotó la ronda 4 a F-04 a F-08, sin reabrir B11. La revisión de la ronda 4 está en curso.
+
+Informes y arbitrajes en `revisiones/U02-T13/` y `revisiones/U02-T14/`.
+**Context**: Construcción de U2, U02-T13 y U02-T14.
+
+---
+
 ## U02-T13: ronda 4 VERDE
 **Timestamp**: 2026-11-06T05:08:17Z
 **User Input**: "dale, avísame cuando termine los codificadores"; "ya aprobe el PR"

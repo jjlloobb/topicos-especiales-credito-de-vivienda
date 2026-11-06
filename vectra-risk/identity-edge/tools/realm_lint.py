@@ -39,6 +39,11 @@ MFA_REQUIRED_ROLES = frozenset({Role.INGENIERO_RIESGO.value, Role.CRO.value, Rol
     REALM_ADMIN,
 }
 TOTP_ACTION = "CONFIGURE_TOTP"
+# H12 (BR-U2-03): `UPDATE_PASSWORD` registrada y habilitada. Al importar un realm con `requiredActions`, Keycloak no añade las
+# acciones por defecto (`DefaultExportImportManager.java`, 366-376) y ignora una acción sin registrar (`AuthenticationManager.java`,
+# 1472-1479): sin ella, una contraseña temporal que fija un administrador no obliga a cambiarla.
+CREDENTIAL_UPDATE_ACTION = "UPDATE_PASSWORD"
+REQUIRED_REGISTERED_ACTIONS = (CREDENTIAL_UPDATE_ACTION,)
 # Credencial OTP con la semilla por referencia (U02-T05, forma unica de domain-entities §3):
 # `credentials: [{type: otp, secretData: '{"value":"$(env:SYNTH_<USUARIO>_TOTP_SEED)"}', credentialData: '{...,"secretEncoding":"BASE32"}'}]`.
 # `secretData` y `credentialData` son String JSON (CredentialRepresentation de Keycloak); `<USUARIO>` es el nombre del
@@ -80,20 +85,23 @@ NON_PROD_ONLY_CLIENTS = ("channel-simulator", "verification-reader")
 CORE_SCOPE = Scope.CORE_READ_CREDIT.value
 CORE_AUDIENCE = "core-banking-mock"
 
-# domain-entities §6 y BR-U2-05, 06. Campos exactos de BR-U2-05: con `permanentLockout: true`,
-# `maxTemporaryLockouts = 3` y `failureFactor = 5`, el 4.o bloqueo (fallo 20 en `maxDeltaTimeSeconds`,
-# 12 h) es permanente; la espera crece `waitIncrementSeconds` por serie hasta `maxFailureWaitSeconds`.
+# domain-entities §6 y BR-U2-05, 06. Campos exactos de BR-U2-05 (enmienda H10, Keycloak 26.8.1): con
+# `bruteForceStrategy = LINEAR`, `failureFactor = 5` y `waitIncrementSeconds = 60`, cada fallo desde el 5.o dentro de
+# `maxDeltaTimeSeconds` (12 h) es un bloqueo temporal de 60 x (n - 4) s (60, 120, 180...) con tope `maxFailureWaitSeconds`
+# (900 s en el fallo 19). Con `permanentLockout: true` y `maxTemporaryLockouts = 15`, el 16.o bloqueo (fallo 20) es
+# permanente. Con la estrategia por defecto `MULTIPLE` y 3, el permanente llegaria en el fallo 8: por eso se fijan ambos.
 REALM_PARAMETERS: Mapping[str, Any] = {
     "accessTokenLifespan": 300,
     "ssoSessionIdleTimeout": 1800,
     "ssoSessionMaxLifespan": 36000,
     "bruteForceProtected": True,
+    "bruteForceStrategy": "LINEAR",
     "failureFactor": 5,
     "waitIncrementSeconds": 60,
     "maxFailureWaitSeconds": 900,
     "maxDeltaTimeSeconds": 43200,
     "permanentLockout": True,
-    "maxTemporaryLockouts": 3,
+    "maxTemporaryLockouts": 15,
 }
 # NFR-U2-24.
 PASSWORD_MIN_LENGTH = 14
@@ -388,6 +396,16 @@ def _check_parameters(realm: Mapping[str, Any], out: list[Violation]) -> None:
             out.append(Violation("parametro-del-realm", f"realm {key}", f"debe ser {expected!r}, es {actual!r}"))
 
 
+def _check_required_actions(realm: Mapping[str, Any], out: list[Violation]) -> None:
+    registered = {str(a.get("alias")): a for a in _list(realm.get("requiredActions")) if isinstance(a, dict)}
+    for alias in REQUIRED_REGISTERED_ACTIONS:
+        action = registered.get(alias)
+        if action is None:
+            out.append(Violation("accion-requerida", f"realm requiredActions {alias}", "falta: debe estar registrada (H12, BR-U2-03)"))
+        elif action.get("enabled") is not True or action.get("providerId") != alias:
+            out.append(Violation("accion-requerida", f"realm requiredActions {alias}", f"debe estar habilitada (`enabled: true`) con `providerId: {alias}`"))
+
+
 _TERM = re.compile(r"^\s*(\w+)(?:\((.*)\))?\s*$")
 
 
@@ -440,6 +458,7 @@ def lint_realm(realm: Any, env: str) -> list[Violation]:
         _check_client(client, env, out)
     _check_claims(realm, out)
     _check_parameters(realm, out)
+    _check_required_actions(realm, out)
     _check_password_policy(realm, out)
     return out
 

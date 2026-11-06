@@ -183,6 +183,11 @@ def synthetic_users() -> list[dict[str, Any]]:
     return users
 
 
+def update_password_action() -> dict[str, Any]:
+    """H12 (BR-U2-03): la accion requerida `UPDATE_PASSWORD`, registrada y habilitada, como la crea Keycloak 26.8.1."""
+    return {"alias": "UPDATE_PASSWORD", "name": "Update Password", "providerId": "UPDATE_PASSWORD", "enabled": True, "defaultAction": False, "priority": 57}
+
+
 def valid_realm(env: str) -> dict[str, Any]:
     """Un realm que `realm-lint` acepta, para `env` en {kind, staging, prod}."""
     users = [break_glass()] if env == "prod" else synthetic_users()
@@ -191,15 +196,17 @@ def valid_realm(env: str) -> dict[str, Any]:
         "enabled": True,
         "passwordPolicy": "length(14) and notUsername and notEmail and passwordHistory(5) and hashAlgorithm(argon2)",
         "bruteForceProtected": True,
+        "bruteForceStrategy": "LINEAR",
         "permanentLockout": True,
         "failureFactor": 5,
         "waitIncrementSeconds": 60,
         "maxFailureWaitSeconds": 900,
         "maxDeltaTimeSeconds": 43200,
-        "maxTemporaryLockouts": 3,
+        "maxTemporaryLockouts": 15,
         "accessTokenLifespan": 300,
         "ssoSessionIdleTimeout": 1800,
         "ssoSessionMaxLifespan": 36000,
+        "requiredActions": [update_password_action()],
         "users": users,
         "clients": user_clients() + service_clients(env),
     }

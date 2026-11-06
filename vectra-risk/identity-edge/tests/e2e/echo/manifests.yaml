@@ -1,0 +1,413 @@
+# Backend de eco de kind (U02-T14, H1): el Deployment, el Service, la SA y el PDB de console-spa, console-bff, case-service
+# y governance-service, con los nombres, la SA, las etiquetas y el puerto de platform/network/flows.yaml y gateway/routes.yaml.
+# Solo para kind. Lo aplica el operador en el Paso 16, despues de construir la imagen: el digest de abajo es un MARCADOR (todo
+# ceros) que satisface `disallow-latest`; el operador lo reemplaza por el digest de la imagen que sube a `kind-registry:5000`.
+# Para console-spa, el eco no fija cabeceras de seguridad: las del perfil `spa` las pone el gateway.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: console-spa
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: console-spa
+    app.kubernetes.io/part-of: identity-edge-e2e
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: console-spa
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: console-spa
+    app.kubernetes.io/part-of: identity-edge-e2e
+spec:
+  selector:
+    app.kubernetes.io/name: console-spa
+  ports:
+    - { name: http, port: 8080, targetPort: http, protocol: TCP }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: console-spa
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: console-spa
+    app.kubernetes.io/part-of: identity-edge-e2e
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: console-spa
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: console-spa
+  namespace: vectra-edge
+  labels:
+    app.kubernetes.io/name: console-spa
+    app.kubernetes.io/part-of: identity-edge-e2e
+    vectra.io/criticality: medium
+  annotations:
+    vectra.io/hpa-exempt: "eco de pruebas e2e, solo kind (U02-T14, H1)"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: console-spa
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: console-spa
+        app.kubernetes.io/part-of: identity-edge-e2e
+        vectra.io/criticality: medium
+    spec:
+      serviceAccountName: console-spa
+      automountServiceAccountToken: false
+      priorityClassName: vectra-normal
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: console-spa
+      containers:
+        - name: echo
+          image: "kind-registry:5000/vectra/e2e-echo@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8080 }
+          # `exec` por el loopback: con el `Server` de Linkerd y sus rutas, un `httpGet` del kubelet daria 403 (F-05).
+          readinessProbe:
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
+            periodSeconds: 10
+            timeoutSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: console-bff
+  namespace: vectra-app
+  labels:
+    app.kubernetes.io/name: console-bff
+    app.kubernetes.io/part-of: identity-edge-e2e
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: console-bff
+  namespace: vectra-app
+  labels:
+    app.kubernetes.io/name: console-bff
+    app.kubernetes.io/part-of: identity-edge-e2e
+spec:
+  selector:
+    app.kubernetes.io/name: console-bff
+  ports:
+    - { name: http, port: 8080, targetPort: http, protocol: TCP }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: console-bff
+  namespace: vectra-app
+  labels:
+    app.kubernetes.io/name: console-bff
+    app.kubernetes.io/part-of: identity-edge-e2e
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: console-bff
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: console-bff
+  namespace: vectra-app
+  labels:
+    app.kubernetes.io/name: console-bff
+    app.kubernetes.io/part-of: identity-edge-e2e
+    vectra.io/criticality: medium
+  annotations:
+    vectra.io/hpa-exempt: "eco de pruebas e2e, solo kind (U02-T14, H1)"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: console-bff
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: console-bff
+        app.kubernetes.io/part-of: identity-edge-e2e
+        vectra.io/criticality: medium
+    spec:
+      serviceAccountName: console-bff
+      automountServiceAccountToken: false
+      priorityClassName: vectra-normal
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: console-bff
+      containers:
+        - name: echo
+          image: "kind-registry:5000/vectra/e2e-echo@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8080 }
+          # `exec` por el loopback: con el `Server` de Linkerd y sus rutas, un `httpGet` del kubelet daria 403 (F-05).
+          readinessProbe:
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
+            periodSeconds: 10
+            timeoutSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: case-service
+  namespace: vectra-app
+  labels:
+    app.kubernetes.io/name: case-service
+    app.kubernetes.io/part-of: identity-edge-e2e
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: case-service
+  namespace: vectra-app
+  labels:
+    app.kubernetes.io/name: case-service
+    app.kubernetes.io/part-of: identity-edge-e2e
+spec:
+  selector:
+    app.kubernetes.io/name: case-service
+  ports:
+    - { name: http, port: 8080, targetPort: http, protocol: TCP }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: case-service
+  namespace: vectra-app
+  labels:
+    app.kubernetes.io/name: case-service
+    app.kubernetes.io/part-of: identity-edge-e2e
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: case-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: case-service
+  namespace: vectra-app
+  labels:
+    app.kubernetes.io/name: case-service
+    app.kubernetes.io/part-of: identity-edge-e2e
+    vectra.io/criticality: medium
+  annotations:
+    vectra.io/hpa-exempt: "eco de pruebas e2e, solo kind (U02-T14, H1)"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: case-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: case-service
+        app.kubernetes.io/part-of: identity-edge-e2e
+        vectra.io/criticality: medium
+    spec:
+      serviceAccountName: case-service
+      automountServiceAccountToken: false
+      priorityClassName: vectra-normal
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: case-service
+      containers:
+        - name: echo
+          image: "kind-registry:5000/vectra/e2e-echo@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8080 }
+          # `exec` por el loopback: con el `Server` de Linkerd y sus rutas, un `httpGet` del kubelet daria 403 (F-05).
+          readinessProbe:
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
+            periodSeconds: 10
+            timeoutSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: governance-service
+  namespace: vectra-app
+  labels:
+    app.kubernetes.io/name: governance-service
+    app.kubernetes.io/part-of: identity-edge-e2e
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: governance-service
+  namespace: vectra-app
+  labels:
+    app.kubernetes.io/name: governance-service
+    app.kubernetes.io/part-of: identity-edge-e2e
+spec:
+  selector:
+    app.kubernetes.io/name: governance-service
+  ports:
+    - { name: http, port: 8080, targetPort: http, protocol: TCP }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: governance-service
+  namespace: vectra-app
+  labels:
+    app.kubernetes.io/name: governance-service
+    app.kubernetes.io/part-of: identity-edge-e2e
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: governance-service
+  namespace: vectra-app
+  labels:
+    app.kubernetes.io/name: governance-service
+    app.kubernetes.io/part-of: identity-edge-e2e
+    vectra.io/criticality: medium
+  annotations:
+    vectra.io/hpa-exempt: "eco de pruebas e2e, solo kind (U02-T14, H1)"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: governance-service
+        app.kubernetes.io/part-of: identity-edge-e2e
+        vectra.io/criticality: medium
+    spec:
+      serviceAccountName: governance-service
+      automountServiceAccountToken: false
+      priorityClassName: vectra-normal
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: governance-service
+      containers:
+        - name: echo
+          image: "kind-registry:5000/vectra/e2e-echo@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8080 }
+          # `exec` por el loopback: con el `Server` de Linkerd y sus rutas, un `httpGet` del kubelet daria 403 (F-05).
+          readinessProbe:
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec: { command: [python, -c, "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/', timeout=2)"] }
+            periodSeconds: 10
+            timeoutSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 100m, memory: 64Mi }

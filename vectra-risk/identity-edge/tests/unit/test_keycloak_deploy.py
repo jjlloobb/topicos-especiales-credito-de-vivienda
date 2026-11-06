@@ -314,6 +314,8 @@ MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
     ("env-whitelist", "variable de mas", _env_add("KC_BOOTSTRAP_ADMIN_PASSWORD", "x")),
     ("env-whitelist", "falta una variable", _env_drop("KC_DB_POOL_MAX_SIZE")),
     ("env-whitelist", "pool distinto de 20", _env_value("KC_DB_POOL_MAX_SIZE", "100")),
+    ("env-whitelist", "H11: falta success-level", _env_drop("KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL")),
+    ("env-whitelist", "H11: success-level en debug", _env_value("KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL", "debug")),
     ("env-whitelist", "envFrom", _sts_set(["spec", "template", "spec", "containers", 0, "envFrom"], [{"secretRef": {"name": "x"}}])),
     ("env-whitelist", "variable repetida", _env_add("KC_DB", "postgres")),
     ("env-whitelist", "etiquetas de eventos sin clientId", _env_value("KC_EVENT_METRICS_USER_TAGS", "realm")),
@@ -585,6 +587,29 @@ def test_design_resources(env):
     docs = kd.load(env)
     assert _container(docs)["resources"] == kd.design_keycloak_resources()
     assert kd.container_env(docs)["JAVA_OPTS_APPEND"]["value"] == kd.design_max_ram_percentage()
+
+
+def _event_level_problems(docs: Docs) -> list[str]:
+    name, value = kd.design_event_success_level()
+    found = kd.container_env(docs).get(name)
+    if found is None:
+        return [f"falta {name}"]
+    return [] if found.get("value") == value else [f"{name} vale {found.get('value')}, el diseno dice {value}"]
+
+
+@pytest.mark.parametrize("env", kd.ENVS)
+def test_h11_events_listener_logs_successes_at_the_design_level(env):
+    """H11 (BR-U2-16): el evento del bloqueo es un evento de exito y por defecto `jboss-logging` lo escribe en `debug`."""
+    assert kd.design_event_success_level() == ("KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL", "info")
+    assert _event_level_problems(kd.load(env)) == []
+
+
+@pytest.mark.parametrize("env", kd.ENVS)
+@pytest.mark.parametrize("mutation", [_env_drop(kd.design_event_success_level()[0]), _env_value(kd.design_event_success_level()[0], "debug")])
+def test_h11_the_render_check_fails_without_the_option(env, mutation):
+    docs = copy.deepcopy(kd.load(env))
+    mutation(docs)
+    assert _event_level_problems(docs)
 
 
 @pytest.mark.parametrize("env", kd.ENVS)

@@ -14,6 +14,21 @@ Paso 13 del plan de U2. El 2026-11-05 el orquestador comparó el paso con el dis
 
 El usuario decidió H1–H9. Están en la nota del Paso 13 del plan.
 
+> **Enmienda del 2026-11-05 (orquestador, decisión H10 del usuario tras la parada B-1 de la ronda 1; `bitacoras/U02-T14.md`).** La parada B-1 era correcta. Rige la enmienda H10 de BR-U2-05 en `business-rules.md`. **Se amplía el alcance** a lo siguiente:
+> - **Realms**: `bruteForceStrategy: LINEAR` y `maxTemporaryLockouts: 15` en `identity-edge/keycloak/realm/realm.{kind,staging,prod}.yaml`.
+> - **`realm-lint`**: en `identity-edge/tools/realm_lint.py`, `REALM_PARAMETERS` fija los dos valores, y su comentario describe la semántica de H10. `test_realm_lint.py` tiene un caso que falla con `MULTIPLE`, otro sin el campo y otro con `maxTemporaryLockouts: 3`.
+> - **`realm-diff`**: `bruteForceStrategy` ya no es un valor por defecto que Git no fija. `tests/strategies/realm_exports.py` lo toma del realm de Git, y `realm_diff` informa la deriva si Keycloak tiene otra estrategia, con un caso que lo prueba.
+> - **PBT-U2-08**: la máquina de estados modela la serie completa de H10, leyendo del realm `failureFactor`, `waitIncrementSeconds`, `maxFailureWaitSeconds`, `maxTemporaryLockouts` y `bruteForceStrategy`. El modelo es una función pura y lleva una prueba unitaria sin clúster: con los valores del realm, los fallos 5, 6 y 7 dan 60, 120 y 180 s, el fallo 19 da 900 s y el fallo 20 es permanente. Esa prueba también fija, contra el código de 26.8.1, si los intentos durante un bloqueo cuentan como fallos; cítalo en la bitácora.
+> - El «Fuera» que prohibía tocar los realms no aplica a estos dos campos. Todo lo demás de los realms sigue fuera.
+>
+> **Criterio nuevo — CA-7:**
+> ```bash
+> uv run python identity-edge/tools/realm_lint.py identity-edge/keycloak/realm/realm.kind.yaml identity-edge/keycloak/realm/realm.staging.yaml identity-edge/keycloak/realm/realm.prod.yaml && uv run pytest identity-edge/tests/unit/test_realm_lint.py identity-edge/tests/unit/test_realm_diff.py identity-edge/tests/unit/test_bruteforce_model.py -q
+> ```
+> Esperado: pasa. Si `realm_lint.py` se invoca de otra forma, usa la del target `lint`/`check` del Makefile y anótalo. CA-5 sigue cubriendo `make -C identity-edge check`.
+>
+> **Retira** de `CANDIDATAS.md` la entrada de B-1, porque esta ronda la cierra.
+
 ## Alcance
 
 **Dentro:** todo el Paso 13 del plan. Texto del plan, sin recortes:

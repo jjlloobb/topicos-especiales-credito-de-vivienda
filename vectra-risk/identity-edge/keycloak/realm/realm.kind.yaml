@@ -20,12 +20,13 @@ accessTokenLifespan: 300
 ssoSessionIdleTimeout: 1800
 ssoSessionMaxLifespan: 36000
 bruteForceProtected: true
+bruteForceStrategy: LINEAR
 failureFactor: 5
 waitIncrementSeconds: 60
 maxFailureWaitSeconds: 900
 maxDeltaTimeSeconds: 43200
 permanentLockout: true
-maxTemporaryLockouts: 3
+maxTemporaryLockouts: 15
 revokeRefreshToken: true
 refreshTokenMaxReuse: 0
 passwordPolicy: length(14) and notUsername and notEmail and passwordHistory(5) and hashAlgorithm(argon2)
@@ -306,6 +307,12 @@ requiredActions:
   enabled: true
   defaultAction: false
   priority: 20
+- alias: UPDATE_PASSWORD
+  name: Update Password
+  providerId: UPDATE_PASSWORD
+  enabled: true
+  defaultAction: false
+  priority: 57
 authenticationFlows:
 - alias: vectra-browser
   description: 'Login del realm vectra: LoA 1 (pwd) y LoA 2 (mfa) por rol'

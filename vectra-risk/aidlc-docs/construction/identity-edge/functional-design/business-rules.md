@@ -25,6 +25,17 @@ configurarlo (escenario «aprobador sin MFA» de US-601). WebAuthn es opcional c
 método. Para estos roles, el flujo de login exige el segundo factor siempre, así que su
 token tiene `acr = mfa`.
 
+> **Nota H12 (2026-11-05, decisión del usuario tras la ronda 1 de U02-T14).** Las acciones requeridas del
+> realm son `CONFIGURE_TOTP`, `webauthn-register` y `UPDATE_PASSWORD`; esta última se registra y se habilita
+> en `requiredActions` de los tres realms (`alias`, `providerId` `UPDATE_PASSWORD`, `enabled: true`,
+> `defaultAction: false`, nombre y prioridad 57 de `DefaultRequiredActions.addUpdatePasswordAction` en 26.8.1) y
+> `realm-lint` la exige (regla `accion-requerida`). Al importar un realm con `requiredActions`, Keycloak no
+> añade las acciones por defecto (`DefaultExportImportManager.java`, 366-376) y ignora una acción sin
+> registrar (`AuthenticationManager.java`, 1472-1479): sin ella, una contraseña temporal que fija un
+> administrador no obligaría a cambiarla. El `keycloak-config-cli` (v6.5.1, `import.managed.required-action`
+> en `full` por defecto, `RequiredActionsImportService.doImport`) borra las acciones que el realm de Git no
+> declara; por eso esta debe estar declarada y así no se borra.
+
 **BR-U2-04 — Step-up para firmar.** Un endpoint con `mfa_required` exige `acr = mfa` **y**
 `auth_time` de ≤ 900 s (BR-U0-72). El step-up es el de U10 BR-U10-06 (revisión del Infrastructure Design de U10, 2026-10-10): un
 Authorization Code con PKCE, `prompt=login`, `max_age=0` y `acr_values=mfa`, en una **ventana
@@ -39,7 +50,14 @@ La entrada del registro guarda el `acr` y el `auth_time` de la firma.
 - 5 fallos consecutivos → bloqueo temporal; la espera empieza en 60 s y crece 60 s en cada nueva serie (60, 120, 180 s), con un máximo de 900 s;
 - 20 fallos en 12 h (el 4.º bloqueo) → bloqueo permanente, que solo levanta un administrador.
 
-Campos de Keycloak: `bruteForceProtected: true`, `permanentLockout: true`, `maxTemporaryLockouts: 3`, `failureFactor: 5`, `waitIncrementSeconds: 60`, `maxFailureWaitSeconds: 900`, `maxDeltaTimeSeconds: 43200`. La espera crece de forma lineal porque Keycloak no la duplica de forma nativa; antes el diseño decía «se duplica» (enmienda del 2026-11-02, decisión del usuario en la ronda 1 de U02-T03).
+Campos de Keycloak: `bruteForceProtected: true`, `bruteForceStrategy: LINEAR`, `permanentLockout: true`, `maxTemporaryLockouts: 15`, `failureFactor: 5`, `waitIncrementSeconds: 60`, `maxFailureWaitSeconds: 900`, `maxDeltaTimeSeconds: 43200`. La espera crece de forma lineal porque Keycloak no la duplica de forma nativa; antes el diseño decía «se duplica» (enmienda del 2026-11-02, decisión del usuario en la ronda 1 de U02-T03).
+
+**Enmienda del 2026-11-05 (decisión H10 del usuario, tras la ronda 1 de U02-T14).** Keycloak 26.8.1 (`DefaultBruteForceProtector.java`, líneas 106-142 y 161-164) no bloquea «por series». Con la estrategia por defecto `MULTIPLE` y `maxTemporaryLockouts: 3`, cada fallo desde el 5.º es un bloqueo de 60 s y el permanente llega en el **fallo 8**. Rige:
+- `bruteForceStrategy: LINEAR` y `maxTemporaryLockouts: 15`, fijados en Git en los tres realms. Los demás campos no cambian;
+- desde el 5.º fallo dentro de `maxDeltaTimeSeconds` (12 h), cada fallo es un bloqueo temporal de `60 × (n − 4)` s: 60, 120, 180… con un máximo de 900 s;
+- el 16.º bloqueo, en el **fallo 20**, es permanente.
+
+Así se cumplen los valores de las viñetas de arriba. Donde dicen «serie» o «4.º bloqueo», léase esta semántica.
 
 Cada bloqueo emite un evento que alimenta la alerta `AuthDeniedBurst` (SEV2). El rate
 limit de `/auth/**` (BR-U2-08) actúa antes.
@@ -117,6 +135,14 @@ usa el listener `jboss-logging`; el pipeline de logs de U1 (Alloy) descarta `use
 `email` de los eventos de Keycloak antes de Loki, con su prueba (enmienda del 2026-11-02,
 decisión del usuario tras la ronda 1 de U02-T04). La correlación con los logs de los
 servicios se hace por `userId` = `sub` = `principal_subject`. Retención: la de Loki (90 días, U1).
+
+> **Nota H11 (2026-11-05, decisión del usuario tras la ronda 1 de U02-T14).** El evento de bloqueo
+> `USER_DISABLED_BY_TEMPORARY_LOCKOUT` se construye con `builder.success()` (`DefaultBruteForceProtector.java`
+> de Keycloak 26.8.1, `sendEvent`), y `jboss-logging` escribe los eventos de éxito en `debug` salvo que
+> se configure `success-level` (`JBossLoggingEventListenerProviderFactory.java`, `init`). Para que Loki
+> reciba los eventos de éxito (el bloqueo y la auditoría de login), los tres entornos fijan en Keycloak
+> la opción del SPI `events-listener`, proveedor `jboss-logging`, propiedad `success-level`, con la
+> variable `KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL=info` en `extraEnv`.
 
 **BR-U2-17 — Alertas de identidad.**
 

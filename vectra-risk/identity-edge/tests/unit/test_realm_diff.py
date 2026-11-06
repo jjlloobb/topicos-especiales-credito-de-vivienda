@@ -48,6 +48,30 @@ def test_a_default_value_that_is_not_in_git_is_zero(pair: tuple[Realm, Realm]) -
     assert count(git, kc) == 0
 
 
+def test_h10_git_fixes_the_brute_force_strategy_and_the_keycloak_view_takes_it_from_git(pair: tuple[Realm, Realm]) -> None:
+    git, kc = pair
+    assert git["bruteForceStrategy"] == "LINEAR"
+    assert kc["bruteForceStrategy"] == git["bruteForceStrategy"]
+
+
+def test_h10_keycloak_with_another_brute_force_strategy_is_one(pair: tuple[Realm, Realm]) -> None:
+    git, kc = pair
+    kc["bruteForceStrategy"] = "MULTIPLE"
+    assert count(git, kc) == 1
+
+
+def test_h10_keycloak_without_the_brute_force_strategy_is_one(pair: tuple[Realm, Realm]) -> None:
+    git, kc = pair
+    del kc["bruteForceStrategy"]
+    assert count(git, kc) == 1
+
+
+def test_h10_keycloak_with_another_max_temporary_lockouts_is_one(pair: tuple[Realm, Realm]) -> None:
+    git, kc = pair
+    kc["maxTemporaryLockouts"] = 3
+    assert count(git, kc) == 1
+
+
 def test_a_field_of_git_with_another_value_is_one(pair: tuple[Realm, Realm]) -> None:
     git, kc = pair
     kc["accessTokenLifespan"] += 1
@@ -192,7 +216,8 @@ def test_a_user_of_keycloak_not_in_git_is_zero(pair: tuple[Realm, Realm]) -> Non
     [
         ("clients", "clientId", "admin-cli"),
         ("clientScopes", "name", "email"),
-        ("requiredActions", "alias", "UPDATE_PASSWORD"),
+        # H12: `UPDATE_PASSWORD` ya la declara Git en los tres realms; una que Keycloak trae sola es, por ejemplo, esta.
+        ("requiredActions", "alias", "TERMS_AND_CONDITIONS"),
     ],
 )
 def test_an_entity_that_keycloak_brings_by_itself_is_zero(
@@ -360,6 +385,17 @@ def test_s1_break_glass_disabled_or_with_another_role_is_one() -> None:
     assert count(git, kc) == 2  # falta realm-admin y sobra view-realm
     kc = keycloak_view(git)
     _entity(kc, "users", "username", "break-glass")["realmRoles"].append("cro")
+    assert count(git, kc) == 1
+
+
+def test_h12_update_password_is_declared_in_git_so_keycloak_without_it_is_drift(pair: tuple[Realm, Realm]) -> None:
+    git, kc = pair
+    assert _entity(git, "requiredActions", "alias", "UPDATE_PASSWORD")["enabled"] is True
+    assert count(git, kc) == 0
+    kc["requiredActions"] = [a for a in kc["requiredActions"] if a["alias"] != "UPDATE_PASSWORD"]
+    assert count(git, kc) == 1
+    kc = keycloak_view(git)
+    _entity(kc, "requiredActions", "alias", "UPDATE_PASSWORD")["enabled"] = False
     assert count(git, kc) == 1
 
 

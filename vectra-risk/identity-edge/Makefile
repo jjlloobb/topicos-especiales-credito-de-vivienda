@@ -20,13 +20,22 @@ JOBS := $(ROOT)/identity-edge/jobs
 # Destino del render de los jobs. Por defecto, el versionado; `check-jobs-rendered` lo cambia por un directorio temporal.
 JOBS_OUT ?= $(JOBS)/rendered
 
-.PHONY: rules runbooks policy-ratelimit render-valkey check-valkey-rendered policy-valkey policy-valkey-u1 lint test check route-gen check-route-gen schemas-gateway kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
+.PHONY: rules runbooks collect-e2e e2e policy-ratelimit render-valkey check-valkey-rendered policy-valkey policy-valkey-u1 lint test check route-gen check-route-gen schemas-gateway kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
 
 lint:
 	$(UV) ruff check identity-edge
 
+# Sin las e2e: necesitan un clúster (U02-T14, H3). Se ejecutan con `e2e` en el Paso 16.
 test:
-	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest identity-edge/tests -q
+	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest identity-edge/tests --ignore=identity-edge/tests/e2e -q
+
+# La suite e2e solo se colecta: lista todos los casos sin ninguna variable de entorno del clúster (U02-T14, H3).
+collect-e2e:
+	cd $(ROOT) && uv run pytest identity-edge/tests/e2e --collect-only -q
+
+# Ejecuta la suite e2e contra kind (Paso 16, con aprobación del operador y las variables `VECTRA_E2E_*` y `SYNTH_*`). El perfil de Hypothesis `kind-e2e` lo registra el conftest de e2e. NO entra en `check`.
+e2e:
+	cd $(ROOT) && uv run pytest identity-edge/tests/e2e -q
 
 # `helm template` de `keycloakx` (platform/.charts) con los values comunes y los de cada entorno (U02-T07, Paso 5).
 render-keycloak:
@@ -130,7 +139,7 @@ policy-gateway:
 	done
 
 # Verificaciones estaticas (AUTONOMIA-01). Crece con los pasos del plan.
-check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 check-route-gen kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway policy-ratelimit check-valkey-rendered policy-valkey policy-valkey-u1 rules runbooks test
+check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 check-route-gen kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway policy-ratelimit check-valkey-rendered policy-valkey policy-valkey-u1 rules runbooks collect-e2e test
 
 # `helm template` del chart gateway-helm v1.9.3 con los values del controlador (U02-T10, Paso 8). Lo renderizado no se versiona.
 EG_RENDER := $(ROOT)/identity-edge/.tools/envoy-gateway/render.yaml

@@ -728,6 +728,11 @@ def test_scope_mapper_with_forbidden_claim_is_rejected() -> None:
         ("maxDeltaTimeSeconds", 3600),
         ("permanentLockout", False),
         ("maxTemporaryLockouts", 10),
+        # H10: la estrategia lineal y 15 bloqueos temporales; `MULTIPLE` y 3 llevan al bloqueo permanente en el fallo 8.
+        ("bruteForceStrategy", "MULTIPLE"),
+        ("maxTemporaryLockouts", 3),
+        ("maxTemporaryLockouts", 15.0),
+        ("bruteForceStrategy", "linear"),
         # Igual en valor pero de otro tipo: `1 == True` y `5.0 == 5` en Python.
         ("bruteForceProtected", 1),
         ("permanentLockout", 1),
@@ -741,7 +746,7 @@ def test_realm_parameter_out_of_spec_is_rejected(key: str, value: object) -> Non
     assert "parametro-del-realm" in rules(realm, "kind")
 
 
-@pytest.mark.parametrize("key", ["accessTokenLifespan", "failureFactor", "permanentLockout"])
+@pytest.mark.parametrize("key", ["accessTokenLifespan", "failureFactor", "permanentLockout", "bruteForceStrategy", "maxTemporaryLockouts"])
 def test_missing_realm_parameter_is_rejected(key: str) -> None:
     realm = realm_copy("kind")
     del realm[key]
@@ -750,10 +755,11 @@ def test_missing_realm_parameter_is_rejected(key: str) -> None:
 
 def test_brute_force_fields_are_exactly_those_of_br_u2_05() -> None:
     realm = realm_copy("kind")
-    assert {k: realm[k] for k in ("bruteForceProtected", "permanentLockout", "maxTemporaryLockouts", "failureFactor", "waitIncrementSeconds", "maxFailureWaitSeconds", "maxDeltaTimeSeconds")} == {
+    assert {k: realm[k] for k in ("bruteForceProtected", "bruteForceStrategy", "permanentLockout", "maxTemporaryLockouts", "failureFactor", "waitIncrementSeconds", "maxFailureWaitSeconds", "maxDeltaTimeSeconds")} == {
         "bruteForceProtected": True,
+        "bruteForceStrategy": "LINEAR",
         "permanentLockout": True,
-        "maxTemporaryLockouts": 3,
+        "maxTemporaryLockouts": 15,
         "failureFactor": 5,
         "waitIncrementSeconds": 60,
         "maxFailureWaitSeconds": 900,
@@ -892,3 +898,38 @@ def test_resolve_ldap_role_uses_the_same_validation_as_the_table_lint() -> None:
     assert lint_group_role_map({"groups": bad})
     with pytest.raises(ValueError, match="superusuario"):
         resolve_ldap_role(["cn=x,ou=g"], bad)
+
+
+# --- H12: `UPDATE_PASSWORD` registrada y habilitada (BR-U2-03) ---------------------------------------------------------
+# Al importar un realm con `requiredActions`, Keycloak no añade las acciones por defecto (`DefaultExportImportManager.java`,
+# líneas 366-376) y una acción sin registrar se ignora (`AuthenticationManager.java`, líneas 1472-1479): una contraseña
+# temporal que fija un administrador no obligaría a cambiarla.
+
+
+@pytest.mark.parametrize("env", ["kind", "staging", "prod"])
+def test_h12_the_git_realms_register_update_password(env: str) -> None:
+    from realm_exports import load_git
+
+    (action,) = [a for a in load_git(env)["requiredActions"] if a["alias"] == "UPDATE_PASSWORD"]
+    assert action["providerId"] == "UPDATE_PASSWORD" and action["enabled"] is True
+    assert rules(load_git(env), env) == set()
+
+
+@pytest.mark.parametrize("env", ["kind", "staging", "prod"])
+def test_h12_realm_without_update_password_is_rejected(env: str) -> None:
+    realm = realm_copy(env)
+    realm["requiredActions"] = [a for a in realm["requiredActions"] if a["alias"] != "UPDATE_PASSWORD"]
+    assert "accion-requerida" in rules(realm, env)
+
+
+def test_h12_realm_without_the_required_actions_key_is_rejected() -> None:
+    realm = realm_copy("kind")
+    del realm["requiredActions"]
+    assert "accion-requerida" in rules(realm, "kind")
+
+
+@pytest.mark.parametrize("change", [{"enabled": False}, {"providerId": "CONFIGURE_TOTP"}, {"enabled": "true"}])
+def test_h12_update_password_disabled_or_with_another_provider_is_rejected(change: dict[str, object]) -> None:
+    realm = realm_copy("kind")
+    realm["requiredActions"][0].update(change)
+    assert "accion-requerida" in rules(realm, "kind")
