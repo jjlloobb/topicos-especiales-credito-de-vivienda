@@ -5833,6 +5833,31 @@ Se redactaron `tareas/U02-T13-alertas-y-runbooks.md`, `tareas/U02-T14-especifica
 
 ---
 
+## Ronda 3 de U02-T12 (CI-01)
+**Timestamp**: 2026-11-05T16:01:16Z
+**User Input**: (ninguna nueva; notificación del revisor)
+**AI Response**: La ronda 3 salió VERDE sobre d005363 (arreglo en c542776).
+- El revisor reprodujo el entorno de CI: sin `platform/.tools` y con el helm v4.3.0 de `tools.env` en el PATH. La suite de `platform` pasó 745 de 745.
+- `make -C identity-edge check` pasó con 2367 pruebas y `make -C platform check-local` con 745, sin omitidas.
+- CI pasó en todos los jobs.
+- El AMARILLO F-01 (el fallback al PATH no comprueba la versión de helm) y el helper común de herramientas pasan a `CANDIDATAS.md`.
+
+El PR 67 ya lo había fusionado una persona antes del veredicto. El informe queda en `revisiones/U02-T12/ronda-3.md`.
+**Context**: Construcción de U2, U02-T12.
+
+---
+
+## PR 68 fusionado; despacho de U02-T13 y U02-T14
+**Timestamp**: 2026-11-05T16:16:45Z
+**User Input**: "revisa el PR"
+**AI Response**: Una persona (`joseluisjedi`) fusionó el PR 68, la preparación de U02-T13 a U02-T15, a las 2026-11-05T16:15:30Z, en 8c18021. El agente no fusionó.
+- Con el PR 67 y el PR 68 en `main`, U02-T13 (Paso 11) y U02-T14 (Paso 13) son despachables, y se despachan en paralelo: un codificador por tarea, cada uno en su worktree.
+- U02-T15 espera a que U02-T14 esté en `main`.
+- El PR 69 se rebasó sobre 8c18021.
+**Context**: Construcción de U2, U02-T13 y U02-T14.
+
+---
+
 ## U02-T13: ronda 4 VERDE
 **Timestamp**: 2026-11-06T05:08:17Z
 **User Input**: "dale, avísame cuando termine los codificadores"; "ya aprobe el PR"
