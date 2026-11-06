@@ -189,9 +189,11 @@ def test_the_quick_lockout_is_capped_by_the_maximum_wait() -> None:
 def test_failure_factor_arriving_quickly_gets_the_series_wait_not_the_quick_lockout(params: Params) -> None:
     """F-11: el fallo `failureFactor` a menos de `quickLoginCheckMilliSeconds` del anterior da la espera de la serie (guarda `wait <= 0`)."""
     model = BruteForceModel(params)
+    gap = spaced(params)  # mayor que quickLoginCheckMilliSeconds: no es rápido
+    quick = params.quick_login_check_milliseconds / 1000 / 2  # menor que quickLoginCheckMilliSeconds
     for n in range(params.failure_factor - 1):
-        model.wrong(at=2.0 * n)
-    at = 2.0 * (params.failure_factor - 2) + 0.1  # rápido respecto del anterior
+        model.wrong(at=gap * n)
+    at = gap * (params.failure_factor - 2) + quick  # rápido respecto del anterior
     model.wrong(at=at)
     assert model.failures == params.failure_factor
     assert model.temporary_lockouts == 1

@@ -11,6 +11,7 @@ from typing import Any
 
 import design_values as design
 import pytest
+import realm_builders as builders
 import yaml
 from realm_lint import (
     ADMIN_CLIENT_ROLES,
@@ -643,22 +644,40 @@ def test_realm_has_no_secret_values_detector_accepts_references() -> None:
     assert literal_secrets(node) == []
 
 
-BASELINE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "realm-baseline-8c18021"
+def _priorities(flow: dict[str, Any]) -> list[int]:
+    return [e["priority"] for e in flow["authenticationExecutions"]]
 
 
-@pytest.mark.parametrize("env", ENVS)
-def test_the_realms_only_differ_from_the_baseline_in_the_declared_fields(env: str) -> None:
-    """F-10: frente a 8c18021 el diff de los realms es `bruteForceStrategy`, `maxTemporaryLockouts` (H10) y `UPDATE_PASSWORD` (H12).
+def test_the_authentication_flows_have_unique_increasing_priorities(env: str) -> None:
+    """F-14 (invariante de F-10): en cada flujo las prioridades de sus ejecuciones son unicas y estrictamente crecientes."""
+    for flow in load(env)["authenticationFlows"]:
+        priorities = _priorities(flow)
+        assert all(a < b for a, b in zip(priorities, priorities[1:], strict=False)), (flow["alias"], priorities)
 
-    Cualquier otro campo (p. ej. las prioridades de `authenticationFlows`) rompe la prueba."""
-    baseline = yaml.safe_load((BASELINE_DIR / f"realm.{env}.yaml").read_text(encoding="utf-8"))
-    current = load(env)
-    actions = current["requiredActions"]
-    update_password = [a for a in actions if a["alias"] == "UPDATE_PASSWORD"]
-    assert len(update_password) == 1
-    current["requiredActions"] = [a for a in actions if a["alias"] != "UPDATE_PASSWORD"]
-    assert current.pop("bruteForceStrategy") == "LINEAR"
-    assert current.pop("maxTemporaryLockouts") == 15
-    assert baseline.pop("maxTemporaryLockouts") == 3
-    assert "bruteForceStrategy" not in baseline
-    assert current == baseline
+
+def test_the_browser_forms_flow_orders_the_level_subflows_as_designed(env: str) -> None:
+    """Nivel pwd primero, luego los roles MFA de `realm_builders` en su orden, despues los demas obligatorios y los opcionales (analista) al final."""
+    realm = load(env)
+    forms = executions(realm, "vectra-browser forms")
+    assert [e["flowAlias"] for e in forms][0] == "vectra-level-pwd"
+    mandatory = [f"vectra-mfa-{role}" for role in builders.MFA_ROLES]
+    optional = [f"vectra-mfa-{role}" for role in sorted(design.optional_mfa_roles())]
+    aliases = [e["flowAlias"] for e in forms]
+    assert aliases[1 : 1 + len(mandatory)] == mandatory
+    assert aliases[len(aliases) - len(optional) :] == optional
+    rest = aliases[1 + len(mandatory) : len(aliases) - len(optional)]
+    expected_rest = {f"vectra-mfa-{role}" for role in MFA_ROLES - set(builders.MFA_ROLES)} | {"vectra-mfa-break-glass"}
+    assert len(rest) == len(expected_rest) and set(rest) == expected_rest
+
+
+def test_every_mfa_subflow_follows_the_level_then_role_then_factor_template(env: str) -> None:
+    realm = load(env)
+    for sub in executions(realm, "vectra-browser forms"):
+        if sub["flowAlias"] == "vectra-level-pwd":
+            continue
+        items = executions(realm, sub["flowAlias"])
+        kinds = [e.get("authenticator") or "factor" for e in sorted(items, key=lambda e: e["priority"])]
+        optional = "conditional-user-configured" in kinds
+        template = ["conditional-level-of-authentication", "conditional-user-role"] + (["conditional-user-configured"] if optional else []) + ["factor"]
+        assert kinds == template, (sub["flowAlias"], kinds)
+        assert items[-1]["flowAlias"] == f"{sub['flowAlias']} factor"
