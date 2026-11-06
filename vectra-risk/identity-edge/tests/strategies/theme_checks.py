@@ -85,7 +85,7 @@ REFERENCE_DIR = reference_dir()
 
 
 def design_build_options() -> list[str]:
-    """Las opciones de `kc.sh build`: las cinco de INF-U2-08 y las dos de metricas de eventos de B10 (P-U2-09)."""
+    """Las opciones de `kc.sh build`: las cinco de INF-U2-08 y la de metricas de eventos de B10 (P-U2-09), que `design_event_metric_options()` devuelve."""
     text = INF_U2_08
     opts = []
     m = re.search(r"base de datos `(\w+)`", text)

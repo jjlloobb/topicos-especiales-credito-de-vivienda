@@ -1,0 +1,74 @@
+PASA | sin mutar (linea base)
+DETECTADA | KeycloakDown sin for
+DETECTADA | KeycloakDown == 0 -> < 2
+DETECTADA | RateLimit sin for
+DETECTADA | RateLimit for 4m
+DETECTADA | RateLimit sin rama redis
+DETECTADA | RateLimit valkey sin sum
+DETECTADA | AuthDenied > 25
+DETECTADA | AuthDenied > 15
+DETECTADA | AuthDenied sin error!=
+DETECTADA | AuthDenied for 0
+DETECTADA | BreakGlass sin error=
+DETECTADA | BG sin rama 2 (serie nueva > ultimo valor)
+DETECTADA | BG sin rama 3 (up a 1 hace 5m)
+DETECTADA | BG rama 2: sin last_over_time (solo X * 0)
+DETECTADA | BG rama 2: sin el 'or X * 0' (serie nueva no cuenta)
+DETECTADA | BG rama 2: ventana 30m
+DETECTADA | BG rama 2: ventana 2h
+DETECTADA | BG rama 2: sin offset 5m en last_over_time
+DETECTADA | BG rama 2: > en vez de >=... (>= )
+DETECTADA | BG rama 2: X * 0 -> X * 1
+DETECTADA | BG rama 2: max_over_time
+DETECTADA | BG rama 3: N sin '> 0'
+DETECTADA | BG rama 3: N sin error="" (login fallido sobre serie nueva)
+DETECTADA | BG rama 2: last_over_time offset 10m
+DETECTADA | BG rama 2: unless offset 1m
+DETECTADA | BG rama 2: and en vez de unless
+DETECTADA | BG up: sin condicion up
+DETECTADA | BG up: sin offset
+DETECTADA | BG up: >= 0
+DETECTADA | BG up: == 0
+DETECTADA | BG up: on(namespace)
+DETECTADA | BG up: on(pod)
+DETECTADA | BG up: on()
+DETECTADA | BG up: otro job
+DETECTADA | BG up: sin job
+DETECTADA | BG up: offset 1m
+DETECTADA | BG up: offset 10m
+DETECTADA | BG up: or en vez de and
+DETECTADA | BG up: unless X offset 1m (rama 3)
+DETECTADA | BG increase [1m]
+DETECTADA | BG increase [10m]
+DETECTADA | BG sin rama increase
+DETECTADA | BG increase > 1
+DETECTADA | BreakGlass realm vectra
+DETECTADA | BreakGlass sin client
+DETECTADA | BreakGlass event client_login
+DETECTADA | BreakGlass con for 5m
+DETECTADA | KeycloakMetricsDown sin absent
+DETECTADA | KeycloakMetricsDown sin == 0
+DETECTADA | KeycloakMetricsDown == 0 -> < 1 (igual)
+DETECTADA | KeycloakMetricsDown sin job
+DETECTADA | KeycloakMetricsDown absent otro job
+DETECTADA | KeycloakMetricsDown sin for
+DETECTADA | KeycloakMetricsDown for 1m
+DETECTADA | KeycloakMetricsDown for 10m
+DETECTADA | KeycloakMetricsDown SEV1
+DETECTADA | RealmDrift >= 0
+DETECTADA | RoleConflict [5m]
+DETECTADA | RoleConflict for 0
+DETECTADA | Ldap [15m]
+DETECTADA | Ldap for 0
+DETECTADA | Gateway > 20
+DETECTADA | Gateway > 0
+DETECTADA | Gateway for 5m
+DETECTADA | SigningAge > 79d
+DETECTADA | SigningAge > 81d
+DETECTADA | SigningAge for 0
+DETECTADA | RealmDriftStale 25h
+DETECTADA | RealmDriftStale 27h
+DETECTADA | SigningStale 2h
+DETECTADA | SigningStale 4h
+DETECTADA | severity KeycloakDown SEV2
+72 mutaciones, 0 sobreviven

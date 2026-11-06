@@ -18,6 +18,7 @@ src = pathlib.Path(sys.argv[1]).resolve()
 promtool = str(pathlib.Path(sys.argv[2]).resolve())
 orig = (src / "identity-edge-rules.yaml").read_text()
 X = 'keycloak_user_events_total{event="login",client_id="security-admin-console",error=""}'
+XE = 'keycloak_user_events_total{event="login",client_id="security-admin-console"}'
 UPC = ' and on(namespace, pod) (up{job="keycloak"} offset 5m == 1)'
 SEG2 = f" or (({X} > 0 unless {X} offset 5m) > (last_over_time({X}[1h] offset 5m) or {X} * 0))"
 SEG3 = f" or (({X} > 0 unless {X} offset 5m){UPC})"
@@ -44,6 +45,8 @@ M = [
  ("BG rama 2: X * 0 -> X * 1", f"{X} * 0)", f"{X} * 1)"),
  ("BG rama 2: max_over_time", "last_over_time(", "max_over_time("),
  ("BG rama 3: N sin '> 0'", f"(({X} > 0 unless {X} offset 5m){UPC}", f"(({X} unless {X} offset 5m){UPC}"),
+ ("BG rama 3: N sin error=\"\" (login fallido sobre serie nueva)", f"(({X} > 0 unless {X} offset 5m){UPC}", f"(({XE} > 0 unless {XE} offset 5m){UPC}"),
+ ("BG rama 2: last_over_time offset 10m", "[1h] offset 5m", "[1h] offset 10m"),
  ("BG rama 2: unless offset 1m", f"unless {X} offset 5m) > (", f"unless {X} offset 1m) > ("),
  ("BG rama 2: and en vez de unless", f"{X} > 0 unless {X} offset 5m) > (", f"{X} > 0 and {X} offset 5m) > ("),
  ("BG up: sin condicion up", UPC, ''),

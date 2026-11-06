@@ -231,7 +231,9 @@ def test_the_b11_text_is_read():
     assert expr.count("increase(") == 1 and expr.count("last_over_time(") == 1 and 'up{job="keycloak"} offset 5m == 1' in expr
     assert "N" not in re.findall(r"\b[A-Z]\b", expr) and "X" not in re.findall(r"\b[A-Z]\b", expr)
     md = b11_metrics_down()
-    assert md["severity"] == "SEV2" and md["for"] == "5m" and md["runbook"] == "keycloak-metrics-down"
+    m = re.search(r"alerta nueva `KeycloakMetricsDown`\*\*, (SEV\d), `for` (\w+):", b11_text())
+    assert m, "B11 no fija severidad y `for` de KeycloakMetricsDown"
+    assert (md["severity"], md["for"]) == m.groups() and md["runbook"] in b11_text()
     assert " ".join(str(alerts(load_groups())["BreakGlassLogin"]["expr"]).split()) == expr
 
 

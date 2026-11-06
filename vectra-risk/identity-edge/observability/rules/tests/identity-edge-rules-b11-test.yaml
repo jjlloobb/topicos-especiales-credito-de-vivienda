@@ -720,7 +720,7 @@ tests:
   - eval_time: 24m
     alertname: BreakGlassLogin
     exp_alerts: []
-# G2: limite medido: Prometheus caido 9 min (sin up ni marcas de stale) y la serie vuelve igual: un falso positivo de 1 min, porque `up offset 5m` aun ve la ultima muestra por el lookback de 5 min
+# G2: limite medido, modelo X con stale y up sin stale: hueco de 8 min de up (las muestras de X ya tenian marca de stale) y la serie vuelve igual: falso positivo de 1 min. Duracion por tamano de hueco en LIMITES (probe)
 - interval: 1m
   input_series:
   - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
@@ -896,7 +896,7 @@ tests:
   - eval_time: 34m
     alertname: BreakGlassLogin
     exp_alerts: []
-# E: limite aceptado: el pod se reinicia durante un hueco de 15 min y luego hay un login (contador de 3 a 1): omision
+# E: limite aceptado, modelo X con stale y up sin stale: el pod se reinicia durante un hueco de 15 min y luego hay un login (contador de 3 a 1): omision. Desde que hueco empieza, por modelo, en LIMITES (probe)
 - interval: 1m
   input_series:
   - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
@@ -1484,6 +1484,63 @@ tests:
   - eval_time: 24m
     alertname: BreakGlassLogin
     exp_alerts: []
+# Rr: el contador se reinicia dentro de un hueco y vuelve con un valor menor que el ultimo y mayor que uno anterior (1, 5, hueco, 3): no es un login; last_over_time[offset 5m] toma el 5, con offset 10m tomaria el 1
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x2 5 stale _x7 3x12'
+  alert_rule_test:
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
 # Z: una serie nueva con valor 0 no es un login
 - interval: 1m
   input_series:
@@ -1639,6 +1696,74 @@ tests:
       exp_annotations:
         summary: BreakGlassLogin
         runbook_url: identity-edge/runbooks/break-glass-login.md
+  - eval_time: 13m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 14m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 18m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 21m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 22m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 23m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 24m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+# Zf: un login fallido (error distinto de "") sobre una serie nueva no es un login con exito: la rama 3 exige error="" en N
+- interval: 1m
+  input_series:
+  - series: 'keycloak_user_events_total{event="login",client_id="security-admin-console",error="invalid_user_credentials",realm="vectra",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '_x3 1x20'
+  - series: 'up{job="keycloak",namespace="vectra-identity",pod="keycloak-0"}'
+    values: '1x25'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: BreakGlassLogin
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: BreakGlassLogin
+    exp_alerts: []
   - eval_time: 13m
     alertname: BreakGlassLogin
     exp_alerts: []
