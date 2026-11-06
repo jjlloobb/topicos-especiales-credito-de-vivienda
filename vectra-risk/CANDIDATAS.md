@@ -137,3 +137,4 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - F-11: `test_alert_rules.py:236`, `md["runbook"] in b11_text()` es tautológica; compararlo con los runbooks del diseño o con el archivo;
   - F-12: la bitácora cita para CA-6 «252 archivos Markdown» de una corrida anterior a `ronda-4-respuesta.md`; en HEAD son 253 y pasa.
 - Mediciones de B11 a la resolución real: `b11_scenarios.py` y los casos de promtool usan 1 min, y el Prometheus del proyecto raspa y evalúa cada 30 s por omisión. Al revisar B11 o llevarlo al ruler de Loki, medir a 30 s o fijar `interval` en los monitores (revisor, U02-T13, ronda 4).
+- Higiene del loop: en U02-T16 ronda 3, el codificador y el revisor usaron el mismo subdirectorio del scratchpad (`U02-T16-r3/`), y el codificador sobrescribió la copia con la que había hecho su rojo. Fijar en cada despacho un subdirectorio distinto por papel y ronda (revisor, U02-T16, ronda 3).

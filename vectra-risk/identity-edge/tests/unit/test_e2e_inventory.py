@@ -17,8 +17,9 @@ ROOT = Path(__file__).resolve().parents[3]
 PLAN = ROOT / "aidlc-docs" / "construction" / "plans" / "identity-edge-code-generation-plan.md"
 E2E = ROOT / "identity-edge" / "tests" / "e2e"
 TESTS = ROOT / "identity-edge" / "tests"
-STEP = "- [ ] **Paso 13 — Especificación de las pruebas de extremo a extremo**"
-NEXT_STEP = "- [ ] **Paso 14"
+# Anclados al inicio de línea; aceptan `[ ]`, `[x]` o `[X]` y, tras el título, el sufijo que se agrega al cerrar el paso.
+STEP = re.compile(r"^- \[[ xX]\] \*\*Paso 13 — Especificación de las pruebas de extremo a extremo\*\*", re.MULTILINE)
+NEXT_STEP = re.compile(r"^- \[[ xX]\] \*\*Paso 14", re.MULTILINE)
 
 # fragmento literal del plan -> ids de prueba (nombre de la funcion, sin parametros)
 INVENTORY: dict[str, list[str]] = {
@@ -55,10 +56,18 @@ INVENTORY: dict[str, list[str]] = {
 }
 
 
-def plan_bullets() -> list[str]:
+def step_13_block(text: str) -> str:
+    """El bloque del Paso 13: desde su línea hasta el inicio del Paso 14, sin depender del checkbox ni del sufijo."""
+    start = STEP.search(text)
+    assert start, "el Paso 13 no está en el plan"
+    end = NEXT_STEP.search(text, start.end())
+    assert end, "el Paso 14 no está en el plan después del Paso 13"
+    return text[start.start() : end.start()]
+
+
+def plan_bullets(text: str | None = None) -> list[str]:
     """Las viñetas de nivel 3 de la lista «Playwright» del Paso 13 y la de PBT-U2-08 (nivel 2); sin la nota H1-H9."""
-    text = PLAN.read_text(encoding="utf-8")
-    block = text[text.index(STEP) : text.index(NEXT_STEP)]
+    block = step_13_block(PLAN.read_text(encoding="utf-8") if text is None else text)
     lines = block.splitlines()
     bullets: list[str] = []
     in_playwright = False
@@ -114,6 +123,42 @@ def test_the_plan_has_the_bullets_the_inventory_covers():
 
 def test_every_bullet_of_step_13_has_a_test(collection):
     assert problems(plan_bullets(), collection) == []
+
+
+def plan_with_marks(step_13_mark: str, suffix: str, step_14_mark: str) -> str:
+    """El texto real del plan con los encabezados de los Pasos 13 y 14 reescritos en el estado pedido."""
+    text = PLAN.read_text(encoding="utf-8")
+    text, n13 = re.subn(r"^- \[[ xX]\] (\*\*Paso 13 — [^\n]*?\*\*)[^\n]*$", lambda m: f"- {step_13_mark} {m.group(1)}{suffix}", text, flags=re.MULTILINE)
+    text, n14 = re.subn(r"^- \[[ xX]\] (\*\*Paso 14 — [^\n]*?\*\*)[^\n]*$", lambda m: f"- {step_14_mark} {m.group(1)}{suffix}", text, count=1, flags=re.MULTILINE)
+    assert (n13, n14) == (1, 1)
+    return text
+
+
+@pytest.mark.parametrize("step_13_mark", ["[ ]", "[x]", "[X]"])
+@pytest.mark.parametrize("suffix", ["", " (U02-T14)"])
+@pytest.mark.parametrize("step_14_mark", ["[ ]", "[x]", "[X]"])
+def test_block_location_does_not_depend_on_checkbox_state(step_13_mark, suffix, step_14_mark):
+    variant = plan_with_marks(step_13_mark, suffix, step_14_mark)
+    assert plan_bullets(variant) == plan_bullets()
+    assert step_13_block(variant).splitlines()[1:] == step_13_block(PLAN.read_text(encoding="utf-8")).splitlines()[1:]
+
+
+def test_an_indented_mention_of_step_14_inside_step_13_does_not_end_the_block():
+    text = PLAN.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    at = next(i for i, line in enumerate(lines) if line.startswith("  - Playwright"))
+    lines.insert(at, "  - [ ] **Paso 14 — mención sangrada**")
+    assert plan_bullets("\n".join(lines)) == plan_bullets()
+
+
+def test_an_indented_mention_of_step_13_before_step_13_does_not_start_the_block():
+    text = PLAN.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    at = next(i for i, line in enumerate(lines) if STEP.match(line))
+    lines.insert(at, "  - [ ] **Paso 13 — Especificación de las pruebas de extremo a extremo**")
+    variant = "\n".join(lines)
+    assert step_13_block(variant) == step_13_block(text)
+    assert plan_bullets(variant) == plan_bullets()
 
 
 def test_every_id_is_unique_across_the_inventory():
