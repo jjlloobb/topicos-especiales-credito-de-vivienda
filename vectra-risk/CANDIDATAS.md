@@ -136,3 +136,4 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - R-08: `make check` corre dos `make load` reales de unos 30 s; ponerlos detrás de un marcador o de otro target;
   - R-09: `load-inspect` corre `k6 inspect` dos veces;
   - R-10: `_max_vu_growth_per_second` en `load_checks.py` divide sin guarda, y el chequeo de J5 ignora los 2 hits por login y los logins de `burst` y `overhead`.
+- Higiene del loop: en U02-T16 ronda 3, el codificador y el revisor usaron el mismo subdirectorio del scratchpad (`U02-T16-r3/`), y el codificador sobrescribió la copia con la que había hecho su rojo. Fijar en cada despacho un subdirectorio distinto por papel y ronda (revisor, U02-T16, ronda 3).
