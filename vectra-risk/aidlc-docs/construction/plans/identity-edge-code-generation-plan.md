@@ -223,7 +223,7 @@ vectra-risk/identity-edge/
 
 ### Bloque E — Pruebas de extremo a extremo y de carga (definición)
 
-- [ ] **Paso 13 — Especificación de las pruebas de extremo a extremo**
+- [x] **Paso 13 — Especificación de las pruebas de extremo a extremo** (U02-T14)
   - Playwright + `httpx` + `pyotp` + `axe-core`:
     - aprobador sin TOTP → no obtiene token;
     - step-up sin SPA: flujo OIDC con `acr_values=mfa` y TOTP hasta el token con `acr = mfa`; el diálogo en la consola se prueba en U10, que se construye después (seguimiento de la quinta revisión de coherencia, 2026-10-31). Comportamiento que U10 debe cubrir, step-up en ventana emergente (revisión del Infrastructure Design de U10, 2026-10-10): firma con `auth_time` > 900 s → `mfa_required` → diálogo → clic → ventana con `acr_values=mfa` → TOTP → `/stepup-callback` envía `code` y `state` por `postMessage` → la ventana principal reintenta con el mismo cuerpo → éxito, sin recarga; un `postMessage` de otro origen → ignorado; la ventana conserva `window.opener` con `Cross-Origin-Opener-Policy: same-origin`;

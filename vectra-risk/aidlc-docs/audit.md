@@ -5851,3 +5851,16 @@ Informes y arbitrajes en `revisiones/U02-T13/` y `revisiones/U02-T14/`.
 **Context**: Construcción de U2, U02-T13 y U02-T14.
 
 ---
+
+## U02-T13 y U02-T14: rondas 3 y 4
+**Timestamp**: 2026-11-06T04:44:18Z
+**User Input**: "podemos seguir con las siguientes unidades del proyecto?"; U02-T14 "Ronda 4 acotada (Recomendado)"; "dale, avísame cuando termine los codificadores"; U02-T13 "Ronda 4 acotada (Recomendado)"; "podemos seguir con las siguientes unidades del proyecto?"; "dale, avísame cuando termine los codificadores"
+**AI Response**:
+- U3 a U12 siguen sin código (restricción de alcance vigente). U2 no está cerrada: faltan los Pasos 11, 12, 14, 15, 16 y 18.
+- **U02-T14**: la ronda 3 salió NO-VERDE (F-14, la salvaguarda de F-10 era una copia de los realms). Al llegar a la ronda 4 se paró y el usuario la acotó a F-14 y F-15. La ronda 4 salió VERDE con dos AMARILLO, que pasan a `CANDIDATAS.md`. Se cierra el Paso 13 y se abre el PR.
+- **U02-T13**: la ronda 3 salió NO-VERDE (F-04 evidencia de CA-2 de otro comando, F-05 límites de B11 no medidos). El usuario acotó la ronda 4 a F-04 a F-08, sin reabrir B11. La revisión de la ronda 4 está en curso.
+
+Informes y arbitrajes en `revisiones/U02-T13/` y `revisiones/U02-T14/`.
+**Context**: Construcción de U2, U02-T13 y U02-T14.
+
+---
