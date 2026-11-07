@@ -155,3 +155,7 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
 - `test_every_issuer_reference_exists` solo mira prod, y `EXTERNAL_ISSUERS` (`banco-ca`) vale en cualquier entorno. Comprobarlo por entorno (revisor, U02-T18).
 - `test_own_custom_resources_match_the_real_crds` omite el grupo `gateway.networking.k8s.io` entero. Podría cargar `gatewayapi-crds.yaml` de `.charts/envoy-gateway` (revisor, U02-T18).
 - `make -C identity-edge check` necesita `kubeconform`, `egctl` y `platform/.charts/` (`envoy-gateway`, `keycloakx`), y `uv sync --frozen` no los trae. Un worktree nuevo debe correr antes `platform/install-tools.sh` y `platform/charts.sh` (codificador, U02-T18).
+- Revisión de código del PR 75 (`revisiones/U02-T18/revision-codigo-pr75.md`):
+  - C-01: ninguna Application crea el `ClusterIssuer` `banco-ca` de staging y prod, y `EXTERNAL_ISSUERS` lo oculta. Decidir quién lo instala (lo provee el banco o lo instala U1) y comprobarlo antes de sincronizar staging;
+  - C-05: omitir el grupo `gateway.networking.k8s.io` en `test_integration.py` también deja sin validar el `BackendTLSPolicy` de la Application `keycloak`;
+  - C-07: `resource_owners` reimplementa la selección `include`/`exclude` de `integration.directory_docs`.

@@ -20,3 +20,7 @@ El codificador no tomó ninguna de las dos salidas, y tenía razón: bajar reque
 ## Ronda 2: bloqueo y ampliación de M4
 
 El codificador se detuvo sin cambios: `keycloak.rego:343-346` y `valkey.rego` fijan las requests exactas en todos los entornos, y solo Keycloak puede aportar el recorte. **El usuario amplió M4 a las políticas**: Keycloak baja a 512 Mi solo en kind, y `keycloak.rego` acepta esa request únicamente en el render de kind. El presupuesto de kind para U3–U12 pasa a `CANDIDATAS.md`.
+
+## Después de la revisión de código del PR 75
+
+C-02, comprobado por el orquestador: `test_kind_profile.py` no cuenta el `minReplicas` del HPA ni los pods del controlador de Envoy Gateway, así que el «cabe» de M4 no es real. **El usuario decidió corregir primero la cuenta (ronda 4) y decidir el presupuesto con la cifra real.** C-01, C-03 y C-05 a C-07 quedan en la revisión. Con el presupuesto se decide C-03 (el sobrecompromiso de Keycloak); los demás pasan a `CANDIDATAS.md`.

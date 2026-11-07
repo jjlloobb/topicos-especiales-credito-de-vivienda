@@ -5947,3 +5947,11 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **User Input**: (ninguno nuevo)
 **AI Response**: La primera revisión de U02-T18 (ronda 3 del codificador) sale VERDE con cuatro AMARILLO (F-01 a F-04), que pasan a `CANDIDATAS.md`. Se marca el Paso 12 del plan y se abre el PR.
 **Context**: Construcción de U2, U02-T18.
+
+---
+
+## U02-T18: ronda 4, corrección de la cuenta del perfil de kind
+**Timestamp**: 2026-11-07T18:07:44Z
+**User Input**: PR 75: "Arreglar la cuenta, luego decidir (Recommended)"
+**AI Response**: Se enmienda U02-T18. `requested_gib()` debe contar el `minReplicas` del HPA, los pods del `EnvoyProxy`, `envoy-ratelimit` y el controlador de Envoy Gateway. No cambian `BUDGET_GIB` ni M4. Si la cifra real supera los 5,0 GiB, la prueba queda en rojo y el usuario decide el presupuesto. C-01, C-05 y C-07 de la revisión pasan a `CANDIDATAS.md`.
+**Context**: Construcción de U2, U02-T18.

@@ -158,3 +158,22 @@ En la ronda 2 el codificador se detuvo, como pedía M4. `identity-edge/keycloak/
 - El margen esperado es ≈ 0,03 GiB. El presupuesto de kind para U3 a U12 ya está en `CANDIDATAS.md`; no lo resuelvas aquí.
 - El rojo de cada caso nuevo de conftest va en la bitácora, sección «Ronda 3».
 - CA-7, y después CA-5 y CA-6 en serie.
+
+### Corrección de la cuenta del perfil de kind (2026-11-07, después de la revisión de código del PR 75; decisión del usuario)
+
+Hallazgo C-02 de `revisiones/U02-T18/revision-codigo-pr75.md`, comprobado por el orquestador. `requested_gib()` de `platform/tests/test_kind_profile.py` cuenta mal en tres casos:
+- cuenta `spec.replicas` o 1, y así ignora el `minReplicas` del HPA: Keycloak corre con 2 pods y se cuenta 1;
+- no cuenta los pods que crea el controlador de Envoy Gateway: el data plane del `EnvoyProxy` (`replicas: 2`, HPA con mínimo 2) y `envoy-ratelimit` (`replicas: 2`);
+- deja vacíos los charts OCI, y con ellos el controlador de Envoy Gateway.
+
+El usuario decidió **corregir primero la cuenta** y decidir el presupuesto después, con la cifra real. Esta ronda:
+
+- **Dentro**: corregir `requested_gib()`:
+  - un workload con HPA cuenta `max(replicas, minReplicas)`;
+  - los pods del data plane salen del `EnvoyProxy` (réplicas o `minReplicas` de su HPA, por la suma de las requests de sus contenedores, incluido `shutdown-manager` si tiene requests);
+  - `envoy-ratelimit` y el controlador salen de los values de `envoy-gateway` (`platform/operators/envoy-gateway.yaml` y el overlay de kind);
+  - cualquier otro chart OCI que `render_env` deje vacío se lista en la bitácora, con lo que pediría o con «no lo puedo contar sin renderizarlo» si es el caso.
+  - Cada regla nueva tiene un caso de prueba que falla sin ella. Su rojo va en la bitácora, sección «Ronda 4».
+- **No cambian**: `BUDGET_GIB`, M4 (Keycloak a 512 Mi en kind y `keycloak.rego`) ni ningún value. Si la cuenta corregida supera los 5,0 GiB, `test_the_profile_requests_fit_the_budget` queda **en rojo, sin `xfail`**. Reporta la cifra y detente: el presupuesto lo decide el usuario.
+- **Bitácora**: una tabla por componente, con las réplicas contadas, la request por pod y el total, dos veces: con M4 (Keycloak a 512 Mi) y sin M4 (a 1 Gi).
+- Se corren otra vez CA-4, CA-5 y CA-7. CA-6 queda en rojo si la cuenta lo dice, y la bitácora lo explica.
