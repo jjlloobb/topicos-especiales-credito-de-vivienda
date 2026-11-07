@@ -147,3 +147,11 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - el plan se lee del disco en cada llamada (unas 60 veces por corrida), y `plan_bullets(text=None)` mezcla lectura y análisis. Bastan una constante de módulo y un helper de reescritura;
   - la sección «Cambio» de la ronda 1 de `bitacoras/U02-T16.md` describe el patrón `[ x]` con 8 casos.
 - Presupuesto de kind para U3 a U12 (U02-T18, M4): con U2, `test_kind_profile.py` queda en ≈ 4,97 GiB de requests de memoria contra `BUDGET_GIB = 5.0`, con Keycloak a 512 Mi solo en kind. La próxima unidad con pods en kind lo rompe. Hay que decidir el tope, el perfil o las excepciones por unidad antes de despachar su primera tarea con workloads.
+- Cuatro AMARILLO de la revisión de U02-T18 (revisor):
+  - F-01: `keycloak.rego:345-349` reconoce kind por el hostname y no por el directorio. Un render de staging o prod que lleve el hostname de kind y `vectra-internal-ca` pasaría conftest con 512 Mi; hoy lo frena `test_design_hostnames`. Pasarle el entorno a conftest con `--data`;
+  - F-02: pares de `STRICT` que el código sostiene y faltan en `test_waves.py`: `keycloak→identity-jobs`, `envoy-gateway→keycloak` (`BackendTLSPolicy`), `cert-manager→keycloak`, `cert-manager→api-gateway` y `namespaces→identity-jobs`;
+  - F-03: `test_platform.py:349`, la clave del recurso repetido usa `metadata.namespace` y no cae al `destination.namespace` de la Application;
+  - F-04: el hostname de kind está escrito en `keycloak.rego:345` y en `set.rego:63`.
+- `test_every_issuer_reference_exists` solo mira prod, y `EXTERNAL_ISSUERS` (`banco-ca`) vale en cualquier entorno. Comprobarlo por entorno (revisor, U02-T18).
+- `test_own_custom_resources_match_the_real_crds` omite el grupo `gateway.networking.k8s.io` entero. Podría cargar `gatewayapi-crds.yaml` de `.charts/envoy-gateway` (revisor, U02-T18).
+- `make -C identity-edge check` necesita `kubeconform`, `egctl` y `platform/.charts/` (`envoy-gateway`, `keycloakx`), y `uv sync --frozen` no los trae. Un worktree nuevo debe correr antes `platform/install-tools.sh` y `platform/charts.sh` (codificador, U02-T18).

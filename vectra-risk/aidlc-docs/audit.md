@@ -5939,3 +5939,11 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **User Input**: "Ampliar M4 a las políticas"
 **AI Response**: Ronda 2 detenida porque `keycloak.rego` fija las requests exactas en todos los entornos. El usuario amplió M4: Keycloak baja a 512 Mi solo en kind, y la política lo acepta solo en el render de kind. El margen es ≈ 0,03 GiB, y el presupuesto de kind para U3–U12 queda como candidata. Se enmienda la tarea y se despacha la ronda 3.
 **Context**: Construcción de U2, U02-T18.
+
+---
+
+## U02-T18: VERDE y cierre del Paso 12
+**Timestamp**: 2026-11-07T17:57:15Z
+**User Input**: (ninguno nuevo)
+**AI Response**: La primera revisión de U02-T18 (ronda 3 del codificador) sale VERDE con cuatro AMARILLO (F-01 a F-04), que pasan a `CANDIDATAS.md`. Se marca el Paso 12 del plan y se abre el PR.
+**Context**: Construcción de U2, U02-T18.

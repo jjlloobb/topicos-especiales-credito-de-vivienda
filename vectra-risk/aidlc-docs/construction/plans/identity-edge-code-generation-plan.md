@@ -215,7 +215,7 @@ vectra-risk/identity-edge/
   - Diseño: P-U2-09; BR-U2-17; P-U2-05; NFR-U2-05 (`KeycloakDown`).
   - **Aceptación**: `promtool test rules identity-edge/observability/rules/tests/*.yaml` y `uv run python platform/tests/test_runbooks.py --root identity-edge` (`severity` válida y `runbook_url` existente).
 
-- [ ] **Paso 12 — Applications de GitOps**
+- [x] **Paso 12 — Applications de GitOps** (U02-T18)
   - Entradas en `vectra-risk-gitops/components.yaml` con sus waves: Valkey (2), Keycloak + `keycloak-config-cli` y gateway + rate limit (3); los CRDs de Gateway API y el controlador (0) ya están en la entrada `envoy-gateway` de U1. `generate.py` escribe las Applications. Values por entorno en `vectra-risk-gitops/values/<env>/<componente>.yaml`: hostnames (INF-U2-01), issuer y LDAP (prod) (revisión de consistencia entre unidades, 2026-11-01).
   - **Nota del 2026-11-05 (decisión B6 del usuario al preparar U02-T13):** el paso también suma las entradas `identity-rules` e `identity-monitors` en wave 4, con las reglas y los monitores que deja el Paso 11 en `identity-edge/observability/`.
   - **Nota del 2026-11-07 (decisiones M1–M3 del usuario al preparar U02-T18):**
