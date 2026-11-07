@@ -1,0 +1,16 @@
+# Revisión de código del PR 72 (U02-T15), 2026-11-06
+
+La pidió el usuario después de la ronda 2 VERDE. La hizo `/code-review 72` leyendo el código frente a `routes.yaml`, `realm.kind.yaml` y el README de carga. **No se verificó con ejecución.** Hallazgos tal como los entregó, numerados en el orden del informe:
+
+| # | Archivo:línea | Hallazgo | Escenario de falla |
+|---|---|---|---|
+| R-01 | `identity-edge/tests/load/identity.js:186` (238 en el informe) | `http.cookieJar().clear(BASE_URL)` probablemente deja las cookies SSO de Keycloak (`Path=/auth/realms/vectra/`) | Al reintentar un login en el mismo VU, auth-cookie autentica solo, GET auth da 302 (`redirects: 0`), `page.status === 200` falla y ese VU no vuelve a obtener token. El gateway falso no pone cookies, así que las pruebas no lo ejercitan |
+| R-02 | `identity.js:335` (387) | `r.json('code')` en cada 429 lanza si el cuerpo está vacío o no es JSON | La iteración de la ráfaga aborta con excepción en vez de registrar el check; el contador `console_rate_limited` ya subió, así que el veredicto sigue en ok |
+| R-03 | `identity.js:19` y `:93` (145) | El script no lee `USER_PREFIX/USER_FIRST/USER_LAST` del env del escenario; usa las constantes, y el env lleva el literal `'load-'` | Cambiar la constante a `'test-'` deja pasar `load_checks` (el env sigue en `'load-'`), y la corrida entra con usuarios que `seed_users.py` no crea |
+| R-04 | `identity.js:132` (184) | `MAX_DIFF_P95_MS` del env de `overhead` no se lee; el veredicto usa la constante | El chequeo estático `overhead:umbral` compara un env que no decide nada. (Nota del orquestador: el veredicto sí está cubierto por las pruebas de F-01, M11 y M21 mueren; esto es decoración, no un hueco del veredicto) |
+| R-05 | `identity.js:63` (115) | `REDIRECT_URI` se arma quitando solo el esquema de `K6_BASE_URL`: el puerto o la ruta entran en el redirect URI, y un `http` pasa a `https` | Con `K6_BASE_URL=https://vectra.localtest.me:8443` el redirect es `…:8443/callback`, Keycloak responde 400 `Invalid redirect_uri` y fallan los 200 logins |
+| R-06 | `identity-edge/tests/load/seed_users.py:544` | Al volver a correr sobre un usuario existente solo resetea contraseña y rol: no borra OTP ni `requiredActions` ni lo rehabilita, aunque el docstring dice que lo repara | Un `load-NNN` deshabilitado, con `CONFIGURE_TOTP` pendiente o con OTP enrolado hace fallar sus logins |
+| R-07 | `identity.js:413` | La comprobación de llaves faltantes en `setup()` es código muerto: `open()` en el init context falla antes | Con una `.pem` faltante k6 aborta en init con un error crudo |
+| R-08 | `identity-edge/tests/unit/test_load_spec.py:210` | `make check` corre dos `make load` reales de unos 30 s | Cada `check` paga más de un minuto y depende de tiempos en sockets locales |
+| R-09 | `identity-edge/Makefile:23` | `load-inspect` corre `k6 inspect` y descarta la salida, y luego `load_checks.py` lo vuelve a correr igual | Doble ejecución sin cobertura extra |
+| R-10 | `identity-edge/tests/strategies/load_checks.py:54` | `_max_vu_growth_per_second` divide por la duración sin guarda, y el chequeo de J5 ignora los 2 hits por login y los logins de `burst` y `overhead` | Una etapa de `0s` da `ZeroDivisionError`; un perfil puede pasar `users:logins` con el doble de requests al contador de `/auth/**` |

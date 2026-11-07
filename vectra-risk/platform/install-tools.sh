@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Instala helm, kyverno, conftest, promtool, actionlint, hadolint, kubeconform y egctl en platform/.tools/bin, comprobando el SHA-256 publicado.
+# Instala helm, kyverno, conftest, promtool, actionlint, hadolint, kubeconform, egctl y k6 en platform/.tools/bin, comprobando el SHA-256 publicado.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
@@ -30,3 +30,8 @@ curl -fsSL -o "$work/egctl.tar.gz" "https://github.com/envoyproxy/gateway/releas
 echo "$EGCTL_SHA256  $work/egctl.tar.gz" | sha256sum -c -
 mkdir "$work/egctl" && tar -xzf "$work/egctl.tar.gz" -C "$work/egctl"
 install -m 0755 "$(find "$work/egctl" -type f -name egctl | head -n 1)" "$bin/egctl"
+# k6 (U02-T15, J2): el tarball se comprueba contra el sha256 fijado en tools.env y contra k6-<version>-checksums.txt del release.
+k6_tar="k6-${K6_VERSION}-linux-amd64.tar.gz"
+fetch "https://github.com/grafana/k6/releases/download/$K6_VERSION" "$k6_tar" "k6-${K6_VERSION}-checksums.txt"
+echo "$K6_SHA256  $work/$k6_tar" | sha256sum -c -
+tar -xzf "$work/$k6_tar" -C "$bin" --strip-components=1 "k6-${K6_VERSION}-linux-amd64/k6"

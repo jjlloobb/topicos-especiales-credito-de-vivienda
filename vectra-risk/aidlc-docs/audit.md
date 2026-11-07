@@ -5890,6 +5890,41 @@ Informes y arbitrajes en `revisiones/U02-T13/` y `revisiones/U02-T14/`.
 
 ---
 
+## U02-T15: arbitraje de la ronda 1 y U02-T16 a revisión
+**Timestamp**: 2026-11-06T15:00:00Z
+**User Input**: "podemos seguir con las siguientes unidades del proyecto?"; U02-T15 J3 "Ratificar sustituto (Recomendado)"
+**AI Response**:
+- U02-T13 (PR 71) está VERDE, esperando revisión humana.
+- U02-T16 (`test_e2e_inventory.py` con cualquier estado del checkbox) pasa a la ronda 1 de revisión.
+- U02-T15: la ronda 1 salió NO-VERDE (F-01 a F-03 NARANJA). El usuario ratificó el sustituto de J3: `handleSummary` escribe `overhead-verdict.json` y `make -C identity-edge load` falla si no se cumple NFR-U2-11. Se enmiendan la nota J3, NFR-U2-11/12 y la tarea. F-01 a F-06 van a la ronda 2.
+
+Arbitraje en `revisiones/U02-T15/arbitraje-ronda-1.md`.
+**Context**: Construcción de U2, U02-T15 y U02-T16.
+
+---
+
+## U02-T15: ronda 2 VERDE y cierre del Paso 14
+**Timestamp**: 2026-11-06T18:00:00Z
+**User Input**: "dale, avísame cuando termine los codificadores"
+**AI Response**:
+- U02-T15: la ronda 2 salió VERDE, con un AMARILLO (F-08) que pasa a `CANDIDATAS.md` junto con las candidatas de la ronda 1 (F-07). Se cierra el Paso 14 y se abre el PR.
+- U02-T16: la ronda 2 está en revisión.
+
+Informes y arbitraje en `revisiones/U02-T15/`.
+**Context**: Construcción de U2, U02-T15 y U02-T16.
+
+---
+
+## Revisión de los PR 71, 72 y 73
+**Timestamp**: 2026-11-06T20:00:00Z
+**User Input**: "revisa el PR"; "revisa los PR"; PR 73 "Merge it, findings to candidates (Recommended)"; PR 71 "Merge it and open U02-T17 (Recommended)"; PR 72 "Round 3 of U02-T15 (Recommended)"
+**AI Response**:
+- PR 73 (U02-T16): sin defectos del arreglo; 10 hallazgos de robustez a `CANDIDATAS.md`. Lo fusiona el usuario.
+- PR 71 (U02-T13): 9 hallazgos sobre alertas. El usuario lo fusiona y se prepara U02-T17 (endurecimiento de alertas), con las decisiones de diseño antes de despachar.
+- PR 72 (U02-T15): ronda 3 con R-01 a R-05; R-06 a R-10 a `CANDIDATAS.md`.
+**Context**: Construcción de U2.
+
+---
 ## U02-T13: ronda 4 VERDE
 **Timestamp**: 2026-11-06T05:08:17Z
 **User Input**: "dale, avísame cuando termine los codificadores"; "ya aprobe el PR"
@@ -5910,3 +5945,21 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **Context**: Construcción de U2, U02-T15 y U02-T16.
 
 ---
+
+## U02-T15: ronda 3 y ronda 4 acotada
+**Timestamp**: 2026-11-06T21:00:00Z
+**User Input**: "revisa los PR"; U02-T15 "Round 4 limited to F-09 (Recommended)"
+**AI Response**:
+- U02-T15: la ronda 3 cerró R-01 a R-05 (R-02 no era defecto, verificado con k6 v2.3.0) y salió NO-VERDE por F-09 (continuidad del jar entre el GET y el POST del login sin prueba). Al llegar a la ronda 4 se paró y el usuario la acotó a F-09. F-10 pasa a `CANDIDATAS.md`.
+- PR 73 fusionado; PR 71 actualizado con `main` y en verde (2643 passed).
+**Context**: Construcción de U2, U02-T15.
+
+---
+
+---
+
+## U02-T15: ronda 4 VERDE
+**Timestamp**: 2026-11-07T16:46:29Z
+**User Input**: (ninguno nuevo; ronda 4 acotada a F-09 por decisión previa del usuario)
+**AI Response**: La ronda 4 de U02-T15 sale VERDE: F-09 cerrado, con R01a a R01d muertas y el control FG0. Hay dos AMARILLO (F-11 y F-12), que pasan a `CANDIDATAS.md`. Se fusiona `origin/main` en la rama para quitar los conflictos del PR 72, que queda en revisión humana.
+**Context**: Construcción de U2, U02-T15.
