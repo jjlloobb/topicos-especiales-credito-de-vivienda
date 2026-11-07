@@ -803,7 +803,7 @@ def runbook_hardening_problems(folder: Path, facts: dict[str, Any] | None = None
     required: dict[str, list[str]] = {
         "ldap-unavailable": ["serie nueva", *b12_branches("LdapUnavailable")],
         "role-conflict": ["serie nueva", *b12_branches("RoleConflict")],
-        "rate-limit-backend-down": ["por ausencia", "absent()", "statefulset=~", "kube-state-metrics"],
+        "rate-limit-backend-down": ["por ausencia", "absent()", "statefulset=~", "kube-state-metrics", "solo si faltan las series de los dos StatefulSets", "ninguna alerta cubre la pérdida de uno solo", "CANDIDATAS.md"],
         "realm-drift": [*b13_absent_spans("RealmDriftStale"), "En kind"],
         "signing-key-rotation": [*b13_absent_spans("SigningKeyAgeStale"), "En kind"],
         "gateway-high-latency": [PREFIX_LABEL, CLUSTER_LABEL, facts["prefixes"]["kind"], "ratelimit_cluster", "eg-stats-http"],

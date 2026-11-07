@@ -54,7 +54,7 @@ tests:
   - eval_time: 40m
     alertname: RoleConflict
     exp_alerts: []
-# RoleConflict (B12): el contador quieto, en 0 y en un valor ya visto, no dispara
+# RoleConflict (B12): un contador quieto en 0 no dispara; uno cuya primera muestra ya vale 7 dispara a 2m (limite aceptado: es indistinguible de una serie nueva) y se apaga a los 6m
 - interval: 1m
   input_series:
   - series: 'vectra_role_conflict_total'
@@ -156,7 +156,7 @@ tests:
   - eval_time: 40m
     alertname: LdapUnavailable
     exp_alerts: []
-# LdapUnavailable (B12): el contador quieto, en 0 y en un valor ya visto, no dispara
+# LdapUnavailable (B12): un contador quieto en 0 no dispara; uno cuya primera muestra ya vale 7 dispara a 2m (limite aceptado: es indistinguible de una serie nueva) y se apaga a los 6m
 - interval: 1m
   input_series:
   - series: 'vectra_ldap_connection_failures_total'
