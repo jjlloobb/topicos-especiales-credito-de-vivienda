@@ -5979,3 +5979,11 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **User Input**: (ninguno nuevo)
 **AI Response**: La ronda 5 de U02-T15 (C-01, C-02, C-03 y C-05 de la revisión de código del PR 72) sale VERDE, con tres AMARILLO que pasan a `CANDIDATAS.md`. Se sube la rama. El PR 72 queda en revisión humana, y la aprobación anterior es previa a las rondas 3 a 5.
 **Context**: Construcción de U2, U02-T15.
+
+---
+
+## U02-T15: PR 72 fusionado antes de la ronda 5, PR 76 y ronda 6
+**Timestamp**: 2026-11-07T18:56:25Z
+**User Input**: "revisa los PR"; "Ronda 6 solo D-01 y D-02 (Recommended)"
+**AI Response**: El PR 72 se fusionó en `70b0e6e`, antes de la ronda 5. La ronda 5 (VERDE) se abrió como PR 76. La revisión de código del PR 76 trajo 9 hallazgos. El usuario decidió una ronda 6 solo con D-01 (la espera de 30 s convierte un fallo en cientos de checks fallidos) y D-02 (`create` borra antes de crear). Lo demás va a `CANDIDATAS.md`. Después se fusiona el PR 76 sin otra revisión de código. Los PR 74 y 75 se revisan cuando terminen sus rondas.
+**Context**: Construcción de U2, U02-T15.

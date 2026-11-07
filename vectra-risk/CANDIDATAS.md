@@ -171,3 +171,4 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - F-01: ninguna prueba cubre el rechazo de una de las N-1 contraseñas anteriores en `FakeAdmin` (`fake_admin.py:84`);
   - F-02: `LOGIN_BACKOFF_S` está a mitad de `identity.js` (línea 252) y no junto a las demás constantes;
   - F-03: el `aud` esperado en `test_load_spec.py:156` es un literal, cuando podría derivarse de `KC_HOSTNAME`.
+- Revisión de código del PR 76 (`revisiones/U02-T15/revision-codigo-pr76.md`), sin verificar con ejecución: D-03 (`PUBLIC_ORIGIN` quita el puerto y no admite IPv6), D-04 (el `aud` esperado es un literal), D-05 (el comentario dice «issuer» y el valor es el token endpoint), D-06 (sobra el GET de `role-mappings`), D-07 (el modelo de `passwordHistory` del falso ya no se usa), D-08 (la docstring de `pollute` y la prueba de idempotencia) y D-09 (la prueba hereda `os.environ`).
