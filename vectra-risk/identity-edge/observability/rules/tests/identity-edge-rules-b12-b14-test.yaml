@@ -1,0 +1,585 @@
+# B12-B14 (U02-T17, enmienda del 2026-11-06 de P-U2-09): rama de serie nueva, series ausentes y filtro del api-gateway.
+rule_files:
+- ../identity-edge-rules.yaml
+evaluation_interval: 1m
+tests:
+# RoleConflict (B12): la primera muestra de una serie que nace con el primer evento, sin `for`
+- interval: 1m
+  input_series:
+  - series: 'vectra_role_conflict_total'
+    values: '_x5 1x30'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: RoleConflict
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: RoleConflict
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: RoleConflict
+        runbook_url: identity-edge/runbooks/role-conflict.md
+  - eval_time: 9m
+    alertname: RoleConflict
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: RoleConflict
+        runbook_url: identity-edge/runbooks/role-conflict.md
+  - eval_time: 10m
+    alertname: RoleConflict
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: RoleConflict
+    exp_alerts: []
+# RoleConflict (B12): un fallo corto es un solo incremento sobre una serie que ya existia
+- interval: 1m
+  input_series:
+  - series: 'vectra_role_conflict_total'
+    values: '0x5 1x30'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: RoleConflict
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: RoleConflict
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: RoleConflict
+        runbook_url: identity-edge/runbooks/role-conflict.md
+  - eval_time: 40m
+    alertname: RoleConflict
+    exp_alerts: []
+# RoleConflict (B12): el contador quieto, en 0 y en un valor ya visto, no dispara
+- interval: 1m
+  input_series:
+  - series: 'vectra_role_conflict_total'
+    values: '0x30'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: RoleConflict
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: RoleConflict
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'vectra_role_conflict_total'
+    values: '7x40'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: RoleConflict
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: RoleConflict
+        runbook_url: identity-edge/runbooks/role-conflict.md
+  - eval_time: 6m
+    alertname: RoleConflict
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: RoleConflict
+    exp_alerts: []
+  - eval_time: 30m
+    alertname: RoleConflict
+    exp_alerts: []
+# RoleConflict (B12): una serie nueva que nace en 0 no dispara hasta su primer evento; el incremento posterior dispara
+- interval: 1m
+  input_series:
+  - series: 'vectra_role_conflict_total'
+    values: '_x3 0x4 1x30'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: RoleConflict
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: RoleConflict
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: RoleConflict
+        runbook_url: identity-edge/runbooks/role-conflict.md
+# LdapUnavailable (B12): la primera muestra de una serie que nace con el primer evento, sin `for`
+- interval: 1m
+  input_series:
+  - series: 'vectra_ldap_connection_failures_total'
+    values: '_x5 1x30'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: LdapUnavailable
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: LdapUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: LdapUnavailable
+        runbook_url: identity-edge/runbooks/ldap-unavailable.md
+  - eval_time: 9m
+    alertname: LdapUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: LdapUnavailable
+        runbook_url: identity-edge/runbooks/ldap-unavailable.md
+  - eval_time: 10m
+    alertname: LdapUnavailable
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: LdapUnavailable
+    exp_alerts: []
+# LdapUnavailable (B12): un fallo corto es un solo incremento sobre una serie que ya existia
+- interval: 1m
+  input_series:
+  - series: 'vectra_ldap_connection_failures_total'
+    values: '0x5 1x30'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: LdapUnavailable
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: LdapUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: LdapUnavailable
+        runbook_url: identity-edge/runbooks/ldap-unavailable.md
+  - eval_time: 40m
+    alertname: LdapUnavailable
+    exp_alerts: []
+# LdapUnavailable (B12): el contador quieto, en 0 y en un valor ya visto, no dispara
+- interval: 1m
+  input_series:
+  - series: 'vectra_ldap_connection_failures_total'
+    values: '0x30'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: LdapUnavailable
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: LdapUnavailable
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'vectra_ldap_connection_failures_total'
+    values: '7x40'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: LdapUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: LdapUnavailable
+        runbook_url: identity-edge/runbooks/ldap-unavailable.md
+  - eval_time: 6m
+    alertname: LdapUnavailable
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: LdapUnavailable
+    exp_alerts: []
+  - eval_time: 30m
+    alertname: LdapUnavailable
+    exp_alerts: []
+# LdapUnavailable (B12): una serie nueva que nace en 0 no dispara hasta su primer evento; el incremento posterior dispara
+- interval: 1m
+  input_series:
+  - series: 'vectra_ldap_connection_failures_total'
+    values: '_x3 0x4 1x30'
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: LdapUnavailable
+    exp_alerts: []
+  - eval_time: 8m
+    alertname: LdapUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: LdapUnavailable
+        runbook_url: identity-edge/runbooks/ldap-unavailable.md
+# RateLimitBackendDown (B13): sin la serie del Deployment envoy-ratelimit; `absent` solo conserva las etiquetas de igualdad
+- interval: 1m
+  input_series:
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-a"}'
+    values: '1x10'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-b"}'
+    values: '1x10'
+  - series: 'redis_up{job="valkey",pod="valkey-a-0"}'
+    values: '1x10'
+  alert_rule_test:
+  - eval_time: 1m
+    alertname: RateLimitBackendDown
+    exp_alerts: []
+  - eval_time: 2m
+    alertname: RateLimitBackendDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        namespace: envoy-gateway-system
+        deployment: envoy-ratelimit
+      exp_annotations:
+        summary: RateLimitBackendDown
+        runbook_url: identity-edge/runbooks/rate-limit-backend-down.md
+  - eval_time: 8m
+    alertname: RateLimitBackendDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        namespace: envoy-gateway-system
+        deployment: envoy-ratelimit
+      exp_annotations:
+        summary: RateLimitBackendDown
+        runbook_url: identity-edge/runbooks/rate-limit-backend-down.md
+# RateLimitBackendDown (B13): sin ninguna serie del StatefulSet de Valkey (el selector `statefulset=~"valkey-.+"` no es de igualdad)
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="envoy-ratelimit"}'
+    values: '1x10'
+  - series: 'redis_up{job="valkey",pod="valkey-a-0"}'
+    values: '1x10'
+  alert_rule_test:
+  - eval_time: 1m
+    alertname: RateLimitBackendDown
+    exp_alerts: []
+  - eval_time: 2m
+    alertname: RateLimitBackendDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        namespace: vectra-edge
+      exp_annotations:
+        summary: RateLimitBackendDown
+        runbook_url: identity-edge/runbooks/rate-limit-backend-down.md
+  - eval_time: 8m
+    alertname: RateLimitBackendDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        namespace: vectra-edge
+      exp_annotations:
+        summary: RateLimitBackendDown
+        runbook_url: identity-edge/runbooks/rate-limit-backend-down.md
+# RateLimitBackendDown (B13): las dos series ausentes dan dos alertas
+- interval: 1m
+  input_series:
+  - series: 'redis_up{job="valkey",pod="valkey-a-0"}'
+    values: '1x10'
+  alert_rule_test:
+  - eval_time: 8m
+    alertname: RateLimitBackendDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        namespace: envoy-gateway-system
+        deployment: envoy-ratelimit
+      exp_annotations:
+        summary: RateLimitBackendDown
+        runbook_url: identity-edge/runbooks/rate-limit-backend-down.md
+    - exp_labels:
+        severity: SEV2
+        namespace: vectra-edge
+      exp_annotations:
+        summary: RateLimitBackendDown
+        runbook_url: identity-edge/runbooks/rate-limit-backend-down.md
+# RateLimitBackendDown (B13): la serie desaparece a mitad (kube-state-metrics deja de exponerla)
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="envoy-ratelimit"}'
+    values: '1x4 _x20'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-a"}'
+    values: '1x24'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-b"}'
+    values: '1x24'
+  - series: 'redis_up{job="valkey",pod="valkey-a-0"}'
+    values: '1x24'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: RateLimitBackendDown
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: RateLimitBackendDown
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        namespace: envoy-gateway-system
+        deployment: envoy-ratelimit
+      exp_annotations:
+        summary: RateLimitBackendDown
+        runbook_url: identity-edge/runbooks/rate-limit-backend-down.md
+# RateLimitBackendDown (B13): con las series presentes y sanas no dispara
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="envoy-ratelimit"}'
+    values: '1x20'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-a"}'
+    values: '1x20'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-b"}'
+    values: '1x20'
+  - series: 'redis_up{job="valkey",pod="valkey-a-0"}'
+    values: '1x20'
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: RateLimitBackendDown
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: RateLimitBackendDown
+    exp_alerts: []
+  - eval_time: 19m
+    alertname: RateLimitBackendDown
+    exp_alerts: []
+# GatewayHighLatency (B14): el filtro. Principal sano (p95 cliente 24.25 ms = p95 backend 24.25 ms) + ruido que, sin filtro, subiria el p95 del cliente
+- interval: 1m
+  input_series:
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="1"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="5"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="10"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="25"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="50"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="+Inf"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="1"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="5"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="10"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="25"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="50"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="+Inf"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="1"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="5"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="10"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="25"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="50"}'
+    values: '0+1000x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="+Inf"}'
+    values: '0+1000x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-ready-http",le="1"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-ready-http",le="5"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-ready-http",le="10"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-ready-http",le="25"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-ready-http",le="50"}'
+    values: '0+1000x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-ready-http",le="+Inf"}'
+    values: '0+1000x40'
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: GatewayHighLatency
+    exp_alerts: []
+  - eval_time: 39m
+    alertname: GatewayHighLatency
+    exp_alerts: []
+# GatewayHighLatency (B14): el cluster del rate limit y el de JWKS, rapidos y con mucho volumen, no bajan el p95 del backend
+- interval: 1m
+  input_series:
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="1"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="5"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="10"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="25"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="50"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="+Inf"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="1"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="5"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="10"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="25"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="50"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="+Inf"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="ratelimit_cluster",le="1"}'
+    values: '0+1000x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="ratelimit_cluster",le="5"}'
+    values: '0+1000x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="ratelimit_cluster",le="10"}'
+    values: '0+1000x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="ratelimit_cluster",le="25"}'
+    values: '0+1000x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="ratelimit_cluster",le="50"}'
+    values: '0+1000x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="ratelimit_cluster",le="+Inf"}'
+    values: '0+1000x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="securitypolicy/vectra-edge/console/jwt/0",le="1"}'
+    values: '0+1000x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="securitypolicy/vectra-edge/console/jwt/0",le="5"}'
+    values: '0+1000x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="securitypolicy/vectra-edge/console/jwt/0",le="10"}'
+    values: '0+1000x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="securitypolicy/vectra-edge/console/jwt/0",le="25"}'
+    values: '0+1000x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="securitypolicy/vectra-edge/console/jwt/0",le="50"}'
+    values: '0+1000x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="securitypolicy/vectra-edge/console/jwt/0",le="+Inf"}'
+    values: '0+1000x40'
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: GatewayHighLatency
+    exp_alerts: []
+  - eval_time: 39m
+    alertname: GatewayHighLatency
+    exp_alerts: []
+# GatewayHighLatency (B14): con latencia real (cliente 24.25 ms, backend 9.75 ms) dispara aunque el ruido rapido de los listeners ajenos la enmascare
+- interval: 1m
+  input_series:
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="1"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="5"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="10"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="25"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="50"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="+Inf"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="1"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="5"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="10"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="25"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="50"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="+Inf"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="1"}'
+    values: '0+1000x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="5"}'
+    values: '0+1000x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="10"}'
+    values: '0+1000x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="25"}'
+    values: '0+1000x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="50"}'
+    values: '0+1000x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="+Inf"}'
+    values: '0+1000x40'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: GatewayHighLatency
+    exp_alerts: []
+  - eval_time: 25m
+    alertname: GatewayHighLatency
+    exp_alerts:
+    - exp_labels:
+        severity: SEV3
+      exp_annotations:
+        summary: GatewayHighLatency
+        runbook_url: identity-edge/runbooks/gateway-high-latency.md
+# GatewayHighLatency (B14): lo mismo en el lado del backend: el ruido lento del cluster del rate limit no la apaga
+- interval: 1m
+  input_series:
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="1"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="5"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="10"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="25"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="50"}'
+    values: '0+100x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="https-10443",le="+Inf"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="1"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="5"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="10"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="25"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="50"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="+Inf"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="ratelimit_cluster",le="1"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="ratelimit_cluster",le="5"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="ratelimit_cluster",le="10"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="ratelimit_cluster",le="25"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="ratelimit_cluster",le="50"}'
+    values: '0+1000x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="ratelimit_cluster",le="+Inf"}'
+    values: '0+1000x40'
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: GatewayHighLatency
+    exp_alerts:
+    - exp_labels:
+        severity: SEV3
+      exp_annotations:
+        summary: GatewayHighLatency
+        runbook_url: identity-edge/runbooks/gateway-high-latency.md
+# GatewayHighLatency (B14): sin series del listener del api-gateway no hay p95 de cliente y no dispara
+- interval: 1m
+  input_series:
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="1"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="5"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="10"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="25"}'
+    values: '0x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="50"}'
+    values: '0+1000x40'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_http_conn_manager_prefix="eg-stats-http",le="+Inf"}'
+    values: '0+1000x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="1"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="5"}'
+    values: '0x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="10"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="25"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="50"}'
+    values: '0+100x40'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",pod="envoy-0",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="+Inf"}'
+    values: '0+100x40'
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: GatewayHighLatency
+    exp_alerts: []

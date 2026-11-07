@@ -4,7 +4,9 @@
 - **Alerta**: `SigningKeyAgeHigh` y `SigningKeyAgeStale` (U2)
 
 ## Síntoma
-`SigningKeyAgeHigh`: la llave de firma activa tiene más de 80 días (`vectra_signing_key_created_timestamp_seconds`, empujada por el CronJob `signing-key-age`). `SigningKeyAgeStale`: el CronJob no empuja desde hace más de 3 horas (corre cada hora).
+`SigningKeyAgeHigh`: la llave de firma activa tiene más de 80 días (`vectra_signing_key_created_timestamp_seconds`, empujada por el CronJob `signing-key-age`). `SigningKeyAgeStale`: el CronJob no empuja desde hace más de 3 horas (corre cada hora), **o** el Pushgateway no tiene el grupo (`absent(push_time_seconds{job="signing-key-age"})`, B13): el CronJob nunca empujó, o el Pushgateway perdió el grupo (se borró, o se perdió su volumen de persistencia en `/data/metrics`). La alerta por ausencia solo trae la etiqueta `job="signing-key-age"`.
+
+**En kind**, si los CronJobs no corren, `SigningKeyAgeStale` dispara. Es lo esperado: no hay medición.
 
 ## Impacto
 Una llave de firma sin rotar a tiempo incumple la política de rotación. Sin la medición, no se sabe la edad.

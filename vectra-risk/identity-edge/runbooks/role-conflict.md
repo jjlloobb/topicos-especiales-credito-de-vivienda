@@ -4,7 +4,7 @@
 - **Alerta**: `RoleConflict` (U2)
 
 ## Síntoma
-`increase(vectra_role_conflict_total[15m]) > 0` durante 5 minutos: Keycloak emitió `ROLE_CONFLICT` para un usuario LDAP con dos grupos que mapean a roles distintos. Es una métrica de contrato: todavía no la emite nada (ver `CANDIDATAS.md`, BR-U2-17), así que la alerta solo dispara cuando exista ese mecanismo.
+Un conflicto en los últimos 15 minutos (`increase(vectra_role_conflict_total[15m]) > 0`) o una serie nueva del contador (`vectra_role_conflict_total > 0 unless vectra_role_conflict_total offset 5m`, el primer conflicto de un contador que nace con él), sin espera (`for` 0m, B12): Keycloak emitió `ROLE_CONFLICT` para un usuario LDAP con dos grupos que mapean a roles distintos. Es una métrica de contrato: todavía no la emite nada (ver `CANDIDATAS.md`, BR-U2-17), así que la alerta solo dispara cuando exista ese mecanismo.
 
 ## Impacto
 Por BR-U2-01, ese usuario no recibe ningún rol y no puede operar. No es una falla del sistema: la membresía de grupos del banco es ambigua.

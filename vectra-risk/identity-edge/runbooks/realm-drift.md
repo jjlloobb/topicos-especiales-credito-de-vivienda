@@ -4,7 +4,9 @@
 - **Alerta**: `RealmDrift` y `RealmDriftStale` (U2)
 
 ## Síntoma
-`RealmDrift`: `vectra_realm_drift > 0`, la cantidad de diferencias entre el realm de Git y el de Keycloak que empuja el CronJob `realm-drift` al Pushgateway. `RealmDriftStale`: el CronJob no empuja desde hace más de 26 horas (corre a diario).
+`RealmDrift`: `vectra_realm_drift > 0`, la cantidad de diferencias entre el realm de Git y el de Keycloak que empuja el CronJob `realm-drift` al Pushgateway. `RealmDriftStale`: el CronJob no empuja desde hace más de 26 horas (corre a diario), **o** el Pushgateway no tiene el grupo (`absent(push_time_seconds{job="realm-drift"})`, B13): el CronJob nunca empujó, o el Pushgateway perdió el grupo (se borró, o se perdió su volumen de persistencia en `/data/metrics`). La alerta por ausencia solo trae la etiqueta `job="realm-drift"`.
+
+**En kind**, si los CronJobs no corren (el clúster recién creado, o el CronJob suspendido), `RealmDriftStale` dispara. Es lo esperado: no hay medición.
 
 ## Impacto
 `RealmDrift`: Keycloak se configuró fuera de Git, o Git cambió y no se aplicó. `RealmDriftStale`: no hay comparación y la deriva puede pasar sin aviso.

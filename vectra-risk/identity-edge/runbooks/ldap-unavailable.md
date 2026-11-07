@@ -4,7 +4,7 @@
 - **Alerta**: `LdapUnavailable` (U2, solo prod)
 
 ## Síntoma
-`increase(vectra_ldap_connection_failures_total[5m]) > 0` durante 5 minutos: la federación LDAP de Keycloak no se conecta al LDAP del banco (F73, 636 o 443). Es una métrica de contrato que todavía no emite nada (ver `CANDIDATAS.md`); en kind y staging no hay series y la alerta no dispara.
+Un fallo de conexión en los últimos 5 minutos (`increase(vectra_ldap_connection_failures_total[5m]) > 0`) o una serie nueva del contador (`vectra_ldap_connection_failures_total > 0 unless vectra_ldap_connection_failures_total offset 5m`, el primer fallo de un contador que nace con él): la federación LDAP de Keycloak no se conecta al LDAP del banco (F73, 636 o 443). Dispara sin espera (`for` 0m, B12): un solo fallo corto basta, y el aviso dura hasta que la ventana de 5 minutos deja de verlo. Es una métrica de contrato que todavía no emite nada (ver `CANDIDATAS.md`); en kind y staging no hay series y la alerta no dispara.
 
 ## Impacto
 Los usuarios del banco que entran por LDAP no pueden iniciar sesión.

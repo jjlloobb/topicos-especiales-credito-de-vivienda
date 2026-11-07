@@ -52,6 +52,12 @@ tests:
   input_series:
   - series: 'kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="envoy-ratelimit"}'
     values: '0x8'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-a"}'
+    values: '1x8'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-b"}'
+    values: '1x8'
+  - series: 'redis_up{job="valkey",pod="valkey-a-0"}'
+    values: '1x8'
   alert_rule_test:
   - eval_time: 1m
     alertname: RateLimitBackendDown
@@ -78,6 +84,10 @@ tests:
     values: '0x8'
   - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-b"}'
     values: '0x8'
+  - series: 'kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="envoy-ratelimit"}'
+    values: '1x8'
+  - series: 'redis_up{job="valkey",pod="valkey-a-0"}'
+    values: '1x8'
   alert_rule_test:
   - eval_time: 5m
     alertname: RateLimitBackendDown
@@ -91,6 +101,12 @@ tests:
   input_series:
   - series: 'redis_up{job="valkey",instance="10.0.0.5:9121",pod="valkey-a-0"}'
     values: '0x8'
+  - series: 'kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="envoy-ratelimit"}'
+    values: '1x8'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-a"}'
+    values: '1x8'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-b"}'
+    values: '1x8'
   alert_rule_test:
   - eval_time: 5m
     alertname: RateLimitBackendDown
@@ -121,6 +137,12 @@ tests:
   input_series:
   - series: 'kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="envoy-ratelimit"}'
     values: '1 1 0 0 1 1 1 1'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-a"}'
+    values: '1x8'
+  - series: 'kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset="valkey-b"}'
+    values: '1x8'
+  - series: 'redis_up{job="valkey",pod="valkey-a-0"}'
+    values: '1x8'
   alert_rule_test:
   - eval_time: 5m
     alertname: RateLimitBackendDown
@@ -506,7 +528,7 @@ tests:
   - eval_time: 2m
     alertname: RealmDrift
     exp_alerts: []
-# RoleConflict (increase en 15m, 5m)
+# RoleConflict (increase en 15m o serie nueva, 0m; B12)
 - interval: 1m
   input_series:
   - series: 'vectra_role_conflict_total'
@@ -535,7 +557,12 @@ tests:
   alert_rule_test:
   - eval_time: 4m
     alertname: RoleConflict
-    exp_alerts: []
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: RoleConflict
+        runbook_url: identity-edge/runbooks/role-conflict.md
 - interval: 1m
   input_series:
   - series: 'vectra_role_conflict_total'
@@ -552,7 +579,7 @@ tests:
   - eval_time: 20m
     alertname: RoleConflict
     exp_alerts: []
-# LdapUnavailable (increase en 5m, 5m)
+# LdapUnavailable (increase en 5m o serie nueva, 0m; B12)
 - interval: 1m
   input_series:
   - series: 'vectra_ldap_connection_failures_total'
@@ -581,7 +608,12 @@ tests:
   alert_rule_test:
   - eval_time: 3m
     alertname: LdapUnavailable
-    exp_alerts: []
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: LdapUnavailable
+        runbook_url: identity-edge/runbooks/ldap-unavailable.md
 - interval: 1m
   input_series:
   - series: 'vectra_ldap_connection_failures_total'
@@ -609,29 +641,29 @@ tests:
 # GatewayHighLatency (p95 cliente - p95 backend > 5 ms, 15m)
 - interval: 1m
   input_series:
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="1",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="5",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="10",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="25",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="50",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="+Inf",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="1",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="5",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="10",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="25",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="50",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="+Inf",pod="envoy-0"}'
     values: '0+100x40'
   alert_rule_test:
   - eval_time: 25m
@@ -644,29 +676,29 @@ tests:
         runbook_url: identity-edge/runbooks/gateway-high-latency.md
 - interval: 1m
   input_series:
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="1",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="5",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="10",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="25",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="50",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="+Inf",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="1",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="5",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="10",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="25",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="50",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="+Inf",pod="envoy-0"}'
     values: '0+100x40'
   alert_rule_test:
   - eval_time: 10m
@@ -674,29 +706,29 @@ tests:
     exp_alerts: []
 - interval: 1m
   input_series:
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="1",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="5",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="10",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="25",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="50",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="+Inf",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="1",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="5",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="10",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="25",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="50",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="+Inf",pod="envoy-0"}'
     values: '0+100x40'
   alert_rule_test:
   - eval_time: 25m
@@ -705,29 +737,29 @@ tests:
 # GatewayHighLatency cerca del umbral: p95 cliente 9.75 ms - p95 backend 4.8 ms = 4.95 (no dispara); 24.25 - 9.75 = 14.5 (dispara)
 - interval: 1m
   input_series:
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="1",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="5",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="10",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="25",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="50",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="+Inf",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="1",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="5",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="10",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="25",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="50",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="+Inf",pod="envoy-0"}'
     values: '0+100x40'
   alert_rule_test:
   - eval_time: 25m
@@ -735,29 +767,29 @@ tests:
     exp_alerts: []
 - interval: 1m
   input_series:
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="1",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="5",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="10",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="25",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="50",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+  - series: 'envoy_http_downstream_rq_time_bucket{job="envoy-data-plane",envoy_http_conn_manager_prefix="https-10443",le="+Inf",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="1",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="1",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="5",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="5",pod="envoy-0"}'
     values: '0x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="10",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="10",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="25",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="25",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="50",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="50",pod="envoy-0"}'
     values: '0+100x40'
-  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",le="+Inf",pod="envoy-0"}'
+  - series: 'envoy_cluster_upstream_rq_time_bucket{job="envoy-data-plane",envoy_cluster_name="httproute/vectra-edge/console/rule/0",le="+Inf",pod="envoy-0"}'
     values: '0+100x40'
   alert_rule_test:
   - eval_time: 25m

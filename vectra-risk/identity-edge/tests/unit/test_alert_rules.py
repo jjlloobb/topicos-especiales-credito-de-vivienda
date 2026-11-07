@@ -1,4 +1,4 @@
-"""U02-T13 (Paso 11; CA-3): las alertas de P-U2-09 (enmienda B1-B10), sus monitores y sus runbooks.
+"""U02-T13 y U02-T17 (Paso 11; CA-3): las alertas de P-U2-09 (enmienda B1-B14), sus monitores y sus runbooks.
 
 Nombres, severidades, `for`, umbrales y ventanas se leen de la tabla de la enmienda de P-U2-09, no de literales de esta prueba. Los
 pods que los monitores deben seleccionar salen de los mismos modelos que `platform/network/tests/test_edge_selectors.py` (T12), y los
@@ -19,6 +19,7 @@ import signing_key_age
 import test_data_plane_policies as data_plane
 import test_ratelimit_deployment as ratelimit
 import theme_checks as tc
+import xds_gateway
 import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -202,6 +203,127 @@ def rule_problems(groups: Groups) -> list[str]:
             found.append('BreakGlassLogin: un login fallido tambien es event="login"; falta error=""')
         if "realm" in expr.replace("realm-", ""):
             found.append("BreakGlassLogin: B10 lo quiere en cualquier realm")
+    found += hardening_problems(rules)
+    return found
+
+
+# --- B12-B14 (U02-T17): lo que el diseno enmendado fija y las reglas deben llevar -------------------------------------------------
+
+
+def design_spans(name: str) -> list[str]:
+    """Las expresiones que la fila vigente cita entre comillas invertidas, con los espacios normalizados."""
+    return [" ".join(span.split()) for span in re.findall(r"`([^`]+)`", active_text(DESIGN[name]["expr"]))]
+
+
+def b12_branches(name: str) -> list[str]:
+    """B12: el `increase(...) > 0` y la rama de serie nueva (`X > 0 unless X offset 5m`) que la fila cita."""
+    return [s for s in design_spans(name) if "increase(" in s or "unless" in s]
+
+
+def b13_absent_spans(name: str) -> list[str]:
+    """B13: los `absent(<selector>)` concretos que la fila cita (los de `push_time_seconds`)."""
+    return [s for s in design_spans(name) if s.startswith("absent(") and s != "absent(...)"]
+
+
+def selectors(expr: str, family: str) -> list[str]:
+    return re.findall(rf"{family}\{{[^}}]*\}}", expr)
+
+
+#: El nombre de las etiquetas lo fija Envoy, no el diseno: `well_known_names.h:95` y `:91` (Envoy v1.39.5, el de Envoy Gateway v1.9.3) llaman
+#: `envoy.http_conn_manager_prefix` y `envoy.cluster_name` a los tags, y `prometheus_stats.cc` (`sanitizeName`) cambia el punto por `_`.
+PREFIX_LABEL = "envoy_http_conn_manager_prefix"
+CLUSTER_LABEL = "envoy_cluster_name"
+#: Clusters del data plane que no son de las rutas y que no vienen en la traduccion de `egctl`: los del bootstrap (`bootstrap.yaml.tpl` de v1.9.3).
+BOOTSTRAP_CLUSTERS = ("xds_cluster", "prometheus_stats")
+
+
+def _walk(node: Any):
+    if isinstance(node, dict):
+        yield node
+        for value in node.values():
+            yield from _walk(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _walk(value)
+
+
+@functools.cache
+def gateway_facts() -> dict[str, Any]:
+    """Del xDS que `egctl` v1.9.3 traduce de `identity-edge/gateway/generated/<env>/`: el `stat_prefix` del HCM del listener del `api-gateway`,
+    los clusters de sus rutas y los demas clusters (rate limit, JWKS, bootstrap). Nada de esto es un literal de esta prueba."""
+    routes = yaml.safe_load((EDGE / "gateway" / "routes.yaml").read_text(encoding="utf-8"))
+    ns, gateway, section = routes["namespace"], routes["gateway"]["name"], routes["gateway"]["section"]
+    listener_name = f"{ns}/{gateway}/{section}"
+    facts: dict[str, Any] = {"namespace": ns, "prefixes": {}, "route_clusters": {}, "other_clusters": {}}
+    for env in ENVS:
+        result = xds_gateway.translate(xds_gateway.load_dir(xds_gateway.GENERATED / env))
+        nodes = list(_walk(result["xds"]))
+        listener = next(n for n in nodes if str(n.get("@type", "")).endswith("Listener") and n.get("name") == listener_name)
+        (prefix,) = {n["statPrefix"] for n in _walk(listener) if "statPrefix" in n}
+        clusters = {n["name"] for n in nodes if str(n.get("@type", "")).endswith("Cluster")}
+        ratelimit_clusters = {n["clusterName"] for n in nodes if "clusterName" in n}
+        facts["prefixes"][env] = prefix
+        facts["route_clusters"][env] = sorted(c for c in clusters if c.startswith(f"httproute/{ns}/"))
+        facts["other_clusters"][env] = sorted((clusters | ratelimit_clusters | set(BOOTSTRAP_CLUSTERS)) - set(facts["route_clusters"][env]))
+    return facts
+
+
+def label_in(selector: str, label: str) -> tuple[str, str] | None:
+    m = re.search(rf'{label}(=~|=)"([^"]*)"', selector)
+    return (m.group(1), m.group(2)) if m else None
+
+
+def latency_problems(expr: str, facts: dict[str, Any]) -> list[str]:
+    """B14: el p95 de downstream solo del listener HTTP del `api-gateway` y el de upstream solo de los clusters de sus rutas."""
+    found: list[str] = []
+    down, up = selectors(expr, "envoy_http_downstream_rq_time_bucket"), selectors(expr, "envoy_cluster_upstream_rq_time_bucket")
+    if len(down) != 1 or len(up) != 1:
+        return [f"GatewayHighLatency: se esperaba un selector de downstream y uno de upstream y hay {len(down)} y {len(up)}"]
+    for env in ENVS:
+        match = label_in(down[0], PREFIX_LABEL)
+        if match != ("=", facts["prefixes"][env]):
+            found.append(f"GatewayHighLatency: downstream sin {PREFIX_LABEL}=\"{facts['prefixes'][env]}\" ({env}): {match}")
+        match = label_in(up[0], CLUSTER_LABEL)
+        if match is None:
+            found.append(f"GatewayHighLatency: upstream sin filtro de {CLUSTER_LABEL}")
+            continue
+        op, value = match
+        selected = (lambda name, value=value: re.fullmatch(value, name) is not None) if op == "=~" else (lambda name, value=value: name == value)
+        found += [f"GatewayHighLatency: upstream no incluye el cluster de ruta {c} ({env})" for c in facts["route_clusters"][env] if not selected(c)]
+        found += [f"GatewayHighLatency: upstream incluye el cluster ajeno {c} ({env})" for c in facts["other_clusters"][env] if selected(c)]
+    return found
+
+
+def hardening_problems(rules: dict[str, dict[str, Any]], facts: dict[str, Any] | None = None) -> list[str]:
+    """B12, B13 y B14 sobre las reglas (la tabla enmendada; el `for`, las ventanas y las familias salen de `rule_problems`)."""
+    found: list[str] = []
+    for name in ("RoleConflict", "LdapUnavailable"):
+        if name not in rules:
+            continue
+        expr = " ".join(str(rules[name]["expr"]).split())
+        branches = b12_branches(name)
+        if not any("unless" in b for b in branches) or not any("increase(" in b for b in branches):
+            found.append(f"{name}: el diseno ya no cita el increase y la rama de serie nueva (B12)")
+        found += [f"{name}: la expresion no lleva `{b}` (B12)" for b in branches if b not in expr]
+    for name in ("RealmDriftStale", "SigningKeyAgeStale"):
+        if name not in rules:
+            continue
+        expr = str(rules[name]["expr"])
+        spans = b13_absent_spans(name)
+        if not spans:
+            found.append(f"{name}: el diseno ya no cita el absent del grupo (B13)")
+        found += [f"{name}: la expresion no lleva `{s}` (B13)" for s in spans if s not in expr]
+    if "RateLimitBackendDown" in rules:
+        expr = str(rules["RateLimitBackendDown"]["expr"])
+        if "absent(" not in active_text(DESIGN["RateLimitBackendDown"]["expr"]):
+            found.append("RateLimitBackendDown: el diseno ya no pide absent (B13)")
+        replicas = selectors(expr, "kube_(?:deployment|statefulset)_status_replicas_available")
+        kinds = {r.split("_status")[0] for r in replicas}
+        if kinds != {"kube_deployment", "kube_statefulset"}:
+            found.append("RateLimitBackendDown: faltan las series del Deployment envoy-ratelimit y del StatefulSet de Valkey")
+        found += [f"RateLimitBackendDown: sin absent({r}) (B13)" for r in sorted(set(replicas)) if f"absent({r})" not in expr]
+    if "GatewayHighLatency" in rules:
+        found += latency_problems(str(rules["GatewayHighLatency"]["expr"]), facts if facts is not None else gateway_facts())
     return found
 
 
@@ -305,6 +427,26 @@ def rules_mutations() -> dict[str, Any]:
         "severidad de KeycloakMetricsDown": labels("KeycloakMetricsDown", "SEV1"),
         "runbook de KeycloakMetricsDown": edit("KeycloakMetricsDown", "annotations", "", {"summary": "x", "runbook_url": "identity-edge/runbooks/keycloak-down.md"}),
         "BreakGlassLogin solo en un realm": edit("BreakGlassLogin", "expr", 'event="login"', 'event="login",realm="vectra"'),
+        "B12: RoleConflict sin la rama de serie nueva": edit("RoleConflict", "expr", " or (vectra_role_conflict_total > 0 unless vectra_role_conflict_total offset 5m)", ""),
+        "B12: LdapUnavailable sin la rama de serie nueva": edit("LdapUnavailable", "expr", " or (vectra_ldap_connection_failures_total > 0 unless vectra_ldap_connection_failures_total offset 5m)", ""),
+        "B12: RoleConflict con otro offset": edit("RoleConflict", "expr", "offset 5m", "offset 10m"),
+        "B12: LdapUnavailable con otro offset": edit("LdapUnavailable", "expr", "offset 5m", "offset 1m"),
+        "B12: LdapUnavailable solo con la rama de serie nueva": edit("LdapUnavailable", "expr", "(increase(vectra_ldap_connection_failures_total[5m]) > 0) or ", ""),
+        "B12: RoleConflict solo con la rama de serie nueva": edit("RoleConflict", "expr", "(increase(vectra_role_conflict_total[15m]) > 0) or ", ""),
+        "B13: RateLimitBackendDown sin el absent del Deployment": edit("RateLimitBackendDown", "expr", ' or absent(kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="envoy-ratelimit"})', ""),
+        "B13: RateLimitBackendDown sin el absent del StatefulSet": edit("RateLimitBackendDown", "expr", ' or absent(kube_statefulset_status_replicas_available{namespace="vectra-edge",statefulset=~"valkey-.+"})', ""),
+        "B13: RateLimitBackendDown con el absent de otro Deployment": edit("RateLimitBackendDown", "expr", 'absent(kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="envoy-ratelimit"})', 'absent(kube_deployment_status_replicas_available{namespace="envoy-gateway-system",deployment="otro"})'),
+        "B13: RealmDriftStale sin absent": edit("RealmDriftStale", "expr", ' or absent(push_time_seconds{job="realm-drift"})', ""),
+        "B13: SigningKeyAgeStale sin absent": edit("SigningKeyAgeStale", "expr", ' or absent(push_time_seconds{job="signing-key-age"})', ""),
+        "B13: SigningKeyAgeStale con el absent de otro grupo": edit("SigningKeyAgeStale", "expr", 'absent(push_time_seconds{job="signing-key-age"})', 'absent(push_time_seconds{job="realm-drift"})'),
+        "B14: GatewayHighLatency sin filtro de listener": edit("GatewayHighLatency", "expr", ',envoy_http_conn_manager_prefix="https-10443"', ""),
+        "B14: GatewayHighLatency con el listener de estadisticas": edit("GatewayHighLatency", "expr", 'envoy_http_conn_manager_prefix="https-10443"', 'envoy_http_conn_manager_prefix="eg-stats-http"'),
+        "B14: GatewayHighLatency con el puerto de servicio en el prefijo": edit("GatewayHighLatency", "expr", "https-10443", "https-443"),
+        "B14: GatewayHighLatency sin filtro de cluster": edit("GatewayHighLatency", "expr", ',envoy_cluster_name=~"httproute/vectra-edge/.+"', ""),
+        "B14: GatewayHighLatency con todos los clusters": edit("GatewayHighLatency", "expr", 'envoy_cluster_name=~"httproute/vectra-edge/.+"', 'envoy_cluster_name=~".+"'),
+        "B14: GatewayHighLatency con el cluster del rate limit": edit("GatewayHighLatency", "expr", 'envoy_cluster_name=~"httproute/vectra-edge/.+"', 'envoy_cluster_name=~"httproute/vectra-edge/.+|ratelimit_cluster"'),
+        "B14: GatewayHighLatency con los clusters de JWKS": edit("GatewayHighLatency", "expr", 'envoy_cluster_name=~"httproute/vectra-edge/.+"', 'envoy_cluster_name=~"(httproute|securitypolicy)/vectra-edge/.+"'),
+        "B14: GatewayHighLatency con otro namespace": edit("GatewayHighLatency", "expr", 'httproute/vectra-edge/.+', 'httproute/vectra-app/.+'),
         "metrica de RoleConflict": edit("RoleConflict", "expr", "vectra_role_conflict_total", "vectra_roles_total"),
         "namespace de KeycloakDown": edit("KeycloakDown", "expr", 'namespace="vectra-identity"', 'namespace="vectra-edge"'),
         "runbook de otra alerta": edit("RealmDriftStale", "annotations", "", {"summary": "x", "runbook_url": "identity-edge/runbooks/keycloak-down.md"}),
@@ -653,6 +795,38 @@ def test_an_extra_runbook_is_detected(tmp_path):
         (tmp_path / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
     (tmp_path / "otro.md").write_text("# otro\n", encoding="utf-8")
     assert runbook_problems(tmp_path, load_groups()) != []
+
+
+def runbook_hardening_problems(folder: Path, facts: dict[str, Any] | None = None) -> list[str]:
+    """B12-B15 en los runbooks: lo que cada uno dice de la rama de serie nueva, de la alerta por ausencia, del filtro y del limite aceptado."""
+    facts = facts if facts is not None else gateway_facts()
+    required: dict[str, list[str]] = {
+        "ldap-unavailable": ["serie nueva", *b12_branches("LdapUnavailable")],
+        "role-conflict": ["serie nueva", *b12_branches("RoleConflict")],
+        "rate-limit-backend-down": ["por ausencia", "absent()", "statefulset=~", "kube-state-metrics"],
+        "realm-drift": [*b13_absent_spans("RealmDriftStale"), "En kind"],
+        "signing-key-rotation": [*b13_absent_spans("SigningKeyAgeStale"), "En kind"],
+        "gateway-high-latency": [PREFIX_LABEL, CLUSTER_LABEL, facts["prefixes"]["kind"], "ratelimit_cluster", "eg-stats-http"],
+        "break-glass-login": ["B15", "B11", "límite aceptado"],
+    }
+    found: list[str] = []
+    for name, needles in required.items():
+        path = folder / f"{name}.md"
+        text = path.read_text(encoding="utf-8") if path.is_file() else ""
+        found += [f"{name}: el runbook no dice {needle!r}" for needle in needles if needle not in text]
+    return found
+
+
+def test_the_runbooks_say_what_b12_to_b15_changed():
+    assert runbook_hardening_problems(RUNBOOKS) == []
+
+
+@pytest.mark.parametrize("name", ["ldap-unavailable", "role-conflict", "rate-limit-backend-down", "realm-drift", "signing-key-rotation", "gateway-high-latency", "break-glass-login"])
+def test_a_runbook_without_the_hardening_text_is_detected(tmp_path, name):
+    for path in RUNBOOKS.glob("*.md"):
+        text = path.read_text(encoding="utf-8")
+        (tmp_path / path.name).write_text("# vacio\n" if path.stem == name else text, encoding="utf-8")
+    assert runbook_hardening_problems(tmp_path) != []
 
 
 # --- Makefile -------------------------------------------------------------------------------------------------------------------
