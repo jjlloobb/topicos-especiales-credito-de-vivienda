@@ -279,9 +279,9 @@ COMPONENTS = yaml.safe_load((GITOPS / "components.yaml").read_text(encoding="utf
 EXPECTED_WAVES = {
     0: {"cert-manager", "trust-manager", "cloudnative-pg", "external-secrets-rbac", "external-secrets-rbac-kind", "external-secrets", "kyverno", "linkerd-crds", "linkerd-cni", "prometheus-operator-crds", "envoy-gateway", "kserve-crd", "kserve", "argo-cd", "vault"},
     1: {"mesh-certificates", "linkerd-control-plane", "kyverno-context-rbac", "kyverno-policies", "priority-classes", "namespaces", "quotas", "network", "secret-store", "secret-store-env", "verification-operator", "verify-images"},
-    2: {"postgres", "minio"},
-    3: {"grafana-secrets"},
-    4: {"observability-monitors", "kube-prometheus-stack", "loki", "tempo", "alloy", "pushgateway", "otel-collector", "observability-rules", "grafana-config", "grafana-dashboards"},
+    2: {"postgres", "minio", "valkey"},
+    3: {"grafana-secrets", "keycloak", "api-gateway", "rate-limit"},
+    4: {"identity-rules", "identity-monitors", "identity-jobs", "observability-monitors", "kube-prometheus-stack", "loki", "tempo", "alloy", "pushgateway", "otel-collector", "observability-rules", "grafana-config", "grafana-dashboards"},
     5: {"restore-drill"},
 }
 WAVES = {name: wave for wave, names in EXPECTED_WAVES.items() for name in names}
@@ -321,6 +321,58 @@ def test_directory_applications_point_at_real_manifests(env):
         for candidate in selected:
             for manifest in docs_of(candidate):
                 assert "apiVersion" in manifest and "kind" in manifest, candidate
+
+
+def resource_owners(apps: Path, repo: Path) -> dict[tuple, list[str]]:
+    """(apiVersion, kind, namespace, name) -> Applications de directorio de `apps` que lo manejan.
+
+    Argo CD no admite que dos Applications del mismo entorno manejen el mismo recurso. Los charts de Helm no se
+    expanden aqui; los directorios con Chart.yaml o kustomization.yaml tampoco.
+    """
+    owners: dict[tuple, list[str]] = {}
+    for path in sorted(apps.glob("*.yaml")):
+        document = docs_of(path)[0]
+        source = document["spec"].get("source")
+        if document["kind"] != "Application" or not source or "path" not in source:
+            continue
+        folder = repo / source["path"]
+        if (folder / "Chart.yaml").exists() or (folder / "kustomization.yaml").exists():
+            continue
+        directory = source.get("directory", {})
+        include = set(directory["include"].strip("{}").split(",")) if "include" in directory else None
+        exclude = set(directory["exclude"].strip("{}").split(",")) if "exclude" in directory else set()
+        for candidate in sorted(folder.glob("*.yaml")):
+            if candidate.name in exclude or (include is not None and candidate.name not in include):
+                continue
+            for manifest in docs_of(candidate):
+                key = (manifest["apiVersion"], manifest["kind"], manifest["metadata"].get("namespace"), manifest["metadata"]["name"])
+                owners.setdefault(key, []).append(document["metadata"]["name"])
+    return owners
+
+
+def repeated_resources(apps: Path, repo: Path) -> dict[tuple, list[str]]:
+    return {key: names for key, names in resource_owners(apps, repo).items() if len(names) > 1}
+
+
+@pytest.mark.parametrize("env", ["kind", "staging", "prod"])
+def test_no_resource_is_in_two_applications_of_an_environment(env):
+    assert repeated_resources(GITOPS / f"apps/{env}", REPO) == {}
+
+
+def test_a_repeated_service_monitor_is_found(tmp_path):
+    """Un ServiceMonitor en dos Applications del mismo entorno: Argo CD no lo admite (U02-T18)."""
+    monitor = {"apiVersion": "monitoring.coreos.com/v1", "kind": "ServiceMonitor", "metadata": {"name": "keycloak", "namespace": "vectra-identity"}}
+    apps = tmp_path / "apps"
+    apps.mkdir()
+    for name in ("keycloak", "identity-monitors"):
+        folder = tmp_path / "vectra-risk" / name
+        folder.mkdir(parents=True)
+        (folder / "m.yaml").write_text(yaml.safe_dump(monitor), encoding="utf-8")
+        application = {"apiVersion": "argoproj.io/v1alpha1", "kind": "Application", "metadata": {"name": name}, "spec": {"source": {"path": f"vectra-risk/{name}"}}}
+        (apps / f"{name}.yaml").write_text(yaml.safe_dump(application), encoding="utf-8")
+    assert repeated_resources(apps, tmp_path) == {("monitoring.coreos.com/v1", "ServiceMonitor", "vectra-identity", "keycloak"): ["identity-monitors", "keycloak"]}
+    (tmp_path / "vectra-risk/keycloak/m.yaml").write_text(yaml.safe_dump({**monitor, "metadata": {"name": "otro", "namespace": "vectra-identity"}}), encoding="utf-8")
+    assert repeated_resources(apps, tmp_path) == {}
 
 
 @pytest.mark.parametrize("env", ["kind", "staging", "prod"])

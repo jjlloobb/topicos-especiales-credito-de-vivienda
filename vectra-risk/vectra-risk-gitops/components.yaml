@@ -39,7 +39,13 @@ components:
   - { name: verification-operator, wave: 1, namespace: argocd, envs: [kind, staging], path: platform/rbac/verification-operator, include: k16.yaml }
   - { name: postgres, wave: 2, namespace: vectra-data, path: platform/data/chart, env_values: true, kind_values: [platform/data/chart/values-kind.yaml] }
   - { name: minio, wave: 2, namespace: vectra-data, repo: "https://charts.min.io", chart: minio, version: 5.4.0, values: [platform/data/minio/values.yaml], kind_values: [platform/data/minio/values-kind.yaml] }
+  # U2 (Paso 12): los directorios renderizados de identity-edge, uno por entorno (M1).
+  - { name: valkey, wave: 2, namespace: vectra-edge, path: "identity-edge/charts/valkey/rendered/{env}" }
   - { name: grafana-secrets, wave: 3, namespace: vectra-observability, path: platform/observability/grafana, include: external-secrets.yaml }
+  - { name: keycloak, wave: 3, namespace: vectra-identity, path: "identity-edge/keycloak/rendered/{env}" }
+  - { name: api-gateway, wave: 3, namespace: vectra-edge, path: "identity-edge/gateway/generated/{env}" }
+  # El servicio envoy-ratelimit lo despliega el controlador de envoy-gateway (U02-T11): aqui solo el ExternalSecret.
+  - { name: rate-limit, wave: 3, namespace: envoy-gateway-system, path: identity-edge/ratelimit, include: external-secret.yaml }
   - { name: kube-prometheus-stack, wave: 4, namespace: vectra-observability, repo: "https://prometheus-community.github.io/helm-charts", chart: kube-prometheus-stack, version: 92.17.0, values: [platform/observability/values/kube-prometheus-stack.yaml], kind_values: [platform/observability/values/kube-prometheus-stack-kind.yaml] }
   - { name: loki, wave: 4, namespace: vectra-observability, repo: "https://grafana.github.io/helm-charts", chart: loki, version: 7.5.0, values: [platform/observability/values/loki.yaml], kind_values: [platform/observability/values/loki-kind.yaml] }
   - { name: tempo, wave: 4, namespace: vectra-observability, repo: "https://grafana.github.io/helm-charts", chart: tempo-distributed, version: 1.61.3, values: [platform/observability/values/tempo.yaml], kind_values: [platform/observability/values/tempo-kind.yaml] }
@@ -50,4 +56,7 @@ components:
   - { name: observability-rules, wave: 4, namespace: vectra-observability, path: platform/observability/rules, include: platform-rules.prometheusrule.yaml }
   - { name: grafana-config, wave: 4, namespace: vectra-observability, path: platform/observability/grafana, include: manifests.yaml }
   - { name: grafana-dashboards, wave: 4, namespace: vectra-observability, path: platform/observability/dashboards }
+  - { name: identity-rules, wave: 4, namespace: vectra-observability, path: identity-edge/observability/rules, include: identity-edge-rules.prometheusrule.yaml }
+  - { name: identity-monitors, wave: 4, namespace: vectra-observability, path: identity-edge/observability/monitors, include: monitors.yaml }
+  - { name: identity-jobs, wave: 4, namespace: vectra-identity, path: "identity-edge/jobs/rendered/{env}" }
   - { name: restore-drill, wave: 5, namespace: vectra-restore-drill, path: platform/restore-drill, include: "{cronjob.yaml,configmap-{env}.yaml}" }

@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rate-limit
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '3'
+spec:
+  project: vectra-prod
+  source:
+    repoURL: https://git.banco.internal/vectra/vectra-risk.git
+    targetRevision: main
+    path: vectra-risk/identity-edge/ratelimit
+    directory:
+      include: external-secret.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: envoy-gateway-system
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true
+    - CreateNamespace=true

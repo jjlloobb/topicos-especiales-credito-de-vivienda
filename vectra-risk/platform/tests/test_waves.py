@@ -53,6 +53,17 @@ STRICT = {
     ("postgres", "restore-drill"),
     ("kserve", "decision-registry-rebuild"),
     ("decision-registry", "decision-registry-rebuild"),
+    # U2 (Paso 12). Cada par se sostiene con el contenido de identity-edge/.
+    ("namespaces", "valkey"),  # vectra-edge
+    ("namespaces", "keycloak"),  # vectra-identity
+    ("namespaces", "api-gateway"),  # vectra-edge
+    ("secret-store", "valkey"),  # ExternalSecret con vectra-store
+    ("secret-store", "keycloak"),  # tres ExternalSecret con vectra-store
+    ("secret-store", "rate-limit"),  # ExternalSecret envoy-ratelimit-valkey en envoy-gateway-system
+    ("postgres", "keycloak"),  # keycloak-db-rw.vectra-data.svc
+    ("valkey", "rate-limit"),  # envoy-ratelimit entra a Sentinel y Valkey con las credenciales de este Secret
+    ("envoy-gateway", "api-gateway"),  # CRDs gateway.envoyproxy.io y el controlador
+    ("envoy-gateway", "rate-limit"),  # el controlador crea el Deployment envoy-ratelimit
 }
 #: Basta con la misma wave: dentro de una wave Argo CD ordena por tipo y nombre y espera a que cada una este sana.
 SAME_WAVE_OK = {
@@ -62,6 +73,10 @@ SAME_WAVE_OK = {
     ("mesh-certificates", "linkerd-control-plane"),
     ("kube-prometheus-stack", "observability-rules"),
     ("kube-prometheus-stack", "grafana-config"),
+    ("kube-prometheus-stack", "identity-rules"),  # PrometheusRule evaluada por su Prometheus
+    ("kube-prometheus-stack", "identity-monitors"),  # PodMonitor recogidos por su Prometheus
+    ("pushgateway", "identity-jobs"),  # los CronJob hacen push a pushgateway.vectra-observability.svc:9091
+    ("pushgateway", "identity-rules"),  # las alertas leen vectra_realm_drift y vectra_signing_key_created_timestamp_seconds
 }
 Doc = dict[str, Any]
 

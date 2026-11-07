@@ -298,11 +298,16 @@ def test_loki_and_tempo_have_a_minio_user_with_a_scoped_policy():
 # --- Certificados y malla
 
 
+#: Emisores que no se crean en este repositorio: staging y prod usan la CA del banco, cuyo nombre se fija en la integracion
+#: (infrastructure-design de U2, §1; hasta entonces el ejemplo es `banco-ca`). El de kind (`vectra-internal-ca`) si esta aqui.
+EXTERNAL_ISSUERS = {"banco-ca"}
+
+
 def test_every_issuer_reference_exists():
     all_documents = documents()
     issuers = {d["metadata"]["name"] for d in all_documents if d["kind"] == "ClusterIssuer"}
     references = [d["spec"]["issuerRef"]["name"] for d in all_documents if d["kind"] == "Certificate" and d["spec"]["issuerRef"]["kind"] == "ClusterIssuer"]
-    assert references and set(references) <= issuers, set(references) - issuers
+    assert references and set(references) <= issuers | EXTERNAL_ISSUERS, set(references) - issuers - EXTERNAL_ISSUERS
 
 
 def test_ca_issuers_read_a_secret_that_a_certificate_creates():
@@ -420,11 +425,17 @@ def own_documents(env):
         yield from yaml.safe_load_all(path.read_text(encoding="utf-8"))
 
 
+#: Los CRDs de Gateway API vienen del chart OCI `envoy-gateway`, que esta prueba no renderiza (ver `integration.py`): U2 los valida con kubeconform.
+OCI_CRD_GROUP = "gateway.networking.k8s.io/"
+
+
 @pytest.mark.parametrize("env", ["kind"])
 def test_own_custom_resources_match_the_real_crds(env):
     schemas = crd_schemas()
     errors, checked = [], 0
     for document in own_documents(env):
+        if document["apiVersion"].startswith(OCI_CRD_GROUP):
+            continue
         schema = schemas.get((document["apiVersion"], document["kind"]))
         assert schema, f"Sin CRD para {document['apiVersion']} {document['kind']}"
         checked += 1
