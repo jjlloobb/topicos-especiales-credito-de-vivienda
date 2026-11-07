@@ -8,6 +8,7 @@ con un limite de 20 req/s (un solo contador: el script usa un solo `sub` en las 
 import base64
 import hashlib
 import json
+import secrets
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -39,6 +40,7 @@ class FakeGateway:
         self.limited_body = limited_body  # el cuerpo del 429 (None: el JSON `rate_limited`); b"" simula un 429 sin cuerpo
         self.allowed_redirects = allowed_redirects  # los redirect URI registrados del cliente (None: no se validan)
         self.redirects_seen: set[str] = set()
+        self.auth_sessions: set[str] = set()  # AUTH_SESSION_ID emitidos por el GET de autorizacion
         self.sso_hits = 0  # peticiones de autorizacion que llegaron con la cookie SSO (Keycloak las autentica solas)
         self.paths: list[str] = []
         self.lock = threading.Lock()
@@ -116,10 +118,14 @@ class FakeGateway:
                         f"?session_code=a&amp;tab_id=b&amp;challenge={query['code_challenge'][0]}"
                         f"&amp;redirect_uri={quote(redirect, safe='')}"
                     )
+                    with outer.lock:
+                        session = f"as{len(outer.auth_sessions)}-{secrets.token_hex(8)}"
+                        outer.auth_sessions.add(session)
                     return self.reply(
                         200,
                         f'<form id="kc-form-login" action="{action}" method="post"><input type="hidden" name="credentialId" value=""/></form>',
                         "text/html",
+                        (("Set-Cookie", f"AUTH_SESSION_ID={session}; Path=/auth/realms/vectra/; HttpOnly"),),
                     )
                 if parts.path.endswith("/openid-connect/certs"):
                     return self.reply(200, {"keys": [{"kid": "k", "alg": "ES256"}]})
@@ -148,6 +154,11 @@ class FakeGateway:
                 form = {k: v[0] for k, v in parse_qs(self.rfile.read(length).decode(), keep_blank_values=True).items()}
                 parts = urlsplit(self.path)
                 if "login-actions" in parts.path:
+                    # Como Keycloak: sin la cookie de sesion de autenticacion que dejo el GET de autorizacion no hay login (pagina de cookie no encontrada).
+                    cookies = {c.partition("=")[0].strip(): c.partition("=")[2].strip() for c in self.headers.get("Cookie", "").split(";")}
+                    if cookies.get("AUTH_SESSION_ID") not in outer.auth_sessions:
+                        outer.bad_requests.append("login-actions sin la cookie AUTH_SESSION_ID del GET de autorizacion")
+                        return self.reply(400, b"cookie not found", "text/html")
                     if form.get("password") != outer.password or "credentialId" not in form:
                         outer.bad_requests.append(f"login-actions: {sorted(form)}")
                     query = parse_qs(parts.query)

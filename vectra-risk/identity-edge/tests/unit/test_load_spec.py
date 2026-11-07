@@ -203,13 +203,13 @@ def test_the_redirect_uri_is_one_of_the_registered_ones(within_budget):
     assert not [b for b in gateway.bad_requests if "redirect_uri" in b]
 
 
-def test_a_relogin_in_the_same_vu_does_not_reuse_the_sso_cookie(tmp_path):
-    """R-01: tras un login Keycloak deja la cookie SSO en `/auth/realms/vectra/`; el segundo login del VU debe pedir la contrasena otra vez."""
+def _relogin(tmp_path: Path, text: str = SCRIPT_TEXT):
+    """Dos `login()` seguidos de un VU (script `text`) contra un gateway falso que modela la cookie de sesion de autenticacion y la SSO."""
     import fake_gateway_server as fg
 
     script = tmp_path / "relogin.js"
     script.write_text(
-        SCRIPT_TEXT.replace("export function setup() {", "function setup() {")  # sin llaves de servicio ni eco directo
+        text.replace("export function setup() {", "function setup() {")  # sin llaves de servicio ni eco directo
         + """
 options.scenarios = { relogin: { executor: 'per-vu-iterations', exec: 'reloginFlow', vus: 1, iterations: 1 } };
 options.thresholds = {};
@@ -229,9 +229,26 @@ export async function reloginFlow() {
             [str(ld.K6), "run", "--quiet", "--no-usage-report", str(script)], env=env, cwd=tmp_path,
             capture_output=True, text=True, check=False, timeout=60,
         )  # fmt: skip
-    assert "RELOGIN true true" in done.stdout + done.stderr, done.stdout[-800:] + done.stderr[-800:]
+    return done.stdout + done.stderr, gateway
+
+
+def test_a_relogin_in_the_same_vu_does_not_reuse_the_sso_cookie(tmp_path):
+    """R-01: tras un login Keycloak deja la cookie SSO en `/auth/realms/vectra/`; el segundo login del VU debe pedir la contrasena otra vez."""
+    output, gateway = _relogin(tmp_path)
+    assert "RELOGIN true true" in output, output[-800:]
     assert gateway.sso_hits == 0, "el segundo login llego con la cookie SSO: clear() no la borro"
     assert gateway.bad_requests == []
+
+
+# F-09: el GET de autorizacion y el POST de `login-actions` deben compartir el jar (Keycloak deja AUTH_SESSION_ID en el GET y lo exige en el POST).
+@pytest.mark.parametrize("request_name", ["GET auth", "POST login-actions"])
+def test_a_login_whose_get_and_post_do_not_share_the_jar_fails(tmp_path, request_name):
+    pattern = rf"\n\s*jar,(?=\n\s*tags: \{{ flow: 'login', name: '{request_name}' \}})"
+    mutated_text, count = re.subn(pattern, "", SCRIPT_TEXT, count=1)
+    assert count == 1 and mutated_text != SCRIPT_TEXT, f"la mutacion no encuentra el jar de {request_name!r}"
+    output, gateway = _relogin(tmp_path, mutated_text)
+    assert "RELOGIN false" in output, output[-800:]
+    assert any("AUTH_SESSION_ID" in b for b in gateway.bad_requests), gateway.bad_requests
 
 
 def test_the_two_legs_of_the_overhead_go_to_different_targets(within_budget):
