@@ -146,3 +146,4 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - el caso de la mención sangrada del Paso 14 no compara `step_13_block`, solo `plan_bullets`;
   - el plan se lee del disco en cada llamada (unas 60 veces por corrida), y `plan_bullets(text=None)` mezcla lectura y análisis. Bastan una constante de módulo y un helper de reescritura;
   - la sección «Cambio» de la ronda 1 de `bitacoras/U02-T16.md` describe el patrón `[ x]` con 8 casos.
+- Presupuesto de kind para U3 a U12 (U02-T18, M4): con U2, `test_kind_profile.py` queda en ≈ 4,97 GiB de requests de memoria contra `BUDGET_GIB = 5.0`, con Keycloak a 512 Mi solo en kind. La próxima unidad con pods en kind lo rompe. Hay que decidir el tope, el perfil o las excepciones por unidad antes de despachar su primera tarea con workloads.

@@ -223,6 +223,7 @@ vectra-risk/identity-edge/
     - **M2**: `keycloak-config-cli` queda fuera de este paso. Su Job está bloqueado (INF-U2-05a); su hook `PostSync` entra en la Application `keycloak` con su tarea propia.
     - **M3**: los CronJobs `realm-drift` y `signing-key-age` y su ConfigMap van en una Application `identity-jobs` en wave 4, después del Pushgateway.
     - **M4** (después de la ronda 1): con U2, las requests de memoria del perfil de kind superan los 5,0 GiB de `test_kind_profile.py`. Las requests de memoria de U2 se bajan solo en kind; ni el tope ni las requests de staging y prod (INF-U2-06) cambian.
+      Ampliación tras la ronda 2: Keycloak baja a 512 Mi solo en kind, y `keycloak.rego` acepta esa request únicamente en el render de kind. El margen es ≈ 0,03 GiB, así que el presupuesto de kind para U3–U12 queda como candidata.
   - Diseño: P-U1-12; INF-U2-01.
   - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`, `uv run python platform/tests/test_waves.py` y `kyverno test` de `disallow-argocd-auto-sync` sobre las Applications nuevas (revisión de consistencia entre unidades, 2026-11-01).
 

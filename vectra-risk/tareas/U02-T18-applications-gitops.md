@@ -145,3 +145,16 @@ Criterios adicionales:
   Esperado: 0 failed, y el `git diff` vacío. La bitácora trae una tabla con cada componente, su request de memoria en kind antes y después, el total del perfil y el margen que queda hasta 5,0 GiB.
 
 CA-5 y CA-6 se vuelven a correr en serie, después de CA-7.
+
+### Ampliación de M4 (2026-11-07, después de la ronda 2; decisión del usuario)
+
+En la ronda 2 el codificador se detuvo, como pedía M4. `identity-edge/keycloak/policy/keycloak.rego:343-346` fija las requests exactas de INF-U2-06 en todos los entornos. Y el recorte solo puede venir de Keycloak: Valkey y Sentinel suman 0,50 GiB, y Envoy no cuenta en `test_kind_profile.py`.
+
+- **Dentro**:
+  - la request de memoria de Keycloak baja a **512 Mi solo en kind**;
+  - `keycloak.rego` acepta esa request únicamente cuando el render es de kind. En staging y prod sigue exigiendo los valores exactos de INF-U2-06;
+  - la regla nueva lleva casos de conftest que fallan en dos situaciones: con 512 Mi en staging o en prod, y con una request de kind distinta de 512 Mi;
+  - las CPU, los limits, Valkey, Sentinel y `valkey.rego` no cambian.
+- El margen esperado es ≈ 0,03 GiB. El presupuesto de kind para U3 a U12 ya está en `CANDIDATAS.md`; no lo resuelvas aquí.
+- El rojo de cada caso nuevo de conftest va en la bitácora, sección «Ronda 3».
+- CA-7, y después CA-5 y CA-6 en serie.

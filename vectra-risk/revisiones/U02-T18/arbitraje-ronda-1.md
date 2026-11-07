@@ -16,3 +16,7 @@ El codificador no tomó ninguna de las dos salidas, y tenía razón: bajar reque
 
 - Solo M4. CA-1 a CA-5 no se reabren, salvo que M4 los rompa.
 - La tarea enmendada dice qué archivos se pueden tocar y qué se comprueba.
+
+## Ronda 2: bloqueo y ampliación de M4
+
+El codificador se detuvo sin cambios: `keycloak.rego:343-346` y `valkey.rego` fijan las requests exactas en todos los entornos, y solo Keycloak puede aportar el recorte. **El usuario amplió M4 a las políticas**: Keycloak baja a 512 Mi solo en kind, y `keycloak.rego` acepta esa request únicamente en el render de kind. El presupuesto de kind para U3–U12 pasa a `CANDIDATAS.md`.
