@@ -185,6 +185,13 @@ Con la cuenta corregida, el perfil pide 6,47 GiB con M4 y 7,47 sin M4. `kserve-c
 - `BUDGET_GIB = 8.0`, con un comentario que cita M5 y la máquina de 14 GiB.
 - `requested_gib()` cuenta también los pods de `kserve` (el chart OCI): sus réplicas y requests se leen de sus values o del chart pinneado en `platform/.charts`, con su caso de prueba y su rojo. Si no se pueden leer sin renderizar, **detente y repórtalo**.
 - M4 se mantiene (Keycloak a 512 Mi solo en kind).
-- C-03, el sobrecompromiso de Keycloak en kind (512 Mi de request y 2 Gi de limit), queda como límite aceptado. El runbook de Keycloak de U2 que trata la capacidad o el arranque, o en su defecto `identity-edge/docs/`, dice que en kind Keycloak es el primer candidato a desalojo cuando hay presión de memoria.
+- C-03, el sobrecompromiso de Keycloak en kind (512 Mi de request y 2 Gi de limit), queda como límite aceptado. El runbook de Keycloak de U2 que trata la capacidad o el arranque, o en su defecto `identity-edge/docs/`, ~~dice que en kind Keycloak es el primer candidato a desalojo cuando hay presión de memoria~~ (corregido después de la ronda 5, F-02: era falso) dice que, en kind, Keycloak usa más que su request (512 Mi, con 2 Gi de limit) y por eso, si hay presión de memoria, entra en el grupo que el kubelet puede desalojar. Por su prioridad `vectra-high`, antes que él caen los pods de U1 que no tienen request ni prioridad.
 - La bitácora (sección «Ronda 5») trae el total final y el margen hasta 8,0 GiB.
 - Se corren CA-7, y luego CA-5 y CA-6 en serie. Todos en verde.
+
+### Cierre después de la ronda 5 (2026-11-07, decisión del usuario)
+
+La ronda 5 salió NO-VERDE (`revisiones/U02-T18/ronda-5.md`) y ya pasó el tope de 2 rondas de la ruta demo. El usuario decidió:
+- **F-02**, que era un error de esta especificación: una ronda mínima que **solo** corrige la frase de `identity-edge/runbooks/keycloak-down.md` según el texto enmendado de C-03, más arriba. No cambia nada más.
+- **F-01, F-03 y las candidatas del margen**: pasan a la tarea de U1 para kind-demo (RD5 de `ruta-demo/README.md`), que rehace el presupuesto con el uso real.
+- Criterios de la ronda: `uv run python platform/tests/test_runbooks.py --root identity-edge`, `uv run python platform/tests/test_links.py` y `git diff 49db24b --stat`, que solo debe mostrar el runbook y la bitácora.

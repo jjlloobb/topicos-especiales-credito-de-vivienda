@@ -159,3 +159,9 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - C-01: ninguna Application crea el `ClusterIssuer` `banco-ca` de staging y prod, y `EXTERNAL_ISSUERS` lo oculta. Decidir quién lo instala (lo provee el banco o lo instala U1) y comprobarlo antes de sincronizar staging;
   - C-05: omitir el grupo `gateway.networking.k8s.io` en `test_integration.py` también deja sin validar el `BackendTLSPolicy` de la Application `keycloak`;
   - C-07: `resource_owners` reimplementa la selección `include`/`exclude` de `integration.directory_docs`.
+- Para la tarea de kind-demo de U1 (RD5), desde la ronda 5 de U02-T18:
+  - F-01: `test_kind_profile.py` no lee `envoy-gateway-kind.yaml`, el `rateLimitHpa.minReplicas` ni `platform/operators/kserve.yaml`;
+  - F-03: la aserción de `test_the_real_count_includes_what_the_old_count_left_out` es débil;
+  - no cuenta los sidecars nativos (`initContainers` con `restartPolicy: Always`) ni el `config-reloader` del operador de Prometheus (≈ 0,10 GiB), ni los Jobs y CronJobs (≈ 0,6 GiB a las 03:00);
+  - los 15 pods BestEffort de U1 cuentan 0;
+  - el DaemonSet se cuenta × 2 fijo.

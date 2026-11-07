@@ -28,3 +28,7 @@ C-02, comprobado por el orquestador: `test_kind_profile.py` no cuenta el `minRep
 ## Ronda 4: la cifra real y M5
 
 La cuenta corregida da 6,47 GiB con M4 y 7,47 sin M4, más ≈ 0,59 GiB de `kserve` todavía sin contar. **El usuario decidió M5**: tope de 8,0 GiB, contar `kserve`, mantener M4 y aceptar como límite el sobrecompromiso de Keycloak en kind (C-03). Esto lo hace la ronda 5.
+
+## Ronda 5: NO-VERDE y cierre
+
+F-01 (capas de values que la cuenta no lee) y F-02 (la frase del desalojo es falsa; el error era de la especificación). Ya pasado el tope, **el usuario decidió** una ronda mínima solo para F-02, y que F-01, F-03 y las candidatas del margen pasen a la tarea de kind-demo de U1 (RD5).
