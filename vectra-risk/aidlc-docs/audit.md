@@ -5963,3 +5963,11 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **User Input**: "Tope 8 GiB, M4 y kserve (Recommended)"
 **AI Response**: Con la cuenta corregida (ronda 4), el perfil de kind pide 6,47 GiB con M4 y 7,47 sin M4, sin contar todavía `kserve` (≈ 0,59). El usuario decidió M5: `BUDGET_GIB = 8.0`, contar `kserve`, mantener M4 y aceptar como límite el sobrecompromiso de Keycloak en kind. Para U3 a U12 quedan ≈ 0,95 GiB. Se despacha la ronda 5.
 **Context**: Construcción de U2, U02-T18.
+
+---
+
+## U02-T18: ronda 6 VERDE
+**Timestamp**: 2026-11-07T20:07:08Z
+**User Input**: (ninguno nuevo)
+**AI Response**: La ronda 6 de U02-T18 (solo F-02) salió VERDE con dos AMARILLO, que pasan a `CANDIDATAS.md`. Se fusiona `main` en la rama y el PR 75 queda en revisión humana.
+**Context**: Construcción de U2, U02-T18.

@@ -165,3 +165,5 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - no cuenta los sidecars nativos (`initContainers` con `restartPolicy: Always`) ni el `config-reloader` del operador de Prometheus (≈ 0,10 GiB), ni los Jobs y CronJobs (≈ 0,6 GiB a las 03:00);
   - los 15 pods BestEffort de U1 cuentan 0;
   - el DaemonSet se cuenta × 2 fijo.
+- Para la tarea de kind-demo de U1 (RD5): medir el working set de Keycloak al arrancar en kind. El runbook `keycloak-down` dice que «arranca usando más que su request», pero nadie lo ha medido (F-02 de la ronda 6 de U02-T18).
+- Higiene del loop, F-01 de la ronda 6 de U02-T18: un criterio de diff de la tarea debe partir de la base del codificador, no de un commit anterior a los del orquestador.
