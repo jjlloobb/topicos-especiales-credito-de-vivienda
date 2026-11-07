@@ -6,3 +6,8 @@ vectra:
   publicHostname: vectra.localtest.me
   tls:
     issuerRef: { name: vectra-internal-ca, kind: ClusterIssuer }
+# kind (M4): solo la request de memoria baja a 512Mi para que el perfil de kind quepa en 5 GiB (staging y prod: 1Gi, INF-U2-06).
+# CPU y limits no cambian; `-XX:MaxRAMPercentage=70` se calcula sobre el limit de 2Gi.
+resources:
+  requests:
+    memory: 512Mi

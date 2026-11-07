@@ -556,6 +556,28 @@ def test_staging_with_the_kind_issuer_fails():
     assert code != 0 and "issuer-per-environment: " in output
 
 
+def _request_memory(env: str, value: str) -> tuple[int, str]:
+    docs = kd.load(env)
+    _sts_set(["spec", "template", "spec", "containers", 0, "resources", "requests", "memory"], value)(docs)
+    return kd.conftest(docs)
+
+
+@pytest.mark.parametrize("env", ["staging", "prod"])
+def test_m4_512mi_request_fails_outside_kind(env):
+    code, output = _request_memory(env, "512Mi")
+    assert code != 0 and "resources: " in output
+
+
+@pytest.mark.parametrize("value", ["1Gi", "256Mi", "768Mi"])
+def test_m4_kind_request_other_than_512mi_fails(value):
+    code, output = _request_memory("kind", value)
+    assert code != 0 and "resources: " in output
+
+
+def test_m4_kind_with_512mi_passes():
+    assert _request_memory("kind", "512Mi")[0] == 0
+
+
 @pytest.mark.parametrize("env", ["kind", "staging"])
 def test_a_rule_also_fails_in_other_environments(env):
     docs = kd.load(env)
@@ -585,7 +607,10 @@ def test_design_hostnames(env):
 @pytest.mark.parametrize("env", kd.ENVS)
 def test_design_resources(env):
     docs = kd.load(env)
-    assert _container(docs)["resources"] == kd.design_keycloak_resources()
+    expected = copy.deepcopy(kd.design_keycloak_resources())
+    if env == "kind":
+        expected["requests"]["memory"] = "512Mi"  # M4 (U02-T18): solo kind; INF-U2-06 dice 1 GiB
+    assert _container(docs)["resources"] == expected
     assert kd.container_env(docs)["JAVA_OPTS_APPEND"]["value"] == kd.design_max_ram_percentage()
 
 

@@ -340,10 +340,18 @@ probe_on_management_port(probe) if {
 }
 
 # regla: resources
+# M4 (U02-T18): solo el render de kind (su hostname publico) pide 512Mi de memoria, para que el perfil de kind quepa en 5 GiB.
+# Staging y prod siguen exactos segun INF-U2-06; CPU y limits son los mismos en los tres.
+kind_public_hostname := "https://vectra.localtest.me/auth"
+
+request_memory := "512Mi" if {
+	env_of("KC_HOSTNAME") == kind_public_hostname
+} else := "1Gi"
+
 deny contains msg if {
 	is_keycloak_statefulset
-	container.resources != {"requests": {"cpu": "500m", "memory": "1Gi"}, "limits": {"cpu": "2", "memory": "2Gi"}}
-	msg := "resources: INF-U2-06 fija 500m / 1 GiB de requests y 2 CPU / 2 GiB de limits"
+	container.resources != {"requests": {"cpu": "500m", "memory": request_memory}, "limits": {"cpu": "2", "memory": "2Gi"}}
+	msg := "resources: INF-U2-06 fija 500m / 1 GiB de requests y 2 CPU / 2 GiB de limits; solo en kind (M4) la request de memoria es 512 Mi"
 }
 
 # regla: priority

@@ -321,7 +321,7 @@ spec:
               memory: 2Gi
             requests:
               cpu: 500m
-              memory: 1Gi
+              memory: 512Mi
           volumeMounts:
             - name: tls
               mountPath: /etc/x509/https
