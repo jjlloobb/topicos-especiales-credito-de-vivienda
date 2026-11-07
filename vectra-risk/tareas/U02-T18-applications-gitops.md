@@ -177,3 +177,14 @@ El usuario decidió **corregir primero la cuenta** y decidir el presupuesto desp
 - **No cambian**: `BUDGET_GIB`, M4 (Keycloak a 512 Mi en kind y `keycloak.rego`) ni ningún value. Si la cuenta corregida supera los 5,0 GiB, `test_the_profile_requests_fit_the_budget` queda **en rojo, sin `xfail`**. Reporta la cifra y detente: el presupuesto lo decide el usuario.
 - **Bitácora**: una tabla por componente, con las réplicas contadas, la request por pod y el total, dos veces: con M4 (Keycloak a 512 Mi) y sin M4 (a 1 Gi).
 - Se corren otra vez CA-4, CA-5 y CA-7. CA-6 queda en rojo si la cuenta lo dice, y la bitácora lo explica.
+
+### Presupuesto de kind (2026-11-07, después de la ronda 4; decisión M5 del usuario)
+
+Con la cuenta corregida, el perfil pide 6,47 GiB con M4 y 7,47 sin M4. `kserve-controller-manager` (≈ 0,59 GiB) todavía no se cuenta. **M5**:
+
+- `BUDGET_GIB = 8.0`, con un comentario que cita M5 y la máquina de 14 GiB.
+- `requested_gib()` cuenta también los pods de `kserve` (el chart OCI): sus réplicas y requests se leen de sus values o del chart pinneado en `platform/.charts`, con su caso de prueba y su rojo. Si no se pueden leer sin renderizar, **detente y repórtalo**.
+- M4 se mantiene (Keycloak a 512 Mi solo en kind).
+- C-03, el sobrecompromiso de Keycloak en kind (512 Mi de request y 2 Gi de limit), queda como límite aceptado. El runbook de Keycloak de U2 que trata la capacidad o el arranque, o en su defecto `identity-edge/docs/`, dice que en kind Keycloak es el primer candidato a desalojo cuando hay presión de memoria.
+- La bitácora (sección «Ronda 5») trae el total final y el margen hasta 8,0 GiB.
+- Se corren CA-7, y luego CA-5 y CA-6 en serie. Todos en verde.

@@ -24,3 +24,7 @@ El codificador se detuvo sin cambios: `keycloak.rego:343-346` y `valkey.rego` fi
 ## Después de la revisión de código del PR 75
 
 C-02, comprobado por el orquestador: `test_kind_profile.py` no cuenta el `minReplicas` del HPA ni los pods del controlador de Envoy Gateway, así que el «cabe» de M4 no es real. **El usuario decidió corregir primero la cuenta (ronda 4) y decidir el presupuesto con la cifra real.** C-01, C-03 y C-05 a C-07 quedan en la revisión. Con el presupuesto se decide C-03 (el sobrecompromiso de Keycloak); los demás pasan a `CANDIDATAS.md`.
+
+## Ronda 4: la cifra real y M5
+
+La cuenta corregida da 6,47 GiB con M4 y 7,47 sin M4, más ≈ 0,59 GiB de `kserve` todavía sin contar. **El usuario decidió M5**: tope de 8,0 GiB, contar `kserve`, mantener M4 y aceptar como límite el sobrecompromiso de Keycloak en kind (C-03). Esto lo hace la ronda 5.

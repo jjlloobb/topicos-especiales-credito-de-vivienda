@@ -5955,3 +5955,11 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **User Input**: PR 75: "Arreglar la cuenta, luego decidir (Recommended)"
 **AI Response**: Se enmienda U02-T18. `requested_gib()` debe contar el `minReplicas` del HPA, los pods del `EnvoyProxy`, `envoy-ratelimit` y el controlador de Envoy Gateway. No cambian `BUDGET_GIB` ni M4. Si la cifra real supera los 5,0 GiB, la prueba queda en rojo y el usuario decide el presupuesto. C-01, C-05 y C-07 de la revisión pasan a `CANDIDATAS.md`.
 **Context**: Construcción de U2, U02-T18.
+
+---
+
+## U02-T18: cifra real del perfil de kind y decisión M5
+**Timestamp**: 2026-11-07T18:35:28Z
+**User Input**: "Tope 8 GiB, M4 y kserve (Recommended)"
+**AI Response**: Con la cuenta corregida (ronda 4), el perfil de kind pide 6,47 GiB con M4 y 7,47 sin M4, sin contar todavía `kserve` (≈ 0,59). El usuario decidió M5: `BUDGET_GIB = 8.0`, contar `kserve`, mantener M4 y aceptar como límite el sobrecompromiso de Keycloak en kind. Para U3 a U12 quedan ≈ 0,95 GiB. Se despacha la ronda 5.
+**Context**: Construcción de U2, U02-T18.
