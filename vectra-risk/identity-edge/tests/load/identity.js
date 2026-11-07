@@ -64,7 +64,8 @@ const CONSOLE_PATH = '/api/console/v1/load';
 const OVERHEAD_PATH = '/api/console/v1/overhead';
 // El redirect URI de `vectra-console` registrado en el realm es `https://<PUBLIC_HOSTNAME>/callback`: sin puerto, sin ruta y siempre https,
 // aunque K6_BASE_URL lleve un puerto (port-forward) o sea http. El script nunca lo sigue: solo tiene que coincidir con el registrado.
-const REDIRECT_URI = `https://${BASE_URL.replace(/^https?:\/\//, '').replace(/[:/].*$/, '')}/callback`;
+const PUBLIC_ORIGIN = `https://${BASE_URL.replace(/^https?:\/\//, '').replace(/[:/].*$/, '')}`;
+const REDIRECT_URI = `${PUBLIC_ORIGIN}/callback`;
 
 const consoleOk = new Counter('console_ok');
 const consoleRateLimited = new Counter('console_rate_limited');
@@ -247,13 +248,18 @@ function refresh(session) {
 }
 
 const sessions = {}; // por VU: el contexto de un VU persiste entre iteraciones
+const retryNotBefore = {}; // por VU y usuario: hasta cuando no se vuelve a intentar un login que acaba de fallar
+const LOGIN_BACKOFF_S = 30; // un login son 3 peticiones y /auth/** admite 10/s por IP: sin espera, un 5xx pasajero agota el limite
 
-// El token vigente de `username`: lo renueva con el refresh token y, si eso falla, vuelve a hacer login.
+// El token vigente de `username`: lo renueva con el refresh token y, si eso falla, vuelve a hacer login. Si el login tambien falla,
+// no vuelve a intentarlo hasta pasados LOGIN_BACKOFF_S (mientras tanto devuelve null sin tocar la red).
 async function accessToken(username) {
   const current = sessions[username];
   if (current && Date.now() < current.renewAt) return current.accessToken;
+  if (Date.now() < (retryNotBefore[username] || 0)) return null;
   const next = (current ? refresh(current) : null) || (await login(username));
   sessions[username] = next;
+  if (!next) retryNotBefore[username] = Date.now() + LOGIN_BACKOFF_S * 1000;
   return next ? next.accessToken : null;
 }
 
@@ -297,7 +303,8 @@ async function clientAssertion(client) {
   }
   const b64 = (value) => encoding.b64encode(JSON.stringify(value), 'rawurl');
   const now = Math.floor(Date.now() / 1000);
-  const url = `${BASE_URL}${OIDC}/token`;
+  // El `aud` es el issuer publico del realm (el mismo origen que el redirect URI), no el `K6_BASE_URL` del port-forward, que lleva puerto.
+  const url = `${PUBLIC_ORIGIN}${OIDC}/token`;
   const signingInput = `${b64({ alg: 'ES256', typ: 'JWT' })}.${b64({
     iss: client, sub: client, aud: url, jti: randomUrlSafe(16), iat: now, exp: now + 60,
   })}`;

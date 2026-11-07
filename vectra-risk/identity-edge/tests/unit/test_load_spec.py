@@ -152,8 +152,10 @@ def _run_load(tmp_path: Path, delay_s: float) -> dict:
     limit, retry = int(ld.console_limit_per_second()), ld.console_retry_after()
     # El cliente `vectra-console` solo tiene registrados los redirect URI del realm (https, sin puerto): como Keycloak, el falso los exige.
     registered = ld.console_redirect_uris("127.0.0.1")
+    # C-05: el `aud` de `private_key_jwt` es el issuer publico (https, sin puerto), no el `K6_BASE_URL` del port-forward (que lleva puerto).
+    audience = "https://127.0.0.1/auth/realms/vectra/protocol/openid-connect/token"
     with (
-        fg.FakeGateway(public, "pw-de-carga", limit, retry, delay_s, None, registered) as gateway,
+        fg.FakeGateway(public, "pw-de-carga", limit, retry, delay_s, None, registered, audience) as gateway,
         fg.FakeGateway(public, "pw-de-carga", limit, retry) as direct,
     ):
         env = {
@@ -201,6 +203,44 @@ def test_the_redirect_uri_is_one_of_the_registered_ones(within_budget):
     assert gateway.redirects_seen, "el script no mando ningun redirect_uri"
     assert gateway.redirects_seen <= ld.console_redirect_uris("127.0.0.1"), gateway.redirects_seen
     assert not [b for b in gateway.bad_requests if "redirect_uri" in b]
+
+
+def _login_storm(tmp_path: Path, failure: int | None) -> tuple[str, "object"]:
+    """C-02: un VU pide el token 30 veces seguidas (como las iteraciones de `console-burst`); el canje del codigo falla con `failure`."""
+    import fake_gateway_server as fg
+
+    script = tmp_path / "storm.js"
+    script.write_text(
+        SCRIPT_TEXT.replace("export function setup() {", "function setup() {")
+        + """
+options.scenarios = { storm: { executor: 'per-vu-iterations', exec: 'stormFlow', vus: 1, iterations: 1 } };
+options.thresholds = {};
+export async function stormFlow() {
+  let tokens = 0;
+  for (let i = 0; i < 30; i++) if ((await accessToken('load-001')) !== null) tokens++;
+  console.log(`STORM ${tokens}`);
+}
+""",
+        encoding="utf-8",
+    )
+    with fg.FakeGateway({}, "pw-de-carga", 20, "1", allowed_redirects=ld.console_redirect_uris("127.0.0.1"), token_failure=failure) as gateway:
+        env = {**os.environ, "K6_BASE_URL": gateway.url, "K6_LOAD_PASSWORD": "pw-de-carga"}
+        done = subprocess.run(  # noqa: S603
+            [str(ld.K6), "run", "--quiet", "--no-usage-report", str(script)], env=env, cwd=tmp_path,
+            capture_output=True, text=True, check=False, timeout=60,
+        )  # fmt: skip
+    return done.stdout + done.stderr, gateway
+
+
+def test_a_failing_login_is_not_retried_on_every_iteration(tmp_path):
+    output, gateway = _login_storm(tmp_path, 503)
+    assert "STORM 0" in output, output[-800:]
+    assert gateway.auth_gets <= 1, f"{gateway.auth_gets} logins en 30 iteraciones con el token caido: sin espera entre intentos"
+
+
+def test_a_healthy_login_is_not_throttled(tmp_path):
+    output, gateway = _login_storm(tmp_path, None)
+    assert "STORM 30" in output and gateway.auth_gets == 1, (output[-400:], gateway.auth_gets)
 
 
 def _relogin(tmp_path: Path, text: str = SCRIPT_TEXT):

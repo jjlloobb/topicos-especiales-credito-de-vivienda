@@ -33,6 +33,8 @@ class FakeGateway:
         overhead_delay_s: float = 0.0,
         limited_body: bytes | None = None,
         allowed_redirects: set[str] | None = None,
+        allowed_audience: str | None = None,
+        token_failure: int | None = None,
     ) -> None:
         self.public_keys, self.password, self.limit, self.retry_after = public_keys, password, limit, retry_after
         self.overhead_delay_s = overhead_delay_s  # espera antes de contestar /overhead: simula el sobrecosto de un tramo
@@ -40,6 +42,9 @@ class FakeGateway:
         self.limited_body = limited_body  # el cuerpo del 429 (None: el JSON `rate_limited`); b"" simula un 429 sin cuerpo
         self.allowed_redirects = allowed_redirects  # los redirect URI registrados del cliente (None: no se validan)
         self.redirects_seen: set[str] = set()
+        self.allowed_audience = allowed_audience  # el `aud` que acepta `private_key_jwt` (None: cualquiera del endpoint de token)
+        self.token_failure = token_failure  # estado HTTP (p. ej. 503) con el que falla el canje del codigo; None: no falla
+        self.auth_gets = 0  # GET de autorizacion recibidos = intentos de login
         self.auth_sessions: set[str] = set()  # AUTH_SESSION_ID emitidos por el GET de autorizacion
         self.sso_hits = 0  # peticiones de autorizacion que llegaron con la cookie SSO (Keycloak las autentica solas)
         self.paths: list[str] = []
@@ -119,6 +124,7 @@ class FakeGateway:
                         f"&amp;redirect_uri={quote(redirect, safe='')}"
                     )
                     with outer.lock:
+                        outer.auth_gets += 1
                         session = f"as{len(outer.auth_sessions)}-{secrets.token_hex(8)}"
                         outer.auth_sessions.add(session)
                     return self.reply(
@@ -177,6 +183,8 @@ class FakeGateway:
             def token(self, form: dict[str, str]) -> None:
                 grant = form.get("grant_type")
                 if grant == "authorization_code":
+                    if outer.token_failure is not None:
+                        return self.reply(outer.token_failure, {"error": "temporarily_unavailable"})
                     challenge = outer.codes.pop(form.get("code", ""), None)
                     outer.check_redirect(form.get("redirect_uri", ""))
                     if outer.redirects.get(form.get("code", "")) != form.get("redirect_uri"):
@@ -207,6 +215,7 @@ class FakeGateway:
                 valid = (
                     head.get("alg") == "ES256" and claims["iss"] == claims["sub"] == client and claims["exp"] > claims["iat"]
                     and claims["aud"].endswith("/openid-connect/token") and len(raw) == 64
+                    and (outer.allowed_audience is None or claims["aud"] == outer.allowed_audience)
                 )  # fmt: skip
                 if valid:
                     r, s = int.from_bytes(raw[:32], "big"), int.from_bytes(raw[32:], "big")

@@ -1,7 +1,8 @@
 """Un Admin API de Keycloak falso para los usuarios de carga (U02-T15, CA-4), sin red.
 
 Sirve por `httpx.MockTransport` solo lo que usa `seed_users.py`: token de `admin-cli`, usuarios, roles del realm y reinicio de
-contrasena. Los roles salen del realm de kind. Anota cada peticion para comprobar la idempotencia.
+contrasena. Los roles salen del realm de kind. `reset-password` modela `passwordHistory(N)` como Keycloak 26.8.1
+(`HistoryPasswordPolicyProvider.validate`, lineas 56-64 y 66-77): rechaza con 400 la contrasena vigente y las N-1 anteriores. Anota cada peticion para comprobar la idempotencia.
 """
 
 import json
@@ -21,6 +22,8 @@ class FakeAdmin:
         self.users: dict[str, dict[str, Any]] = {}  # id -> usuario
         self.mapped: dict[str, list[str]] = {}  # id -> roles
         self.passwords: dict[str, str] = {}
+        self.history: dict[str, list[str]] = {}  # contrasenas anteriores, la mas reciente al final
+        self.history_size = 5  # passwordHistory(5) del realm de kind
         self.requests: list[tuple[str, str]] = []
 
     def client(self) -> httpx.Client:
@@ -77,10 +80,16 @@ class FakeAdmin:
                 self.mapped[user_id] += [r["name"] for r in body if r["name"] not in self.mapped[user_id]]
                 return httpx.Response(204)
             if tail == "reset-password" and method == "PUT":
+                current, recent = self.passwords.get(user_id), self.history.get(user_id, [])
+                if body["value"] == current or body["value"] in recent[len(recent) - (self.history_size - 1) :]:
+                    return httpx.Response(400, json={"error": "invalidPasswordHistoryMessage"})
+                if current is not None:
+                    self.history.setdefault(user_id, []).append(current)
                 self.passwords[user_id] = body["value"]
                 return httpx.Response(204)
             if tail == "" and method == "DELETE":
                 del self.users[user_id], self.mapped[user_id]
                 self.passwords.pop(user_id, None)
+                self.history.pop(user_id, None)
                 return httpx.Response(204)
         raise AssertionError(f"ruta desconocida: {method} {path}")

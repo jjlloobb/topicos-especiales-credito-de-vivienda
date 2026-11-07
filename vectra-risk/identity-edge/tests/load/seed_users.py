@@ -7,7 +7,8 @@ Solo para kind: no van al realm versionado. Lo ejecuta el operador en el Paso 16
 
 Los usuarios no tienen credencial OTP ni acciones requeridas, y llevan `LOAD_ROLE`: un rol al que BR-U2-03 no exige MFA y cuyo
 subflujo del realm (`vectra-mfa-<rol>`) lleva `conditional-user-configured`, asi que entra con la contrasena sola. Es idempotente:
-una segunda corrida no crea usuarios, corrige el rol y repone la contrasena. `delete` solo toca los nombres `load-NNN`.
+una segunda corrida borra y vuelve a crear cada `load-NNN` (con `passwordHistory(5)` Keycloak no deja reponer la misma contrasena, y asi
+tampoco quedan bloqueos, acciones pendientes ni OTP); el resultado es el mismo conjunto de usuarios. `delete` solo toca los nombres `load-NNN`.
 """
 
 import argparse
@@ -72,19 +73,18 @@ class Seeder:
     def create(self, count: int = DEFAULT_COUNT) -> None:
         role = self._call("GET", f"/roles/{LOAD_ROLE}", (200,)).json()
         for username in self.names(count):
-            user_id = self._find(username)
-            if user_id is None:
-                body = {
-                    "username": username, "enabled": True, "emailVerified": False, "requiredActions": [],
-                    "credentials": [{"type": "password", "value": self.load_password, "temporary": False}],
-                }  # fmt: skip
-                created = self._call("POST", "/users", (201,), json=body)
-                user_id = created.headers["location"].rsplit("/", 1)[1]
-            else:
-                self._call(
-                    "PUT", f"/users/{user_id}/reset-password", (204,),
-                    json={"type": "password", "value": self.load_password, "temporary": False},
-                )  # fmt: skip
+            existing = self._find(username)
+            if existing is not None:
+                # Keycloak 26.8.1 rechaza con 400 reusar la contrasena vigente (passwordHistory(5), HistoryPasswordPolicyProvider.validate
+                # lineas 56-64), asi que no se puede "reponer" la misma contrasena; ademas un usuario viejo puede estar bloqueado, con
+                # acciones pendientes u OTP. Se borra y se vuelve a crear: sin historial ni residuos.
+                self._call("DELETE", f"/users/{existing}", (204,))
+            body = {
+                "username": username, "enabled": True, "emailVerified": False, "requiredActions": [],
+                "credentials": [{"type": "password", "value": self.load_password, "temporary": False}],
+            }  # fmt: skip
+            created = self._call("POST", "/users", (201,), json=body)
+            user_id = created.headers["location"].rsplit("/", 1)[1]
             mapped = self._call("GET", f"/users/{user_id}/role-mappings/realm", (200,)).json()
             if LOAD_ROLE not in {r["name"] for r in mapped}:
                 self._call("POST", f"/users/{user_id}/role-mappings/realm", (204,), json=[role])

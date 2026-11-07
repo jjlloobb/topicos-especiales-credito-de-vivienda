@@ -1,0 +1,4 @@
+C-01: Corregido: Keycloak 26.8.1 rechaza reusar la contrasena vigente (HistoryPasswordPolicyProvider.java:56-64, y N-1 anteriores :66-77; reset-password devuelve 400, UserResource.resetPassword); `create` borra y recrea el usuario existente. FakeAdmin modela el historial. Rojo y verde en la bitacora (Ronda 5).
+C-02: Corregido: `accessToken` espera LOGIN_BACKOFF_S=30 tras un fallo de refresh+login; prueba con el gateway falso devolviendo 503: 30 logins antes, <=1 despues; un login sano no se frena.
+C-03: Corregido: el usuario existente se recrea (enabled true, sin requiredActions, sin OTP, rol y contrasena); FakeAdmin lo comprueba con un usuario contaminado.
+C-05: Corregido: el `aud` sale de PUBLIC_ORIGIN (https, sin puerto), igual que REDIRECT_URI; el gateway falso exige ese aud y la prueba usa un BASE_URL con puerto.
