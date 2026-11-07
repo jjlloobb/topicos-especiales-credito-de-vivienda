@@ -5977,3 +5977,11 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
   - **Loop**: tope de 2 rondas; en la tercera se para y se lleva al usuario. Sin `/code-review` extra después del VERDE.
 - Se clasifican los pasos de U3–U12 (DEMO, DEMO-RECORTADO, DIFERIDO; marcas EXT y DEP) para que el usuario los apruebe. Los pasos que exigen una extensión activa (EXT) solo se difieren con decisión explícita del usuario. La restricción de alcance de U3–U12 se levanta cuando el usuario apruebe la ruta.
 **Context**: Construcción, ruta demo.
+
+---
+
+## Ruta demo: clasificación y decisiones RD1 a RD4
+**Timestamp**: 2026-11-07T19:35:47Z
+**User Input**: "Excepción solo en kind (Recommended)"; "2 instancias en kind (Recommended)"; "Sí, en bloque (Recommended)"; "Seed de demo + RT-2 con 1 versión (Recommended)"
+**AI Response**: Se clasificaron los 193 pasos de U3 a U12 (`construction/plans/ruta-demo/`). El usuario decidió RD1 (excepción de Kyverno solo en kind), RD2 (`registry-db` con 2 instancias en kind), RD3 (diferidos EXT en bloque) y RD4 (seed de demo y RT-2 con 1 versión). Se levanta la restricción de alcance de U3 a U12 bajo la ruta demo. Las comprobaciones pendientes quedan en `ruta-demo/README.md`.
+**Context**: Construcción, ruta demo.
