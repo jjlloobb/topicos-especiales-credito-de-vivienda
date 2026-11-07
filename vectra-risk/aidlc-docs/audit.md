@@ -5946,3 +5946,11 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **Context**: Construcción de U2, U02-T15.
 
 ---
+
+---
+
+## U02-T15: ronda 4 VERDE
+**Timestamp**: 2026-11-07T16:46:29Z
+**User Input**: (ninguno nuevo; ronda 4 acotada a F-09 por decisión previa del usuario)
+**AI Response**: La ronda 4 de U02-T15 sale VERDE: F-09 cerrado, con R01a a R01d muertas y el control FG0. Hay dos AMARILLO (F-11 y F-12), que pasan a `CANDIDATAS.md`. Se fusiona `origin/main` en la rama para quitar los conflictos del PR 72, que queda en revisión humana.
+**Context**: Construcción de U2, U02-T15.

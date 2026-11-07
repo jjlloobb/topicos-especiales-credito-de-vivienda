@@ -138,3 +138,6 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - R-10: `_max_vu_growth_per_second` en `load_checks.py` divide sin guarda, y el chequeo de J5 ignora los 2 hits por login y los logins de `burst` y `overhead`.
 - Higiene del loop: en U02-T16 ronda 3, el codificador y el revisor usaron el mismo subdirectorio del scratchpad (`U02-T16-r3/`), y el codificador sobrescribió la copia con la que había hecho su rojo. Fijar en cada despacho un subdirectorio distinto por papel y ronda (revisor, U02-T16, ronda 3).
 - `identity-edge/tests/load/identity.js` (`usersFlow`): fuera del escenario `users`, sin su env, el nombre de usuario sale `undefinedNaN` sin un error claro. Hoy no es alcanzable porque `load_checks` valida el env (revisor, U02-T15, ronda 3, AMARILLO F-10).
+- Dos AMARILLO de la ronda 4 de U02-T15 (revisor):
+  - F-11: en `test_load_spec.py:206-232` el arnés de re-login deja de exportar `setup`, así que `handleSummary` lanza `TypeError: Cannot read property 'env' of undefined`. No cambia las aserciones, pero ensucia la salida de k6. Hay que exportar o simular `setup`, o neutralizar `handleSummary`;
+  - F-12: en `fake_gateway_server.py:121,160`, el POST de `login-actions` acepta cualquier `AUTH_SESSION_ID` emitido antes y no lo consume. Hay que atarlo a su `session_code` (opcional).
