@@ -5910,3 +5910,14 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **Context**: Construcción de U2, U02-T15 y U02-T16.
 
 ---
+
+---
+
+## U2: cierre de lo que está en curso y preparación de U02-T18 (Paso 12)
+**Timestamp**: 2026-11-07T15:42:14Z
+**User Input**: "podemos seguir con las siguientes unidades del proyecto?"; "Terminar U2 primero (Recommended)"; Paso 12: "Directorios renderizados (Recommended)", "Fuera del Paso 12 (Recommended)", "identity-jobs en wave 4 (Recommended)"
+**AI Response**:
+- U3 a U12 siguen sin código (restricción de alcance vigente). U2 no está cerrada: faltan los Pasos 12, 14, 15, 16, 17 y 18. El usuario eligió terminar U2 primero.
+- Se despachan en paralelo la ronda 4 de U02-T15 (acotada a F-09) y la ronda 1 de U02-T17 (el despacho anterior se había cortado después del acuse).
+- Paso 12: el usuario decidió M1 (Applications sobre los directorios renderizados de `identity-edge/`, sin `vectra-risk-gitops/values/<env>/`), M2 (`keycloak-config-cli` fuera del paso, porque su Job está bloqueado) y M3 (`identity-jobs` en wave 4). Quedan en la nota del Paso 12 del plan. Se prepara `tareas/U02-T18-applications-gitops.md`.
+**Context**: Construcción de U2, U02-T15, U02-T17 y U02-T18.
