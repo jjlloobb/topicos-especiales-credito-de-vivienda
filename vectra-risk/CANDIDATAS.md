@@ -153,3 +153,8 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
 - Valkey: si desaparece un solo StatefulSet, ninguna alerta avisa (revisor, ronda 1 de U02-T17). `absent(kube_statefulset_status_replicas_available{statefulset=~"valkey-.+"})` dispara solo cuando faltan los dos, y la rama `sum(…) == 0` tampoco cubre la pérdida de `valkey-b` si queda `valkey-a`, que también se lleva su `redis_up`. Hay que decidir en P-U2-09 entre un `absent` por StatefulSet o un conteo de series menor que el esperado.
 - F-02 de la ronda 1 de U02-T17 (AMARILLO): `hardening_problems` de `test_alert_rules.py` busca subcadenas, así que cambiar `or` por `and` en B12 o B13 no lo detecta (promtool sí).
 - F-04 de la ronda 2 de U02-T17 (AMARILLO): `test_alert_rules.py:806` exige que aparezca la subcadena `CANDIDATAS.md` en el runbook `rate-limit-backend-down`, pero no que exista la entrada citada. Si esa entrada se cierra o se renombra, el enlace queda roto sin que ninguna prueba lo detecte.
+- Revisión de código del PR 74 (`revisiones/U02-T17/revision-codigo-pr74.md`), sin verificar con ejecución:
+  - C-06: `rule_problems()` siempre llama a `gateway_facts()`, así que todos los casos dependen de `egctl`;
+  - C-07: vuelve a traducir con `egctl` en lugar de leer `.tools/xds/<env>.yaml`;
+  - C-08: reimplementa la búsqueda de listener de `test_gateway_xds.py`;
+  - C-09: repite por entorno comprobaciones que no dependen del entorno.

@@ -108,3 +108,25 @@ Corre los comandos desde `vectra-risk/`.
 - Directorio temporal propio: un subdirectorio `U02-T17-<papel>-r<n>/` de tu scratchpad.
 - Trabaja solo en tu worktree. **Nada contra un clúster ni contra Docker.** El destino es un pull request, y lo fusiona una persona.
 - Si ves otro defecto, va a la bitácora como candidata; no lo arregles en el diff.
+
+## Enmienda del 2026-11-07, después de la revisión de código del PR 74 (decisiones B16 y B17 del usuario)
+
+Los hallazgos están en `revisiones/U02-T17/revision-codigo-pr74.md` (C-01 a C-03 y C-05) y el arbitraje en `revisiones/U02-T17/arbitraje-ronda-2.md`. Las decisiones están en P-U2-09, en «Endurecimiento de las alertas» y en la tabla.
+
+- **B16**: `LdapUnavailable` y `RoleConflict` llevan la guarda de B11 tal como la fija el diseño.
+  - Casos de promtool que pasan después de la enmienda:
+    - un contador que vale más de 0, con un hueco de scrape de 6 min y sin incremento, **no** dispara;
+    - un incremento durante el hueco **sí** dispara;
+    - los casos de B12 (primera muestra, fallo corto, contador quieto) siguen como están.
+  - La bitácora registra el rojo del primer caso contra `842d3f1`.
+- **B17**: las ramas por ausencia de `RateLimitBackendDown`, `RealmDriftStale` y `SigningKeyAgeStale` usan `absent_over_time(...[10m])` y se condicionan a `up` de su exportador.
+  - Casos de promtool que pasan después de la enmienda:
+    - un solo scrape fallido del Pushgateway **no** dispara las `*Stale`;
+    - con el exportador arriba, el grupo ausente durante 10 min **sí** las dispara;
+    - con kube-state-metrics caído, `RateLimitBackendDown` **no** dispara.
+  - Si ninguna alerta del proyecto informa la caída de kube-state-metrics, **detente y repórtalo**.
+  - La bitácora registra contra `842d3f1` el rojo del primer caso y el del tercero.
+- Las pruebas de `test_alert_rules.py` comprueban la guarda de B16 y la ventana y la condición de B17. Cada comprobación falla en una copia mutada que quite esa parte. F-02 de la ronda 1 (subcadenas en lugar del operador) entra aquí, porque toca justamente estas comprobaciones.
+- Los runbooks `ldap-unavailable`, `role-conflict`, `rate-limit-backend-down`, `realm-drift` y `signing-key-rotation` describen las guardas y sus límites.
+- **Fuera**: C-04 (un solo StatefulSet de Valkey) y C-06 a C-09 siguen en `CANDIDATAS.md`.
+- Se corren otra vez CA-1 a CA-5, con CA-5 en serie después de CA-4.
