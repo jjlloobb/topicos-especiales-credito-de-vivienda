@@ -5929,3 +5929,11 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **User Input**: (ninguno nuevo)
 **AI Response**: La ronda 1 de U02-T17 sale NO-VERDE por F-01 (NARANJA): el runbook `rate-limit-backend-down` da a entender que la pérdida de un solo StatefulSet de Valkey dispara la alerta por ausencia. La ronda 2 queda acotada a F-01 y F-03. F-02 y el hueco de un solo StatefulSet pasan a `CANDIDATAS.md`.
 **Context**: Construcción de U2, U02-T17.
+
+---
+
+## U02-T17: ronda 2 VERDE
+**Timestamp**: 2026-11-07T17:56:21Z
+**User Input**: (ninguno nuevo)
+**AI Response**: La ronda 2 de U02-T17 sale VERDE: F-01 y F-03 quedan resueltos, sin cambiar ninguna expresión de regla. F-04 (AMARILLO) pasa a `CANDIDATAS.md`. Se abre el PR, que queda en revisión humana.
+**Context**: Construcción de U2, U02-T17.
