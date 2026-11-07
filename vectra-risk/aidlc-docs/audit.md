@@ -5921,3 +5921,13 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 - Se despachan en paralelo la ronda 4 de U02-T15 (acotada a F-09) y la ronda 1 de U02-T17 (el despacho anterior se había cortado después del acuse).
 - Paso 12: el usuario decidió M1 (Applications sobre los directorios renderizados de `identity-edge/`, sin `vectra-risk-gitops/values/<env>/`), M2 (`keycloak-config-cli` fuera del paso, porque su Job está bloqueado) y M3 (`identity-jobs` en wave 4). Quedan en la nota del Paso 12 del plan. Se prepara `tareas/U02-T18-applications-gitops.md`.
 **Context**: Construcción de U2, U02-T15, U02-T17 y U02-T18.
+
+---
+
+## U02-T18: bloqueo de la ronda 1 y decisión M4
+**Timestamp**: 2026-11-07T16:25:31Z
+**User Input**: "Bajar requests de U2 en kind (Recommended)"
+**AI Response**:
+- U02-T18 ronda 1: CA-1 a CA-5 en verde; CA-6 en rojo por `test_kind_profile.py` (5,47 GiB de requests de memoria en kind contra 5,0). El codificador se detuvo, como pide la tarea.
+- El usuario decidió M4: bajar las requests de memoria de U2 solo en kind, sin tocar `BUDGET_GIB` ni staging y prod. Quedan la enmienda de la tarea, la nota del Paso 12 y `revisiones/U02-T18/arbitraje-ronda-1.md`.
+**Context**: Construcción de U2, U02-T18.

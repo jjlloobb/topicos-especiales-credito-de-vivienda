@@ -222,6 +222,7 @@ vectra-risk/identity-edge/
     - **M1**: cada Application de U2 apunta al directorio que ya renderiza y verifica `make -C identity-edge check` (`charts/valkey/rendered/{env}`, `keycloak/rendered/{env}`, `gateway/generated/{env}`, `jobs/rendered/{env}`), como la Application `network` de U1. No se crea `vectra-risk-gitops/values/<env>/` para U2: los hostnames (INF-U2-01), el issuer y el LDAP (prod) siguen en los values de `identity-edge/`, que se renderizan.
     - **M2**: `keycloak-config-cli` queda fuera de este paso. Su Job está bloqueado (INF-U2-05a); su hook `PostSync` entra en la Application `keycloak` con su tarea propia.
     - **M3**: los CronJobs `realm-drift` y `signing-key-age` y su ConfigMap van en una Application `identity-jobs` en wave 4, después del Pushgateway.
+    - **M4** (después de la ronda 1): con U2, las requests de memoria del perfil de kind superan los 5,0 GiB de `test_kind_profile.py`. Las requests de memoria de U2 se bajan solo en kind; ni el tope ni las requests de staging y prod (INF-U2-06) cambian.
   - Diseño: P-U1-12; INF-U2-01.
   - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`, `uv run python platform/tests/test_waves.py` y `kyverno test` de `disallow-argocd-auto-sync` sobre las Applications nuevas (revisión de consistencia entre unidades, 2026-11-01).
 

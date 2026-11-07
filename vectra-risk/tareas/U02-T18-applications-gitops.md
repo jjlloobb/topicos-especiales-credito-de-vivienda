@@ -123,3 +123,25 @@ Todos los comandos se corren desde `vectra-risk/`.
 - `generate.py` sin `--check` borra y reescribe `apps/` y `envs/`: córrelo y revisa el `git diff` de `envs/`, que no debe cambiar.
 - El plan (`aidlc-docs/…/identity-edge-code-generation-plan.md`) no se toca: el orquestador marca el Paso 12.
 - Lo que encuentres fuera de alcance va a la sección de candidatas de tu bitácora.
+
+## Enmienda del 2026-11-07, después de la ronda 1 (decisión M4 del usuario)
+
+CA-6 falló en `test_kind_profile.py`: con U2, las requests de memoria de kind suman 5,47 GiB contra `BUDGET_GIB = 5.0`. El arbitraje está en `revisiones/U02-T18/arbitraje-ronda-1.md`.
+
+**M4**: las requests de **memoria** de los componentes de U2 se bajan **solo en kind** hasta que el perfil quepa, sin cambiar `BUDGET_GIB` ni las requests de staging y prod (INF-U2-06).
+
+- **Dentro** (amplía «Fuera»): los values y los archivos de kind de donde salen esas requests, con su render regenerado por el target `render-*` correspondiente y sin editarlo a mano. Por ejemplo `identity-edge/keycloak/values/kind.yaml`, `identity-edge/charts/valkey/values/kind.yaml`, `identity-edge/gateway/values/kind.yaml` (y `route-gen` si el EnvoyProxy sale de ahí) y `platform/operators/envoy-gateway-kind.yaml` (`envoy-ratelimit`).
+- Las requests de **CPU** y todos los **limits** no cambian. Keycloak conserva un limit con el que `-XX:MaxRAMPercentage=70` le deja heap para arrancar.
+- Cada request nueva lleva al lado un comentario `# kind (M4): …` con el valor de staging y prod.
+- Si alguna política de U1 o de U2 exige una request mínima o una relación request/limit que M4 rompe, **detente y repórtalo**.
+
+Criterios adicionales:
+
+- [ ] **CA-7** — El perfil cabe y las requests de staging y prod no cambiaron.
+  ```bash
+  uv run pytest platform/tests/test_kind_profile.py -q && \
+  git diff 0cf1238 -- identity-edge/keycloak/rendered/staging identity-edge/keycloak/rendered/prod identity-edge/charts/valkey/rendered/staging identity-edge/charts/valkey/rendered/prod identity-edge/gateway/generated/staging identity-edge/gateway/generated/prod --stat
+  ```
+  Esperado: 0 failed, y el `git diff` vacío. La bitácora trae una tabla con cada componente, su request de memoria en kind antes y después, el total del perfil y el margen que queda hasta 5,0 GiB.
+
+CA-5 y CA-6 se vuelven a correr en serie, después de CA-7.
