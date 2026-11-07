@@ -1,0 +1,7 @@
+# Ronda 4 — respuesta del codificador (U02-T13)
+
+F-04: Corregido: la bitacora (seccion «Ronda 4») cita la salida real de `test_runbooks.py --root identity-edge --operational` de esta ronda («11 runbooks operativos con su runbook en regla», exit 0), no la de `--operational` sin `--root`.
+F-05: Corregido: `break-glass-login.md`, la entrada de `CANDIDATAS.md` y los comentarios de G2 y E de `b11_scenarios.py` dicen el modelo de staleness (ninguna serie, solo X, solo up, las dos) y las cifras medidas por `b11_scenarios.py probe` (barridos `FP_*`, `OM_*`, `RN_*`, salida en `revisiones/U02-T13/probe-ronda-4.txt`): el falso positivo solo aparece con X con marca y up sin ella (1 a 4 min segun el hueco de 2 a 8 min), la omision empieza en 4 o en 9 min de hueco segun el modelo, y el login del scrape en que vuelve el pod tras un reinicio normal no dispara (retraso de 4 a 1 min si cae 1 a 4 min despues).
+F-06: Corregido: casos `Zf` (login fallido sobre serie nueva) y `Rr` (contador 1, 5, hueco, 3) en promtool; mutaciones «BG rama 3: N sin error=""» y «BG rama 2: last_over_time offset 10m» en `mutaciones.py`, ambas DETECTADA, 72 mutaciones y 0 sobreviven (`mutaciones-ronda-4.txt`). Rojo previo en la bitacora.
+F-07: Corregido: `test_the_b11_text_is_read` lee severidad y `for` de KeycloakMetricsDown del texto de B11 y los compara con la tabla; sin literales `SEV2` ni `5m`.
+F-08: Corregido: el docstring de `design_build_options` dice que la opcion de metricas de eventos de B10 es una, la de `design_event_metric_options()`.

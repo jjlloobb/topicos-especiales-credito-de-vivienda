@@ -134,16 +134,35 @@ Al preparar el Paso 11, el orquestador comparó la tabla con lo que el código e
 | `KeycloakDown` | SEV1 | `kube_statefulset_status_replicas_ready{namespace="vectra-identity",statefulset="keycloak"} == 0` (kube-state-metrics de U1) | 1m |
 | `RateLimitBackendDown` | SEV2 | Réplicas disponibles en 0 de `envoy-ratelimit` (`envoy-gateway-system`) o del StatefulSet de Valkey, según kube-state-metrics, **o** `redis_up == 0` del exportador (9121) (B4) | 2m |
 | `AuthDeniedBurst` | SEV2 | Más de 20 denegaciones por minuto: `LOGIN_ERROR` de `keycloak_user_events_total` + `vectra_authz_denied_total` de U0 (B1, B3) | 5m |
-| `BreakGlassLogin` | SEV1 | Un `LOGIN` del usuario `break-glass` en `keycloak_user_events_total` (B1). Las etiquetas que lo distinguen se fijan contra Keycloak 26.8.1. | 0m |
+| `BreakGlassLogin` | SEV1 | ~~Un `LOGIN` del usuario `break-glass` en `keycloak_user_events_total` (B1)~~ **Superada por B10:** un `login` en `keycloak_user_events_total` con `client_id="security-admin-console"`, en cualquier realm | 0m |
 | `RealmDrift` | SEV2 | `vectra_realm_drift > 0` (Pushgateway, `job="realm-drift"`) | 0m |
 | `RoleConflict` | SEV2 | `increase(vectra_role_conflict_total[15m]) > 0`. **Métrica de contrato** (B2): todavía no la emite nada; la fuente sigue en `CANDIDATAS.md` | 5m |
 | `SigningKeyAgeHigh` | SEV3 | Edad de `vectra_signing_key_created_timestamp_seconds` > 80 días | 1h |
 | `LdapUnavailable` | SEV2 | `increase(vectra_ldap_connection_failures_total[5m]) > 0`. **Métrica de contrato** (B2). Una sola regla para todos los entornos: en kind y staging no hay series, así que no dispara (B9) | 5m |
 | `GatewayHighLatency` | SEV3 | p95 de `envoy_http_downstream_rq_time` − p95 de `envoy_cluster_upstream_rq_time` > 5 ms | 15m |
+| `KeycloakMetricsDown` | SEV2 | `up{job="keycloak"} == 0` o ausente (B11) | 5m |
 | `RealmDriftStale` | SEV3 | `time() - push_time_seconds{job="realm-drift"} > 26h`. El CronJob corre a diario (B8); runbook `realm-drift` | 0m |
 | `SigningKeyAgeStale` | SEV3 | `time() - push_time_seconds{job="signing-key-age"} > 3h`. El CronJob corre cada hora (B8); runbook `signing-key-rotation` | 0m |
 
+- **B11** (2026-11-05, decisión del usuario tras la ronda 2 de revisión de U02-T13; `revisiones/U02-T13/ronda-2.md`). Con el contador de eventos, un login aislado no se detecta bien en Prometheus. Rige:
+  - **`BreakGlassLogin`**: con `X` el contador de B10 y `N = (X > 0 unless X offset 5m)`, la expresión es `(increase(X[5m]) > 0) or (N > (last_over_time(X[1h] offset 5m) or X * 0)) or (N and on(namespace, pod) (up{job="keycloak"} offset 5m == 1))`. Así una serie que no se vio en la última hora cuenta como login nuevo;
+  - **límites aceptados**: un falso positivo si el hueco de scrape dura más de 1 h, y una omisión si el pod se reinicia durante el hueco y luego hay un login. El runbook `break-glass-login` los describe tal como se midieron;
+  - **alerta nueva `KeycloakMetricsDown`**, SEV2, `for` 5m: `up{job="keycloak"} == 0` o ausente (`absent(up{job="keycloak"})`). Runbook `keycloak-metrics-down`. Sin ella, `BreakGlassLogin` puede quedar ciega sin que nadie lo sepa.
 - **B1**: la imagen de Keycloak activa las métricas de eventos de usuario (`user-event-metrics`), con lo que existe `keycloak_user_events_total`. La opción y si es de build se comprueban en la documentación y el código de 26.8.1.
+- **B10** (2026-11-05, decisión del usuario tras la parada de la ronda 1 de U02-T13). La métrica de 26.8.1 emite `event`, `error`, `realm`, `idp` y `client_id`, pero no el usuario: `MicrometerUserEventMetricsEventListenerProvider.java`. Por eso `BreakGlassLogin` no puede filtrar por `break-glass` y dispara con cualquier `login` en `security-admin-console`. Las razones:
+  - en prod, `break-glass` es el único humano con `realm-admin`;
+  - `keycloak-config-cli` también tiene `realm-admin`, pero entra por `client_credentials` y emite `client_login`, no `login`;
+  - la consola solo se alcanza por `hostname-admin` interno, con port-forward aprobado (BR-U2-12).
+
+  Cualquier otro humano que entre ahí también es SEV1.
+
+  **Corrección del 2026-11-05 (orquestador, tras la ronda 1 de U02-T13).** En `EventOptions.java` de 26.8.1, `event-metrics-user-enabled` es de build (`buildTime(true)`), pero `event-metrics-user-tags` es de ejecución (`buildTime(false)`), y `kc.sh build` lo ignora. Por eso:
+  - `--event-metrics-user-enabled=true` va en el `kc.sh build` de la imagen;
+  - `KC_EVENT_METRICS_USER_TAGS=realm,clientId` va en el `extraEnv` de `identity-edge/keycloak/values/common.yaml`, el arranque de los tres entornos.
+
+  La expresión de la alerta precisa dos cosas:
+  - `error=""`, porque `LOGIN_ERROR` también se emite como `event="login"`;
+  - una rama para la primera muestra de una serie nueva, porque `increase` no la ve.
 - **B2**: `RoleConflict` y `LdapUnavailable` se escriben contra nombres de métrica de contrato y se prueban con series sintéticas. Su fuente queda pendiente en `CANDIDATAS.md`; para `ROLE_CONFLICT`, ver BR-U2-17.
 - **B5**: los `ServiceMonitor`/`PodMonitor` de Keycloak (HTTPS, 9000), Envoy (19001), `envoy-ratelimit` (19001) y el exportador de Valkey (9121) son del Paso 11 y viven en `identity-edge/observability/`. Cada familia de métricas de las reglas tiene quien la emita, un monitor o una fuente de U1 (kube-state-metrics, Pushgateway), y un puerto F60.
 - **B6**: el `PrometheusRule` sigue el patrón de U1: un archivo de grupos que leen promtool y las pruebas, más el CR en `vectra-observability`, con la prueba de que los dos tienen los mismos `groups`. El Paso 12 suma las entradas `identity-rules` e `identity-monitors` en wave 4.

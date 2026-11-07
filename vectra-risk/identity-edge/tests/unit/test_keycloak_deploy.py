@@ -318,6 +318,8 @@ MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
     ("env-whitelist", "H11: success-level en debug", _env_value("KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL", "debug")),
     ("env-whitelist", "envFrom", _sts_set(["spec", "template", "spec", "containers", 0, "envFrom"], [{"secretRef": {"name": "x"}}])),
     ("env-whitelist", "variable repetida", _env_add("KC_DB", "postgres")),
+    ("env-whitelist", "etiquetas de eventos sin clientId", _env_value("KC_EVENT_METRICS_USER_TAGS", "realm")),
+    ("env-whitelist", "sin las etiquetas de eventos", _env_drop("KC_EVENT_METRICS_USER_TAGS")),
     ("cache-stack", "kubernetes", _env_value("KC_CACHE_STACK", "kubernetes")),
     ("cache-stack", "sin cache-stack", _env_drop("KC_CACHE_STACK")),
     ("proxy-headers", "forwarded", _env_value("KC_PROXY_HEADERS", "forwarded")),
@@ -608,6 +610,42 @@ def test_h11_the_render_check_fails_without_the_option(env, mutation):
     docs = copy.deepcopy(kd.load(env))
     mutation(docs)
     assert _event_level_problems(docs)
+
+
+@pytest.mark.parametrize("env", kd.ENVS)
+def test_design_event_metrics_user_tags_are_in_the_start_env(env):
+    """B10 corregido: `event-metrics-user-tags` es de ejecucion; sin `clientId` en la variable no hay `client_id` y `BreakGlassLogin` no dispara."""
+    import theme_checks as tc
+
+    name, value = tc.design_event_metric_env()
+    assert "clientId" in value.split(",")  # el diseno corregido de B10 fija las dos etiquetas; `design_event_metric_env` las lee de ahi
+    assert kd.event_tags_problems(kd.load(env), name, value) == []
+
+
+@pytest.mark.parametrize("env", kd.ENVS)
+@pytest.mark.parametrize(
+    "case",
+    ["sin la variable", "sin clientId", "solo clientId", "clientid en minuscula", "con una etiqueta de mas", "vacia"],
+)
+def test_event_metrics_user_tags_mutations_are_detected(env, case):
+    import theme_checks as tc
+
+    name, value = tc.design_event_metric_env()
+    docs = kd.load(env)
+    copied = copy.deepcopy(docs)
+    if case == "sin la variable":
+        _env_drop(name)(copied)
+    else:
+        mutated = {
+            "sin clientId": "realm",
+            "solo clientId": "clientId",
+            "clientid en minuscula": "realm,clientid",
+            "con una etiqueta de mas": value + ",idp",
+            "vacia": "",
+        }[case]
+        _env_value(name, mutated)(copied)
+    assert kd.event_tags_problems(copied, name, value)
+    assert kd.event_tags_problems(docs, name, value) == []
 
 
 @pytest.mark.parametrize("env", kd.ENVS)

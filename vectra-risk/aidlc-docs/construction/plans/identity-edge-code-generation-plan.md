@@ -203,7 +203,7 @@ vectra-risk/identity-edge/
   - Diseño: INF-U2-02..04; P-U1-01.
   - **Aceptación**: `uv run python platform/network/generate.py --check` y `uv run pytest platform/network/tests` (los IDs F90–F95 y K14 de `component-dependency.md` están en `flows.yaml`).
 
-- [ ] **Paso 11 — Alertas y runbooks**
+- [x] **Paso 11 — Alertas y runbooks** (U02-T13)
   - `PrometheusRule` con las alertas de P-U2-09, incluida `LdapUnavailable`. Runbooks: `keycloak-down`, `rate-limit-backend-down`, `auth-denied-burst`, `break-glass-login`, `realm-drift`, `role-conflict`, `signing-key-rotation`, `gateway-high-latency`, `ldap-unavailable`.
   - **Nota del 2026-11-05 (decisiones B1–B9 del usuario al preparar U02-T13; P-U2-09 «Fuentes, umbrales y despliegue»):**
     - expresiones, umbrales y `for` de las 9 alertas, más `RealmDriftStale` y `SigningKeyAgeStale` (B3, B8);

@@ -1,5 +1,7 @@
 """Dockerfile de Keycloak (U02-T06, Paso 4): INF-U2-08. Imagen y opciones leidas del diseno."""
 
+import re
+
 import pytest
 import theme_checks as tc
 
@@ -16,7 +18,8 @@ def problems(text: str) -> list[str]:
 def test_design_values_are_read_from_infrastructure_design():
     assert IMAGE.startswith("quay.io/keycloak/keycloak:26.")
     assert DIGEST.startswith("sha256:") and len(DIGEST) == 71
-    assert sorted(OPTIONS) == ["--cache=ispn", "--db=postgres", "--health-enabled=true", "--http-relative-path=/auth", "--metrics-enabled=true"]
+    assert OPTIONS and all(re.fullmatch(r"--[a-z-]+=\S+", o) for o in OPTIONS)  # las opciones salen de `tc.design_build_options()`
+    assert set(tc.design_event_metric_options()) <= set(OPTIONS)
     assert START == ["start", "--optimized"]
 
 
@@ -48,6 +51,24 @@ def test_other_tag_is_detected():
 @pytest.mark.parametrize("option", OPTIONS)
 def test_missing_build_option_is_detected(option):
     assert any(p.startswith(f"kc.sh build debe llevar {option}") for p in problems(TEXT.replace(f"    {option}", "    --log-level=info")))
+
+
+def test_event_metric_options_come_from_b10():
+    """B10 corregido: solo la opcion de build va en `kc.sh build`; las etiquetas son de ejecucion y van en `extraEnv`."""
+    assert tc.design_event_metric_options() == ["--event-metrics-user-enabled=true"]
+    assert all(option in TEXT for option in tc.design_event_metric_options())
+
+
+@pytest.mark.parametrize("tags", ["realm,clientId", "realm", "clientId"])
+def test_event_metric_tags_in_the_build_are_detected(tags):
+    """`kc.sh build` ignora las opciones de ejecucion: si vuelven a aparecer ahi, es un defecto."""
+    assert not any("event-metrics-user-tags" in line for line in TEXT.splitlines())
+    assert problems(TEXT.replace("    --cache=ispn", f"    --event-metrics-user-tags={tags} \\\n    --cache=ispn"))
+
+
+def test_missing_event_metrics_enabled_is_detected():
+    assert problems(TEXT.replace("    --event-metrics-user-enabled=true \\\n", ""))
+    assert problems(TEXT.replace("--event-metrics-user-enabled=true", "--event-metrics-user-enabled=false"))
 
 
 def test_missing_optimized_is_detected():

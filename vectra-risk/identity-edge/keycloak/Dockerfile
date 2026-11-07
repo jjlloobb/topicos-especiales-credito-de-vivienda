@@ -8,6 +8,7 @@ RUN /opt/keycloak/bin/kc.sh build \
     --db=postgres \
     --health-enabled=true \
     --metrics-enabled=true \
+    --event-metrics-user-enabled=true \
     --cache=ispn \
     --http-relative-path=/auth
 

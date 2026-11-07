@@ -270,6 +270,10 @@ spec:
             # H11 (BR-U2-16): el listener jboss-logging escribe los eventos de exito (el bloqueo, el login) en info; por defecto, debug.
             - name: KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL
               value: info
+            # B10 de P-U2-09: `event-metrics-user-tags` es de ejecucion (`kc.sh build` la ignora), por eso va aqui y no en la imagen.
+            # Sin `clientId` la metrica `keycloak_user_events_total` no lleva `client_id` y `BreakGlassLogin` no dispara.
+            - name: KC_EVENT_METRICS_USER_TAGS
+              value: realm,clientId
             
           envFrom:
           ports:

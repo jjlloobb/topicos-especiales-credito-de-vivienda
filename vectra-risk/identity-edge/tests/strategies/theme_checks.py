@@ -85,7 +85,7 @@ REFERENCE_DIR = reference_dir()
 
 
 def design_build_options() -> list[str]:
-    """Las cinco opciones de `kc.sh build` de INF-U2-08, en la forma de la linea de comandos."""
+    """Las opciones de `kc.sh build`: las cinco de INF-U2-08 y la de metricas de eventos de B10 (P-U2-09), que `design_event_metric_options()` devuelve."""
     text = INF_U2_08
     opts = []
     m = re.search(r"base de datos `(\w+)`", text)
@@ -99,7 +99,22 @@ def design_build_options() -> list[str]:
     m = re.search(r"`kc\.sh build` lleva además `(--http-relative-path=/\w+)`", text)
     assert m, "INF-U2-08 no fija --http-relative-path"
     opts.append(m.group(1))
+    opts += design_event_metric_options()
     return opts
+
+
+def design_event_metric_options() -> list[str]:
+    """B10 corregido: la unica opcion de las metricas de eventos de usuario que va en `kc.sh build` (la de build)."""
+    m = re.search(r"`--(event-metrics-user-enabled=true)` va en el `kc\.sh build`", NFR_PATTERNS)
+    assert m, "P-U2-09 (B10) no fija la opcion de build de las metricas de eventos de usuario"
+    return [f"--{m.group(1)}"]
+
+
+def design_event_metric_env() -> tuple[str, str]:
+    """B10 corregido: la variable de arranque con las etiquetas de `keycloak_user_events_total` (de ejecucion, no de build)."""
+    m = re.search(r"`(KC_EVENT_METRICS_USER_TAGS)=([\w,]+)` va en el `extraEnv`", NFR_PATTERNS)
+    assert m, "P-U2-09 (B10) no fija la variable KC_EVENT_METRICS_USER_TAGS"
+    return m.group(1), m.group(2)
 
 
 def design_start_args() -> list[str]:
