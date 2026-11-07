@@ -5971,3 +5971,11 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **User Input**: "revisa los PR"; "Ronda 5 acotada (Recommended)"
 **AI Response**: Se subió la rama de U02-T15 con `main` fusionado y el PR 72 quedó MERGEABLE. U02-T17 y U02-T18 todavía no tienen PR. La revisión de código del PR 72 trajo 8 hallazgos. El usuario decidió una ronda 5 con C-01, C-02, C-03 y C-05; C-04 y C-06 a C-08 van a `CANDIDATAS.md`.
 **Context**: Construcción de U2, U02-T15.
+
+---
+
+## U02-T15: ronda 5 VERDE
+**Timestamp**: 2026-11-07T18:45:03Z
+**User Input**: (ninguno nuevo)
+**AI Response**: La ronda 5 de U02-T15 (C-01, C-02, C-03 y C-05 de la revisión de código del PR 72) sale VERDE, con tres AMARILLO que pasan a `CANDIDATAS.md`. Se sube la rama. El PR 72 queda en revisión humana, y la aprobación anterior es previa a las rondas 3 a 5.
+**Context**: Construcción de U2, U02-T15.

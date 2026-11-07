@@ -167,3 +167,7 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - C-06: `r.json('keys.#') !== 0` pasa cuando falta `keys`;
   - C-07: `scenario_problems` no comprueba que `BASE_RATE` quede por debajo del límite de la consola, ni que existan los umbrales `leg:*`;
   - C-08: `load-inspect` corre `k6 inspect` dos veces.
+- Tres AMARILLO de la ronda 5 de U02-T15 (revisor):
+  - F-01: ninguna prueba cubre el rechazo de una de las N-1 contraseñas anteriores en `FakeAdmin` (`fake_admin.py:84`);
+  - F-02: `LOGIN_BACKOFF_S` está a mitad de `identity.js` (línea 252) y no junto a las demás constantes;
+  - F-03: el `aud` esperado en `test_load_spec.py:156` es un literal, cuando podría derivarse de `KC_HOSTNAME`.
