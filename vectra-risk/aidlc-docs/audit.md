@@ -5963,3 +5963,11 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **User Input**: (ninguno nuevo; ronda 4 acotada a F-09 por decisión previa del usuario)
 **AI Response**: La ronda 4 de U02-T15 sale VERDE: F-09 cerrado, con R01a a R01d muertas y el control FG0. Hay dos AMARILLO (F-11 y F-12), que pasan a `CANDIDATAS.md`. Se fusiona `origin/main` en la rama para quitar los conflictos del PR 72, que queda en revisión humana.
 **Context**: Construcción de U2, U02-T15.
+
+---
+
+## U02-T15: revisión de código del PR 72 y ronda 5 acotada
+**Timestamp**: 2026-11-07T17:31:36Z
+**User Input**: "revisa los PR"; "Ronda 5 acotada (Recommended)"
+**AI Response**: Se subió la rama de U02-T15 con `main` fusionado y el PR 72 quedó MERGEABLE. U02-T17 y U02-T18 todavía no tienen PR. La revisión de código del PR 72 trajo 8 hallazgos. El usuario decidió una ronda 5 con C-01, C-02, C-03 y C-05; C-04 y C-06 a C-08 van a `CANDIDATAS.md`.
+**Context**: Construcción de U2, U02-T15.

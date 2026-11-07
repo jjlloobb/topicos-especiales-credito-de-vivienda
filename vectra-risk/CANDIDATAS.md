@@ -162,3 +162,8 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - el caso de la mención sangrada del Paso 14 no compara `step_13_block`, solo `plan_bullets`;
   - el plan se lee del disco en cada llamada (unas 60 veces por corrida), y `plan_bullets(text=None)` mezcla lectura y análisis. Bastan una constante de módulo y un helper de reescritura;
   - la sección «Cambio» de la ronda 1 de `bitacoras/U02-T16.md` describe el patrón `[ x]` con 8 casos.
+- Revisión de código del PR 72 después de la ronda 4 (`revisiones/U02-T15/revision-codigo-pr72-ronda-4.md`). Ninguno se verificó ejecutando código:
+  - C-04: la pata «directa» de NFR-U2-11 pasa por un `kubectl port-forward` que atraviesa el API server, así que la diferencia gateway−directa queda sesgada hacia abajo. Hay que decidir cómo medir la pata directa: un pod de k6 dentro del clúster, o un Service sin gateway;
+  - C-06: `r.json('keys.#') !== 0` pasa cuando falta `keys`;
+  - C-07: `scenario_problems` no comprueba que `BASE_RATE` quede por debajo del límite de la consola, ni que existan los umbrales `leg:*`;
+  - C-08: `load-inspect` corre `k6 inspect` dos veces.
