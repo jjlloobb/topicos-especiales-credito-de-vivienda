@@ -130,3 +130,15 @@ Los hallazgos están en `revisiones/U02-T17/revision-codigo-pr74.md` (C-01 a C-0
 - Los runbooks `ldap-unavailable`, `role-conflict`, `rate-limit-backend-down`, `realm-drift` y `signing-key-rotation` describen las guardas y sus límites.
 - **Fuera**: C-04 (un solo StatefulSet de Valkey) y C-06 a C-09 siguen en `CANDIDATAS.md`.
 - Se corren otra vez CA-1 a CA-5, con CA-5 en serie después de CA-4.
+
+### Ampliación de B17 (2026-11-07, después de la parada de la ronda 3; decisión del usuario)
+
+La ronda 3 se detuvo, como pedía la tarea: ninguna alerta informa la caída de kube-state-metrics, porque `platform/observability/values/kube-prometheus-stack.yaml:5` tiene `defaultRules: { create: false }`. **El usuario decidió agregar `KubeStateMetricsDown` a U1** dentro de esta tarea:
+
+- **Dentro**:
+  - una alerta `KubeStateMetricsDown` en `platform/observability/rules/platform-rules.yaml` y en su CR, si U1 lo genera. Tiene severidad SEV2, `for` 5m y la expresión `(up{job="<job>"} == 0) or absent(up{job="<job>"})`, con la misma forma que `PushgatewayDown`;
+  - su runbook en `platform/runbooks/`, con el formato de `pushgateway-down.md`;
+  - casos de promtool en `platform/observability/rules/tests/`: dispara cuando el target cae, dispara cuando el target está ausente y no dispara cuando está sano.
+- El `job` que Prometheus le pone a kube-state-metrics se fija desde el `ServiceMonitor` del chart pinneado (kube-prometheus-stack 92.17.0, subchart kube-state-metrics), con su ruta y línea en la bitácora. La condición de B17 en `RateLimitBackendDown` usa ese mismo `job`. Si no se puede fijar desde el código, **detente y repórtalo**.
+- Cuentan además: `platform/tests/test_runbooks.py` sin `--root`, y `make -C platform check-local` (CA-5).
+- El resto de la enmienda B16/B17 no cambia.

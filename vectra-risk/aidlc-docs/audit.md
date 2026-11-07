@@ -5947,3 +5947,11 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 - PR 74 (U02-T17): la revisión de código encontró falsas alarmas en B12 (dispara después de un hueco de scrape) y en B13 (`absent()` con un solo scrape fallido, o con el exportador caído). El usuario decidió B16 (la guarda de B11 en B12) y B17 (`absent_over_time(...[10m])` con el exportador arriba). Se enmiendan P-U2-09, la nota del Paso 11 y la tarea, y se despacha la ronda 3.
 - PR 75 (U02-T18): el orquestador comprobó que `test_kind_profile.py` cuenta 1 pod de Keycloak (el HPA pide 2) y no cuenta los pods que crea el controlador de Envoy Gateway. El «cabe» de M4 no es real. El usuario decidió corregir primero la cuenta y después decidir el presupuesto con la cifra real.
 **Context**: Construcción de U2, U02-T17 y U02-T18.
+
+---
+
+## U02-T17: parada de la ronda 3 y `KubeStateMetricsDown`
+**Timestamp**: 2026-11-07T18:12:11Z
+**User Input**: "Alerta KubeStateMetricsDown en U1 (Recommended)"
+**AI Response**: La ronda 3 de U02-T17 se detuvo, como pedía B17, porque ninguna alerta informa la caída de kube-state-metrics. El usuario decidió agregar `KubeStateMetricsDown` (SEV2, `for` 5m) a `platform-rules.yaml` de U1, con su runbook y sus casos de promtool, dentro de U02-T17. Se enmiendan P-U2-09 y la tarea.
+**Context**: Construcción de U2, U02-T17.

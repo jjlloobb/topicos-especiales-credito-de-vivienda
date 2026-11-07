@@ -12,3 +12,7 @@ La ronda 2 salió VERDE y se abrió el PR 74. Después, a pedido del usuario, la
 | C-06 a C-09 (helpers de prueba) | `CANDIDATAS.md` |
 
 La tarea enmendada dice qué se espera.
+
+## Parada de la ronda 3
+
+El codificador se detuvo antes de tocar código. Ninguna alerta informa la caída de kube-state-metrics (`defaultRules: { create: false }` en U1). **El usuario decidió agregar `KubeStateMetricsDown` a U1 dentro de esta tarea.** La tarea enmendada dice cómo.
