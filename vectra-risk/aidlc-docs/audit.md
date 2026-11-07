@@ -5985,3 +5985,11 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **User Input**: "Excepción solo en kind (Recommended)"; "2 instancias en kind (Recommended)"; "Sí, en bloque (Recommended)"; "Seed de demo + RT-2 con 1 versión (Recommended)"
 **AI Response**: Se clasificaron los 193 pasos de U3 a U12 (`construction/plans/ruta-demo/`). El usuario decidió RD1 (excepción de Kyverno solo en kind), RD2 (`registry-db` con 2 instancias en kind), RD3 (diferidos EXT en bloque) y RD4 (seed de demo y RT-2 con 1 versión). Se levanta la restricción de alcance de U3 a U12 bajo la ruta demo. Las comprobaciones pendientes quedan en `ruta-demo/README.md`.
 **Context**: Construcción, ruta demo.
+
+---
+
+## Ruta demo: ajustes de U1 y U2, decisiones RD5 a RD7
+**Timestamp**: 2026-11-07T20:04:03Z
+**User Input**: "revisa si es necesario ajustar las unidades 1 y 2 para la ruta demo completa"; "Recortar U1 en kind-demo (Recommended)"; "--import-realm solo en kind (Recommended)"; "Seed de kind en U1 (Recommended)"; U02-T18: "Cerrar con F-02 y mover F-01 (Recommended)"
+**AI Response**: Los análisis están en `ruta-demo/ajustes-U1.md` y `ajustes-U2.md`. El clúster quedó caído desde el reinicio del host (inotify en 128 y `linkerd-cni` en CrashLoop; Vault dev vacío). Recuperarlo es tarea del operador. Con U3–U11 en kind-demo, las requests rondan 10,4–10,9 GiB. El usuario decidió RD5 (recortar U1 en kind-demo y medir con el uso real), RD6 (`--import-realm` solo en kind) y RD7 (seed de Vault de kind en U1). Para U02-T18: una ronda mínima que solo corrige la frase del runbook (F-02), y F-01 pasa a la tarea de kind-demo de U1.
+**Context**: Construcción, ruta demo.
