@@ -5963,3 +5963,17 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **User Input**: (ninguno nuevo; ronda 4 acotada a F-09 por decisión previa del usuario)
 **AI Response**: La ronda 4 de U02-T15 sale VERDE: F-09 cerrado, con R01a a R01d muertas y el control FG0. Hay dos AMARILLO (F-11 y F-12), que pasan a `CANDIDATAS.md`. Se fusiona `origin/main` en la rama para quitar los conflictos del PR 72, que queda en revisión humana.
 **Context**: Construcción de U2, U02-T15.
+
+---
+
+## Ruta demo: alcance, perfil kind-demo y rigor del loop
+**Timestamp**: 2026-11-07T19:27:53Z
+**User Input**: "es posible trabajar solo en las tares necesarias para tener una demo completa del proyecto con todas las unidades y pueda correr en esta maquina?"; "Ruta demo por unidad (Recommended)"; "Perfil kind-demo (Recommended)"; "Loop con tope de 2 rondas (Recommended)"
+**AI Response**:
+- Máquina: 14,8 GiB de RAM y 8 CPU. El clúster `kind-vectra`, con U1 instalada, usa ≈ 5,3 GiB reales. Faltan ≈ 190 pasos de plan entre U2 y U12.
+- Decisiones del usuario:
+  - **Ruta demo**: de cada plan entran solo los pasos que dejan código que corre en kind, con sus pruebas del camino feliz y de contrato. Alertas, runbooks, carga, PBT extensas, staging y prod quedan diferidos y marcados en cada plan, sin borrar nada.
+  - **Perfil kind-demo**: overlay solo para kind, con 1 réplica, sin HPA, requests mínimas y Postgres de 1 instancia. El presupuesto se mide con el uso real. Staging y prod no cambian.
+  - **Loop**: tope de 2 rondas; en la tercera se para y se lleva al usuario. Sin `/code-review` extra después del VERDE.
+- Se clasifican los pasos de U3–U12 (DEMO, DEMO-RECORTADO, DIFERIDO; marcas EXT y DEP) para que el usuario los apruebe. Los pasos que exigen una extensión activa (EXT) solo se difieren con decisión explícita del usuario. La restricción de alcance de U3–U12 se levanta cuando el usuario apruebe la ruta.
+**Context**: Construcción, ruta demo.
