@@ -7,7 +7,9 @@ import yaml
 
 PLATFORM = Path(__file__).resolve().parents[1]
 #: Memoria pedida por todos los pods de kind, proxies incluidos. Es lo que el planificador reserva, no el uso real.
-BUDGET_GIB = 5.0
+#: M5 (U02-T18, decision del usuario): 8 GiB en la maquina de 14 GiB, porque con U2 el perfil pide 6,5 GiB (7,0 con `kserve`) y
+#: la cuenta ya incluye los minimos de los HPA, el data plane de Envoy, el controlador y `kserve`.
+BUDGET_GIB = 8.0
 PROXY_GIB = 20 / 1024
 MESHED = {
     "vectra-edge", "vectra-app", "vectra-serving", "vectra-staging", "vectra-data", "vectra-identity", "vectra-mock",
@@ -65,11 +67,25 @@ def envoy_gateway_gib(values: dict) -> float:
     return controller + limiter["replicas"] * gib(limiter["container"]["resources"]["requests"]["memory"])
 
 
-def requested_gib(documents: list[dict] | None = None, gateway_values: dict | None = None) -> float:
+KSERVE_CHART_VALUES = PLATFORM / ".charts/kserve/kserve-resources/values.yaml"
+
+
+def kserve_gib(chart_values: dict) -> float:
+    """El controlador de KServe (chart OCI, namespace `kserve` sin malla): `manager` y `kube-rbac-proxy`.
+
+    Las requests salen de los values del chart pinneado en `platform/.charts`; el chart no fija `replicas`, asi que es 1.
+    """
+    controller = chart_values["kserve"]["controller"]
+    containers = [controller["resources"], controller["rbacProxy"]["resources"]]
+    return controller.get("replicas", 1) * sum(gib(c["requests"]["memory"]) for c in containers)
+
+
+def requested_gib(documents: list[dict] | None = None, gateway_values: dict | None = None, kserve_values: dict | None = None) -> float:
     documents = rendered() if documents is None else documents
+    kserve_values = yaml.safe_load(KSERVE_CHART_VALUES.read_text(encoding="utf-8")) if kserve_values is None else kserve_values
     gateway_values = yaml.safe_load((PLATFORM / "operators/envoy-gateway.yaml").read_text(encoding="utf-8")) if gateway_values is None else gateway_values
     minimums = hpa_minimums(documents)
-    total = envoy_gateway_gib(gateway_values)
+    total = envoy_gateway_gib(gateway_values) + kserve_gib(kserve_values)
     for document in documents:
         namespace = document["metadata"].get("namespace", "")
         proxy = PROXY_GIB if namespace in MESHED else 0.0
@@ -121,6 +137,8 @@ def _hpa(minimum: int) -> dict:
     return {"kind": "HorizontalPodAutoscaler", "metadata": {"name": "k", "namespace": "vectra-identity"}, "spec": {"scaleTargetRef": target, "minReplicas": minimum}}
 
 
+KSERVE_VALUES = {"kserve": {"controller": {"resources": {"requests": {"memory": "300Mi"}}, "rbacProxy": {"resources": {"requests": {"memory": "100Mi"}}}}}}
+NO_KSERVE = {"kserve": {"controller": {"replicas": 0, "resources": {"requests": {"memory": "0"}}, "rbacProxy": {"resources": {"requests": {"memory": "0"}}}}}}
 GATEWAY_VALUES = {
     "deployment": {"replicas": 2, "envoyGateway": {"resources": {"requests": {"memory": "128Mi"}}}},
     "config": {"envoyGateway": {"provider": {"kubernetes": {"rateLimitDeployment": {"replicas": 2, "container": {"resources": {"requests": {"memory": "64Mi"}}}}}}}},
@@ -129,10 +147,10 @@ GATEWAY_VALUES = {
 
 def test_a_workload_with_an_hpa_counts_its_minimum_replicas():
     """Keycloak no declara `replicas` y su HPA pide 2: corren 2 pods, no 1."""
-    one = requested_gib([_statefulset()], {**GATEWAY_VALUES})
-    two = requested_gib([_statefulset(), _hpa(2)], {**GATEWAY_VALUES})
+    one = requested_gib([_statefulset()], {**GATEWAY_VALUES}, NO_KSERVE)
+    two = requested_gib([_statefulset(), _hpa(2)], {**GATEWAY_VALUES}, NO_KSERVE)
     assert two - one == 0.5 + PROXY_GIB
-    assert requested_gib([_statefulset(3), _hpa(2)], GATEWAY_VALUES) - one == 2 * (0.5 + PROXY_GIB)  # max(replicas, minReplicas)
+    assert requested_gib([_statefulset(3), _hpa(2)], GATEWAY_VALUES, NO_KSERVE) - one == 2 * (0.5 + PROXY_GIB)  # max(replicas, minReplicas)
 
 
 def test_the_envoy_data_plane_comes_from_the_envoy_proxy():
@@ -145,12 +163,12 @@ def test_the_envoy_data_plane_comes_from_the_envoy_proxy():
             "envoyHpa": {"minReplicas": 3},
         }}},
     }
-    base = requested_gib([], GATEWAY_VALUES)
-    assert requested_gib([proxy], GATEWAY_VALUES) - base == 3 * (0.25 + 32 / 1024 + PROXY_GIB)  # el mayor de replicas y el minimo del HPA, con el proxy de la malla
+    base = requested_gib([], GATEWAY_VALUES, NO_KSERVE)
+    assert requested_gib([proxy], GATEWAY_VALUES, NO_KSERVE) - base == 3 * (0.25 + 32 / 1024 + PROXY_GIB)  # el mayor de replicas y el minimo del HPA, con el proxy de la malla
 
 
 def test_the_envoy_gateway_controller_and_ratelimit_come_from_its_values():
-    assert requested_gib([], GATEWAY_VALUES) == 2 * 0.125 + 2 * 0.0625  # sin proxy: envoy-gateway-system no esta en la malla
+    assert requested_gib([], GATEWAY_VALUES, NO_KSERVE) == 2 * 0.125 + 2 * 0.0625  # sin proxy: envoy-gateway-system no esta en la malla
 
 
 def test_the_real_count_includes_what_the_old_count_left_out():
@@ -158,4 +176,16 @@ def test_the_real_count_includes_what_the_old_count_left_out():
     documents = rendered()
     kinds = {d["kind"] for d in documents}
     assert {"EnvoyProxy", "HorizontalPodAutoscaler"} <= kinds
-    assert requested_gib() > requested_gib([d for d in documents if d["kind"] not in {"EnvoyProxy", "HorizontalPodAutoscaler"}], GATEWAY_VALUES)
+    assert requested_gib() > requested_gib([d for d in documents if d["kind"] not in {"EnvoyProxy", "HorizontalPodAutoscaler"}], GATEWAY_VALUES, NO_KSERVE)
+
+
+def test_kserve_controller_comes_from_the_chart_values():
+    """`manager` y `kube-rbac-proxy` de un pod, sin proxy de malla (namespace `kserve`)."""
+    assert requested_gib([], GATEWAY_VALUES, KSERVE_VALUES) - requested_gib([], GATEWAY_VALUES, NO_KSERVE) == 0.390625
+    replicated = {"kserve": {"controller": {**KSERVE_VALUES["kserve"]["controller"], "replicas": 2}}}
+    assert requested_gib([], GATEWAY_VALUES, replicated) - requested_gib([], GATEWAY_VALUES, NO_KSERVE) == 2 * 0.390625
+
+
+def test_the_pinned_kserve_chart_asks_for_the_controller_it_was_counted_with():
+    values = yaml.safe_load(KSERVE_CHART_VALUES.read_text(encoding="utf-8"))
+    assert kserve_gib(values) == 600 / 1024  # 300 Mi del manager + 300 Mi de kube-rbac-proxy, una replica

@@ -15,6 +15,7 @@ Nadie inicia sesión ni obtiene tokens nuevos. Los servicios no pueden renovar s
 3. Causa en el log: `kubectl -n vectra-identity logs -l app.kubernetes.io/name=keycloak --tail=200`.
 4. Base de datos `keycloak-db` (CloudNativePG): `kubectl get clusters.postgresql.cnpg.io -A`.
 5. Certificado y Secrets: `kubectl -n vectra-identity get certificate keycloak-tls` y `kubectl -n vectra-identity get externalsecret`.
+6. Solo en kind (límite aceptado, C-03 / M5 de U02-T18): Keycloak pide 512 Mi y tiene un limit de 2 Gi, así que con presión de memoria en el nodo es el primer candidato a desalojo. Busca `Evicted` u `OOMKilled` en `describe pods`; no es un defecto de staging ni de prod, donde pide 1 Gi.
 
 ## Mitigación
 1. Si `keycloak-db` no está sana, sigue el runbook de la base de datos (`platform/runbooks/postgres-replica-lag.md`, `platform/runbooks/zone-failover.md`).
