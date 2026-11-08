@@ -219,6 +219,7 @@ vectra-risk/identity-edge/
   - Entradas en `vectra-risk-gitops/components.yaml` con sus waves: Valkey (2), Keycloak + `keycloak-config-cli` y gateway + rate limit (3); los CRDs de Gateway API y el controlador (0) ya están en la entrada `envoy-gateway` de U1. `generate.py` escribe las Applications. Values por entorno en `vectra-risk-gitops/values/<env>/<componente>.yaml`: hostnames (INF-U2-01), issuer y LDAP (prod) (revisión de consistencia entre unidades, 2026-11-01).
   - **Nota del 2026-11-05 (decisión B6 del usuario al preparar U02-T13):** el paso también suma las entradas `identity-rules` e `identity-monitors` en wave 4, con las reglas y los monitores que deja el Paso 11 en `identity-edge/observability/`.
   - **Nota del 2026-11-08 (decisión V1-a del usuario al preparar U02-T17):** sin `vectra-risk-gitops/values/<env>/` para U2. Todo U2 se renderiza en el repositorio, y hostnames, issuer y LDAP tienen una sola fuente: los values de `identity-edge/`.
+  - **Nota del 2026-11-08 (decisión del usuario tras la revisión de código del PR 78, C-05):** `identity-jobs` (`keycloak-config-cli`, `realm-drift`, `signing-key-age`) va en la wave 4, no en la 3, porque dentro de una wave Argo CD no espera a que Keycloak esté sano.
   - Diseño: P-U1-12; INF-U2-01.
   - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`, `uv run python platform/tests/test_waves.py` y `kyverno test` de `disallow-argocd-auto-sync` sobre las Applications nuevas (revisión de consistencia entre unidades, 2026-11-01).
 

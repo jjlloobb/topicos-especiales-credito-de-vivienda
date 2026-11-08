@@ -1,0 +1,16 @@
+# Revisión de código del PR 78 (U02-T17), 2026-11-08
+
+La pidió el usuario («revisa los PR») después de la ronda 2 VERDE. La hizo `/code-review 78` leyendo el diff. Corrió `generate.py --check`, `test_waves.py`, `test_platform.py` y `test_kind_profile.py` (84 pruebas, en verde). **Los hallazgos no se verificaron con ejecución.** Conclusión del informe: no hay bugs de corrección claros; los 8 hallazgos son huecos de cobertura, pruebas frágiles y limpieza.
+
+| # | Archivo:línea | Hallazgo | Escenario de falla |
+|---|---|---|---|
+| C-01 | `platform/tests/test_waves.py:52` | Faltan en `STRICT` dependencias reales de U2: `secret-store` antes de `valkey`, `keycloak` e `identity-jobs` (usan `ExternalSecret` del `ClusterSecretStore`); `mesh-certificates` antes de `keycloak` y `gateway` (sus `Certificate` usan el `ClusterIssuer` `vectra-internal-ca` en kind); `keycloak` antes de `identity-monitors` (el `PodMonitor` monta el Secret `identity-ca`) | Si alguien mueve `valkey` o `keycloak` a la wave 1, o `mesh-certificates` a una posterior, `test_waves` sigue en verde. Argo sincroniza los `ExternalSecret` antes del store, o los `Certificate` antes del emisor, y la wave se atasca en `Degraded` |
+| C-02 | `platform/tests/test_kind_profile.py:12` | `BUDGET_GIB` 5.5 contra 5,47 medidos: 0,027 GiB de margen | El siguiente request, por pequeño que sea, rompe la prueba; el tope anterior de 5,0 ya se superó y el scheduler puede dejar pods `Pending` |
+| C-03 | `platform/tests/test_integration.py:306` | La excepción de `banco-ca` vale en todos los entornos y la prueba solo mira prod | Un `Certificate` de kind con `banco-ca` pasa la prueba y en kind nunca se emite |
+| C-04 | `platform/tests/test_integration.py:370` | `crd_schemas` lee los CRDs de Gateway API de una ruta fija dentro de `platform/.charts`, que git ignora, y falla con error en vez de omitir | Un worktree sin `charts.sh`, o un chart que renombra el archivo, hace que todas las pruebas de esquema den `FileNotFoundError` |
+| C-05 | `platform/tests/test_waves.py:72` | `("keycloak", "identity-jobs")` en `SAME_WAVE_OK` supone que Argo espera a cada Application dentro de una wave; en realidad aplica toda la wave junta y espera solo a la wave entera | Argo crea los CronJobs de `keycloak-config-cli` y `realm-drift` mientras Keycloak y los `ExternalSecret` aún convergen; una corrida en esa ventana falla por un Secret que falta o por conexión rechazada |
+| C-06 | `vectra-risk-gitops/components.yaml:10` | V1-a es solo un comentario: `value_files()` de `generate.py` sigue tomando `values/<env>/<nombre>.yaml` para componentes `path`, y el README dice que ahí van los values de cada unidad | Si alguien agrega `values/kind/keycloak.yaml`, `generate.py` pone `helm.valueFiles` sobre un directorio sin `Chart.yaml` y `--check` lo acepta |
+| C-07 | `platform/tests/test_platform.py:282` | `EXPECTED_WAVES` y `FIXED_WAVES` repiten las waves de U2, además de `components.yaml` | Cambiar una wave de U2 obliga a editar tres lugares |
+| C-08 | `platform/policies/kyverno/fixtures/resources.yaml:39` | El fixture `u2-keycloak` es una copia a mano de la Application de staging | Si `generate.py` cambia la forma de la Application, `kyverno test` sigue pasando con la copia vieja |
+
+Ya estaban en `CANDIDATAS.md` desde la ronda 2: C-02, C-03, C-04, C-07 y C-08.
