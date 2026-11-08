@@ -6065,6 +6065,22 @@ Informe en `revisiones/U03-T02/`.
 
 Informes y arbitraje en `revisiones/U05-T01/`.
 **Context**: Construcción de U5, U05-T01.
+
+---
+
+## U05-T02: rondas 1 y 2
+**Timestamp**: 2026-11-08T22:13:59Z
+**User Input**: "Reformular la propiedad (Recomendado)"; "1e-4 absoluta (Recomendado)"
+**AI Response**:
+- Ronda 1 NO-VERDE por un ROJO: Hypothesis refutó PBT-U5-03, porque la distancia de Mahalanobis no es monótona y la propiedad contradecía la fórmula de BR-U5-12.
+- Decisiones del usuario:
+  - PBT-U5-03 se reformula (`c_rango` no creciente y `confidence ≤ c_rango`) y BR-U5-12 no cambia;
+  - tolerancia absoluta de 1e-4 para la suma de contribuciones contra el margen, enmendada en NFR-U5-30, NFR-U6-01 y los planes de U5 y U6. La paridad con shap sigue en 1e-6.
+- Ronda 2 VERDE (96cea22), con tres AMARILLO. F-07 (puntuación de las enmiendas) lo corrige el orquestador; F-08 y F-09 pasan a candidatas.
+- Se abre el PR.
+
+Informes y arbitraje en `revisiones/U05-T02/`.
+**Context**: Construcción de U5, U05-T02.
 ## U02-T18: ronda 1 VERDE
 **Timestamp**: 2026-11-08T19:04:41Z
 **User Input**: "ya fusioné el PR 79"
