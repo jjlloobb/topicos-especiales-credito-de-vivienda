@@ -64,12 +64,12 @@ vectra-risk/reference-model/
 
 ### Bloque C — Modelo y confianza
 
-- [ ] **Paso 3 — Entrenamiento**
+- [x] **Paso 3 — Entrenamiento** (U05-T02)
   - XGBoost con `nthread` fijo, `hist` y semilla; solo las features de domain-entities §3.1; AUC de validación ≥ 0,85 **[INTERNO]** o la entrega falla.
   - Diseño: BR-U5-07, 08; NFR-U5-10.
   - **Aceptación**: `uv run pytest reference-model/tests/examples/test_train.py` (AUC ≥ 0,85 con la semilla de referencia; una feature excluida en el `feature_spec` → error).
 
-- [ ] **Paso 4 — Envolvente de dominio y `confidence`**
+- [x] **Paso 4 — Envolvente de dominio y `confidence`** (U05-T02)
   - `envelope/fit.py`: p1–p99, categorías vistas, `MinCovDet` y la distribución de distancias.
   - `envelope/confidence.py`: la fórmula de BR-U5-12, cuantizada a `Decimal4`, solo con numpy.
   - Calibración: los casos RT-4 bajo el umbral de `reference_policy` y ≥ 95 % de `test` sobre él; el resultado se publica como `reference-policy.json`, válido según `PolicyDraft` de U0 (seguimiento de la cuarta revisión de coherencia, 2026-10-31).
@@ -77,7 +77,7 @@ vectra-risk/reference-model/
   - Diseño: BR-U5-11..13; NFR-U5-32, 33. Historia: US-106.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest reference-model/tests/property/test_envelope.py`, cobertura del 100 % en `envelope/confidence.py`, y una prueba que importa `confidence` en un entorno con solo numpy.
 
-- [ ] **Paso 5 — Empaquetado**
+- [x] **Paso 5 — Empaquetado** (U05-T02)
   - `predictor.json`, `explainer.json` (TreeSHAP) y `background.csv` (200 filas, sin identificadores).
   - `domain_envelope.json`, `feature_dictionary.json` (en español, con `applicant_safe`) y `feature_spec.json`.
   - `manifest.json` con los SHA-256 y el `model_version_id`.

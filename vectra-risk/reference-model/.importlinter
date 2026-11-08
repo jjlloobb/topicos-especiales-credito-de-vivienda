@@ -15,7 +15,7 @@ ignore_imports =
     vectra_reference.envelope.fit -> sklearn
 unmatched_ignore_imports_alerting = none
 
-# NFR-U5-30: shap solo valida el explicador en CI (Paso 5; el modulo todavia no existe).
+# NFR-U5-30: shap solo valida el explicador (`explainer_validation`, Paso 5).
 [importlinter:contract:shap-solo-en-validacion]
 name = solo la validacion del explicador importa shap
 type = forbidden
@@ -50,3 +50,6 @@ forbidden_modules =
     vectra_reference.adversarial
     vectra_reference.release
     vectra_reference.envelope.fit
+    vectra_reference.envelope.calibrate
+    vectra_reference.features
+    vectra_reference.explainer_validation

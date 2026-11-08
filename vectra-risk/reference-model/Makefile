@@ -1,7 +1,7 @@
 # Comandos de U5 (reference-model). Se ejecutan desde cualquier sitio; corren en la raiz del workspace `vectra-risk/`.
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 UV := cd $(ROOT) && uv run
-# Directorio de la entrega; el Paso 5 (empaquetado) lo ampliara.
+# Directorio de la entrega (ignorado por el control de versiones): datasets/, package/ y reference-policy.json.
 OUT ?= $(ROOT)/reference-model/.out
 
 .PHONY: lint imports test check release
@@ -18,6 +18,6 @@ test:
 
 check: lint imports test
 
-# En U05-T01 solo genera los datos (Paso 2). El empaquetado llega en el Paso 5.
+# Genera los datos, entrena, ajusta la envolvente, calibra y empaqueta (Pasos 2 a 5). Falla si una regla de calidad no se cumple.
 release:
-	$(UV) python -m vectra_reference.generate --out $(OUT)/datasets
+	$(UV) python -m vectra_reference.release --out $(OUT)
