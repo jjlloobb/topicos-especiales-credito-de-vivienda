@@ -18,6 +18,13 @@ WAVE_ANNOTATION = "argocd.argoproj.io/sync-wave"
 WAVES = range(7)  # P-U1-12: waves 0 a 6
 #: Wave de cada Application de una unidad, segun P-U1-12 y su plan: `components.yaml` no se puede corregir a si mismo.
 FIXED_WAVES = {
+    "valkey": 2,
+    "keycloak": 3,
+    "identity-jobs": 3,
+    "gateway": 3,
+    "ratelimit": 3,
+    "identity-rules": 4,
+    "identity-monitors": 4,
     "decision-registry": 5,
     "scoring-explainability": 5,
     "governance": 5,
