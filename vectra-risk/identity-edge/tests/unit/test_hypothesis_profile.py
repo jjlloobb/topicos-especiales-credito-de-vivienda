@@ -1,4 +1,7 @@
-"""El perfil activo de Hypothesis es el que fija HYPOTHESIS_PROFILE (CA-3)."""
+"""El perfil activo de Hypothesis es el que fija HYPOTHESIS_PROFILE (CA-3).
+
+NFR-U2-40: `make test` fija `HYPOTHESIS_PROFILE=ci`; esta prueba comprueba que el perfil pedido es el activo.
+"""
 
 import os
 
