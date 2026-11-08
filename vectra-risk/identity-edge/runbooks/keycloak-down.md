@@ -7,6 +7,8 @@
 Ninguna réplica de Keycloak está lista (`kube_statefulset_status_replicas_ready == 0` durante 1 minuto). La expresión está en `identity-edge/observability/rules/identity-edge-rules.yaml`.
 
 ## Impacto
+Escenario de NFR-U2-05 (RESILIENCY-14): los access tokens vigentes (≤ 5 min) y la cache de JWKS (10 min) mantienen la operación en curso; la ruta de recomendación sale fail-closed.
+
 Nadie inicia sesión ni obtiene tokens nuevos. Los servicios no pueden renovar su JWKS ni pedir tokens de servicio (F50).
 
 ## Diagnóstico

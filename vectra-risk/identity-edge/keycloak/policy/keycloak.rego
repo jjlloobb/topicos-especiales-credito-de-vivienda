@@ -361,6 +361,7 @@ deny contains msg if {
 }
 
 # regla: image
+# NFR-U2-25: la imagen de Keycloak va pinneada por digest (la firma la exigen las políticas de U1, que `policy-keycloak-u1` aplica).
 deny contains msg if {
 	is_keycloak_statefulset
 	not count(split(container.image, "@")) == 2

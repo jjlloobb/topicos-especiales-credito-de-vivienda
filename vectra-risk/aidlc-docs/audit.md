@@ -6053,3 +6053,12 @@ Informe y arbitraje en `revisiones/U03-T01/`.
 
 Informes y arbitraje en `revisiones/U05-T01/`.
 **Context**: Construcción de U5, U05-T01.
+## U02-T18: ronda 1 VERDE
+**Timestamp**: 2026-11-08T19:04:41Z
+**User Input**: "ya fusioné el PR 79"
+**AI Response**:
+- U02-T18 (Paso 15 de U2 y correcciones de la revisión del PR 79), ronda 1 VERDE (91a8f6d). La trazabilidad de U2 queda completa (39 ids), y el revisor contrastó cada uno de los 7 nuevos con su requisito. Un NARANJA (un comentario sobre la firma en `keycloak.rego`) y cuatro AMARILLO pasan a `CANDIDATAS.md` según RL-2.
+- Se abre el PR. Faltan de U2 el Paso 16 (instalación en kind, del operador) y el Paso 18.
+
+Informe en `revisiones/U02-T18/`.
+**Context**: Construcción de U2, U02-T18.

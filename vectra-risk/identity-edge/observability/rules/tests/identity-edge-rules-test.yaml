@@ -2,7 +2,7 @@ rule_files:
 - ../identity-edge-rules.yaml
 evaluation_interval: 1m
 tests:
-# KeycloakDown (1m)
+# KeycloakDown (1m; SEV1, NFR-U2-05)
 - interval: 1m
   input_series:
   - series: 'kube_statefulset_status_replicas_ready{namespace="vectra-identity",statefulset="keycloak"}'
