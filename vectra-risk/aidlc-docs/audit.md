@@ -5984,3 +5984,27 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 - `aidlc-state.md` actualizado (Scope Constraint y Next Stage).
 - Sigue U2: Pasos 12, 15, 16 y 18.
 **Context**: Construcción, alcance de la demo.
+
+---
+
+## U02-T17: pausa durante la ronda 2
+**Timestamp**: 2026-11-08T05:36:14Z
+**User Input**: "5,5 provisional (Recomendado)"; "para por ahora y continuamos mas tarde"
+**AI Response**:
+- Ronda 1 NO-VERDE (F-01 `FIXED_WAVES` debilitado, F-02 `BUDGET_GIB` 5.0→5.5). El usuario decide 5,5 GiB provisional hasta la medición del Paso 16 (DD-3).
+- Ronda 2 del codificador en `tarea/U02-T17` (sha 5575027). La revisión de la ronda 2 se detuvo a pedido del usuario, sin veredicto; al retomar se vuelve a despachar.
+
+Informes y arbitraje en `revisiones/U02-T17/`.
+**Context**: Construcción de U2, U02-T17.
+
+---
+
+## U02-T17: ronda 2 VERDE
+**Timestamp**: 2026-11-08T14:12:56Z
+**User Input**: "sigamos"
+**AI Response**:
+- Ronda 2 de la revisión (sha 5575027): VERDE. F-01 y F-02 resueltos según el arbitraje; las 6 candidatas en `CANDIDATAS.md`. Un AMARILLO: la bitácora remite a una evidencia de CA-2 a CA-6 que no incluye (el revisor corrió los seis).
+- Se cierra el Paso 12 y se abre el PR.
+
+Informes y arbitraje en `revisiones/U02-T17/`.
+**Context**: Construcción de U2, U02-T17.
