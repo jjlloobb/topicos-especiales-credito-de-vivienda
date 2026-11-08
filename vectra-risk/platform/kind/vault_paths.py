@@ -54,6 +54,8 @@ IDENTITY_EXTRA = {"identity/break-glass": {"BREAK_GLASS_PASSWORD"}}
 #: El Secret de cert-manager con la CA interna (`platform/mesh/certificates.yaml`); solo se lee su certificado publico.
 CA_SECRET = ("cert-manager", "vectra-internal-ca")
 CLIENTS_PREFIX = "identity/clients/"
+#: Usuario del administrador de arranque si `VECTRA_KC_ADMIN_USER` no dice otro (solo al sembrar; despues se conserva el de la boveda).
+DEFAULT_ADMIN_USER = "admin"
 #: Fuera del repositorio, con permisos 0700.
 KEYS_DIR_DEFAULT = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp") / "vectra-e2e-keys"  # noqa: S108
 ALPHANUMERIC = string.ascii_letters + string.digits
@@ -262,7 +264,7 @@ def identity_value(path: str, prop: str) -> str:
     if path == "identity/synthetic-users" and prop.endswith("_TOTP_SEED"):
         return totp_seed()
     if path == "identity/keycloak-admin" and prop == "username":
-        return "admin"
+        return os.environ.get("VECTRA_KC_ADMIN_USER") or DEFAULT_ADMIN_USER
     if prop.endswith("PASSWORD") or prop == "password":
         return alphanumeric_password()
     return secrets.token_hex(24)  # edge/valkey: no necesita forma
@@ -301,11 +303,12 @@ def ca_from_cluster(context: str, run: Runner = kubectl_runner) -> Callable[[], 
 
 
 def write_private(path: Path, text: str) -> None:
-    """Archivo 0600 que nunca existio con permisos mas amplios."""
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    """Archivo 0600. Se escribe a un temporal 0600 en el mismo directorio y se reemplaza: el contenido nuevo nunca esta en un archivo con permisos mas amplios."""
+    temporary = path.with_name(f".{path.name}.{secrets.token_hex(4)}.tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         handle.write(text)
-    path.chmod(0o600)
+    temporary.replace(path)
 
 
 def local_files(keys_dir: Path, planned: dict[str, dict[str, str]]) -> list[str]:

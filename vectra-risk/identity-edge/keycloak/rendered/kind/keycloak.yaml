@@ -1836,7 +1836,7 @@ spec:
         config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
     spec:
       serviceAccountName: keycloak-config-cli
-      priorityClassName: vectra-low
+      priorityClassName: vectra-normal
       restartPolicy: Never
       securityContext:
         runAsNonRoot: true
@@ -1853,8 +1853,12 @@ spec:
           args: [-importcert, -noprompt, -alias, vectra-ca, -file, /etc/vectra/ca/ca.crt, -keystore, /trust/truststore.p12, -storetype, PKCS12, -storepass, changeit]
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
           resources:
-            requests: { cpu: 50m, memory: 64Mi }
-            limits: { cpu: 500m, memory: 256Mi }
+                limits:
+                  cpu: 250m
+                  memory: 128Mi
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
           volumeMounts:
             - { name: identity-ca, mountPath: /etc/vectra/ca, readOnly: true }
             - { name: trust, mountPath: /trust }
@@ -1871,21 +1875,25 @@ spec:
             - name: KEYCLOAK_PASSWORD
               valueFrom: { secretKeyRef: { name: keycloak-bootstrap-admin, key: password } }
             - { name: KEYCLOAK_AVAILABILITYCHECK_ENABLED, value: "true" }
-            - { name: KEYCLOAK_AVAILABILITYCHECK_TIMEOUT, value: 300s }
+            - { name: KEYCLOAK_AVAILABILITYCHECK_TIMEOUT, value: "300s" }
             - { name: IMPORT_FILES_LOCATIONS, value: file:/config/realm.kind.yaml }
             - { name: IMPORT_VARSUBSTITUTION_ENABLED, value: "true" }
             - { name: IMPORT_VARSUBSTITUTION_UNDEFINEDISERROR, value: "true" }
             - { name: PUBLIC_HOSTNAME, value: "vectra.localtest.me" }
             # La linea 3 del realm cita `$(env:NOMBRE)` en un comentario y la sustitucion lo resuelve igual (candidata en CANDIDATAS.md).
-            - { name: NOMBRE, value: NOMBRE }
+            - { name: NOMBRE, value: "NOMBRE" }
             - { name: JAVA_OPTS, value: "-XX:MaxRAMPercentage=70 -Djavax.net.ssl.trustStore=/trust/truststore.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=changeit" }
           envFrom:
             - secretRef: { name: keycloak-realm-clients-jwks }
             - secretRef: { name: keycloak-realm-synthetic-users }
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
           resources:
-            requests: { cpu: 100m, memory: 384Mi }
-            limits: { cpu: "1", memory: 1Gi }
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
           volumeMounts:
             - { name: realm, mountPath: /config, readOnly: true }
             - { name: trust, mountPath: /trust, readOnly: true }

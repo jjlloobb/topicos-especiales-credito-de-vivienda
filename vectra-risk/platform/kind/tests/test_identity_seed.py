@@ -475,3 +475,42 @@ def test_the_script_refuses_a_context_that_is_not_kind_in_identity_mode(tmp_path
     (tmp_path / "kubectl").chmod(0o755)
     result = subprocess.run([str(SEED_VAULT), "identity"], env={"PATH": f"{tmp_path}:/usr/bin:/bin", "VECTRA_KIND_CONTEXT": "produccion"}, capture_output=True, text=True, check=False)
     assert result.returncode == 2 and not (tmp_path / "llamado").exists()
+
+
+def test_a_preexisting_loose_file_is_replaced_without_the_new_content_ever_being_loose(tmp_path: Path):
+    """F-06: el contenido nuevo no se escribe en un archivo 0644; se reemplaza con uno que nace 0600."""
+    target = tmp_path / "env"
+    target.write_text("viejo", encoding="utf-8")
+    target.chmod(0o644)
+    inode_before = target.stat().st_ino
+    seen = []
+    real_open = os.open
+
+    def spy(path, flags, mode=0o777, *args, **kwargs):
+        seen.append((Path(path), mode))
+        return real_open(path, flags, mode, *args, **kwargs)
+
+    os.open = spy
+    try:
+        vp.write_private(target, "nuevo-secreto")
+    finally:
+        os.open = real_open
+    assert target.read_text(encoding="utf-8") == "nuevo-secreto" and mode(target) == 0o600
+    assert target.stat().st_ino != inode_before  # reemplazado, no reescrito en sitio
+    assert seen and all(m == 0o600 and p != target for p, m in seen)
+    assert [p.name for p in tmp_path.iterdir()] == ["env"]  # sin temporales
+
+
+def test_the_admin_user_is_a_parameter_with_a_default(keys_dir: Path, monkeypatch):
+    monkeypatch.setenv("VECTRA_KC_ADMIN_USER", "operador")
+    vault = FakeVault()
+    seed(vault, keys_dir)
+    assert vault.store["identity/keycloak-admin"]["username"] == "operador"
+    again = FakeVault({"identity/keycloak-admin": {"username": "previo", "password": "x" * 20}})
+    monkeypatch.setenv("VECTRA_KC_ADMIN_USER", "otro")
+    seed(again, keys_dir)
+    assert again.store["identity/keycloak-admin"]["username"] == "previo"  # lo que existe se conserva
+    monkeypatch.delenv("VECTRA_KC_ADMIN_USER")
+    fresh = FakeVault()
+    seed(fresh, keys_dir)
+    assert fresh.store["identity/keycloak-admin"]["username"] == vp.DEFAULT_ADMIN_USER

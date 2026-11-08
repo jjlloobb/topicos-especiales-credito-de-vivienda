@@ -152,6 +152,24 @@ deny contains msg if {
 }
 
 # regla: config-cli-security
+# Recursos del contenedor principal: los de INF-U2-06 (requests 100m y 256Mi, limits 500m y 512Mi). El init container `truststore` (un `keytool`)
+# lleva los minimos que necesita: 50m y 64Mi de requests, 250m y 128Mi de limits.
+config_cli_resources := {"requests": {"cpu": "100m", "memory": "256Mi"}, "limits": {"cpu": "500m", "memory": "512Mi"}}
+
+truststore_resources := {"requests": {"cpu": "50m", "memory": "64Mi"}, "limits": {"cpu": "250m", "memory": "128Mi"}}
+
+deny contains msg if {
+	is_config_cli_job
+	job_pod.containers[0].resources != config_cli_resources
+	msg := sprintf("config-cli-security: los recursos de keycloak-config-cli son los de INF-U2-06: %v", [config_cli_resources])
+}
+
+deny contains msg if {
+	is_config_cli_job
+	job_pod.initContainers[0].resources != truststore_resources
+	msg := sprintf("config-cli-security: los recursos de truststore son %v", [truststore_resources])
+}
+
 # Lo que exigirian las politicas de U1: no root, raiz de solo lectura, sin privilegios, recursos, prioridad y sin token de la API.
 deny contains msg if {
 	is_config_cli_job
@@ -195,8 +213,8 @@ container_resources(c) if {
 
 deny contains msg if {
 	is_config_cli_job
-	job_pod.priorityClassName != "vectra-low"
-	msg := "config-cli-security: priorityClassName vectra-low"
+	job_pod.priorityClassName != "vectra-normal"
+	msg := "config-cli-security: priorityClassName vectra-normal (nfr-design/logical-components.md)"
 }
 
 deny contains msg if {

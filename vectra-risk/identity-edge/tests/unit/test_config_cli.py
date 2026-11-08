@@ -143,6 +143,9 @@ KIND_MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
     ("config-cli-security", "raiz de escritura", set_path("Job", JOB, ["spec", "template", "spec", "containers", 0, "securityContext", "readOnlyRootFilesystem"], False)),
     ("config-cli-security", "init container con privilegios", set_path("Job", JOB, ["spec", "template", "spec", "initContainers", 0, "securityContext", "allowPrivilegeEscalation"], True)),
     ("config-cli-security", "sin limites", del_path("Job", JOB, ["spec", "template", "spec", "containers", 0, "resources", "limits"])),
+    ("config-cli-security", "limite de memoria de 1Gi (ronda 1)", set_path("Job", JOB, ["spec", "template", "spec", "containers", 0, "resources", "limits", "memory"], "1Gi")),
+    ("config-cli-security", "prioridad vectra-low (ronda 1)", set_path("Job", JOB, ["spec", "template", "spec", "priorityClassName"], "vectra-low")),
+    ("config-cli-security", "recursos del truststore de mas", set_path("Job", JOB, ["spec", "template", "spec", "initContainers", 0, "resources", "limits", "memory"], "512Mi")),
     ("config-cli-security", "otra prioridad", set_path("Job", JOB, ["spec", "template", "spec", "priorityClassName"], "vectra-high")),
     ("config-cli-security", "otra cuenta de servicio", set_path("Job", JOB, ["spec", "template", "spec", "serviceAccountName"], "default")),
     ("config-cli-security", "otra etiqueta de pod (F94)", set_path("Job", JOB, ["spec", "template", "metadata", "labels", "app.kubernetes.io/name"], "otro")),
@@ -336,3 +339,18 @@ def test_the_u1_kyverno_policies_fail_on_a_job_with_a_latest_image(kind_docs):
     set_path("Job", JOB, ["spec", "template", "spec", "containers", 0, "image"], "kind-registry:5000/vectra/keycloak-config-cli:latest")(docs)
     ok, _ = kd.kyverno(docs)
     assert not ok
+
+
+def test_the_job_parameters_come_from_the_values_not_from_the_template():
+    """F-02: `backoffLimit`, el plazo, la espera de disponibilidad, los recursos y el rodeo `NOMBRE` salen de `vectra.configCli.*`."""
+    own = yaml.safe_load((kd.VALUES / "common.yaml").read_text(encoding="utf-8"))["vectra"]["configCli"]
+    template = (kd.VALUES / "common.yaml").read_text(encoding="utf-8")
+    block = template[template.index("kind: Job") :]
+    for literal in ("backoffLimit: 3", "activeDeadlineSeconds: 900", "value: 300s", "memory: 512Mi", "memory: 256Mi", "name: NOMBRE", "vectra-normal"):
+        assert literal not in block, literal
+    docs = kd.render("kind", "--set", "vectra.configCli.backoffLimit=7", "--set", "vectra.configCli.availabilityTimeout=42s")
+    assert docs.returncode == 0, docs.stderr
+    job_doc = next(d for d in yaml.safe_load_all(docs.stdout) if d and d["kind"] == "Job")
+    assert job_doc["spec"]["backoffLimit"] == 7
+    assert {"name": "KEYCLOAK_AVAILABILITYCHECK_TIMEOUT", "value": "42s"} in job_doc["spec"]["template"]["spec"]["containers"][0]["env"]
+    assert own["resources"] == {"requests": {"cpu": "100m", "memory": "256Mi"}, "limits": {"cpu": "500m", "memory": "512Mi"}}  # INF-U2-06
