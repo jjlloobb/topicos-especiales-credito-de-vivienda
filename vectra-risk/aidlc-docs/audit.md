@@ -5963,3 +5963,24 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **User Input**: (ninguno nuevo; ronda 4 acotada a F-09 por decisión previa del usuario)
 **AI Response**: La ronda 4 de U02-T15 sale VERDE: F-09 cerrado, con R01a a R01d muertas y el control FG0. Hay dos AMARILLO (F-11 y F-12), que pasan a `CANDIDATAS.md`. Se fusiona `origin/main` en la rama para quitar los conflictos del PR 72, que queda en revisión humana.
 **Context**: Construcción de U2, U02-T15.
+---
+
+## Propuesta de alcance de la demo en kind (U2–U12)
+**Timestamp**: 2026-11-08T03:42:10Z
+**User Input**: "es posible trabajar solo en las tares necesarias para tener una demo completa del proyecto con todas las unidades y pueda correr en esta maquina?"; "sí, haz la tabla de alcance de la demo"
+**AI Response**:
+- Se redacta `aidlc-docs/construction/plans/demo-kind-alcance.md`: la demo es la sustentación de `entradas/prd.md` §13 (journeys 7.3 y 7.4, RT-5 y dashboard) en `kind-vectra` (8 vCPU, 14 GiB).
+- Clasificación paso por paso de los planes de U2–U12: 121 pasos entran completos, 48 entran con un recorte nombrado y 19 se difieren. Recortes transversales T1–T6.
+- Decisiones pendientes DD-1 a DD-4. Mientras no se aprueben, sigue vigente la restricción de código para U3–U12 de `aidlc-state.md`.
+**Context**: Construcción, alcance de la demo. Documento en estado PROPUESTA.
+
+---
+
+## Aprobación del alcance de la demo en kind
+**Timestamp**: 2026-11-08T03:45:55Z
+**User Input**: "apruebo, acepto tus recomendaciones en DD-1 a DD-4"
+**AI Response**:
+- `demo-kind-alcance.md` pasa a APROBADO: DD-1 RT-2 con 1 versión del proxy; DD-2 recortes T1–T5 aceptados; DD-3 medir con U1 + U2 antes de crear un perfil `values-kind-demo.yaml`; DD-4 restricción de código levantada para U3–U12 con este alcance.
+- `aidlc-state.md` actualizado (Scope Constraint y Next Stage).
+- Sigue U2: Pasos 12, 15, 16 y 18.
+**Context**: Construcción, alcance de la demo.

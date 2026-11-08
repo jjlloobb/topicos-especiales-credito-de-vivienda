@@ -24,7 +24,7 @@
 ## Scope Constraint (instrucción del usuario)
 - **Restricción levantada solo para U0 y U1** (P17 de `cross-unit-review5-followup-questions.md`, 2026-10-31): se ejecuta su Code Generation Part 2 y la comprobación de la plataforma en kind, después de la aprobación del conjunto de cambios (P18). Ningún operador humano queda reemplazado: AUTONOMIA-01 sigue vigente.
 - **Restricción levantada para U2 `identity-edge`** (instrucción del usuario, 2026-11-02: «termina la prueba de cambio de modelo y luego empieza la siguiente unidad»): su Code Generation Part 2 se ejecuta por tareas del loop (`tareas/U02-*`), cada una en un PR que fusiona una persona. AUTONOMIA-01 sigue vigente: lo que necesite un clúster lo ejecuta un operador después de un PR aprobado (Paso 16).
-- **Para U3–U12 sigue sin escribirse código**: el trabajo se detiene en su plan de tareas.
+- **Restricción levantada para U3–U12 con alcance de demo en kind** (aprobación del usuario, 2026-11-08): su Code Generation Part 2 se ejecuta solo con los pasos E y E\* de `construction/plans/demo-kind-alcance.md`, por tareas del loop; los pasos D quedan diferidos. Cada unidad cierra con un cierre acotado a la demo. AUTONOMIA-01 sigue vigente.
 
 ## Source Inputs
 - `entradas/prd.md` — fuente autoritativa de requisitos
@@ -74,7 +74,7 @@
 ## Current Status
 - **Lifecycle Phase**: CONSTRUCTION
 - **Current Stage**: CONSTRUCTION cerrada en los planes de tareas de U0–U12
-- **Next Stage**: U1 cerrada con alcance acotado a kind (Pasos 19, 20 y 23; `construction/platform-foundation/evidence/cierre-acotado.md`). El failover de zona sigue inconcluso. K11 y MinIO ya tienen decisión (issue 26), sin implementar, y bloquean staging y prod hasta entonces. U2 a U12 siguen en plan de tareas.
+- **Next Stage**: U1 cerrada con alcance acotado a kind (Pasos 19, 20 y 23; `construction/platform-foundation/evidence/cierre-acotado.md`). El failover de zona sigue inconcluso. K11 y MinIO ya tienen decisión (issue 26), sin implementar, y bloquean staging y prod hasta entonces. U2 en construcción (faltan los Pasos 12, 15, 16 y 18); después U3–U12 con el alcance de `construction/plans/demo-kind-alcance.md`.
 
 ## Per-Unit Progress (CONSTRUCTION)
 | Unidad | FD | NFR Req | NFR Design | Infra Design | Plan de tareas |
