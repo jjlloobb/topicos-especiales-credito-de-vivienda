@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from integration import REPO, ROOT, documents, pod_labels, pod_spec
+from integration import CHARTS, REPO, ROOT, documents, manifests, pod_labels, pod_spec
 
 PLATFORM = ROOT / "platform"
 FLOWS = yaml.safe_load((PLATFORM / "network/flows.yaml").read_text(encoding="utf-8"))
@@ -302,7 +302,9 @@ def test_every_issuer_reference_exists():
     all_documents = documents()
     issuers = {d["metadata"]["name"] for d in all_documents if d["kind"] == "ClusterIssuer"}
     references = [d["spec"]["issuerRef"]["name"] for d in all_documents if d["kind"] == "Certificate" and d["spec"]["issuerRef"]["kind"] == "ClusterIssuer"]
-    assert references and set(references) <= issuers, set(references) - issuers
+    # INF-U2-01 (enmienda del 2026-11-03): en staging y prod el emisor es la CA del banco, que se instala fuera de este repositorio.
+    external = {"banco-ca"}
+    assert references and set(references) <= issuers | external, set(references) - issuers - external
 
 
 def test_ca_issuers_read_a_secret_that_a_certificate_creates():
@@ -364,9 +366,13 @@ def test_restore_script_exists_and_pins_its_image():
 # --- Esquemas: un campo mal escrito en un recurso propio se pierde en silencio
 
 
+#: Los CRDs de Gateway API viajan en `crds/` de un subchart de `envoy-gateway` y `helm template` no los renderiza.
+GATEWAY_API_CRDS = CHARTS / "envoy-gateway/gateway-helm/charts/crds/crds/gatewayapi-crds.yaml"
+
+
 def crd_schemas():
     schemas = {}
-    for document in documents("kind"):
+    for document in [*documents("kind"), *manifests(GATEWAY_API_CRDS)]:
         if document["kind"] == "CustomResourceDefinition":
             group, kind = document["spec"]["group"], document["spec"]["names"]["kind"]
             for version in document["spec"]["versions"]:

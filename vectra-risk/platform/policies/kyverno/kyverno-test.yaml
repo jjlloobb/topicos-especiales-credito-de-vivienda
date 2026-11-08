@@ -62,6 +62,18 @@ results:
   - manual
   kind: Application
   result: pass
+- policy: disallow-argocd-auto-sync
+  rule: disallow-argocd-auto-sync
+  resources:
+  - u2-keycloak
+  kind: Application
+  result: pass
+- policy: disallow-argocd-auto-sync
+  rule: disallow-argocd-auto-sync
+  resources:
+  - u2-keycloak-auto
+  kind: Application
+  result: fail
 - policy: disallow-rbac-wildcards
   rule: disallow-rbac-wildcards
   resources:

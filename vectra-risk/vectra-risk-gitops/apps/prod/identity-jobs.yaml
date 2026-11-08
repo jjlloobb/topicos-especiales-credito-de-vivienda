@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: identity-jobs
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '3'
+spec:
+  project: vectra-prod
+  source:
+    repoURL: https://git.banco.internal/vectra/vectra-risk.git
+    targetRevision: main
+    path: vectra-risk/identity-edge/jobs/rendered/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-identity
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

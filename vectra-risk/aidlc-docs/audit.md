@@ -5963,3 +5963,48 @@ Informes y arbitrajes en `revisiones/U02-T16/`.
 **User Input**: (ninguno nuevo; ronda 4 acotada a F-09 por decisión previa del usuario)
 **AI Response**: La ronda 4 de U02-T15 sale VERDE: F-09 cerrado, con R01a a R01d muertas y el control FG0. Hay dos AMARILLO (F-11 y F-12), que pasan a `CANDIDATAS.md`. Se fusiona `origin/main` en la rama para quitar los conflictos del PR 72, que queda en revisión humana.
 **Context**: Construcción de U2, U02-T15.
+---
+
+## Propuesta de alcance de la demo en kind (U2–U12)
+**Timestamp**: 2026-11-08T03:42:10Z
+**User Input**: "es posible trabajar solo en las tares necesarias para tener una demo completa del proyecto con todas las unidades y pueda correr en esta maquina?"; "sí, haz la tabla de alcance de la demo"
+**AI Response**:
+- Se redacta `aidlc-docs/construction/plans/demo-kind-alcance.md`: la demo es la sustentación de `entradas/prd.md` §13 (journeys 7.3 y 7.4, RT-5 y dashboard) en `kind-vectra` (8 vCPU, 14 GiB).
+- Clasificación paso por paso de los planes de U2–U12: 121 pasos entran completos, 48 entran con un recorte nombrado y 19 se difieren. Recortes transversales T1–T6.
+- Decisiones pendientes DD-1 a DD-4. Mientras no se aprueben, sigue vigente la restricción de código para U3–U12 de `aidlc-state.md`.
+**Context**: Construcción, alcance de la demo. Documento en estado PROPUESTA.
+
+---
+
+## Aprobación del alcance de la demo en kind
+**Timestamp**: 2026-11-08T03:45:55Z
+**User Input**: "apruebo, acepto tus recomendaciones en DD-1 a DD-4"
+**AI Response**:
+- `demo-kind-alcance.md` pasa a APROBADO: DD-1 RT-2 con 1 versión del proxy; DD-2 recortes T1–T5 aceptados; DD-3 medir con U1 + U2 antes de crear un perfil `values-kind-demo.yaml`; DD-4 restricción de código levantada para U3–U12 con este alcance.
+- `aidlc-state.md` actualizado (Scope Constraint y Next Stage).
+- Sigue U2: Pasos 12, 15, 16 y 18.
+**Context**: Construcción, alcance de la demo.
+
+---
+
+## U02-T17: pausa durante la ronda 2
+**Timestamp**: 2026-11-08T05:36:14Z
+**User Input**: "5,5 provisional (Recomendado)"; "para por ahora y continuamos mas tarde"
+**AI Response**:
+- Ronda 1 NO-VERDE (F-01 `FIXED_WAVES` debilitado, F-02 `BUDGET_GIB` 5.0→5.5). El usuario decide 5,5 GiB provisional hasta la medición del Paso 16 (DD-3).
+- Ronda 2 del codificador en `tarea/U02-T17` (sha 5575027). La revisión de la ronda 2 se detuvo a pedido del usuario, sin veredicto; al retomar se vuelve a despachar.
+
+Informes y arbitraje en `revisiones/U02-T17/`.
+**Context**: Construcción de U2, U02-T17.
+
+---
+
+## U02-T17: ronda 2 VERDE
+**Timestamp**: 2026-11-08T14:12:56Z
+**User Input**: "sigamos"
+**AI Response**:
+- Ronda 2 de la revisión (sha 5575027): VERDE. F-01 y F-02 resueltos según el arbitraje; las 6 candidatas en `CANDIDATAS.md`. Un AMARILLO: la bitácora remite a una evidencia de CA-2 a CA-6 que no incluye (el revisor corrió los seis).
+- Se cierra el Paso 12 y se abre el PR.
+
+Informes y arbitraje en `revisiones/U02-T17/`.
+**Context**: Construcción de U2, U02-T17.
