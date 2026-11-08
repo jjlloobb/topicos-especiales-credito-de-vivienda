@@ -47,7 +47,7 @@ vectra-risk/reference-model/
 
 ### Bloque A — Estructura
 
-- [ ] **Paso 1 — Esqueleto y contratos de dependencias**
+- [x] **Paso 1 — Esqueleto y contratos de dependencias** (U05-T01)
   - Directorios de §1; `pyproject.toml` (miembro del workspace) con numpy, pandas, pyarrow, xgboost, shap y scikit-learn; `Makefile` con `release` y `check`.
   - Contrato de import-linter: solo `envelope/fit.py` importa `sklearn`; solo la validación del explicador importa `shap`; `envelope/confidence.py` importa solo numpy y la biblioteca estándar.
   - Diseño: NFR-U5-31, 32.
@@ -55,7 +55,7 @@ vectra-risk/reference-model/
 
 ### Bloque B — Datos
 
-- [ ] **Paso 2 — Configuración y generador**
+- [x] **Paso 2 — Configuración y generador** (U05-T01)
   - `generator.yaml` (marginales, correlaciones, tope VIS **[VERIFICAR]**, coeficientes de la etiqueta con ~4 % **[VERIFICAR]**) y catálogo de nombres ficticios.
   - `generate.py`: filas `ApplicationIn` válidas con identificadores `SYN-`, etiqueta por la función de riesgo latente, partición 70/15/15 estratificada y Parquet sin marcas de tiempo.
   - Propiedades PBT-U5-01 (determinismo) y PBT-U5-02 (validez).
