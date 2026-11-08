@@ -22,6 +22,8 @@ HELM = _ROOT / "platform" / ".tools" / "bin" / "helm"
 CONFTEST = _ROOT / "platform" / ".tools" / "bin" / "conftest"
 ENVS = ("kind", "staging", "prod")
 NAMESPACE = "vectra-identity"
+# Los ExternalSecret de la excepcion de kind (U02-T19, INF-U2-05a); el resto son los de INF-U2-01.
+CONFIG_CLI_EXTERNAL_SECRETS = frozenset({"keycloak-bootstrap-admin", "keycloak-realm-clients-jwks", "keycloak-realm-synthetic-users"})
 
 _FD = _ROOT / "aidlc-docs" / "construction" / "identity-edge"
 BUSINESS_RULES = (_FD / "functional-design" / "business-rules.md").read_text(encoding="utf-8")
@@ -188,10 +190,15 @@ def design_ports() -> dict[str, int]:
 
 # --- render y conftest --------------------------------------------------------------------------
 
+REALM_KIND = KEYCLOAK / "realm" / "realm.kind.yaml"
+
+
 def helm_command(env: str, *extra: str) -> list[str]:
+    """Como `render-keycloak`: kind suma el realm de Git (`--set-file`) para el ConfigMap del Job de `keycloak-config-cli` (U02-T19)."""
+    realm = ["--set-file", f"vectra.configCli.realm={REALM_KIND}"] if env == "kind" else []
     return [
         str(HELM), "template", "keycloak", str(CHART), "--namespace", NAMESPACE, "--skip-tests",
-        "-f", str(VALUES / "common.yaml"), "-f", str(VALUES / f"{env}.yaml"), *extra,
+        "-f", str(VALUES / "common.yaml"), "-f", str(VALUES / f"{env}.yaml"), *realm, *extra,
     ]  # fmt: skip
 
 

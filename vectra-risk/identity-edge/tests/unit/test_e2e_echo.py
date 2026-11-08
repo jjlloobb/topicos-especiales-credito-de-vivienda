@@ -65,6 +65,83 @@ def test_a_mutated_echo_is_detected(tmp_path, old, new):
     assert ec.server_problems(mutated_server(tmp_path, old, new)) != []
 
 
+# --- modo 503 y contador (U02-T19, B-4, P-U2-02) -------------------------------------------------------------
+
+
+INTAKE_PATH = "/v1/intake/applications"
+FAIL_503 = ("X-Echo-Fail", "503")
+
+
+def calls(port: int, key: str) -> int:
+    status, body = ec.call(port, "GET", f"/__echo/calls?key={key}")
+    assert status == 200
+    return int(body["calls"])
+
+
+def test_the_echo_503_mode_answers_503_and_counts_one_call_per_key():
+    with ec.serving(ec.load_server()) as port:
+        status, _ = ec.call(port, "POST", INTAKE_PATH, [FAIL_503, ("X-Echo-Key", "k-a")], b"{}")
+        assert status == 503
+        assert calls(port, "k-a") == 1
+        assert calls(port, "k-b") == 0
+
+
+def test_the_echo_counts_every_call_of_a_key_and_keeps_keys_apart():
+    with ec.serving(ec.load_server()) as port:
+        for _ in range(3):
+            ec.call(port, "POST", INTAKE_PATH, [FAIL_503, ("X-Echo-Key", "k-a")])
+        ec.call(port, "GET", INTAKE_PATH, [FAIL_503, ("X-Echo-Key", "k-b")])
+        assert (calls(port, "k-a"), calls(port, "k-b")) == (3, 1)
+
+
+def test_the_echo_without_the_503_header_answers_200_and_still_counts():
+    with ec.serving(ec.load_server()) as port:
+        status, _ = ec.call(port, "POST", INTAKE_PATH, [("X-Echo-Key", "k-ok")])
+        assert status == 200
+        assert calls(port, "k-ok") == 1
+
+
+def test_the_echo_key_defaults_to_the_path():
+    with ec.serving(ec.load_server()) as port:
+        ec.call(port, "GET", "/solo-camino", [FAIL_503])
+        assert calls(port, "/solo-camino") == 1
+
+
+def test_reading_the_echo_counter_is_not_a_call_and_delete_resets_it():
+    with ec.serving(ec.load_server()) as port:
+        ec.call(port, "POST", INTAKE_PATH, [("X-Echo-Key", "k-r")])
+        assert (calls(port, "k-r"), calls(port, "k-r")) == (1, 1)
+        status, body = ec.call(port, "DELETE", "/__echo/calls?key=k-r")
+        assert (status, body["calls"]) == (200, 0)
+        assert calls(port, "k-r") == 0
+
+
+def test_the_echo_503_body_still_returns_the_headers():
+    with ec.serving(ec.load_server()) as port:
+        _, body = ec.call(port, "POST", INTAKE_PATH, [FAIL_503, ("Idempotency-Key", "k-1")])
+        assert any(name.lower() == "idempotency-key" and value == "k-1" for name, value in body["headers"])
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("FAIL_STATUS if self.headers.get(FAIL_HEADER) == str(FAIL_STATUS) else 200", "200"),
+        ("count_call(self.headers.get(KEY_HEADER) or urlsplit(self.path).path)", "None"),
+        ("_calls[key] = _calls.get(key, 0) + 1", "_calls[key] = 1"),
+        ("count_call(self.headers.get(KEY_HEADER) or urlsplit(self.path).path)", "count_call(self.headers.get(KEY_HEADER) or urlsplit(self.path).path) + count_call(self.headers.get(KEY_HEADER) or urlsplit(self.path).path)"),
+    ],
+    ids=["no-503-mode", "no-counting", "counter-stuck-at-one", "counts-twice"],
+)
+def test_a_mutated_echo_fails_the_503_and_counter_cases(tmp_path, old, new):
+    module = mutated_server(tmp_path, old, new)
+    with ec.serving(module) as port:
+        results = []
+        for _ in range(2):
+            results.append(ec.call(port, "POST", INTAKE_PATH, [FAIL_503, ("X-Echo-Key", "k-m")])[0])
+        results.append(calls(port, "k-m"))
+    assert results != [503, 503, 2]
+
+
 # --- manifiestos -------------------------------------------------------------------------------------------
 
 

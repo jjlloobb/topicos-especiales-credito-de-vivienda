@@ -57,11 +57,13 @@ e2e:
 	cd $(ROOT) && uv run pytest identity-edge/tests/e2e -q
 
 # `helm template` de `keycloakx` (platform/.charts) con los values comunes y los de cada entorno (U02-T07, Paso 5).
+# Solo kind lleva el Job de `keycloak-config-cli` (U02-T19, B-1): el realm de Git entra sin tocarlo, con `--set-file`, a su ConfigMap.
 render-keycloak:
 	for env in $(ENVS); do \
 	  mkdir -p $(OUT)/$$env && \
+	  realm=""; [ "$$env" = kind ] && realm="--set-file vectra.configCli.realm=$(KEYCLOAK)/realm/realm.kind.yaml"; \
 	  $(HELM) template keycloak $(CHART) --namespace vectra-identity --skip-tests \
-	    -f $(KEYCLOAK)/values/common.yaml -f $(KEYCLOAK)/values/$$env.yaml > $(OUT)/$$env/keycloak.yaml || exit 1; \
+	    -f $(KEYCLOAK)/values/common.yaml -f $(KEYCLOAK)/values/$$env.yaml $$realm > $(OUT)/$$env/keycloak.yaml || exit 1; \
 	done
 
 # Las reglas por documento sobre todo el render, y las que ven el entorno entero (`--combine`) una vez por entorno.

@@ -3,13 +3,33 @@
 Responde 200 a cualquier metodo y camino, con un JSON que lleva las cabeceras tal como llegaron (nombre y valor, sin tocarlas),
 el metodo, el camino y el tamano del cuerpo recibido. Las pruebas e2e leen de ahi lo que el gateway deja pasar o quita (P-U2-06).
 No fija ninguna cabecera de seguridad: las del perfil `spa` y `api` las pone el gateway, y es lo que las pruebas observan.
+
+Modo de error (U02-T19, B-4, P-U2-02; solo kind): una peticion con la cabecera `X-Echo-Fail: 503` recibe 503 en vez de 200. Toda peticion
+con la cabecera `X-Echo-Key: <clave>` suma una llamada al contador de esa clave (sin la cabecera, la clave es el camino). El contador se lee
+en `GET /__echo/calls?key=<clave>` -> `{"key": ..., "calls": n}` y se pone en 0 con `DELETE /__echo/calls?key=<clave>`; esas dos llamadas no
+cuentan. Cada replica lleva su propio contador: quien prueba suma las de todas.
 """
 
 import json
 import os
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
 
 CHUNK = 64 * 1024
+FAIL_HEADER = "X-Echo-Fail"
+KEY_HEADER = "X-Echo-Key"
+CALLS_PATH = "/__echo/calls"
+FAIL_STATUS = 503
+
+_calls: dict[str, int] = {}
+_lock = threading.Lock()
+
+
+def count_call(key: str) -> int:
+    with _lock:
+        _calls[key] = _calls.get(key, 0) + 1
+        return _calls[key]
 
 
 def _raw(value: str) -> str:
@@ -34,8 +54,27 @@ class Handler(BaseHTTPRequestHandler):
             remaining -= len(chunk)
         return total
 
+    def _counter(self) -> None:
+        """`GET` lee y `DELETE` pone en 0 el contador de `?key=`; no cuentan como llamada."""
+        key = (parse_qs(urlsplit(self.path).query).get("key") or [""])[0]
+        with _lock:
+            if self.command == "DELETE":
+                _calls.pop(key, None)
+            calls = _calls.get(key, 0)
+        payload = json.dumps({"key": key, "calls": calls}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
     def _echo(self) -> None:
+        if urlsplit(self.path).path == CALLS_PATH and self.command in {"GET", "DELETE"}:
+            self._counter()
+            return
         total = self._read_body_size()
+        count_call(self.headers.get(KEY_HEADER) or urlsplit(self.path).path)
+        status = FAIL_STATUS if self.headers.get(FAIL_HEADER) == str(FAIL_STATUS) else 200
         payload = json.dumps(
             {
                 "method": self.command,
@@ -45,7 +84,7 @@ class Handler(BaseHTTPRequestHandler):
             },
             ensure_ascii=False,
         ).encode("utf-8")
-        self.send_response(200)
+        self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()

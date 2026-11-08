@@ -530,7 +530,10 @@ def test_committed_render_matches_a_fresh_render(env):
 # --- cada regla falla sobre un render alterado -------------------------------------------------
 
 def test_every_rule_has_a_failing_case():
-    assert {rule for rule, _, _ in MUTATIONS} == kd.policy_rules()
+    # Las reglas de `config_cli.rego` y las de kind de las otras tienen sus casos en test_config_cli.py (render de kind).
+    from test_config_cli import KIND_MUTATIONS
+
+    assert {rule for rule, _, _ in MUTATIONS} | {rule for rule, _, _ in KIND_MUTATIONS} == kd.policy_rules()
 
 
 @pytest.mark.parametrize(("rule", "case", "mutate"), MUTATIONS, ids=[f"{r}-{c}" for r, c, _ in MUTATIONS])
@@ -685,7 +688,7 @@ def test_design_vault_keys(env):
     docs = kd.load(env)
     read = {}
     for doc in docs:
-        if doc["kind"] == "ExternalSecret":
+        if doc["kind"] == "ExternalSecret" and doc["metadata"]["name"] not in kd.CONFIG_CLI_EXTERNAL_SECRETS:  # los de kind: test_config_cli.py
             for item in doc["spec"]["data"]:
                 read[item["remoteRef"]["key"]] = item["remoteRef"]["property"]
     assert read == kd.design_vault_entries()
@@ -729,9 +732,10 @@ def test_design_hpa_utilization(env):
 @pytest.mark.parametrize("env", kd.ENVS)
 def test_design_secret_names(env):
     docs = kd.load(env)
-    found = {d["spec"]["data"][0]["remoteRef"]["key"]: d["spec"]["target"]["name"] for d in docs if d["kind"] == "ExternalSecret"}
+    secrets = [d for d in docs if d["kind"] == "ExternalSecret" and d["metadata"]["name"] not in kd.CONFIG_CLI_EXTERNAL_SECRETS]  # los de kind: test_config_cli.py
+    found = {d["spec"]["data"][0]["remoteRef"]["key"]: d["spec"]["target"]["name"] for d in secrets}
     assert found == kd.design_secret_names()
-    assert all(d["metadata"]["name"] == d["spec"]["target"]["name"] for d in docs if d["kind"] == "ExternalSecret")
+    assert all(d["metadata"]["name"] == d["spec"]["target"]["name"] for d in secrets)
 
 
 def test_design_issuer_is_the_internal_ca_only_in_kind():
