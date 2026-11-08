@@ -27,7 +27,8 @@ CATALOG_PATH = Path(__file__).resolve().parents[2] / "config" / "catalog" / "nam
 COP_MAX = 10**12  # tope de `COP` en U0
 PARTITIONS = ("train", "validation", "test")
 ID_PREFIX = "SYN-"
-# Los CC se toman de un bloque reservado de 10 digitos que no se asigna a personas (prefijo 999); los demas documentos
+# Convencion sintetica del proyecto [VERIFICAR contra la numeracion real de la Registraduria]: los CC llevan el prefijo 999 (10
+# digitos); no se afirma que ese bloque no se asigne a personas. Los demas documentos
 # llevan el prefijo `SYN` (el patron de U0 no admite guiones). Ver NFR-U5-34.
 CC_RESERVED_PREFIX = "999"
 DOC_SYN_PREFIX = "SYN"
@@ -145,7 +146,7 @@ def _sample_numeric(config: dict[str, Any], rng: np.random.Generator, n: int) ->
 
     inc = m["income"]
     adjust = np.array([inc["region_adjust"][r] for r in regions])[region_idx]
-    stratum_level = np.where(stratum_idx < 6, stratum_idx, 2)  # "no_informado" se comporta como estrato 3
+    stratum_level = np.where(stratum_idx < 6, stratum_idx, inc["undeclared_stratum"] - 1)  # "no_informado"
     mu = math.log(inc["base_cop"]) + inc["stratum_slope"] * stratum_level + adjust
     income = _round_to(np.clip(np.exp(rng.normal(mu, inc["sigma"])), inc["min_cop"], inc["max_cop"]), 1000)
 
@@ -156,8 +157,11 @@ def _sample_numeric(config: dict[str, Any], rng: np.random.Generator, n: int) ->
     total_income = income + other
 
     employment_idx = _choice(rng, list(m["employment_weights"].values()), n)
-    max_months = np.minimum(720, np.maximum(0, (age - 18) * 12))
-    employment_months = np.minimum(max_months, np.round(rng.exponential(72.0, n))).astype(np.int64)
+    ten = m["employment_tenure"]
+    max_months = np.minimum(ten["max_months"], np.maximum(0, (age - ten["adult_age"]) * 12))
+    employment_months = np.minimum(max_months, np.round(rng.exponential(ten["mean_months"], n))).astype(
+        np.int64
+    )
 
     ob = m["obligations"]
     obl_fraction = rng.beta(ob["fraction_alpha"], ob["fraction_beta"], n)
@@ -173,7 +177,11 @@ def _sample_numeric(config: dict[str, Any], rng: np.random.Generator, n: int) ->
     is_vis = rng.random(n) < p_vis
     value = total_income * np.exp(rng.normal(prop["multiple_mu"], prop["multiple_sigma"], n))
     cap = float(config["vis_cap_cop"])
-    value = np.where(is_vis, np.minimum(value, cap * 0.98), np.maximum(value, cap * 1.02))
+    value = np.where(
+        is_vis,
+        np.minimum(value, cap * (1 - prop["vis_margin"])),
+        np.maximum(value, cap * (1 + prop["vis_margin"])),
+    )
     value = _round_to(np.clip(value, prop["min_cop"], COP_MAX), 1000)
     nueva = rng.random(n) < np.where(is_vis, prop["p_nueva_vis"], prop["p_nueva"])
 
@@ -266,6 +274,8 @@ def build_rows(config: dict[str, Any], catalog: dict[str, list[str]] | None = No
     reference = date.fromisoformat(str(config["reference_date"]))
     # Un bloque de enteros aleatorios por fila para los campos textuales (orden fijo => determinismo).
     draws = rng.integers(0, 2**31 - 1, size=(n, 8))
+    addr = config["marginals"]["address"]
+    brokers = int(config["marginals"]["brokers"])
     jobs = ("asalariado", "independiente", "pensionado")
     conditions = ("usada", "nueva")
     rows: list[dict[str, Any]] = []
@@ -290,8 +300,8 @@ def build_rows(config: dict[str, Any], catalog: dict[str, list[str]] | None = No
             "document_number": number,
             "birth_date": birth,
             "phone": f"0000{i + 1:06d}"[-10:],
-            "email": f"{sid.lower()}@{EMAIL_DOMAIN}",
-            "address": f"Calle {1 + int(draws[i, 5]) % 150} # {1 + int(draws[i, 6]) % 99}-{1 + int(draws[i, 7]) % 99} (sintetico)",
+            "email": f"{sid}@{EMAIL_DOMAIN}",
+            "address": f"Calle {1 + int(draws[i, 5]) % addr['streets']} # {1 + int(draws[i, 6]) % addr['max_number']}-{1 + int(draws[i, 7]) % addr['max_number']} (sintetico)",
             "municipality_code": mun,
             "department_code": dep,
             "monthly_income": int(x["income"][i]),
@@ -306,7 +316,7 @@ def build_rows(config: dict[str, Any], catalog: dict[str, list[str]] | None = No
             "proposed_rate_ea": f"{float(x['rate'][i]):.4f}",
             "property_condition": conditions[int(x["nueva"][i])],
             "channel": channel,
-            "broker_id": f"{BROKER_PREFIX}{1 + int(draws[i, 5]) % 40:03d}"
+            "broker_id": f"{BROKER_PREFIX}{1 + int(draws[i, 5]) % brokers:03d}"
             if channel == "aliado_inmobiliario"
             else None,
             "free_text": None,

@@ -33,15 +33,19 @@ marginals:
     base_cop: 2400000
     stratum_slope: 0.30
     sigma: 0.45
+    undeclared_stratum: 3   # el ingreso de un estrato `no_informado` se genera como el de este estrato
     min_cop: 1300000
     max_cop: 80000000
     region_adjust: {andina: 0.05, caribe: -0.08, pacifica: -0.10, orinoquia: 0.00, amazonia: -0.12, insular: 0.04}
+  employment_tenure: {mean_months: 72.0, max_months: 720, adult_age: 18}   # antiguedad ~ exponencial, acotada por la edad
+  address: {streets: 150, max_number: 99}   # rangos de los numeros de la direccion sintetica
+  brokers: 40   # numero de corredores ficticios SYN-BRK-NNN
   other_income: {p_has: 0.30, fraction_mean: 0.25}
   employment_weights: {asalariado: 0.62, independiente: 0.30, pensionado: 0.08}
   obligations: {p_zero: 0.25, fraction_alpha: 2.0, fraction_beta: 9.0}
   delinquency: {p_clean: 0.82, scale_days: 25.0}
   # vivienda: valor = ingreso total * multiplo (log-normal); proporcion VIS por estrato
-  property: {multiple_mu: 4.0, multiple_sigma: 0.35, min_cop: 60000000, p_nueva: 0.30, p_nueva_vis: 0.50}
+  property: {multiple_mu: 4.0, multiple_sigma: 0.35, min_cop: 60000000, vis_margin: 0.02, p_nueva: 0.30, p_nueva_vis: 0.50}
   p_vis_by_stratum: [0.75, 0.65, 0.40, 0.15, 0.04, 0.01, 0.20]
   ltv: {mean: 0.68, sd: 0.12, min: 0.25, max: 0.90}
   term_months: {values: [120, 180, 240, 300, 360], weights: [0.10, 0.22, 0.34, 0.18, 0.16]}

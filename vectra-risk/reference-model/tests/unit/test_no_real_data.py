@@ -37,13 +37,16 @@ def test_names_come_only_from_the_fictitious_catalog(parquets: dict[str, Path]) 
 
 
 def test_other_identifiers_are_in_reserved_synthetic_ranges(parquets: dict[str, Path]) -> None:
+    # Literales y patrones fijados aqui, no las constantes del modulo bajo prueba (U05-T01, F-01).
+    cc = re.compile(r"^999\d{7}$")
+    other = re.compile(r"^SYN\d{9}$")
     for path in parquets.values():
         table = pq.read_table(path).to_pydict()
         for doc_type, number in zip(table["document_type"], table["document_number"], strict=True):
-            expected = gen.CC_RESERVED_PREFIX if doc_type == "CC" else gen.DOC_SYN_PREFIX
-            assert number.startswith(expected), (doc_type, number)
-        assert all(e.endswith("@example.com") for e in table["email"])  # dominio reservado (RFC 2606)
-        assert all(p.startswith("0000") for p in table["phone"])  # no es un telefono asignable
+            pattern = cc if doc_type == "CC" else other
+            assert pattern.fullmatch(number), (doc_type, number)
+        assert all(re.fullmatch(r"SYN-\d{7}@example\.com", e) for e in table["email"])  # dominio RFC 2606
+        assert all(re.fullmatch(r"0000\d{6}", p) for p in table["phone"])  # no es un telefono asignable
 
 
 def test_the_catalog_has_no_duplicates_and_no_overlap() -> None:
