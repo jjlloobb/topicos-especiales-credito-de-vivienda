@@ -42,7 +42,7 @@ components:
   - { name: valkey, wave: 2, namespace: vectra-edge, path: "identity-edge/charts/valkey/rendered/{env}" }
   - { name: minio, wave: 2, namespace: vectra-data, repo: "https://charts.min.io", chart: minio, version: 5.4.0, values: [platform/data/minio/values.yaml], kind_values: [platform/data/minio/values-kind.yaml] }
   - { name: keycloak, wave: 3, namespace: vectra-identity, path: "identity-edge/keycloak/rendered/{env}" }
-  - { name: identity-jobs, wave: 3, namespace: vectra-identity, path: "identity-edge/jobs/rendered/{env}" }
+  - { name: identity-jobs, wave: 4, namespace: vectra-identity, path: "identity-edge/jobs/rendered/{env}" }
   - { name: gateway, wave: 3, namespace: vectra-edge, path: "identity-edge/gateway/generated/{env}" }
   - { name: ratelimit, wave: 3, namespace: envoy-gateway-system, path: identity-edge/ratelimit, include: external-secret.yaml }
   - { name: grafana-secrets, wave: 3, namespace: vectra-observability, path: platform/observability/grafana, include: external-secrets.yaml }
