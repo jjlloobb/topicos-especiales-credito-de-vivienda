@@ -439,7 +439,7 @@ deny contains msg if {
 }
 
 # regla: fail-closed-patch
-# P-U2-01, alternativa 2: la EnvoyPatchPolicy fija `failure_mode_deny: true` y `status_on_error: 503` solo en el filtro de rate
+# P-U2-01, NFR-U2-21, alternativa 2: la EnvoyPatchPolicy fija `failure_mode_deny: true` y `status_on_error: 503` solo en el filtro de rate
 # limit del dominio de `/auth/**` del listener https.
 auth_filter := "envoy.filters.http.ratelimit/vectra-edge/auth-rate-limits"
 

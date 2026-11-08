@@ -658,7 +658,7 @@ def fail_closed_domain(ctx: Ctx) -> str:
 
 
 def envoy_patch_policies(ctx: Ctx) -> list[dict[str, Any]]:
-    """P-U2-01, alternativa 2: `failure_mode_deny: true` y `status_on_error` solo en el filtro del dominio de `/auth/**`."""
+    """P-U2-01, NFR-U2-21, alternativa 2: `failure_mode_deny: true` y `status_on_error` solo en el filtro del dominio de `/auth/**`."""
     selector = f"..http_filters[?(@.name=='{RATELIMIT_FILTER}/{fail_closed_domain(ctx)}')].typed_config"
     listener = f"{ctx.namespace}/{ctx.gateway}/{ctx.section}"
 

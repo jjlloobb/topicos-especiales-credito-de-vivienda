@@ -53,7 +53,8 @@ def _fingerprint() -> str:
 def _genesis_row() -> dict[str, object]:
     """Entrada `seq = 0` (BR-U3-10): `canonical` es el JCS de domain-entities §1.1 y `hash = SHA-256(prev_hash || canonical)`."""
     now = datetime.now(UTC)
-    stamp = now.isoformat().replace("+00:00", "Z")
+    # Mismo formato que `vectra_registry.chain.format_timestamp`: ISO 8601 UTC con microsegundos y `Z` (aun si valen 0).
+    stamp = now.isoformat(timespec="microseconds").replace("+00:00", "Z")
     correlation_id = "0" * 32
     canonical = canonicalize(
         {

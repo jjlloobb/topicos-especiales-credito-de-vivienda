@@ -6,7 +6,9 @@
 
 Paso 12 del plan de U2.
 
-> **Enmienda del 2026-11-08 (orquestador, decisión del usuario tras la revisión de código del PR 78, C-05; `revisiones/U02-T17/arbitraje-ronda-2.md`).** `identity-jobs` va en la **wave 4**, no en la 3, y el par `keycloak` → `identity-jobs` es `STRICT`, no «misma wave». Donde esta tarea dice wave 3 para `identity-jobs`, o espera las waves 2, 3, 3, 3, 3, 4, 4 en CA-2, rige 2, 3, 3, 3, 4, 4, 4. Entra **completo** en el alcance de la demo (`aidlc-docs/construction/plans/demo-kind-alcance.md`, U2, Paso 12 = E).
+> **Enmienda del 2026-11-08 (orquestador, decisión del usuario tras la revisión de código del PR 78, C-05; `revisiones/U02-T17/arbitraje-ronda-2.md`).** `identity-jobs` va en la **wave 4**, no en la 3, y el par `keycloak` → `identity-jobs` es `STRICT`, no «misma wave». Donde esta tarea dice wave 3 para `identity-jobs`, o espera las waves 2, 3, 3, 3, 3, 4, 4 en CA-2, rige 2, 3, 3, 3, 4, 4, 4.
+
+Entra **completo** en el alcance de la demo (`aidlc-docs/construction/plans/demo-kind-alcance.md`, U2, Paso 12 = E).
 
 ## Alcance
 
@@ -26,7 +28,7 @@ Precisiones que la tarea aplica:
   |---|---|---|---|
   | `valkey` | 2 | `vectra-edge` | `identity-edge/charts/valkey/rendered/{env}` |
   | `keycloak` | 3 | `vectra-identity` | `identity-edge/keycloak/rendered/{env}` |
-  | `identity-jobs` (`keycloak-config-cli`, `realm-drift`, `signing-key-age` y el ConfigMap del realm) | 3 | `vectra-identity` | `identity-edge/jobs/rendered/{env}` |
+  | `identity-jobs` (los CronJobs `realm-drift` y `signing-key-age` y el ConfigMap del realm; `keycloak-config-cli` es un hook `PostSync` de `keycloak` y no entra aquí) | 4 | `vectra-identity` | `identity-edge/jobs/rendered/{env}` |
   | `gateway` (Gateway, rutas y políticas) | 3 | `vectra-edge` | `identity-edge/gateway/generated/{env}` |
   | `ratelimit` (el `ExternalSecret` del servicio de rate limit; el Deployment lo crea Envoy Gateway) | 3 | `envoy-gateway-system` o donde lo diga `identity-edge/ratelimit/external-secret.yaml` | `identity-edge/ratelimit`, `include: external-secret.yaml` |
   | `identity-rules` | 4 | `vectra-observability` | `identity-edge/observability/rules`, `include: identity-edge-rules.prometheusrule.yaml` |
@@ -34,7 +36,7 @@ Precisiones que la tarea aplica:
 
   Si el namespace real de un recurso no coincide con la tabla, manda el del recurso. Regístralo en la bitácora.
 - **Values por entorno.** Ver la decisión V1 en las Notas.
-- **Orden.** `platform/tests/test_waves.py` suma, en su tabla de dependencias, los pares de U2: `postgres` → `keycloak`; `valkey` → `gateway`; `envoy-gateway` → `gateway`; `keycloak` → `identity-jobs` (misma wave, con orden por tipo, o la anotación que corresponda); `prometheus-operator-crds` → `identity-rules` e `identity-monitors`. Si un par no se puede expresar con la tabla tal cual, detente y repórtalo.
+- **Orden.** `platform/tests/test_waves.py` suma, en su tabla de dependencias, los pares de U2: `postgres` → `keycloak`; `valkey` → `gateway`; `envoy-gateway` → `gateway`; `keycloak` → `identity-jobs` (`STRICT`: `identity-jobs` va en la wave 4 y `keycloak` en la 3, porque dentro de una wave Argo CD no ordena las Applications); `prometheus-operator-crds` → `identity-rules` e `identity-monitors`. Si un par no se puede expresar con la tabla tal cual, detente y repórtalo.
 - **Sin sync automático.** Ninguna Application nueva tiene `syncPolicy.automated` (NFR-U1-43).
 - **README.** `vectra-risk-gitops/README.md`: la línea «Las waves 3 y 6 … las agregan U2 y U6» queda «La wave 6 la agrega U6».
 - **Plan.** Marca `[x]` el Paso 12 en `aidlc-docs/construction/plans/identity-edge-code-generation-plan.md`, con `(U02-T17)`.

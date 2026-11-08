@@ -3,6 +3,7 @@
 groups:
 - name: identity-edge
   rules:
+  # NFR-U2-05: con todas las réplicas de Keycloak caídas no hay logins ni refresh; SEV1 (RESILIENCY-15).
   - alert: KeycloakDown
     expr: 'kube_statefulset_status_replicas_ready{namespace="vectra-identity",statefulset="keycloak"} == 0'
     for: 1m
