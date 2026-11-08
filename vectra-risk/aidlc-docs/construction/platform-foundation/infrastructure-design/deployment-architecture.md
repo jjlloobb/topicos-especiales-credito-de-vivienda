@@ -92,7 +92,7 @@ instancias; la zona con 2 instancias varía por cluster.
 | 1 | Políticas de Kyverno, plano de control de Linkerd + CNI, PriorityClasses, namespaces, NetworkPolicies y políticas de Linkerd generadas | `kyverno test` y `linkerd check` en verde |
 | 2 | Clusters de PostgreSQL, MinIO, Vault (kind); Valkey + Sentinel del rate limit (U2) | Clusters en `Cluster in healthy state`; buckets creados con object lock; Sentinel responde la primaria |
 | 3 | Keycloak; `Gateway`, rutas, políticas y servicio de rate limit (U2) | Realm importado (U2); `egctl x status` sin errores (revisión del Infrastructure Design de U10, 2026-10-10) |
-| 4 | Observabilidad | `Watchdog` recibido en el canal |
+| 4 | Observabilidad; CronJobs, reglas y monitores de U2 (`identity-jobs`, `identity-rules`, `identity-monitors`; revisión de código del PR 79, 2026-11-08) | `Watchdog` recibido en el canal |
 | 5 | Servicios de Vectra, `restore-drill`, CronJob de bias (U9, F106 al Pushgateway) y `registry-aggregator` (U3, F107) | Readiness en verde (P-U1-04) |
 | 6 | InferenceServices; Application `decision-registry-rebuild` de U3 (Jobs de reconstrucción, solo con `runId`; segunda revisión del Infrastructure Design de U10, 2026-10-10) | `READY=True`; sin `runId`, la Application no tiene recursos |
 

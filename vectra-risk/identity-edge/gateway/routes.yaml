@@ -44,7 +44,7 @@ access_log: # P-U2-07: exactamente estos campos; ni query string, ni cuerpo, ni 
     client_ip: "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
     response_flags: "%RESPONSE_FLAGS%"
 tracing: { provider: OpenTelemetry, service: otel-collector, namespace: vectra-observability, port: 4317, sampling_percent: 100 } # W6, F61
-fail_closed: { patch_name: auth-fail-closed, failure_mode_deny: true, status_on_error: 503 } # P-U2-01, alternativa 2; el filtro es el del dominio de la politica de `/auth/**`
+fail_closed: { patch_name: auth-fail-closed, failure_mode_deny: true, status_on_error: 503 } # P-U2-01, NFR-U2-21 (fail-closed solo en `/auth/**`; fail-open en el resto), alternativa 2; el filtro es el del dominio de la politica de `/auth/**`
 internal_headers: [x-vectra-sub, x-vectra-azp] # P-U2-06: las que el gateway copia del JWT y quita hacia el backend
 internal_header_prefix: x-vectra- # P-U2-06: toda cabecera con este prefijo se elimina de la request entrante y de la respuesta
 client: # NFR-U2-23, BR-U2-10
