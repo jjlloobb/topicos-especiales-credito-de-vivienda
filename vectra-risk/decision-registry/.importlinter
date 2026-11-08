@@ -1,0 +1,32 @@
+[importlinter]
+root_package = vectra_registry
+include_external_packages = True
+
+# NFR-U3-50, P-U3-05: la logica pura no hace E/S (ni base, ni red, ni archivos, ni procesos, ni asyncio).
+# Los modulos de servicio de §1 (append, api, ...) se agregan aqui cuando existan (Bloque D).
+[importlinter:contract:pure-no-io]
+name = chain, verify y projections sin E/S
+type = forbidden
+source_modules =
+    vectra_registry.chain
+    vectra_registry.verify
+    vectra_registry.projections
+forbidden_modules =
+    psycopg
+    alembic
+    sqlalchemy
+    httpx
+    requests
+    hvac
+    socket
+    urllib
+    http
+    subprocess
+    sqlite3
+    os
+    pathlib
+    shutil
+    tempfile
+    asyncio
+    vectra_common
+allow_indirect_imports = True
