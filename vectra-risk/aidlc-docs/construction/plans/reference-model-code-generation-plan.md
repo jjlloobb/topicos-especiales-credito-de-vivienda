@@ -81,7 +81,7 @@ vectra-risk/reference-model/
   - `predictor.json`, `explainer.json` (TreeSHAP) y `background.csv` (200 filas, sin identificadores).
   - `domain_envelope.json`, `feature_dictionary.json` (en español, con `applicant_safe`) y `feature_spec.json`.
   - `manifest.json` con los SHA-256 y el `model_version_id`.
-  - Validación del explicador: `pred_contribs` de XGBoost contra `shap.TreeExplainer(feature_perturbation="tree_path_dependent")` (tolerancia 1e-6, 1 000 filas) y suma de contribuciones + `base_value` = margen del modelo (precisado por U6 NFR Q1).
+  - Validación del explicador: `pred_contribs` de XGBoost contra `shap.TreeExplainer(feature_perturbation="tree_path_dependent")` (tolerancia 1e-6, 1 000 filas) y suma de contribuciones + `base_value` = margen del modelo con tolerancia absoluta 1e-4 (precisado por U6 NFR Q1;enmienda del 2026-11-08, decisión del usuario tras la ronda 1 de U05-T02).
   - Propiedades PBT-U5-05 y PBT-U5-06.
   - Diseño: BR-U5-09, 10; NFR-U5-30. Historia: US-201.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest reference-model/tests/property/test_package.py reference-model/tests/unit/test_explainer_parity.py`, y el validador de manifiesto de U4 (`vectra_governance.registration`) acepta el paquete; si U4 todavía no existe, se usa la misma lógica copiada en una prueba.
