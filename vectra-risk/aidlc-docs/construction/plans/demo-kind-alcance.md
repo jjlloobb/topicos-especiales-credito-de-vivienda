@@ -265,3 +265,19 @@ servicios, que entra completo.
 | DD-2 | ¿Se aceptan los recortes T1–T5? | Sí |
 | DD-3 | ¿Cómo se define el perfil demo (T6)? Opción a: un `values-kind-demo.yaml` por chart, que es un cambio del Infrastructure Design de cada unidad. Opción b: solo los values de kind existentes, y se mide | **b primero**: medir la memoria con U1 + U2 al cerrar el Paso 16 de U2, proyectar por unidad y pasar a la a solo si no cabe |
 | DD-4 | ¿Se levanta la restricción de código para U3–U12 con este alcance? | Sí, al aprobar este documento |
+
+## 6. Ritmo del loop para la demo (decisión del usuario, 2026-11-08)
+
+U02-T17, un paso pequeño, costó unas 12 horas, 3 rondas, 2 revisiones de código y 2 PR. A ese ritmo, los
+≈ 170 pasos de la demo no son viables. Desde U02-T18 rige:
+
+| Id | Regla |
+|---|---|
+| RL-1 | **Una tarea por bloque** del plan de la unidad (A, B, C…), no por paso. Un bloque de un solo paso puede juntarse con el siguiente. El alcance y la aceptación de cada paso del bloque se copian sin recortes |
+| RL-2 | **Máximo 2 rondas** por tarea. Solo un ROJO bloquea. NARANJA y AMARILLO van a `CANDIDATAS.md`, salvo que rompan una de las cuatro demos (§1). Si tras la ronda 2 queda un ROJO, decide el usuario |
+| RL-3 | **Sin revisión de código adicional** después de un VERDE, salvo que el usuario la pida |
+| RL-4 | Cada tarea corre el `make check` **de su unidad** y las pruebas de U1 que su diff toque. El `make check` de todas las unidades corre una vez, al cerrar la unidad |
+| RL-5 | **Hasta 3 codificadores en paralelo**, en unidades independientes. Una unidad puede empezar su código estático (lógica, pruebas con dobles, charts) aunque la unidad de la que depende en runtime no haya cerrado su verificación en kind; la verificación en kind sí sigue el orden de la ruta crítica (§4) |
+
+Lo que no cambia: la tabla de §3, la regla de no recortar pasos E, PBT siempre, AUTONOMIA-01 y que cada PR lo
+fusiona una persona.

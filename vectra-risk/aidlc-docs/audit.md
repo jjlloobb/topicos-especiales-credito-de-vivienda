@@ -6021,3 +6021,11 @@ Informes y arbitraje en `revisiones/U02-T17/`.
 
 Informes y arbitrajes en `revisiones/U02-T17/`.
 **Context**: Construcción de U2, U02-T17.
+## Ritmo del loop para la demo
+**Timestamp**: 2026-11-08T16:40:11Z
+**User Input**: "es posible trabajar solo en las tares necesarias para tener una demo completa del proyecto con todas las unidades y pueda correr en esta maquina?"; "sí, aplícalo así"
+**AI Response**:
+- Reglas RL-1 a RL-5 en `demo-kind-alcance.md` §6 y en `DECISIONES-LOOP.md` §5: tarea por bloque, máximo 2 rondas (solo ROJO bloquea), sin revisión de código extra, `make check` por unidad, hasta 3 codificadores en paralelo.
+- PR 79 (ronda 3 de U02-T17) se deja para fusión del usuario tal como está. Los hallazgos de su revisión de código: la nota del plan y el texto de la tarea sobre `keycloak-config-cli` se corrigen en U02-T18; los pares de `namespaces` y `priority-classes` y el resto pasan a `CANDIDATAS.md`.
+- Siguen en paralelo U02-T18 (Paso 15), U03-T01 (bloques A y B) y U05-T01 (bloques A y B).
+**Context**: Construcción, ritmo del loop.
