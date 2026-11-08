@@ -4,7 +4,9 @@
 **Historias que implementa:** US-601 y US-611, en su parte de despliegue. Ninguna historia nueva.
 **Depende de:** los Pasos 1–11 y 13 de U2, ya en `main`. Se parte de `main` (34f54c4 o posterior). **No** se usa el código del PR 75, que se cerró sin fusionar: la tarea se hace de nuevo (decisión del usuario, 2026-11-08).
 
-Paso 12 del plan de U2. Entra **completo** en el alcance de la demo (`aidlc-docs/construction/plans/demo-kind-alcance.md`, U2, Paso 12 = E).
+Paso 12 del plan de U2.
+
+> **Enmienda del 2026-11-08 (orquestador, decisión del usuario tras la revisión de código del PR 78, C-05; `revisiones/U02-T17/arbitraje-ronda-2.md`).** `identity-jobs` va en la **wave 4**, no en la 3, y el par `keycloak` → `identity-jobs` es `STRICT`, no «misma wave». Donde esta tarea dice wave 3 para `identity-jobs`, o espera las waves 2, 3, 3, 3, 3, 4, 4 en CA-2, rige 2, 3, 3, 3, 4, 4, 4. Entra **completo** en el alcance de la demo (`aidlc-docs/construction/plans/demo-kind-alcance.md`, U2, Paso 12 = E).
 
 ## Alcance
 

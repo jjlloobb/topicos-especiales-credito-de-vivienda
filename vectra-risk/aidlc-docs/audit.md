@@ -6008,3 +6008,16 @@ Informes y arbitraje en `revisiones/U02-T17/`.
 
 Informes y arbitraje en `revisiones/U02-T17/`.
 **Context**: Construcción de U2, U02-T17.
+
+---
+
+## U02-T17: revisión de código del PR 78 y ronda 3 VERDE
+**Timestamp**: 2026-11-08T16:32:21Z
+**User Input**: "revisa los PR"; "Ronda 3 acotada (Recomendado)"; "sí, haz el reset y sigue con la ronda 3"
+**AI Response**:
+- El PR 78 (rondas 1 y 2) lo fusionó el usuario. La revisión de código del PR 78 dio C-01 a C-08, sin verificar con ejecución. El usuario acotó la ronda 3 a C-01 (pares STRICT de U2) y C-05 (`identity-jobs` en la wave 4).
+- Ronda 3 VERDE (37ea5a7). Un AMARILLO: el texto de la tarea seguía con la wave 3, y se corrige con una enmienda. C-06 y el comentario de `SAME_WAVE_OK` pasan a `CANDIDATAS.md`.
+- Se abre un PR de seguimiento con la ronda 3.
+
+Informes y arbitrajes en `revisiones/U02-T17/`.
+**Context**: Construcción de U2, U02-T17.
