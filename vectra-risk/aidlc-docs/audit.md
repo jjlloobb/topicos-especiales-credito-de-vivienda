@@ -6029,3 +6029,16 @@ Informes y arbitrajes en `revisiones/U02-T17/`.
 - PR 79 (ronda 3 de U02-T17) se deja para fusión del usuario tal como está. Los hallazgos de su revisión de código: la nota del plan y el texto de la tarea sobre `keycloak-config-cli` se corrigen en U02-T18; los pares de `namespaces` y `priority-classes` y el resto pasan a `CANDIDATAS.md`.
 - Siguen en paralelo U02-T18 (Paso 15), U03-T01 (bloques A y B) y U05-T01 (bloques A y B).
 **Context**: Construcción, ritmo del loop.
+
+---
+
+## U03-T01: ronda 1, pasa por RL-2
+**Timestamp**: 2026-11-08T17:55:17Z
+**User Input**: (sin entrada nueva; ritmo RL-1 a RL-5 aprobado por el usuario)
+**AI Response**:
+- Ronda 1 de U03-T01 (488e638): sin ROJO y con un NARANJA (sin prueba de la protección de solo-anexar de `registry_idempotency_keys`). Según RL-2 no bloquea: el NARANJA pasa a `CANDIDATAS.md` como prioritario para el Bloque C o D de U3, y los AMARILLO también van ahí.
+- El revisor confirmó en PostgreSQL 17.9 que `UNIQUE (idempotency_key)` es imposible en la tabla particionada, y que el trigger `SECURITY DEFINER` no abre un hueco de privilegios.
+- Se abre el PR.
+
+Informe y arbitraje en `revisiones/U03-T01/`.
+**Context**: Construcción de U3, U03-T01.
