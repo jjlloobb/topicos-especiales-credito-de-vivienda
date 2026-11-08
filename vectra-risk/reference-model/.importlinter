@@ -1,0 +1,52 @@
+[importlinter]
+root_packages =
+    vectra_reference
+include_external_packages = True
+
+# NFR-U5-31: scikit-learn solo para MinCovDet al ajustar la envolvente.
+[importlinter:contract:sklearn-solo-en-fit]
+name = solo envelope.fit importa sklearn
+type = forbidden
+source_modules =
+    vectra_reference
+forbidden_modules =
+    sklearn
+ignore_imports =
+    vectra_reference.envelope.fit -> sklearn
+unmatched_ignore_imports_alerting = none
+
+# NFR-U5-30: shap solo valida el explicador en CI (Paso 5; el modulo todavia no existe).
+[importlinter:contract:shap-solo-en-validacion]
+name = solo la validacion del explicador importa shap
+type = forbidden
+source_modules =
+    vectra_reference
+forbidden_modules =
+    shap
+ignore_imports =
+    vectra_reference.explainer_validation -> shap
+unmatched_ignore_imports_alerting = none
+
+# NFR-U5-32: confidence usa solo numpy y la biblioteca estandar.
+[importlinter:contract:confidence-solo-numpy]
+name = envelope.confidence importa solo numpy y la biblioteca estandar
+type = forbidden
+source_modules =
+    vectra_reference.envelope.confidence
+forbidden_modules =
+    sklearn
+    scipy
+    shap
+    xgboost
+    pandas
+    pyarrow
+    yaml
+    vectra_contracts
+    vectra_common
+    vectra_reference.generate
+    vectra_reference.train
+    vectra_reference.package
+    vectra_reference.proxy
+    vectra_reference.adversarial
+    vectra_reference.release
+    vectra_reference.envelope.fit

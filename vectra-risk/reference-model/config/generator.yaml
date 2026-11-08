@@ -1,0 +1,78 @@
+# Configuracion del generador sintetico de U5 (domain-entities §1; BR-U5-01..05).
+# Todo dato sale de aqui: ningun dato real (BR-U5-01). Las cifras son SINTETICAS, con forma inspirada
+# en fuentes publicas (ver `sources`), y no tienen valor normativo ni estadistico.
+generator_version: "1.0.0"
+# Semilla de referencia: mismo generator_version + seed => mismos Parquet byte a byte (BR-U5-02).
+seed: 20261101
+# 84 000 / 18 000 / 18 000 con la particion 70/15/15.
+n_rows: 120000
+reference_date: "2026-01-01"   # fecha fija para derivar birth_date; el generador no lee el reloj (NFR-U5-11)
+split: {train: 0.70, validation: 0.15, test: 0.15}
+
+sources:   # referencias de forma; ningun dato real se copia
+  - "DANE: estructura por estrato y region (solo la forma de la distribucion)"
+  - "Redalyc: literatura de scoring hipotecario (solo la forma de las relaciones)"
+
+# [VERIFICAR el valor vigente] Tope del valor de la vivienda VIS en COP, ver functional-design/domain-entities.md §1
+# (`vis_cap_cop`). El diseno no fija ningun valor: este es un valor plausible SINTETICO, no el oficial vigente.
+vis_cap_cop: 200000000
+
+marginals:
+  region_weights: {andina: 0.52, caribe: 0.22, pacifica: 0.12, orinoquia: 0.06, amazonia: 0.04, insular: 0.04}
+  # peso de cada estrato por region (1..6) y de "no_informado" al final
+  stratum_weights:
+    andina:    [0.10, 0.22, 0.30, 0.18, 0.09, 0.05, 0.06]
+    caribe:    [0.22, 0.30, 0.24, 0.12, 0.05, 0.02, 0.05]
+    pacifica:  [0.20, 0.30, 0.25, 0.12, 0.05, 0.02, 0.06]
+    orinoquia: [0.14, 0.26, 0.30, 0.16, 0.06, 0.03, 0.05]
+    amazonia:  [0.20, 0.32, 0.25, 0.11, 0.04, 0.02, 0.06]
+    insular:   [0.12, 0.22, 0.30, 0.20, 0.08, 0.04, 0.04]
+  sex_weights: {F: 0.47, M: 0.47, no_informado: 0.06}
+  age: {mean: 38.0, sd: 9.0, min: 21, max: 70}
+  income:    # log-normal por estrato: mu = ln(base_cop) + slope*(estrato-1) + ajuste de region
+    base_cop: 2400000
+    stratum_slope: 0.30
+    sigma: 0.45
+    undeclared_stratum: 3   # el ingreso de un estrato `no_informado` se genera como el de este estrato
+    min_cop: 1300000
+    max_cop: 80000000
+    region_adjust: {andina: 0.05, caribe: -0.08, pacifica: -0.10, orinoquia: 0.00, amazonia: -0.12, insular: 0.04}
+  employment_tenure: {mean_months: 72.0, max_months: 720, adult_age: 18}   # antiguedad ~ exponencial, acotada por la edad
+  address: {streets: 150, max_number: 99}   # rangos de los numeros de la direccion sintetica
+  brokers: 40   # numero de corredores ficticios SYN-BRK-NNN
+  other_income: {p_has: 0.30, fraction_mean: 0.25}
+  employment_weights: {asalariado: 0.62, independiente: 0.30, pensionado: 0.08}
+  obligations: {p_zero: 0.25, fraction_alpha: 2.0, fraction_beta: 9.0}
+  delinquency: {p_clean: 0.82, scale_days: 25.0}
+  # vivienda: valor = ingreso total * multiplo (log-normal); proporcion VIS por estrato
+  property: {multiple_mu: 4.0, multiple_sigma: 0.35, min_cop: 60000000, vis_margin: 0.02, p_nueva: 0.30, p_nueva_vis: 0.50}
+  p_vis_by_stratum: [0.75, 0.65, 0.40, 0.15, 0.04, 0.01, 0.20]
+  ltv: {mean: 0.68, sd: 0.12, min: 0.25, max: 0.90}
+  term_months: {values: [120, 180, 240, 300, 360], weights: [0.10, 0.22, 0.34, 0.18, 0.16]}
+  rate_ea: {base: 0.125, sd: 0.012, vis_discount: 0.015, min: 0.06, max: 0.30}
+  channel_weights: {sucursal: 0.34, digital: 0.30, corresponsal: 0.14, aliado_inmobiliario: 0.22}
+  document_type_weights: {CC: 0.86, CE: 0.06, PPT: 0.05, PA: 0.03}
+
+correlations:   # relaciones explicitas de contexto (BR-U5-06); implementadas en generate.py
+  - "ingreso <-> estrato: mu del ingreso crece con el estrato (marginals.income.stratum_slope)"
+  - "ingreso <-> region: ajuste por region (marginals.income.region_adjust)"
+  - "valor de vivienda <-> ingreso: multiplo log-normal del ingreso total"
+  - "tasa <-> VIS: descuento a las viviendas VIS (marginals.rate_ea.vis_discount)"
+  - "antiguedad laboral <-> edad: acotada por los anos desde los 18"
+
+# Funcion de riesgo latente (BR-U5-05):
+#   logit(p) = b0 + b1*installment_to_income + b2*loan_to_value + b3*(max_days_past_due_12m/30)
+#              + b4*(employment_months/12) + b5[employment_type] + b6*(monthly_obligations/ingreso) + eps
+# b0 NO se fija a mano: se resuelve por biseccion para que la tasa media de `p` sea `target_default_rate`.
+label:
+  # [VERIFICAR] tasa objetivo de incumplimiento (~4 %), ver functional-design/domain-entities.md §1 (`label`).
+  # Valor sintetico, sin calibracion contra datos reales.
+  target_default_rate: 0.04
+  noise_sd: 0.60
+  coefficients:
+    installment_to_income: 6.0
+    loan_to_value: 3.0
+    days_past_due_per_30: 1.2
+    employment_years: -0.10
+    obligations_to_income: 4.0
+    employment_type: {asalariado: 0.0, independiente: 0.6, pensionado: 0.2}

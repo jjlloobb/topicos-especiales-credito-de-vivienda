@@ -1,4 +1,4 @@
-"""Configuracion de las pruebas e2e de U2 (U02-T14). La colección no necesita ninguna variable de entorno.
+"""Configuracion de las pruebas e2e de U2 (U02-T14; NFR-U2-42: Playwright + httpx + pyotp y PBT-U2-08, en kind). La colección no necesita ninguna variable de entorno.
 
 Al ejecutar, `e2e_support.need` hace fallar la prueba con un error explícito si falta una variable: nunca se salta con `skip`.
 Variables: ver `e2e_support.ENV_VARS`. Los navegadores (`playwright install`) se instalan en el Paso 16.

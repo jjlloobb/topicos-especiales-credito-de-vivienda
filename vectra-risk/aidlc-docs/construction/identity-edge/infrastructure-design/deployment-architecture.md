@@ -63,8 +63,9 @@ Envoy -> Controlador de Envoy Gateway (envoy-gateway-system, 2 réplicas; xDS 18
 |---|---|---|
 | 0 | CRDs de Gateway API y controlador de Envoy Gateway | `kubectl get crd gateways.gateway.networking.k8s.io` |
 | 2 | Valkey + Sentinel (junto a los datos) | `valkey-cli -h <sentinel> -p 26379 sentinel get-master-addr-by-name ratelimit` responde |
-| 3 | Keycloak + `keycloak-config-cli` (hook) | Realm importado; `realm-lint` en verde en el PR |
+| 3 | Keycloak; `keycloak-config-cli` queda como hook `PostSync` de Keycloak, bloqueado (revisión de código del PR 79, 2026-11-08) | Realm importado; `realm-lint` en verde en el PR |
 | 3 | `Gateway`, rutas, políticas y servicio de rate limit | `egctl x status` sin errores; `/auth/admin` → 404 |
+| 4 | `identity-jobs` (CronJobs `realm-drift` y `signing-key-age`), `identity-rules` e `identity-monitors` (revisión de código del PR 79, 2026-11-08) | Keycloak sano (wave 3 completa) antes de que corran los CronJobs |
 
 ## 3. Escenarios de resiliencia (RESILIENCY-14 = C)
 

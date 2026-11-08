@@ -9,12 +9,13 @@ dependencies = ["vectra-contracts", "vectra-common", "vectra-decision-registry"]
 package = false
 
 [tool.uv.workspace]
-members = ["contracts/python/vectra_contracts", "contracts/python/vectra_common", "identity-edge", "decision-registry"]
+members = ["contracts/python/vectra_contracts", "contracts/python/vectra_common", "identity-edge", "decision-registry", "reference-model"]
 
 [tool.uv.sources]
 vectra-contracts = { workspace = true }
 vectra-common = { workspace = true }
 vectra-decision-registry = { workspace = true }
+vectra-reference = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -36,6 +37,8 @@ dev = [
   "pyotp==2.10.0",
   "axe-playwright-python==0.1.8",
   "httpx==0.28.1",
+  # U05-T01: U5 (reference-model) se instala editable en el entorno del workspace para que `uv run` lo importe.
+  "vectra-reference",
 ]
 
 [tool.pytest.ini_options]

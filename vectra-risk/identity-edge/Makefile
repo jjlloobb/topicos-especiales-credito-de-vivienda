@@ -26,6 +26,7 @@ lint:
 	$(UV) ruff check identity-edge
 
 # Sin las e2e: necesitan un clúster (U02-T14, H3). Se ejecutan con `e2e` en el Paso 16.
+# NFR-U2-40: pytest + Hypothesis con el perfil `ci` (500 ejemplos, semilla impresa) sobre `realm-lint`, `route-gen` y sus modelos.
 test:
 	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest identity-edge/tests --ignore=identity-edge/tests/e2e -q
 
@@ -51,6 +52,7 @@ load:
 	  exit $$code; }
 
 # Ejecuta la suite e2e contra kind (Paso 16, con aprobación del operador y las variables `VECTRA_E2E_*` y `SYNTH_*`). El perfil de Hypothesis `kind-e2e` lo registra el conftest de e2e. NO entra en `check`.
+# NFR-U2-42: Playwright + `httpx` + `pyotp` y PBT-U2-08, en kind; el reporte se adjunta al PR.
 e2e:
 	cd $(ROOT) && uv run pytest identity-edge/tests/e2e -q
 
@@ -141,6 +143,7 @@ schemas-gateway:
 	rm -rf $(SCHEMAS)
 	$(UV) python identity-edge/tools/crd_schemas.py
 
+# NFR-U2-41: los manifiestos de `gateway/generated/<env>/` con `kubeconform -strict` y los CRDs de Gateway API y Envoy Gateway.
 kubeconform-gateway: schemas-gateway
 	for env in $(ENVS); do \
 	  out="$$($(KUBECONFORM) -strict -summary -schema-location '$(SCHEMAS)/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' $(GATEWAY)/generated/$$env 2>&1)"; code=$$?; \
