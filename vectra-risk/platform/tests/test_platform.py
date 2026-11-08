@@ -279,9 +279,9 @@ COMPONENTS = yaml.safe_load((GITOPS / "components.yaml").read_text(encoding="utf
 EXPECTED_WAVES = {
     0: {"cert-manager", "trust-manager", "cloudnative-pg", "external-secrets-rbac", "external-secrets-rbac-kind", "external-secrets", "kyverno", "linkerd-crds", "linkerd-cni", "prometheus-operator-crds", "envoy-gateway", "kserve-crd", "kserve", "argo-cd", "vault"},
     1: {"mesh-certificates", "linkerd-control-plane", "kyverno-context-rbac", "kyverno-policies", "priority-classes", "namespaces", "quotas", "network", "secret-store", "secret-store-env", "verification-operator", "verify-images"},
-    2: {"postgres", "minio"},
-    3: {"grafana-secrets"},
-    4: {"observability-monitors", "kube-prometheus-stack", "loki", "tempo", "alloy", "pushgateway", "otel-collector", "observability-rules", "grafana-config", "grafana-dashboards"},
+    2: {"postgres", "minio", "valkey"},
+    3: {"grafana-secrets", "keycloak", "identity-jobs", "gateway", "ratelimit"},
+    4: {"observability-monitors", "kube-prometheus-stack", "loki", "tempo", "alloy", "pushgateway", "otel-collector", "observability-rules", "grafana-config", "grafana-dashboards", "identity-rules", "identity-monitors"},
     5: {"restore-drill"},
 }
 WAVES = {name: wave for wave, names in EXPECTED_WAVES.items() for name in names}

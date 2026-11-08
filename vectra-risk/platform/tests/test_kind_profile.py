@@ -7,7 +7,7 @@ import yaml
 
 PLATFORM = Path(__file__).resolve().parents[1]
 #: Memoria pedida por todos los pods de kind, proxies incluidos. Es lo que el planificador reserva, no el uso real.
-BUDGET_GIB = 5.0
+BUDGET_GIB = 5.5  # U1 solo pedia 5.0; con U2 (U02-T17) los pods de kind piden 5.47
 PROXY_GIB = 20 / 1024
 MESHED = {
     "vectra-edge", "vectra-app", "vectra-serving", "vectra-staging", "vectra-data", "vectra-identity", "vectra-mock",

@@ -18,10 +18,6 @@ WAVE_ANNOTATION = "argocd.argoproj.io/sync-wave"
 WAVES = range(7)  # P-U1-12: waves 0 a 6
 #: Wave de cada Application de una unidad, segun P-U1-12 y su plan: `components.yaml` no se puede corregir a si mismo.
 FIXED_WAVES = {
-    "valkey": 2,
-    "keycloak": 3,
-    "api-gateway": 3,
-    "rate-limit": 3,
     "decision-registry": 5,
     "scoring-explainability": 5,
     "governance": 5,
@@ -46,6 +42,12 @@ STRICT = {
     ("secret-store", "postgres"),
     ("secret-store", "minio"),
     ("prometheus-operator-crds", "kube-prometheus-stack"),
+    ("postgres", "keycloak"),
+    ("valkey", "gateway"),
+    ("envoy-gateway", "gateway"),
+    ("secret-store", "ratelimit"),
+    ("prometheus-operator-crds", "identity-rules"),
+    ("prometheus-operator-crds", "identity-monitors"),
     ("minio", "loki"),
     ("minio", "tempo"),
     ("postgres", "kube-prometheus-stack"),
@@ -60,6 +62,7 @@ SAME_WAVE_OK = {
     ("namespaces", "network"),
     ("priority-classes", "linkerd-control-plane"),
     ("mesh-certificates", "linkerd-control-plane"),
+    ("keycloak", "identity-jobs"),
     ("kube-prometheus-stack", "observability-rules"),
     ("kube-prometheus-stack", "grafana-config"),
 }
