@@ -289,3 +289,28 @@ def test_the_u4_validator_rejects_other_alterations(
             u4_validate(package, _sha((package / "manifest.json").read_bytes()))
     finally:
         shutil.rmtree(package.parent)
+
+
+def test_the_u4_validator_accepts_the_reference_package(
+    reference_release: Release, u4_validate: Callable[..., None]
+) -> None:
+    """F-05: tambien el paquete de la semilla de referencia (84 000 filas), no solo `small_release`."""
+    declared = _sha((reference_release.package_dir / "manifest.json").read_bytes())
+    u4_validate(reference_release.package_dir, declared)
+
+
+def test_the_u4_validator_rejects_a_listed_file_that_is_missing(
+    small_release: Release, u4_validate: Callable[..., None], u4_registration: Any
+) -> None:
+    """F-05: BR-U4-06, cualquier fallo -> 422 (`RegistrationRejected`), no `FileNotFoundError`."""
+    package = _copy(small_release.package_dir)
+    try:
+        declared = _sha((package / "manifest.json").read_bytes())
+        (package / "explainer.json").unlink()
+        with pytest.raises(u4_registration.RegistrationRejected, match="file_missing:explainer.json"):
+            u4_validate(package, declared)
+        (package / "manifest.json").unlink()
+        with pytest.raises(u4_registration.RegistrationRejected, match="manifest_missing"):
+            u4_validate(package, declared)
+    finally:
+        shutil.rmtree(package.parent)

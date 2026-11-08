@@ -12,7 +12,7 @@ from hypothesis import strategies as st
 from vectra_contracts.models.governance import PolicyDraft
 from vectra_reference.adversarial import N_RT4, AdversarialError, outside_envelope, rt4_cases
 from vectra_reference.envelope.calibrate import CalibrationError, build_policy, calibrate_threshold
-from vectra_reference.envelope.confidence import confidence, confidence_raw, distances
+from vectra_reference.envelope.confidence import confidence, confidence_raw, distances, range_confidence
 from vectra_reference.envelope.fit import fit_envelope
 from vectra_reference.features import (
     BASE_FEATURES,
@@ -96,21 +96,59 @@ def test_pbt_u5_03_an_unseen_category_gives_zero(envelope: dict[str, Any], data:
 
 
 @given(data=st.data())
-def test_pbt_u5_03_confidence_does_not_increase_as_a_feature_moves_away_from_the_range(
+def test_pbt_u5_03_c_rango_does_not_increase_as_a_feature_moves_away_from_the_range(
     envelope: dict[str, Any], data: st.DataObject
 ) -> None:
-    """Parte del borde de [p1, p99] y se aleja mas, con las demas features dentro del rango y fijas."""
+    """PBT-U5-03 enmendada (2026-11-08): `c_rango` es no creciente al alejarse de [p1, p99], demas features fijas.
+
+    La monotonia de `confidence` completa no se exige: la distancia de Mahalanobis no es monotona (revisor, F-01).
+    """
     values = _in_range_values(envelope, data)
     item = data.draw(st.sampled_from(envelope["numeric"]))
-    span = max(item["p99"] - item["p1"], 1.0)
+    width = item["p99"] - item["p1"]
+    scale = max(width, 1.0)
     upward = data.draw(st.booleans())
-    near, far = sorted(data.draw(st.floats(0.0, 20.0)) for _ in range(2))
+    # `t` mide la posicion respecto del borde por el que se sale: t < 0 esta dentro, t > 0 fuera. Solo se aumenta t.
+    t0 = data.draw(st.floats(-width, 20.0 * scale))
+    shift = data.draw(st.floats(0.0, 20.0 * scale))
 
-    def moved(shift: float) -> dict[str, Any]:
-        value = item["p99"] + shift * span if upward else item["p1"] - shift * span
-        return {**values, item["name"]: value}
+    def at(t: float) -> dict[str, Any]:
+        return {**values, item["name"]: item["p99"] + t if upward else item["p1"] - t}
 
-    assert confidence_raw(envelope, moved(far)) <= confidence_raw(envelope, moved(near))
+    assert range_confidence(envelope, at(t0 + shift)) <= range_confidence(envelope, at(t0))
+
+
+@given(data=st.data())
+def test_pbt_u5_03_confidence_never_exceeds_c_rango(envelope: dict[str, Any], data: st.DataObject) -> None:
+    """PBT-U5-03 enmendada: `confidence <= c_rango` para toda entrada (dentro y fuera, categorias vistas o no)."""
+    values = data.draw(any_values(envelope))
+    assert confidence_raw(envelope, values) <= range_confidence(envelope, values)
+
+
+@given(data=st.data())
+def test_pbt_u5_03_confidence_stays_below_c_rango_when_one_feature_is_slightly_outside(
+    envelope: dict[str, Any], data: st.DataObject
+) -> None:
+    """Entradas tipicas (en el centro) con una feature apenas fuera de rango: `c_dist` alta, solo `min` da la cota."""
+    values: dict[str, Any] = {
+        item["name"]: min(max(m, item["p1"]), item["p99"])
+        for item, m in zip(envelope["numeric"], envelope["mean"], strict=True)
+    }
+    values.update({name: seen[0] for name, seen in envelope["categories"].items()})
+    item = data.draw(st.sampled_from(envelope["numeric"]))
+    values[item["name"]] = item["p99"] + data.draw(st.floats(1e-6, 0.05)) * max(item["p99"] - item["p1"], 1.0)
+    assert range_confidence(envelope, values) <= 1.0 - 1.0 / len(envelope["numeric"])
+    assert confidence_raw(envelope, values) <= range_confidence(envelope, values)
+
+
+def test_pbt_u5_03_the_counterexample_of_the_review_is_a_valid_case(envelope: dict[str, Any]) -> None:
+    """El caso F-01 (`loan_to_value` sube desde p99): `confidence` puede subir, `c_rango` no."""
+    values = {item["name"]: (item["p1"] + item["p99"]) / 2 for item in envelope["numeric"]}
+    values.update({name: seen[0] for name, seen in envelope["categories"].items()})
+    ltv = next(i for i in envelope["numeric"] if i["name"] == "loan_to_value")
+    near, far = ({**values, "loan_to_value": ltv["p99"] + k} for k in (0.0, 0.5))
+    assert range_confidence(envelope, far) <= range_confidence(envelope, near)
+    assert confidence_raw(envelope, far) <= range_confidence(envelope, far)
 
 
 # PBT-U5-04 ------------------------------------------------------------------------------------------------------

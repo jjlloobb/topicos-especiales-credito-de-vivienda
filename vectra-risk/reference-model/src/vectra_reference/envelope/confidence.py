@@ -26,13 +26,8 @@ def distances(mean: Sequence[float], covariance: Sequence[Sequence[float]], poin
     return np.sqrt(np.maximum(squared, 0.0))
 
 
-def confidence_raw(envelope: Mapping[str, Any], values: Mapping[str, Any]) -> float:
-    """`confidence` sin cuantizar, en [0, 1]. Falta una feature -> `ValueError("feature_missing:<id>")`."""
-    for name, seen in envelope["categories"].items():
-        if name not in values:
-            raise ValueError(f"feature_missing:{name}")
-        if str(values[name]) not in seen:
-            return 0.0
+def _numeric(envelope: Mapping[str, Any], values: Mapping[str, Any]) -> tuple[np.ndarray, float]:
+    """Vector numerico de la entrada y `c_rango`. Falta una feature -> `ValueError("feature_missing:<id>")`."""
     numeric = envelope["numeric"]
     for item in numeric:
         if item["name"] not in values:
@@ -41,7 +36,22 @@ def confidence_raw(envelope: Mapping[str, Any], values: Mapping[str, Any]) -> fl
     low = np.array([item["p1"] for item in numeric], dtype=float)
     high = np.array([item["p99"] for item in numeric], dtype=float)
     outside = int(np.count_nonzero(~((x >= low) & (x <= high))))
-    c_range = 1.0 - outside / len(numeric)
+    return x, 1.0 - outside / len(numeric)
+
+
+def range_confidence(envelope: Mapping[str, Any], values: Mapping[str, Any]) -> float:
+    """`c_rango` = 1 - (features numericas fuera de [p1, p99]) / (features numericas)."""
+    return _numeric(envelope, values)[1]
+
+
+def confidence_raw(envelope: Mapping[str, Any], values: Mapping[str, Any]) -> float:
+    """`confidence` sin cuantizar, en [0, 1]. Falta una feature -> `ValueError("feature_missing:<id>")`."""
+    for name, seen in envelope["categories"].items():
+        if name not in values:
+            raise ValueError(f"feature_missing:{name}")
+        if str(values[name]) not in seen:
+            return 0.0
+    x, c_range = _numeric(envelope, values)
     d = float(distances(envelope["mean"], envelope["covariance"], x)[0])
     if not math.isfinite(d):
         return 0.0

@@ -19,8 +19,10 @@ from vectra_contracts.models.features import FeatureSpec, FeatureSpecItem
 
 Value = float | str
 
-# Orden fijo de las features del modelo base (domain-entities §3.1). `monthly_income` entra sin log: los arboles
-# son invariantes a una transformacion monotona, y `derive` no ofrece una feature `monthly_income_log`.
+# Orden fijo de las features del modelo base (domain-entities §3.1). `monthly_income` entra sin log (§3.1 lo pide con
+# log): `derive` de U0 no ofrece una feature `monthly_income_log`. Los arboles no notan la diferencia, pero la
+# envolvente SI: la distancia de Mahalanobis se calcula sobre el ingreso crudo y sesgado. `proposed_rate_ea` se trata
+# como numerica aunque `derive` la entregue como categoria (defecto de U0, ver CANDIDATAS.md).
 BASE_SPEC: Final[tuple[tuple[str, str, bool], ...]] = (
     # (feature_id, origin, numerica)
     ("installment_to_income", "derived", True),

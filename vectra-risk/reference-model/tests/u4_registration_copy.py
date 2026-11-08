@@ -48,7 +48,10 @@ def validate_registration(
     """Acepta (retorna) o rechaza (`RegistrationRejected`) un paquete, leyendo solo bytes: nunca carga el modelo."""
     if artifact_format not in ALLOWED_ARTIFACT_FORMATS:  # item 1
         raise RegistrationRejected("artifact_format_not_allowed")
-    manifest_bytes = (directory / "manifest.json").read_bytes()  # item 2
+    try:
+        manifest_bytes = (directory / "manifest.json").read_bytes()  # item 2
+    except OSError as exc:
+        raise RegistrationRejected("manifest_missing") from exc
     if (
         hashlib.sha256(manifest_bytes).hexdigest() != declared_manifest_sha256
     ):  # item 4: manifiesto vs declarado
@@ -62,7 +65,10 @@ def validate_registration(
     for name, entry in entries.items():
         if name.lower().endswith(FORBIDDEN_EXTENSIONS):  # item 3: extension
             raise RegistrationRejected(f"forbidden_extension:{name}")
-        data = (directory / name).read_bytes()  # item 2: los bytes de cada archivo listado
+        try:
+            data = (directory / name).read_bytes()  # item 2: los bytes de cada archivo listado
+        except OSError as exc:  # cualquier fallo -> 422, tambien un archivo listado que no esta
+            raise RegistrationRejected(f"file_missing:{name}") from exc
         if _is_pickle(data) or _is_joblib_zip(data):  # item 3: bytes magicos
             raise RegistrationRejected(f"forbidden_magic_bytes:{name}")
         if hashlib.sha256(data).hexdigest() != entry["sha256"]:  # item 4: cada archivo vs manifiesto

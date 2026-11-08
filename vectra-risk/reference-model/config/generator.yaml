@@ -111,4 +111,6 @@ package:
   background_rows: 200
   explainer_validation_rows: 1000
   explainer_tolerance: 1.0e-6          # paridad con shap (NFR-U5-30)
-  explainer_margin_tolerance: 1.0e-4   # suma de contribuciones + base_value vs margen (float32, ver explainer_validation)
+  # Suma de contribuciones + base_value vs margen: tolerancia absoluta 1e-4 (enmienda del usuario, 2026-11-08, a
+  # NFR-U5-30, NFR-U6-01 y los planes de U5 y U6; float32 da ~8.5e-6, ver explainer_validation).
+  explainer_margin_tolerance: 1.0e-4
