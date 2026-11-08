@@ -6,8 +6,10 @@ Un caso (o una familia parametrizada) por viñeta de la aceptación del plan. Ca
 
 import hashlib
 import json
+import re
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 
 import psycopg
 import pytest
@@ -532,3 +534,123 @@ def test_nadie_hace_delete_ni_truncate_de_integrity_checks(db: Db, role: str) ->
     denied(db, role, "DELETE FROM integrity_checks")
     denied(db, role, "TRUNCATE integrity_checks")
     assert db.query("SELECT count(*) FROM integrity_checks") == [(1,)]
+
+
+# --- registry_idempotency_keys: la misma proteccion de solo-anexar (candidata de U03-T01, F-01) ----------------------------
+
+APP_ROLES = ["registry_app", "registry_verifier", "registry_ondemand", "registry_aggregator", "registry_health"]
+
+
+@pytest.mark.parametrize(
+    ("statement", "operation"),
+    [
+        ("UPDATE registry_idempotency_keys SET seq = seq + 1", "UPDATE"),
+        ("DELETE FROM registry_idempotency_keys", "DELETE"),
+        ("TRUNCATE registry_idempotency_keys", "TRUNCATE"),
+    ],
+    ids=["update", "delete", "truncate"],
+)
+def test_el_trigger_detiene_al_superusuario_en_registry_idempotency_keys(
+    db: Db, statement: str, operation: str
+) -> None:
+    """BR-U3-02: la tabla de llaves de idempotencia es solo de anexar tambien contra el superusuario."""
+    assert db.query("SELECT count(*) FROM registry_idempotency_keys") == [(1,)]  # la llave de la genesis
+    with db.connect() as conn:
+        assert conn.execute("SELECT rolsuper FROM pg_roles WHERE rolname = current_user").fetchone() == (True,)
+        with pytest.raises(errors.RaiseException, match=f"solo de anexar.*{operation}"):
+            conn.execute(statement)
+    assert db.query("SELECT count(*) FROM registry_idempotency_keys") == [(1,)]
+
+
+def test_registry_idempotency_keys_se_alimenta_sola_con_cada_entrada(db: Db) -> None:
+    seq = db.insert_entry("registry_app")
+    assert db.query("SELECT seq FROM registry_idempotency_keys ORDER BY seq") == [(0,), (seq,)]
+
+
+@pytest.mark.parametrize("role", APP_ROLES)
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "INSERT INTO registry_idempotency_keys (idempotency_key, seq) VALUES (gen_random_uuid(), 7)",
+        "UPDATE registry_idempotency_keys SET seq = 1",
+        "DELETE FROM registry_idempotency_keys",
+        "TRUNCATE registry_idempotency_keys",
+    ],
+    ids=["insert", "update", "delete", "truncate"],
+)
+def test_ningun_rol_de_app_escribe_en_registry_idempotency_keys(db: Db, role: str, statement: str) -> None:
+    denied(db, role, statement)
+    assert db.query("SELECT count(*) FROM registry_idempotency_keys") == [(1,)]
+
+
+@pytest.mark.parametrize("role", APP_ROLES)
+def test_ningun_rol_de_app_tiene_privilegios_sobre_registry_idempotency_keys(db: Db, role: str) -> None:
+    """La tabla la escribe solo el trigger `SECURITY DEFINER`: los roles de app no tienen ningun privilegio directo."""
+    privileges = db.query(
+        "SELECT p, has_table_privilege(%s, 'registry_idempotency_keys', p) FROM unnest(ARRAY['SELECT', 'INSERT', "
+        "'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS p",
+        role,
+    )
+    assert [p for p, granted in privileges if granted] == []
+
+
+# --- La genesis usa el formato de sellos de `chain.canonicalize` (candidata de U03-T01, F-04) -----------------------------
+
+
+def test_la_genesis_canonizada_por_la_migracion_es_igual_a_canonicalize_de_sus_campos(db: Db) -> None:
+    """`canonicalize(campos de la fila)` reproduce `canonical` byte a byte: mismo formato de sellos (microsegundos y `Z`)."""
+    from vectra_registry.chain import canonicalize, decode, format_timestamp
+
+    [(canonical, recorded_at, occurred_at, correlation_id, contract_version, key)] = db.query(
+        "SELECT canonical, recorded_at, occurred_at, correlation_id, contract_version, idempotency_key "
+        "FROM registry_entries WHERE seq = 0"
+    )
+    assert isinstance(canonical, bytes)
+    body = decode(canonical)
+    assert canonicalize(body) == canonical  # punto fijo de JCS (PBT-U3-04)
+    rebuilt = canonicalize(
+        {
+            "seq": 0,
+            "entry_type": "genesis",
+            "idempotency_key": key,
+            "actor": {"kind": "system", "id": "system"},
+            "occurred_at": occurred_at,
+            "recorded_at": recorded_at,
+            "correlation_id": correlation_id,
+            "contract_version": contract_version,
+            "payload": body["payload"],
+        }
+    )
+    assert rebuilt == canonical
+    assert body["recorded_at"] == format_timestamp(recorded_at)  # type: ignore[arg-type]
+    assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z", body["recorded_at"])
+
+
+def _migration_0001():  # type: ignore[no-untyped-def]
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[2] / "migrations" / "versions" / "0001_registry_entries.py"
+    spec = importlib.util.spec_from_file_location("migration_0001_for_test", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_la_genesis_con_microsegundos_en_cero_conserva_el_formato(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`datetime.isoformat()` omite los microsegundos cuando valen 0; la genesis debe escribirlos igual."""
+    from vectra_registry.chain import canonicalize, decode
+
+    migration = _migration_0001()
+
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):  # type: ignore[no-untyped-def]
+            return datetime(2026, 1, 1, 0, 0, 0, 0, tzinfo=tz)
+
+    monkeypatch.setattr(migration, "datetime", Frozen)
+    monkeypatch.setattr(migration, "_fingerprint", lambda: FINGERPRINT)
+    row = migration._genesis_row()
+    assert b'"recorded_at":"2026-01-01T00:00:00.000000Z"' in row["canonical"]
+    assert b'"occurred_at":"2026-01-01T00:00:00.000000Z"' in row["canonical"]
+    assert canonicalize(decode(row["canonical"])) == row["canonical"]

@@ -6042,6 +6042,18 @@ Informes y arbitrajes en `revisiones/U02-T17/`.
 
 Informe y arbitraje en `revisiones/U03-T01/`.
 **Context**: Construcción de U3, U03-T01.
+
+---
+
+## U03-T02: ronda 1 VERDE
+**Timestamp**: 2026-11-08T20:45:53Z
+**User Input**: "sí, despacha los bloques C de U3 y U5"
+**AI Response**:
+- U03-T02 (Bloque C de U3: `chain`, `verify`, `projections` y resumen; más las candidatas F-01 y F-04 de U03-T01), ronda 1 VERDE (821d014). Dos NARANJA (cobertura de `column_mismatch` y de PBT-U3-06) y seis AMARILLO pasan a `CANDIDATAS.md` según RL-2; los dos NARANJA quedan como prioritarios.
+- Se abre el PR.
+
+Informe en `revisiones/U03-T02/`.
+**Context**: Construcción de U3, U03-T02.
 ## U05-T01: rondas 1 y 2
 **Timestamp**: 2026-11-08T18:41:34Z
 **User Input**: (sin entrada nueva; ritmo RL-1 a RL-5 aprobado por el usuario)
