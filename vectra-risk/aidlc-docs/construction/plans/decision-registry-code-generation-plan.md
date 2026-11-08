@@ -56,14 +56,14 @@ vectra-risk/decision-registry/
 
 ### Bloque A — Estructura
 
-- [ ] **Paso 1 — Esqueleto de `decision-registry/`**
+- [x] **Paso 1 — Esqueleto de `decision-registry/`** (U03-T01)
   - Directorios de §1; `pyproject.toml` (miembro del workspace, psycopg 3, `cryptography`, `zstandard`, `hvac` o cliente HTTP de Transit vía `deps.call`); `Makefile` con `check`; perfiles de Hypothesis de U0; contrato de import-linter: `chain`, `verify` y `projections` sin E/S.
   - Diseño: NFR-U3-50; P-U3-05.
   - **Aceptación**: `uv sync --frozen && uv run lint-imports --config decision-registry/.importlinter && make -C decision-registry check` sobre el esqueleto.
 
 ### Bloque B — Datos
 
-- [ ] **Paso 2 — Migraciones de `registry-db`**
+- [x] **Paso 2 — Migraciones de `registry-db`** (U03-T01)
   - Tabla `registry_entries` (domain-entities §1) **particionada por rango de `seq`**: el año en curso, los dos siguientes y una partición `DEFAULT`.
   - Grants de `registry_app`, `registry_verifier`, `registry_ondemand`, `registry_health` (`pg_monitor`) y `registry_migrator`; los roles los crea U1 (cuarta revisión de coherencia entre unidades, 2026-10-31) (domain-entities §1.2): `registry_app` sin `UPDATE`, `DELETE` ni `TRUNCATE`; `registry_ondemand` con `SELECT` sobre `integrity_checks` y `registry_entries`, `INSERT` sobre `integrity_checks` y `UPDATE` solo de las columnas `status`, `started_at`, `finished_at`, `heartbeat_at`, `progress_*`, `report` y `reason` (pendientes posteriores al cierre, 2026-10-10).
   - Trigger `BEFORE UPDATE OR DELETE OR TRUNCATE`; índices (`case_id`, `idempotency_key` único, `entry_type`); entrada **génesis**.

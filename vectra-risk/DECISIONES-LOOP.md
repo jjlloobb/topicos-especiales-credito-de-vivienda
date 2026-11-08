@@ -54,3 +54,9 @@ La ola 2 (`U01-T03`, `U01-T05`, `U01-T06`) usó **unos 989.000 tokens** entre su
 - Cada codificador trabajó en su worktree. Al cerrar cada ronda, los worktrees quedaron sin cambios fuera del commit.
 - Ningún agente fusionó: todos los PR los aprobó y fusionó una persona.
 - Ningún cambio del loop se aplicó a un clúster.
+
+## 5. Ritmo del loop para la demo (2026-11-08)
+
+`U02-T17` (7 Applications de GitOps) costó unas 12 horas de reloj: 3 rondas, 2 revisiones de código encima de rondas VERDE y 2 PR. La mayor parte se fue en hallazgos NARANJA y AMARILLO sobre pruebas de waves y textos de la tarea, y en `make -C identity-edge check` (≈ 25 min por corrida). Uno de los hallazgos de la revisión de código fue culpa mía: la tabla de la tarea decía que `identity-jobs` incluía `keycloak-config-cli`, y el arbitraje de C-05 heredó ese error.
+
+Con ≈ 170 pasos por delante para la demo, el usuario aprobó las reglas RL-1 a RL-5 de `aidlc-docs/construction/plans/demo-kind-alcance.md` §6: una tarea por bloque, máximo 2 rondas con solo ROJO bloqueante, sin revisión de código extra, `make check` por unidad y hasta 3 codificadores en paralelo. Es un cambio de costo de proceso, no de alcance: el código de cada paso E entra completo.
