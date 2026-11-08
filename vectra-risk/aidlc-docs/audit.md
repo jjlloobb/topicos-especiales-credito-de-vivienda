@@ -6042,3 +6042,14 @@ Informes y arbitrajes en `revisiones/U02-T17/`.
 
 Informe y arbitraje en `revisiones/U03-T01/`.
 **Context**: Construcción de U3, U03-T01.
+## U05-T01: rondas 1 y 2
+**Timestamp**: 2026-11-08T18:41:34Z
+**User Input**: (sin entrada nueva; ritmo RL-1 a RL-5 aprobado por el usuario)
+**AI Response**:
+- Ronda 1 NO-VERDE por un ROJO (F-01: la prueba de rangos sintéticos era tautológica). Entraron también F-02 en parte (el comentario del bloque 999 con `[VERIFICAR]` y el email con `SYN-`) y F-03 (los literales del generador pasan a `generator.yaml`, BR-U5-01). F-04 a F-06 van a candidatas.
+- Ronda 2 VERDE (1c401c2). Dos AMARILLO: F-07, de redacción, corregido por el orquestador en `CANDIDATAS.md`; F-08, a candidatas.
+- El impacto en `LOGS-NO-PII` de U12 (el oráculo busca `SYN-`, y `document_number` y `full_name` no lo llevan) queda en `CANDIDATAS.md` para resolverlo al llegar a U12.
+- Se abre el PR después de rebasar sobre `main` (con el PR 80, U03-T01) y regenerar `uv.lock`.
+
+Informes y arbitraje en `revisiones/U05-T01/`.
+**Context**: Construcción de U5, U05-T01.
