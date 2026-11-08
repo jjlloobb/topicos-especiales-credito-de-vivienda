@@ -189,6 +189,18 @@ def _freezes(row: Row) -> dict[str, Any] | None:
     return None
 
 
+def delivery_status(recommendation_seq: int, decision_references: Iterable[object]) -> str:
+    """BR-U3-14, P-U7-03: `delivery_status` de una `recommendation`, calculado al leer y nunca guardado.
+
+    `decision_references` son los `recommendation_entry_id` de las `human_decision` del caso: `entregada` si alguna referencia
+    esta recomendacion; `no_entregada` si el caso tiene una decision que referencia otra; `pendiente_de_decision` si aun no hay decision.
+    """
+    referenced = [str(reference) for reference in decision_references]
+    if not referenced:
+        return "pendiente_de_decision"
+    return "entregada" if str(recommendation_seq) in referenced else "no_entregada"
+
+
 def project(  # noqa: PLR0911
     consumer: Consumer,
     projection: str,
@@ -389,5 +401,5 @@ def project_monitoring_daily(  # noqa: PLR0913
 
 __all__ = [
     "FIELDS", "FULL_FIELDS", "PERMITTED", "PROJECTIONS", "Consumer", "DailyCount", "EntryTotals", "Forbidden", "InvalidEntry",
-    "project", "project_all", "project_monitoring_daily",
+    "delivery_status", "project", "project_all", "project_monitoring_daily",
 ]  # fmt: skip
