@@ -7,6 +7,7 @@ import pytest
 from governance_pg import MIGRATOR, Db
 from psycopg import errors
 from psycopg.types.json import Jsonb
+from vectra_governance.evidence import idempotency_key
 
 pytestmark = pytest.mark.integration
 
@@ -16,8 +17,8 @@ HISTORY = ("model_versions", "policies", "data_sources", "transitions")
 
 
 def key(entity_type: str, entity_id: str, n: int) -> uuid.UUID:
-    """BR-U4-17: UUIDv5(`entity_type:entity_id`, n). La calcula el servicio; aqui, el mismo calculo."""
-    return uuid.uuid5(uuid.NAMESPACE_URL, f"{entity_type}:{entity_id}:{n}")
+    """BR-U4-17 (Q-3): la llave es la **unica** funcion del servicio; la prueba no tiene formula propia."""
+    return idempotency_key(entity_type, entity_id, n)
 
 
 def add_model(conn: psycopg.Connection[tuple[object, ...]], model_id: str, state: str = "registrado") -> None:
@@ -302,6 +303,83 @@ def test_guard_unfreeze_no_estorba_las_otras_transiciones(db: Db) -> None:
     assert state_of(db, "mv-1") == "en_validacion"
 
 
+# --- 0004: Q-1 (toda salida de `congelado`) y Q-2 (`investigation`) ----------------------------------------------------------
+
+
+def investigate(db: Db, model_id: str, tid: uuid.UUID) -> None:
+    with db.as_role("gov_app") as conn, conn.transaction():
+        conn.execute("SELECT set_config('vectra.frozen_resolution', %s, true)", (str(tid),))
+        conn.execute("UPDATE model_versions SET investigation = true WHERE model_version_id = %s", (model_id,))
+
+
+def read_back(db: Db, model_id: str = "mv-1") -> tuple[object, object]:
+    state, investigation = db.query(
+        "SELECT state, investigation FROM model_versions WHERE model_version_id = %s", model_id
+    )[0]
+    return state, investigation
+
+
+@pytest.mark.parametrize("new_state", ["inactivo", "aprobado", "registrado", "en_validacion", "rechazado"])
+@pytest.mark.parametrize("with_variable", [False, True])
+def test_congelado_solo_sale_a_activo_o_retirado(db: Db, new_state: str, with_variable: bool) -> None:
+    """Q-1: cualquier otro destino se rechaza siempre, con o sin variable, incluso con una resolucion confirmada de cumplimiento."""
+    tid = frozen_with_transition(db, to_state=new_state)
+    with pytest.raises(errors.InsufficientPrivilege, match="guard_unfreeze"):
+        unfreeze(db, "mv-1", tid if with_variable else None, new_state)
+    assert read_back(db) == ("congelado", False)
+
+
+def test_congelado_a_inactivo_y_despues_a_activo_ya_no_es_posible(db: Db) -> None:
+    """F-03: la reactivacion en dos pasos sin cumplimiento queda cerrada en el primer paso."""
+    frozen_with_transition(db)
+    with pytest.raises(errors.InsufficientPrivilege, match="guard_unfreeze"):
+        unfreeze(db, "mv-1", None, "inactivo")
+    with pytest.raises(errors.InsufficientPrivilege, match="guard_unfreeze"):
+        unfreeze(db, "mv-1", None, "activo")
+    assert read_back(db) == ("congelado", False)
+
+
+def test_investigation_no_vuelve_a_false(db: Db) -> None:
+    tid = frozen_with_transition(db, to_state="congelado")
+    investigate(db, "mv-1", tid)
+    assert read_back(db) == ("congelado", True)
+    with pytest.raises(errors.InsufficientPrivilege, match="guard_unfreeze"), db.as_role("gov_app") as conn, conn.transaction():
+        conn.execute("SELECT set_config('vectra.frozen_resolution', %s, true)", (str(tid),))
+        conn.execute("UPDATE model_versions SET investigation = false WHERE model_version_id = 'mv-1'")
+    assert read_back(db) == ("congelado", True)
+
+
+def test_investigation_no_cambia_en_una_version_activo(db: Db) -> None:
+    with db.as_role("gov_app") as conn:
+        add_model(conn, "mv-1", "activo")
+        tid = add_transition(conn, "model_version", "mv-1", 1, "confirmada", to_state="congelado")
+    with pytest.raises(errors.InsufficientPrivilege, match="guard_unfreeze"):
+        investigate(db, "mv-1", tid)
+    with pytest.raises(errors.InsufficientPrivilege, match="guard_unfreeze"), db.as_role("gov_app") as conn:
+        conn.execute("UPDATE model_versions SET investigation = true WHERE model_version_id = 'mv-1'")
+    assert read_back(db) == ("activo", False)
+
+
+def test_investigation_y_salida_de_congelado_en_el_mismo_update_se_rechaza(db: Db) -> None:
+    tid = frozen_with_transition(db)  # resolucion confirmada a `activo`
+    with pytest.raises(errors.InsufficientPrivilege, match="guard_unfreeze"), db.as_role("gov_app") as conn, conn.transaction():
+        conn.execute("SELECT set_config('vectra.frozen_resolution', %s, true)", (str(tid),))
+        conn.execute(
+            "UPDATE model_versions SET state = 'activo', investigation = true WHERE model_version_id = 'mv-1'"
+        )
+    assert read_back(db) == ("congelado", False)
+
+
+def test_camino_legitimo_de_investigar_deja_la_marca_historica_al_reactivar(db: Db) -> None:
+    """Q-2: `reactivar` y `descartar` no tocan `investigation`: queda como marca historica."""
+    investigar = frozen_with_transition(db, to_state="congelado")
+    investigate(db, "mv-1", investigar)
+    with db.as_role("gov_app") as conn:
+        reactivar = add_transition(conn, "model_version", "mv-1", 2, "confirmada", to_state="activo")
+    unfreeze(db, "mv-1", reactivar)
+    assert read_back(db) == ("activo", True)
+
+
 def freeze(db: Db, model_id: str, transition: uuid.UUID | None) -> None:
     with db.as_role("gov_app") as conn, conn.transaction():
         if transition is not None:
@@ -517,6 +595,35 @@ def test_notify_no_llega_si_la_transaccion_se_revierte(db: Db) -> None:
             writer.execute("UPDATE serving_config SET etag = 'x' WHERE id = 1")
             raise RuntimeError("rollback")
         assert list(listener.notifies(timeout=1, stop_after=1)) == []
+
+
+def test_notify_no_llega_si_el_update_no_cambia_el_etag(db: Db) -> None:
+    """Q-4: el trigger se dispara solo si cambia el `etag`."""
+    etag = "sha256:" + "ab" * 32
+    with db.connect() as writer:
+        writer.execute("UPDATE serving_config SET etag = %s WHERE id = 1", (etag,))
+    with db.connect() as listener, db.connect() as writer:
+        listener.execute("LISTEN serving_config")
+        writer.execute("UPDATE serving_config SET etag = %s, state = 'activo' WHERE id = 1", (etag,))
+        assert list(listener.notifies(timeout=1, stop_after=1)) == []
+        writer.execute("UPDATE serving_config SET etag = %s WHERE id = 1", (etag[:-1] + "0",))
+        received = [(n.channel, n.payload) for n in listener.notifies(timeout=5, stop_after=1)]
+    assert received == [("serving_config", etag[:-1] + "0")]
+    assert db.query("SELECT state, etag FROM serving_config") == [("activo", etag[:-1] + "0")]
+
+
+def test_notify_nunca_llega_con_payload_vacio(db: Db) -> None:
+    """Q-4: un `etag` nulo o vacio no se notifica (el sondeo de 1 s de P-U4-01 cubre ese cambio)."""
+    with db.connect() as writer:
+        writer.execute("UPDATE serving_config SET etag = 'x' WHERE id = 1")
+    with db.connect() as listener, db.connect() as writer:
+        listener.execute("LISTEN serving_config")
+        writer.execute("UPDATE serving_config SET etag = NULL WHERE id = 1")
+        writer.execute("UPDATE serving_config SET etag = 'y' WHERE id = 1")
+        writer.execute("UPDATE serving_config SET etag = '' WHERE id = 1")
+        payloads = [n.payload for n in listener.notifies(timeout=3, stop_after=3)]
+    assert payloads == ["y"]
+    assert db.query("SELECT etag FROM serving_config") == [("",)]
 
 
 # --- estructura (lectura de vuelta) ------------------------------------------------------------------------------------------

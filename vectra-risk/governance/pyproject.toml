@@ -6,6 +6,7 @@ requires-python = ">=3.12,<3.13"
 # NFR-U4-24: el servicio NO lleva librerias de inferencia (onnxruntime, xgboost, lightgbm); solo el extra `validation` del Job las trae.
 dependencies = [
   "psycopg[binary]==3.3.8",
+  "httpx==0.28.1",
   "alembic==1.20.1",
   "vectra-contracts",
   "vectra-common",

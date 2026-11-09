@@ -110,14 +110,14 @@ vectra-risk/governance/
 
 ### Bloque D — Servicio
 
-- [ ] **Paso 8 — Evidencia en dos fases, reconciliador y barridos**
+- [x] **Paso 8 — Evidencia en dos fases, reconciliador y barridos** (U04-T03, acotado a la demo)
   - Transición `pendiente_registro` → append con `idempotency_key = UUIDv5(entity_type:entity_id, n)` → `confirmada` + efecto (BR-U4-17); excepción de `freeze` (BR-U4-15); conflicto tras un abandono → reenviar la abandonada y confirmarla (precisado el 2026-10-06).
   - Tarea de fondo con `SKIP LOCKED`, que toma solo la menor `n` pendiente de cada entidad: reintentos, `abandonada` a las 24 h (salvo `freeze` y compensaciones), `FreezeEventPending`, compensaciones `transicion_descartada` sin abandono con `CompensationEventPending`, y barrido de validaciones vencidas (P-U4-02; precisado el 2026-10-06, revisión del FD de U8).
   - Propiedades stateful **PBT-U4-01** (máquina completa con actores y MFA, contra el servicio y Testcontainers) y **PBT-U4-07** (registro con fallos al azar).
   - Diseño: BR-U4-05, 15, 17; NFR-U4-40; P-U4-02.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_stateful_*.py governance/tests/integration/test_evidence.py`, con 2 réplicas y un doble del registro que falla al azar: ninguna transición distinta de `freeze` cambia el estado sin ack; ningún evento se duplica; abandono + transición nueva con la abandonada ya escrita → un solo evento y el estado de la abandonada; `frozen_resolution` con el `freeze` pendiente → 409 `transition_pending`; `freeze` con un `mark_active` pendiente → la versión queda `congelado`, el par queda `descartada` sin aplicar aunque luego llegue el ack, la versión destino no pasa a `activo` y la cadena tiene `freeze` y después los `transicion_descartada` (precisado el 2026-10-06, revisión del FD de U8). Una compensación pendiente más de 24 h no pasa a `abandonada`, sigue bloqueando la `frozen_resolution` (409 `transition_pending`) y dispara `CompensationEventPending`; `promtool test rules` de esa alerta. Barrido por modo (tercera revisión del FD de U9, 2026-10-10): un `ValidationRun` `validacion` vencido → la versión a `validacion_fallida`; uno `source_comparison` vencido → solo el run a `timeout`, la fuente sigue `en_evaluacion` y ninguna versión cambia.
 
-- [ ] **Paso 9 — `serving-config` en memoria, convergencia y pools**
+- [x] **Paso 9 — `serving-config` en memoria, convergencia y pools** (U04-T03)
   - Copia en memoria; `LISTEN serving_config` + sondeo del `etag` cada 1 s; temporizador de medianoche de Bogotá; readiness solo con la copia cargada.
   - Edad de la copia (NFR-U4-04; revisión de coherencia entre unidades, 2026-10-10): gauge `vectra_serving_config_age_seconds` (segundos desde la última confirmación contra la base); a los 30 s sin confirmar, `GET /v1/serving-config` responde 503.
   - `If-None-Match`/304.

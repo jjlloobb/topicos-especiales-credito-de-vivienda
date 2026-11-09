@@ -1,0 +1,15 @@
+# Reglas de alerta de U4 `governance` (P-U4-08). Por ahora solo `CompensationEventPending` (U04-T03, P-3 de
+# `demo-recorte-funcional.md`); las demas alertas y sus runbooks son del Paso 17 (U04-T05).
+# La metrica la publica el reconciliador (`background.py`): compensaciones `transicion_descartada` sin escribir. Vale lo mismo
+# en todas las replicas (se cuenta la base), por eso se agrega con `max`.
+groups:
+- name: governance-evidence
+  rules:
+  - alert: CompensationEventPending
+    expr: max(vectra_governance_compensation_events_pending) > 0
+    for: 1m
+    labels:
+      severity: SEV2
+    annotations:
+      summary: Una transicion_descartada sin escribir en el registro (BR-U4-17)
+      runbook_url: governance/runbooks/compensation-event-pending.md

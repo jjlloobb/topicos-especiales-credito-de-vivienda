@@ -2,7 +2,7 @@
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 UV := cd $(ROOT) && uv run
 
-.PHONY: lint test check
+.PHONY: lint test rules check
 
 lint:
 	$(UV) ruff check governance
@@ -13,5 +13,13 @@ lint:
 test:
 	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest governance/tests -q
 
+# Reglas de alerta con `promtool` (P-3: `CompensationEventPending`). Usa el del PATH o `platform/.tools/bin/promtool`; si ninguno
+# existe (un worktree sin `make -C platform tools`), lo dice y lo omite: la prueba `test_observability.py` lee la regla y el CI
+# corre `check-tools` de U1.
+PROMTOOL := $(firstword $(shell command -v promtool) $(wildcard $(ROOT)/platform/.tools/bin/promtool))
+rules:
+	@if [ -z "$(PROMTOOL)" ]; then echo "promtool no disponible: se omite (lo corre el CI)"; else \
+	  cd $(ROOT) && $(PROMTOOL) check rules governance/observability/*.yaml && $(PROMTOOL) test rules governance/observability/tests/*.yaml; fi
+
 # Verificaciones estaticas (AUTONOMIA-01). Crece con los pasos del plan.
-check: lint test
+check: lint rules test
