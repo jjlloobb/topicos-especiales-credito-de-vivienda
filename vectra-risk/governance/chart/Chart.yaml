@@ -1,0 +1,8 @@
+apiVersion: v2
+name: governance
+description: >-
+  Chart de U4 (Paso 13, acotado a la demo): la ServiceAccount `model-validation-job` y el ExternalSecret con la llave
+  `private_key_jwt` de su cliente de Keycloak, en `vectra-staging` (F32, F50). El Deployment, el hook de migracion, RBAC y los
+  flujos son de U04-T06.
+type: application
+version: 0.1.0

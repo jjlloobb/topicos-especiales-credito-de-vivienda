@@ -1,0 +1,33 @@
+{{- /* ServiceAccount y ExternalSecret del model-validation-job (quinta revision de coherencia entre unidades, 2026-10-31).
+       Sin token de Kubernetes: el Job no habla con la API de Kubernetes; su identidad ante governance es el `private_key_jwt` (F50).
+       La credencial del bucket (`minio-validation`, F31) la entrega U1 en este namespace; este chart no la crea. */ -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.validationJob.serviceAccount }}
+  namespace: {{ .Values.validationJob.namespace }}
+  labels:
+    app.kubernetes.io/name: model-validation-job
+    app.kubernetes.io/part-of: governance
+automountServiceAccountToken: false
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.validationJob.clientSecret }}
+  namespace: {{ .Values.validationJob.namespace }}
+  labels:
+    app.kubernetes.io/name: model-validation-job
+    app.kubernetes.io/part-of: governance
+spec:
+  refreshInterval: {{ .Values.validationJob.refreshInterval }}
+  secretStoreRef:
+    name: {{ .Values.validationJob.secretStore.name }}
+    kind: {{ .Values.validationJob.secretStore.kind }}
+  target:
+    name: {{ .Values.validationJob.clientSecret }}
+  data:
+    - secretKey: private-key
+      remoteRef:
+        key: {{ .Values.validationJob.vaultKey }}
+        property: {{ .Values.validationJob.vaultProperty }}

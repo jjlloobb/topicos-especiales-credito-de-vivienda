@@ -330,7 +330,14 @@ def build_handlers(deps: ApiDeps) -> dict[tuple[str, str], Handler]:
             on_failure()  # sin Job no hay informe: la corrida se cierra `fallido` y se responde 503
             raise
 
-    def spec_for(model: Row, run_id: str, job_name: str, **extra: str) -> JobSpec:
+    def active_policy() -> PolicyDraft:
+        """La politica `activa` que el Job usa para el `outcome` de BR-U7-04/05; sin ella no hay con que medir: 409 y sin corrida."""
+        row = reads.one("SELECT * FROM policies WHERE state = 'activa'")
+        if row is None:
+            raise ConflictState()
+        return PolicyDraft.model_validate(policy_version_of(row).model_dump(include=set(PolicyDraft.model_fields)))
+
+    def spec_for(model: Row, run_id: str, job_name: str, policy: PolicyDraft, **extra: str) -> JobSpec:
         return JobSpec(
             job_name=job_name,
             mode="source_comparison" if extra else "validacion",
@@ -342,6 +349,7 @@ def build_handlers(deps: ApiDeps) -> dict[tuple[str, str], Handler]:
             explainer_uri=model["explainer_uri"],
             dataset_ref=deps.config.validation_dataset,
             callback_url=deps.config.callback_url,
+            policy=policy,
             source_id=extra.get("source_id"),
             baseline_version_id=extra.get("baseline_version_id"),
         )
@@ -350,12 +358,13 @@ def build_handlers(deps: ApiDeps) -> dict[tuple[str, str], Handler]:
         model_id = ctx.path_params["id"]
         model = reads.model(model_id)
         actor = actor_of(ctx.principal, Role.INGENIERO_RIESGO)
+        policy = active_policy()
         run_id = str(uuid.uuid4())
         job_name = f"validation-{run_id[:13]}"
         begin = evidence.retry_validation if model["state"] == "validacion_fallida" else evidence.start_validation
         begin(actor, model_id, job_name=job_name, run_id=run_id, auth_time=auth_time(ctx))
         launch(
-            spec_for(model, run_id, job_name),
+            spec_for(model, run_id, job_name, policy),
             lambda: evidence.fail_validation(model_id, run_id, "launch_failed", run_state="fallido"),
         )
         return reads.run(run_id)
@@ -501,11 +510,12 @@ def build_handlers(deps: ApiDeps) -> dict[tuple[str, str], Handler]:
         for model in (candidate, baseline):  # INF-U4-05: los dos `InferenceService` de staging
             if not jobs.inference_service_exists(model["inference_service"]):
                 raise ConflictState()
+        policy = active_policy()
         run_id = str(uuid.uuid4())
         job_name = f"source-comparison-{run_id[:13]}"
         evidence.open_comparison(actor, source_id, body.candidate_version_id, run_id=run_id, job_name=job_name)
         launch(
-            spec_for(candidate, run_id, job_name, source_id=source_id, baseline_version_id=baseline["model_version_id"]),
+            spec_for(candidate, run_id, job_name, policy, source_id=source_id, baseline_version_id=baseline["model_version_id"]),
             lambda: evidence.close_run(run_id, "fallido"),
         )
         return reads.run(run_id)
