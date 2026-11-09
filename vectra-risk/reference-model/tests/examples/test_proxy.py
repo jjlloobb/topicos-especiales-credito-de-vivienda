@@ -19,8 +19,10 @@ import xgboost as xgb
 from vectra_contracts.labels import derive
 from vectra_contracts.models.application import ApplicationIn
 from vectra_contracts.models.features import FeatureDictionary, FeatureSpec
+from vectra_contracts.models.governance import PolicyDraft
 from vectra_reference import generate as gen
 from vectra_reference import proxy as px
+from vectra_reference.envelope.confidence import confidence
 from vectra_reference.features import NUMERIC_FEATURES, read_rows, validate_feature_spec
 from vectra_reference.package import (
     PURPOSE_RT2,
@@ -43,6 +45,7 @@ STATS = (
     "disparity_pp",
     "disparity_trigger_attribute",
     "base_disparity_pp",
+    "validation_review_rate",
 )
 
 
@@ -97,8 +100,13 @@ def _recompute_disparity(reference_release: Release, directory: Path) -> float:
     order = explainer["feature_order"]
     matrix = encode(values, order, explainer["categorical_encoding"])
     probabilities = np.asarray(booster.predict(xgb.DMatrix(matrix, feature_names=order)))
-    cutoff = float(CONFIG["reference_policy"]["cutoff"])
-    return px.disparity_pp(rows, probabilities, cutoff, date.fromisoformat(CONFIG["reference_date"]))[1]
+    envelope = json.loads((directory / "domain_envelope.json").read_bytes())
+    policy = PolicyDraft.model_validate_json((reference_release.out / "reference-policy.json").read_bytes())
+    evaluated_on = date.fromisoformat(CONFIG["reference_date"])
+    outcomes = px.outcomes_of(
+        rows, probabilities, [confidence(envelope, v) for v in values], policy, evaluated_on
+    )
+    return px.disparity_pp(rows, outcomes, evaluated_on)[1]
 
 
 def test_the_disparity_in_the_manifests_is_what_the_packages_on_disk_produce(
@@ -299,7 +307,7 @@ def test_the_dictionary_marks_both_proxy_features_as_not_safe_for_the_applicant(
         assert all(v for k, v in safe.items() if k not in px.PROXY_FEATURES)
 
 
-def test_a_proxy_package_with_a_safe_zone_feature_or_a_small_zone_fails_verification(
+def test_a_proxy_package_whose_features_are_marked_safe_for_the_applicant_fails_verification(
     reference_release: Release, reference_proxy: ProxyRelease, tmp_path: Path
 ) -> None:
     target = tmp_path / "pkg"
@@ -387,6 +395,70 @@ def test_the_disparity_double_ignores_small_cells_and_no_informado_and_single_gr
     )
     assert px.disparity_by_attribute(records, "region") == pytest.approx(0.20)
     assert px.disparity_by_attribute(_cell("andina", "lt_20", 100, 50), "region") is None
+
+
+def _policy() -> PolicyDraft:
+    return PolicyDraft.model_validate_json(
+        json.dumps(
+            {
+                "cutoff": "0.0800",
+                "low_confidence_threshold": "0.0300",
+                "channel_rules": [],
+                "normative": [
+                    {
+                        "effective_from": "2026-01-01",
+                        "effective_to": None,
+                        "usury_cap_ea": "0.2800",
+                        "vis_max_property_value": 200000000,
+                        "source_ref": "sintetico",
+                    }
+                ],
+            }
+        )
+    )
+
+
+EVALUATED_ON = date(2026, 1, 1)
+
+
+def test_outcome_follows_br_u7_04_and_05() -> None:
+    policy = _policy()
+    assert px.outcome_of(0.05, "0.5000", "0.1250", policy, EVALUATED_ON) == "favorable"
+    assert (
+        px.outcome_of(0.08, "0.5000", "0.1250", policy, EVALUATED_ON) == "desfavorable"
+    )  # score < corte, estricto
+    assert (
+        px.outcome_of(0.05, "0.0299", "0.1250", policy, EVALUATED_ON) == "revision_requerida"
+    )  # baja confianza
+    assert (
+        px.outcome_of(0.05, "0.0300", "0.1250", policy, EVALUATED_ON) == "favorable"
+    )  # igual al umbral no es baja
+    assert (
+        px.outcome_of(0.05, "0.5000", "0.2800", policy, EVALUATED_ON) == "favorable"
+    )  # igual a la usura no es sobre
+    assert (
+        px.outcome_of(0.05, "0.5000", "0.2801", policy, EVALUATED_ON) == "revision_requerida"
+    )  # sobre usura
+    assert (
+        px.outcome_of(0.05, "0.5000", "0.1250", policy, date(2025, 12, 31)) == "revision_requerida"
+    )  # sin vigencia
+
+
+def test_a_cell_of_cases_under_the_cutoff_with_low_confidence_is_not_favorable() -> None:
+    """BR-U9-01: `revision_requerida` es NO favorable aunque `p < cutoff`. El doble de la ronda 1 (`p < cutoff`) da 0."""
+    template = gen.build_rows(gen.with_overrides(CONFIG, n_rows=1))[0]
+    rows = [{**template, "department_code": "05"} for _ in range(100)] + [
+        {**template, "department_code": "08"} for _ in range(100)
+    ]  # 05 es andina y 08 es caribe; el resto de los campos (y la banda de pago) es el mismo
+    probabilities = [0.01] * 200  # todos bajo el corte
+    confidences = ["0.5000"] * 100 + ["0.0100"] * 100  # los de la region caribe, con baja confianza
+    outcomes = px.outcomes_of(rows, probabilities, confidences, _policy(), EVALUATED_ON)
+    assert outcomes == ["favorable"] * 100 + ["revision_requerida"] * 100
+    trigger, pp = px.disparity_pp(rows, outcomes, EVALUATED_ON)
+    assert (trigger, pp) == ("region", 100.0)
+    # con confianza alta en todos no hay disparidad
+    same = px.outcomes_of(rows, probabilities, ["0.5000"] * 200, _policy(), EVALUATED_ON)
+    assert px.disparity_pp(rows, same, EVALUATED_ON)[1] == 0.0
 
 
 def test_the_aggregate_of_the_model_is_the_largest_attribute() -> None:

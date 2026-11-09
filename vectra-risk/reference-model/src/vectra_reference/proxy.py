@@ -10,7 +10,7 @@ aplica sobre campos de `ApplicationIn`:
 La etiqueta de la variante depende de forma PARCIAL de las dos busquedas (`generator.yaml`, seccion `proxy`), asi que el
 modelo aprende una dependencia de la region que ninguna feature declara. La disparidad se mide como la mide U9.
 
-**Doble de la libreria de U9.** `vectra_disparity` (U9) todavia no existe. `disparity_by_attribute` y
+**Doble de la libreria de U9.** Cuenta como favorable solo el `outcome` `favorable` de BR-U7-04/05 (`revision_requerida` es NO favorable, BR-U9-01). `vectra_disparity` (U9) todavia no existe. `disparity_by_attribute` y
 `model_aggregate` implementan BR-U9-01 a BR-U9-05 (tasa favorable, celdas con `n_min = 30`, diferencia por banda
 `max - min` sin `no_informado`, agregada ponderada por el tamano de cada banda y mayor agregada de los cuatro
 atributos). No calculan los intervalos de Newcombe de BR-U9-03/04 ni la diferencia sin bandas de BR-U9-06, porque no
@@ -32,6 +32,7 @@ from vectra_contracts.dane import DEPARTMENT_REGION, MUNICIPALITY_DEPARTMENT
 from vectra_contracts.finance import installment, installment_to_income
 from vectra_contracts.labels import age_range, payment_band, region_of
 from vectra_contracts.models.features import FeatureDictionary, FeatureSpec, FeatureSpecItem
+from vectra_contracts.models.governance import PolicyDraft
 from vectra_contracts.validation import age_at
 
 from vectra_reference.features import Value, base_feature_spec
@@ -257,19 +258,61 @@ def model_aggregate(
     return trigger, valued[trigger]
 
 
-def disparity_pp(
+FAVORABLE: Final = "favorable"
+UNFAVORABLE: Final = "desfavorable"
+REVIEW: Final = "revision_requerida"
+
+
+def outcome_of(
+    probability: float, confidence: str, proposed_rate_ea: str, policy: PolicyDraft, evaluated_on: date
+) -> str:
+    """`outcome` de la recomendacion (BR-U7-04 y BR-U7-05), con la politica de referencia.
+
+    `revision_requerida` si `normative` es nulo (ninguna vigencia cubre `evaluated_on`), si la tasa supera la usura
+    (igual no es sobre) o si `confidence < low_confidence_threshold`; si no, `favorable` cuando `score < cutoff` y
+    `desfavorable` en otro caso. La politica de este paquete no tiene reglas por canal (`channel_rules` vacio).
+    """
+    normative = next(
+        (
+            n
+            for n in policy.normative
+            if n.effective_from <= evaluated_on and (n.effective_to is None or evaluated_on <= n.effective_to)
+        ),
+        None,
+    )
+    if normative is None:
+        return REVIEW
+    if Decimal(proposed_rate_ea) > Decimal(normative.usury_cap_ea):
+        return REVIEW
+    if Decimal(confidence) < Decimal(policy.low_confidence_threshold):
+        return REVIEW
+    return FAVORABLE if probability < float(Decimal(policy.cutoff)) else UNFAVORABLE
+
+
+def outcomes_of(
     rows: Sequence[Mapping[str, Any]],
     probabilities: Sequence[float],
-    cutoff: float,
+    confidences: Sequence[str],
+    policy: PolicyDraft,
     evaluated_on: date,
+) -> list[str]:
+    return [
+        outcome_of(float(p), c, str(row["proposed_rate_ea"]), policy, evaluated_on)
+        for row, p, c in zip(rows, probabilities, confidences, strict=True)
+    ]
+
+
+def disparity_pp(
+    rows: Sequence[Mapping[str, Any]], outcomes: Sequence[str], evaluated_on: date
 ) -> tuple[str, float]:
     """Disparidad agregada del modelo en puntos porcentuales y su atributo disparador.
 
-    Favorable es `p < cutoff` (`revision_requerida` nunca se cuenta, BR-U9-01; la politica de referencia fija el corte).
+    `outcomes` son los de `outcomes_of` (BR-U7-04/05). Solo `favorable` cuenta como favorable: `revision_requerida` y
+    `desfavorable` no (BR-U9-01).
     """
     records = [
-        (monitoring_labels(row, evaluated_on), float(p) < cutoff)
-        for row, p in zip(rows, probabilities, strict=True)
+        (monitoring_labels(row, evaluated_on), outcome == FAVORABLE)
+        for row, outcome in zip(rows, outcomes, strict=True)
     ]
     result = model_aggregate(records)
     if result is None:

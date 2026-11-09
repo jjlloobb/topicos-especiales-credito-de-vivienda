@@ -25,10 +25,11 @@ ROWS = [
     {**application_fields(r), "birth_date": r["birth_date"].isoformat()}
     for r in build_rows(with_overrides(CONFIG, n_rows=300, seed=7), NAMES)
 ]
-# U0 (BR-U0-29) admite lo imprimible (`str.isprintable`: ni controles, ni separadores distintos del espacio ASCII).
+# U0 (BR-U0-29) admite lo imprimible (`str.isprintable`: ni controles, ni separadores distintos del espacio ASCII) y
+# ademas el salto de linea, el retorno de carro y el tabulador.
 PRINTABLE = st.text(
     alphabet=st.one_of(
-        st.just(" "),
+        st.sampled_from(" \n\r\t"),
         st.characters(codec="utf-8", exclude_categories=("Cc", "Cf", "Cs", "Co", "Cn", "Zs", "Zl", "Zp")),
     ),
     max_size=2000,

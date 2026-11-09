@@ -31,7 +31,7 @@ marginals:
   age: {mean: 38.0, sd: 9.0, min: 21, max: 70}
   income:    # log-normal por estrato: mu = ln(base_cop) + slope*(estrato-1) + ajuste de region
     base_cop: 2400000
-    stratum_slope: 0.30
+    stratum_slope: 0.15   # era 0,30: con el outcome completo (BR-U7-04/05) la disparidad por estrato de la base era 8,70 pp (BR-U5-06 pide < 5)
     sigma: 0.45
     undeclared_stratum: 3   # el ingreso de un estrato `no_informado` se genera como el de este estrato
     min_cop: 1300000

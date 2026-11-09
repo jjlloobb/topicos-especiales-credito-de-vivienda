@@ -143,16 +143,17 @@ def test_pbt_u5_03_confidence_stays_below_c_rango_when_one_feature_is_slightly_o
 
 # El contraejemplo real de la ronda 1 de U05-T02 (F-01 del revisor, atendido como F-08 en U05-T03): ITI = 1,0, antiguedad
 # de 1 mes y `loan_to_value` desde p99 = 0,9. El informe no fija las demas features; estas salen de una busqueda aleatoria
-# (semilla 1, 3 000 intentos, 1 435 casos) sobre la envolvente de referencia. Con ellas `confidence` SUBE al subir ltv.
+# (semilla 1, 3 000 intentos, 1 402 casos) sobre la envolvente de referencia. Si cambia el generador o el modelo, la
+# envolvente cambia y hay que repetir la busqueda (en la ronda 2 de U05-T03 se repitio al bajar `stratum_slope`). Con ellas `confidence` SUBE al subir ltv.
 COUNTEREXAMPLE = {
     "installment_to_income": 1.0,
-    "monthly_income": 17325265.459496222,
-    "other_income": 4781359.566896348,
-    "monthly_obligations": 3302171.9617618355,
+    "monthly_income": 10018783.128348991,
+    "other_income": 3255209.600551918,
+    "monthly_obligations": 2066383.3690447484,
     "employment_months": 1.0,
     "max_days_past_due_12m": 19.9361666912667,
     "term_months": 360.0,
-    "proposed_rate_ea": 0.1483662040697973,
+    "proposed_rate_ea": 0.14846620406979733,
 }
 
 

@@ -141,14 +141,21 @@ def run_release(
     )
 
     background = _background(config, splits["train"])
-    # BR-U5-06: la disparidad del modelo base sobre `validation`, con el doble de la libreria de U9, debe ser < 5 pp.
-    cutoff = float(ref["cutoff"])
+    # BR-U5-06: la disparidad del modelo base sobre `validation`, con el doble de la libreria de U9 y el `outcome` completo
+    # de BR-U7-04/05 (baja confianza, usura y corte), debe ser < 5 pp.
     reference_date = date.fromisoformat(str(config["reference_date"]))
     validation_rows = read_rows(paths["validation"])
     validation_probabilities = _probabilities(
         model.booster, model.feature_order, model.vocabulary, splits["validation"].values
     )
-    trigger, disparity = px.disparity_pp(validation_rows, validation_probabilities, cutoff, reference_date)
+    outcomes = px.outcomes_of(
+        validation_rows,
+        validation_probabilities,
+        _confidences(envelope, splits["validation"].values),
+        policy,
+        reference_date,
+    )
+    trigger, disparity = px.disparity_pp(validation_rows, outcomes, reference_date)
     if enforce_min_auc if enforce_disparity is None else enforce_disparity:
         px.check_base_disparity(disparity, config)
     stats = {
@@ -157,6 +164,7 @@ def run_release(
         "auc_validation": round(model.auc_validation, 6),
         "disparity_pp": disparity,
         "disparity_trigger_attribute": trigger,
+        "validation_review_rate": round(outcomes.count(px.REVIEW) / len(outcomes), 6),
         "low_confidence_threshold": calibration.threshold,
         "test_above_threshold": round(calibration.test_above, 6),
     }
@@ -224,9 +232,15 @@ def run_proxy_release(
     probabilities = _probabilities(
         model.booster, model.feature_order, model.vocabulary, splits["validation"].values
     )
-    trigger, disparity = px.disparity_pp(
-        rows["validation"], probabilities, float(config["reference_policy"]["cutoff"]), reference_date
+    # La variante se sirve con la politica de referencia del modelo base (la demo no calibra otra).
+    outcomes = px.outcomes_of(
+        rows["validation"],
+        probabilities,
+        _confidences(envelope, splits["validation"].values),
+        base.policy,
+        reference_date,
     )
+    trigger, disparity = px.disparity_pp(rows["validation"], outcomes, reference_date)
     if enforce_disparity:
         px.check_proxy_disparity(disparity, config)
 
@@ -246,6 +260,7 @@ def run_proxy_release(
         "auc_validation": round(model.auc_validation, 6),
         "disparity_pp": disparity,
         "disparity_trigger_attribute": trigger,
+        "validation_review_rate": round(outcomes.count(px.REVIEW) / len(outcomes), 6),
         "base_disparity_pp": base.manifest["disparity_pp"],
     }
     manifests, directories = [], []
