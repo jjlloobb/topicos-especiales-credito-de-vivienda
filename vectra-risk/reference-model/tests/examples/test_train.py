@@ -18,6 +18,7 @@ def _sha(data: bytes) -> str:
 
 
 def test_auc_of_validation_reaches_the_minimum_with_the_reference_seed(reference_release: Release) -> None:
+    """BR-U5-08. Tambien BR-U5-05: el AUC de ~0,88 es el efecto de la funcion de riesgo latente del generador."""
     assert reference_release.model.auc_validation >= 0.85
     assert reference_release.model.auc_validation >= CONFIG["model"]["min_auc"]
     assert reference_release.manifest["auc_validation"] >= 0.85

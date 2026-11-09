@@ -226,6 +226,7 @@ def test_pbt_u5_06_a_dictionary_missing_a_feature_of_the_spec_is_rejected(drop: 
 
 
 def test_the_dictionary_is_in_spanish_and_complete(small_release: Release) -> None:
+    """BR-U5-10: el diccionario del paquete cubre todas las features, en espanol."""
     dictionary = FeatureDictionary.model_validate_json(
         (small_release.package_dir / "feature_dictionary.json").read_bytes()
     )
