@@ -6105,6 +6105,15 @@ Informe en `revisiones/U02-T18/`.
 
 ---
 
+## Enmienda al alcance de la demo: recorte funcional
+**Timestamp**: 2026-11-09T04:52:01Z
+**User Input**: "es posible trabajar solo en las tares necesarias para tener una demo completa del proyecto con todas las unidades y pueda correr en esta maquina?"; luego eligió «Solo lo que usan las demos» y, sobre el borrador, «Aceptar todo».
+**AI Response**:
+- `aidlc-docs/construction/plans/demo-recorte-funcional.md`, aprobada: recorte por funcionalidad (E\*F) en U3–U12 salvo U5, con P-1 a P-20 según su recomendación y P-16 pendiente.
+- `demo-kind-alcance.md`: nota de la enmienda y RL-1 ampliada (P-2). Las tareas restantes pasan de unas 64 a 42.
+- U03-T04 conserva lo que ya estaba implementado y difiere `checkpoint`. La opción A de su firma (decisión del usuario) queda para el cierre completo.
+**Context**: Construcción, alcance de la demo en kind.
+
 ## U05-T04: ronda 1
 **Timestamp**: 2026-11-09T04:42:33Z
 **User Input**: "sigamos"
