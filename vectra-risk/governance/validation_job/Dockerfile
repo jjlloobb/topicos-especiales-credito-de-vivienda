@@ -17,8 +17,9 @@ RUN pip install --no-cache-dir --prefix=/install /src/vectra_contracts /src/vect
 
 FROM docker.io/library/python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-# `libgomp1` (OpenMP) lo cargan lightgbm y xgboost; la base `slim` no la trae.
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm -rf /var/lib/apt/lists/*
+# `libgomp1` (OpenMP) lo cargan lightgbm y xgboost; la base `slim` no la trae. Version fijada (DL3008): la de Debian 13 de la base por digest;
+# al cambiar el digest de la base hay que releerla (`apt-cache policy libgomp1`).
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1=14.2.0-19 && rm -rf /var/lib/apt/lists/*
 COPY --from=build /install /usr/local
 WORKDIR /app
 # Usuario numerico distinto de root (require-run-as-non-root): el mismo `runAsNonRoot` de la plantilla del Job (`k8s_jobs.py`).

@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 import yaml
+from vectra_contracts.models.governance import PolicyDraft
 from vectra_governance.k8s_jobs import CLIENT_SECRET, JobSpec, job_manifest
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -20,6 +21,7 @@ def spec() -> JobSpec:
     return JobSpec(
         job_name="validation-1", mode="validacion", run_id="r1", model_version_id="mv-1", image="reg/job@sha256:" + "a" * 64,
         manifest_uri="s3://m", artifact_uri="s3://a", explainer_uri="s3://e", dataset_ref="s3://d", callback_url="http://g",
+        policy=PolicyDraft(cutoff="0.0800", low_confidence_threshold="0.0300", channel_rules=[], normative=[]),
     )
 
 
@@ -57,6 +59,7 @@ def test_the_manifest_matches_inf_u4_01_read_from_the_design() -> None:
 
 
 def test_the_manifest_is_the_staging_job_with_the_batch_guarantees_and_security() -> None:
+    """NFR-U4-23: `runAsNonRoot`, `readOnlyRootFilesystem` y `automountServiceAccountToken: false` en el Job."""
     manifest = pod()
     job, pod_spec = manifest["spec"], manifest["spec"]["template"]["spec"]
     assert manifest["metadata"]["namespace"] == "vectra-staging"

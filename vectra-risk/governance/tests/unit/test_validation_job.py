@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 import vectra_disparity
 from tools.forbidden_phrases import find_violations, load_patterns
+from vectra_contracts.models.governance import PolicyDraft
 from validation_support import (
-    BASE_FEATURES,
     DATASET,
     EVALUATED_ON,
     MANIFEST,
@@ -18,19 +18,23 @@ from validation_support import (
     VERSION,
     CapturingSender,
     dataset,
+    envelope_bytes,
     job_config,
     onnx_bytes,
     package,
+    policy,
     rows,
     xgboost_bytes,
 )
 from vectra_common.service_token import ServiceTokenProvider
 from vectra_contracts.models.governance import SyncCheck, ValidationReport
-from vectra_contracts.models.monitoring import AttributeResult, InitialDisparity
+from vectra_contracts.models.monitoring import InitialDisparity
 from vectra_validation import disparity as disparity_module
+from vectra_validation.confidence import confidence, parse_envelope
+from vectra_validation.disparity import initial_disparity
+from vectra_validation.outcome import outcome_of
 from vectra_validation.errors import ValidationJobError
 from vectra_validation.metrics import auc_roc
-from vectra_validation.models import load_model
 from vectra_validation.report import HttpReportSender, build_report
 from vectra_validation.run import main, validate
 from vectra_validation.s3 import S3Reader
@@ -132,27 +136,124 @@ def _any_disparity() -> InitialDisparity:
 # --- disparidad inicial: la libreria real de U9 ----------------------------------------------------------------------------
 
 
-def test_initial_disparity_is_the_one_the_u9_library_computes_directly() -> None:
-    _, _, report = xgboost_run()
-    d = dataset(DATA)
-    uri, store = package("predictor.json", xgboost_bytes(DATA), DATA)
-    model = load_model("xgboost_json", store.read(uri), tuple(BASE_FEATURES))
-    probabilities = model.probability(d.matrix)
-    records = [
-        {**labels, "outcome": "favorable" if p < 0.08 else "desfavorable"}
-        for labels, p in zip(d.monitoring, probabilities, strict=True)
+def _labels(sexo: str) -> dict[str, str]:
+    return {"sexo": sexo, "rango_edad": "46-55", "region": "caribe", "estrato": "2", "banda": "gt_30"}
+
+
+def test_initial_disparity_counts_revision_requerida_as_not_favorable() -> None:
+    """Caso a mano (BR-U9-01): F tiene 70 favorables y 30 `revision_requerida` de 100; M tiene 100 favorables de 100."""
+    monitoring = [_labels("F")] * 100 + [_labels("M")] * 100
+    outcomes = ["favorable"] * 70 + ["revision_requerida"] * 30 + ["favorable"] * 100
+    result = initial_disparity(monitoring, outcomes, 30, "5.0000")
+    sexo = next(a for a in result.attributes if a.attribute == "sexo")
+    rates = {c.group: c.rate for c in sexo.cells if c.band == "gt_30"}
+    assert rates == {"F": "0.7000", "M": "1.0000"}  # 70/100 y 100/100; con `p < cutoff` F valdria 1.0000 si las 30 tuvieran score bajo
+    assert (result.trigger_attribute, result.model_aggregate, result.rule_met) == ("sexo", "0.3000", True)
+
+
+def test_initial_disparity_gives_the_same_figure_when_a_review_is_replaced_by_an_unfavorable() -> None:
+    monitoring = [_labels("F")] * 100 + [_labels("M")] * 100
+    review = ["favorable"] * 70 + ["revision_requerida"] * 30 + ["favorable"] * 100
+    unfavorable = ["favorable"] * 70 + ["desfavorable"] * 30 + ["favorable"] * 100
+    assert initial_disparity(monitoring, review, 30, "5.0000") == initial_disparity(monitoring, unfavorable, 30, "5.0000")
+
+
+# Casos a mano de BR-U7-04 y BR-U7-05. Cada fila: (descripcion, probabilidad, confianza, tasa, canal, politica, outcome esperado).
+POLICY = policy()
+CHANNELS = policy(channel_rules=[{"channel": "sucursal", "cutoff": "0.0500"}, {"channel": "digital", "cutoff": None}])
+NORMATIVE_ENDED = policy(
+    normative=[
+        {
+            "vis_max_property_value": 200_000_000,
+            "usury_cap_ea": "0.2800",
+            "effective_from": "2026-01-01",
+            "effective_to": "2026-06-30",
+            "source_ref": "sintetico",
+        }
     ]
-    counts = vectra_disparity.counts_from_records(records)
-    expected = [
-        AttributeResult.model_validate(vectra_disparity.to_dict(vectra_disparity.disparity_by_band(counts, a, 30)))
-        for a in vectra_disparity.ATTRIBUTES
-    ]
-    assert report.initial_disparity.attributes == expected
-    top = vectra_disparity.model_aggregate(vectra_disparity.disparity_by_band(counts, a, 30) for a in vectra_disparity.ATTRIBUTES)
-    assert top is not None
-    assert report.initial_disparity.model_aggregate == str(top[1])
-    assert report.initial_disparity.trigger_attribute == top[0]
-    assert (report.initial_disparity.n_min, report.initial_disparity.threshold_pp) == (30, "5.0000")
+)
+OUTCOME_CASES = [
+    ("score bajo el corte", 0.05, "0.9000", "0.1500", "sucursal", POLICY, "favorable"),
+    ("score igual al corte no es bajo", 0.08, "0.9000", "0.1500", "sucursal", POLICY, "desfavorable"),
+    ("score sobre el corte", 0.30, "0.9000", "0.1500", "sucursal", POLICY, "desfavorable"),
+    ("normativo nulo (sin lista) con score bajo", 0.01, "0.9000", "0.1500", "sucursal", policy(normative=[]), "revision_requerida"),
+    ("normativo nulo (vigencia vencida) con score bajo", 0.01, "0.9000", "0.1500", "sucursal", NORMATIVE_ENDED, "revision_requerida"),
+    ("tasa sobre la usura con score bajo", 0.01, "0.9000", "0.2801", "sucursal", POLICY, "revision_requerida"),
+    ("tasa igual a la usura no es sobre", 0.01, "0.9000", "0.2800", "sucursal", POLICY, "favorable"),
+    ("confianza bajo el minimo con score bajo", 0.01, "0.0299", "0.1500", "sucursal", POLICY, "revision_requerida"),
+    ("confianza igual al minimo no es baja", 0.01, "0.0300", "0.1500", "sucursal", POLICY, "favorable"),
+    ("las tres causas a la vez", 0.01, "0.0100", "0.3000", "sucursal", policy(normative=[]), "revision_requerida"),
+    ("el corte del canal gana: 0,06 sobre 0,05 de sucursal", 0.06, "0.9000", "0.1500", "sucursal", CHANNELS, "desfavorable"),
+    ("el corte del canal gana: 0,04 bajo 0,05 de sucursal", 0.04, "0.9000", "0.1500", "sucursal", CHANNELS, "favorable"),
+    ("canal sin regla usa el general: 0,06 bajo 0,08", 0.06, "0.9000", "0.1500", "aliado_inmobiliario", CHANNELS, "favorable"),
+    ("regla del canal sin corte usa el general", 0.06, "0.9000", "0.1500", "digital", CHANNELS, "favorable"),
+]
+
+
+@pytest.mark.parametrize(("why", "p", "conf", "rate", "channel", "pol", "expected"), OUTCOME_CASES)
+def test_the_outcome_is_the_one_br_u7_04_and_br_u7_05_give(
+    why: str, p: float, conf: str, rate: str, channel: str, pol: PolicyDraft, expected: str
+) -> None:
+    assert outcome_of(p, conf, rate, channel, pol, EVALUATED_ON) == expected, why
+
+
+# Casos a mano de la confianza (BR-U5-12) sobre una envolvente de dos numericas y una categorica: media 0, covarianza identidad
+# (la distancia de Mahalanobis es la euclidiana) y deciles 0, 1, 2 de esas distancias.
+ENVELOPE = {
+    "numeric": [{"name": "a", "p1": -1.0, "p99": 1.0}, {"name": "b", "p1": -1.0, "p99": 1.0}],
+    "categories": {"c": ["x", "y"]},
+    "mean": [0.0, 0.0],
+    "covariance": [[1.0, 0.0], [0.0, 1.0]],
+    "distance_quantiles": [0.0, 1.0, 2.0],
+}
+
+
+@pytest.mark.parametrize(
+    ("values", "expected"),
+    [
+        ({"a": 0.0, "b": 0.0, "c": "x"}, "1.0000"),  # d = 0: F = 0, en rango
+        ({"a": 1.0, "b": 0.0, "c": "y"}, "0.5000"),  # d = 1: F = 0,5, en rango
+        ({"a": 0.5, "b": 0.0, "c": "x"}, "0.7500"),  # d = 0,5: F = 0,25
+        ({"a": 5.0, "b": 0.0, "c": "x"}, "0.0000"),  # d = 5 sobre el maximo: F = 1; ademas una numerica fuera de rango
+        ({"a": 0.0, "b": 0.0, "c": "z"}, "0.0000"),  # categoria no vista: 0
+        ({"a": 1.5, "b": 0.0, "c": "x"}, "0.2500"),  # d = 1,5: c_dist = 0,25; c_rango = 0,5; el minimo es 0,25
+    ],
+)
+def test_confidence_matches_hand_computed_values(values: dict[str, Any], expected: str) -> None:
+    assert confidence(ENVELOPE, values) == expected
+
+
+def test_confidence_accepts_numeric_values_given_as_text() -> None:
+    assert confidence(ENVELOPE, {"a": "0.5", "b": "0", "c": "x"}) == "0.7500"
+
+
+def test_confidence_without_a_feature_is_an_error_and_an_unreadable_envelope_too() -> None:
+    with pytest.raises(ValidationJobError, match="feature_missing:b"):
+        confidence(ENVELOPE, {"a": 0.0, "c": "x"})
+    with pytest.raises(ValidationJobError, match="envelope_unreadable"):
+        parse_envelope(b'{"numeric": []}')
+
+
+def test_confidence_is_the_one_u5_publishes() -> None:
+    """La copia del Job (la imagen no lleva `vectra_reference`) da lo mismo que la funcion de U5 sobre las mismas entradas."""
+    from vectra_reference.envelope.confidence import confidence as u5_confidence
+
+    envelope = json.loads(envelope_bytes(DATA))
+    for row in dataset(DATA).values[:100]:
+        assert confidence(envelope, row) == u5_confidence(envelope, row)
+
+
+def test_the_job_gives_each_row_the_outcome_of_the_policy_and_not_the_score_below_the_cutoff() -> None:
+    """Con la politica activa que fija el lanzador, una causa de `revision_requerida` deja a todos como no favorables (tasa 0)."""
+    _, _, normal = xgboost_run()
+    assert any(c.rate not in (None, "0.0000") for a in normal.initial_disparity.attributes for c in a.cells)
+    for why, pol in (
+        ("normativo nulo", policy(normative=[])),
+        ("usura 0", policy(normative=[{**json.loads(POLICY.normative[0].model_dump_json()), "usury_cap_ea": "0.0000"}])),
+    ):
+        _, _, report = xgboost_run(policy=pol)
+        rates = {c.rate for a in report.initial_disparity.attributes for c in a.cells if c.status == "suficiente"}
+        assert rates == {"0.0000"}, why
 
 
 def test_the_job_uses_the_real_library_and_not_a_double() -> None:
@@ -247,6 +348,7 @@ def _env(**over: str) -> dict[str, str]:
         "VECTRA_ARTIFACT_URI": "s3://b/predictor.json", "VECTRA_EXPLAINER_URI": "s3://b/explainer.json", "VECTRA_DATASET_REF": DATASET,
         "VECTRA_GOVERNANCE_URL": "http://g", "VECTRA_S3_ENDPOINT": "http://minio:9000", "VECTRA_S3_ACCESS_KEY": "a",
         "VECTRA_S3_SECRET_KEY": "s", "VECTRA_TOKEN_URL": "https://k/token", "VECTRA_CLIENT_KEY_PATH": "/nonexistent",
+        "VECTRA_POLICY": policy().model_dump_json(),
     }
     return {**base, **over}
 

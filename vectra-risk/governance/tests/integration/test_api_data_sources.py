@@ -87,6 +87,7 @@ async def test_a_candidate_with_its_source_en_evaluacion_registers_and_cannot_be
     world: ApiWorld, package_dir: Path
 ) -> None:
     world.put_source(DS)
+    with_active_policy(world.svc)
     body = registration_body(package_dir, world.store, "pkg", data_sources=[DS], source_candidate_for=DS)
     response = await world.client.post("/v1/models", headers=world.user("ingeniero_riesgo"), json=body)
     assert response.status_code == 200, response.text

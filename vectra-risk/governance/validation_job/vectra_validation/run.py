@@ -16,17 +16,20 @@ from vectra_common.service_token import ServiceTokenProvider
 from vectra_contracts.models.features import FeatureSpec
 from vectra_contracts.models.governance import ValidationReport
 
+from vectra_validation.confidence import confidence, parse_envelope
 from vectra_validation.config import JobConfig, from_env
 from vectra_validation.disparity import initial_disparity
 from vectra_validation.errors import ValidationJobError
 from vectra_validation.features import build_dataset, read_rows
 from vectra_validation.metrics import auc_roc
 from vectra_validation.models import artifact_format, load_model, parse_explainer
+from vectra_validation.outcome import outcome_of
 from vectra_validation.report import HttpReportSender, ReportSender, build_report
 from vectra_validation.s3 import S3Reader
 from vectra_validation.sync import sync_check
 
 SPEC_FILE = "feature_spec.json"
+ENVELOPE_FILE = "domain_envelope.json"
 
 
 class ObjectReader(Protocol):
@@ -55,6 +58,7 @@ def validate(config: JobConfig, store: ObjectReader, sender: ReportSender, evalu
     manifest = store.read(config.manifest_uri)
     explainer_spec = parse_explainer(store.read(config.explainer_uri))
     spec = FeatureSpec.model_validate_json(store.read(_sibling(config.manifest_uri, SPEC_FILE)))
+    envelope = parse_envelope(store.read(_sibling(config.manifest_uri, ENVELOPE_FILE)))
     model = load_model(
         artifact_format(config.artifact_uri), store.read(config.artifact_uri), explainer_spec.feature_order
     )
@@ -66,10 +70,14 @@ def validate(config: JobConfig, store: ObjectReader, sender: ReportSender, evalu
         evaluated_on,
     )
     probabilities = model.probability(dataset.matrix)
+    outcomes = [
+        outcome_of(float(p), confidence(envelope, v), rate, channel, config.policy, evaluated_on)
+        for p, v, rate, channel in zip(probabilities, dataset.values, dataset.proposed_rates, dataset.channels, strict=True)
+    ]
     report = build_report(
         auc_roc(dataset.defaults, probabilities),
         config.auc_target,
-        initial_disparity(dataset.monitoring, list(probabilities), float(config.cutoff), config.n_min, config.threshold_pp),
+        initial_disparity(dataset.monitoring, outcomes, config.n_min, config.threshold_pp),
         sync_check(
             model,
             model,

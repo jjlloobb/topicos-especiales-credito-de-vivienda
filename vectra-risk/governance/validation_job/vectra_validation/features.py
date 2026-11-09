@@ -25,6 +25,9 @@ class Dataset:
     matrix: NDArray[np.float64]
     defaults: list[int]
     monitoring: list[dict[str, str]]  # sexo, rango_edad, region, estrato y banda de cada fila, en el orden de las filas
+    values: list[dict[str, float | str]]  # valor de cada feature del modelo por fila (la entrada de `confidence`)
+    proposed_rates: list[str]  # `proposed_rate_ea` de cada fila (BR-U7-04 regla 2)
+    channels: list[str]  # canal de cada fila (BR-U7-04: `cutoff_efectivo`)
 
 
 def read_rows(parquet: bytes) -> list[dict[str, Any]]:
@@ -57,18 +60,24 @@ def build_dataset(
     matrix = np.empty((len(rows), len(feature_order)), dtype=np.float64)
     defaults: list[int] = []
     monitoring: list[dict[str, str]] = []
+    values: list[dict[str, float | str]] = []
+    proposed_rates: list[str] = []
+    channels: list[str] = []
     for i, row in enumerate(rows):
         application = _application(row)
         features = derive(application, evaluated_on, spec).features
+        row_values: dict[str, float | str] = {}
         for j, name in enumerate(feature_order):
             item = features.get(name)
             if item is None:
                 raise ValidationJobError(f"feature_missing:{name}")
             if isinstance(item, CategoryFeature):
-                values = list(encoding.get(name, ()))
-                matrix[i, j] = values.index(item.value) if item.value in values else -1
+                values_of = list(encoding.get(name, ()))
+                matrix[i, j] = values_of.index(item.value) if item.value in values_of else -1
+                row_values[name] = item.value
             else:
                 matrix[i, j] = float(item.value)
+                row_values[name] = float(item.value)
         labels = derive_monitoring_labels(application, evaluated_on)
         monitoring.append(
             {
@@ -79,5 +88,8 @@ def build_dataset(
                 "banda": labels.banda_capacidad_pago,
             }
         )
+        values.append(row_values)
+        proposed_rates.append(str(application.proposed_rate_ea))
+        channels.append(application.channel)
         defaults.append(int(row[LABEL_COLUMN]))
-    return Dataset(matrix, defaults, monitoring)
+    return Dataset(matrix, defaults, monitoring, values, proposed_rates, channels)

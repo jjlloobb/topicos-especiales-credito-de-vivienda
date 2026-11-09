@@ -11,9 +11,16 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import xgboost as xgb
 from onnx import TensorProto, helper
-from vectra_contracts.models.governance import ValidationReport
-from vectra_reference.features import BASE_FEATURES, base_feature_spec, categorical_vocabulary
+from vectra_contracts.models.governance import PolicyDraft, ValidationReport
+from vectra_reference.features import (
+    BASE_FEATURES,
+    CATEGORICAL_FEATURES,
+    NUMERIC_FEATURES,
+    base_feature_spec,
+    categorical_vocabulary,
+)
 from vectra_reference.generate import build_rows, load_config, with_overrides
+from vectra_validation.confidence import distances
 from vectra_validation.config import JobConfig
 from vectra_validation.features import Dataset, build_dataset
 
@@ -23,6 +30,25 @@ EVALUATED_ON = date(2026, 11, 9)
 MANIFEST = "s3://model-store/mv/manifest.json"
 DATASET = "s3://validation-datasets/mv/validation.parquet"
 CONFIG = load_config()
+
+
+def policy(**over: Any) -> PolicyDraft:
+    """La politica activa de la demo: corte 0,08, confianza minima 0,03 y una vigencia normativa que cubre `EVALUATED_ON`."""
+    base: dict[str, Any] = {
+        "cutoff": "0.0800",
+        "low_confidence_threshold": "0.0300",
+        "channel_rules": [],
+        "normative": [
+            {
+                "vis_max_property_value": 200_000_000,
+                "usury_cap_ea": "0.2800",
+                "effective_from": "2026-01-01",
+                "effective_to": None,
+                "source_ref": "sintetico",
+            }
+        ],
+    }
+    return PolicyDraft.model_validate_json(json.dumps({**base, **over}))
 
 
 def rows(n: int = 600) -> list[dict[str, Any]]:
@@ -73,6 +99,28 @@ def onnx_bytes(n_features: int = len(BASE_FEATURES)) -> bytes:
     return model.SerializeToString()
 
 
+def envelope_bytes(data: list[dict[str, Any]], version: str = VERSION) -> bytes:
+    """`domain_envelope.json` de fixture, calculado sobre el dataset con el formato de U5 (p1/p99, categorias, media, covarianza, deciles)."""
+    d = dataset(data)
+    numeric = np.array([[float(v[name]) for name in NUMERIC_FEATURES] for v in d.values])
+    mean = numeric.mean(axis=0)
+    covariance = np.cov(numeric, rowvar=False) + np.eye(numeric.shape[1]) * 1e-6
+    grid = np.quantile(distances(mean.tolist(), covariance.tolist(), numeric), np.linspace(0.0, 1.0, 101))
+    return json.dumps(
+        {
+            "model_version_id": version,
+            "numeric": [
+                {"name": n, "p1": float(np.percentile(numeric[:, j], 1)), "p99": float(np.percentile(numeric[:, j], 99))}
+                for j, n in enumerate(NUMERIC_FEATURES)
+            ],
+            "categories": {n: sorted({str(v[n]) for v in d.values}) for n in CATEGORICAL_FEATURES},
+            "mean": mean.tolist(),
+            "covariance": covariance.tolist(),
+            "distance_quantiles": [float(v) for v in grid],
+        }
+    ).encode()
+
+
 def explainer_bytes(version: str = VERSION) -> bytes:
     return json.dumps(
         {
@@ -91,6 +139,7 @@ def manifest_bytes(predictor_name: str, version: str = VERSION, predictor_versio
         {"name": predictor_name, "model_version_id": predictor_version or version},
         {"name": "explainer.json", "model_version_id": version},
         {"name": "feature_spec.json", "model_version_id": version},
+        {"name": "domain_envelope.json", "model_version_id": version},
     ]
     return json.dumps({"model_version_id": version, "files": files}).encode()
 
@@ -132,6 +181,7 @@ def job_config(artifact_uri: str, **over: Any) -> JobConfig:
         "key_id": None,
         "audience": "governance-service",
         "evaluated_on": EVALUATED_ON.isoformat(),
+        "policy": policy(),
     }
     return JobConfig(**{**base, **over})
 
@@ -144,6 +194,7 @@ def package(artifact_name: str, artifact: bytes, data: list[dict[str, Any]], *, 
             prefix + artifact_name: artifact,
             prefix + "explainer.json": explainer_bytes(),
             prefix + "feature_spec.json": spec_bytes(),
+            prefix + "domain_envelope.json": envelope_bytes(data),
             DATASET: parquet(data),
         }
     )

@@ -4,10 +4,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Final
 
+from pydantic import ValidationError
+from vectra_contracts.models.governance import PolicyDraft
+
 from vectra_validation.errors import ValidationJobError
 
 DEFAULT_AUC_TARGET: Final = "0.8500"  # domain-entities §2.2: 0,85 [INTERNO]
-DEFAULT_CUTOFF: Final = "0.0800"  # `cutoff` de la politica de referencia de U5; el lanzador lo fija con la politica activa
 DEFAULT_N_MIN: Final = 30  # BR-U9-13
 DEFAULT_THRESHOLD_PP: Final = "5.0000"  # BR-U9-13
 
@@ -31,8 +33,8 @@ class JobConfig:
     key_id: str | None
     audience: str
     evaluated_on: str | None
+    policy: PolicyDraft  # la politica activa (`cutoff`, `low_confidence_threshold`, `channel_rules`, `normative`); la pasa el lanzador
     auc_target: str = DEFAULT_AUC_TARGET
-    cutoff: str = DEFAULT_CUTOFF
     n_min: int = DEFAULT_N_MIN
     threshold_pp: str = DEFAULT_THRESHOLD_PP
     scope: str = "governance:validation-report"
@@ -43,6 +45,13 @@ def _need(env: Mapping[str, str], name: str) -> str:
     if not value:
         raise ValidationJobError(f"missing_env:{name}")
     return value
+
+
+def _policy(env: Mapping[str, str]) -> PolicyDraft:
+    try:
+        return PolicyDraft.model_validate_json(_need(env, "VECTRA_POLICY"))
+    except ValidationError as error:
+        raise ValidationJobError("policy_unreadable") from error
 
 
 def from_env(env: Mapping[str, str]) -> JobConfig:
@@ -65,8 +74,8 @@ def from_env(env: Mapping[str, str]) -> JobConfig:
         key_id=env.get("VECTRA_CLIENT_KEY_ID") or None,
         audience=env.get("VECTRA_TOKEN_AUDIENCE", "governance-service"),
         evaluated_on=env.get("VECTRA_EVALUATED_ON") or None,  # sin valor, `main` usa el reloj (solo el punto de entrada lo lee)
+        policy=_policy(env),
         auc_target=env.get("VECTRA_AUC_TARGET", DEFAULT_AUC_TARGET),
-        cutoff=env.get("VECTRA_CUTOFF", DEFAULT_CUTOFF),
         n_min=int(env.get("VECTRA_N_MIN", str(DEFAULT_N_MIN))),
         threshold_pp=env.get("VECTRA_THRESHOLD_PP", DEFAULT_THRESHOLD_PP),
     )

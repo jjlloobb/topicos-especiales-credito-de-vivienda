@@ -14,26 +14,21 @@ from vectra_disparity import (
     to_dict,
 )
 
-FAVORABLE = "favorable"
-UNFAVORABLE = "desfavorable"
-
 
 def initial_disparity(
     monitoring: Sequence[dict[str, str]],
-    default_probability: Sequence[float],
-    cutoff: float,
+    outcomes: Sequence[str],
     n_min: int,
     threshold_pp: str,
 ) -> InitialDisparity:
-    """Puntua cada fila con el corte de la politica (`score < cutoff` es `favorable`, BR-U7-05) y mide la disparidad.
+    """Mide la disparidad sobre el `outcome` de la recomendacion de cada fila (`outcome.outcome_of`, BR-U7-04/05).
+
+    `revision_requerida` cuenta como NO favorable (BR-U9-01), igual que en la medicion de U9 sobre las recomendaciones reales.
 
     `rule_met` es la regla R4 de congelamiento (limite inferior de la agregada del atributo disparador > umbral); se informa,
     no bloquea (BR-U4-07).
     """
-    records = [
-        {**labels, "outcome": FAVORABLE if p < cutoff else UNFAVORABLE}
-        for labels, p in zip(monitoring, default_probability, strict=True)
-    ]
+    records = [{**labels, "outcome": outcome} for labels, outcome in zip(monitoring, outcomes, strict=True)]
     counts = counts_from_records(records)
     results = [disparity_by_band(counts, attribute, n_min) for attribute in ATTRIBUTES]
     top = model_aggregate(results)

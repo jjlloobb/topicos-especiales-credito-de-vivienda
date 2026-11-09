@@ -20,6 +20,7 @@ from typing import Any, Final, Literal, Protocol
 
 import httpx
 from vectra_common.errors import DependencyUnavailable
+from vectra_contracts.models.governance import PolicyDraft
 
 JobReason = Literal["failed", "deadline", "sin informe"]
 REASONS: Final = ("failed", "deadline", "sin informe")
@@ -93,7 +94,8 @@ def reason_of(info: JobInfo | None) -> JobReason:
 @dataclass(frozen=True)
 class JobSpec:
     """Lo que recibe el `model-validation-job` (BR-U4-05): version, URIs del paquete, dataset y, en `source_comparison`, la
-    fuente y la version `activo` contra la que se compara (la candidata es `model_version_id`)."""
+    fuente y la version `activo` contra la que se compara (la candidata es `model_version_id`). `policy` es la politica activa: el Job
+    la usa para dar a cada fila del dataset el `outcome` de BR-U7-04/05 (`cutoff_efectivo`, usura, confianza minima, vigencia)."""
 
     job_name: str
     mode: Mode
@@ -105,6 +107,7 @@ class JobSpec:
     explainer_uri: str
     dataset_ref: str
     callback_url: str
+    policy: PolicyDraft
     s3_endpoint: str = DEFAULT_S3_ENDPOINT
     token_url: str = DEFAULT_TOKEN_URL
     source_id: str | None = None
@@ -129,6 +132,7 @@ def job_manifest(spec: JobSpec) -> dict[str, Any]:
         "VECTRA_TOKEN_URL": spec.token_url,
         "VECTRA_CLIENT_ID": JOB_SERVICE_ACCOUNT,
         "VECTRA_CLIENT_KEY_PATH": f"{CLIENT_KEY_DIR}/private-key",
+        "VECTRA_POLICY": spec.policy.model_dump_json(include=set(PolicyDraft.model_fields)),
         "VECTRA_CA_BUNDLE": f"{CA_DIR}/ca.crt",
     }
     if spec.source_id is not None and spec.baseline_version_id is not None:

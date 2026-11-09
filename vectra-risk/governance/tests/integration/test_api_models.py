@@ -30,6 +30,7 @@ async def register(world: ApiWorld, directory: Path, prefix: str = "pkg", sub: s
 
 
 async def registered(world: ApiWorld, package_dir: Path) -> str:
+    with_active_policy(world.svc)  # el lanzador pasa al Job la politica activa (BR-U7-04/05)
     response = await register(world, package_dir)
     assert response.status_code == 200, response.text
     return version_of(package_dir)
@@ -143,6 +144,13 @@ async def test_br_u4_05_validation_creates_the_job_in_staging_with_ttl_deadline_
     env = {e["name"]: e.get("value") for e in spec["template"]["spec"]["containers"][0]["env"]}
     assert env["VECTRA_JOB_MODE"] == "validacion" and env["VECTRA_RUN_ID"] == run["run_id"]
     assert env["VECTRA_MODEL_VERSION_ID"] == model_id and "VECTRA_SOURCE_ID" not in env
+    # La politica activa de la base viaja al Job completa; el Job no lleva el corte como literal.
+    active = world.sql("SELECT cutoff, low_confidence_threshold, channel_rules, normative FROM policies WHERE state = 'activa'")[0]
+    sent = json.loads(env["VECTRA_POLICY"])
+    assert sent["cutoff"] == format(active["cutoff"], ".4f")
+    assert sent["low_confidence_threshold"] == format(active["low_confidence_threshold"], ".4f")
+    assert sent["channel_rules"] == active["channel_rules"] and len(sent["normative"]) == len(active["normative"])
+    assert "VECTRA_CUTOFF" not in env
     assert world.deps.jobs.get(name) == JobInfo()  # existe y no ha fallado
     world.k8s.status[name] = {"conditions": [{"type": "Failed", "status": "True", "reason": "DeadlineExceeded"}]}
     assert world.deps.jobs.get(name) == JobInfo(failed=True, deadline_exceeded=True)
@@ -151,6 +159,19 @@ async def test_br_u4_05_validation_creates_the_job_in_staging_with_ttl_deadline_
     assert (row["mode"], row["state"], row["job_name"]) == ("validacion", "lanzado", name)
     assert (row["deadline_at"] - row["started_at"]).total_seconds() == 7200
     assert world.state(model_id) == "en_validacion" and world.chain(model_id) == ["registrado", "validacion_iniciada"]
+
+
+async def test_without_an_active_policy_the_validation_is_refused_and_nothing_is_launched(
+    world: ApiWorld, package_dir: Path
+) -> None:
+    response = await register(world, package_dir)
+    model_id = version_of(package_dir)
+    assert response.status_code == 200
+    refused = await world.client.post(f"/v1/models/{model_id}/validations", headers=world.user("ingeniero_riesgo"))
+    assert refused.status_code == 409 and refused.json()["code"] == "conflict_state"
+    assert world.k8s.jobs == {} and world.count("validation_runs") == 0 and world.state(model_id) == "registrado"
+    with_active_policy(world.svc)
+    assert (await world.client.post(f"/v1/models/{model_id}/validations", headers=world.user("ingeniero_riesgo"))).status_code == 200
 
 
 async def test_validation_needs_the_engineer_with_mfa_and_the_right_state(world: ApiWorld, package_dir: Path) -> None:
