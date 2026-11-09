@@ -128,7 +128,7 @@ vectra-risk/governance/
     - con la base pausada, `serving-config` sigue respondiendo la última copia durante 29 s y responde 503 a los 30 s; el gauge de edad crece y vuelve a 0 al reanudar la base (revisión de coherencia entre unidades, 2026-10-10);
     - `pg_stat_activity` cuenta 5 conexiones por réplica.
 
-- [ ] **Paso 10 — Endpoints**
+- [x] **Paso 10 — Endpoints** (U04-T04, acotado a la demo)
   - Modelos: registrar, lanzar validación (Job en `vectra-staging` por K01, con TTL, `activeDeadlineSeconds` y `backoffLimit: 0`), recibir el informe (F32), aprobar o rechazar, `mark_active`, retirar.
   - Registro: los paquetes RT-3 (a), (c) y (d) de U5 → 422 sin crear la versión; (b) → aceptado (BR-U4-06; doble de los paquetes hasta que exista U5; quinta revisión de coherencia entre unidades, 2026-10-31).
   - `freeze` (solo `governance:freeze`).
@@ -156,7 +156,7 @@ vectra-risk/governance/
     
     Además, `make -C contracts openapi && git diff --exit-code contracts/openapi/`.
 
-- [ ] **Paso 11 — Resumen del servicio**
+- [x] **Paso 11 — Resumen del servicio** (U04-T04)
   - `aidlc-docs/construction/governance/code/api-summary.md`.
   - **Aceptación**: `uv run python platform/tests/test_traceability.py --unit governance --section api` (BR-U4-03, 05, 07, 08, 12, 13 y 15..17 aparecen en las pruebas).
 

@@ -20,8 +20,10 @@ reclamar la menor `n` pendiente de cada entidad mientras escribe en el registro;
   confirma cuando todas sus mitades lo tienen.
 - Un `freeze` tiene el actor `service` de `model_fsm`, pero U3 (BR-U3-16) exige `{kind: system, id: bias-monitoring-job}`:
   al armar la entrada del registro, el actor del `freeze` viaja como `system`.
-- El `freeze` lleva aqui el `FreezeContext` tal cual (`data_sources` e `initial_disparity` y la reduccion por tamano son del
-  Paso 10); el cliente real del registro lo rechazaria hasta entonces (el tipo de U0 exige `FreezeContextPackage`).
+- El `freeze` agrega al `FreezeContext` de bias las `data_sources` de la version y su `initial_disparity` (BR-U4-15, Paso 10)
+  y aplica la reduccion por tamano: mas de 60 KiB -> `initial_disparity` solo con sus agregadas; mas de 64 KiB ->
+  `data_sources` solo con ids. La medida es la del cuerpo completo de `POST /v1/entries` (conservadora: `json.dumps` con
+  espacios), asi el registro nunca recibe mas de 64 KiB.
 - Una descartada de **politica** no tiene compensacion (el `CHECK` de `0001` solo admite `compensacion` en modelos).
 """
 
@@ -41,13 +43,23 @@ from vectra_common.errors import DependencyUnavailable
 from vectra_contracts.catalog import Role
 from vectra_contracts.models.explanation import RegistryAck
 from vectra_contracts.models.governance import (
+    DataSource,
+    DataSourceProposal,
     ModelRegistration,
     ModelVersion,
     PolicyDraft,
     PolicyVersion,
     ValidationReport,
 )
-from vectra_contracts.models.monitoring import FreezeContext
+from vectra_contracts.models.monitoring import (
+    CompareSourceRequest,
+    DisparityResult,
+    FreezeContext,
+    FreezeContextPackage,
+    InitialDisparity,
+    PrePostReport,
+    SourceCountsIn,
+)
 
 from vectra_governance.model_fsm import (
     BIAS_JOB,
@@ -75,6 +87,9 @@ NO_STATE: Final = "-"  # `from_state` de una transicion que crea la entidad (`re
 #: Una sola escritura de estado a la vez en toda governance (ver el docstring del modulo).
 GLOBAL_LOCK: Final = 0x56454354_52410004
 ABANDON_AFTER: Final = timedelta(hours=24)  # BR-U4-17
+SOFT_EVENT_BYTES: Final = 60 * 1024  # BR-U4-15: por encima, `initial_disparity` solo con sus agregadas
+MAX_EVENT_BYTES: Final = 64 * 1024  # BR-U3-07: el registro rechaza mas; por encima, `data_sources` solo con ids
+MAX_REPORT_BYTES: Final = 48 * 1024  # BR-U4-13 / U9 BR-U9-15: el `PrePostReport` del evento de la decision
 VALIDATION_DEADLINE: Final = timedelta(hours=2)  # BR-U4-05
 GOVERNANCE_SYSTEM: Final = Actor("system", "governance-service")
 REASON_TRANSITION_PENDING: Final = "transition_pending"  # ProblemReason.TRANSITION_PENDING (U0)
@@ -202,6 +217,96 @@ def build_entry(row: Row, now: datetime) -> dict[str, Any]:
         idempotency_key=str(row["idempotency_key"]),
     )
     return entry
+
+
+# --- Tamano de los eventos (BR-U4-15, BR-U4-13) ---------------------------------------------------------------------------------
+
+
+class EntityNotFound(Exception):
+    """La entidad que nombra la operacion no existe (el Paso 10 responde 404)."""
+
+
+def wire_size(entry: dict[str, Any]) -> int:
+    """Bytes del cuerpo de `POST /v1/entries` para `entry` (sin `actor`, `occurred_at`, `correlation_id` ni `idempotency_key`).
+
+    Se suman esos cuatro campos con un valor de largo maximo y se serializa con espacios (`json.dumps` por defecto): es una
+    cota por arriba de lo que manda `httpx`, que serializa compacto.
+    """
+    probe = {
+        **entry,
+        "actor": {"kind": "system", "id": BIAS_JOB, "role": "cumplimiento", "acr": "mfa", "auth_time": "x" * 32},
+        "occurred_at": "2026-01-01T00:00:00.000000+00:00",
+        "correlation_id": "0" * 32,
+        "idempotency_key": str(uuid.UUID(int=0)),
+    }
+    return len(json.dumps(_jsonable(probe)).encode())
+
+
+def _aggregates_only(initial: InitialDisparity) -> InitialDisparity:
+    """U9 BR-U9-16: `initial_disparity` solo con sus agregadas (sin celdas ni bandas)."""
+    return initial.model_copy(
+        update={"attributes": [a.model_copy(update={"cells": [], "bands": []}) for a in initial.attributes]}
+    )
+
+
+def _freeze_entry(model_id: str, freeze_id: uuid.UUID, frozen_at: datetime, package: FreezeContextPackage) -> dict[str, Any]:
+    return {
+        "entry_type": "freeze",
+        "model_version_id": model_id,
+        "payload": {"freeze_id": str(freeze_id), "frozen_at": frozen_at, "context_package": package},
+    }
+
+
+def fit_freeze_package(
+    model_id: str, freeze_id: uuid.UUID, frozen_at: datetime, package: FreezeContextPackage
+) -> FreezeContextPackage:
+    """BR-U4-15: el evento `freeze` cabe siempre en el registro (64 KiB, BR-U3-07).
+
+    Mas de 60 KiB -> `initial_disparity` solo con sus agregadas; si aun supera 64 KiB -> `data_sources` solo con ids. Como
+    ultimo recurso (el paquete de bias, que llega con <= 48 KiB, ya lo ocupa casi todo) se descartan `before`,
+    `last_7_days` e `implicated` y se marca `truncated`: el modelo ya esta congelado y un evento que el registro rechazaria
+    por tamano quedaria pendiente para siempre (`FreezeEventPending`).
+    """
+
+    def size(candidate: FreezeContextPackage) -> int:
+        return wire_size(_freeze_entry(model_id, freeze_id, frozen_at, candidate))
+
+    if size(package) <= SOFT_EVENT_BYTES:
+        return package
+    package = package.model_copy(update={"initial_disparity": _aggregates_only(package.initial_disparity)})
+    if size(package) <= MAX_EVENT_BYTES:
+        return package
+    ids = [item["ds_id"] if isinstance(item, dict) else item for item in package.data_sources]
+    package = package.model_copy(update={"data_sources": ids})
+    if size(package) <= MAX_EVENT_BYTES:
+        return package
+    return package.model_copy(
+        update={"before": "sin_datos", "last_7_days": "sin_datos", "implicated": [], "truncated": True}
+    )
+
+
+def _without_cells(result: DisparityResult) -> DisparityResult:
+    return result.model_copy(update={"attributes": [a.model_copy(update={"cells": []}) for a in result.attributes]})
+
+
+def fit_report(report: PrePostReport, limit: int = MAX_REPORT_BYTES) -> PrePostReport:
+    """El `PrePostReport` del evento de la decision: <= 48 KiB; si no, sin las celdas y con `truncated = true` (BR-U4-13)."""
+
+    def size(candidate: PrePostReport) -> int:
+        return len(json.dumps(candidate.model_dump(mode="json")).encode())  # con espacios: cota por arriba de la red
+
+    if size(report) <= limit:
+        return report
+    slim = report.model_copy(update={"pre": _without_cells(report.pre), "post": _without_cells(report.post), "truncated": True})
+    if size(slim) <= limit:
+        return slim
+    bare = [a.model_copy(update={"bands": []}) for a in slim.pre.attributes], [a.model_copy(update={"bands": []}) for a in slim.post.attributes]
+    return slim.model_copy(
+        update={
+            "pre": slim.pre.model_copy(update={"attributes": bare[0]}),
+            "post": slim.post.model_copy(update={"attributes": bare[1]}),
+        }
+    )
 
 
 # --- Filas ----------------------------------------------------------------------------------------------------------------
@@ -358,6 +463,11 @@ def policy_version_of(row: Row) -> PolicyVersion:
     return PolicyVersion.model_validate_json(json.dumps(data, default=_default))
 
 
+def data_source_of(row: Row) -> DataSource:
+    data = {k: row[k] for k in DataSource.model_fields if k in row}
+    return DataSource.model_validate_json(json.dumps(data, default=_default))
+
+
 def recompute_serving_config(conn: Connection, now: datetime) -> None:
     """Escribe la fila unica de `serving_config` (domain-entities §5). El trigger notifica solo si cambia el `etag`."""
     model = conn.execute(
@@ -506,6 +616,28 @@ def _apply(conn: Connection, row: Row, now: datetime) -> None:
         conn.execute(
             "UPDATE policies SET state = 'rechazada', rejection_justification = %s WHERE policy_version_id = %s",
             (effect.get("justification"), entity_id),
+        )
+    elif op == "source_propose":
+        source = effect["source"]
+        conn.execute(
+            "INSERT INTO data_sources (ds_id, name, description, provides_features, owner, proposed_by, state, created_at, "
+            "updated_at) VALUES (%s, %s, %s, %s, %s, %s, 'en_evaluacion', %s, %s)",
+            (
+                entity_id,
+                source["name"],
+                source["description"],
+                source["provides_features"],
+                source["owner"],
+                effect["proposed_by"],
+                now,
+                now,
+            ),
+        )
+    elif op == "source_decide":
+        conn.execute(
+            "UPDATE data_sources SET state = %s, decided_by = %s, decision_justification = %s, decided_at = %s, "
+            "updated_at = %s WHERE ds_id = %s",
+            (row["to_state"], effect["decided_by"], effect.get("justification"), now, now, entity_id),
         )
     elif op != "none":  # `none`: freeze y compensacion no aplican estado al confirmarse
         raise ValueError(f"efecto desconocido: {op}")
@@ -978,20 +1110,39 @@ class Evidence:
         )
 
     def start_validation(
-        self, actor: Actor, model_id: str, *, job_name: str, auth_time: datetime | None = None
+        self,
+        actor: Actor,
+        model_id: str,
+        *,
+        job_name: str,
+        run_id: str | None = None,
+        auth_time: datetime | None = None,
     ) -> Result:
-        """`registrado -> en_validacion` y la `ValidationRun` con plazo de 2 h (BR-U4-05). El lanzador del Job es del Paso 10."""
-        return self._validation(actor, model_id, "start_validation", job_name, auth_time)
+        """`registrado -> en_validacion` y la `ValidationRun` con plazo de 2 h (BR-U4-05).
+
+        `run_id` lo fija el llamador cuando el nombre del Job se deriva de el (Paso 10: el Job se crea despues de confirmar).
+        """
+        return self._validation(actor, model_id, "start_validation", job_name, run_id, auth_time)
 
     def retry_validation(
-        self, actor: Actor, model_id: str, *, job_name: str, auth_time: datetime | None = None
+        self,
+        actor: Actor,
+        model_id: str,
+        *,
+        job_name: str,
+        run_id: str | None = None,
+        auth_time: datetime | None = None,
     ) -> Result:
-        return self._validation(actor, model_id, "retry_validation", job_name, auth_time)
+        return self._validation(actor, model_id, "retry_validation", job_name, run_id, auth_time)
 
     def _validation(
-        self, actor: Actor, model_id: str, action: Action, job_name: str, auth_time: datetime | None
+        self, actor: Actor, model_id: str, action: Action, job_name: str, run_id: str | None, auth_time: datetime | None
     ) -> Result:
-        run = {"run_id": str(uuid.uuid4()), "job_name": job_name, "deadline_at": self.clock() + VALIDATION_DEADLINE}
+        run = {
+            "run_id": run_id or str(uuid.uuid4()),
+            "job_name": job_name,
+            "deadline_at": self.clock() + VALIDATION_DEADLINE,
+        }
         return self._simple(
             model_id,
             action,
@@ -1075,8 +1226,13 @@ class Evidence:
     def retire(self, actor: Actor, model_id: str, *, auth_time: datetime | None = None) -> Result:
         return self._simple(model_id, "retire", actor, "retirado", auth_time=auth_time)
 
-    def mark_active(self, actor: Actor, model_id: str, *, auth_time: datetime | None = None) -> Result:
-        """BR-U4-08: la destino pasa a `activo` y la que estaba `activo` a `inactivo`, una sola unidad de evidencia."""
+    def mark_active(
+        self, actor: Actor, model_id: str, *, auth_time: datetime | None = None, evidence: str | None = None
+    ) -> Result:
+        """BR-U4-08: la destino pasa a `activo` y la que estaba `activo` a `inactivo`, una sola unidad de evidencia.
+
+        `evidence` (`ActivationIn`, el PR de promocion) viaja en el `details` del evento `activado`.
+        """
 
         def build(conn: Connection, now: datetime) -> list[NewTransition]:
             row, target, other = self._checked(conn, model_id, "mark_active", actor)
@@ -1090,7 +1246,13 @@ class Evidence:
                     row["state"],
                     target,
                     who,
-                    _model_event(model_id, "activado", from_state=row["state"], to_state=target),
+                    _model_event(
+                        model_id,
+                        "activado",
+                        from_state=row["state"],
+                        to_state=target,
+                        **({} if evidence is None else {"evidence": evidence}),
+                    ),
                     {"op": "state"},
                     unit_id=unit,
                 )
@@ -1162,15 +1324,10 @@ class Evidence:
             if context.model_version_id != model_id:
                 raise ConflictState("freeze_context_mismatch")
             freeze_id = uuid.uuid4()
-            entry = {
-                "entry_type": "freeze",
-                "model_version_id": model_id,
-                "payload": {
-                    "freeze_id": str(freeze_id),
-                    "frozen_at": now,
-                    "context_package": context,
-                },
-            }
+            package = fit_freeze_package(
+                model_id, freeze_id, now, self._freeze_package(conn, row, context)
+            )
+            entry = _freeze_entry(model_id, freeze_id, now, package)
             doomed = conn.execute(
                 "SELECT * FROM transitions WHERE entity_type = %s AND entity_id = %s AND status = 'pendiente_registro' "
                 "AND kind = 'cambio_estado'",
@@ -1208,6 +1365,29 @@ class Evidence:
         except (DependencyUnavailable, ConflictState):
             pass  # el modelo queda congelado igual; el reconciliador reintenta el evento
         return Result((freeze_id,), "congelado", event_written=written)
+
+    @staticmethod
+    def _freeze_package(conn: Connection, model: Row, context: FreezeContext) -> FreezeContextPackage:
+        """BR-U4-15: el `FreezeContext` de bias mas las `data_sources` de la version y su `initial_disparity` de la validacion."""
+        sources = conn.execute(
+            "SELECT * FROM data_sources WHERE ds_id = ANY(%s) ORDER BY ds_id", (list(model["data_sources"]),)
+        ).fetchall()
+        run = conn.execute(
+            "SELECT report FROM validation_runs WHERE model_version_id = %s AND mode = 'validacion' "
+            "AND state = 'informe_recibido' AND report IS NOT NULL ORDER BY finished_at DESC LIMIT 1",
+            (model["model_version_id"],),
+        ).fetchone()
+        initial = (
+            InitialDisparity(attributes=[])
+            if run is None
+            else ValidationReport.model_validate(run["report"]).initial_disparity
+        )
+        fields = {name: getattr(context, name) for name in FreezeContext.model_fields}
+        return FreezeContextPackage(
+            **fields,
+            data_sources=[data_source_of(r).model_dump(mode="json") for r in sources],
+            initial_disparity=initial,
+        )
 
     # --- operaciones de politica (BR-U4-10, 11) -------------------------------------------------------------------------------
 
@@ -1311,6 +1491,192 @@ class Evidence:
             ]
 
         return self._complete(self._begin(build))
+
+
+    # --- fuentes de datos (BR-U4-13, US-306) -----------------------------------------------------------------------------------
+
+    @staticmethod
+    def _require_role(actor: Actor, role: Role) -> None:
+        if actor.kind != "user" or actor.role != role or actor.acr != MFA:
+            raise Forbidden("actor_not_allowed")
+
+    @staticmethod
+    def _source_event(source_id: str, event: str, report: PrePostReport | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"event": event, "source_id": source_id}
+        if report is not None:
+            payload["pre_post_report"] = report.model_dump(mode="json")
+        return {"entry_type": "data_source_event", "payload": payload}
+
+    def propose_source(
+        self, actor: Actor, source_id: str, proposal: DataSourceProposal, *, auth_time: datetime | None = None
+    ) -> Result:
+        """Proponer una fuente (`ingeniero_riesgo`, MFA): queda `en_evaluacion` (BR-U4-13). Una sola transicion, un evento.
+
+        El diseno enumera `propuesta` y `evaluacion_iniciada` como eventos, pero la fuente nunca se queda en `propuesta`
+        (BR-U4-13: «al proponer, la fuente pasa a `en_evaluacion`») y BR-U4-17 pide un evento por transicion: el evento es
+        `evaluacion_iniciada`.
+        """
+        self._require_role(actor, Role.INGENIERO_RIESGO)
+
+        def build(conn: Connection, now: datetime) -> list[NewTransition]:
+            if entity_state(conn, ENTITY_SOURCE, source_id) is not None:
+                raise ConflictState("source_exists")
+            return [
+                NewTransition(
+                    ENTITY_SOURCE,
+                    source_id,
+                    NO_STATE,
+                    "en_evaluacion",
+                    actor_json(actor, now, auth_time),
+                    self._source_event(source_id, "evaluacion_iniciada"),
+                    {"op": "source_propose", "source": proposal.model_dump(mode="json"), "proposed_by": actor.id},
+                )
+            ]
+
+        return self._complete(self._begin(build))
+
+    def decide_source(
+        self,
+        actor: Actor,
+        source_id: str,
+        decision: Literal["aprobada", "rechazada"],
+        justification: str | None,
+        *,
+        auth_time: datetime | None = None,
+    ) -> Result:
+        """`cumplimiento` (MFA) decide **solo** si existe `pre_post_report` (si no, 409); distinto de quien propuso (BR-U4-10).
+
+        El `data_source_event` lleva el `PrePostReport` con <= 48 KiB; si no, sin las celdas y `truncated = true`.
+        """
+        self._require_role(actor, Role.CUMPLIMIENTO)
+
+        def build(conn: Connection, now: datetime) -> list[NewTransition]:
+            row = conn.execute("SELECT * FROM data_sources WHERE ds_id = %s", (source_id,)).fetchone()
+            if row is None:
+                raise EntityNotFound(source_id)
+            if row["state"] != "en_evaluacion":
+                if _has_pending(conn, ENTITY_SOURCE, source_id):
+                    raise ConflictState(REASON_TRANSITION_PENDING)
+                raise ConflictState("source_not_in_evaluation")
+            if row["pre_post_report"] is None:
+                raise ConflictState("pre_post_report_missing")
+            if row["proposed_by"] == actor.id:
+                raise ConflictState("approver_is_proposer")
+            report = fit_report(data_source_of(row).pre_post_report)  # type: ignore[arg-type]
+            return [
+                NewTransition(
+                    ENTITY_SOURCE,
+                    source_id,
+                    "en_evaluacion",
+                    decision,
+                    actor_json(actor, now, auth_time),
+                    self._source_event(source_id, decision, report),
+                    {"op": "source_decide", "decided_by": actor.id, "justification": justification},
+                    justification=justification,
+                )
+            ]
+
+        return self._complete(self._begin(build))
+
+    @staticmethod
+    def _comparison_rows(conn: Connection, source_id: str, candidate_id: str) -> tuple[Row, Row]:
+        """Las condiciones de BR-U4-13 punto 2 (menos los `InferenceService`, que son de K01): `(candidata, activo)` o 409."""
+        source = conn.execute("SELECT state FROM data_sources WHERE ds_id = %s", (source_id,)).fetchone()
+        if source is None:
+            raise EntityNotFound(source_id)
+        if source["state"] != "en_evaluacion":
+            raise ConflictState("source_not_in_evaluation")
+        open_run = conn.execute(
+            "SELECT 1 FROM validation_runs WHERE source_id = %s AND mode = 'source_comparison' AND state = 'lanzado' LIMIT 1",
+            (source_id,),
+        ).fetchone()
+        if open_run is not None:
+            raise ConflictState("comparison_in_progress")
+        candidate = _model_row(conn, candidate_id)
+        if candidate is None:
+            raise EntityNotFound(candidate_id)
+        if candidate["source_candidate_for"] != source_id:
+            raise ConflictState("not_a_candidate_of_source")
+        if candidate["state"] not in ("registrado", "validacion_fallida", "lista_para_aprobacion"):
+            raise ConflictState("candidate_state_not_allowed")
+        servable = conn.execute("SELECT * FROM model_versions WHERE state IN ('activo', 'congelado')").fetchone()
+        if servable is None:
+            raise ConflictState("no_active_version")
+        if servable["state"] == "congelado":
+            raise ConflictState("active_version_frozen")
+        return candidate, servable
+
+    def comparison_models(self, actor: Actor, source_id: str, candidate_id: str) -> tuple[Row, Row]:
+        """Lectura previa de `start_source_comparison`: valida el actor y las condiciones y devuelve `(candidata, activo)`."""
+        self._require_role(actor, Role.INGENIERO_RIESGO)
+        with self.pools.read() as conn:
+            try:
+                return self._comparison_rows(conn, source_id, candidate_id)
+            finally:
+                conn.rollback()
+
+    def open_comparison(
+        self, actor: Actor, source_id: str, candidate_id: str, *, run_id: str, job_name: str
+    ) -> Row:
+        """Registra la `ValidationRun` `source_comparison` (`lanzado`, plazo de 2 h) volviendo a comprobar las condiciones.
+
+        La comparacion no cambia el estado de ninguna version, asi que no hay transicion ni evidencia (BR-U4-13).
+        """
+        self._require_role(actor, Role.INGENIERO_RIESGO)
+        with self.pools.tx() as conn, conn.transaction():
+            _lock(conn)
+            candidate, baseline = self._comparison_rows(conn, source_id, candidate_id)
+            now = self.clock()
+            run = conn.execute(
+                "INSERT INTO validation_runs (run_id, model_version_id, job_name, state, mode, source_id, "
+                "baseline_version_id, started_at, deadline_at) VALUES (%s, %s, %s, 'lanzado', 'source_comparison', %s, %s, "
+                "%s, %s) RETURNING *",
+                (run_id, candidate["model_version_id"], job_name, source_id, baseline["model_version_id"], now, now + VALIDATION_DEADLINE),
+            ).fetchone()
+            assert run is not None
+            return dict(run)
+
+    def close_run(self, run_id: str, state: str) -> None:
+        """Cierra una corrida sin informe (`fallido`: el Job no se pudo crear). No cambia ninguna version."""
+        with self.pools.tx() as conn, conn.transaction():
+            conn.execute(
+                "UPDATE validation_runs SET state = %s, finished_at = %s WHERE run_id = %s AND state = 'lanzado'",
+                (state, self.clock(), run_id),
+            )
+
+    def open_source_counts_run(self, run_id: str) -> Row:
+        """F32 `source-counts`: la corrida debe ser `source_comparison` y estar `lanzado`; si no, 409 (404 si no existe)."""
+        with self.pools.read() as conn:
+            run = conn.execute("SELECT * FROM validation_runs WHERE run_id = %s", (run_id,)).fetchone()
+            conn.rollback()
+        if run is None:
+            raise EntityNotFound(run_id)
+        if run["mode"] != "source_comparison" or run["state"] != "lanzado":
+            raise ConflictState("validation_run_not_open")
+        return dict(run)
+
+    def save_source_counts(self, run_id: str, counts: SourceCountsIn, report: PrePostReport) -> None:
+        """Guarda las tablas de conteo en la corrida (`informe_recibido`) y el `PrePostReport` en la fuente. Solo una vez."""
+        with self.pools.tx() as conn, conn.transaction():
+            _lock(conn)
+            now = self.clock()
+            run = conn.execute("SELECT * FROM validation_runs WHERE run_id = %s FOR UPDATE", (run_id,)).fetchone()
+            if run is None:
+                raise EntityNotFound(run_id)
+            if run["mode"] != "source_comparison" or run["state"] != "lanzado":
+                raise ConflictState("validation_run_not_open")
+            conn.execute(
+                "UPDATE validation_runs SET state = 'informe_recibido', report = %s, finished_at = %s WHERE run_id = %s",
+                (Jsonb(counts.model_dump(mode="json")), now, run_id),
+            )
+            conn.execute(
+                "UPDATE data_sources SET pre_post_report = %s, updated_at = %s WHERE ds_id = %s",
+                (Jsonb(report.model_dump(mode="json")), now, run["source_id"]),
+            )
+
+    def compare_request(self, run: Row, counts: SourceCountsIn) -> CompareSourceRequest:
+        """El cuerpo de F25 (`compare_source`); lanza `ValueError` si las tablas no son las de los cuatro atributos."""
+        return CompareSourceRequest(source_id=run["source_id"], pre=counts.pre, post=counts.post)
 
 
 def bias_actor() -> Actor:
