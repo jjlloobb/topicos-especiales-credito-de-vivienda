@@ -64,7 +64,7 @@ platform/kind/seed-vault.sh identity   # rutas de U2: identity/… y edge/valkey
 ```
 
 - Necesita `vectra-internal-ca` listo en cert-manager (U1 sano, B-5): de su Secret toma **solo el certificado público** (`tls.crt`) para `identity/ca`.
-- Siembra pares ES256 reales por cliente (`identity/clients/<id>`: `jwks` para los 15 clientes con `client-jwt` del realm y `private-key` PKCS#8 para los 14 con cuenta de servicio), contraseñas alfanuméricas y semillas TOTP en base32 (`identity/synthetic-users`), `identity/break-glass`, `identity/keycloak-admin` (usuario `admin`) y `edge/valkey` al azar.
+- Siembra pares ES256 reales por cliente (`identity/clients/<id>`: `jwks` para los 15 clientes con `client-jwt` del realm y `private-key` PKCS#8 para los 14 con cuenta de servicio), contraseñas alfanuméricas y semillas TOTP en base32 (`identity/synthetic-users`), `identity/break-glass`, `identity/keycloak-admin` y `edge/valkey` al azar. El usuario del administrador de arranque es `admin` por omisión y se cambia con `VECTRA_KC_ADMIN_USER=<usuario> platform/kind/seed-vault.sh identity`; si `identity/keycloak-admin` ya existe, se conserva el que tenga.
 - **Se puede repetir.** Conserva lo que existe y **nunca regenera un par de llaves** (rompería los tokens vigentes). Si una ruta quedó a medias (por ejemplo un `jwks` que no corresponde a su `private-key`), se detiene con un error en vez de reescribirla.
 - Escribe las llaves privadas de los clientes (`<clientId>.pem`), `ca.crt` y un archivo `env` en `${VECTRA_E2E_KEYS_DIR:-${XDG_RUNTIME_DIR:-/tmp}/vectra-e2e-keys}`, fuera del repositorio (0700; archivos 0600). El log no lleva secretos: solo imprime las rutas sembradas y la ruta de ese archivo. Para el ítem 1 y la carga:
 
