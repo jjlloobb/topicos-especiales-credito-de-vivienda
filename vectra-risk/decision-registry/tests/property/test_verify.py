@@ -50,6 +50,9 @@ COLUMN_CHANGES = {
     "idempotency_key": lambda r: replace(r, idempotency_key=uuid.uuid4()),
     "case_id": lambda r: replace(r, case_id=uuid.uuid4()),
     "model_version_id": lambda r: replace(r, model_version_id=(r.model_version_id or "") + "x"),
+    # F-01 (U03-T02): `chain_builder` escribe estas dos columnas, asi que cambiarlas debe delatarse como `column_mismatch`.
+    "policy_version_id": lambda r: replace(r, policy_version_id=(r.policy_version_id or "") + "x"),
+    "actor_role": lambda r: replace(r, actor_role="cro" if r.actor_role != "cro" else "analista"),
     "entry_type": lambda r: replace(r, entry_type="model_event" if r.entry_type != "model_event" else "freeze"),
 }
 
@@ -96,6 +99,8 @@ def test_pbt_u3_02_una_manipulacion_se_detecta_en_su_seq(rows: list[Row], kind: 
     assert report.first_inconsistent_seq == expected  # type: ignore[attr-defined]
     if kind == "prev_hash":
         assert report.reason == "link"  # type: ignore[attr-defined]
+    if kind == "column":
+        assert report.reason == "column_mismatch"  # type: ignore[attr-defined]
 
 
 @given(chains(short_sizes), st.data())

@@ -99,8 +99,8 @@ def payload_of(entry_type: str, draw: st.DrawFn) -> dict[str, Any]:
 
 
 @st.composite
-def rows(draw: st.DrawFn) -> Row:
-    entry_type = draw(st.sampled_from(TYPES))
+def rows(draw: st.DrawFn, only: str | None = None) -> Row:
+    entry_type = only or draw(st.sampled_from(TYPES))
     seq = draw(st.integers(1, 10**6))
     extra: dict[str, object] = {}
     if entry_type != "genesis":
@@ -129,25 +129,23 @@ def keys_below(value: object) -> set[str]:
     return found
 
 
-@given(rows(), st.sampled_from(CONSUMERS), st.sampled_from(PROJECTIONS))
-def test_pbt_u3_06_solo_los_campos_permitidos(row: Row, consumer: Consumer, projection: str) -> None:
-    """PBT-U3-06 (BR-U3-15): la proyeccion contiene solo los campos permitidos de su fila de domain-entities §3 y
-    `feature_vector`, `justification` y `actor_id` nunca aparecen fuera de `full`."""
-    if projection not in PERMITTED[consumer]:
-        with pytest.raises(Forbidden):
-            project(consumer, projection, row)
-        return
+#: Las combinaciones (consumidor, proyeccion, tipo de entrada) que SI producen una proyeccion: cada una sale con la misma
+#: frecuencia, para que las omisiones de campos se prueben de verdad (F-02 de U03-T02: antes cada combinacion salia en ~0,5 %).
+COMBOS = [
+    (consumer, projection, entry_type)
+    for consumer in CONSUMERS
+    for projection in sorted(PERMITTED[consumer])
+    if projection != "monitoring_daily"
+    for entry_type in (TYPES if projection == "full" else sorted(t for (p, t) in ALLOWED if p == projection))
+]
+
+
+def check_allowed_fields(row: Row, consumer: Consumer, projection: str) -> None:
     out = project(consumer, projection, row)
-    if projection == "monitoring_daily":
-        assert out is None  # sus datos son conteos de la tabla derivada, no entradas
-        return
     if projection == "full":
         assert out is not None and set(out) == FULL_FIELDS
         return
-    allowed = ALLOWED.get((projection, row.entry_type))
-    if allowed is None:
-        assert out is None  # la entrada no pertenece a esa proyeccion
-        return
+    allowed = ALLOWED[(projection, row.entry_type)]
     assert out is not None
     assert set(out) <= allowed
     if projection == "metrics":
@@ -156,6 +154,34 @@ def test_pbt_u3_06_solo_los_campos_permitidos(row: Row, consumer: Consumer, proj
         assert set(out) == allowed  # ningun campo permitido se omite
     assert not (keys_below(out) & SENSITIVE), keys_below(out) & SENSITIVE
     assert "narrative" not in keys_below(out) or projection == "explanation"
+
+
+def test_las_combinaciones_permitidas_son_las_de_domain_entities_3() -> None:
+    """La lista de combinaciones se deriva de la tabla transcrita: 1 (full) x 11 tipos + 1 + 3 + 2 entradas."""
+    assert len(COMBOS) == 11 + 1 + 3 + 2
+    assert {c[0] for c in COMBOS} == set(CONSUMERS)
+
+
+@given(st.sampled_from(COMBOS), st.data())
+def test_pbt_u3_06_solo_los_campos_permitidos(combo: tuple[Consumer, str, str], data: st.DataObject) -> None:
+    """PBT-U3-06 (BR-U3-15): la proyeccion contiene solo los campos permitidos de su fila en domain-entities §3, no omite
+    ninguno de los que debe llevar, y `feature_vector`, `justification` y `actor_id` nunca aparecen fuera de `full`."""
+    consumer, projection, entry_type = combo
+    check_allowed_fields(data.draw(rows(entry_type)), consumer, projection)
+
+
+@given(rows(), st.sampled_from(CONSUMERS), st.sampled_from(PROJECTIONS))
+def test_pbt_u3_06_lo_no_permitido_es_forbidden_o_nada(row: Row, consumer: Consumer, projection: str) -> None:
+    """Una proyeccion no permitida al consumidor es `Forbidden`; una entrada que no pertenece a la proyeccion da `None`."""
+    if projection not in PERMITTED[consumer]:
+        with pytest.raises(Forbidden):
+            project(consumer, projection, row)
+    elif projection == "monitoring_daily":
+        assert project(consumer, projection, row) is None  # sus datos son conteos de la tabla derivada, no entradas
+    elif projection != "full" and (projection, row.entry_type) not in ALLOWED:
+        assert project(consumer, projection, row) is None
+    else:
+        check_allowed_fields(row, consumer, projection)
 
 
 @given(rows(), st.sampled_from(CONSUMERS), st.sampled_from(PROJECTIONS), st.sets(texts | st.sampled_from(sorted(FULL_FIELDS)), max_size=4))
