@@ -6204,3 +6204,10 @@ Informes y arbitraje en `revisiones/U02-T19/`.
 - Aplicado en P-U4-06, BR-U4-17, domain-entities §1.3 y `demo-recorte-funcional.md` §4. F-03, F-04 y F-05 de U04-T01 quedan resueltas en `CANDIDATAS.md`.
 - Se prepara U04-T03 con la migración `0004` y la función única de la llave.
 **Context**: Construcción de U4, Bloque D.
+## U03-T05: arbitraje de la ronda 2 (CA-9 `--all`)
+**Timestamp**: 2026-11-09T21:00:00Z
+**User Input**: respuesta a la pregunta sobre CA-9: "Rule \"no new failures\" (Recommended)"
+**AI Response**:
+- La ronda 2 de U03-T05 salió NO-VERDE por un ROJO: `test_traceability.py --all` da rc=1 por 26 identificadores de U4 que vienen de main. U3 está limpio.
+- El usuario aprobó la regla «sin fallos nuevos» para todas las tareas de la demo (`DECISIONES-LOOP.md` §6). Se abre el PR.
+**Context**: Construcción de U3, U03-T05.

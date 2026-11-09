@@ -60,3 +60,11 @@ La ola 2 (`U01-T03`, `U01-T05`, `U01-T06`) usó **unos 989.000 tokens** entre su
 `U02-T17` (7 Applications de GitOps) costó unas 12 horas de reloj: 3 rondas, 2 revisiones de código encima de rondas VERDE y 2 PR. La mayor parte se fue en hallazgos NARANJA y AMARILLO sobre pruebas de waves y textos de la tarea, y en `make -C identity-edge check` (≈ 25 min por corrida). Uno de los hallazgos de la revisión de código fue culpa mía: la tabla de la tarea decía que `identity-jobs` incluía `keycloak-config-cli`, y el arbitraje de C-05 heredó ese error.
 
 Con ≈ 170 pasos por delante para la demo, el usuario aprobó las reglas RL-1 a RL-5 de `aidlc-docs/construction/plans/demo-kind-alcance.md` §6: una tarea por bloque, máximo 2 rondas con solo ROJO bloqueante, sin revisión de código extra, `make check` por unidad y hasta 3 codificadores en paralelo. Es un cambio de costo de proceso, no de alcance: el código de cada paso E entra completo.
+
+## 6. `test_traceability.py --all` con unidades en curso (2026-11-09)
+
+En la ronda 2 de `U03-T05`, `--all` salió con rc=1 por 26 identificadores de U4. U4 tiene código a medias en main desde U04-T01, y U3 estaba limpio. El usuario aprobó la regla **«sin fallos nuevos»**. `--all` cuenta como pasado si:
+- cada línea que falla es de una unidad sin `evidence/cierre-demo.md`;
+- el conjunto de fallos es idéntico al de main en la base de la rama.
+
+El revisor lo comprueba corriendo `--all` también sobre la base. Rige para todas las tareas de la demo. Los cambios de la herramienta están en `CANDIDATAS.md`.

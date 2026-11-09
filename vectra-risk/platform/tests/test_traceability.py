@@ -9,6 +9,11 @@
 El prefijo (`U1`) se detecta de los documentos. Las raices de codigo son `<dir>/` y la linea `Raíces de código:` del
 `code/README.md` de la unidad. Un identificador que solo aparece en ese README debe nombrar, en su fila, un archivo
 existente: una carpeta no dice donde esta el codigo.
+
+Lista de «diferido por la demo» (P-4, `demo-recorte-funcional.md` §2.4): la seccion `## Diferido por la demo` de
+`aidlc-docs/construction/<unidad>/evidence/cierre-demo.md`, con una fila `| <id> | <paso del plan> | <cita del recorte> | ... |`
+por identificador. Un identificador de la lista no necesita codigo; si ya lo tiene, o si la fila no nombra el paso y la
+cita, la prueba falla: la lista no encubre trabajo hecho ni recortes sin fuente.
 """
 
 import argparse
@@ -39,6 +44,28 @@ def definitions(unit: str) -> dict[str, set[str]]:
             for identifier, prefix in DEFINITION.findall(path.read_text(encoding="utf-8")):
                 found.setdefault(prefix, set()).add(identifier)
     return found
+
+
+DEFERRED_SECTION = "## Diferido por la demo"
+IDENTIFIER = re.compile(r"^(?:BR|NFR|P|INF)-U\d+-\d+[a-z]?$")
+
+
+def deferred_rows(unit: str) -> dict[str, list[str]]:
+    """identificador -> celdas de su fila en la seccion «Diferido por la demo» de `evidence/cierre-demo.md`."""
+    path = CONSTRUCTION / unit / "evidence/cierre-demo.md"
+    if not path.is_file():
+        return {}
+    rows: dict[str, list[str]] = {}
+    inside = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## "):
+            inside = line.strip() == DEFERRED_SECTION
+            continue
+        if inside and line.startswith("|"):
+            cells = [cell.strip().strip("`*") for cell in line.strip().strip("|").split("|")]
+            if IDENTIFIER.match(cells[0]):
+                rows[cells[0]] = cells[1:]
+    return rows
 
 
 def own_identifiers(unit: str) -> set[str]:
@@ -137,9 +164,15 @@ def check_unit(unit: str) -> list[str]:
     blob = with_ranges("\n".join(path.read_text(encoding="utf-8", errors="replace") for path in files))
     summary = summary_of(unit).read_text(encoding="utf-8") if summary_of(unit).is_file() else ""
     backed = backed_by_a_row(unit)
+    deferred = deferred_rows(unit)
     problems: list[str] = []
+    for identifier, cells in sorted(deferred.items()):
+        if len(cells) < 2 or not cells[0] or not cells[1]:
+            problems.append(f"{identifier}: la fila de «Diferido por la demo» no nombra el paso del plan y la cita del recorte")
+        elif identifier in wanted and (re.search(rf"\b{re.escape(identifier)}\b", blob) or identifier in backed):
+            problems.append(f"{identifier}: esta en «Diferido por la demo» pero ya tiene codigo o prueba: se quita de la lista")
     for identifier in sorted(wanted):
-        if re.search(rf"\b{re.escape(identifier)}\b", blob) or identifier in backed:
+        if re.search(rf"\b{re.escape(identifier)}\b", blob) or identifier in backed or identifier in deferred:
             continue
         if re.search(rf"\b{re.escape(identifier)}\b", summary):
             problems.append(f"{identifier}: solo en code/README.md, y su fila no nombra un archivo existente")

@@ -1,20 +1,30 @@
-# Valores comunes del chart minimo de U3 (Paso 12 acotado a la demo). Se renderiza con
-# `make -C decision-registry render-chart`; los valores por entorno (buckets, URL de Transit, imagen) son del Paso 13.
+# Valores comunes del chart de U3 (Pasos 12, 13 y 15 acotados a la demo). Se renderiza con `make -C decision-registry render-chart`.
+# Diferido por la demo (enmienda §3 U3, Paso 13): los values de buckets (MinIO en kind, S3 del banco en staging y prod), la URL de
+# Transit y el ExternalSecret de la credencial del S3 del banco. El perfil de recursos de kind es este mismo (DD-3 b): sin 1 replica.
 namespace: vectra-app
+# `imageRegistry` lo pasa Argo CD desde `vectra-risk-gitops/envs/<env>/values.yaml` (kind-registry:5000 en kind, registro.banco.internal/vectra en
+# staging y prod) y arma el repositorio; `image.repository` vale en un render local sin ese valor.
 image:
   repository: kind-registry:5000/vectra/decision-registry
-  # Digest de ejemplo mientras ningun workflow construya la imagen (como `identity-jobs`); cada entorno fija el suyo. Sin digest no
-  # se renderiza (`required`): una imagen por etiqueta la rechaza Kyverno (`disallow-latest`).
+  # Digest de ejemplo mientras el operador no publique la imagen (Bloque H: `make -C decision-registry image` + push);
+  # cada entorno fija el suyo. Sin digest no se renderiza (`required`): una imagen por etiqueta la rechaza Kyverno (`disallow-latest`).
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000001
+# CronJob registry-aggregator (vectra-high). El servicio y el Job de migracion llevan la suya, abajo.
 priorityClassName: vectra-high
-# `registry-db-rw` es el servicio de lectura-escritura de CloudNativePG (U1); F107. El usuario y la clave salen del Secret
-# `pg-role-registry-aggregator` que crea U1 (el chart no crea ningun Secret ni ExternalSecret para el agregador).
+# `registry-db-rw` y `registry-db-ro` son los servicios de CloudNativePG (U1): F107 (agregador), F42/F96 (servicio), F44 (migracion).
 database:
   host: registry-db-rw.vectra-data.svc.cluster.local
+  hostRo: registry-db-ro.vectra-data.svc.cluster.local
   name: registry
   # El diseno pide `verify-full`: falta la CA de `registry-db` en `vectra-app` (CANDIDATAS.md, U03-T04).
   sslmode: require
+  # Secrets de U1 (`pg-role-*`, claves `username` y `password`). El chart no crea ningun Secret ni ExternalSecret.
   secretName: pg-role-registry-aggregator
+  secrets:
+    app: pg-role-registry-app
+    health: pg-role-registry-health
+    verifier: pg-role-registry-verifier
+    migrator: pg-role-registry-migrator
 aggregator:
   schedule: "*/5 * * * *"
   # 240 s de lotes (BR-U3-17) mas el margen para terminar: debe ser menor que el periodo para que `Forbid` no salte corridas.
@@ -22,11 +32,45 @@ aggregator:
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { cpu: 500m, memory: 512Mi }
-# Una ServiceAccount por identidad (P-U3-08). Los CronJobs de checkpoint, verificacion y archivo (diferidos a T5) y el Deployment del
-# Paso 13 las usan (los nombres son los `sa:` de `platform/network/flows.yaml`).
+# Validacion de tokens del servicio (F50; variables de U0, obligatorias: sin ellas `create_app` no arranca). Mismos valores de ejemplo que
+# `identity-edge/jobs/chart/values.yaml`; el realm y el nombre publico los fija U2. La CA sale del ConfigMap `vectra-internal-ca` (Bundle de
+# trust-manager de U1, en los namespaces con `vectra.io/mesh: enabled`; en kind firma a Keycloak). Staging y prod usan `banco-ca`: su ConfigMap
+# lo fija el Bloque H (CANDIDATAS.md, U03-T05). El chart no crea ningun Secret.
+keycloak:
+  issuer: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra
+  jwksUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/certs
+  caConfigMap: vectra-internal-ca
+# Deployment `decision-registry-service` (INF-U3-03; NFR-U3-10, 11): 8080 con el contrato y 8081 con /metrics, /healthz y /readyz.
+service:
+  priorityClassName: vectra-critical
+  criticality: critical
+  replicas: 2
+  port: 8080
+  metricsPort: 8081
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { cpu: "1", memory: 512Mi }
+  hpa: { minReplicas: 2, maxReplicas: 6, cpuUtilization: 70 }
+  pdb: { minAvailable: 1 }
+# Job de migracion: hook de sync de Argo CD, `alembic upgrade head` con `registry_migrator` (F44; INF-U3-03).
+migration:
+  priorityClassName: vectra-normal
+  activeDeadlineSeconds: 600
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+# Llaves de checkpoints (valores de ejemplo hasta el Bloque H, que fija los de kind; sin leer la boveda). `required`: sin ellos no se renderiza.
+# - publicKeys: Ed25519 en base64 de los 32 bytes crudos, separadas por comas (`REGISTRY_CHECKPOINT_PUBLIC_KEYS` del servicio).
+# - keyFingerprint: huella de la llave publica para la genesis (`REGISTRY_CHECKPOINT_KEY_FINGERPRINT` del Job de migracion, BR-U3-10).
+checkpoint:
+  publicKeys: AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=
+  keyFingerprint: ae216c2ef5247a3782c135efa279a3e4cdc61094270f5d2be58c6204b7a612c9
+# Una ServiceAccount por identidad (P-U3-08). Los CronJobs de checkpoint, verificacion y archivo (diferidos a T5), el Deployment y
+# el Job de migracion las usan (los nombres son los `sa:` de `platform/network/flows.yaml`).
 serviceAccounts:
   - { name: decision-registry-service }
   - { name: registry-checkpoint }
   - { name: registry-archive }
   - { name: registry-verify }
   - { name: registry-aggregator }
+  - { name: migration-registry }

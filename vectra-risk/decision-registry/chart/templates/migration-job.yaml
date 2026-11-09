@@ -1,0 +1,55 @@
+{{- /* Job de migracion (hook de sync de Argo CD; F44; INF-U3-03; BR-U3-10). `alembic upgrade head` con registry_migrator. */ -}}
+{{- $digest := required "image.digest es obligatorio: sin digest no se renderiza" .Values.image.digest -}}
+{{- $repository := include "decision-registry.repository" . -}}
+{{- $db := .Values.database -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: registry-migration
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: registry-migration
+    app.kubernetes.io/part-of: decision-registry
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    # Despues de la ServiceAccount y el ConfigMap (wave 0) y antes del Deployment y el CronJob (wave 2).
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: registry-migration
+        app.kubernetes.io/part-of: decision-registry
+        vectra.io/workload: migration-registry
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+    spec:
+      serviceAccountName: migration-registry
+      priorityClassName: {{ .Values.migration.priorityClassName }}
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: registry-migration
+          image: {{ printf "%s@%s" $repository $digest | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [alembic, -c, /app/alembic.ini, upgrade, head]
+          env:
+            # Sin credenciales en la URL: libpq lee PGUSER y PGPASSWORD del Secret de U1 (`pg-role-registry-migrator`).
+            - name: REGISTRY_DATABASE_URL
+              value: {{ printf "postgresql://%s/%s?sslmode=%s" $db.host $db.name $db.sslmode | quote }}
+            - name: PGUSER
+              valueFrom: { secretKeyRef: { name: {{ $db.secrets.migrator | quote }}, key: username } }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: {{ $db.secrets.migrator | quote }}, key: password } }
+            - name: REGISTRY_CHECKPOINT_KEY_FINGERPRINT
+              valueFrom: { configMapKeyRef: { name: decision-registry-checkpoint, key: REGISTRY_CHECKPOINT_KEY_FINGERPRINT } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
