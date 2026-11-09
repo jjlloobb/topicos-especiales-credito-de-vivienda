@@ -9,9 +9,11 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "vectra-bias",
     "vectra-common",
     "vectra-contracts",
     "vectra-decision-registry",
+    "vectra-disparity",
     "vectra-governance",
     "vectra-identity-edge",
     "vectra-reference",
@@ -305,6 +307,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/88/7f/731ff914b0255d3d065f45fd4e626d4b8c95dbcbaada049f337a6ac16410/docker-7.2.0.tar.gz", hash = "sha256:cebb93773d334f778e023a7ee352a8d6e13ab1bd3b863a4d4a59dec897df43ac", size = 118731, upload-time = "2026-07-09T14:53:46.39Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/75/23/529140fe1aab80fc6992f93a706deec709140a6397439139a054e1515c45/docker-7.2.0-py3-none-any.whl", hash = "sha256:a3f45fdeb9165e2d25d9a1d02ddf3bc70fb572cf5ebbf9b58558c22caf29b71f", size = 148775, upload-time = "2026-07-09T14:53:45.224Z" },
+]
+
+[[package]]
+name = "fairlearn"
+version = "0.15.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "narwhals" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4e/f8/d1ef45777b36ff973bfc06bd33a30c568a6275466193f2a121919dd82106/fairlearn-0.15.0.tar.gz", hash = "sha256:dfdfbddc3b86d2a8e4e04e282bb29d7603f28559a28abeca97847bf5e0f79f80", size = 109889, upload-time = "2026-10-12T05:10:18.738Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/88/9d/e96346594f66e8933181b286cdf8b495bd71998ccbc7ae3ee5e33efa0cde/fairlearn-0.15.0-py3-none-any.whl", hash = "sha256:4f4656c25af384fc3369db719231680c4e83beb2e6e075e5dc3c2b27d06455c9", size = 141365, upload-time = "2026-10-12T05:10:17.692Z" },
 ]
 
 [[package]]
@@ -1608,6 +1626,25 @@ wheels = [
 ]
 
 [[package]]
+name = "vectra-bias"
+version = "0.1.0"
+source = { editable = "bias-monitoring" }
+dependencies = [
+    { name = "pyyaml" },
+    { name = "vectra-common" },
+    { name = "vectra-contracts" },
+    { name = "vectra-disparity" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pyyaml", specifier = "==6.0.3" },
+    { name = "vectra-common", editable = "contracts/python/vectra_common" },
+    { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
+    { name = "vectra-disparity", editable = "bias-monitoring/disparity" },
+]
+
+[[package]]
 name = "vectra-common"
 version = "0.1.0"
 source = { editable = "contracts/python/vectra_common" }
@@ -1671,6 +1708,11 @@ requires-dist = [
     { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
     { name = "zstandard", specifier = "==0.25.0" },
 ]
+
+[[package]]
+name = "vectra-disparity"
+version = "1.0.0"
+source = { editable = "bias-monitoring/disparity" }
 
 [[package]]
 name = "vectra-governance"
@@ -1762,11 +1804,14 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "axe-playwright-python" },
+    { name = "fairlearn" },
     { name = "httpx" },
     { name = "hypothesis" },
     { name = "import-linter" },
     { name = "mutmut" },
     { name = "mypy" },
+    { name = "numpy" },
+    { name = "pandas" },
     { name = "playwright" },
     { name = "pyotp" },
     { name = "pytest" },
@@ -1778,6 +1823,8 @@ dev = [
     { name = "ruff" },
     { name = "testcontainers" },
     { name = "types-pyyaml" },
+    { name = "vectra-bias" },
+    { name = "vectra-disparity" },
     { name = "vectra-reference" },
 ]
 
@@ -1792,11 +1839,14 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "axe-playwright-python", specifier = "==0.1.8" },
+    { name = "fairlearn", specifier = "==0.15.0" },
     { name = "httpx", specifier = "==0.28.1" },
     { name = "hypothesis", specifier = "==6.170.14" },
     { name = "import-linter", specifier = "==2.15" },
     { name = "mutmut", specifier = "==3.8.1" },
     { name = "mypy", specifier = "==2.4.1" },
+    { name = "numpy", specifier = "==2.5.4" },
+    { name = "pandas", specifier = "==3.1.1" },
     { name = "playwright", specifier = "==1.64.0" },
     { name = "pyotp", specifier = "==2.10.0" },
     { name = "pytest", specifier = "==9.0.3" },
@@ -1808,6 +1858,8 @@ dev = [
     { name = "ruff", specifier = "==0.17.3" },
     { name = "testcontainers", specifier = "==4.14.2" },
     { name = "types-pyyaml" },
+    { name = "vectra-bias", editable = "bias-monitoring" },
+    { name = "vectra-disparity", editable = "bias-monitoring/disparity" },
     { name = "vectra-reference", editable = "reference-model" },
 ]
 

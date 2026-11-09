@@ -1,0 +1,76 @@
+[importlinter]
+root_packages =
+    vectra_disparity
+    vectra_bias
+include_external_packages = True
+
+# P-U9-05, NFR-U9-30: la libreria no importa nada fuera de la biblioteca estandar. import-linter no modela la
+# biblioteca estandar, asi que este contrato lista lo que podria colarse (U0, U9, HTTP, numericas, YAML) y
+# `tests/unit/test_disparity_dependencies.py` comprueba por AST que todo import sea de la biblioteca estandar.
+[importlinter:contract:disparity-solo-biblioteca-estandar]
+name = vectra_disparity no importa nada fuera de la biblioteca estandar
+type = forbidden
+source_modules =
+    vectra_disparity
+forbidden_modules =
+    vectra_bias
+    vectra_contracts
+    vectra_common
+    vectra_reference
+    pydantic
+    httpx
+    requests
+    numpy
+    pandas
+    scipy
+    sklearn
+    fairlearn
+    yaml
+    prometheus_client
+    opentelemetry
+    fastapi
+    starlette
+
+# P-U9-04: los modulos puros (regla de congelamiento, contexto y ventana) no hacen E/S.
+[importlinter:contract:modulos-puros-sin-es]
+name = freeze_rule, context y window no hacen E/S
+type = forbidden
+source_modules =
+    vectra_bias.freeze_rule
+    vectra_bias.context
+    vectra_bias.window
+forbidden_modules =
+    httpx
+    requests
+    prometheus_client
+    yaml
+    vectra_common
+    vectra_bias.registry_client
+    vectra_bias.freeze_client
+    vectra_bias.publish
+    vectra_bias.run
+    vectra_bias.app
+    vectra_bias.cache
+
+# P-U9-05, NFR-U9-30: el servicio no congela.
+[importlinter:contract:servicio-no-congela]
+name = app y sus modulos no importan freeze_client
+type = forbidden
+source_modules =
+    vectra_bias.app
+    vectra_bias.dashboard
+    vectra_bias.freezes
+    vectra_bias.compare
+    vectra_bias.cache
+forbidden_modules =
+    vectra_bias.freeze_client
+
+# NFR-U9-03: el unico acceso HTTP es `vectra_common.deps` (que es externo a estos paquetes); ningun modulo de U9 importa httpx.
+[importlinter:contract:httpx-solo-en-deps]
+name = ningun modulo importa httpx fuera de vectra_common.deps
+type = forbidden
+source_modules =
+    vectra_disparity
+    vectra_bias
+forbidden_modules =
+    httpx

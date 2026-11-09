@@ -6190,6 +6190,21 @@ Informes y arbitraje en `revisiones/U05-T03/`.
 Informes y arbitraje en `revisiones/U02-T19/`.
 **Context**: Construcción de U2, U02-T19.
 
+## U09-T01: arbitraje de la ronda 1 (BR-U9-11)
+**Timestamp**: 2026-11-09T20:00:00Z
+**User Input**: "sí, sigue con las siguientes tareas en paralelo" — respuesta a la pregunta sobre BR-U9-11: "Fix the rule (Recommended)"
+**AI Response**:
+- La ronda 1 de U09-T01 salió NO-VERDE por un ROJO (F-01): con disparidad real 0, BR-U9-11 congela el 97,4 % de las veces con 500 casos por celda (CA-8 exige ≤ 5 %).
+- El usuario decidió corregir la regla. Las tres condiciones que debe cumplir están en `revisiones/U09-T01/arbitraje-ronda-1.md`.
+**Context**: Construcción de U9, U09-T01.
+
+## U09-T01: arbitraje de la ronda 2 (regla R4)
+**Timestamp**: 2026-11-09T21:30:00Z
+**User Input**: respuesta a la pregunta sobre la regla de U9: "R4 + stronger proxy (Recommended)"
+**AI Response**:
+- En la ronda 2 ninguna regla cumplió las tres condiciones. Con el lote `stratified` actual, R4 congela la variante proxy solo el 50 % de las veces.
+- El usuario eligió R4 y una variante proxy más fuerte en U5 (tarea U05-T05, aparte), y autorizó una ronda 3 por encima de RL-2. Detalle en `revisiones/U09-T01/arbitraje-ronda-2.md`.
+**Context**: Construcción de U9, U09-T01.
 ## U4: precisiones del Bloque D y preparación de U04-T03
 **Timestamp**: 2026-11-09T16:10:00Z
 **User Input**: "sí, prepara la precisión de F-03 y U04-T03"; aprobó Q-1 a Q-6 con la recomendación de cada una.

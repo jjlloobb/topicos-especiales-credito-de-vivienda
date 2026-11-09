@@ -68,3 +68,9 @@ En la ronda 2 de `U03-T05`, `--all` salió con rc=1 por 26 identificadores de U4
 - el conjunto de fallos es idéntico al de main en la base de la rama.
 
 El revisor lo comprueba corriendo `--all` también sobre la base. Rige para todas las tareas de la demo. Los cambios de la herramienta están en `CANDIDATAS.md`.
+
+**Enmienda del 2026-11-09 (usuario, arbitraje de la ronda 3 de `U09-T01`).** Tal como estaba, ninguna unidad que empieza a tener código podía cumplir la regla. Desde ahora `--all` cuenta como pasado si **cada** identificador que falla en la rama cumple una de estas condiciones:
+- ya fallaba en main, en la base de la rama, y es de una unidad sin `evidence/cierre-demo.md`;
+- es nuevo, es de la unidad de la tarea, esa unidad no tiene `evidence/cierre-demo.md` y no pertenece a un paso que la tarea cubre.
+
+Un identificador de un paso que la tarea cubre debe quedar trazado. El revisor corre `--all` en la base y en la rama, y cruza cada fallo nuevo con los pasos de la tarea. Detalle en `revisiones/U09-T01/arbitraje-ronda-3.md`.

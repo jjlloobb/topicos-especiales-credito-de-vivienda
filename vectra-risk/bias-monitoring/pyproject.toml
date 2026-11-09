@@ -1,0 +1,18 @@
+[project]
+name = "vectra-bias"
+version = "0.1.0"
+description = "U9 bias-monitoring: CronJob de calculo, servicio HTTP y configuracion"
+requires-python = ">=3.12,<3.13"
+dependencies = ["vectra-contracts", "vectra-common", "vectra-disparity", "pyyaml==6.0.3"]
+
+[tool.uv.sources]
+vectra-contracts = { workspace = true }
+vectra-common = { workspace = true }
+vectra-disparity = { workspace = true }
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vectra_bias"]

@@ -1,0 +1,828 @@
+{
+ "base": {
+  "estrato": [
+   {
+    "band": "20_30",
+    "favorable": 567,
+    "group": "1",
+    "total": 577
+   },
+   {
+    "band": "gt_30",
+    "favorable": 1595,
+    "group": "1",
+    "total": 1869
+   },
+   {
+    "band": "lt_20",
+    "favorable": 152,
+    "group": "1",
+    "total": 159
+   },
+   {
+    "band": "20_30",
+    "favorable": 957,
+    "group": "2",
+    "total": 984
+   },
+   {
+    "band": "gt_30",
+    "favorable": 2845,
+    "group": "2",
+    "total": 3273
+   },
+   {
+    "band": "lt_20",
+    "favorable": 289,
+    "group": "2",
+    "total": 308
+   },
+   {
+    "band": "20_30",
+    "favorable": 798,
+    "group": "3",
+    "total": 824
+   },
+   {
+    "band": "gt_30",
+    "favorable": 3301,
+    "group": "3",
+    "total": 3843
+   },
+   {
+    "band": "lt_20",
+    "favorable": 321,
+    "group": "3",
+    "total": 347
+   },
+   {
+    "band": "20_30",
+    "favorable": 363,
+    "group": "4",
+    "total": 375
+   },
+   {
+    "band": "gt_30",
+    "favorable": 2023,
+    "group": "4",
+    "total": 2362
+   },
+   {
+    "band": "lt_20",
+    "favorable": 104,
+    "group": "4",
+    "total": 111
+   },
+   {
+    "band": "20_30",
+    "favorable": 130,
+    "group": "5",
+    "total": 139
+   },
+   {
+    "band": "gt_30",
+    "favorable": 964,
+    "group": "5",
+    "total": 1116
+   },
+   {
+    "band": "lt_20",
+    "favorable": 27,
+    "group": "5",
+    "total": 30
+   },
+   {
+    "band": "20_30",
+    "favorable": 68,
+    "group": "6",
+    "total": 74
+   },
+   {
+    "band": "gt_30",
+    "favorable": 471,
+    "group": "6",
+    "total": 546
+   },
+   {
+    "band": "lt_20",
+    "favorable": 19,
+    "group": "6",
+    "total": 20
+   },
+   {
+    "band": "20_30",
+    "favorable": 131,
+    "group": "no_informado",
+    "total": 136
+   },
+   {
+    "band": "gt_30",
+    "favorable": 710,
+    "group": "no_informado",
+    "total": 865
+   },
+   {
+    "band": "lt_20",
+    "favorable": 39,
+    "group": "no_informado",
+    "total": 42
+   }
+  ],
+  "rango_edad": [
+   {
+    "band": "20_30",
+    "favorable": 221,
+    "group": "18-25",
+    "total": 230
+   },
+   {
+    "band": "gt_30",
+    "favorable": 953,
+    "group": "18-25",
+    "total": 1126
+   },
+   {
+    "band": "lt_20",
+    "favorable": 80,
+    "group": "18-25",
+    "total": 84
+   },
+   {
+    "band": "20_30",
+    "favorable": 937,
+    "group": "26-35",
+    "total": 968
+   },
+   {
+    "band": "gt_30",
+    "favorable": 3678,
+    "group": "26-35",
+    "total": 4273
+   },
+   {
+    "band": "lt_20",
+    "favorable": 287,
+    "group": "26-35",
+    "total": 306
+   },
+   {
+    "band": "20_30",
+    "favorable": 1244,
+    "group": "36-45",
+    "total": 1286
+   },
+   {
+    "band": "gt_30",
+    "favorable": 4871,
+    "group": "36-45",
+    "total": 5688
+   },
+   {
+    "band": "lt_20",
+    "favorable": 407,
+    "group": "36-45",
+    "total": 436
+   },
+   {
+    "band": "20_30",
+    "favorable": 536,
+    "group": "46-55",
+    "total": 548
+   },
+   {
+    "band": "gt_30",
+    "favorable": 2075,
+    "group": "46-55",
+    "total": 2395
+   },
+   {
+    "band": "lt_20",
+    "favorable": 156,
+    "group": "46-55",
+    "total": 167
+   },
+   {
+    "band": "20_30",
+    "favorable": 74,
+    "group": "56-65",
+    "total": 75
+   },
+   {
+    "band": "gt_30",
+    "favorable": 315,
+    "group": "56-65",
+    "total": 374
+   },
+   {
+    "band": "lt_20",
+    "favorable": 20,
+    "group": "56-65",
+    "total": 23
+   },
+   {
+    "band": "20_30",
+    "favorable": 2,
+    "group": "66+",
+    "total": 2
+   },
+   {
+    "band": "gt_30",
+    "favorable": 17,
+    "group": "66+",
+    "total": 18
+   },
+   {
+    "band": "lt_20",
+    "favorable": 1,
+    "group": "66+",
+    "total": 1
+   }
+  ],
+  "region": [
+   {
+    "band": "20_30",
+    "favorable": 140,
+    "group": "amazonia",
+    "total": 147
+   },
+   {
+    "band": "gt_30",
+    "favorable": 492,
+    "group": "amazonia",
+    "total": 596
+   },
+   {
+    "band": "lt_20",
+    "favorable": 27,
+    "group": "amazonia",
+    "total": 29
+   },
+   {
+    "band": "20_30",
+    "favorable": 1555,
+    "group": "andina",
+    "total": 1607
+   },
+   {
+    "band": "gt_30",
+    "favorable": 6300,
+    "group": "andina",
+    "total": 7240
+   },
+   {
+    "band": "lt_20",
+    "favorable": 521,
+    "group": "andina",
+    "total": 564
+   },
+   {
+    "band": "20_30",
+    "favorable": 653,
+    "group": "caribe",
+    "total": 672
+   },
+   {
+    "band": "gt_30",
+    "favorable": 2532,
+    "group": "caribe",
+    "total": 2995
+   },
+   {
+    "band": "lt_20",
+    "favorable": 199,
+    "group": "caribe",
+    "total": 210
+   },
+   {
+    "band": "20_30",
+    "favorable": 126,
+    "group": "insular",
+    "total": 127
+   },
+   {
+    "band": "gt_30",
+    "favorable": 486,
+    "group": "insular",
+    "total": 563
+   },
+   {
+    "band": "lt_20",
+    "favorable": 43,
+    "group": "insular",
+    "total": 48
+   },
+   {
+    "band": "20_30",
+    "favorable": 169,
+    "group": "orinoquia",
+    "total": 174
+   },
+   {
+    "band": "gt_30",
+    "favorable": 680,
+    "group": "orinoquia",
+    "total": 821
+   },
+   {
+    "band": "lt_20",
+    "favorable": 56,
+    "group": "orinoquia",
+    "total": 57
+   },
+   {
+    "band": "20_30",
+    "favorable": 371,
+    "group": "pacifica",
+    "total": 382
+   },
+   {
+    "band": "gt_30",
+    "favorable": 1419,
+    "group": "pacifica",
+    "total": 1659
+   },
+   {
+    "band": "lt_20",
+    "favorable": 105,
+    "group": "pacifica",
+    "total": 109
+   }
+  ],
+  "sexo": [
+   {
+    "band": "20_30",
+    "favorable": 1463,
+    "group": "F",
+    "total": 1507
+   },
+   {
+    "band": "gt_30",
+    "favorable": 5651,
+    "group": "F",
+    "total": 6588
+   },
+   {
+    "band": "lt_20",
+    "favorable": 478,
+    "group": "F",
+    "total": 504
+   },
+   {
+    "band": "20_30",
+    "favorable": 1390,
+    "group": "M",
+    "total": 1436
+   },
+   {
+    "band": "gt_30",
+    "favorable": 5525,
+    "group": "M",
+    "total": 6420
+   },
+   {
+    "band": "lt_20",
+    "favorable": 419,
+    "group": "M",
+    "total": 457
+   },
+   {
+    "band": "20_30",
+    "favorable": 161,
+    "group": "no_informado",
+    "total": 166
+   },
+   {
+    "band": "gt_30",
+    "favorable": 733,
+    "group": "no_informado",
+    "total": 866
+   },
+   {
+    "band": "lt_20",
+    "favorable": 54,
+    "group": "no_informado",
+    "total": 56
+   }
+  ]
+ },
+ "provenance": {
+  "base_run": "mv-2026-01-01-51241dc4",
+  "dataset": "validation",
+  "proxy_model_version_id": "mv-2026-01-01-7241d354",
+  "proxy_run": "proxy/run-1",
+  "reference_date": "2026-01-01",
+  "script": "bias-monitoring/tests/doubles/generate_u5_counts.py",
+  "seed": 20261101,
+  "u5_commit": "307a3455bcd9b8c5abbecc653c8f5e64c631068b",
+  "u5_disparity_pp": {
+   "base": 4.6119,
+   "proxy": 11.6579
+  }
+ },
+ "proxy": {
+  "estrato": [
+   {
+    "band": "20_30",
+    "favorable": 559,
+    "group": "1",
+    "total": 577
+   },
+   {
+    "band": "gt_30",
+    "favorable": 1499,
+    "group": "1",
+    "total": 1869
+   },
+   {
+    "band": "lt_20",
+    "favorable": 144,
+    "group": "1",
+    "total": 159
+   },
+   {
+    "band": "20_30",
+    "favorable": 943,
+    "group": "2",
+    "total": 984
+   },
+   {
+    "band": "gt_30",
+    "favorable": 2704,
+    "group": "2",
+    "total": 3273
+   },
+   {
+    "band": "lt_20",
+    "favorable": 277,
+    "group": "2",
+    "total": 308
+   },
+   {
+    "band": "20_30",
+    "favorable": 793,
+    "group": "3",
+    "total": 824
+   },
+   {
+    "band": "gt_30",
+    "favorable": 3181,
+    "group": "3",
+    "total": 3843
+   },
+   {
+    "band": "lt_20",
+    "favorable": 316,
+    "group": "3",
+    "total": 347
+   },
+   {
+    "band": "20_30",
+    "favorable": 360,
+    "group": "4",
+    "total": 375
+   },
+   {
+    "band": "gt_30",
+    "favorable": 1947,
+    "group": "4",
+    "total": 2362
+   },
+   {
+    "band": "lt_20",
+    "favorable": 103,
+    "group": "4",
+    "total": 111
+   },
+   {
+    "band": "20_30",
+    "favorable": 130,
+    "group": "5",
+    "total": 139
+   },
+   {
+    "band": "gt_30",
+    "favorable": 935,
+    "group": "5",
+    "total": 1116
+   },
+   {
+    "band": "lt_20",
+    "favorable": 27,
+    "group": "5",
+    "total": 30
+   },
+   {
+    "band": "20_30",
+    "favorable": 68,
+    "group": "6",
+    "total": 74
+   },
+   {
+    "band": "gt_30",
+    "favorable": 462,
+    "group": "6",
+    "total": 546
+   },
+   {
+    "band": "lt_20",
+    "favorable": 18,
+    "group": "6",
+    "total": 20
+   },
+   {
+    "band": "20_30",
+    "favorable": 129,
+    "group": "no_informado",
+    "total": 136
+   },
+   {
+    "band": "gt_30",
+    "favorable": 684,
+    "group": "no_informado",
+    "total": 865
+   },
+   {
+    "band": "lt_20",
+    "favorable": 39,
+    "group": "no_informado",
+    "total": 42
+   }
+  ],
+  "rango_edad": [
+   {
+    "band": "20_30",
+    "favorable": 219,
+    "group": "18-25",
+    "total": 230
+   },
+   {
+    "band": "gt_30",
+    "favorable": 911,
+    "group": "18-25",
+    "total": 1126
+   },
+   {
+    "band": "lt_20",
+    "favorable": 79,
+    "group": "18-25",
+    "total": 84
+   },
+   {
+    "band": "20_30",
+    "favorable": 929,
+    "group": "26-35",
+    "total": 968
+   },
+   {
+    "band": "gt_30",
+    "favorable": 3530,
+    "group": "26-35",
+    "total": 4273
+   },
+   {
+    "band": "lt_20",
+    "favorable": 275,
+    "group": "26-35",
+    "total": 306
+   },
+   {
+    "band": "20_30",
+    "favorable": 1232,
+    "group": "36-45",
+    "total": 1286
+   },
+   {
+    "band": "gt_30",
+    "favorable": 4682,
+    "group": "36-45",
+    "total": 5688
+   },
+   {
+    "band": "lt_20",
+    "favorable": 396,
+    "group": "36-45",
+    "total": 436
+   },
+   {
+    "band": "20_30",
+    "favorable": 526,
+    "group": "46-55",
+    "total": 548
+   },
+   {
+    "band": "gt_30",
+    "favorable": 1975,
+    "group": "46-55",
+    "total": 2395
+   },
+   {
+    "band": "lt_20",
+    "favorable": 153,
+    "group": "46-55",
+    "total": 167
+   },
+   {
+    "band": "20_30",
+    "favorable": 74,
+    "group": "56-65",
+    "total": 75
+   },
+   {
+    "band": "gt_30",
+    "favorable": 299,
+    "group": "56-65",
+    "total": 374
+   },
+   {
+    "band": "lt_20",
+    "favorable": 20,
+    "group": "56-65",
+    "total": 23
+   },
+   {
+    "band": "20_30",
+    "favorable": 2,
+    "group": "66+",
+    "total": 2
+   },
+   {
+    "band": "gt_30",
+    "favorable": 15,
+    "group": "66+",
+    "total": 18
+   },
+   {
+    "band": "lt_20",
+    "favorable": 1,
+    "group": "66+",
+    "total": 1
+   }
+  ],
+  "region": [
+   {
+    "band": "20_30",
+    "favorable": 137,
+    "group": "amazonia",
+    "total": 147
+   },
+   {
+    "band": "gt_30",
+    "favorable": 453,
+    "group": "amazonia",
+    "total": 596
+   },
+   {
+    "band": "lt_20",
+    "favorable": 26,
+    "group": "amazonia",
+    "total": 29
+   },
+   {
+    "band": "20_30",
+    "favorable": 1556,
+    "group": "andina",
+    "total": 1607
+   },
+   {
+    "band": "gt_30",
+    "favorable": 6310,
+    "group": "andina",
+    "total": 7240
+   },
+   {
+    "band": "lt_20",
+    "favorable": 521,
+    "group": "andina",
+    "total": 564
+   },
+   {
+    "band": "20_30",
+    "favorable": 627,
+    "group": "caribe",
+    "total": 672
+   },
+   {
+    "band": "gt_30",
+    "favorable": 2237,
+    "group": "caribe",
+    "total": 2995
+   },
+   {
+    "band": "lt_20",
+    "favorable": 181,
+    "group": "caribe",
+    "total": 210
+   },
+   {
+    "band": "20_30",
+    "favorable": 125,
+    "group": "insular",
+    "total": 127
+   },
+   {
+    "band": "gt_30",
+    "favorable": 429,
+    "group": "insular",
+    "total": 563
+   },
+   {
+    "band": "lt_20",
+    "favorable": 39,
+    "group": "insular",
+    "total": 48
+   },
+   {
+    "band": "20_30",
+    "favorable": 166,
+    "group": "orinoquia",
+    "total": 174
+   },
+   {
+    "band": "gt_30",
+    "favorable": 610,
+    "group": "orinoquia",
+    "total": 821
+   },
+   {
+    "band": "lt_20",
+    "favorable": 52,
+    "group": "orinoquia",
+    "total": 57
+   },
+   {
+    "band": "20_30",
+    "favorable": 371,
+    "group": "pacifica",
+    "total": 382
+   },
+   {
+    "band": "gt_30",
+    "favorable": 1373,
+    "group": "pacifica",
+    "total": 1659
+   },
+   {
+    "band": "lt_20",
+    "favorable": 105,
+    "group": "pacifica",
+    "total": 109
+   }
+  ],
+  "sexo": [
+   {
+    "band": "20_30",
+    "favorable": 1448,
+    "group": "F",
+    "total": 1507
+   },
+   {
+    "band": "gt_30",
+    "favorable": 5421,
+    "group": "F",
+    "total": 6588
+   },
+   {
+    "band": "lt_20",
+    "favorable": 465,
+    "group": "F",
+    "total": 504
+   },
+   {
+    "band": "20_30",
+    "favorable": 1375,
+    "group": "M",
+    "total": 1436
+   },
+   {
+    "band": "gt_30",
+    "favorable": 5278,
+    "group": "M",
+    "total": 6420
+   },
+   {
+    "band": "lt_20",
+    "favorable": 405,
+    "group": "M",
+    "total": 457
+   },
+   {
+    "band": "20_30",
+    "favorable": 159,
+    "group": "no_informado",
+    "total": 166
+   },
+   {
+    "band": "gt_30",
+    "favorable": 713,
+    "group": "no_informado",
+    "total": 866
+   },
+   {
+    "band": "lt_20",
+    "favorable": 54,
+    "group": "no_informado",
+    "total": 56
+   }
+  ]
+ }
+}

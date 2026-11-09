@@ -206,7 +206,7 @@ def run_source_comparison(run_id, candidate_version_id, baseline_version_id, dat
 | Operación | Endpoint / disparador |
 |---|---|
 | `compute_disparity(window) -> RunReport` | CronJob cada 15 min, sobre conteos agregados de `monitoring_daily` (U9 BR-U9-07..10) |
-| `evaluate_freeze(result) -> FreezeDecision` | tras cada cálculo: agregada > 5 pp y límite inferior del intervalo > 0 (BR-U9-11) |
+| `evaluate_freeze(result) -> FreezeDecision` | tras cada cálculo: límite inferior del intervalo de la agregada, con z de Bonferroni, > 5 pp (BR-U9-11, regla R4) |
 | `build_context_package(mv_id, before, after, last_7_days) -> FreezeContext` | al congelar (BR-U9-15) |
 | `compare_source(source_id, pre, post) -> PrePostReport` | `POST /v1/source-comparisons` desde governance (F25), con tablas de conteo |
 | `get_dashboard(filter, user) -> DisparityView` | `GET /v1/disparity` (BFF: cumplimiento, cro) |

@@ -1,0 +1,8 @@
+# Parámetros de cumplimiento de U9 (INF-U9-03, BR-U9-13). Cambiarlos exige la aprobación de cumplimiento (CODEOWNERS).
+# Rangos: threshold_pp 1..20; n_min >= 30; window_days 7..90; stale_after >= 30 min;
+# schedule: minutos con intervalo fijo de 5, 10 o 15 min y desfase de 1 a 4 min; stale_after >= 4 x intervalo.
+threshold_pp: 5
+n_min: 30
+window_days: 30
+schedule: "2,17,32,47 * * * *"
+stale_after: 1h
