@@ -6105,6 +6105,17 @@ Informe en `revisiones/U02-T18/`.
 
 ---
 
+## U04-T01: ronda 1
+**Timestamp**: 2026-11-09T05:49:12Z
+**User Input**: "sí, redáctalas y despáchalas"
+**AI Response**:
+- Primera tarea de U4 (bloques A y B: esqueleto y migraciones de `governance-db`), con el recorte funcional aprobado.
+- Ronda 1 NO-VERDE sin ningún ROJO: dos NARANJA de entorno (CA-5 sin `docker run -p` por permisos, y CA-7 con un 504 de github.com) y tres AMARILLO. 40 pruebas de migraciones y `make -C governance check` pasan en las corridas del revisor.
+- Por RL-2 no se abre ronda 2. El CA-5 queda para que lo corra el usuario, y los hallazgos pasan a `CANDIDATAS.md`.
+
+Informe y arbitraje en `revisiones/U04-T01/`.
+**Context**: Construcción de U4, U04-T01.
+
 ## U03-T04: ronda 1
 **Timestamp**: 2026-11-09T04:56:25Z
 **User Input**: "sigamos"; sobre `checkpoint`, el usuario eligió «A: recorded_at cubierto».

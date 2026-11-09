@@ -3,18 +3,19 @@ name = "vectra-risk"
 version = "0.1.0"
 description = "Workspace de Vectra Risk"
 requires-python = ">=3.12,<3.13"
-dependencies = ["vectra-contracts", "vectra-common", "vectra-decision-registry"]
+dependencies = ["vectra-contracts", "vectra-common", "vectra-decision-registry", "vectra-governance"]
 
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["contracts/python/vectra_contracts", "contracts/python/vectra_common", "identity-edge", "decision-registry", "reference-model"]
+members = ["contracts/python/vectra_contracts", "contracts/python/vectra_common", "identity-edge", "decision-registry", "reference-model", "governance"]
 
 [tool.uv.sources]
 vectra-contracts = { workspace = true }
 vectra-common = { workspace = true }
 vectra-decision-registry = { workspace = true }
+vectra-governance = { workspace = true }
 vectra-reference = { workspace = true }
 
 [dependency-groups]
@@ -79,6 +80,8 @@ ignore = ["S101", "E501"]
 "vectra-risk-gitops/**" = ["T201"]
 "decision-registry/tests/**" = ["S", "B", "BLE", "T20", "I001"]
 "decision-registry/migrations/**" = ["S608"]
+"governance/tests/**" = ["S", "B", "BLE", "T20", "I001"]
+"governance/migrations/**" = ["S608"]
 "contracts/tests/**" = ["S", "B", "E501", "BLE", "T20", "I001"]
 "contracts/tools/**" = ["T20", "S603", "S607", "E501"]
 "contracts/python/vectra_contracts/src/vectra_contracts/routes/__init__.py" = ["E501"]
