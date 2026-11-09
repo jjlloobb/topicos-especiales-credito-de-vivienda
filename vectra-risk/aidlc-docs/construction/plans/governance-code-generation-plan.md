@@ -53,7 +53,7 @@ vectra-risk/governance/
 
 ### Bloque A — Estructura
 
-- [ ] **Paso 1 — Esqueleto de `governance/`**
+- [x] **Paso 1 — Esqueleto de `governance/`** (U04-T01)
   - Directorios de §1; `pyproject.toml` (miembro del workspace) con extras separados: el servicio **sin** librerías de inferencia y `validation_job` con ONNX Runtime, `xgboost` y `lightgbm`.
   - `validation_job` depende además de `vectra_disparity` (librería de U9, ruta del workspace; doble mientras no exista) para la disparidad inicial y el modo `source_comparison` (tercera revisión del FD de U9, 2026-10-10).
   - Contrato de import-linter: `model_fsm`, `policy`, `serving_config` y `registration` sin E/S; ningún módulo del servicio importa librerías de inferencia.
@@ -62,7 +62,7 @@ vectra-risk/governance/
 
 ### Bloque B — Datos
 
-- [ ] **Paso 2 — Migraciones de `governance-db`**
+- [x] **Paso 2 — Migraciones de `governance-db`** (U04-T01)
   - Tablas de domain-entities §1–§5 (incluidos `archived_uri` y `archived_at`); índice único parcial «una sola versión `activo` o `congelado`»; una sola política `activa`; tabla única `transitions` para modelo, política y fuente, con `entity_type` y `entity_id`, e índice único parcial `(entity_type, entity_id, transition_number) WHERE status <> 'abandonada'` (precisado el 2026-10-06, revisión del FD de U8); columnas `unit_id`, `kind` (`cambio_estado` \| `compensacion`) y estado `descartada` (precisado el 2026-10-06, revisión del FD de U8).
   - Triggers `guard_unfreeze` y `guard_freeze` (P-U4-06).
   - `validation_runs.mode` (`validacion` por omisión en las filas existentes), `source_id`, `baseline_version_id`; `model_versions.source_candidate_for`; `data_sources.pre_post_report` (segunda revisión del FD de U9, 2026-10-08).
