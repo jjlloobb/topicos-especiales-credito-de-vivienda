@@ -6189,3 +6189,11 @@ Informes y arbitraje en `revisiones/U05-T03/`.
 
 Informes y arbitraje en `revisiones/U02-T19/`.
 **Context**: Construcción de U2, U02-T19.
+
+## U03-T05: arbitraje de la ronda 2 (CA-9 `--all`)
+**Timestamp**: 2026-11-09T21:00:00Z
+**User Input**: respuesta a la pregunta sobre CA-9: "Rule \"no new failures\" (Recommended)"
+**AI Response**:
+- La ronda 2 de U03-T05 salió NO-VERDE por un ROJO: `test_traceability.py --all` da rc=1 por 26 identificadores de U4 que vienen de main. U3 está limpio.
+- El usuario aprobó la regla «sin fallos nuevos» para todas las tareas de la demo (`DECISIONES-LOOP.md` §6). Se abre el PR.
+**Context**: Construcción de U3, U03-T05.
