@@ -1,6 +1,6 @@
 # Precisiones antes del Bloque D de U4 `governance`
 
-**Estado: PENDIENTE DE APROBACIÓN del usuario** (orquestador, 2026-11-09).
+**Estado: APROBADO por el usuario el 2026-11-09**, con la recomendación de Q-1 a Q-6.
 
 Precisa P-U4-06, BR-U4-03 y BR-U4-17, y el reparto del Bloque D. Recoge las candidatas F-03, F-04 y F-05 de U04-T01 (`CANDIDATAS.md`, revisor, ronda 1) y la pregunta P-1 de `demo-recorte-funcional.md`, que la enmienda dejó abierta para U4 US-306. No cambia ningún otro BR, NFR ni INF de U4.
 

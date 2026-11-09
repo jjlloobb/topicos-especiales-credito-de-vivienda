@@ -4,7 +4,7 @@
 **Historias que implementa:** US-203, US-205, US-206, US-208 y US-305, en su parte de servicio sin HTTP: las transiciones con evidencia y la propagación de `serving-config`.
 **Depende de:** U04-T02 (PR 93), ya en `main`. Usa `model_fsm`, `policy` y `serving_config` de esa tarea.
 **Rama:** `tarea/U04-T03`, creada desde `origin/main` (`c620c4f`).
-**Requisito para despachar:** que el usuario apruebe Q-1 a Q-5 de `aidlc-docs/construction/plans/governance-bloque-d-precisiones.md`. Esta tarea está escrita con esas recomendaciones.
+**Precisiones:** `aidlc-docs/construction/plans/governance-bloque-d-precisiones.md`, aprobada por el usuario el 2026-11-09 (Q-1 a Q-6 según la recomendación). Ya están aplicadas en P-U4-06, BR-U4-17 y domain-entities §1.3.
 
 Primera mitad del Bloque D del plan de U4 (Pasos 8 y 9), según el reparto de Q-5. A eso se suma la migración `0004` de Q-1, Q-2 y Q-4, y la función de la llave de Q-3. Alcance de la enmienda (`aidlc-docs/construction/plans/demo-recorte-funcional.md` §3, U4):
 - Paso 8 **E\*F**: entran las dos fases, la excepción de `freeze`, el reconciliador (P-U4-02, puntos 1–4), el barrido en modo `validacion` y PBT-U4-07. PBT-U4-01 entra sin el invariante de `source_candidate_for` (P-5). Se difiere la rama `source_comparison` del barrido. `CompensationEventPending` entra como regla con `promtool` (P-3).
@@ -160,4 +160,3 @@ Desde `vectra-risk/`.
   Nada de duplicados con sufijo.
 - Docker está disponible para Testcontainers. `docker run -p` desde la terminal puede estar negado a los agentes, pero Testcontainers funcionó en U04-T01 y U04-T02.
 - Las PBT stateful con Testcontainers son lentas. Ajusta `max_examples` y `stateful_step_count` con el perfil `ci` de U0 sin bajar las invariantes, y registra los tiempos.
-- Si Q-1 a Q-5 se aprueban con cambios, el orquestador corrige esta tarea antes de despacharla.

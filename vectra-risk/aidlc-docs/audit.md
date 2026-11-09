@@ -6189,3 +6189,18 @@ Informes y arbitraje en `revisiones/U05-T03/`.
 
 Informes y arbitraje en `revisiones/U02-T19/`.
 **Context**: Construcción de U2, U02-T19.
+
+## U4: precisiones del Bloque D y preparación de U04-T03
+**Timestamp**: 2026-11-09T16:10:00Z
+**User Input**: "sí, prepara la precisión de F-03 y U04-T03"; aprobó Q-1 a Q-6 con la recomendación de cada una.
+**AI Response**:
+- `aidlc-docs/construction/plans/governance-bloque-d-precisiones.md`, APROBADO:
+  - Q-1: `guard_unfreeze` rechaza toda salida de `congelado` salvo a `activo`/`retirado` con resolución;
+  - Q-2: `investigation` solo pasa de `false` a `true` en `congelado` con `investigar`;
+  - Q-3: llave `uuid5(NAMESPACE_URL, "urn:vectra:governance:<entity_type>:<entity_id>:<n>")`;
+  - Q-4: `NOTIFY` solo si cambia el `etag`;
+  - Q-5: Bloque D partido en U04-T03 (Pasos 8–9) y U04-T04 (Pasos 10–11), así que U4 pasa a 7 tareas;
+  - Q-6: P-1 para U4 US-306 resuelto con la opción (a), implementar las rutas.
+- Aplicado en P-U4-06, BR-U4-17, domain-entities §1.3 y `demo-recorte-funcional.md` §4. F-03, F-04 y F-05 de U04-T01 quedan resueltas en `CANDIDATAS.md`.
+- Se prepara U04-T03 con la migración `0004` y la función única de la llave.
+**Context**: Construcción de U4, Bloque D.
