@@ -67,10 +67,41 @@ Comparado con el release de `bb86d71` (`origin/main`, `python -m vectra_referenc
 
 Archivos de la entrega fuera de `proxy/` (40 en cada lado): **26 cambian y 14 quedan idénticos byte a byte**.
 
-- Cambian: los cinco JSON con el id de `package/` (`manifest`, `domain_envelope`, `explainer`, `feature_dictionary`, `feature_spec`), los mismos cinco en cada paquete `adversarial/rt3/RT3-{a,b,c,d}/` (20) y `adversarial/manifest.json`: 26 en total, todos llevan el id dentro. En `proxy/` cambian 30 de 35 archivos; los 5 idénticos son los `predictor.json`.
+- Cambian: los cinco JSON con el id de `package/` (`manifest`, `domain_envelope`, `explainer`, `feature_dictionary`, `feature_spec`), los mismos cinco en cada paquete `adversarial/rt3/RT3-{a,b,c,d}/` (20) y `adversarial/manifest.json`: 26 en total, todos llevan el id dentro. En `proxy/` cambian 30 de 35 archivos; los 5 idénticos son los `background.csv` (`ebaf69990677523e1b4d7f6fe264b4da24d1b8f352b4710c68040e478a75726e` en los dos lados). Los `predictor.json` de la variante cambian, como debe ser, porque la variante se reentrenó.
 - Idénticos (SHA-256): `package/predictor.json` y los `predictor.json` de RT-3 a-d `11abaebbe714954f…`; `package/background.csv` y los `background.csv` de RT-3 a-d `c9e3642b19b27c25…`; `datasets/train.parquet` `d637b5f331db15e1…`; `datasets/validation.parquet` `7e9f8919c75c642d…`; `datasets/test.parquet` `ceb4e7c41c3f6790…`; `reference-policy.json` `9050ed1cb8cd827f…`.
 
-Las cifras `51241dc4` y `cf3f3cce` aparecen todavía en las bitácoras y revisiones de U05-T03, U05-T04 y U09-T01 como registro histórico; no se reescriben. El resto del repositorio ya no las cita (`u5_counts.json` trae `base_run` 8a98ab02). `model-serving/tests/integration/test_predictor.py` (U6) no existe en esta rama, así que no hay URL que ajustar aquí.
+Las cifras `51241dc4` y `cf3f3cce` aparecen todavía en las bitácoras y revisiones de U05-T03, U05-T04 y U09-T01 como registro histórico; no se reescriben. Fuera de ellas, `51241dc4` solo aparece en la URL `isvc-51241dc4` de `model-serving/tests/integration/test_predictor.py:18` (U6), que llegó a la rama con el merge de `origin/main`; `u5_counts.json` trae `base_run` 8a98ab02. Esa prueba pasa con el modelo base nuevo (7 passed, corrida por el orquestador y por el revisor de la ronda 2): la ruta ignora el nombre del modelo y la versión se lee del manifiesto. Por el arbitraje de la ronda 1 (punto 2) la URL no se toca; queda como candidata de U6.
+
+SHA-256 completos de los 26 archivos que cambian fuera de `proxy/` (`main` = release de `bb86d71`; rama = release de esta rama; los reprodujo el revisor de la ronda 2):
+
+| Archivo | `main` | Rama |
+|---|---|---|
+| `adversarial/manifest.json` | `de655ae2c403685bfb976ee9e50a5e3311fc455b48f039cc6e8e93e815d99ea6` | `eb53e267f91b9f34024fdb19f9fea53652bd0ab184bf1a538d3b1da970e4e67b` |
+| `adversarial/rt3/RT3-a/domain_envelope.json` | `5e216c592e117c66fc2ea59afb3463bbfbaefb15e4c7cb424c16c19629f93bcb` | `3c9abd678a5ce96b0f7ef637431b2d781c7a729da60b74cd127f43f85f9a78de` |
+| `adversarial/rt3/RT3-a/explainer.json` | `cfaca4f36cd2f43d98ac8f5376a9a8130eb9e05234627153393b325d68609375` | `4bef7d704e3686a7377881fff226fc2e49ece883f342acdd7eaf8387d2b5c6fe` |
+| `adversarial/rt3/RT3-a/feature_dictionary.json` | `26bd9b176478e66120358e84e1967527b8e6f0bb39d3b3058e93f05392fb84ed` | `f69478396f7e8771aa9995e223a85382e4b360c219b7d264bc39173ebfb7308c` |
+| `adversarial/rt3/RT3-a/feature_spec.json` | `0ad3d1c028d5b99c6445f86bc003ecf00685a6a5bb9bbd321abace247fa2abdf` | `cb1ea1cb1199241ff6fac38def1e0f698a06f524b4795a604a5d45c50a34eddf` |
+| `adversarial/rt3/RT3-a/manifest.json` | `d02aaa93a95ba34efd11697dcc51519e7017ab253ecc3bf954d169bc310955a7` | `d3eb3435e4fde07b185b0ece6b94c1804d199ee606bf7738e03efc44136be929` |
+| `adversarial/rt3/RT3-b/domain_envelope.json` | `5e216c592e117c66fc2ea59afb3463bbfbaefb15e4c7cb424c16c19629f93bcb` | `3c9abd678a5ce96b0f7ef637431b2d781c7a729da60b74cd127f43f85f9a78de` |
+| `adversarial/rt3/RT3-b/explainer.json` | `71da7b56c8720456c7899dfedc5176f274582758477ee56665216fab20a6c5f5` | `c046c909ef1e8866287a309b733a62cc588149629838efe49ce43fafe921e33c` |
+| `adversarial/rt3/RT3-b/feature_dictionary.json` | `26bd9b176478e66120358e84e1967527b8e6f0bb39d3b3058e93f05392fb84ed` | `f69478396f7e8771aa9995e223a85382e4b360c219b7d264bc39173ebfb7308c` |
+| `adversarial/rt3/RT3-b/feature_spec.json` | `0ad3d1c028d5b99c6445f86bc003ecf00685a6a5bb9bbd321abace247fa2abdf` | `cb1ea1cb1199241ff6fac38def1e0f698a06f524b4795a604a5d45c50a34eddf` |
+| `adversarial/rt3/RT3-b/manifest.json` | `de3b0c1530738867b56f3305db023995c3a762f08910ef74283b3ec2ace8ca78` | `9d8e27d73b5b29ad93db5235fb481143b4b422d6cf37202a0135b782823ede39` |
+| `adversarial/rt3/RT3-c/domain_envelope.json` | `5e216c592e117c66fc2ea59afb3463bbfbaefb15e4c7cb424c16c19629f93bcb` | `3c9abd678a5ce96b0f7ef637431b2d781c7a729da60b74cd127f43f85f9a78de` |
+| `adversarial/rt3/RT3-c/explainer.json` | `376c585285cfc032018e2144f9d3a9230ce2e280a2c8e068f4cf8f6584639356` | `7ee0d74db117f61681ca4b3f1ea7eef454bb673d0388a5c0b7f1e6ead5cacbb6` |
+| `adversarial/rt3/RT3-c/feature_dictionary.json` | `5d58ddf74c2999d1485e059a0df65326c70876742312afc3844df49a80ea8f80` | `fd5f64cbc9781e9a2dcda9e7410d56661d8496a485f6d4cc89d60cd066b53e02` |
+| `adversarial/rt3/RT3-c/feature_spec.json` | `0ad3d1c028d5b99c6445f86bc003ecf00685a6a5bb9bbd321abace247fa2abdf` | `cb1ea1cb1199241ff6fac38def1e0f698a06f524b4795a604a5d45c50a34eddf` |
+| `adversarial/rt3/RT3-c/manifest.json` | `ad527102a90c2200304db0b5a796f40fc66d43f2aba57a33715e8a204c4ffa5f` | `ca94aad37f8a072d620462d6a7a36c190fe95bebde21700ba397321f9bf69da8` |
+| `adversarial/rt3/RT3-d/domain_envelope.json` | `5e216c592e117c66fc2ea59afb3463bbfbaefb15e4c7cb424c16c19629f93bcb` | `3c9abd678a5ce96b0f7ef637431b2d781c7a729da60b74cd127f43f85f9a78de` |
+| `adversarial/rt3/RT3-d/explainer.json` | `376c585285cfc032018e2144f9d3a9230ce2e280a2c8e068f4cf8f6584639356` | `7ee0d74db117f61681ca4b3f1ea7eef454bb673d0388a5c0b7f1e6ead5cacbb6` |
+| `adversarial/rt3/RT3-d/feature_dictionary.json` | `26bd9b176478e66120358e84e1967527b8e6f0bb39d3b3058e93f05392fb84ed` | `f69478396f7e8771aa9995e223a85382e4b360c219b7d264bc39173ebfb7308c` |
+| `adversarial/rt3/RT3-d/feature_spec.json` | `0ad3d1c028d5b99c6445f86bc003ecf00685a6a5bb9bbd321abace247fa2abdf` | `cb1ea1cb1199241ff6fac38def1e0f698a06f524b4795a604a5d45c50a34eddf` |
+| `adversarial/rt3/RT3-d/manifest.json` | `c485493d2f5760cc6e20e9f7a4b1add27ea69ab0d10227a37c77e5ceebf26779` | `ccddb5f507252709874f04041799d90b5e3f190c1074a16752c40b09ce8326b1` |
+| `package/domain_envelope.json` | `5e216c592e117c66fc2ea59afb3463bbfbaefb15e4c7cb424c16c19629f93bcb` | `3c9abd678a5ce96b0f7ef637431b2d781c7a729da60b74cd127f43f85f9a78de` |
+| `package/explainer.json` | `376c585285cfc032018e2144f9d3a9230ce2e280a2c8e068f4cf8f6584639356` | `7ee0d74db117f61681ca4b3f1ea7eef454bb673d0388a5c0b7f1e6ead5cacbb6` |
+| `package/feature_dictionary.json` | `26bd9b176478e66120358e84e1967527b8e6f0bb39d3b3058e93f05392fb84ed` | `f69478396f7e8771aa9995e223a85382e4b360c219b7d264bc39173ebfb7308c` |
+| `package/feature_spec.json` | `0ad3d1c028d5b99c6445f86bc003ecf00685a6a5bb9bbd321abace247fa2abdf` | `cb1ea1cb1199241ff6fac38def1e0f698a06f524b4795a604a5d45c50a34eddf` |
+| `package/manifest.json` | `1438fd2458af8673c8fcbf08f6b3c8f7764b9f0d939d1f11e1995f00df733739` | `395333bce89d950032e772d1e70261086df2b2b95fae68c7fa683e5624708cd8` |
 
 **Cambio de U9:** `bias-monitoring/tests/doubles/u5_counts.json` se regeneró con su script **después** del commit del código (`u5_commit` = `0da820f`, que incluye `a870276`); `test_disparity_examples.py` cambia por la decisión del orquestador (variante en 25,41 pp). `make -C bias-monitoring check` termina en 0. Queda como candidata solo la recalibración de `DSTAR_T`.
 

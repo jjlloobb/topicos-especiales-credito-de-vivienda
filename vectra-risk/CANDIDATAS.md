@@ -341,3 +341,4 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
 - U6, NFR-U6-01 (revisor, U06-T01, F-02): el NFR pide verificar la suma sobre 1 000 filas de `test`; la propiedad usa 500 vectores generados más 1 fila. Rige el texto del plan (vectores generados); alinear NFR y plan.
 - U6, trazabilidad (revisor, U06-T01, F-03): la bitácora describe NFR-U6-32 como firma y SBOM, y es el contexto de seguridad del pod (Paso 6); el código cita NFR-U6-41 y P-U6-06 antes de su paso.
 - U6, Dockerfiles (revisor, U06-T01, F-04 y F-05): cada imagen lleva el paquete de la otra (código muerto), y las dependencias transitivas no se fijan a `uv.lock` (misma clase que `decision-registry`).
+- U6, `model-serving/tests/integration/test_predictor.py:18` (revisor, U05-T05, ronda 2): la URL `isvc-51241dc4` nombra el id viejo del modelo base. Funciona porque la ruta ignora el nombre, pero conviene derivarla del manifiesto o usar un nombre neutro.
