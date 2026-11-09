@@ -68,6 +68,7 @@ class SimClock:
 # --- doble del registro (semantica de U3) ---------------------------------------------------------------------------------
 
 
+MAX_ENTRY_BYTES = 64 * 1024  # BR-U3-07: el registro rechaza mas de 64 KiB
 BUSINESS_FIELDS = ("entry_type", "idempotency_key", "actor", "case_id", "model_version_id", "policy_version_id", "payload")
 
 
@@ -92,6 +93,7 @@ class FakeRegistry:
         self.rng: random.Random | None = None
         self.p_down = 0.0
         self.p_lost = 0.0
+        self.largest = 0  # el cuerpo mas grande que recibio (BR-U4-15: nunca mas de 64 KiB)
         self._by_key: dict[str, Written] = {}
         self._lock = threading.Lock()
 
@@ -124,12 +126,9 @@ class FakeRegistry:
 
     def _validate(self, entry: dict[str, Any]) -> None:
         self._check_actor(entry)
-        if entry["entry_type"] == "freeze":
-            # El tipo de U0 pide `FreezeContextPackage`; hasta el Paso 10 el evento lleva el `FreezeContext` tal cual.
-            payload = entry["payload"]
-            FreezeContext.model_validate_json(json.dumps(payload["context_package"]))
-            assert {"freeze_id", "frozen_at", "context_package"} == set(payload), payload
-            return
+        size = len(json.dumps(entry).encode())
+        self.largest = max(self.largest, size)
+        assert size <= MAX_ENTRY_BYTES, f"el registro rechazaria {size} bytes (BR-U3-07: {MAX_ENTRY_BYTES})"
         try:
             RegistryEntryIn.model_validate_json(json.dumps(entry))
         except ValidationError as error:  # un defecto del servicio, no un 4xx esperado
