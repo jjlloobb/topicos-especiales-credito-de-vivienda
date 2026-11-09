@@ -341,6 +341,45 @@ def test_the_u1_kyverno_policies_fail_on_a_job_with_a_latest_image(kind_docs):
     assert not ok
 
 
+# --- KSV-0109: el ConfigMap del realm de kind va en su propio archivo (PR 85) ------------------------------------------
+
+
+def test_the_realm_configmap_of_kind_is_alone_in_its_own_file():
+    in_main = [d["kind"] for d in yaml.safe_load_all((kd.RENDERED / "kind" / "keycloak.yaml").read_text(encoding="utf-8")) if d]
+    assert "ConfigMap" not in in_main and "Job" in in_main
+    alone = [d for d in yaml.safe_load_all((kd.RENDERED / "kind" / "config-cli-realm.yaml").read_text(encoding="utf-8")) if d]
+    assert [(d["kind"], d["metadata"]["name"]) for d in alone] == [("ConfigMap", "keycloak-config-cli-realm")]
+    assert sorted(p.name for p in (kd.RENDERED / "kind").iterdir()) == ["config-cli-realm.yaml", "keycloak.yaml"]
+
+
+@pytest.mark.parametrize("env", ["staging", "prod"])
+def test_the_bank_environments_have_no_realm_file(env):
+    assert [p.name for p in (kd.RENDERED / env).iterdir()] == ["keycloak.yaml"]
+
+
+def test_the_split_loses_nothing_and_needs_exactly_one_realm_configmap():
+    full = kd.render("kind")
+    assert full.returncode == 0, full.stderr
+    main, realm = kd.split_realm(full.stdout)
+
+    def key(d):
+        return (d["kind"], d["metadata"]["name"])
+
+    assert sorted(key(d) for d in yaml.safe_load_all(main + "\n---\n" + realm) if d) == sorted(key(d) for d in yaml.safe_load_all(full.stdout) if d)
+    with pytest.raises(SystemExit):
+        kd.split_realm(main)
+
+
+def test_trivy_skips_only_the_new_file_and_the_decision_is_recorded():
+    root = kd._ROOT  # noqa: SLF001
+    workflow = (root.parent / ".github" / "workflows" / "supply-chain.yml").read_text(encoding="utf-8")
+    skip = [s.strip() for s in next(line for line in workflow.splitlines() if line.strip().startswith("skip-files:")).split(":", 1)[1].split(",")]
+    assert "vectra-risk/identity-edge/keycloak/rendered/kind/config-cli-realm.yaml" in skip
+    assert not [s for s in skip if s.endswith("rendered/kind/keycloak.yaml") or "keycloak/rendered/staging" in s or "keycloak/rendered/prod" in s]
+    ignore = (root / ".trivyignore").read_text(encoding="utf-8")
+    assert "config-cli-realm.yaml" in ignore and "2026-11-09" in ignore and "PR 85" in ignore and "T1" in ignore
+
+
 def test_the_job_parameters_come_from_the_values_not_from_the_template():
     """F-02: `backoffLimit`, el plazo, la espera de disponibilidad, los recursos y el rodeo `NOMBRE` salen de `vectra.configCli.*`."""
     own = yaml.safe_load((kd.VALUES / "common.yaml").read_text(encoding="utf-8"))["vectra"]["configCli"]

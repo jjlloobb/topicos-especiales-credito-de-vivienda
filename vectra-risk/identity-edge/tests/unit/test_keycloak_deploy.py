@@ -524,7 +524,14 @@ def test_rendered_keycloak_meets_the_policies(env):
 def test_committed_render_matches_a_fresh_render(env):
     fresh = kd.render(env)
     assert fresh.returncode == 0, fresh.stderr
-    assert (kd.RENDERED / env / "keycloak.yaml").read_text(encoding="utf-8") == fresh.stdout
+    if env == "kind":  # el ConfigMap del realm va en su propio archivo (KSV-0109)
+        main, realm = kd.split_realm(fresh.stdout)
+        assert (kd.RENDERED / env / "keycloak.yaml").read_text(encoding="utf-8") == main
+        assert (kd.RENDERED / env / "config-cli-realm.yaml").read_text(encoding="utf-8") == realm
+        assert [p.name for p in kd.rendered_files(env)] == ["config-cli-realm.yaml", "keycloak.yaml"]
+    else:
+        assert (kd.RENDERED / env / "keycloak.yaml").read_text(encoding="utf-8") == fresh.stdout
+        assert [p.name for p in kd.rendered_files(env)] == ["keycloak.yaml"]
 
 
 # --- cada regla falla sobre un render alterado -------------------------------------------------

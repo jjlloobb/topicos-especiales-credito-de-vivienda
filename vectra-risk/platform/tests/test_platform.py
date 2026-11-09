@@ -379,7 +379,7 @@ def test_cluster_wide_secret_read_exists_only_in_kind():
 
 
 def test_trivy_skips_only_the_kind_secret_read_and_the_realm_configmaps():
-    """`skip-files` es exactamente esta lista, sin comodines: KSV-0041 (solo kind) y KSV-0109 (U02-T08, decision T1)."""
+    """`skip-files` es exactamente esta lista, sin comodines: KSV-0041 (solo kind) y KSV-0109 (U02-T08, decision T1; y U02-T19, PR 85: el ConfigMap del Job de kind)."""
     workflow = (REPO / ".github/workflows/supply-chain.yml").read_text(encoding="utf-8")
     (value,) = re.findall(r"skip-files: (.+)", workflow)
     assert value.split(",") == [
@@ -387,6 +387,7 @@ def test_trivy_skips_only_the_kind_secret_read_and_the_realm_configmaps():
         "vectra-risk/identity-edge/jobs/rendered/kind/realm-configmap.yaml",
         "vectra-risk/identity-edge/jobs/rendered/staging/realm-configmap.yaml",
         "vectra-risk/identity-edge/jobs/rendered/prod/realm-configmap.yaml",
+        "vectra-risk/identity-edge/keycloak/rendered/kind/config-cli-realm.yaml",
     ]
     assert not any(c in value for c in "*?[ ")
 

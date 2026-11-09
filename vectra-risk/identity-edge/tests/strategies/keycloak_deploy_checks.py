@@ -206,9 +206,25 @@ def render(env: str, *extra: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(helm_command(env, *extra), capture_output=True, text=True, check=False)  # noqa: S603 - herramienta fija de platform/.tools
 
 
+def rendered_files(env: str) -> list[Path]:
+    """Los archivos versionados de un entorno: `keycloak.yaml` y, en kind, `config-cli-realm.yaml` (el ConfigMap del realm, aparte por Trivy)."""
+    return sorted((RENDERED / env).glob("*.yaml"))
+
+
 def load(env: str) -> list[dict[str, Any]]:
-    text = (RENDERED / env / "keycloak.yaml").read_text(encoding="utf-8")
-    return [d for d in yaml.safe_load_all(text) if d]
+    """Todos los documentos versionados del entorno, de todos sus archivos."""
+    return [d for path in rendered_files(env) for d in yaml.safe_load_all(path.read_text(encoding="utf-8")) if d]
+
+
+def split_realm(text: str) -> tuple[str, str]:
+    """Lo que hace `render-keycloak` con el render de kind: (keycloak.yaml, config-cli-realm.yaml)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("split_realm_configmap", EDGE / "tools" / "split_realm_configmap.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.split(text)
 
 
 def statefulset(docs: list[dict[str, Any]]) -> dict[str, Any]:

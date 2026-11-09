@@ -1,6 +1,7 @@
 # Comandos de U2. Se ejecutan desde cualquier sitio; corren en la raiz del workspace `vectra-risk/`.
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 UV := cd $(ROOT) && uv run
+UV_RUN_PY := cd $(ROOT) && uv run python
 TOOLS := $(ROOT)/platform/.tools/bin
 HELM := $(TOOLS)/helm
 CONFTEST := $(TOOLS)/conftest
@@ -57,13 +58,20 @@ e2e:
 	cd $(ROOT) && uv run pytest identity-edge/tests/e2e -q
 
 # `helm template` de `keycloakx` (platform/.charts) con los values comunes y los de cada entorno (U02-T07, Paso 5).
-# Solo kind lleva el Job de `keycloak-config-cli` (U02-T19, B-1): el realm de Git entra sin tocarlo, con `--set-file`, a su ConfigMap.
+# Solo kind lleva el Job de `keycloak-config-cli` (U02-T19, B-1): el realm de Git entra sin tocarlo, con `--set-file`, a su ConfigMap, que
+# queda en su propio archivo (`config-cli-realm.yaml`) porque Trivy lo omite (KSV-0109, decision T1); el resto va en `keycloak.yaml`.
 render-keycloak:
 	for env in $(ENVS); do \
 	  mkdir -p $(OUT)/$$env && \
 	  realm=""; [ "$$env" = kind ] && realm="--set-file vectra.configCli.realm=$(KEYCLOAK)/realm/realm.kind.yaml"; \
-	  $(HELM) template keycloak $(CHART) --namespace vectra-identity --skip-tests \
-	    -f $(KEYCLOAK)/values/common.yaml -f $(KEYCLOAK)/values/$$env.yaml $$realm > $(OUT)/$$env/keycloak.yaml || exit 1; \
+	  if [ "$$env" = kind ]; then \
+	    $(HELM) template keycloak $(CHART) --namespace vectra-identity --skip-tests \
+	      -f $(KEYCLOAK)/values/common.yaml -f $(KEYCLOAK)/values/$$env.yaml $$realm \
+	      | ( $(UV_RUN_PY) identity-edge/tools/split_realm_configmap.py $(OUT)/$$env/keycloak.yaml $(OUT)/$$env/config-cli-realm.yaml ) || exit 1; \
+	  else \
+	    $(HELM) template keycloak $(CHART) --namespace vectra-identity --skip-tests \
+	      -f $(KEYCLOAK)/values/common.yaml -f $(KEYCLOAK)/values/$$env.yaml > $(OUT)/$$env/keycloak.yaml || exit 1; \
+	  fi; \
 	done
 
 # Las reglas por documento sobre todo el render, y las que ven el entorno entero (`--combine`) una vez por entorno.
