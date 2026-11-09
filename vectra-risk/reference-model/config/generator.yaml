@@ -31,7 +31,7 @@ marginals:
   age: {mean: 38.0, sd: 9.0, min: 21, max: 70}
   income:    # log-normal por estrato: mu = ln(base_cop) + slope*(estrato-1) + ajuste de region
     base_cop: 2400000
-    stratum_slope: 0.30
+    stratum_slope: 0.15   # era 0,30: con el outcome completo (BR-U7-04/05) la disparidad por estrato de la base era 8,70 pp (BR-U5-06 pide < 5)
     sigma: 0.45
     undeclared_stratum: 3   # el ingreso de un estrato `no_informado` se genera como el de este estrato
     min_cop: 1300000
@@ -114,3 +114,17 @@ package:
   # Suma de contribuciones + base_value vs margen: tolerancia absoluta 1e-4 (enmienda del usuario, 2026-11-08, a
   # NFR-U5-30, NFR-U6-01 y los planes de U5 y U6; float32 da ~8.5e-6, ver explainer_validation).
   explainer_margin_tolerance: 1.0e-4
+
+# Variante proxy RT-2 (Paso 6; BR-U5-06, BR-U5-14, BR-U5-15). Etiqueta con dependencia PARCIAL de las dos busquedas: a un
+# solicitante que no incumplio en el dataset base se le suma, con la probabilidad indicada, un incumplimiento extra segun
+# su zona y su detalle de canal (las dos probabilidades se combinan como sucesos independientes). Las zonas castigadas son
+# las de caribe, pacifico, orinoquia y amazonia, de modo que el modelo aprende una dependencia de la region SIN usarla.
+# Las cifras son sinteticas y se afinan para que la disparidad agregada de `validation` sea >= `min_disparity_pp`.
+proxy:
+  rt2_runs: 5                       # un paquete por corrida de RT-2 (cuarta revision de coherencia, 2026-10-31)
+  purpose: "rt2-demo"
+  min_disparity_pp: 10.0            # BR-U5-14 (el doble del umbral de U9)
+  max_base_disparity_pp: 5.0        # BR-U5-06
+  label_seed_stream: 3              # la semilla de las etiquetas extra es [seed, 3]
+  zone_extra_default: {zona_4: 0.012, zona_5: 0.036, zona_6: 0.030}
+  detail_extra_default: {aliado_grupo_c: 0.020, aliado_grupo_d: 0.010}

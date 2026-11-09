@@ -88,12 +88,12 @@ vectra-risk/reference-model/
 
 ### Bloque D — Variante proxy y conjunto adversarial
 
-- [ ] **Paso 6 — Variante proxy (RT-2)**
+- [x] **Paso 6 — Variante proxy (RT-2)** (U05-T03)
   - `zona_vivienda` (≥ 5 municipios por zona) y `canal_originacion_detalle` como búsquedas en el `feature_spec`; etiqueta con dependencia parcial; disparidad agregada ≥ 10 pp con la librería de U9 (doble mientras no exista); `purpose = rt2-demo`; 5 paquetes con `rt2_run` de 1 a 5 y `model_version_id` distintos (cuarta revisión de coherencia entre unidades, 2026-10-31).
   - Diseño: BR-U5-06, 14, 15. Historia: US-303.
   - **Aceptación**: `uv run pytest reference-model/tests/examples/test_proxy.py` (disparidad del modelo base < 5 pp y de la variante ≥ 10 pp; ninguna zona con menos de 5 municipios; `municipality_code` no aparece en el `FeatureVector` producido por `derive`; 5 `model_version_id` distintos, con el mismo predictor).
 
-- [ ] **Paso 7 — Conjunto adversarial**
+- [x] **Paso 7 — Conjunto adversarial** (U05-T03)
   - 20 pares RT-1, 18 casos RT-4 y los paquetes RT-3 (a)–(d), con `adversarial/manifest.json` y el resultado esperado de cada caso.
   - Propiedad PBT-U5-07.
   - Diseño: BR-U5-16..18. Historias: US-106, US-109, US-111.
