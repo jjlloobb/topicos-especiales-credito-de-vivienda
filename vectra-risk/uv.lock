@@ -16,6 +16,7 @@ members = [
     "vectra-disparity",
     "vectra-governance",
     "vectra-identity-edge",
+    "vectra-model-serving",
     "vectra-reference",
     "vectra-risk",
 ]
@@ -1764,6 +1765,25 @@ requires-dist = [
 ]
 
 [[package]]
+name = "vectra-model-serving"
+version = "0.1.0"
+source = { editable = "model-serving" }
+dependencies = [
+    { name = "numpy" },
+    { name = "vectra-common" },
+    { name = "vectra-contracts" },
+    { name = "xgboost" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy", specifier = "==2.5.4" },
+    { name = "vectra-common", editable = "contracts/python/vectra_common" },
+    { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
+    { name = "xgboost", specifier = "==3.4.1" },
+]
+
+[[package]]
 name = "vectra-reference"
 version = "0.1.0"
 source = { editable = "reference-model" }
@@ -1827,6 +1847,7 @@ dev = [
     { name = "types-pyyaml" },
     { name = "vectra-bias" },
     { name = "vectra-disparity" },
+    { name = "vectra-model-serving" },
     { name = "vectra-reference" },
 ]
 
@@ -1862,6 +1883,7 @@ dev = [
     { name = "types-pyyaml" },
     { name = "vectra-bias", editable = "bias-monitoring" },
     { name = "vectra-disparity", editable = "bias-monitoring/disparity" },
+    { name = "vectra-model-serving", editable = "model-serving" },
     { name = "vectra-reference", editable = "reference-model" },
 ]
 
