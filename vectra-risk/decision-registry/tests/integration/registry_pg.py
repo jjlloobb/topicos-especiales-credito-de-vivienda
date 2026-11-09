@@ -76,8 +76,7 @@ def migrate(pg: PostgresContainer, dbname: str, fingerprint: str | None = FINGER
     command.upgrade(config, "head")
 
 
-@pytest.fixture(scope="session")
-def roles(pg: PostgresContainer) -> list[str]:
+def create_roles(pg: PostgresContainer) -> list[str]:
     """Crea los roles como los crea U1 (CloudNativePG `managed.roles`)."""
     names = u1_roles()
     with psycopg.connect(admin_url(pg), autocommit=True) as conn:
@@ -94,14 +93,23 @@ def roles(pg: PostgresContainer) -> list[str]:
     return names
 
 
-@pytest.fixture(scope="session")
-def template_db(pg: PostgresContainer, roles: list[str]) -> str:
+def create_template(pg: PostgresContainer) -> str:
     """Base `registry_template` ya migrada por `registry_migrator` (dueno de la base, como en U1)."""
     name = "registry_template"
     with psycopg.connect(admin_url(pg), autocommit=True) as conn:
         conn.execute(sql.SQL("CREATE DATABASE {} OWNER registry_migrator").format(sql.Identifier(name)))
     migrate(pg, name)
     return name
+
+
+@pytest.fixture(scope="session")
+def roles(pg: PostgresContainer) -> list[str]:
+    return create_roles(pg)
+
+
+@pytest.fixture(scope="session")
+def template_db(pg: PostgresContainer, roles: list[str]) -> str:
+    return create_template(pg)
 
 
 class Db:
