@@ -3,6 +3,11 @@
 #
 #   seed-vault.sh                sembrar: conserva lo que exista y genera el resto al azar. Se puede repetir.
 #   seed-vault.sh grafana-token  crear la cuenta de servicio de Grafana y guardar su token (F110). Con Grafana arriba.
+#   seed-vault.sh identity       sembrar las rutas `identity/` y `edge/valkey` de U2 (U02-T19): pares ES256 por cliente, la CA interna,
+#                                contrasenas y semillas TOTP de los usuarios sinteticos, break-glass y el administrador de arranque.
+#                                Conserva lo que exista y nunca regenera un par de llaves. Necesita la CA (`vectra-internal-ca`, cert-manager)
+#                                y haber corrido antes `seed-vault.sh`. Escribe las llaves para las pruebas e2e en
+#                                ${VECTRA_E2E_KEYS_DIR:-${XDG_RUNTIME_DIR:-/tmp}/vectra-e2e-keys} (0700; archivos 0600) y no imprime secretos.
 #
 # Vault dev guarda todo en memoria: si se reinicia hay que sembrar de nuevo, y las claves cambian (install.md, "Vault
 # reiniciado"). Requiere kubectl, helm y uv. Solo escribe en el contexto de kind indicado.
@@ -23,6 +28,16 @@ seed() {
   kube create secret generic vault-token -n external-secrets --from-literal=token="$token" --dry-run=client -o yaml | kube apply -f -
   if kube get crd externalsecrets.external-secrets.io >/dev/null 2>&1; then
     kube annotate externalsecrets.external-secrets.io --all -A "force-sync=$(date +%s)" --overwrite
+  fi
+}
+
+identity() {
+  kube wait -n vault pod/vault-0 --for=condition=Ready --timeout=180s
+  (cd "$here/../.." && uv run python platform/kind/vault_paths.py seed-identity "$context" "$token" ${VECTRA_E2E_KEYS_DIR:+"$VECTRA_E2E_KEYS_DIR"})
+  if kube get crd externalsecrets.external-secrets.io >/dev/null 2>&1; then
+    for namespace in vectra-identity vectra-edge envoy-gateway-system; do
+      kube annotate externalsecrets.external-secrets.io --all -n "$namespace" "force-sync=$(date +%s)" --overwrite 2>/dev/null || true
+    done
   fi
 }
 
@@ -55,5 +70,6 @@ print(accounts[0] if accounts else "")')"
 case "${1:-seed}" in
   seed) seed ;;
   grafana-token) grafana_token ;;
-  *) echo "Uso: seed-vault.sh [seed|grafana-token]" >&2; exit 2 ;;
+  identity) identity ;;
+  *) echo "Uso: seed-vault.sh [seed|grafana-token|identity]" >&2; exit 2 ;;
 esac
