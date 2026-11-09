@@ -1,0 +1,20 @@
+[importlinter]
+root_packages =
+    vectra_serving_common
+    vectra_predictor
+    vectra_explainer
+    vectra_reference
+include_external_packages = True
+
+# NFR-U6-01: ninguna imagen de U6 importa `shap` ni `scikit-learn` (el explicador usa TreeSHAP de XGBoost). `vectra_reference`
+# entra al grafo para que el contrato vea tambien lo que arrastra `envelope.confidence` (solo numpy, NFR-U5-32).
+[importlinter:contract:sin-shap-ni-sklearn]
+name = ninguna imagen de U6 importa shap ni scikit-learn
+type = forbidden
+source_modules =
+    vectra_serving_common
+    vectra_predictor
+    vectra_explainer
+forbidden_modules =
+    shap
+    sklearn

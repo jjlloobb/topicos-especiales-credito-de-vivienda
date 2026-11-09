@@ -9,7 +9,7 @@ dependencies = ["vectra-contracts", "vectra-common", "vectra-decision-registry",
 package = false
 
 [tool.uv.workspace]
-members = ["contracts/python/vectra_contracts", "contracts/python/vectra_common", "identity-edge", "decision-registry", "reference-model", "governance", "bias-monitoring", "bias-monitoring/disparity"]
+members = ["contracts/python/vectra_contracts", "contracts/python/vectra_common", "identity-edge", "decision-registry", "reference-model", "governance", "bias-monitoring", "bias-monitoring/disparity", "model-serving"]
 
 [tool.uv.sources]
 vectra-contracts = { workspace = true }
@@ -19,6 +19,7 @@ vectra-governance = { workspace = true }
 vectra-reference = { workspace = true }
 vectra-bias = { workspace = true }
 vectra-disparity = { workspace = true }
+vectra-model-serving = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -49,6 +50,8 @@ dev = [
   "fairlearn==0.15.0",
   "pandas==3.1.1",
   "numpy==2.5.4",
+  # U06-T01: U6 (model-serving) se instala editable para que `uv run` importe sus paquetes.
+  "vectra-model-serving",
 ]
 
 [tool.pytest.ini_options]
@@ -92,6 +95,7 @@ ignore = ["S101", "E501"]
 "decision-registry/migrations/**" = ["S608"]
 "governance/tests/**" = ["S", "B", "BLE", "T20", "I001"]
 "governance/migrations/**" = ["S608"]
+"model-serving/tests/**" = ["S", "B", "BLE", "T20", "I001"]
 "contracts/tests/**" = ["S", "B", "E501", "BLE", "T20", "I001"]
 "contracts/tools/**" = ["T20", "S603", "S607", "E501"]
 "contracts/python/vectra_contracts/src/vectra_contracts/routes/__init__.py" = ["E501"]

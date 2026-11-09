@@ -49,7 +49,7 @@ vectra-risk/model-serving/
 
 ### Bloque A — Estructura
 
-- [ ] **Paso 1 — Esqueleto de `model-serving/`**
+- [x] (U06-T01) **Paso 1 — Esqueleto de `model-serving/`**
   - Directorios de §1; `pyproject.toml` (miembro del workspace) con `xgboost`, `numpy` y la librería `envelope` de U5; **sin** `shap`.
   - Contrato de import-linter: ninguna imagen importa `shap` ni `sklearn`.
   - Diseño: NFR-U6-01.
@@ -57,13 +57,13 @@ vectra-risk/model-serving/
 
 ### Bloque B — Imágenes de serving
 
-- [ ] **Paso 2 — Cargador del paquete y límite de concurrencia (comunes)**
+- [x] (U06-T01) **Paso 2 — Cargador del paquete y límite de concurrencia (comunes)**
   - `package_loader`: lee `manifest.json`, verifica el SHA-256 de cada archivo usado y que el `model_version_id` coincida con la anotación; si falla, no marca listo y emite `ModelPackageIntegrityFailed`.
   - `concurrency`: semáforo por pod; por encima del límite responde 503 inmediato y cuenta `vectra_serving_rejected_total{component}`.
   - Diseño: NFR-U6-03, 40; P-U6-03, 05. Historia: US-111.
   - **Aceptación**: `uv run pytest model-serving/tests/unit/test_package_loader.py test_concurrency.py`, con los artefactos RT-3 de U5 como fixtures: (a) → explicador no listo; (d) → no listo (quinta revisión de coherencia entre unidades, 2026-10-31); un byte alterado → no listo; la solicitud N+1 con N en curso → 503 sin espera.
 
-- [ ] **Paso 3 — Predictor**
+- [x] (U06-T01, acotado a la demo) **Paso 3 — Predictor**
   - `:predict` (protocolo v1 de KServe): arma el vector con `feature_spec.json`, predice con XGBoost y calcula `confidence` con `envelope.confidence` de U5.
   - Responde `{score, confidence, model_version_id}`; límite de 16 concurrentes; métricas en 8081.
   - Diseño: NFR-U6-04, 05, 10; P-U6-01, 05. Historias: US-111, US-106.
@@ -72,12 +72,12 @@ vectra-risk/model-serving/
     - PBT-U5-04 (paridad de `confidence`) ejecutada contra el predictor;
     - `uv run pytest model-serving/tests/bench -m benchmark` (p95 ≤ 30 ms por solicitud sin red).
 
-- [ ] **Paso 4 — Explicador**
+- [x] (U06-T01) **Paso 4 — Explicador**
   - `:explain`: contribuciones con `pred_contribs=True` y `base_value` (término de sesgo), en el orden del `feature_spec`, con el `model_version_id` del manifiesto; límite de 8 concurrentes.
   - Diseño: NFR-U6-01, 04, 10; P-U6-05. Historia: US-111.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest model-serving/tests/property/test_explainer.py`. Propiedad: para todo `FeatureVector` válido generado, la suma de las contribuciones + `base_value` reproduce el margen del predictor (tolerancia absoluta 1e-4, NFR-U6-01; enmienda del 2026-11-08, decisión del usuario tras la ronda 1 de U05-T02), y la respuesta lleva el mismo `model_version_id` que `:predict`.
 
-- [ ] **Paso 5 — Dockerfiles y cadena de suministro**
+- [x] (U06-T01, acotado a la demo) **Paso 5 — Dockerfiles y cadena de suministro**
   - Imágenes del predictor y del explicador sobre una base Python oficial pinneada por digest, `runAsNonRoot`, `readOnlyRootFilesystem`; construidas, escaneadas, con SBOM y firmadas con `sign-image.yml` de U1; el escaneo y el SBOM son de `supply-chain.yml`.
   - Diseño: NFR-U6-30, 32.
   - **Aceptación**: `hadolint model-serving/*/Dockerfile`; prueba sobre el SBOM: `shap` y `scikit-learn` ausentes; `kyverno test model-serving/policies/kyverno/` (una imagen sin firma → rechazada).
