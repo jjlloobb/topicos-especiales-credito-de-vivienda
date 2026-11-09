@@ -7,6 +7,7 @@ requires-python = ">=3.12,<3.13"
 # `envelope/confidence.py` NO usa ninguna de estas salvo numpy (NFR-U5-32).
 dependencies = [
   "vectra-contracts",
+  "vectra-disparity",
   "pyyaml==6.0.3",
   "numpy==2.5.4",
   "pandas==3.1.1",
@@ -18,6 +19,7 @@ dependencies = [
 
 [tool.uv.sources]
 vectra-contracts = { workspace = true }
+vectra-disparity = { workspace = true }
 
 [build-system]
 requires = ["hatchling==1.27.0"]

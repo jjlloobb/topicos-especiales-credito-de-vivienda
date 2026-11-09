@@ -406,144 +406,144 @@
   ]
  },
  "provenance": {
-  "base_run": "mv-2026-01-01-51241dc4",
+  "base_run": "mv-2026-01-01-8a98ab02",
   "dataset": "validation",
-  "proxy_model_version_id": "mv-2026-01-01-7241d354",
+  "proxy_model_version_id": "mv-2026-01-01-f12bfeaf",
   "proxy_run": "proxy/run-1",
   "reference_date": "2026-01-01",
   "script": "bias-monitoring/tests/doubles/generate_u5_counts.py",
   "seed": 20261101,
-  "u5_commit": "307a3455bcd9b8c5abbecc653c8f5e64c631068b",
+  "u5_commit": "bb86d713aa48d58a98419f2d7dcb2e45f3aae88c",
   "u5_disparity_pp": {
-   "base": 4.6119,
-   "proxy": 11.6579
+   "base": 4.61,
+   "proxy": 25.41
   }
  },
  "proxy": {
   "estrato": [
    {
     "band": "20_30",
-    "favorable": 559,
+    "favorable": 532,
     "group": "1",
     "total": 577
    },
    {
     "band": "gt_30",
-    "favorable": 1499,
+    "favorable": 1362,
     "group": "1",
     "total": 1869
    },
    {
     "band": "lt_20",
-    "favorable": 144,
+    "favorable": 133,
     "group": "1",
     "total": 159
    },
    {
     "band": "20_30",
-    "favorable": 943,
+    "favorable": 906,
     "group": "2",
     "total": 984
    },
    {
     "band": "gt_30",
-    "favorable": 2704,
+    "favorable": 2526,
     "group": "2",
     "total": 3273
    },
    {
     "band": "lt_20",
-    "favorable": 277,
+    "favorable": 259,
     "group": "2",
     "total": 308
    },
    {
     "band": "20_30",
-    "favorable": 793,
+    "favorable": 767,
     "group": "3",
     "total": 824
    },
    {
     "band": "gt_30",
-    "favorable": 3181,
+    "favorable": 3011,
     "group": "3",
     "total": 3843
    },
    {
     "band": "lt_20",
-    "favorable": 316,
+    "favorable": 306,
     "group": "3",
     "total": 347
    },
    {
     "band": "20_30",
-    "favorable": 360,
+    "favorable": 357,
     "group": "4",
     "total": 375
    },
    {
     "band": "gt_30",
-    "favorable": 1947,
+    "favorable": 1852,
     "group": "4",
     "total": 2362
    },
    {
     "band": "lt_20",
-    "favorable": 103,
+    "favorable": 99,
     "group": "4",
     "total": 111
    },
    {
     "band": "20_30",
-    "favorable": 130,
+    "favorable": 128,
     "group": "5",
     "total": 139
    },
    {
     "band": "gt_30",
-    "favorable": 935,
+    "favorable": 894,
     "group": "5",
     "total": 1116
    },
    {
     "band": "lt_20",
-    "favorable": 27,
+    "favorable": 26,
     "group": "5",
     "total": 30
    },
    {
     "band": "20_30",
-    "favorable": 68,
+    "favorable": 66,
     "group": "6",
     "total": 74
    },
    {
     "band": "gt_30",
-    "favorable": 462,
+    "favorable": 445,
     "group": "6",
     "total": 546
    },
    {
     "band": "lt_20",
-    "favorable": 18,
+    "favorable": 17,
     "group": "6",
     "total": 20
    },
    {
     "band": "20_30",
-    "favorable": 129,
+    "favorable": 126,
     "group": "no_informado",
     "total": 136
    },
    {
     "band": "gt_30",
-    "favorable": 684,
+    "favorable": 643,
     "group": "no_informado",
     "total": 865
    },
    {
     "band": "lt_20",
-    "favorable": 39,
+    "favorable": 37,
     "group": "no_informado",
     "total": 42
    }
@@ -551,91 +551,91 @@
   "rango_edad": [
    {
     "band": "20_30",
-    "favorable": 219,
+    "favorable": 209,
     "group": "18-25",
     "total": 230
    },
    {
     "band": "gt_30",
-    "favorable": 911,
+    "favorable": 840,
     "group": "18-25",
     "total": 1126
    },
    {
     "band": "lt_20",
-    "favorable": 79,
+    "favorable": 76,
     "group": "18-25",
     "total": 84
    },
    {
     "band": "20_30",
-    "favorable": 929,
+    "favorable": 905,
     "group": "26-35",
     "total": 968
    },
    {
     "band": "gt_30",
-    "favorable": 3530,
+    "favorable": 3320,
     "group": "26-35",
     "total": 4273
    },
    {
     "band": "lt_20",
-    "favorable": 275,
+    "favorable": 269,
     "group": "26-35",
     "total": 306
    },
    {
     "band": "20_30",
-    "favorable": 1232,
+    "favorable": 1187,
     "group": "36-45",
     "total": 1286
    },
    {
     "band": "gt_30",
-    "favorable": 4682,
+    "favorable": 4405,
     "group": "36-45",
     "total": 5688
    },
    {
     "band": "lt_20",
-    "favorable": 396,
+    "favorable": 373,
     "group": "36-45",
     "total": 436
    },
    {
     "band": "20_30",
-    "favorable": 526,
+    "favorable": 511,
     "group": "46-55",
     "total": 548
    },
    {
     "band": "gt_30",
-    "favorable": 1975,
+    "favorable": 1875,
     "group": "46-55",
     "total": 2395
    },
    {
     "band": "lt_20",
-    "favorable": 153,
+    "favorable": 140,
     "group": "46-55",
     "total": 167
    },
    {
     "band": "20_30",
-    "favorable": 74,
+    "favorable": 68,
     "group": "56-65",
     "total": 75
    },
    {
     "band": "gt_30",
-    "favorable": 299,
+    "favorable": 279,
     "group": "56-65",
     "total": 374
    },
    {
     "band": "lt_20",
-    "favorable": 20,
+    "favorable": 18,
     "group": "56-65",
     "total": 23
    },
@@ -647,7 +647,7 @@
    },
    {
     "band": "gt_30",
-    "favorable": 15,
+    "favorable": 14,
     "group": "66+",
     "total": 18
    },
@@ -661,19 +661,19 @@
   "region": [
    {
     "band": "20_30",
-    "favorable": 137,
+    "favorable": 130,
     "group": "amazonia",
     "total": 147
    },
    {
     "band": "gt_30",
-    "favorable": 453,
+    "favorable": 404,
     "group": "amazonia",
     "total": 596
    },
    {
     "band": "lt_20",
-    "favorable": 26,
+    "favorable": 21,
     "group": "amazonia",
     "total": 29
    },
@@ -685,7 +685,7 @@
    },
    {
     "band": "gt_30",
-    "favorable": 6310,
+    "favorable": 6324,
     "group": "andina",
     "total": 7240
    },
@@ -697,67 +697,67 @@
    },
    {
     "band": "20_30",
-    "favorable": 627,
+    "favorable": 563,
     "group": "caribe",
     "total": 672
    },
    {
     "band": "gt_30",
-    "favorable": 2237,
+    "favorable": 1774,
     "group": "caribe",
     "total": 2995
    },
    {
     "band": "lt_20",
-    "favorable": 181,
+    "favorable": 147,
     "group": "caribe",
     "total": 210
    },
    {
     "band": "20_30",
-    "favorable": 125,
+    "favorable": 114,
     "group": "insular",
     "total": 127
    },
    {
     "band": "gt_30",
-    "favorable": 429,
+    "favorable": 337,
     "group": "insular",
     "total": 563
    },
    {
     "band": "lt_20",
-    "favorable": 39,
+    "favorable": 36,
     "group": "insular",
     "total": 48
    },
    {
     "band": "20_30",
-    "favorable": 166,
+    "favorable": 150,
     "group": "orinoquia",
     "total": 174
    },
    {
     "band": "gt_30",
-    "favorable": 610,
+    "favorable": 549,
     "group": "orinoquia",
     "total": 821
    },
    {
     "band": "lt_20",
-    "favorable": 52,
+    "favorable": 47,
     "group": "orinoquia",
     "total": 57
    },
    {
     "band": "20_30",
-    "favorable": 371,
+    "favorable": 369,
     "group": "pacifica",
     "total": 382
    },
    {
     "band": "gt_30",
-    "favorable": 1373,
+    "favorable": 1345,
     "group": "pacifica",
     "total": 1659
    },
@@ -771,55 +771,55 @@
   "sexo": [
    {
     "band": "20_30",
-    "favorable": 1448,
+    "favorable": 1412,
     "group": "F",
     "total": 1507
    },
    {
     "band": "gt_30",
-    "favorable": 5421,
+    "favorable": 5088,
     "group": "F",
     "total": 6588
    },
    {
     "band": "lt_20",
-    "favorable": 465,
+    "favorable": 443,
     "group": "F",
     "total": 504
    },
    {
     "band": "20_30",
-    "favorable": 1375,
+    "favorable": 1320,
     "group": "M",
     "total": 1436
    },
    {
     "band": "gt_30",
-    "favorable": 5278,
+    "favorable": 4973,
     "group": "M",
     "total": 6420
    },
    {
     "band": "lt_20",
-    "favorable": 405,
+    "favorable": 383,
     "group": "M",
     "total": 457
    },
    {
     "band": "20_30",
-    "favorable": 159,
+    "favorable": 150,
     "group": "no_informado",
     "total": 166
    },
    {
     "band": "gt_30",
-    "favorable": 713,
+    "favorable": 672,
     "group": "no_informado",
     "total": 866
    },
    {
     "band": "lt_20",
-    "favorable": 54,
+    "favorable": 51,
     "group": "no_informado",
     "total": 56
    }

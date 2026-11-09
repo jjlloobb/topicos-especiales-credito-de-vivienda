@@ -4,7 +4,7 @@ UV := cd $(ROOT) && uv run
 # Directorio de la entrega (ignorado por el control de versiones): datasets/, package/ y reference-policy.json.
 OUT ?= $(ROOT)/reference-model/.out
 
-.PHONY: lint imports test check release release-base verify-release runbooks traceability not-applicable
+.PHONY: lint imports test simulation check release release-base verify-release runbooks traceability not-applicable
 
 lint:
 	$(UV) ruff check reference-model
@@ -16,8 +16,12 @@ imports:
 # Pasos 2 a 7 y 10: cobertura de ramas >= 90 % en vectra_reference y 100 % en envelope/confidence.py (NFR-U5-33).
 # `reference-model/pytest.ini` apunta la cobertura a vectra_reference y no a la de U0 de la raiz.
 test:
-	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest reference-model/tests -q -p no:cacheprovider --rootdir=reference-model --import-mode=importlib --cov --cov-branch --cov-fail-under=90
+	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest reference-model/tests -q -p no:cacheprovider --rootdir=reference-model --import-mode=importlib -m "not simulation" --cov --cov-branch --cov-fail-under=90
 	$(UV) coverage report --include="*/vectra_reference/envelope/confidence.py" --fail-under=100
+
+# U05-T05 (BR-U5-14): tasa de congelamiento de R4 sobre 2 000 muestras `stratified` de `test`; tarda unos 6 min y no entra en `check`.
+simulation:
+	$(UV) pytest reference-model/tests -m simulation -v -s -p no:cacheprovider --rootdir=reference-model --import-mode=importlib
 
 # Paso 9: el procedimiento sigue la plantilla y cada paso de verificacion nombra un comando.
 runbooks:

@@ -119,12 +119,14 @@ package:
 # solicitante que no incumplio en el dataset base se le suma, con la probabilidad indicada, un incumplimiento extra segun
 # su zona y su detalle de canal (las dos probabilidades se combinan como sucesos independientes). Las zonas castigadas son
 # las de caribe, pacifico, orinoquia y amazonia, de modo que el modelo aprende una dependencia de la region SIN usarla.
-# Las cifras son sinteticas y se afinan para que la disparidad agregada de `validation` sea >= `min_disparity_pp`.
+# Las cifras son sinteticas y se afinan para que la disparidad agregada de `validation` sea >= `min_disparity_pp` y R4 congele
+# >= 95 % de las muestras `stratified` (BR-U5-14 enmendada, U05-T05). Retrabajo: x1,6 sobre los valores del Paso 6
+# (zona 0,012/0,036/0,030 y detalle 0,020/0,010 daban 11,66 pp y congelaban el 7,75 % de 2 000 muestras).
 proxy:
   rt2_runs: 5                       # un paquete por corrida de RT-2 (cuarta revision de coherencia, 2026-10-31)
   purpose: "rt2-demo"
-  min_disparity_pp: 10.0            # BR-U5-14 (el doble del umbral de U9)
+  min_disparity_pp: 18.0            # BR-U5-14 enmendada (U05-T05): D* = 17,5 pp de U9 con margen (F-05 de la ronda 3)
   max_base_disparity_pp: 5.0        # BR-U5-06
   label_seed_stream: 3              # la semilla de las etiquetas extra es [seed, 3]
-  zone_extra_default: {zona_4: 0.012, zona_5: 0.036, zona_6: 0.030}
-  detail_extra_default: {aliado_grupo_c: 0.020, aliado_grupo_d: 0.010}
+  zone_extra_default: {zona_4: 0.0192, zona_5: 0.0576, zona_6: 0.048}
+  detail_extra_default: {aliado_grupo_c: 0.032, aliado_grupo_d: 0.016}

@@ -10,17 +10,15 @@ aplica sobre campos de `ApplicationIn`:
 La etiqueta de la variante depende de forma PARCIAL de las dos busquedas (`generator.yaml`, seccion `proxy`), asi que el
 modelo aprende una dependencia de la region que ninguna feature declara. La disparidad se mide como la mide U9.
 
-**Doble de la libreria de U9.** Cuenta como favorable solo el `outcome` `favorable` de BR-U7-04/05 (`revision_requerida` es NO favorable, BR-U9-01). `vectra_disparity` (U9) todavia no existe. `disparity_by_attribute` y
-`model_aggregate` implementan BR-U9-01 a BR-U9-05 (tasa favorable, celdas con `n_min = 30`, diferencia por banda
-`max - min` sin `no_informado`, agregada ponderada por el tamano de cada banda y mayor agregada de los cuatro
-atributos). No calculan los intervalos de Newcombe de BR-U9-03/04 ni la diferencia sin bandas de BR-U9-06, porque no
-deciden nada. Se reemplaza por `disparity_by_band` cuando U9 exista (candidata en CANDIDATAS.md).
+**Libreria de U9.** La disparidad se mide con `vectra_disparity` (`counts_from_records`, `disparity_by_band`,
+`model_aggregate`) sobre el `outcome` de BR-U7-04/05: solo `favorable` cuenta como favorable y `revision_requerida` no
+(BR-U9-01). `n_min = 30` (BR-U9-02). BR-U5-14 (enmendada en U05-T05): la variante debe pasar de 18 pp por `region`.
 """
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections import Counter
+from collections.abc import Mapping, Sequence
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -34,6 +32,13 @@ from vectra_contracts.labels import age_range, payment_band, region_of
 from vectra_contracts.models.features import FeatureDictionary, FeatureSpec, FeatureSpecItem
 from vectra_contracts.models.governance import PolicyDraft
 from vectra_contracts.validation import age_at
+from vectra_disparity import (
+    ATTRIBUTES,
+    CountTable,
+    counts_from_records,
+    disparity_by_band,
+    model_aggregate,
+)
 
 from vectra_reference.features import Value, base_feature_spec
 
@@ -42,8 +47,6 @@ ZONE_FEATURE: Final = "zona_vivienda"
 DETAIL_FEATURE: Final = "canal_originacion_detalle"
 PROXY_FEATURES: Final = (ZONE_FEATURE, DETAIL_FEATURE)
 LOOKUP_SEPARATOR: Final = "|"  # el mismo que usa `derive` de U0 al armar la clave de la busqueda
-ATTRIBUTES: Final = ("sexo", "rango_edad", "region", "estrato")
-UNINFORMED: Final = "no_informado"
 N_MIN: Final = 30  # BR-U9-02
 
 
@@ -200,7 +203,7 @@ def proxy_labels(
     return out
 
 
-# Doble de la libreria de U9 (BR-U9-01..05) -------------------------------------------------------------------------
+# Disparidad con la libreria de U9 (BR-U9-01..05) -------------------------------------------------------------------------
 
 
 def monitoring_labels(row: Mapping[str, Any], evaluated_on: date) -> dict[str, str]:
@@ -215,47 +218,6 @@ def monitoring_labels(row: Mapping[str, Any], evaluated_on: date) -> dict[str, s
         "estrato": str(row["socioeconomic_stratum"]),
         "banda": payment_band(installment_to_income(cuota, row["monthly_income"], row["other_income"])),
     }
-
-
-def disparity_by_attribute(
-    records: Iterable[tuple[Mapping[str, str], bool]], attribute: str, n_min: int = N_MIN
-) -> float | None:
-    """Agregada del atributo (BR-U9-04): `sum_b w_b * d_b`, o `None` si ninguna banda tiene diferencia.
-
-    `records` son pares (etiquetas de monitoreo, favorable). Una celda (grupo, banda) con menos de `n_min` casos no entra
-    (BR-U9-02); `no_informado` no es extremo (BR-U9-02); `d_b = max(tasa) - min(tasa)` (BR-U9-03); `w_b` es el tamano
-    de la banda contando solo celdas suficientes y sin `no_informado`, sobre las bandas con diferencia (BR-U9-04).
-    """
-    cells: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0])  # (grupo, banda) -> [n, favorables]
-    for labels, favorable in records:
-        cell = cells[(labels[attribute], labels["banda"])]
-        cell[0] += 1
-        cell[1] += int(favorable)
-    by_band: dict[str, list[tuple[int, float]]] = defaultdict(list)
-    for (group, band), (n, favorable) in cells.items():
-        if n >= n_min and group != UNINFORMED:
-            by_band[band].append((n, favorable / n))
-    weighted, total = 0.0, 0
-    for groups in by_band.values():
-        if len(groups) < 2:
-            continue
-        n_band = sum(n for n, _ in groups)
-        rates = [rate for _, rate in groups]
-        weighted += n_band * (max(rates) - min(rates))
-        total += n_band
-    return weighted / total if total else None
-
-
-def model_aggregate(
-    records: Sequence[tuple[Mapping[str, str], bool]], n_min: int = N_MIN
-) -> tuple[str, float] | None:
-    """BR-U9-05: la mayor de las agregadas por atributo y el atributo que la produce; `None` si todas son insuficientes."""
-    results = {a: disparity_by_attribute(records, a, n_min) for a in ATTRIBUTES}
-    valued = {a: v for a, v in results.items() if v is not None}
-    if not valued:
-        return None
-    trigger = max(valued, key=lambda a: valued[a])
-    return trigger, valued[trigger]
 
 
 FAVORABLE: Final = "favorable"
@@ -302,22 +264,34 @@ def outcomes_of(
     ]
 
 
+def counts_of(
+    rows: Sequence[Mapping[str, Any]], outcomes: Sequence[str], evaluated_on: date
+) -> dict[str, CountTable]:
+    """`CountTable` por atributo (U9) de las filas con su `outcome` de BR-U7-04/05."""
+    return counts_from_records(
+        {**monitoring_labels(row, evaluated_on), "outcome": outcome}
+        for row, outcome in zip(rows, outcomes, strict=True)
+    )
+
+
+def model_trigger(counts: Mapping[str, CountTable]) -> tuple[str, float]:
+    """Atributo disparador y su agregada (proporcion), con `disparity_by_band` y `model_aggregate` de U9 (BR-U9-05)."""
+    result = model_aggregate(disparity_by_band(counts, attribute, N_MIN) for attribute in ATTRIBUTES)
+    if result is None:
+        raise ProxyError("disparity_insufficient_sample")
+    return result[0], float(result[1])
+
+
 def disparity_pp(
     rows: Sequence[Mapping[str, Any]], outcomes: Sequence[str], evaluated_on: date
 ) -> tuple[str, float]:
-    """Disparidad agregada del modelo en puntos porcentuales y su atributo disparador.
+    """Disparidad agregada del modelo en puntos porcentuales y su atributo disparador (libreria de U9).
 
     `outcomes` son los de `outcomes_of` (BR-U7-04/05). Solo `favorable` cuenta como favorable: `revision_requerida` y
     `desfavorable` no (BR-U9-01).
     """
-    records = [
-        (monitoring_labels(row, evaluated_on), outcome == FAVORABLE)
-        for row, outcome in zip(rows, outcomes, strict=True)
-    ]
-    result = model_aggregate(records)
-    if result is None:
-        raise ProxyError("disparity_insufficient_sample")
-    return result[0], round(result[1] * 100.0, 4)
+    trigger, aggregate = model_trigger(counts_of(rows, outcomes, evaluated_on))
+    return trigger, round(aggregate * 100.0, 4)
 
 
 def check_base_disparity(measured_pp: float, config: Mapping[str, Any]) -> None:
@@ -328,7 +302,7 @@ def check_base_disparity(measured_pp: float, config: Mapping[str, Any]) -> None:
 
 
 def check_proxy_disparity(measured_pp: float, config: Mapping[str, Any]) -> None:
-    """BR-U5-14: la disparidad de la variante debe ser al menos de 10 pp."""
+    """BR-U5-14 (enmendada en U05-T05): la disparidad de la variante debe ser al menos de `min_disparity_pp` (18 pp)."""
     limit = float(config["proxy"]["min_disparity_pp"])
     if not measured_pp >= limit:
         raise ProxyError(f"proxy_disparity_below:{measured_pp:.2f}<{limit}")

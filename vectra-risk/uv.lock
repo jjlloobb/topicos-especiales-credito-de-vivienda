@@ -1775,6 +1775,7 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "shap" },
     { name = "vectra-contracts" },
+    { name = "vectra-disparity" },
     { name = "xgboost" },
 ]
 
@@ -1787,6 +1788,7 @@ requires-dist = [
     { name = "scikit-learn", specifier = "==1.9.1" },
     { name = "shap", specifier = "==0.54.1" },
     { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
+    { name = "vectra-disparity", editable = "bias-monitoring/disparity" },
     { name = "xgboost", specifier = "==3.4.1" },
 ]
 
