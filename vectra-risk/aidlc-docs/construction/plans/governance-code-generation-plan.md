@@ -53,7 +53,7 @@ vectra-risk/governance/
 
 ### Bloque A — Estructura
 
-- [ ] **Paso 1 — Esqueleto de `governance/`**
+- [x] **Paso 1 — Esqueleto de `governance/`** (U04-T01)
   - Directorios de §1; `pyproject.toml` (miembro del workspace) con extras separados: el servicio **sin** librerías de inferencia y `validation_job` con ONNX Runtime, `xgboost` y `lightgbm`.
   - `validation_job` depende además de `vectra_disparity` (librería de U9, ruta del workspace; doble mientras no exista) para la disparidad inicial y el modo `source_comparison` (tercera revisión del FD de U9, 2026-10-10).
   - Contrato de import-linter: `model_fsm`, `policy`, `serving_config` y `registration` sin E/S; ningún módulo del servicio importa librerías de inferencia.
@@ -62,7 +62,7 @@ vectra-risk/governance/
 
 ### Bloque B — Datos
 
-- [ ] **Paso 2 — Migraciones de `governance-db`**
+- [x] **Paso 2 — Migraciones de `governance-db`** (U04-T01)
   - Tablas de domain-entities §1–§5 (incluidos `archived_uri` y `archived_at`); índice único parcial «una sola versión `activo` o `congelado`»; una sola política `activa`; tabla única `transitions` para modelo, política y fuente, con `entity_type` y `entity_id`, e índice único parcial `(entity_type, entity_id, transition_number) WHERE status <> 'abandonada'` (precisado el 2026-10-06, revisión del FD de U8); columnas `unit_id`, `kind` (`cambio_estado` \| `compensacion`) y estado `descartada` (precisado el 2026-10-06, revisión del FD de U8).
   - Triggers `guard_unfreeze` y `guard_freeze` (P-U4-06).
   - `validation_runs.mode` (`validacion` por omisión en las filas existentes), `source_id`, `baseline_version_id`; `model_versions.source_candidate_for`; `data_sources.pre_post_report` (segunda revisión del FD de U9, 2026-10-08).
@@ -80,44 +80,44 @@ vectra-risk/governance/
 
 ### Bloque C — Lógica pura
 
-- [ ] **Paso 3 — `model_fsm`**
+- [x] **Paso 3 — `model_fsm`** (U04-T02)
   - Función pura con la tabla de BR-U4-01; errores `Forbidden`/`ConflictState`.
   - Propiedad PBT-U4-02 (oráculo sobre el producto completo de estados × acciones × actores).
   - Diseño: BR-U4-01, 02, 04, 10. Historias: US-203, US-305.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_model_fsm.py`.
 
-- [ ] **Paso 4 — `policy`**
+- [x] **Paso 4 — `policy`** (U04-T02)
   - Validación de la lista normativa (BR-U0-33); `normative_at(policy, fecha)` con fechas en **`America/Bogota`**; cuatro ojos; activación (la anterior pasa a `historica`).
   - Propiedades PBT-U4-03 (incluidos los bordes de la medianoche de Bogotá) y PBT-U4-04.
   - Diseño: BR-U4-10, 11; P-U4-05. Historias: US-205, US-206.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_policy.py`, y la prueba con reloj simulado: el cambio de vigencia ocurre a las 00:00 de Bogotá y no a las 19:00 de Bogotá.
 
-- [ ] **Paso 5 — `serving_config`**
+- [x] **Paso 5 — `serving_config`** (U04-T02)
   - Composición de domain-entities §5 (incluido `inference_service`) y `etag` (JCS de todos los campos; sin `bias_monitoring_age_s`, precisado el 2026-10-08 por U9 FD); prueba de ejemplo: cambiar solo `inference_service` cambia el `etag`.
   - Propiedad PBT-U4-05.
   - Diseño: BR-U4-11, 14; P-U4-07.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_serving_config.py`.
 
-- [ ] **Paso 6 — `registration`**
+- [x] **Paso 6 — `registration`** (U04-T02)
   - Formato permitido, rechazo de `pickle`/`joblib` por extensión y bytes mágicos, SHA-256 sobre los bytes de cada archivo del `manifest.json` (U5) y mismo `model_version_id` en todos; nunca deserializa.
   - Propiedad PBT-U4-06.
   - Diseño: BR-U4-06. Historia: US-201.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_registration.py`, más una prueba que hace fallar a cualquier deserializador si se lo invoca (*monkeypatch* de `pickle.loads`, `joblib.load` y `onnx.load`).
 
-- [ ] **Paso 7 — Resumen de la lógica pura**
+- [x] **Paso 7 — Resumen de la lógica pura** (U04-T02)
   - `aidlc-docs/construction/governance/code/business-logic-summary.md`.
   - **Aceptación**: `uv run python platform/tests/test_traceability.py --unit governance --section logic` (BR-U4-01, 02, 04, 06, 10, 11 y 14 aparecen en las pruebas).
 
 ### Bloque D — Servicio
 
-- [ ] **Paso 8 — Evidencia en dos fases, reconciliador y barridos**
+- [x] **Paso 8 — Evidencia en dos fases, reconciliador y barridos** (U04-T03, acotado a la demo)
   - Transición `pendiente_registro` → append con `idempotency_key = UUIDv5(entity_type:entity_id, n)` → `confirmada` + efecto (BR-U4-17); excepción de `freeze` (BR-U4-15); conflicto tras un abandono → reenviar la abandonada y confirmarla (precisado el 2026-10-06).
   - Tarea de fondo con `SKIP LOCKED`, que toma solo la menor `n` pendiente de cada entidad: reintentos, `abandonada` a las 24 h (salvo `freeze` y compensaciones), `FreezeEventPending`, compensaciones `transicion_descartada` sin abandono con `CompensationEventPending`, y barrido de validaciones vencidas (P-U4-02; precisado el 2026-10-06, revisión del FD de U8).
   - Propiedades stateful **PBT-U4-01** (máquina completa con actores y MFA, contra el servicio y Testcontainers) y **PBT-U4-07** (registro con fallos al azar).
   - Diseño: BR-U4-05, 15, 17; NFR-U4-40; P-U4-02.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_stateful_*.py governance/tests/integration/test_evidence.py`, con 2 réplicas y un doble del registro que falla al azar: ninguna transición distinta de `freeze` cambia el estado sin ack; ningún evento se duplica; abandono + transición nueva con la abandonada ya escrita → un solo evento y el estado de la abandonada; `frozen_resolution` con el `freeze` pendiente → 409 `transition_pending`; `freeze` con un `mark_active` pendiente → la versión queda `congelado`, el par queda `descartada` sin aplicar aunque luego llegue el ack, la versión destino no pasa a `activo` y la cadena tiene `freeze` y después los `transicion_descartada` (precisado el 2026-10-06, revisión del FD de U8). Una compensación pendiente más de 24 h no pasa a `abandonada`, sigue bloqueando la `frozen_resolution` (409 `transition_pending`) y dispara `CompensationEventPending`; `promtool test rules` de esa alerta. Barrido por modo (tercera revisión del FD de U9, 2026-10-10): un `ValidationRun` `validacion` vencido → la versión a `validacion_fallida`; uno `source_comparison` vencido → solo el run a `timeout`, la fuente sigue `en_evaluacion` y ninguna versión cambia.
 
-- [ ] **Paso 9 — `serving-config` en memoria, convergencia y pools**
+- [x] **Paso 9 — `serving-config` en memoria, convergencia y pools** (U04-T03)
   - Copia en memoria; `LISTEN serving_config` + sondeo del `etag` cada 1 s; temporizador de medianoche de Bogotá; readiness solo con la copia cargada.
   - Edad de la copia (NFR-U4-04; revisión de coherencia entre unidades, 2026-10-10): gauge `vectra_serving_config_age_seconds` (segundos desde la última confirmación contra la base); a los 30 s sin confirmar, `GET /v1/serving-config` responde 503.
   - `If-None-Match`/304.
@@ -128,7 +128,7 @@ vectra-risk/governance/
     - con la base pausada, `serving-config` sigue respondiendo la última copia durante 29 s y responde 503 a los 30 s; el gauge de edad crece y vuelve a 0 al reanudar la base (revisión de coherencia entre unidades, 2026-10-10);
     - `pg_stat_activity` cuenta 5 conexiones por réplica.
 
-- [ ] **Paso 10 — Endpoints**
+- [x] **Paso 10 — Endpoints** (U04-T04, acotado a la demo)
   - Modelos: registrar, lanzar validación (Job en `vectra-staging` por K01, con TTL, `activeDeadlineSeconds` y `backoffLimit: 0`), recibir el informe (F32), aprobar o rechazar, `mark_active`, retirar.
   - Registro: los paquetes RT-3 (a), (c) y (d) de U5 → 422 sin crear la versión; (b) → aceptado (BR-U4-06; doble de los paquetes hasta que exista U5; quinta revisión de coherencia entre unidades, 2026-10-31).
   - `freeze` (solo `governance:freeze`).
@@ -156,7 +156,7 @@ vectra-risk/governance/
     
     Además, `make -C contracts openapi && git diff --exit-code contracts/openapi/`.
 
-- [ ] **Paso 11 — Resumen del servicio**
+- [x] **Paso 11 — Resumen del servicio** (U04-T04)
   - `aidlc-docs/construction/governance/code/api-summary.md`.
   - **Aceptación**: `uv run python platform/tests/test_traceability.py --unit governance --section api` (BR-U4-03, 05, 07, 08, 12, 13 y 15..17 aparecen en las pruebas).
 

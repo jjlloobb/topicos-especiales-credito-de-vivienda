@@ -303,7 +303,7 @@ aclaración; los demás siguen en E.
 | Unidad | Actual | Propuesta | Fusión propuesta (en orden de dependencias) |
 |---|---|---|---|
 | U3 (11–20) | 5 | **3** | E (11–12) · F+G (13, 15, 16) · H+I (18–20) |
-| U4 | 9 | **6** | A+B · C · D (8–11) · E (12–13) · F+G (16–19) · H+I (20–22) |
+| U4 | 9 | **7** | A+B · C · D1 (8–9) · D2 (10–11) · E (12–13) · F+G (16–19) · H+I (20–22). D partido el 2026-11-09 (`governance-bloque-d-precisiones.md` Q-5) |
 | U6 | 6 | **3** | A+B (1–5) · C+D (6–8, 10) · E+F (11–13) |
 | U7 | 7 | **5** | A · B (3–5, 7) · C+D (8, 10–13) · E (14, 15, 17) · F+G (18–20) |
 | U8 | 9 | **6** | A+B · C · D (9–13) · E+F (14, 15, 17, 18) · G (19–23) · H+I (24–26) |

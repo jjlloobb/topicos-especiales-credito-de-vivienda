@@ -59,3 +59,5 @@ components:
   - { name: grafana-config, wave: 4, namespace: vectra-observability, path: platform/observability/grafana, include: manifests.yaml }
   - { name: grafana-dashboards, wave: 4, namespace: vectra-observability, path: platform/observability/dashboards }
   - { name: restore-drill, wave: 5, namespace: vectra-restore-drill, path: platform/restore-drill, include: "{cronjob.yaml,configmap-{env}.yaml}" }
+  # U3 (U03-T05): servicio, Job de migracion como hook de sync, CronJob del agregador y ServiceAccounts. `decision-registry-rebuild` (wave 6) esta diferida.
+  - { name: decision-registry, wave: 5, namespace: vectra-app, path: decision-registry/chart, env_values: true }

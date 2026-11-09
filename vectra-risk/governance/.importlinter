@@ -1,0 +1,43 @@
+[importlinter]
+root_package = vectra_governance
+include_external_packages = True
+
+# NFR-U4-24, P-U4-05: la logica pura no hace E/S (ni base, ni red, ni archivos, ni procesos, ni asyncio, ni Kubernetes).
+[importlinter:contract:pure-no-io]
+name = model_fsm, policy, serving_config y registration sin E/S
+type = forbidden
+source_modules =
+    vectra_governance.model_fsm
+    vectra_governance.policy
+    vectra_governance.serving_config
+    vectra_governance.registration
+forbidden_modules =
+    psycopg
+    alembic
+    sqlalchemy
+    httpx
+    requests
+    kubernetes
+    socket
+    urllib
+    http
+    subprocess
+    sqlite3
+    os
+    pathlib
+    shutil
+    tempfile
+    asyncio
+    vectra_common
+allow_indirect_imports = True
+
+# NFR-U4-24: el servicio no importa librerias de inferencia; solo `validation_job` las usa.
+[importlinter:contract:no-inference]
+name = el servicio no importa librerias de inferencia
+type = forbidden
+source_modules =
+    vectra_governance
+forbidden_modules =
+    onnxruntime
+    xgboost
+    lightgbm

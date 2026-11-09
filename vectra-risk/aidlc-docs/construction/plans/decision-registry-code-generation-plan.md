@@ -188,7 +188,7 @@ vectra-risk/decision-registry/
 
 ### Bloque F — Despliegue y operación
 
-- [ ] **Paso 13 — Chart del servicio, buckets y flujos**
+- [x] (U03-T05, acotado a la demo) **Paso 13 — Chart del servicio, buckets y flujos**
   - Deployment: HPA de 2 a 6, spread por zona, PDB, `vectra-critical`, recursos de INF-U3-03.
   - Values por entorno: buckets (MinIO en kind; S3 del banco en staging y prod) y URL de Transit.
   - `ServiceMonitor` del puerto de métricas del servicio, que incluye el gauge `vectra_registry_monitoring_lag_seconds` (F60; sexta revisión del FD de U9, 2026-10-10).
@@ -196,13 +196,13 @@ vectra-risk/decision-registry/
   - Diseño: NFR-U3-11, 41; INF-U3-01..06.
   - **Aceptación**: `helm template` + `conftest`; `uv run python platform/network/generate.py --check && uv run pytest platform/network/tests` (los IDs F77–F79, F96–F99, F107, F108 y **F111** (este, solo en kind; pendientes posteriores al cierre, 2026-10-10) de `component-dependency.md` están en `flows.yaml`, y F60 admite el scrape de Prometheus al puerto de métricas de `decision-registry-service`; sexta revisión del FD de U9, 2026-10-10); `conftest`: el `ServiceMonitor` existe y apunta al puerto de métricas.
 
-- [ ] **Paso 14 — Alertas y runbooks**
+- [ ] **Paso 14 — Alertas y runbooks** (diferido por la demo: T2)
   - `PrometheusRule` con las 15 alertas de P-U3-09 (14 filas: `CheckpointMissing` y `CheckpointExportFailed` comparten una; recuento corregido, pendientes posteriores al cierre, 2026-10-10), incluidas `RegistryOnDemandCheckFailed`, `RegistryOnDemandCheckStuck` y `RegistryFullVerificationOverdue`, con sus runbooks `registry-ondemand-check-failed`, `registry-ondemand-check-stuck` y `registry-full-verification-overdue` (revisión del Infrastructure Design de U10, 2026-10-10; el tercero, pendientes posteriores al cierre, 2026-10-10), incluida `MonitoringAggregatorStale` (que también delata un rebuild fallido, BR-U3-17; runbook `monitoring-rebuild` con el paso de silencio de `MonitoringAggregatorStale` y `MonitoreoSesgoDetenido` (U9) y su vencimiento, más la comprobación de `vectra_bias_last_run_failure{reason}` = `agregador_atrasado` antes de darla por esperada (revisión del FD de U10, 2026-10-10, B12); revisión del NFR Requirements de U9, 2026-10-10 (segunda)) (BR-U3-17: `max(vectra_registry_monitoring_lag_seconds) > 1800` durante 5 min o la serie ausente 15 min; segunda revisión del FD de U9, 2026-10-08); runbooks: `monitoring-aggregator-stale`, `monitoring-rebuild`, `registry-chain-broken`, `registry-default-partition-used`, `checkpoint-missing`, `archive-export-failed`, `registry-partition-missing`, `registry-append-pool-saturated`, `registry-volume-fill-forecast`, `registry-growth-above-forecast`, `registry-verification-failed`, `checkpoint-export-failed`, `registry-entry-large`, los tres de la verificación bajo demanda y uno de rotación de la llave de checkpoints (*cross-signing*); `test_runbooks.py` comprueba que cada una de las 15 alertas apunta a un runbook existente (pendientes posteriores al cierre, 2026-10-10).
   - `docs/retention.md` (NFR-U3-01..04, con los **[VERIFICAR]**) y `docs/capacity.md` (§3.1 de NFR: volumen esperado frente a capacidad de diseño).
   - Diseño: P-U3-09; NFR-U3-01..04, 30..34.
   - **Aceptación**: `promtool test rules decision-registry/observability/rules/tests/*.yaml`; `uv run python platform/tests/test_runbooks.py --root decision-registry`; `test -s decision-registry/docs/retention.md && test -s decision-registry/docs/capacity.md`.
 
-- [ ] **Paso 15 — Applications de GitOps**
+- [x] (U03-T05, acotado a la demo) **Paso 15 — Applications de GitOps**
   - Entrada `decision-registry` en `vectra-risk-gitops/components.yaml` con `wave: 5` (Job de migración como hook, con la `ServiceAccount` `migration-registry` y la etiqueta `vectra.io/workload: migration-registry` de F44, + servicio + CronJobs); `generate.py` escribe las Applications (revisión de consistencia entre unidades, 2026-11-01).
   - **Application aparte `decision-registry-rebuild`** (revisión del Infrastructure Design de U9, 2026-10-10), otra entrada de `components.yaml`, con values en `vectra-risk-gitops/values/<env>/decision-registry-rebuild.yaml` (revisión de consistencia entre unidades, 2026-11-01), en la **wave 6**, después de la de U3 en la wave 5, sin auto-sync, con el chart de los Jobs de reconstrucción (`decision-registry/chart-rebuild/`): los de reconstrucción solo con `monitoringRebuild.runId` y `x06-probe` solo con `probes.runId` en kind; sin ninguno de los dos, la Application no tiene recursos (revisión del FD de U10, 2026-10-10, B11; pendientes posteriores al cierre, 2026-10-10).
   - `vectra-risk-gitops/rebuild-history.yaml`. El check del `runId` es un workflow de `.github/workflows/rebuild-runid-check.yml`, en la raíz del monorepo, obligatorio en la protección de `main`. Corre en todo PR y filtra por ruta dentro del job (`vectra-risk/vectra-risk-gitops/values/*/decision-registry-rebuild.yaml`), porque GitHub deja pendiente un check obligatorio con `on.paths` cuando el PR no toca la ruta (revisión de consistencia entre unidades, 2026-11-01). Rechaza un `monitoringRebuild.runId` repetido, uno que no tenga el formato `AAAAMMDD-HHMM` o uno que el mismo PR no agregue a `rebuild-history.yaml`. `probes.runId` (de U12, solo kind) no va a `rebuild-history.yaml`: el check solo exige que tenga el mismo formato y que no aparezca en los values de staging ni de producción (pendientes posteriores al cierre, 2026-10-10).
@@ -211,12 +211,12 @@ vectra-risk/decision-registry/
 
 ### Bloque G — Calidad
 
-- [ ] **Paso 16 — Cobertura, mutación y trazabilidad**
+- [x] (U03-T05, acotado a la demo) **Paso 16 — Cobertura, mutación y trazabilidad**
   - Cobertura de ramas ≥ 95 % global y **100 %** en `chain`, `verify` y `append`; `mutmut` en `chain` y `verify`; trazabilidad de cada BR-U3 a una prueba.
   - Diseño: NFR-U3-52.
   - **Aceptación**: `uv run pytest decision-registry/tests --cov --cov-branch --cov-fail-under=95`, el umbral por módulo, `uv run mutmut run` sin sobrevivientes fuera de la allowlist, y `uv run python platform/tests/test_traceability.py --unit decision-registry --all`.
 
-- [ ] **Paso 17 — Benchmarks y especificación de carga**
+- [ ] **Paso 17 — Benchmarks y especificación de carga** (diferido por la demo: T3)
   - Benchmark de la verificación incremental (NFR-U3-22) con Testcontainers en CI.
   - Script k6 del append a 50 entradas/s con expedientes concurrentes (NFR-U3-20, 21; P-U3-04).
   - Generador de 10 años sintéticos (36 M entradas) para el benchmark `nightly` (NFR-U3-23).

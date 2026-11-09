@@ -6105,6 +6105,17 @@ Informe en `revisiones/U02-T18/`.
 
 ---
 
+## U04-T01: ronda 1
+**Timestamp**: 2026-11-09T05:49:12Z
+**User Input**: "sí, redáctalas y despáchalas"
+**AI Response**:
+- Primera tarea de U4 (bloques A y B: esqueleto y migraciones de `governance-db`), con el recorte funcional aprobado.
+- Ronda 1 NO-VERDE sin ningún ROJO: dos NARANJA de entorno (CA-5 sin `docker run -p` por permisos, y CA-7 con un 504 de github.com) y tres AMARILLO. 40 pruebas de migraciones y `make -C governance check` pasan en las corridas del revisor.
+- Por RL-2 no se abre ronda 2. El CA-5 queda para que lo corra el usuario, y los hallazgos pasan a `CANDIDATAS.md`.
+
+Informe y arbitraje en `revisiones/U04-T01/`.
+**Context**: Construcción de U4, U04-T01.
+
 ## U03-T04: ronda 1
 **Timestamp**: 2026-11-09T04:56:25Z
 **User Input**: "sigamos"; sobre `checkpoint`, el usuario eligió «A: recorded_at cubierto».
@@ -6194,3 +6205,24 @@ Informes y arbitraje en `revisiones/U02-T19/`.
 - En la ronda 2 ninguna regla cumplió las tres condiciones. Con el lote `stratified` actual, R4 congela la variante proxy solo el 50 % de las veces.
 - El usuario eligió R4 y una variante proxy más fuerte en U5 (tarea U05-T05, aparte), y autorizó una ronda 3 por encima de RL-2. Detalle en `revisiones/U09-T01/arbitraje-ronda-2.md`.
 **Context**: Construcción de U9, U09-T01.
+## U4: precisiones del Bloque D y preparación de U04-T03
+**Timestamp**: 2026-11-09T16:10:00Z
+**User Input**: "sí, prepara la precisión de F-03 y U04-T03"; aprobó Q-1 a Q-6 con la recomendación de cada una.
+**AI Response**:
+- `aidlc-docs/construction/plans/governance-bloque-d-precisiones.md`, APROBADO:
+  - Q-1: `guard_unfreeze` rechaza toda salida de `congelado` salvo a `activo`/`retirado` con resolución;
+  - Q-2: `investigation` solo pasa de `false` a `true` en `congelado` con `investigar`;
+  - Q-3: llave `uuid5(NAMESPACE_URL, "urn:vectra:governance:<entity_type>:<entity_id>:<n>")`;
+  - Q-4: `NOTIFY` solo si cambia el `etag`;
+  - Q-5: Bloque D partido en U04-T03 (Pasos 8–9) y U04-T04 (Pasos 10–11), así que U4 pasa a 7 tareas;
+  - Q-6: P-1 para U4 US-306 resuelto con la opción (a), implementar las rutas.
+- Aplicado en P-U4-06, BR-U4-17, domain-entities §1.3 y `demo-recorte-funcional.md` §4. F-03, F-04 y F-05 de U04-T01 quedan resueltas en `CANDIDATAS.md`.
+- Se prepara U04-T03 con la migración `0004` y la función única de la llave.
+**Context**: Construcción de U4, Bloque D.
+## U03-T05: arbitraje de la ronda 2 (CA-9 `--all`)
+**Timestamp**: 2026-11-09T21:00:00Z
+**User Input**: respuesta a la pregunta sobre CA-9: "Rule \"no new failures\" (Recommended)"
+**AI Response**:
+- La ronda 2 de U03-T05 salió NO-VERDE por un ROJO: `test_traceability.py --all` da rc=1 por 26 identificadores de U4 que vienen de main. U3 está limpio.
+- El usuario aprobó la regla «sin fallos nuevos» para todas las tareas de la demo (`DECISIONES-LOOP.md` §6). Se abre el PR.
+**Context**: Construcción de U3, U03-T05.

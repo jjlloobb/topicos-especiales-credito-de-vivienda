@@ -9,7 +9,9 @@ PLATFORM = Path(__file__).resolve().parents[1]
 #: Memoria pedida por todos los pods de kind, proxies incluidos. Es lo que el planificador reserva, no el uso real.
 # Provisional (decisión del usuario, 2026-11-08, U02-T17): U1 + U2 piden 5,47 GiB. Se revisa con la medición del Paso 16 de U2
 # (DD-3 y T6 de `aidlc-docs/construction/plans/demo-kind-alcance.md`).
-BUDGET_GIB = 5.5
+# Subido a 6,1, provisional (decisión del usuario, 2026-11-09, arbitraje de U03-T05): U1 + U2 + U3 piden 6,01 GiB. Sigue
+# provisional hasta la medición de DD-3 con el Paso 16 de U2.
+BUDGET_GIB = 6.1
 PROXY_GIB = 20 / 1024
 MESHED = {
     "vectra-edge", "vectra-app", "vectra-serving", "vectra-staging", "vectra-data", "vectra-identity", "vectra-mock",

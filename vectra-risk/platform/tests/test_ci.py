@@ -730,17 +730,21 @@ def test_traceability_detects_the_prefix():
     assert all("-U2-" in i for i in traceability.own_identifiers("identity-edge"))
 
 
-def test_traceability_unit_without_code_fails():
-    result = run_tool("test_traceability.py", "--unit", "governance", "--all")
-    assert result.returncode == 1 and "sin código" in result.stdout
+# Con una unidad falsa: las unidades reales van ganando código y no sirven de ejemplo de «sin código».
+def test_traceability_unit_without_code_fails(fake_unit, tmp_path, capsys):
+    (tmp_path / "demo/real.py").unlink()
+    assert traceability.main(["--unit", "demo", "--all"]) == 1
+    assert "sin código" in capsys.readouterr().out
 
 
 def test_traceability_unknown_unit_fails():
     assert run_tool("test_traceability.py", "--unit", "no-existe").returncode == 1
 
 
-def test_traceability_all_skips_units_without_code():
-    assert "governance: sin código, se omite" in run_tool("test_traceability.py", "--all").stdout
+def test_traceability_all_skips_units_without_code(fake_unit, tmp_path, capsys):
+    (tmp_path / "demo/real.py").unlink()
+    assert traceability.main(["--all"]) == 0
+    assert "demo: sin código, se omite" in capsys.readouterr().out
 
 
 @pytest.fixture

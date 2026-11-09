@@ -1,0 +1,168 @@
+{{- /* Deployment decision-registry-service, Service, HPA y PDB (Paso 13; INF-U3-03; NFR-U3-10, 11; F42, F96; F60). Sin digest no se renderiza. */ -}}
+{{- $digest := required "image.digest es obligatorio: sin digest no se renderiza" .Values.image.digest -}}
+{{- $repository := include "decision-registry.repository" . -}}
+{{- $db := .Values.database -}}
+{{- $svc := .Values.service -}}
+{{- /* Cada DSN lleva el usuario del Secret de su rol y un `passfile`: la clave no viaja en la URL (libpq la lee del archivo). */ -}}
+{{- $rw := printf "postgresql://%s/%s?sslmode=%s" $db.host $db.name $db.sslmode -}}
+{{- $ro := printf "postgresql://%s/%s?sslmode=%s" $db.hostRo $db.name $db.sslmode -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: decision-registry-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: decision-registry-service
+    app.kubernetes.io/part-of: decision-registry
+    vectra.io/criticality: {{ $svc.criticality }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: {{ $svc.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: decision-registry-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: decision-registry-service
+        app.kubernetes.io/part-of: decision-registry
+    spec:
+      serviceAccountName: decision-registry-service
+      priorityClassName: {{ $svc.priorityClassName }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: decision-registry-service
+      containers:
+        - name: decision-registry-service
+          image: {{ printf "%s@%s" $repository $digest | quote }}
+          imagePullPolicy: IfNotPresent
+          # Tres roles de base distintos en un mismo proceso (P-U3-04): un `.pgpass` en memoria con las tres claves de los Secrets de U1,
+          # escapadas (`\` y `:`), y los DSN apuntan a el. La clave nunca esta en un manifiesto ni en una URL.
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              umask 077
+              escape() { sed -e 's/\\/\\\\/g' -e 's/:/\\:/g'; }
+              entry() { printf '*:*:*:'; printf '%s' "$1" | escape; printf ':'; printf '%s' "$2" | escape; printf '\n'; }
+              {
+                entry "$REGISTRY_APP_USER" "$REGISTRY_APP_PASSWORD"
+                entry "$REGISTRY_HEALTH_USER" "$REGISTRY_HEALTH_PASSWORD"
+                entry "$REGISTRY_VERIFIER_USER" "$REGISTRY_VERIFIER_PASSWORD"
+              } > /run/pgpass/pgpass
+              exec python -m vectra_registry.service
+          ports:
+            - { name: http, containerPort: {{ $svc.port }} }
+            - { name: metrics, containerPort: {{ $svc.metricsPort }} }
+          env:
+            - name: REGISTRY_APP_USER
+              valueFrom: { secretKeyRef: { name: {{ $db.secrets.app | quote }}, key: username } }
+            - name: REGISTRY_APP_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ $db.secrets.app | quote }}, key: password } }
+            - name: REGISTRY_HEALTH_USER
+              valueFrom: { secretKeyRef: { name: {{ $db.secrets.health | quote }}, key: username } }
+            - name: REGISTRY_HEALTH_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ $db.secrets.health | quote }}, key: password } }
+            - name: REGISTRY_VERIFIER_USER
+              valueFrom: { secretKeyRef: { name: {{ $db.secrets.verifier | quote }}, key: username } }
+            - name: REGISTRY_VERIFIER_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ $db.secrets.verifier | quote }}, key: password } }
+            - name: REGISTRY_RW_APP_DSN
+              value: {{ printf "%s&user=$(REGISTRY_APP_USER)&passfile=/run/pgpass/pgpass" $rw | quote }}
+            - name: REGISTRY_RW_HEALTH_DSN
+              value: {{ printf "%s&user=$(REGISTRY_HEALTH_USER)&passfile=/run/pgpass/pgpass" $rw | quote }}
+            - name: REGISTRY_RO_VERIFIER_DSN
+              value: {{ printf "%s&user=$(REGISTRY_VERIFIER_USER)&passfile=/run/pgpass/pgpass" $ro | quote }}
+            - name: REGISTRY_CHECKPOINT_PUBLIC_KEYS
+              valueFrom: { configMapKeyRef: { name: decision-registry-checkpoint, key: REGISTRY_CHECKPOINT_PUBLIC_KEYS } }
+            # Variables de U0 (F50): sin ellas `create_app` no arranca. La CA de Keycloak se monta del ConfigMap de U1 (Bundle de trust-manager).
+            - { name: VECTRA_OIDC_ISSUER, value: {{ .Values.keycloak.issuer | quote }} }
+            - { name: VECTRA_JWKS_URL, value: {{ .Values.keycloak.jwksUrl | quote }} }
+            - { name: VECTRA_CA_BUNDLE, value: /etc/vectra/ca/ca.crt }
+          startupProbe:
+            httpGet: { path: /healthz, port: metrics }
+            periodSeconds: 2
+            failureThreshold: 30
+          # Liveness no depende de la base; readiness exige la replica sincrona (P-U3-01, NFR-U3-11): sin ella el pod sale del balanceo.
+          livenessProbe:
+            httpGet: { path: /healthz, port: metrics }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /readyz, port: metrics }
+            periodSeconds: 5
+            failureThreshold: 2
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: pgpass, mountPath: /run/pgpass }
+            - { name: keycloak-ca, mountPath: /etc/vectra/ca, readOnly: true }
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+      volumes:
+        - name: pgpass
+          emptyDir: { medium: Memory, sizeLimit: 1Mi }
+        - name: keycloak-ca
+          configMap: { name: {{ .Values.keycloak.caConfigMap | quote }}, items: [{ key: ca.crt, path: ca.crt }] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: decision-registry-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: decision-registry-service
+    app.kubernetes.io/part-of: decision-registry
+spec:
+  selector:
+    app.kubernetes.io/name: decision-registry-service
+  ports:
+    - { name: http, port: {{ $svc.port }}, targetPort: http }
+    - { name: metrics, port: {{ $svc.metricsPort }}, targetPort: metrics }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: decision-registry-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: decision-registry-service
+    app.kubernetes.io/part-of: decision-registry
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: decision-registry-service }
+  minReplicas: {{ $svc.hpa.minReplicas }}
+  maxReplicas: {{ $svc.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: {{ $svc.hpa.cpuUtilization }} }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: decision-registry-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: decision-registry-service
+    app.kubernetes.io/part-of: decision-registry
+spec:
+  minAvailable: {{ $svc.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: decision-registry-service
