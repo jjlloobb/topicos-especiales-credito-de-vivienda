@@ -6065,6 +6065,22 @@ Informe en `revisiones/U03-T02/`.
 
 Informes y arbitraje en `revisiones/U05-T01/`.
 **Context**: Construcción de U5, U05-T01.
+
+---
+
+## U05-T02: rondas 1 y 2
+**Timestamp**: 2026-11-08T22:13:59Z
+**User Input**: "Reformular la propiedad (Recomendado)"; "1e-4 absoluta (Recomendado)"
+**AI Response**:
+- Ronda 1 NO-VERDE por un ROJO: Hypothesis refutó PBT-U5-03, porque la distancia de Mahalanobis no es monótona y la propiedad contradecía la fórmula de BR-U5-12.
+- Decisiones del usuario:
+  - PBT-U5-03 se reformula (`c_rango` no creciente y `confidence ≤ c_rango`) y BR-U5-12 no cambia;
+  - tolerancia absoluta de 1e-4 para la suma de contribuciones contra el margen, enmendada en NFR-U5-30, NFR-U6-01 y los planes de U5 y U6. La paridad con shap sigue en 1e-6.
+- Ronda 2 VERDE (96cea22), con tres AMARILLO. F-07 (puntuación de las enmiendas) lo corrige el orquestador; F-08 y F-09 pasan a candidatas.
+- Se abre el PR.
+
+Informes y arbitraje en `revisiones/U05-T02/`.
+**Context**: Construcción de U5, U05-T02.
 ## U02-T18: ronda 1 VERDE
 **Timestamp**: 2026-11-08T19:04:41Z
 **User Input**: "ya fusioné el PR 79"
@@ -6086,3 +6102,47 @@ Informe en `revisiones/U02-T18/`.
 - Al preparar la tarea se encontró que Keycloak no tiene administrador de arranque configurado (`KC_BOOTSTRAP_ADMIN_*`). Entra en U02-T19.
 - U02-T19 cubre B-1, B-2 y B-4.
 **Context**: Construcción de U2, Paso 16.
+
+---
+
+## U03-T03: rondas 1 y 2
+**Timestamp**: 2026-11-09T03:36:18Z
+**User Input**: "sí, prepara y despacha el bloque D de U3"
+**AI Response**:
+- Ronda 1 NO-VERDE por dos ROJO:
+  - BR-U3-03: el escalamiento desde scoring no estaba probado;
+  - BR-U3-13: el expediente salía `verified` aunque la última `full` hubiera dado inconsistente.
+
+  F-04 (`daily:query` sumaba en Python) entró por la demo 7.4.
+- Ronda 2 VERDE (62254e2). El revisor midió con una sonda que el `statement_timeout` no cubre el commit síncrono, y que el reintento no duplica. Un NARANJA (la prueba de volumen del peor caso sin versión, tope por solicitud) queda como candidata prioritaria.
+- F-03, la contradicción entre el plan (403) y U0 (422), queda pendiente de decisión del usuario.
+- Se abre el PR.
+
+Informes y arbitraje en `revisiones/U03-T03/`.
+**Context**: Construcción de U3, U03-T03.
+
+## U05-T03: rondas 1 y 2
+**Timestamp**: 2026-11-09T02:58:55Z
+**User Input**: "sí, prepara y despacha el bloque D de U5"
+**AI Response**:
+- Ronda 1 NO-VERDE por un ROJO: el doble de U9 contaba `revision_requerida` como favorable, contra BR-U9-01. Con el outcome de BR-U7-04/05, la base medía 8,70 pp ≥ 5 (BR-U5-06), y eso arriesgaba un freeze prematuro en la demo 7.4.
+- Ronda 2 VERDE (ac6b8f8):
+  - el doble sigue BR-U9-01;
+  - la base queda en 4,61 pp, con `stratum_slope` de 0,30 a 0,15, AUC 0,909 y la calibración RT-4 intacta;
+  - la variante queda en 11,66 pp.
+
+  Un AMARILLO, el margen de 0,39 pp de la base, ya está en candidatas.
+- Se abre el PR.
+
+Informes y arbitraje en `revisiones/U05-T03/`.
+**Context**: Construcción de U5, U05-T03.
+## U02-T19: rondas 1 y 2
+**Timestamp**: 2026-11-09T00:34:14Z
+**User Input**: "opción a para B-1, y prepara U02-T19"
+**AI Response**:
+- Ronda 1 NO-VERDE por un ROJO (F-01): los recursos y la prioridad del Job de `keycloak-config-cli` no seguían INF-U2-06 ni `logical-components`, y la regla fijaba los valores equivocados. Entraron también F-02 (literales a values) y F-06 (escritura atómica en 0600).
+- Ronda 2 VERDE (546c3eb), con CA-5 completo: `identity-edge check` dio 2767 passed y `platform check` 784 passed. Staging y prod no cambian ni un byte. Cinco AMARILLO: F-03 (documentar `VECTRA_KC_ADMIN_USER`) lo corrige el orquestador en la guía y el resto pasa a candidatas.
+- B-1, B-2 y B-4 del Paso 16 quedan resueltos. Siguen pendientes B-3 (imágenes, del operador) y B-5 (salud de U1 en kind).
+
+Informes y arbitraje en `revisiones/U02-T19/`.
+**Context**: Construcción de U2, U02-T19.

@@ -92,8 +92,40 @@ deny contains msg if {
 }
 
 # regla: documents-exact
-# El render es exactamente esta lista de (tipo, nombre, namespace): nada de mas y nada de menos.
-expected_documents := {
+# El render es exactamente esta lista de (tipo, nombre, namespace): nada de mas y nada de menos. kind suma la excepcion de
+# `keycloak-config-cli` (`kind_only_documents`, U02-T19); staging y prod no.
+expected_documents := base_documents | kind_only_documents if is_kind
+
+expected_documents := base_documents if not is_kind
+
+is_kind if hostname == kind_hostname
+
+# regla: config-cli-only-kind
+# El Job de `keycloak-config-cli`, el administrador de arranque y lo que usan: presentes en kind y ausentes en staging y prod (INF-U2-05a).
+kind_only_documents := {
+	["ConfigMap", "keycloak-config-cli-realm", "vectra-identity"],
+	["ExternalSecret", "keycloak-bootstrap-admin", "vectra-identity"],
+	["ExternalSecret", "keycloak-realm-clients-jwks", "vectra-identity"],
+	["ExternalSecret", "keycloak-realm-synthetic-users", "vectra-identity"],
+	["Job", "keycloak-config-cli", "vectra-identity"],
+	["ServiceAccount", "keycloak-config-cli", "vectra-identity"],
+}
+
+deny contains msg if {
+	is_kind
+	some pair in kind_only_documents
+	not present(pair[0], pair[1])
+	msg := sprintf("config-cli-only-kind: falta %s %s en kind", [pair[0], pair[1]])
+}
+
+deny contains msg if {
+	not is_kind
+	some pair in kind_only_documents
+	present(pair[0], pair[1])
+	msg := sprintf("config-cli-only-kind: %s %s solo existe en kind", [pair[0], pair[1]])
+}
+
+base_documents := {
 	["BackendTLSPolicy", "keycloak", "vectra-identity"],
 	["Certificate", "keycloak-tls", "vectra-identity"],
 	["ExternalSecret", "identity-ca", "vectra-identity"],
@@ -129,10 +161,11 @@ deny contains msg if {
 }
 
 # regla: metadata-annotations
-# Ningun documento lleva anotaciones (como el render versionado): una de hook de Argo CD (`Skip`, `PostSync`) quita piezas del diseno.
+# Ningun documento lleva anotaciones, salvo el Job del hook de kind (regla `config-cli-hook`; como el render versionado): una de hook de Argo CD (`Skip`, `PostSync`) quita piezas del diseno.
 # El pod template solo admite los dos checksum del chart (regla `template-metadata`).
 deny contains msg if {
 	some document in documents
+	not document.kind == "Job"
 	"annotations" in object.keys(document.metadata)
 	msg := sprintf("metadata-annotations: %s %s lleva anotaciones", [document.kind, document.metadata.name])
 }

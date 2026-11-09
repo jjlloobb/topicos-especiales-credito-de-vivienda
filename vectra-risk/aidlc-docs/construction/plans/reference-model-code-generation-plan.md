@@ -64,12 +64,12 @@ vectra-risk/reference-model/
 
 ### Bloque C — Modelo y confianza
 
-- [ ] **Paso 3 — Entrenamiento**
+- [x] **Paso 3 — Entrenamiento** (U05-T02)
   - XGBoost con `nthread` fijo, `hist` y semilla; solo las features de domain-entities §3.1; AUC de validación ≥ 0,85 **[INTERNO]** o la entrega falla.
   - Diseño: BR-U5-07, 08; NFR-U5-10.
   - **Aceptación**: `uv run pytest reference-model/tests/examples/test_train.py` (AUC ≥ 0,85 con la semilla de referencia; una feature excluida en el `feature_spec` → error).
 
-- [ ] **Paso 4 — Envolvente de dominio y `confidence`**
+- [x] **Paso 4 — Envolvente de dominio y `confidence`** (U05-T02)
   - `envelope/fit.py`: p1–p99, categorías vistas, `MinCovDet` y la distribución de distancias.
   - `envelope/confidence.py`: la fórmula de BR-U5-12, cuantizada a `Decimal4`, solo con numpy.
   - Calibración: los casos RT-4 bajo el umbral de `reference_policy` y ≥ 95 % de `test` sobre él; el resultado se publica como `reference-policy.json`, válido según `PolicyDraft` de U0 (seguimiento de la cuarta revisión de coherencia, 2026-10-31).
@@ -77,23 +77,23 @@ vectra-risk/reference-model/
   - Diseño: BR-U5-11..13; NFR-U5-32, 33. Historia: US-106.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest reference-model/tests/property/test_envelope.py`, cobertura del 100 % en `envelope/confidence.py`, y una prueba que importa `confidence` en un entorno con solo numpy.
 
-- [ ] **Paso 5 — Empaquetado**
+- [x] **Paso 5 — Empaquetado** (U05-T02)
   - `predictor.json`, `explainer.json` (TreeSHAP) y `background.csv` (200 filas, sin identificadores).
   - `domain_envelope.json`, `feature_dictionary.json` (en español, con `applicant_safe`) y `feature_spec.json`.
   - `manifest.json` con los SHA-256 y el `model_version_id`.
-  - Validación del explicador: `pred_contribs` de XGBoost contra `shap.TreeExplainer(feature_perturbation="tree_path_dependent")` (tolerancia 1e-6, 1 000 filas) y suma de contribuciones + `base_value` = margen del modelo (precisado por U6 NFR Q1).
+  - Validación del explicador: `pred_contribs` de XGBoost contra `shap.TreeExplainer(feature_perturbation="tree_path_dependent")` (tolerancia 1e-6, 1 000 filas) y suma de contribuciones + `base_value` = margen del modelo con tolerancia absoluta 1e-4 (precisado por U6 NFR Q1; enmienda del 2026-11-08, decisión del usuario tras la ronda 1 de U05-T02).
   - Propiedades PBT-U5-05 y PBT-U5-06.
   - Diseño: BR-U5-09, 10; NFR-U5-30. Historia: US-201.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest reference-model/tests/property/test_package.py reference-model/tests/unit/test_explainer_parity.py`, y el validador de manifiesto de U4 (`vectra_governance.registration`) acepta el paquete; si U4 todavía no existe, se usa la misma lógica copiada en una prueba.
 
 ### Bloque D — Variante proxy y conjunto adversarial
 
-- [ ] **Paso 6 — Variante proxy (RT-2)**
+- [x] **Paso 6 — Variante proxy (RT-2)** (U05-T03)
   - `zona_vivienda` (≥ 5 municipios por zona) y `canal_originacion_detalle` como búsquedas en el `feature_spec`; etiqueta con dependencia parcial; disparidad agregada ≥ 10 pp con la librería de U9 (doble mientras no exista); `purpose = rt2-demo`; 5 paquetes con `rt2_run` de 1 a 5 y `model_version_id` distintos (cuarta revisión de coherencia entre unidades, 2026-10-31).
   - Diseño: BR-U5-06, 14, 15. Historia: US-303.
   - **Aceptación**: `uv run pytest reference-model/tests/examples/test_proxy.py` (disparidad del modelo base < 5 pp y de la variante ≥ 10 pp; ninguna zona con menos de 5 municipios; `municipality_code` no aparece en el `FeatureVector` producido por `derive`; 5 `model_version_id` distintos, con el mismo predictor).
 
-- [ ] **Paso 7 — Conjunto adversarial**
+- [x] **Paso 7 — Conjunto adversarial** (U05-T03)
   - 20 pares RT-1, 18 casos RT-4 y los paquetes RT-3 (a)–(d), con `adversarial/manifest.json` y el resultado esperado de cada caso.
   - Propiedad PBT-U5-07.
   - Diseño: BR-U5-16..18. Historias: US-106, US-109, US-111.
