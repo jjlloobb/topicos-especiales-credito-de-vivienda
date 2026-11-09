@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: model-serving
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '6'
+spec:
+  project: vectra-staging
+  source:
+    repoURL: https://git.banco.internal/vectra/vectra-risk.git
+    targetRevision: main
+    path: vectra-risk/model-serving/chart
+    helm:
+      valueFiles:
+      - /vectra-risk/vectra-risk-gitops/envs/staging/values.yaml
+      - /vectra-risk/vectra-risk-gitops/values/staging/model-serving.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-serving
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

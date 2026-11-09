@@ -1,0 +1,3 @@
+# Una ruta adversarial/ en prod: la rechaza el esquema.
+inferenceServices:
+  - { modelVersionId: mv-2026-01-01-26300247, storageUri: "s3://model-store/adversarial/rt3-a/", profile: prod }

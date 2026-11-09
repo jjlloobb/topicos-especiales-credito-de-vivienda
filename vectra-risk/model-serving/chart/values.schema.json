@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Values del chart model-serving (U6)",
+  "description": "Contrato entre el chart y promotion-tool (U4, Paso 12). promotion-tool edita solo `inferenceServices` de vectra-risk-gitops/values/<env>/model-serving.yaml; ver model-serving/docs/values.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "storageClass": { "type": "string", "description": "Valor de entorno de Argo CD (envs/<env>/values.yaml); el chart no lo usa." },
+    "mockEnabled": { "type": "boolean", "description": "Valor de entorno de Argo CD; el chart no lo usa." },
+    "verificationOperator": { "type": "boolean", "description": "Valor de entorno de Argo CD; el chart no lo usa." },
+    "imageRegistry": { "type": "string", "description": "Registro de entorno (Argo CD). Vacio en un render local." },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["predictor", "explainer"],
+      "properties": {
+        "predictor": { "$ref": "#/definitions/image" },
+        "explainer": { "$ref": "#/definitions/image" }
+      }
+    },
+    "serviceAccountName": { "type": "string", "const": "kserve-model" },
+    "credentialSecret": { "type": "string", "const": "minio-kserve" },
+    "namespaces": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["serving", "staging"],
+      "properties": {
+        "serving": { "type": "string", "const": "vectra-serving" },
+        "staging": { "type": "string", "const": "vectra-staging" }
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prod", "inactive", "staging"],
+      "properties": {
+        "prod": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["namespace", "priorityClassName", "cpuUtilization", "scaleUpStabilizationSeconds", "scaleDownStabilizationSeconds", "predictor", "explainer"],
+          "properties": {
+            "namespace": { "const": "serving" },
+            "priorityClassName": { "type": "string" },
+            "cpuUtilization": { "type": "integer", "minimum": 1, "maximum": 100 },
+            "scaleUpStabilizationSeconds": { "type": "integer", "minimum": 0 },
+            "scaleDownStabilizationSeconds": { "type": "integer", "minimum": 0 },
+            "predictor": { "$ref": "#/definitions/scaled" },
+            "explainer": { "$ref": "#/definitions/scaled" }
+          }
+        },
+        "inactive": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["namespace", "priorityClassName", "predictor", "explainer"],
+          "properties": {
+            "namespace": { "const": "serving" },
+            "priorityClassName": { "type": "string" },
+            "predictor": { "$ref": "#/definitions/fixed" },
+            "explainer": { "$ref": "#/definitions/fixed" }
+          }
+        },
+        "staging": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["namespace", "priorityClassName", "predictor"],
+          "properties": {
+            "namespace": { "const": "staging" },
+            "priorityClassName": { "type": "string" },
+            "predictor": { "$ref": "#/definitions/fixed" }
+          }
+        }
+      }
+    },
+    "packageVolume": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sizeLimit", "mountPath"],
+      "properties": {
+        "name": { "type": "string" },
+        "sizeLimit": { "type": "string", "pattern": "^[0-9]+(Mi|Gi)$" },
+        "mountPath": { "type": "string", "pattern": "^/" }
+      }
+    },
+    "ports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["http", "metrics"],
+      "properties": {
+        "http": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "metrics": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
+    "inferenceServices": {
+      "type": "array",
+      "description": "Los InferenceService declarados. Una entrada por (version, namespace): `isvc-<8 hex>` sale del modelVersionId.",
+      "items": { "$ref": "#/definitions/inferenceService" }
+    }
+  },
+  "definitions": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "digest"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requests", "limits"],
+      "properties": {
+        "requests": { "$ref": "#/definitions/quantities" },
+        "limits": { "$ref": "#/definitions/quantities" }
+      }
+    },
+    "quantities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cpu", "memory"],
+      "properties": {
+        "cpu": { "type": ["string", "number"] },
+        "memory": { "type": "string", "pattern": "^[0-9]+(Mi|Gi)$" }
+      }
+    },
+    "scaled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minReplicas", "maxReplicas", "resources"],
+      "properties": {
+        "minReplicas": { "type": "integer", "minimum": 2 },
+        "maxReplicas": { "type": "integer", "minimum": 2 },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "fixed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replicas", "resources"],
+      "properties": {
+        "replicas": { "type": "integer", "const": 1 },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "inferenceService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["modelVersionId", "storageUri", "profile"],
+      "properties": {
+        "modelVersionId": {
+          "type": "string",
+          "description": "`mv-<fecha>-<8 hex>` (vectra_reference.package). El nombre `isvc-<8 hex>` y la anotacion vectra.io/model-version-id salen de aqui.",
+          "pattern": "^mv-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9a-f]{8}$"
+        },
+        "storageUri": {
+          "type": "string",
+          "description": "Directorio del paquete en el model-store: `s3://model-store/<ruta>/`. Mismo valor para predictor y explicador.",
+          "pattern": "^s3://model-store/[A-Za-z0-9._/-]+$"
+        },
+        "profile": {
+          "type": "string",
+          "description": "prod (activo o por activar, 2 a 4 y 2 a 6 replicas), inactive (1 replica, ya no activo) o staging (1 replica, solo predictor, vectra-staging).",
+          "enum": ["prod", "inactive", "staging"]
+        }
+      },
+      "if": { "properties": { "profile": { "enum": ["prod", "inactive"] } } },
+      "then": { "properties": { "storageUri": { "not": { "pattern": "(^|/)adversarial(/|$)" } } } }
+    }
+  }
+}

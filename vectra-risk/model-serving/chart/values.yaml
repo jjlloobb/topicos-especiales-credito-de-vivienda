@@ -1,0 +1,57 @@
+# Valores comunes del chart de U6 (Pasos 6 y 7). El contrato de `inferenceServices` esta en values.schema.json y docs/values.md.
+# Lo que cambia en cada PR de `promotion-tool` es SOLO `inferenceServices` de vectra-risk-gitops/values/<env>/model-serving.yaml.
+# `storageClass`, `mockEnabled` y `verificationOperator` los pasa Argo CD desde vectra-risk-gitops/envs/<env>/values.yaml
+# (env_values); el chart no los usa, pero el esquema los admite para que el valor de entorno no falle la validacion.
+imageRegistry: ""
+# Imagenes de U06-T01 por digest. Digest de ejemplo mientras el operador no publique las imagenes (Paso 11: `make -C model-serving
+# image-predictor image-explainer` + push); el digest real lo fija cada entorno en su values/<env>/model-serving.yaml.
+images:
+  predictor:
+    repository: kind-registry:5000/vectra/model-predictor
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000001
+  explainer:
+    repository: kind-registry:5000/vectra/model-explainer
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000002
+# ServiceAccount de los pods (`sa: kserve-model` de flows.yaml) y Secret de solo lectura del model-store (F46, `kserve-readonly`).
+# El Secret `minio-kserve` lo crea U1 (ExternalSecret) en vectra-serving y vectra-staging: este chart no crea ninguno.
+serviceAccountName: kserve-model
+credentialSecret: minio-kserve
+namespaces:
+  serving: vectra-serving
+  staging: vectra-staging
+# Perfiles de INF-U6-01 y INF-U6-02. Los fija el diseno: promotion-tool no los toca (solo elige `profile` por version).
+profiles:
+  prod:
+    namespace: serving
+    priorityClassName: vectra-high
+    cpuUtilization: 60
+    scaleUpStabilizationSeconds: 60
+    scaleDownStabilizationSeconds: 300
+    predictor:
+      minReplicas: 2
+      maxReplicas: 4
+      resources: { requests: { cpu: 500m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } }
+    explainer:
+      minReplicas: 2
+      maxReplicas: 6
+      resources: { requests: { cpu: 500m, memory: 512Mi }, limits: { cpu: "2", memory: 1Gi } }
+  inactive:
+    namespace: serving
+    priorityClassName: vectra-normal
+    predictor:
+      replicas: 1
+      resources: { requests: { cpu: 500m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } }
+    explainer:
+      replicas: 1
+      resources: { requests: { cpu: 500m, memory: 512Mi }, limits: { cpu: "2", memory: 1Gi } }
+  staging:
+    namespace: staging
+    priorityClassName: vectra-low
+    predictor:
+      replicas: 1
+      resources: { requests: { cpu: 250m, memory: 256Mi }, limits: { cpu: "1", memory: 512Mi } }
+# Paquete de la version en `emptyDir` (INF-U6-01) y sondas (startup hasta 150 s para descargar y verificar el paquete, P-U6-03).
+packageVolume: { name: kserve-provision-location, sizeLimit: 1Gi, mountPath: /mnt/models }
+ports: { http: 8080, metrics: 8081 }
+# Lo declara promotion-tool: vacio hasta el primer PR de promocion (U06-T02 no declara ninguno).
+inferenceServices: []

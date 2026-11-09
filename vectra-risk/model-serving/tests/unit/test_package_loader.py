@@ -123,6 +123,22 @@ def test_an_unreadable_or_malformed_manifest_is_not_ready(
         load_package(directory, version, PREDICTOR_FILES, "predictor")
 
 
+@pytest.mark.parametrize("bad_entry", [3, {"name": 7}, {"sha256": "x"}])
+def test_a_manifest_entry_that_is_not_an_object_with_a_name_is_not_ready(
+    copy_package: Callable[[], Path], bad_entry: object
+) -> None:
+    """Cierra la rama de `load_package` que lee las entradas del manifiesto con la version correcta (100 % en el cargador, Paso 10)."""
+    directory = copy_package()
+    version = version_of(directory)
+    manifest = json.loads((directory / "manifest.json").read_bytes())
+    manifest["files"].append(bad_entry)
+    (directory / "manifest.json").write_text(json.dumps(manifest))
+    before = _failures("predictor")
+    with pytest.raises(ModelPackageIntegrityFailed, match="manifest_malformed"):
+        load_package(directory, version, PREDICTOR_FILES, "predictor")
+    assert _failures("predictor") == before + 1
+
+
 def test_a_malformed_json_with_a_valid_sha_is_not_ready(copy_package: Callable[[], Path]) -> None:
     directory = copy_package()
     version = version_of(directory)

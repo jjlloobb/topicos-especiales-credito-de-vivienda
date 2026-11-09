@@ -61,3 +61,7 @@ components:
   - { name: restore-drill, wave: 5, namespace: vectra-restore-drill, path: platform/restore-drill, include: "{cronjob.yaml,configmap-{env}.yaml}" }
   # U3 (U03-T05): servicio, Job de migracion como hook de sync, CronJob del agregador y ServiceAccounts. `decision-registry-rebuild` (wave 6) esta diferida.
   - { name: decision-registry, wave: 5, namespace: vectra-app, path: decision-registry/chart, env_values: true }
+  # U6 (U06-T02): los InferenceService de cada version (azul/verde). Los values por entorno no declaran ninguno: los agrega `promotion-tool` por PR
+  # (esquema: model-serving/chart/values.schema.json y model-serving/docs/values.md). El Application es de vectra-serving; el perfil `staging` crea su
+  # predictor en vectra-staging con el namespace explicito del recurso.
+  - { name: model-serving, wave: 6, namespace: vectra-serving, path: model-serving/chart, env_values: true }

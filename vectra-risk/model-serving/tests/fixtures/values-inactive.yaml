@@ -1,0 +1,5 @@
+# Fixture del perfil inactive: la version anterior, en 1 replica por componente, para rollback (INF-U6-02).
+inferenceServices:
+  - modelVersionId: mv-2026-01-01-26300247
+    storageUri: s3://model-store/mv-2026-01-01-26300247/
+    profile: inactive

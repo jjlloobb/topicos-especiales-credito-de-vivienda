@@ -1,0 +1,8 @@
+# Punto de partida de test_promotion_renders.py: una version activa (M1) y una staging (la plantilla del predictor para source_comparison).
+inferenceServices:
+  - modelVersionId: mv-2026-01-01-26300247
+    storageUri: s3://model-store/mv-2026-01-01-26300247/
+    profile: prod
+  - modelVersionId: mv-2026-01-01-26300247
+    storageUri: s3://model-store/mv-2026-01-01-26300247/
+    profile: staging
