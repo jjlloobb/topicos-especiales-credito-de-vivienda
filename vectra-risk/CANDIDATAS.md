@@ -333,3 +333,9 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
 - U4, lanzador (`k8s_jobs.py`, U04-T05): el Job de validación necesita el `cutoff` de la política activa (`VECTRA_CUTOFF`; hoy default `0.0800` de la política de referencia) y `auc_target`; el lanzador no los pasa. Decidir de dónde salen (codificador, U04-T05).
 - U4, `vectra_validation/s3.py` (U04-T05): la firma SigV4 está probada contra un doble, no contra MinIO; comprobarla en kind (U04-T07). Si falla, usar `boto3` o `minio`.
 - U4, imagen del Job (U04-T05): `hadolint` no se corrió (no está en `platform/.tools` de este worktree); `xgboost` arrastra `nvidia-nccl-cu13` (imagen de 1,15 GB); valorar `--no-deps` para esa rueda si el tamaño estorba en kind.
+- U4, `validation_job/config.py` (revisor, U04-T05, ronda 1, F-02, NARANJA): `n_min` 30, umbral 5 pp y `auc_target` 0,85 son literales del Job; `n_min` y el umbral son values de Helm de U9 (BR-U9-13, `values-monitoring-policy.yaml`). Pasarlos desde la configuración.
+- U4, `sync_check` (revisor, U04-T05, AMARILLO): recibe el mismo modelo como predictor y como explicador; con XGBoost solo falla por `version_mismatch`, y no se comprueba el `base_value` de `explainer.json`.
+- U4, imagen de `model-validation-job` (revisor, U04-T05, AMARILLO): 1,15 GB (345 MB de NCCL), incluye el runtime del servicio y se instala con `pip` sin `uv.lock` (`protobuf` 7.36.2 frente a 5.29.6 del lock). Misma clase que `decision-registry`.
+- U4, `FAVORABLE` del Job duplica la constante de `vectra_disparity` (revisor, U04-T05, AMARILLO).
+- U1, `check-chart` (revisor, U04-T05): kyverno entra en pánico cuando los renders de los tres entornos repiten un recurso; hoy no puede verificar ningún chart (también `decision-registry`).
+- U4, `DEFAULT_S3_ENDPOINT` y `DEFAULT_TOKEN_URL` del Job (revisor, U04-T05): deben venir del chart del Deployment en U04-T06, como `callback_url`.
