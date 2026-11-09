@@ -1,0 +1,1387 @@
+---
+# Source: keycloakx/templates/extra-manifests.yaml
+# El realm de Git, sin tocarlo (`--set-file vectra.configCli.realm=identity-edge/keycloak/realm/realm.kind.yaml`, ver `render-keycloak`).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-config-cli-realm
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+data:
+  realm.kind.yaml: |
+        # Realm `vectra` (kind): fuente unica del realm, la aplica keycloak-config-cli (BR-U2-12).
+        # Sin secretos: contrasenas, semillas TOTP, llaves publicas y datos del LDAP son referencias
+        # `$(env:NOMBRE)` que resuelve keycloak-config-cli desde el Secret que entrega ESO.
+        # Validado por identity-edge/tools/realm_lint.py.
+        realm: vectra
+        displayName: Vectra
+        enabled: true
+        sslRequired: all
+        registrationAllowed: false
+        registrationEmailAsUsername: false
+        rememberMe: false
+        loginWithEmailAllowed: false
+        duplicateEmailsAllowed: false
+        resetPasswordAllowed: false
+        editUsernameAllowed: false
+        verifyEmail: false
+        attributes:
+          acr.loa.map: '{"pwd":1,"mfa":2}'
+        accessTokenLifespan: 300
+        ssoSessionIdleTimeout: 1800
+        ssoSessionMaxLifespan: 36000
+        bruteForceProtected: true
+        bruteForceStrategy: LINEAR
+        failureFactor: 5
+        waitIncrementSeconds: 60
+        maxFailureWaitSeconds: 900
+        maxDeltaTimeSeconds: 43200
+        permanentLockout: true
+        maxTemporaryLockouts: 15
+        revokeRefreshToken: true
+        refreshTokenMaxReuse: 0
+        passwordPolicy: length(14) and notUsername and notEmail and passwordHistory(5) and hashAlgorithm(argon2)
+        eventsEnabled: true
+        eventsListeners:
+        - jboss-logging
+        adminEventsEnabled: true
+        adminEventsDetailsEnabled: false
+        webAuthnPolicyRpEntityName: Vectra
+        webAuthnPolicySignatureAlgorithms:
+        - ES256
+        - RS256
+        browserFlow: vectra-browser
+        roles:
+          realm:
+          - name: analista
+          - name: ingeniero_riesgo
+          - name: cro
+          - name: cumplimiento
+          - name: operacion
+        defaultDefaultClientScopes: []
+        defaultOptionalClientScopes: []
+        clientScopes:
+        - name: bias:compare
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-bias-monitoring-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: bias-monitoring-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: case:recommend
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-scoring-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: scoring-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: core:read-credit
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-core-banking-mock
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: core-banking-mock
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: governance:freeze
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-governance-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: governance-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: governance:promotion
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers: []
+        - name: governance:read-dictionary
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-governance-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: governance-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: governance:read-feature-spec
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-governance-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: governance-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: governance:read-serving
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-governance-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: governance-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: governance:validation-report
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-governance-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: governance-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: intake:submit
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-case-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: case-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: registry:append:case
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-decision-registry-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: decision-registry-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: registry:append:governance
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-decision-registry-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: decision-registry-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: registry:append:scoring
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-decision-registry-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: decision-registry-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: registry:read:explanation
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-decision-registry-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: decision-registry-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: registry:read:metrics
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-decision-registry-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: decision-registry-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: registry:read:monitoring
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-decision-registry-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: decision-registry-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        - name: scoring:explain
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: 'true'
+            display.on.consent.screen: 'false'
+          protocolMappers:
+          - name: aud-explainability-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: explainability-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+        scopeMappings:
+        - clientScope: governance:promotion
+          roles:
+          - ingeniero_riesgo
+        - client: vectra-console
+          roles:
+          - analista
+          - ingeniero_riesgo
+          - cro
+          - cumplimiento
+        - client: promotion-tool
+          roles:
+          - ingeniero_riesgo
+        - client: grafana
+          roles:
+          - analista
+          - ingeniero_riesgo
+          - cro
+          - cumplimiento
+          - operacion
+        clientScopeMappings:
+          realm-management:
+          - client: keycloak-config-cli
+            roles:
+            - realm-admin
+          - client: keycloak-reader
+            roles:
+            - view-realm
+            - view-clients
+            - view-users
+        requiredActions:
+        - alias: CONFIGURE_TOTP
+          name: Configure OTP
+          providerId: CONFIGURE_TOTP
+          enabled: true
+          defaultAction: false
+          priority: 10
+        - alias: webauthn-register
+          name: Webauthn Register
+          providerId: webauthn-register
+          enabled: true
+          defaultAction: false
+          priority: 20
+        - alias: UPDATE_PASSWORD
+          name: Update Password
+          providerId: UPDATE_PASSWORD
+          enabled: true
+          defaultAction: false
+          priority: 57
+        authenticationFlows:
+        - alias: vectra-browser
+          description: 'Login del realm vectra: LoA 1 (pwd) y LoA 2 (mfa) por rol'
+          providerId: basic-flow
+          topLevel: true
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: auth-cookie
+            requirement: ALTERNATIVE
+            priority: 10
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-browser forms
+            requirement: ALTERNATIVE
+            priority: 20
+        - alias: vectra-browser forms
+          description: Niveles de autenticacion del realm vectra
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-level-pwd
+            requirement: CONDITIONAL
+            priority: 10
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-mfa-ingeniero_riesgo
+            requirement: CONDITIONAL
+            priority: 20
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-mfa-cro
+            requirement: CONDITIONAL
+            priority: 30
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-mfa-cumplimiento
+            requirement: CONDITIONAL
+            priority: 40
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-mfa-operacion
+            requirement: CONDITIONAL
+            priority: 50
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-mfa-break-glass
+            requirement: CONDITIONAL
+            priority: 60
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-mfa-analista
+            requirement: CONDITIONAL
+            priority: 70
+        - alias: vectra-level-pwd
+          description: 'Nivel 1 (pwd): usuario y contrasena'
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-level-of-authentication
+            requirement: REQUIRED
+            authenticatorConfig: loa-pwd
+            priority: 10
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: auth-username-password-form
+            requirement: REQUIRED
+            priority: 20
+            authenticatorConfig: amr-pwd
+        - alias: vectra-mfa-ingeniero_riesgo factor
+          description: 'Segundo factor: TOTP o WebAuthn'
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: auth-otp-form
+            requirement: ALTERNATIVE
+            priority: 10
+            authenticatorConfig: amr-otp
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: webauthn-authenticator
+            requirement: ALTERNATIVE
+            priority: 20
+            authenticatorConfig: amr-hwk
+        - alias: vectra-mfa-ingeniero_riesgo
+          description: Nivel 2 (mfa) obligatorio para ingeniero_riesgo (BR-U2-03)
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-level-of-authentication
+            requirement: REQUIRED
+            authenticatorConfig: loa-mfa
+            priority: 10
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-user-role
+            requirement: REQUIRED
+            authenticatorConfig: cond-role-ingeniero_riesgo
+            priority: 20
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-mfa-ingeniero_riesgo factor
+            requirement: REQUIRED
+            priority: 30
+        - alias: vectra-mfa-cro factor
+          description: 'Segundo factor: TOTP o WebAuthn'
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: auth-otp-form
+            requirement: ALTERNATIVE
+            priority: 10
+            authenticatorConfig: amr-otp
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: webauthn-authenticator
+            requirement: ALTERNATIVE
+            priority: 20
+            authenticatorConfig: amr-hwk
+        - alias: vectra-mfa-cro
+          description: Nivel 2 (mfa) obligatorio para cro (BR-U2-03)
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-level-of-authentication
+            requirement: REQUIRED
+            authenticatorConfig: loa-mfa
+            priority: 10
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-user-role
+            requirement: REQUIRED
+            authenticatorConfig: cond-role-cro
+            priority: 20
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-mfa-cro factor
+            requirement: REQUIRED
+            priority: 30
+        - alias: vectra-mfa-cumplimiento factor
+          description: 'Segundo factor: TOTP o WebAuthn'
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: auth-otp-form
+            requirement: ALTERNATIVE
+            priority: 10
+            authenticatorConfig: amr-otp
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: webauthn-authenticator
+            requirement: ALTERNATIVE
+            priority: 20
+            authenticatorConfig: amr-hwk
+        - alias: vectra-mfa-cumplimiento
+          description: Nivel 2 (mfa) obligatorio para cumplimiento (BR-U2-03)
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-level-of-authentication
+            requirement: REQUIRED
+            authenticatorConfig: loa-mfa
+            priority: 10
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-user-role
+            requirement: REQUIRED
+            authenticatorConfig: cond-role-cumplimiento
+            priority: 20
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-mfa-cumplimiento factor
+            requirement: REQUIRED
+            priority: 30
+        - alias: vectra-mfa-operacion factor
+          description: 'Segundo factor: TOTP o WebAuthn'
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: auth-otp-form
+            requirement: ALTERNATIVE
+            priority: 10
+            authenticatorConfig: amr-otp
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: webauthn-authenticator
+            requirement: ALTERNATIVE
+            priority: 20
+            authenticatorConfig: amr-hwk
+        - alias: vectra-mfa-operacion
+          description: Nivel 2 (mfa) obligatorio para operacion (BR-U2-03)
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-level-of-authentication
+            requirement: REQUIRED
+            authenticatorConfig: loa-mfa
+            priority: 10
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-user-role
+            requirement: REQUIRED
+            authenticatorConfig: cond-role-operacion
+            priority: 20
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-mfa-operacion factor
+            requirement: REQUIRED
+            priority: 30
+        - alias: vectra-mfa-break-glass factor
+          description: 'Segundo factor: TOTP o WebAuthn'
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: auth-otp-form
+            requirement: ALTERNATIVE
+            priority: 10
+            authenticatorConfig: amr-otp
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: webauthn-authenticator
+            requirement: ALTERNATIVE
+            priority: 20
+            authenticatorConfig: amr-hwk
+        - alias: vectra-mfa-break-glass
+          description: Nivel 2 (mfa) obligatorio para break-glass (BR-U2-03)
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-level-of-authentication
+            requirement: REQUIRED
+            authenticatorConfig: loa-mfa
+            priority: 10
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-user-role
+            requirement: REQUIRED
+            authenticatorConfig: cond-role-break-glass
+            priority: 20
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-mfa-break-glass factor
+            requirement: REQUIRED
+            priority: 30
+        - alias: vectra-mfa-analista factor
+          description: 'Segundo factor: TOTP o WebAuthn'
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: auth-otp-form
+            requirement: ALTERNATIVE
+            priority: 10
+            authenticatorConfig: amr-otp
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: webauthn-authenticator
+            requirement: ALTERNATIVE
+            priority: 20
+            authenticatorConfig: amr-hwk
+        - alias: vectra-mfa-analista
+          description: 'Nivel 2 (mfa) opcional: analista con factor configurado'
+          providerId: basic-flow
+          topLevel: false
+          builtIn: false
+          authenticationExecutions:
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-level-of-authentication
+            requirement: REQUIRED
+            authenticatorConfig: loa-mfa
+            priority: 10
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-user-role
+            requirement: REQUIRED
+            authenticatorConfig: cond-role-analista
+            priority: 20
+          - userSetupAllowed: false
+            authenticatorFlow: false
+            authenticator: conditional-user-configured
+            requirement: REQUIRED
+            priority: 25
+          - userSetupAllowed: false
+            authenticatorFlow: true
+            flowAlias: vectra-mfa-analista factor
+            requirement: REQUIRED
+            priority: 30
+        authenticatorConfig:
+        - alias: loa-pwd
+          config:
+            loa-condition-level: '1'
+            loa-max-age: '36000'
+        - alias: loa-mfa
+          config:
+            loa-condition-level: '2'
+            loa-max-age: '36000'
+        - alias: amr-pwd
+          config:
+            default.reference.value: pwd
+            default.reference.maxAge: '36000'
+        - alias: amr-otp
+          config:
+            default.reference.value: otp
+            default.reference.maxAge: '36000'
+        - alias: amr-hwk
+          config:
+            default.reference.value: hwk
+            default.reference.maxAge: '36000'
+        - alias: cond-role-ingeniero_riesgo
+          config:
+            condUserRole: ingeniero_riesgo
+            negate: 'false'
+        - alias: cond-role-cro
+          config:
+            condUserRole: cro
+            negate: 'false'
+        - alias: cond-role-cumplimiento
+          config:
+            condUserRole: cumplimiento
+            negate: 'false'
+        - alias: cond-role-operacion
+          config:
+            condUserRole: operacion
+            negate: 'false'
+        - alias: cond-role-break-glass
+          config:
+            condUserRole: realm-management.realm-admin
+            negate: 'false'
+        - alias: cond-role-analista
+          config:
+            condUserRole: analista
+            negate: 'false'
+        users:
+        - username: analista-1
+          enabled: true
+          emailVerified: false
+          realmRoles:
+          - analista
+          requiredActions: []
+          credentials:
+          - type: password
+            temporary: false
+            value: $(env:SYNTH_ANALISTA_1_PASSWORD)
+          - type: otp
+            secretData: '{"value":"$(env:SYNTH_ANALISTA_1_TOTP_SEED)"}'
+            credentialData: '{"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1","secretEncoding":"BASE32"}'
+        - username: analista-2
+          enabled: true
+          emailVerified: false
+          realmRoles:
+          - analista
+          requiredActions: []
+          credentials:
+          - type: password
+            temporary: false
+            value: $(env:SYNTH_ANALISTA_2_PASSWORD)
+          - type: otp
+            secretData: '{"value":"$(env:SYNTH_ANALISTA_2_TOTP_SEED)"}'
+            credentialData: '{"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1","secretEncoding":"BASE32"}'
+        - username: ingeniero-1
+          enabled: true
+          emailVerified: false
+          realmRoles:
+          - ingeniero_riesgo
+          requiredActions: []
+          credentials:
+          - type: password
+            temporary: false
+            value: $(env:SYNTH_INGENIERO_1_PASSWORD)
+          - type: otp
+            secretData: '{"value":"$(env:SYNTH_INGENIERO_1_TOTP_SEED)"}'
+            credentialData: '{"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1","secretEncoding":"BASE32"}'
+        - username: ingeniero-2
+          enabled: true
+          emailVerified: false
+          realmRoles:
+          - ingeniero_riesgo
+          requiredActions: []
+          credentials:
+          - type: password
+            temporary: false
+            value: $(env:SYNTH_INGENIERO_2_PASSWORD)
+          - type: otp
+            secretData: '{"value":"$(env:SYNTH_INGENIERO_2_TOTP_SEED)"}'
+            credentialData: '{"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1","secretEncoding":"BASE32"}'
+        - username: cro-1
+          enabled: true
+          emailVerified: false
+          realmRoles:
+          - cro
+          requiredActions: []
+          credentials:
+          - type: password
+            temporary: false
+            value: $(env:SYNTH_CRO_1_PASSWORD)
+          - type: otp
+            secretData: '{"value":"$(env:SYNTH_CRO_1_TOTP_SEED)"}'
+            credentialData: '{"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1","secretEncoding":"BASE32"}'
+        - username: cro-2
+          enabled: true
+          emailVerified: false
+          realmRoles:
+          - cro
+          requiredActions: []
+          credentials:
+          - type: password
+            temporary: false
+            value: $(env:SYNTH_CRO_2_PASSWORD)
+          - type: otp
+            secretData: '{"value":"$(env:SYNTH_CRO_2_TOTP_SEED)"}'
+            credentialData: '{"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1","secretEncoding":"BASE32"}'
+        - username: cumplimiento-1
+          enabled: true
+          emailVerified: false
+          realmRoles:
+          - cumplimiento
+          requiredActions: []
+          credentials:
+          - type: password
+            temporary: false
+            value: $(env:SYNTH_CUMPLIMIENTO_1_PASSWORD)
+          - type: otp
+            secretData: '{"value":"$(env:SYNTH_CUMPLIMIENTO_1_TOTP_SEED)"}'
+            credentialData: '{"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1","secretEncoding":"BASE32"}'
+        - username: cumplimiento-2
+          enabled: true
+          emailVerified: false
+          realmRoles:
+          - cumplimiento
+          requiredActions: []
+          credentials:
+          - type: password
+            temporary: false
+            value: $(env:SYNTH_CUMPLIMIENTO_2_PASSWORD)
+          - type: otp
+            secretData: '{"value":"$(env:SYNTH_CUMPLIMIENTO_2_TOTP_SEED)"}'
+            credentialData: '{"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1","secretEncoding":"BASE32"}'
+        - username: operacion-1
+          enabled: true
+          emailVerified: false
+          realmRoles:
+          - operacion
+          requiredActions: []
+          credentials:
+          - type: password
+            temporary: false
+            value: $(env:SYNTH_OPERACION_1_PASSWORD)
+          - type: otp
+            secretData: '{"value":"$(env:SYNTH_OPERACION_1_TOTP_SEED)"}'
+            credentialData: '{"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1","secretEncoding":"BASE32"}'
+        - username: operacion-2
+          enabled: true
+          emailVerified: false
+          realmRoles:
+          - operacion
+          requiredActions: []
+          credentials:
+          - type: password
+            temporary: false
+            value: $(env:SYNTH_OPERACION_2_PASSWORD)
+          - type: otp
+            secretData: '{"value":"$(env:SYNTH_OPERACION_2_TOTP_SEED)"}'
+            credentialData: '{"subType":"totp","digits":6,"period":30,"algorithm":"HmacSHA1","secretEncoding":"BASE32"}'
+        - username: service-account-keycloak-config-cli
+          enabled: true
+          serviceAccountClientId: keycloak-config-cli
+          clientRoles:
+            realm-management:
+            - realm-admin
+        - username: service-account-keycloak-reader
+          enabled: true
+          serviceAccountClientId: keycloak-reader
+          clientRoles:
+            realm-management:
+            - view-realm
+            - view-clients
+            - view-users
+        clients:
+        - clientId: vectra-console
+          name: vectra-console
+          enabled: true
+          protocol: openid-connect
+          publicClient: true
+          standardFlowEnabled: true
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          serviceAccountsEnabled: false
+          fullScopeAllowed: false
+          attributes:
+            pkce.code.challenge.method: S256
+            post.logout.redirect.uris: https://$(env:PUBLIC_HOSTNAME)/
+            use.refresh.tokens: 'true'
+            default.acr.values: mfa
+          redirectUris:
+          - https://$(env:PUBLIC_HOSTNAME)/callback
+          - https://$(env:PUBLIC_HOSTNAME)/stepup-callback
+          webOrigins:
+          - https://$(env:PUBLIC_HOSTNAME)
+          defaultClientScopes: []
+          optionalClientScopes: []
+          protocolMappers:
+          - name: aud-console-bff
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: console-bff
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+          - name: aud-case-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: case-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+          - name: aud-governance-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: governance-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+          - name: aud-decision-registry-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: decision-registry-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+          - name: aud-bias-monitoring-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: bias-monitoring-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+          - name: aud-explainability-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: explainability-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+          - name: roles
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-realm-role-mapper
+            config:
+              claim.name: roles
+              multivalued: 'true'
+              jsonType.label: String
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+              userinfo.token.claim: 'true'
+          - name: sub
+            protocol: openid-connect
+            protocolMapper: oidc-sub-mapper
+            config:
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+          - name: acr
+            protocol: openid-connect
+            protocolMapper: oidc-acr-mapper
+            config:
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+          - name: amr
+            protocol: openid-connect
+            protocolMapper: oidc-amr-mapper
+            config:
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+          - name: auth_time
+            protocol: openid-connect
+            protocolMapper: oidc-usersessionmodel-note-mapper
+            config:
+              user.session.note: AUTH_TIME
+              claim.name: auth_time
+              jsonType.label: long
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+          - name: name-id-token
+            protocol: openid-connect
+            protocolMapper: oidc-full-name-mapper
+            config:
+              id.token.claim: 'true'
+              access.token.claim: 'false'
+              userinfo.token.claim: 'false'
+        - clientId: promotion-tool
+          name: promotion-tool
+          enabled: true
+          protocol: openid-connect
+          publicClient: true
+          standardFlowEnabled: true
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          serviceAccountsEnabled: false
+          fullScopeAllowed: false
+          attributes:
+            pkce.code.challenge.method: S256
+            use.refresh.tokens: 'true'
+            default.acr.values: mfa
+          redirectUris:
+          - http://127.0.0.1
+          webOrigins: []
+          defaultClientScopes: []
+          optionalClientScopes:
+          - governance:promotion
+          protocolMappers:
+          - name: aud-governance-service
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: governance-service
+              access.token.claim: 'true'
+              id.token.claim: 'false'
+          - name: roles
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-realm-role-mapper
+            config:
+              claim.name: roles
+              multivalued: 'true'
+              jsonType.label: String
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+              userinfo.token.claim: 'true'
+          - name: sub
+            protocol: openid-connect
+            protocolMapper: oidc-sub-mapper
+            config:
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+          - name: acr
+            protocol: openid-connect
+            protocolMapper: oidc-acr-mapper
+            config:
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+          - name: amr
+            protocol: openid-connect
+            protocolMapper: oidc-amr-mapper
+            config:
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+          - name: auth_time
+            protocol: openid-connect
+            protocolMapper: oidc-usersessionmodel-note-mapper
+            config:
+              user.session.note: AUTH_TIME
+              claim.name: auth_time
+              jsonType.label: long
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+        - clientId: grafana
+          name: grafana
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          standardFlowEnabled: true
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          serviceAccountsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_GRAFANA_JWKS)
+            default.acr.values: mfa
+            use.refresh.tokens: 'true'
+          redirectUris:
+          - https://$(env:PUBLIC_HOSTNAME)/grafana/login/generic_oauth
+          webOrigins:
+          - https://$(env:PUBLIC_HOSTNAME)
+          defaultClientScopes: []
+          optionalClientScopes: []
+          protocolMappers:
+          - name: roles
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-realm-role-mapper
+            config:
+              claim.name: roles
+              multivalued: 'true'
+              jsonType.label: String
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+              userinfo.token.claim: 'true'
+          - name: sub
+            protocol: openid-connect
+            protocolMapper: oidc-sub-mapper
+            config:
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+          - name: acr
+            protocol: openid-connect
+            protocolMapper: oidc-acr-mapper
+            config:
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+          - name: amr
+            protocol: openid-connect
+            protocolMapper: oidc-amr-mapper
+            config:
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+          - name: auth_time
+            protocol: openid-connect
+            protocolMapper: oidc-usersessionmodel-note-mapper
+            config:
+              user.session.note: AUTH_TIME
+              claim.name: auth_time
+              jsonType.label: long
+              access.token.claim: 'true'
+              id.token.claim: 'true'
+        - clientId: case-service
+          name: case-service
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_CASE_SERVICE_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes:
+          - core:read-credit
+          - governance:read-serving
+          - registry:append:case
+          protocolMappers: []
+        - clientId: case-worker
+          name: case-worker
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_CASE_WORKER_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes:
+          - case:recommend
+          - governance:read-feature-spec
+          - governance:read-serving
+          protocolMappers: []
+        - clientId: scoring-service
+          name: scoring-service
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_SCORING_SERVICE_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes:
+          - governance:read-serving
+          - registry:append:scoring
+          - scoring:explain
+          protocolMappers: []
+        - clientId: explainability-service
+          name: explainability-service
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_EXPLAINABILITY_SERVICE_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes:
+          - governance:read-dictionary
+          - registry:read:explanation
+          protocolMappers: []
+        - clientId: governance-service
+          name: governance-service
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_GOVERNANCE_SERVICE_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes:
+          - bias:compare
+          - registry:append:governance
+          protocolMappers: []
+        - clientId: bias-monitoring-service
+          name: bias-monitoring-service
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_BIAS_MONITORING_SERVICE_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes:
+          - registry:read:monitoring
+          protocolMappers: []
+        - clientId: bias-monitoring-job
+          name: bias-monitoring-job
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_BIAS_MONITORING_JOB_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes:
+          - governance:freeze
+          - registry:read:monitoring
+          protocolMappers: []
+        - clientId: model-validation-job
+          name: model-validation-job
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_MODEL_VALIDATION_JOB_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes:
+          - governance:validation-report
+          protocolMappers: []
+        - clientId: product-metrics
+          name: product-metrics
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_PRODUCT_METRICS_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes:
+          - registry:read:metrics
+          protocolMappers: []
+        - clientId: verification-reader
+          name: verification-reader
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_VERIFICATION_READER_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes:
+          - registry:read:metrics
+          - registry:read:monitoring
+          protocolMappers: []
+        - clientId: channel
+          name: channel
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_CHANNEL_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes:
+          - intake:submit
+          protocolMappers: []
+        - clientId: channel-simulator
+          name: channel-simulator
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_CHANNEL_SIMULATOR_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes:
+          - intake:submit
+          protocolMappers: []
+        - clientId: keycloak-config-cli
+          name: keycloak-config-cli
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_KEYCLOAK_CONFIG_CLI_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes: []
+          protocolMappers: []
+        - clientId: keycloak-reader
+          name: keycloak-reader
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          fullScopeAllowed: false
+          clientAuthenticatorType: client-jwt
+          attributes:
+            token.endpoint.auth.signing.alg: ES256
+            use.jwks.string: 'true'
+            jwks.string: $(env:CLIENT_KEYCLOAK_READER_JWKS)
+            access.token.lifespan: '300'
+            client_credentials.use_refresh_token: 'false'
+          defaultClientScopes: []
+          optionalClientScopes: []
+          protocolMappers: []
+        

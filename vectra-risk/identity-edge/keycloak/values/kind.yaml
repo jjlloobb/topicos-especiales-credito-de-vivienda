@@ -6,3 +6,39 @@ vectra:
   publicHostname: vectra.localtest.me
   tls:
     issuerRef: { name: vectra-internal-ca, kind: ClusterIssuer }
+  # U02-T19 (B-1): la excepcion de INF-U2-05a, solo en kind. La imagen es `adorsys/keycloak-config-cli:6.5.1-26.5.5` (la etiqueta de la linea 26
+  # de Keycloak), espejada en kind-registry:5000 con el mismo digest del indice (docs/paso-16-kind.md §3). Las listas salen de realm.kind.yaml:
+  # un cliente con `$(env:CLIENT_<ID>_JWKS)` y un usuario con `$(env:SYNTH_<USUARIO>_*)`; una prueba las compara con el realm.
+  configCli:
+    enabled: true
+    image:
+      repository: kind-registry:5000/vectra/keycloak-config-cli
+      digest: sha256:0955d98c8a341898b7aa177477edf8a1e90569ae50bbe7598141c1270b773274
+    realm: ""
+    clients:
+      - bias-monitoring-job
+      - bias-monitoring-service
+      - case-service
+      - case-worker
+      - channel
+      - channel-simulator
+      - explainability-service
+      - governance-service
+      - grafana
+      - keycloak-config-cli
+      - keycloak-reader
+      - model-validation-job
+      - product-metrics
+      - scoring-service
+      - verification-reader
+    syntheticUsers:
+      - analista-1
+      - analista-2
+      - ingeniero-1
+      - ingeniero-2
+      - cro-1
+      - cro-2
+      - cumplimiento-1
+      - cumplimiento-2
+      - operacion-1
+      - operacion-2

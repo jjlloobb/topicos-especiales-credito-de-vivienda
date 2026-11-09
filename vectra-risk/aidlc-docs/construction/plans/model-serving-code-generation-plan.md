@@ -75,7 +75,7 @@ vectra-risk/model-serving/
 - [ ] **Paso 4 — Explicador**
   - `:explain`: contribuciones con `pred_contribs=True` y `base_value` (término de sesgo), en el orden del `feature_spec`, con el `model_version_id` del manifiesto; límite de 8 concurrentes.
   - Diseño: NFR-U6-01, 04, 10; P-U6-05. Historia: US-111.
-  - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest model-serving/tests/property/test_explainer.py`. Propiedad: para todo `FeatureVector` válido generado, la suma de las contribuciones + `base_value` reproduce el margen del predictor (tolerancia 1e-6), y la respuesta lleva el mismo `model_version_id` que `:predict`.
+  - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest model-serving/tests/property/test_explainer.py`. Propiedad: para todo `FeatureVector` válido generado, la suma de las contribuciones + `base_value` reproduce el margen del predictor (tolerancia absoluta 1e-4, NFR-U6-01; enmienda del 2026-11-08, decisión del usuario tras la ronda 1 de U05-T02), y la respuesta lleva el mismo `model_version_id` que `:predict`.
 
 - [ ] **Paso 5 — Dockerfiles y cadena de suministro**
   - Imágenes del predictor y del explicador sobre una base Python oficial pinneada por digest, `runAsNonRoot`, `readOnlyRootFilesystem`; construidas, escaneadas, con SBOM y firmadas con `sign-image.yml` de U1; el escaneo y el SBOM son de `supply-chain.yml`.

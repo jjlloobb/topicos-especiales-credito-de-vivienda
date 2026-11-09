@@ -48,6 +48,29 @@ secret_env := {
 
 env_names := (({"KC_HOSTNAME"} | {n | some n, _ in fixed_env}) | {n | some n, _ in secret_env})
 
+# Solo kind (U02-T19, B-1; INF-U2-05a, excepcion solo en kind): el administrador de arranque del realm `master`, desde el Secret
+# `keycloak-bootstrap-admin` que crea su ExternalSecret. Staging y prod no llevan estas variables.
+kind_public_hostname := "https://vectra.localtest.me/auth"
+
+bootstrap_env := {
+	"KC_BOOTSTRAP_ADMIN_USERNAME": {"name": "keycloak-bootstrap-admin", "key": "username"},
+	"KC_BOOTSTRAP_ADMIN_PASSWORD": {"name": "keycloak-bootstrap-admin", "key": "password"},
+}
+
+bootstrap_names := {n | some n, _ in bootstrap_env}
+
+all_secret_env := object.union(secret_env, bootstrap_env)
+
+# Las variables que debe llevar el StatefulSet de este entorno: kind suma el administrador de arranque.
+expected_env_names := (env_names | bootstrap_names) if is_kind_statefulset_env
+
+expected_env_names := env_names if not is_kind_statefulset_env
+
+is_kind_statefulset_env if {
+	is_keycloak_statefulset
+	env_of("KC_HOSTNAME") == kind_public_hostname
+}
+
 # Cada ExternalSecret de U2 con la clave de la boveda que lee (INF-U2-01, enmienda Q4).
 vault_entries := {
 	"identity-ca": {"key": "identity/ca", "property": "ca.crt", "secretKey": "ca.crt"},
@@ -188,7 +211,7 @@ deny contains msg if {
 deny contains msg if {
 	is_keycloak_statefulset
 	names := {e.name | some e in container.env}
-	extra := names - env_names
+	extra := names - expected_env_names
 	count(extra) > 0
 	msg := sprintf("env-whitelist: variables fuera de la lista blanca: %v", [sort(extra)])
 }
@@ -196,7 +219,7 @@ deny contains msg if {
 deny contains msg if {
 	is_keycloak_statefulset
 	names := {e.name | some e in container.env}
-	missing := env_names - names
+	missing := expected_env_names - names
 	count(missing) > 0
 	msg := sprintf("env-whitelist: faltan variables: %v", [sort(missing)])
 }
@@ -231,13 +254,13 @@ deny contains msg if {
 }
 
 env_shape_ok(e) if {
-	not e.name in object.keys(secret_env)
+	not e.name in object.keys(all_secret_env)
 	object.keys(e) == {"name", "value"}
 	is_string(e.value)
 }
 
 env_shape_ok(e) if {
-	e.name in object.keys(secret_env)
+	e.name in object.keys(all_secret_env)
 	object.keys(e) == {"name", "valueFrom"}
 }
 
@@ -361,7 +384,7 @@ deny contains msg if {
 }
 
 # regla: image
-# NFR-U2-25: la imagen de Keycloak va pinneada por digest (la firma la exigen las políticas de U1, que `policy-keycloak-u1` aplica).
+# NFR-U2-25: la imagen de Keycloak va pinneada por digest. La firma no se comprueba aquí ni en `policy-keycloak-u1` (solo aplica `STATIC_POLICIES`): la exige `verify-images` de U1 en la admisión de staging y prod; en kind no se instala.
 deny contains msg if {
 	is_keycloak_statefulset
 	not count(split(container.image, "@")) == 2
@@ -391,6 +414,23 @@ deny contains msg if {
 	some name, expected in secret_env
 	not env_from_secret(name, expected)
 	msg := sprintf("db-credentials: %s debe salir de secretKeyRef %s/%s", [name, expected.name, expected.key])
+}
+
+# regla: bootstrap-admin
+# El administrador de arranque solo existe en kind y sale de `keycloak-bootstrap-admin`; staging y prod nunca lo llevan.
+deny contains msg if {
+	is_kind_statefulset_env
+	some name, expected in bootstrap_env
+	not env_from_secret(name, expected)
+	msg := sprintf("bootstrap-admin: %s debe salir de secretKeyRef %s/%s", [name, expected.name, expected.key])
+}
+
+deny contains msg if {
+	is_keycloak_statefulset
+	not is_kind_statefulset_env
+	some e in container.env
+	e.name in bootstrap_names
+	msg := sprintf("bootstrap-admin: %s solo existe en kind", [e.name])
 }
 
 env_from_secret(name, expected) if {
@@ -589,7 +629,7 @@ deny contains msg if {
 }
 
 service_account_ok if {
-	input.metadata.name == "keycloak"
+	input.metadata.name in {"keycloak", "keycloak-config-cli"}
 	input.automountServiceAccountToken == false
 	object.keys(input) == {"apiVersion", "kind", "metadata", "automountServiceAccountToken"}
 }
@@ -605,6 +645,7 @@ deny contains msg if {
 deny contains msg if {
 	input.kind == "ExternalSecret"
 	not input.metadata.name in object.keys(vault_entries)
+	not input.metadata.name in config_cli_external_secrets
 	msg := sprintf("external-secret: %s no es un ExternalSecret de U2", [input.metadata.name])
 }
 

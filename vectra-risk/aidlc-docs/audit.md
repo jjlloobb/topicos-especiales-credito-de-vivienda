@@ -6065,6 +6065,22 @@ Informe en `revisiones/U03-T02/`.
 
 Informes y arbitraje en `revisiones/U05-T01/`.
 **Context**: Construcción de U5, U05-T01.
+
+---
+
+## U05-T02: rondas 1 y 2
+**Timestamp**: 2026-11-08T22:13:59Z
+**User Input**: "Reformular la propiedad (Recomendado)"; "1e-4 absoluta (Recomendado)"
+**AI Response**:
+- Ronda 1 NO-VERDE por un ROJO: Hypothesis refutó PBT-U5-03, porque la distancia de Mahalanobis no es monótona y la propiedad contradecía la fórmula de BR-U5-12.
+- Decisiones del usuario:
+  - PBT-U5-03 se reformula (`c_rango` no creciente y `confidence ≤ c_rango`) y BR-U5-12 no cambia;
+  - tolerancia absoluta de 1e-4 para la suma de contribuciones contra el margen, enmendada en NFR-U5-30, NFR-U6-01 y los planes de U5 y U6. La paridad con shap sigue en 1e-6.
+- Ronda 2 VERDE (96cea22), con tres AMARILLO. F-07 (puntuación de las enmiendas) lo corrige el orquestador; F-08 y F-09 pasan a candidatas.
+- Se abre el PR.
+
+Informes y arbitraje en `revisiones/U05-T02/`.
+**Context**: Construcción de U5, U05-T02.
 ## U02-T18: ronda 1 VERDE
 **Timestamp**: 2026-11-08T19:04:41Z
 **User Input**: "ya fusioné el PR 79"
@@ -6104,3 +6120,13 @@ Informe en `revisiones/U02-T18/`.
 
 Informes y arbitraje en `revisiones/U03-T03/`.
 **Context**: Construcción de U3, U03-T03.
+## U02-T19: rondas 1 y 2
+**Timestamp**: 2026-11-09T00:34:14Z
+**User Input**: "opción a para B-1, y prepara U02-T19"
+**AI Response**:
+- Ronda 1 NO-VERDE por un ROJO (F-01): los recursos y la prioridad del Job de `keycloak-config-cli` no seguían INF-U2-06 ni `logical-components`, y la regla fijaba los valores equivocados. Entraron también F-02 (literales a values) y F-06 (escritura atómica en 0600).
+- Ronda 2 VERDE (546c3eb), con CA-5 completo: `identity-edge check` dio 2767 passed y `platform check` 784 passed. Staging y prod no cambian ni un byte. Cinco AMARILLO: F-03 (documentar `VECTRA_KC_ADMIN_USER`) lo corrige el orquestador en la guía y el resto pasa a candidatas.
+- B-1, B-2 y B-4 del Paso 16 quedan resueltos. Siguen pendientes B-3 (imágenes, del operador) y B-5 (salud de U1 en kind).
+
+Informes y arbitraje en `revisiones/U02-T19/`.
+**Context**: Construcción de U2, U02-T19.

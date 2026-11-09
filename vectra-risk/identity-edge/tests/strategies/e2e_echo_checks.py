@@ -80,6 +80,21 @@ def roundtrip(module: ModuleType, headers: list[tuple[str, str]], body: bytes = 
     return json.loads(raw)
 
 
+def call(port: int, method: str, path: str, headers: list[tuple[str, str]] | None = None, body: bytes = b"") -> tuple[int, dict[str, Any]]:
+    """Una peticion al eco que ya esta sirviendo en `port`: el estado y el JSON de la respuesta."""
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        conn.putrequest(method, path, skip_accept_encoding=True)
+        for name, value in headers or []:
+            conn.putheader(name, value.encode("utf-8"))
+        conn.putheader("Content-Length", str(len(body)))
+        conn.endheaders(body)
+        reply = conn.getresponse()
+        return reply.status, json.loads(reply.read() or b"{}")
+    finally:
+        conn.close()
+
+
 def echoed_value(reply: dict[str, Any], name: str) -> str | None:
     for key, value in reply["headers"]:
         if key.lower() == name.lower():
