@@ -50,6 +50,9 @@ dev = [
   "fairlearn==0.15.0",
   "pandas==3.1.1",
   "numpy==2.5.4",
+  # U04-T05: el Job de validacion (extra `validation`) y su fixture ONNX; `onnx` solo construye el modelo de prueba.
+  "vectra-governance[validation]",
+  "onnx==1.22.0",
   # U06-T01: U6 (model-serving) se instala editable para que `uv run` importe sus paquetes.
   "vectra-model-serving",
 ]
@@ -75,7 +78,7 @@ mypy_path = ["contracts/python/vectra_contracts/src", "contracts/python/vectra_c
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
-module = ["prometheus_client.*", "opentelemetry.*"]
+module = ["prometheus_client.*", "opentelemetry.*", "pyarrow.*", "onnxruntime.*"]
 ignore_missing_imports = true
 
 [tool.ruff]

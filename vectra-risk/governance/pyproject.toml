@@ -13,14 +13,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Imagen del `validation_job` (Paso 13): AUC, sincronia predictor/explicador y disparidad inicial.
-# PENDIENTE (A-1): `vectra_disparity` (U9, `bias-monitoring/disparity/`) todavia no existe en main. Se declara aqui como
-# `"vectra-disparity"` con `[tool.uv.sources] vectra-disparity = { workspace = true }` cuando la fusione la tarea U9 A+B
-# (enmienda de recorte funcional §5.3) y la use el codigo del Paso 13 (Bloque E).
+# Imagen del `validation_job` (Paso 13): AUC, sincronia predictor/explicador y disparidad inicial. `vectra-disparity` es la
+# libreria real de U9 (`bias-monitoring/disparity/`, solo biblioteca estandar); `pyarrow` lee el Parquet del dataset (F31).
 validation = [
   "onnxruntime==1.31.1",
   "xgboost==3.4.1",
   "lightgbm==4.7.0",
+  "numpy==2.5.4",
+  "pyarrow==26.0.1",
+  "vectra-disparity",
 ]
 
 [build-system]
@@ -28,8 +29,9 @@ requires = ["hatchling==1.27.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/vectra_governance"]
+packages = ["src/vectra_governance", "validation_job/vectra_validation"]
 
 [tool.uv.sources]
 vectra-contracts = { workspace = true }
 vectra-common = { workspace = true }
+vectra-disparity = { workspace = true }

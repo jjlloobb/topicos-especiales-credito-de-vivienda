@@ -162,7 +162,7 @@ vectra-risk/governance/
 
 ### Bloque E — Herramientas y Jobs
 
-- [ ] **Paso 12 — `promotion-tool`**
+- [ ] **Paso 12 — `promotion-tool`** (pasa a U04-T05b: esquema de values de U6 Paso 7; decisión del usuario, 2026-11-09)
   - `list_promotable`, `create_promotion_pr` (un solo commit que **agrega** el `InferenceService` `isvc-<8 hex>` de la versión, con predictor y explicador del mismo `model_version_id`, más la evidencia `helm template` y `kubectl diff` contra kind), `post_activation_pr` (baja la versión anterior a 1 réplica por componente), `rollback_pr` (restaura los mínimos de producción de la versión `inactivo` antes de su `mark_active`), `retire_inference_service` (PR que retira el de una versión `inactivo` > 7 días) y `mark_active` (que también fija `inference_service` en `serving-config`).
   - Login PKCE con loopback (token solo en memoria), `gh` con la sesión del ingeniero y commit firmado. Nunca sincroniza ni aplica.
   - Diseño: BR-U4-08, 09; NFR-U4-20, 21. Historias: US-204, US-208.
@@ -171,7 +171,7 @@ vectra-risk/governance/
     - ningún archivo de configuración guarda tokens;
     - `! grep -rE "argocd app sync|kubectl apply|helm (install|upgrade)" governance/promotion_tool/`.
 
-- [ ] **Paso 13 — `model-validation-job`**
+- [x] **Paso 13 — `model-validation-job`** (U04-T05, acotado a la demo)
   - En `vectra-staging` (quinta revisión de coherencia entre unidades, 2026-10-31): `ServiceAccount` `model-validation-job` y `ExternalSecret` con la llave `private_key_jwt` de su cliente de Keycloak (F32, F50). La credencial de solo lectura de `validation-datasets` (F31) es `minio-validation`, usuario `validation-readonly`, que U1 ya entrega en `vectra-staging` (revisión de consistencia entre unidades, 2026-11-01). El Job las monta y sigue sin token de Kubernetes. Recursos de INF-U4-01.
   - AUC-ROC (con `auc_target` y `auc_meets_target`), disparidad inicial con la librería de U9 (`counts_from_records` + `disparity_by_band`; doble mientras no exista), prueba de sincronía predictor ↔ explicador, informe con el `disclaimer` y envío por F32.
   - Modo `source_comparison` (BR-U4-13): puntúa el dataset con la versión activa y con la candidata y envía por F32 **solo** tablas de conteo por atributo, nunca filas (precisado el 2026-10-08 por U9 FD).
@@ -183,7 +183,7 @@ vectra-risk/governance/
     - las plantillas del informe pasan `contracts/tools/forbidden_phrases.py` con la lista única de U0 (FR-BIA-08, BR-U0-94; precisado el 2026-10-10 por U10 FD, Q8);
     - modo `source_comparison`: la salida solo tiene tablas de conteo (ninguna clave por registro) y la suma de cada tabla es el tamaño del dataset.
 
-- [ ] **Paso 14 — Scripts de CI**
+- [ ] **Paso 14 — Scripts de CI** (diferido por la demo (T4))
   - `no-unfreeze-paths`: falla si hay escrituras `congelado → activo` fuera del handler de cumplimiento.
   - `promotion-pr-check`, workflow de `.github/workflows/` en la raíz del monorepo, para los PR que tocan `vectra-risk/vectra-risk-gitops/`: un commit, mismo `model_version_id` y evidencia adjunta. Un check obligatorio no puede usar `on.paths`, porque GitHub lo deja pendiente en los PR que no tocan la ruta: el filtro va dentro del job (revisión de consistencia entre unidades, 2026-11-01).
   - `branch-protection-check`: verifica con `gh api` la protección de `main` del único repositorio, el monorepo (`vectra-risk-gitops/` vive dentro, con el prefijo `vectra-risk/`), incluida la aprobación obligatoria de los *code owners* (`require_code_owner_reviews`), que sostiene la revisión de cumplimiento de `values-monitoring-policy.yaml` de U9 y `contracts/forbidden-phrases.yaml` de U0. `CODEOWNERS` es un solo archivo, `.github/CODEOWNERS`, con una regla por ruta (revisión del FD de U10, 2026-10-10, A5; revisión de consistencia entre unidades, 2026-11-01).
@@ -191,7 +191,7 @@ vectra-risk/governance/
   - Diseño: BR-U4-03, 09; NFR-U4-21, 22, 24. Historias: US-204, US-305.
   - **Aceptación**: `uv run pytest governance/tests/unit/test_ci_scripts.py` (cada script falla con un fixture que lo viola y pasa con uno correcto).
 
-- [ ] **Paso 15 — `model-archive`**
+- [ ] **Paso 15 — `model-archive`** (diferido por la demo (T5))
   - CronJob diario: lee del model-store (F101), sube a `vectra-model-archive` (F100) con object lock `COMPLIANCE`, cifrado del lado del servidor y TLS, descarga y verifica el SHA-256, y solo entonces registra `archived_uri` (F102, `gov_archiver`).
   - Diseño: NFR-U4-31; INF-U4-02, 03.
   - **Aceptación**: `uv run pytest governance/tests/integration/test_model_archive.py`, con Testcontainers (PostgreSQL y MinIO con object lock):
