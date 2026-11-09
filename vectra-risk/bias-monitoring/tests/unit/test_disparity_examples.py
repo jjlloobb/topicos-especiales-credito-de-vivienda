@@ -173,15 +173,16 @@ def _model_level(variant):
     return results, model_aggregate(results)
 
 
-def test_u5_proxy_variant_reaches_10_pp_and_the_base_model_stays_under_5_pp():
+def test_u5_proxy_variant_reaches_18_pp_and_the_base_model_stays_under_5_pp():
+    # U05-T05, BR-U5-14 enmendada (arbitraje de la ronda 2 de U09-T01): la variante mide >= 18 pp (25,41 pp hoy).
     _, proxy = _model_level("proxy")
     _, base = _model_level("base")
     assert proxy is not None and base is not None
-    assert proxy[1] >= Decimal("0.10")
+    assert proxy[1] >= Decimal("0.18")
     assert base[1] < Decimal("0.05")
-    # Contraste con el doble de U5 (4,61 pp la base y 11,66 pp la variante; CANDIDATAS.md): ver la bitacora.
+    # Contraste con el doble de U5 (4,61 pp la base; la variante, 25,41 pp tras U05-T05): ver la bitacora.
     assert abs(float(base[1]) * 100 - 4.61) < 0.05
-    assert abs(float(proxy[1]) * 100 - 11.66) < 0.05
+    assert abs(float(proxy[1]) * 100 - 25.41) < 0.05
 
 
 def test_u5_freeze_limit_rt2_proxy_is_above_the_threshold_and_the_base_model_is_not():
