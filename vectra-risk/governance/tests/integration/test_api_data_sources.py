@@ -144,7 +144,7 @@ async def test_start_source_comparison_creates_the_job_in_staging_in_source_comp
     assert (namespace, name) == ("vectra-staging", run["job_name"])
     spec = manifest["spec"]
     assert (spec["ttlSecondsAfterFinished"], spec["activeDeadlineSeconds"], spec["backoffLimit"]) == (86400, 7200, 0)
-    env = {e["name"]: e["value"] for e in spec["template"]["spec"]["containers"][0]["env"]}
+    env = {e["name"]: e.get("value") for e in spec["template"]["spec"]["containers"][0]["env"]}
     assert env["VECTRA_JOB_MODE"] == "source_comparison" and env["VECTRA_SOURCE_ID"] == DS
     assert (env["VECTRA_MODEL_VERSION_ID"], env["VECTRA_BASELINE_VERSION_ID"]) == (CANDIDATE, ACTIVE)
     row = world.sql("SELECT * FROM validation_runs WHERE run_id = %s", run["run_id"])[0]

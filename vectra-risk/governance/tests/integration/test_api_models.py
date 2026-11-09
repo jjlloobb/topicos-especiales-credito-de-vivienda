@@ -140,7 +140,7 @@ async def test_br_u4_05_validation_creates_the_job_in_staging_with_ttl_deadline_
     assert manifest["kind"] == "Job" and manifest["apiVersion"] == "batch/v1"
     spec = manifest["spec"]
     assert (spec["ttlSecondsAfterFinished"], spec["activeDeadlineSeconds"], spec["backoffLimit"]) == (86400, 7200, 0)
-    env = {e["name"]: e["value"] for e in spec["template"]["spec"]["containers"][0]["env"]}
+    env = {e["name"]: e.get("value") for e in spec["template"]["spec"]["containers"][0]["env"]}
     assert env["VECTRA_JOB_MODE"] == "validacion" and env["VECTRA_RUN_ID"] == run["run_id"]
     assert env["VECTRA_MODEL_VERSION_ID"] == model_id and "VECTRA_SOURCE_ID" not in env
     assert world.deps.jobs.get(name) == JobInfo()  # existe y no ha fallado
