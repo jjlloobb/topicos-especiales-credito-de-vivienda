@@ -1,0 +1,16 @@
+# Contexto = raiz de vectra-risk/: la imagen solo COPIA contracts/python y decision-registry/{src,migrations}, pero el contexto
+# se envia entero. Fuera lo pesado (entornos virtuales, caches, herramientas, documentacion).
+.venv
+**/node_modules
+**/__pycache__
+**/.hypothesis
+.benchmarks
+.git
+platform/.tools
+platform/.charts
+aidlc-docs
+bitacoras
+revisiones
+entradas
+tareas
+loop

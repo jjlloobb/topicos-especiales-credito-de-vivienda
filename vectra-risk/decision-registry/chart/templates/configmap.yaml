@@ -1,0 +1,14 @@
+{{- /* Llaves de checkpoints como configuracion (el servicio no tiene acceso a la boveda, P-U3-08). Sin ellas no se renderiza. */ -}}
+{{- $keys := required "checkpoint.publicKeys es obligatorio (Ed25519 en base64, separadas por comas)" .Values.checkpoint.publicKeys -}}
+{{- $fingerprint := required "checkpoint.keyFingerprint es obligatorio (huella de la genesis, BR-U3-10)" .Values.checkpoint.keyFingerprint -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: decision-registry-checkpoint
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: decision-registry-checkpoint
+    app.kubernetes.io/part-of: decision-registry
+data:
+  REGISTRY_CHECKPOINT_PUBLIC_KEYS: {{ $keys | quote }}
+  REGISTRY_CHECKPOINT_KEY_FINGERPRINT: {{ $fingerprint | quote }}

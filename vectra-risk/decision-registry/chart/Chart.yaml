@@ -1,7 +1,8 @@
 apiVersion: v2
 name: decision-registry
 description: >-
-  Chart minimo de U3: el CronJob registry-aggregator (BR-U3-17) y las ServiceAccounts por identidad (P-U3-08).
-  El Paso 13 (Bloque F) lo completa con el Deployment, el HPA, el PDB, el ServiceMonitor y los buckets.
+  Chart de U3: el Deployment decision-registry-service con su Service, HPA, PDB y ServiceMonitor (Paso 13), el Job de migracion como
+  hook de Argo CD (Paso 15), el CronJob registry-aggregator (BR-U3-17) y las ServiceAccounts por identidad (P-U3-08).
+  Diferido por la demo: values de buckets y de Transit, ExternalSecret del S3 del banco, CronJobs de checkpoint, verificacion y archivo.
 type: application
-version: 0.1.0
+version: 0.2.0
