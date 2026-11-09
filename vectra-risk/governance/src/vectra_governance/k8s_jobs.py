@@ -45,6 +45,10 @@ MINIO_SECRET: Final = "minio-validation"  # noqa: S105
 MINIO_ACCESS_KEY: Final = "validation-readonly"
 CLIENT_SECRET: Final = "model-validation-job-client"  # noqa: S105
 CLIENT_KEY_DIR: Final = "/var/run/vectra/client"
+# La CA interna (ConfigMap `vectra-internal-ca` de U1, el mismo que montan los demas clientes con `private_key_jwt`, p. ej.
+# `decision-registry/chart`): `vectra_common` exige `VECTRA_CA_BUNDLE` para hablar https con Keycloak y no desactiva la verificacion.
+CA_CONFIGMAP: Final = "vectra-internal-ca"
+CA_DIR: Final = "/etc/vectra/ca"
 DEFAULT_S3_ENDPOINT: Final = "http://minio.vectra-data.svc.cluster.local:9000"
 DEFAULT_TOKEN_URL: Final = "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token"  # noqa: S105
 Mode = Literal["validacion", "source_comparison"]
@@ -125,6 +129,7 @@ def job_manifest(spec: JobSpec) -> dict[str, Any]:
         "VECTRA_TOKEN_URL": spec.token_url,
         "VECTRA_CLIENT_ID": JOB_SERVICE_ACCOUNT,
         "VECTRA_CLIENT_KEY_PATH": f"{CLIENT_KEY_DIR}/private-key",
+        "VECTRA_CA_BUNDLE": f"{CA_DIR}/ca.crt",
     }
     if spec.source_id is not None and spec.baseline_version_id is not None:
         env["VECTRA_SOURCE_ID"] = spec.source_id
@@ -164,6 +169,7 @@ def job_manifest(spec: JobSpec) -> dict[str, Any]:
                             ],
                             "volumeMounts": [
                                 {"name": "client-key", "mountPath": CLIENT_KEY_DIR, "readOnly": True},
+                                {"name": "internal-ca", "mountPath": CA_DIR, "readOnly": True},
                                 {"name": "tmp", "mountPath": "/tmp"},  # noqa: S108  # emptyDir: la raiz es de solo lectura
                             ],
                             "securityContext": {
@@ -176,6 +182,10 @@ def job_manifest(spec: JobSpec) -> dict[str, Any]:
                     ],
                     "volumes": [
                         {"name": "client-key", "secret": {"secretName": CLIENT_SECRET, "defaultMode": 0o400}},
+                        {
+                            "name": "internal-ca",
+                            "configMap": {"name": CA_CONFIGMAP, "items": [{"key": "ca.crt", "path": "ca.crt"}]},
+                        },
                         {"name": "tmp", "emptyDir": {}},
                     ],
                 },

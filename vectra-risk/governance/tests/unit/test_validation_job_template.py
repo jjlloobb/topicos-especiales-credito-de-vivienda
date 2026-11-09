@@ -98,3 +98,102 @@ def test_the_chart_renders_the_service_account_and_the_external_secret_in_vectra
         {"secretKey": "private-key", "remoteRef": {"key": "identity/clients/model-validation-job", "property": "private-key"}}
     ]
     assert set(docs) == {"ServiceAccount", "ExternalSecret"}  # el resto de U4 es de U04-T06
+
+
+# --- F-03 (ronda 2): la CA interna para pedir el token por https (VECTRA_CA_BUNDLE, deps._verify_context) -----------------------
+
+
+def _self_signed_ca(directory: Path) -> Path:
+    """Una CA de prueba con SAN 127.0.0.1: el servidor la usa como su certificado y el Job la confia por `VECTRA_CA_BUNDLE`."""
+    import datetime as dt
+    import ipaddress
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "vectra-test-ca")])
+    now = dt.datetime.now(dt.UTC)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - dt.timedelta(minutes=1))
+        .not_valid_after(now + dt.timedelta(hours=1))
+        .add_extension(x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]), critical=False)
+        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+        .sign(key, hashes.SHA256())
+    )
+    (directory / "ca.crt").write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    (directory / "ca.key").write_bytes(
+        key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+    )
+    return directory / "ca.crt"
+
+
+def test_the_real_token_provider_builds_its_tls_context_with_the_ca_the_manifest_mounts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sin `poster` inyectado: con solo lo que el manifiesto monta y fija, el proveedor de `vectra_common` pide su token por https."""
+    import asyncio
+    import http.server
+    import json
+    import ssl
+    import threading
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from vectra_validation.config import from_env
+    from vectra_validation.run import token_provider
+
+    pod_spec = pod()["spec"]["template"]["spec"]
+    container = pod_spec["containers"][0]
+    env = {e["name"]: e["value"] for e in container["env"] if "value" in e}
+    ca_path = env.get("VECTRA_CA_BUNDLE")
+    assert ca_path, "el manifiesto no fija VECTRA_CA_BUNDLE"
+    mount = next(m for m in container["volumeMounts"] if ca_path.startswith(m["mountPath"].rstrip("/") + "/"))
+    volume = next(v for v in pod_spec["volumes"] if v["name"] == mount["name"])
+    assert mount["readOnly"] is True
+    assert volume["configMap"]["name"] == "vectra-internal-ca"
+    assert {"key": "ca.crt", "path": ca_path.rsplit("/", 1)[1]} in volume["configMap"]["items"]
+
+    ca = _self_signed_ca(tmp_path)
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            body = json.dumps({"access_token": "tok", "expires_in": 60}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args: object) -> None:
+            return None
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(ca, tmp_path / "ca.key")
+    server.socket = context.wrap_socket(server.socket, server_side=True)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    key = tmp_path / "private-key"
+    key.write_text(
+        ec.generate_private_key(ec.SECP256R1())
+        .private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+        .decode()
+    )
+    # El archivo de la CA existe donde el manifiesto monta el ConfigMap; aqui es el de la prueba (el resto del entorno es el del manifiesto).
+    cluster_env = {
+        **env,
+        "VECTRA_TOKEN_URL": f"https://127.0.0.1:{server.server_port}/token",
+        "VECTRA_CLIENT_KEY_PATH": str(key),
+        "VECTRA_S3_SECRET_KEY": "x",
+    }
+    monkeypatch.setenv("VECTRA_CA_BUNDLE", str(ca))
+    try:
+        assert asyncio.run(token_provider(from_env(cluster_env)).token()) == "tok"
+    finally:
+        server.shutdown()

@@ -83,20 +83,25 @@ def validate(config: JobConfig, store: ObjectReader, sender: ReportSender, evalu
     return report
 
 
+def token_provider(config: JobConfig) -> ServiceTokenProvider:
+    """El proveedor real de tokens (`private_key_jwt`); sin `poster` inyectado, como en el clúster."""
+    return ServiceTokenProvider(
+        config.client_id,
+        config.token_url,
+        Path(config.key_path).read_text(encoding="utf-8"),
+        config.audience,
+        (config.scope,),
+        key_id=config.key_id,
+    )
+
+
 def main(env: dict[str, str] | None = None, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> int:
     """Codigo 0 si el informe se envio; 1 si no (el mensaje es un codigo estable, sin datos del dataset)."""
     try:
         config = from_env(dict(os.environ if env is None else env))
         if config.mode != "validacion":
             raise ValidationJobError("mode_not_supported")
-        tokens = ServiceTokenProvider(
-            config.client_id,
-            config.token_url,
-            Path(config.key_path).read_text(encoding="utf-8"),
-            config.audience,
-            (config.scope,),
-            key_id=config.key_id,
-        )
+        tokens = token_provider(config)
         evaluated_on = date.fromisoformat(config.evaluated_on) if config.evaluated_on else clock().date()
         validate(
             config,
