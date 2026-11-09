@@ -1,0 +1,34 @@
+[project]
+name = "vectra-governance"
+version = "0.1.0"
+description = "U4 governance: modelos, politicas, fuentes de datos y serving-config"
+requires-python = ">=3.12,<3.13"
+# NFR-U4-24: el servicio NO lleva librerias de inferencia (onnxruntime, xgboost, lightgbm); solo el extra `validation` del Job las trae.
+dependencies = [
+  "psycopg[binary]==3.3.8",
+  "alembic==1.20.1",
+  "vectra-contracts",
+  "vectra-common",
+]
+
+[project.optional-dependencies]
+# Imagen del `validation_job` (Paso 13): AUC, sincronia predictor/explicador y disparidad inicial.
+# PENDIENTE (A-1): `vectra_disparity` (U9, `bias-monitoring/disparity/`) todavia no existe en main. Se declara aqui como
+# `"vectra-disparity"` con `[tool.uv.sources] vectra-disparity = { workspace = true }` cuando la fusione la tarea U9 A+B
+# (enmienda de recorte funcional §5.3) y la use el codigo del Paso 13 (Bloque E).
+validation = [
+  "onnxruntime==1.31.1",
+  "xgboost==3.4.1",
+  "lightgbm==4.7.0",
+]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vectra_governance"]
+
+[tool.uv.sources]
+vectra-contracts = { workspace = true }
+vectra-common = { workspace = true }
