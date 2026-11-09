@@ -18,6 +18,21 @@ spec:
       app.kubernetes.io/instance: keycloak
   minAvailable: 1
 ---
+# Source: keycloakx/templates/extra-manifests.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak-config-cli
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+automountServiceAccountToken: false
+
+---
 # Source: keycloakx/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -274,6 +289,17 @@ spec:
             # Sin `clientId` la metrica `keycloak_user_events_total` no lleva `client_id` y `BreakGlassLogin` no dispara.
             - name: KC_EVENT_METRICS_USER_TAGS
               value: realm,clientId
+            # Solo kind (U02-T19, B-1): el administrador de arranque de `master`, del Secret que crea `keycloak-bootstrap-admin` (identity/keycloak-admin).
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-bootstrap-admin
+                  key: username
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-bootstrap-admin
+                  key: password
             
           envFrom:
           ports:
@@ -395,6 +421,107 @@ spec:
 
 ---
 # Source: keycloakx/templates/extra-manifests.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-config-cli
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+    vectra.io/criticality: medium
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: keycloak-config-cli
+        app.kubernetes.io/part-of: identity-edge
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+    spec:
+      serviceAccountName: keycloak-config-cli
+      priorityClassName: vectra-normal
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile: { type: RuntimeDefault }
+      # Java solo confia en su truststore: se arma con la CA de `identity-ca` (keytool viene en la imagen).
+      initContainers:
+        - name: truststore
+          image: kind-registry:5000/vectra/keycloak-config-cli@sha256:0955d98c8a341898b7aa177477edf8a1e90569ae50bbe7598141c1270b773274
+          imagePullPolicy: IfNotPresent
+          command: [keytool]
+          args: [-importcert, -noprompt, -alias, vectra-ca, -file, /etc/vectra/ca/ca.crt, -keystore, /trust/truststore.p12, -storetype, PKCS12, -storepass, changeit]
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          resources:
+                limits:
+                  cpu: 250m
+                  memory: 128Mi
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+          volumeMounts:
+            - { name: identity-ca, mountPath: /etc/vectra/ca, readOnly: true }
+            - { name: trust, mountPath: /trust }
+            - { name: tmp, mountPath: /tmp }
+      containers:
+        - name: keycloak-config-cli
+          image: kind-registry:5000/vectra/keycloak-config-cli@sha256:0955d98c8a341898b7aa177477edf8a1e90569ae50bbe7598141c1270b773274
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: KEYCLOAK_URL, value: "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth" }
+            - { name: KEYCLOAK_SSLVERIFY, value: "true" }
+            - name: KEYCLOAK_USER
+              valueFrom: { secretKeyRef: { name: keycloak-bootstrap-admin, key: username } }
+            - name: KEYCLOAK_PASSWORD
+              valueFrom: { secretKeyRef: { name: keycloak-bootstrap-admin, key: password } }
+            - { name: KEYCLOAK_AVAILABILITYCHECK_ENABLED, value: "true" }
+            - { name: KEYCLOAK_AVAILABILITYCHECK_TIMEOUT, value: "300s" }
+            - { name: IMPORT_FILES_LOCATIONS, value: file:/config/realm.kind.yaml }
+            - { name: IMPORT_VARSUBSTITUTION_ENABLED, value: "true" }
+            - { name: IMPORT_VARSUBSTITUTION_UNDEFINEDISERROR, value: "true" }
+            - { name: PUBLIC_HOSTNAME, value: "vectra.localtest.me" }
+            # La linea 3 del realm cita `$(env:NOMBRE)` en un comentario y la sustitucion lo resuelve igual (candidata en CANDIDATAS.md).
+            - { name: NOMBRE, value: "NOMBRE" }
+            - { name: JAVA_OPTS, value: "-XX:MaxRAMPercentage=70 -Djavax.net.ssl.trustStore=/trust/truststore.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=changeit" }
+          envFrom:
+            - secretRef: { name: keycloak-realm-clients-jwks }
+            - secretRef: { name: keycloak-realm-synthetic-users }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+          volumeMounts:
+            - { name: realm, mountPath: /config, readOnly: true }
+            - { name: trust, mountPath: /trust, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: identity-ca
+          secret: { secretName: identity-ca, defaultMode: 288, items: [{ key: ca.crt, path: ca.crt }] }
+        - name: realm
+          configMap: { name: keycloak-config-cli-realm }
+        - { name: trust, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
+
+  
+
+---
+# Source: keycloakx/templates/extra-manifests.yaml
 apiVersion: gateway.networking.k8s.io/v1
 kind: BackendTLSPolicy
 metadata:
@@ -507,3 +634,115 @@ spec:
   target: { name: keycloak-reader-client }
   data:
     - { secretKey: private-key, remoteRef: { key: identity/clients/keycloak-reader, property: private-key } }
+
+  
+
+---
+# Source: keycloakx/templates/extra-manifests.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-bootstrap-admin
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: keycloak-bootstrap-admin }
+  data:
+    - { secretKey: username, remoteRef: { key: identity/keycloak-admin, property: username } }
+    - { secretKey: password, remoteRef: { key: identity/keycloak-admin, property: password } }
+
+---
+# Source: keycloakx/templates/extra-manifests.yaml
+# El JWKS entra al YAML del realm por sustitucion de texto: entre comillas JSON (`toJson`) es una cadena; sin ellas, un mapa.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-realm-clients-jwks
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target:
+    name: keycloak-realm-clients-jwks
+    template:
+      data:
+        CLIENT_BIAS_MONITORING_JOB_JWKS: '{{ .bias_monitoring_job | toJson }}'
+        CLIENT_BIAS_MONITORING_SERVICE_JWKS: '{{ .bias_monitoring_service | toJson }}'
+        CLIENT_CASE_SERVICE_JWKS: '{{ .case_service | toJson }}'
+        CLIENT_CASE_WORKER_JWKS: '{{ .case_worker | toJson }}'
+        CLIENT_CHANNEL_JWKS: '{{ .channel | toJson }}'
+        CLIENT_CHANNEL_SIMULATOR_JWKS: '{{ .channel_simulator | toJson }}'
+        CLIENT_EXPLAINABILITY_SERVICE_JWKS: '{{ .explainability_service | toJson }}'
+        CLIENT_GOVERNANCE_SERVICE_JWKS: '{{ .governance_service | toJson }}'
+        CLIENT_GRAFANA_JWKS: '{{ .grafana | toJson }}'
+        CLIENT_KEYCLOAK_CONFIG_CLI_JWKS: '{{ .keycloak_config_cli | toJson }}'
+        CLIENT_KEYCLOAK_READER_JWKS: '{{ .keycloak_reader | toJson }}'
+        CLIENT_MODEL_VALIDATION_JOB_JWKS: '{{ .model_validation_job | toJson }}'
+        CLIENT_PRODUCT_METRICS_JWKS: '{{ .product_metrics | toJson }}'
+        CLIENT_SCORING_SERVICE_JWKS: '{{ .scoring_service | toJson }}'
+        CLIENT_VERIFICATION_READER_JWKS: '{{ .verification_reader | toJson }}'
+  data:
+    - { secretKey: bias_monitoring_job, remoteRef: { key: identity/clients/bias-monitoring-job, property: jwks } }
+    - { secretKey: bias_monitoring_service, remoteRef: { key: identity/clients/bias-monitoring-service, property: jwks } }
+    - { secretKey: case_service, remoteRef: { key: identity/clients/case-service, property: jwks } }
+    - { secretKey: case_worker, remoteRef: { key: identity/clients/case-worker, property: jwks } }
+    - { secretKey: channel, remoteRef: { key: identity/clients/channel, property: jwks } }
+    - { secretKey: channel_simulator, remoteRef: { key: identity/clients/channel-simulator, property: jwks } }
+    - { secretKey: explainability_service, remoteRef: { key: identity/clients/explainability-service, property: jwks } }
+    - { secretKey: governance_service, remoteRef: { key: identity/clients/governance-service, property: jwks } }
+    - { secretKey: grafana, remoteRef: { key: identity/clients/grafana, property: jwks } }
+    - { secretKey: keycloak_config_cli, remoteRef: { key: identity/clients/keycloak-config-cli, property: jwks } }
+    - { secretKey: keycloak_reader, remoteRef: { key: identity/clients/keycloak-reader, property: jwks } }
+    - { secretKey: model_validation_job, remoteRef: { key: identity/clients/model-validation-job, property: jwks } }
+    - { secretKey: product_metrics, remoteRef: { key: identity/clients/product-metrics, property: jwks } }
+    - { secretKey: scoring_service, remoteRef: { key: identity/clients/scoring-service, property: jwks } }
+    - { secretKey: verification_reader, remoteRef: { key: identity/clients/verification-reader, property: jwks } }
+
+---
+# Source: keycloakx/templates/extra-manifests.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-realm-synthetic-users
+  namespace: vectra-identity
+  labels:
+    helm.sh/chart: keycloakx-7.4.0
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/instance: keycloak
+    app.kubernetes.io/version: "26.8.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
+  target: { name: keycloak-realm-synthetic-users }
+  data:
+    - { secretKey: SYNTH_ANALISTA_1_PASSWORD, remoteRef: { key: identity/synthetic-users, property: SYNTH_ANALISTA_1_PASSWORD } }
+    - { secretKey: SYNTH_ANALISTA_1_TOTP_SEED, remoteRef: { key: identity/synthetic-users, property: SYNTH_ANALISTA_1_TOTP_SEED } }
+    - { secretKey: SYNTH_ANALISTA_2_PASSWORD, remoteRef: { key: identity/synthetic-users, property: SYNTH_ANALISTA_2_PASSWORD } }
+    - { secretKey: SYNTH_ANALISTA_2_TOTP_SEED, remoteRef: { key: identity/synthetic-users, property: SYNTH_ANALISTA_2_TOTP_SEED } }
+    - { secretKey: SYNTH_INGENIERO_1_PASSWORD, remoteRef: { key: identity/synthetic-users, property: SYNTH_INGENIERO_1_PASSWORD } }
+    - { secretKey: SYNTH_INGENIERO_1_TOTP_SEED, remoteRef: { key: identity/synthetic-users, property: SYNTH_INGENIERO_1_TOTP_SEED } }
+    - { secretKey: SYNTH_INGENIERO_2_PASSWORD, remoteRef: { key: identity/synthetic-users, property: SYNTH_INGENIERO_2_PASSWORD } }
+    - { secretKey: SYNTH_INGENIERO_2_TOTP_SEED, remoteRef: { key: identity/synthetic-users, property: SYNTH_INGENIERO_2_TOTP_SEED } }
+    - { secretKey: SYNTH_CRO_1_PASSWORD, remoteRef: { key: identity/synthetic-users, property: SYNTH_CRO_1_PASSWORD } }
+    - { secretKey: SYNTH_CRO_1_TOTP_SEED, remoteRef: { key: identity/synthetic-users, property: SYNTH_CRO_1_TOTP_SEED } }
+    - { secretKey: SYNTH_CRO_2_PASSWORD, remoteRef: { key: identity/synthetic-users, property: SYNTH_CRO_2_PASSWORD } }
+    - { secretKey: SYNTH_CRO_2_TOTP_SEED, remoteRef: { key: identity/synthetic-users, property: SYNTH_CRO_2_TOTP_SEED } }
+    - { secretKey: SYNTH_CUMPLIMIENTO_1_PASSWORD, remoteRef: { key: identity/synthetic-users, property: SYNTH_CUMPLIMIENTO_1_PASSWORD } }
+    - { secretKey: SYNTH_CUMPLIMIENTO_1_TOTP_SEED, remoteRef: { key: identity/synthetic-users, property: SYNTH_CUMPLIMIENTO_1_TOTP_SEED } }
+    - { secretKey: SYNTH_CUMPLIMIENTO_2_PASSWORD, remoteRef: { key: identity/synthetic-users, property: SYNTH_CUMPLIMIENTO_2_PASSWORD } }
+    - { secretKey: SYNTH_CUMPLIMIENTO_2_TOTP_SEED, remoteRef: { key: identity/synthetic-users, property: SYNTH_CUMPLIMIENTO_2_TOTP_SEED } }
+    - { secretKey: SYNTH_OPERACION_1_PASSWORD, remoteRef: { key: identity/synthetic-users, property: SYNTH_OPERACION_1_PASSWORD } }
+    - { secretKey: SYNTH_OPERACION_1_TOTP_SEED, remoteRef: { key: identity/synthetic-users, property: SYNTH_OPERACION_1_TOTP_SEED } }
+    - { secretKey: SYNTH_OPERACION_2_PASSWORD, remoteRef: { key: identity/synthetic-users, property: SYNTH_OPERACION_2_PASSWORD } }
+    - { secretKey: SYNTH_OPERACION_2_TOTP_SEED, remoteRef: { key: identity/synthetic-users, property: SYNTH_OPERACION_2_TOTP_SEED } }

@@ -22,6 +22,8 @@ HELM = _ROOT / "platform" / ".tools" / "bin" / "helm"
 CONFTEST = _ROOT / "platform" / ".tools" / "bin" / "conftest"
 ENVS = ("kind", "staging", "prod")
 NAMESPACE = "vectra-identity"
+# Los ExternalSecret de la excepcion de kind (U02-T19, INF-U2-05a); el resto son los de INF-U2-01.
+CONFIG_CLI_EXTERNAL_SECRETS = frozenset({"keycloak-bootstrap-admin", "keycloak-realm-clients-jwks", "keycloak-realm-synthetic-users"})
 
 _FD = _ROOT / "aidlc-docs" / "construction" / "identity-edge"
 BUSINESS_RULES = (_FD / "functional-design" / "business-rules.md").read_text(encoding="utf-8")
@@ -188,10 +190,15 @@ def design_ports() -> dict[str, int]:
 
 # --- render y conftest --------------------------------------------------------------------------
 
+REALM_KIND = KEYCLOAK / "realm" / "realm.kind.yaml"
+
+
 def helm_command(env: str, *extra: str) -> list[str]:
+    """Como `render-keycloak`: kind suma el realm de Git (`--set-file`) para el ConfigMap del Job de `keycloak-config-cli` (U02-T19)."""
+    realm = ["--set-file", f"vectra.configCli.realm={REALM_KIND}"] if env == "kind" else []
     return [
         str(HELM), "template", "keycloak", str(CHART), "--namespace", NAMESPACE, "--skip-tests",
-        "-f", str(VALUES / "common.yaml"), "-f", str(VALUES / f"{env}.yaml"), *extra,
+        "-f", str(VALUES / "common.yaml"), "-f", str(VALUES / f"{env}.yaml"), *realm, *extra,
     ]  # fmt: skip
 
 
@@ -199,9 +206,25 @@ def render(env: str, *extra: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(helm_command(env, *extra), capture_output=True, text=True, check=False)  # noqa: S603 - herramienta fija de platform/.tools
 
 
+def rendered_files(env: str) -> list[Path]:
+    """Los archivos versionados de un entorno: `keycloak.yaml` y, en kind, `config-cli-realm.yaml` (el ConfigMap del realm, aparte por Trivy)."""
+    return sorted((RENDERED / env).glob("*.yaml"))
+
+
 def load(env: str) -> list[dict[str, Any]]:
-    text = (RENDERED / env / "keycloak.yaml").read_text(encoding="utf-8")
-    return [d for d in yaml.safe_load_all(text) if d]
+    """Todos los documentos versionados del entorno, de todos sus archivos."""
+    return [d for path in rendered_files(env) for d in yaml.safe_load_all(path.read_text(encoding="utf-8")) if d]
+
+
+def split_realm(text: str) -> tuple[str, str]:
+    """Lo que hace `render-keycloak` con el render de kind: (keycloak.yaml, config-cli-realm.yaml)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("split_realm_configmap", EDGE / "tools" / "split_realm_configmap.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.split(text)
 
 
 def statefulset(docs: list[dict[str, Any]]) -> dict[str, Any]:

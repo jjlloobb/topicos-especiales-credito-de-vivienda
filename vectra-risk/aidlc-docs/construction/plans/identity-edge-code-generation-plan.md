@@ -124,6 +124,7 @@ vectra-risk/identity-edge/
     - `Certificate` `keycloak-tls` para 8443 y `BackendTLSPolicy` de F05 con el certificado de la CA (INF-U2-05b; quinta revisión de coherencia entre unidades, 2026-10-31).
   - `keycloak-config-cli` como Job hook del sync.
   - **Enmienda del 2026-11-03 (decisión Q1 del usuario al preparar U02-T07):** el Job de `keycloak-config-cli` y el criterio «hook de sync presente» salen de este paso a una tarea propia, bloqueada hasta que exista un release de `keycloak-config-cli` con aserciones de cliente y el firmante esté diseñado (INF-U2-05a). El hook será `PostSync`. El resto del paso no cambia.
+  - **Nota del 2026-11-08 (decisión del usuario, opción a de B-1):** en kind, y solo en kind, el Job de `keycloak-config-cli` v6.5.1 corre ya como hook `PostSync`, autenticado con el administrador de arranque de `master` (INF-U2-05a, excepción solo en kind). Lo implementa U02-T19.
   - Diseño: NFR-U2-01, 02, 23, 26; P-U2-04; INF-U2-01, 05, 06. Historia: US-601.
   - **Aceptación**: `helm template` + `conftest test identity-edge/keycloak/` (réplicas, HPA, spread, PDB, `start --optimized`, `hostname-admin` interno, sin Secret plano, hook de sync presente, `keycloak-tls` y `BackendTLSPolicy` presentes).
 

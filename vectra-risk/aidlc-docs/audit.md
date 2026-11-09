@@ -6090,3 +6090,28 @@ Informes y arbitraje en `revisiones/U05-T02/`.
 
 Informe en `revisiones/U02-T18/`.
 **Context**: Construcción de U2, U02-T18.
+
+---
+
+## Paso 16 de U2: guía y decisión B-1
+**Timestamp**: 2026-11-08T19:26:22Z
+**User Input**: "sí, prepara la guía del Paso 16"; "opción a para B-1, y prepara U02-T19"
+**AI Response**:
+- Guía del operador en `identity-edge/docs/paso-16-kind.md`, con los bloqueos B-1 a B-5: no hay forma de importar el realm; `seed-vault.sh` no siembra `identity/`; las imágenes de U2 no están en el registro de kind; el eco no responde 503; U1 está degradado en kind.
+- Decisión B-1, opción a: en kind, y solo en kind, `keycloak-config-cli` v6.5.1 corre como hook `PostSync` con un administrador de arranque de `master`, sin `private_key_jwt`. Queda registrada en INF-U2-05a y en la nota del Paso 5. Staging y prod siguen bloqueados.
+- Al preparar la tarea se encontró que Keycloak no tiene administrador de arranque configurado (`KC_BOOTSTRAP_ADMIN_*`). Entra en U02-T19.
+- U02-T19 cubre B-1, B-2 y B-4.
+**Context**: Construcción de U2, Paso 16.
+
+---
+
+## U02-T19: rondas 1 y 2
+**Timestamp**: 2026-11-09T00:34:14Z
+**User Input**: "opción a para B-1, y prepara U02-T19"
+**AI Response**:
+- Ronda 1 NO-VERDE por un ROJO (F-01): los recursos y la prioridad del Job de `keycloak-config-cli` no seguían INF-U2-06 ni `logical-components`, y la regla fijaba los valores equivocados. Entraron también F-02 (literales a values) y F-06 (escritura atómica en 0600).
+- Ronda 2 VERDE (546c3eb), con CA-5 completo: `identity-edge check` dio 2767 passed y `platform check` 784 passed. Staging y prod no cambian ni un byte. Cinco AMARILLO: F-03 (documentar `VECTRA_KC_ADMIN_USER`) lo corrige el orquestador en la guía y el resto pasa a candidatas.
+- B-1, B-2 y B-4 del Paso 16 quedan resueltos. Siguen pendientes B-3 (imágenes, del operador) y B-5 (salud de U1 en kind).
+
+Informes y arbitraje en `revisiones/U02-T19/`.
+**Context**: Construcción de U2, U02-T19.

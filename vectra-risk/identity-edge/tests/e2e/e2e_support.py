@@ -43,6 +43,7 @@ ENV_VARS = {
     "VECTRA_E2E_ADMIN_PASSWORD": "contraseña del usuario de la Admin API",
     "VECTRA_E2E_ADMIN_CA_BUNDLE": "opcional: CA de la Admin API si no es la del gateway",
     "VECTRA_E2E_LOKI_URL": "URL de Loki por port-forward",
+    "VECTRA_E2E_ECHO_URLS": "URL de cada replica del eco de case-service y de console-bff por port-forward, separadas por comas (U02-T19, B-4)",
     "VECTRA_E2E_CLIENT_KEYS_DIR": "directorio con <cliente>.pem, la llave privada ES256 de cada cliente de servicio (desde Vault)",
 }
 
@@ -53,6 +54,13 @@ def need(name: str) -> str:
     if not value:
         pytest.fail(f"falta la variable de entorno {name}: {ENV_VARS.get(name, 'ver e2e_support.ENV_VARS')}", pytrace=False)
     return value
+
+
+def echo_calls(key: str, variable: str = "VECTRA_E2E_ECHO_URLS") -> int:
+    """Las llamadas que los ecos contaron para `key` (`X-Echo-Key`): la suma de todas las replicas de `variable` (U02-T19, B-4)."""
+    urls = [u.strip().rstrip("/") for u in need(variable).split(",") if u.strip()]
+    with httpx.Client(timeout=10.0) as client:
+        return sum(int(client.get(f"{url}/__echo/calls", params={"key": key}).raise_for_status().json()["calls"]) for url in urls)
 
 
 def synth(username: str, kind: str) -> str:

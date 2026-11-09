@@ -153,7 +153,7 @@ def test_seed_writes_every_path_once():
             written[path] = data
 
     done = vp.seed(Fake())
-    assert set(done) == set(written) == set(vp.collect(vp.all_external_secrets()))
+    assert set(done) == set(written) == set(vp.collect(vp.platform_external_secrets()))  # las rutas de U2 las siembra `seed-identity`
 
 
 def test_script_refuses_a_context_that_is_not_kind(tmp_path):

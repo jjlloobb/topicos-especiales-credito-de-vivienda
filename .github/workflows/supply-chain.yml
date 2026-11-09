@@ -27,7 +27,9 @@ jobs:
           # KSV-0109, falso positivo (decision T1): el ConfigMap `realm-drift-realm` lleva el realm de Git, y Trivy toma por secretos
           # las claves `revokeRefreshToken` y `client_credentials.use_refresh_token`. `realm-lint` garantiza que el realm no lleva
           # secretos literales. Solo estos tres archivos (uno por entorno); los CronJobs y las ServiceAccount se siguen escaneando.
-          skip-files: vectra-risk/platform/secrets/eso-rbac-secrets-read-kind.yaml,vectra-risk/identity-edge/jobs/rendered/kind/realm-configmap.yaml,vectra-risk/identity-edge/jobs/rendered/staging/realm-configmap.yaml,vectra-risk/identity-edge/jobs/rendered/prod/realm-configmap.yaml
+          # Mas config-cli-realm.yaml de kind (2026-11-09, decision del usuario, PR 85): el ConfigMap `keycloak-config-cli-realm` del Job de
+          # kind, con el mismo realm y la misma decision T1, en su propio archivo; `keycloak.yaml` se escanea entero.
+          skip-files: vectra-risk/platform/secrets/eso-rbac-secrets-read-kind.yaml,vectra-risk/identity-edge/jobs/rendered/kind/realm-configmap.yaml,vectra-risk/identity-edge/jobs/rendered/staging/realm-configmap.yaml,vectra-risk/identity-edge/jobs/rendered/prod/realm-configmap.yaml,vectra-risk/identity-edge/keycloak/rendered/kind/config-cli-realm.yaml
           format: table
           output: trivy-report.txt
       - name: Hallazgos de Trivy
