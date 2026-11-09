@@ -6102,3 +6102,21 @@ Informe en `revisiones/U02-T18/`.
 - Al preparar la tarea se encontró que Keycloak no tiene administrador de arranque configurado (`KC_BOOTSTRAP_ADMIN_*`). Entra en U02-T19.
 - U02-T19 cubre B-1, B-2 y B-4.
 **Context**: Construcción de U2, Paso 16.
+
+---
+
+## U05-T03: rondas 1 y 2
+**Timestamp**: 2026-11-09T02:58:55Z
+**User Input**: "sí, prepara y despacha el bloque D de U5"
+**AI Response**:
+- Ronda 1 NO-VERDE por un ROJO: el doble de U9 contaba `revision_requerida` como favorable, contra BR-U9-01. Con el outcome de BR-U7-04/05, la base medía 8,70 pp ≥ 5 (BR-U5-06), y eso arriesgaba un freeze prematuro en la demo 7.4.
+- Ronda 2 VERDE (ac6b8f8):
+  - el doble sigue BR-U9-01;
+  - la base queda en 4,61 pp, con `stratum_slope` de 0,30 a 0,15, AUC 0,909 y la calibración RT-4 intacta;
+  - la variante queda en 11,66 pp.
+
+  Un AMARILLO, el margen de 0,39 pp de la base, ya está en candidatas.
+- Se abre el PR.
+
+Informes y arbitraje en `revisiones/U05-T03/`.
+**Context**: Construcción de U5, U05-T03.
