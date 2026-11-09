@@ -6105,6 +6105,18 @@ Informe en `revisiones/U02-T18/`.
 
 ---
 
+## U03-T04: ronda 1
+**Timestamp**: 2026-11-09T04:56:25Z
+**User Input**: "sigamos"; sobre `checkpoint`, el usuario eligió «A: recorded_at cubierto».
+**AI Response**:
+- La sesión anterior del codificador se interrumpió y se le volvió a despachar sobre el mismo worktree. Entregó `d2d34b9` sin `checkpoint`, por un vacío de diseño en BR-U3-08, que el revisor confirmó.
+- Ronda 1 NO-VERDE sin ningún ROJO: un NARANJA (F-01, `backoffLimit: 0` del CronJob contra INF-U3-03) y cinco AMARILLO. `make -C decision-registry check` pasa con 534 pruebas y PBT-U3-09 con 500 ejemplos.
+- Por RL-2 no se abre ronda 2: los hallazgos pasan a `CANDIDATAS.md`. `checkpoint` se difiere por `demo-recorte-funcional.md`, y la opción A queda registrada.
+- Se integra `origin/main` y se abre el PR.
+
+Informe y arbitraje en `revisiones/U03-T04/`.
+**Context**: Construcción de U3, U03-T04.
+
 ## U05-T04: ronda 1
 **Timestamp**: 2026-11-09T04:42:33Z
 **User Input**: "sigamos"
