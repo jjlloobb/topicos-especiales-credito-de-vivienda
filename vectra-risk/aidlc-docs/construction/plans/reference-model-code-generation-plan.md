@@ -101,7 +101,7 @@ vectra-risk/reference-model/
 
 ### Bloque E — Entrega en CI
 
-- [ ] **Paso 8 — Workflow de entrega y release firmada**
+- [ ] **Paso 8 — Workflow de entrega y release firmada** (diferido por la demo: T1, T4)
   - `.github/workflows/reference-model.yml`, que usa los workflows reutilizables de U1:
     - dos ejecuciones en paralelo de `make release`, con comparación del SHA-256 del manifiesto;
     - un paso que falla si la entrega supera 30 min (timeout del job de 60 min);
@@ -111,23 +111,23 @@ vectra-risk/reference-model/
   - Diseño: NFR-U5-01, 02, 10, 20.
   - **Aceptación**: `actionlint .github/workflows/reference-model.yml`; `grep -L "KUBECONFIG\|MINIO\|S3_" .github/workflows/reference-model.yml` devuelve el archivo; `! grep -E "kubectl|helm (install|upgrade)" .github/workflows/reference-model.yml`.
 
-- [ ] **Paso 9 — Procedimiento de entrega al model-store**
+- [x] **Paso 9 — Procedimiento de entrega al model-store** (U05-T04, acotado a la demo)
   - `docs/release.md`: descargar la release, `cosign verify`, verificar cada SHA-256 del manifiesto, subir al model-store con las credenciales del ingeniero (bucket `model-store` y dataset de validación en `validation-datasets`) y registrar en U4 (US-201).
   - Diseño: NFR-U5-03. Historias: US-201, US-202.
   - **Aceptación**: `uv run python platform/tests/test_runbooks.py --operational --root reference-model/docs` (el documento sigue la plantilla y cada paso nombra un comando).
 
 ### Bloque F — Calidad y cierre
 
-- [ ] **Paso 10 — Cobertura, trazabilidad y resumen**
+- [x] **Paso 10 — Cobertura, trazabilidad y resumen**
   - Cobertura de ramas ≥ 90 % y 100 % en `envelope/confidence.py`; trazabilidad de cada BR-U5 a una prueba; `aidlc-docs/construction/reference-model/code/README.md`.
   - Diseño: NFR-U5-33.
   - **Aceptación**: `uv run pytest reference-model/tests --cov --cov-branch --cov-fail-under=90` y `uv run python platform/tests/test_traceability.py --unit reference-model --all`.
 
-- [ ] **Paso 11 — Despliegue, repositorio, API y frontend: N/A**
+- [x] **Paso 11 — Despliegue, repositorio, API y frontend: N/A**
   - U5 no tiene runtime, base de datos, API ni interfaz. Sus artefactos entran por U4 y los sirve U6.
   - **Aceptación**: `test ! -d reference-model/chart && test ! -d reference-model/migrations`.
 
-- [ ] **Paso 12 — Cierre de la unidad**
+- [x] **Paso 12 — Cierre de la unidad** (U05-T04, acotado a la demo)
   - **Aceptación**: `make -C reference-model check`, que corre en orden las verificaciones de los Pasos 1–10 y termina en 0.
 
 ---
