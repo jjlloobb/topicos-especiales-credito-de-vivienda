@@ -6116,6 +6116,7 @@ Informe en `revisiones/U02-T18/`.
 
 Informe y arbitraje en `revisiones/U03-T04/`.
 **Context**: Construcción de U3, U03-T04.
+
 ## Enmienda al alcance de la demo: recorte funcional
 **Timestamp**: 2026-11-09T04:52:01Z
 **User Input**: "es posible trabajar solo en las tares necesarias para tener una demo completa del proyecto con todas las unidades y pueda correr en esta maquina?"; luego eligió «Solo lo que usan las demos» y, sobre el borrador, «Aceptar todo».
