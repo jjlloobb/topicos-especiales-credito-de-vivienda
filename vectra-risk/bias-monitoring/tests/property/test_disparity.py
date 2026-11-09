@@ -7,7 +7,15 @@ from fairlearn.metrics import MetricFrame, demographic_parity_difference, select
 from hypothesis import assume, given
 from hypothesis import strategies as st
 from support import N_MIN, count_tables, scale, states
-from vectra_disparity import BANDS, UNINFORMED, CountCell, CountTable, disparity_by_band, to_dict
+from vectra_disparity import (
+    BANDS,
+    UNINFORMED,
+    CountCell,
+    CountTable,
+    aggregate_lower_limit,
+    disparity_by_band,
+    to_dict,
+)
 
 HALF_ULP = (
     5e-5 + 1e-9
@@ -98,6 +106,31 @@ def test_pbt_u9_02_scaling_keeps_values_and_never_widens_the_interval(table, k):
     for x, y in zip(a.bands, b.bands, strict=True):
         if x.ci_95 is not None:
             assert y.ci_95[1] - y.ci_95[0] <= x.ci_95[1] - x.ci_95[0] + Decimal("0.0001")
+
+
+@given(count_tables())
+def test_pbt_u9_02_freeze_limit_is_below_the_95_interval_and_exists_with_the_aggregate(table):
+    """BR-U9-11 (R4): el limite con z = 3,14 existe cuando existe la agregada y nunca queda sobre el limite de 95 %."""
+    result = _run(table)
+    limit = aggregate_lower_limit({table.attribute: table}, table.attribute, N_MIN)
+    assert (limit is None) == (result.aggregate is None)
+    if limit is not None:
+        assert limit <= result.aggregate_ci_95[0] <= result.aggregate
+        assert (
+            aggregate_lower_limit({table.attribute: table}, table.attribute, N_MIN, z=1.96)
+            == result.aggregate_ci_95[0]
+        )
+
+
+@given(count_tables(), st.integers(1, 6))
+def test_pbt_u9_02_scaling_never_lowers_the_freeze_limit(table, k):
+    scaled = scale(table, k)
+    assume(states(scaled) == states(table))
+    a = aggregate_lower_limit({table.attribute: table}, table.attribute, N_MIN)
+    b = aggregate_lower_limit({table.attribute: scaled}, table.attribute, N_MIN)
+    assert (a is None) == (b is None)
+    if a is not None:
+        assert b >= a - Decimal("0.0001")  # 4 decimales
 
 
 @given(count_tables(), st.integers(0, 29), st.integers(0, 29))

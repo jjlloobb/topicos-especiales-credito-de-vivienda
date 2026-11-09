@@ -10,6 +10,7 @@ estándar (`math`, `decimal`, `fractions`, `dataclasses`): el árbol de dependen
 | `counts_from_records(records)` | `counts` | `dict[atributo, CountTable]` desde filas etiquetadas (`sexo`, `rango_edad`, `region`, `estrato`, `banda`, `outcome`). Solo `outcome = favorable` cuenta como favorable; `revision_requerida` y `desfavorable` no (BR-U9-01) |
 | `counts_from_marginals(marginals)` | `counts` | Lo mismo desde los `MonitoringMarginalCount` de un rango (mapeos u objetos con `attribute`, `group`, `band`, `result`, `count`) |
 | `disparity_by_band(counts, attribute, n_min)` | `disparity` | `AttributeResult`: celdas con supresión (P-U9-04), diferencia por banda con par extremo e intervalo de Newcombe, agregada ponderada con su intervalo y diferencia sin bandas (`population_difference_partial`) |
+| `aggregate_lower_limit(counts, attribute, n_min, z=3,14)` | `disparity` | Límite inferior de la agregada del atributo con la z de Bonferroni de BR-U9-11 (regla R4); `None` si es «muestra insuficiente». Es lo que `freeze_rule` compara con el umbral, sobre el atributo disparador |
 | `model_aggregate(results)` | `disparity` | Mayor agregada con valor y su atributo disparador (BR-U9-05); `None` si todas son insuficientes |
 | `to_dict(value)` | `disparity` | Forma JSON de U0 (`Decimal` a cadena `Decimal4`, tuplas a listas); valida con `AttributeResult.model_validate` |
 | `wilson_interval`, `newcombe_difference`, `quantize4` | `stats` | Wilson, Newcombe (método 10) y el redondeo a 4 decimales |
@@ -35,21 +36,52 @@ los mismos nombres de campo que los de U0 §9.4; la librería no importa `vectra
 
 **Cobertura del intervalo de Newcombe** (par fijo 0,55 vs 0,45, 100 casos cada uno): **94,7 %** (mínimo exigido 93 %).
 
-**Tasa de congelamientos falsos** de BR-U9-11 (agregada del modelo > 5 pp **y** límite inferior > 0) con disparidad real 0 (todas las
-celdas con tasa 0,5), los cuatro atributos (2, 6, 6 y 6 grupos informados) y tres bandas:
+**Regla de congelamiento medida: R4** (BR-U9-11, decisión del usuario del 2026-11-09): congela si el límite inferior de la agregada
+del atributo disparador, con `z = 3,14` (Bonferroni de una cola, 0,05 / 60 comparaciones; cuantil exacto 3,1440), es **> 5 pp**. La
+regla anterior (agregada > 5 pp y límite inferior de 95 % > 0) congelaba el 97,4 % con 500 casos por celda. La simulación usa la
+librería real (`aggregate_lower_limit`), 10 000 repeticiones, semilla fija, sin `xfail`.
+
+**Condición 1 — congelamientos falsos** con disparidad real 0 (todas las celdas con tasa 0,5), los cuatro atributos (2, 6, 6 y 6
+grupos informados) y tres bandas:
 
 | Casos por celda | 30 | 100 | 500 | 2 000 |
 |---|---|---|---|---|
-| Congelamientos falsos | 100 % | 100 % | **97,4 %** | 0,1 % |
+| Regla anterior (R0) | 100 % | 100 % | 97,4 % | 0,1 % |
+| **R4** | 56,1 % | 9,0 % | **0,01 %** | **0 %** |
 
-**Hallazgo.** El diseño exige ≤ 5 % con ≥ 500 casos por celda (BLM §3) y la medición da 97,4 % con 500. La causa es la que el BLM
-anticipaba para muestras chicas, pero llega mucho más lejos: el intervalo de la agregada (BR-U9-04) se construye con el intervalo de
-Newcombe del **par extremo**, que se elige después de ver los datos entre hasta 6 grupos; con 500 casos por celda el rango esperado de
-6 tasas es ≈ 5,7 pp (2,53 σ, σ = 2,2 pp), ya sobre el umbral de 5 pp, y el intervalo, que trata el par como fijado de antemano, no
-incluye el 0. Con 2 000 casos el rango esperado baja a ≈ 2,8 pp y la tasa cae a 0,1 %. La prueba `test_false_freeze_rate_is_at_most_5_percent_with_500_cases_per_cell`
-queda como `xfail(strict=True)` para que `make check` documente el hallazgo sin ocultarlo; si se corrige la regla, pasará a XPASS y fallará
-hasta que se quite la marca. Hace falta una decisión de diseño (por ejemplo, exigir más muestra por celda, un intervalo que corrija la
-elección del par extremo o un umbral mayor) antes del Bloque C (`freeze_rule`).
+Exigido: ≤ 5 % con ≥ 500 casos por celda (cumple). **Limitación conocida** (la del par extremo): con 30 y 100 casos por celda R4 aún
+congela falsamente (56 % y 9 %): el intervalo no corrige del todo la elección del par extremo entre 6 grupos con muestras chicas.
+
+**Condición 2 — modelo base de U5** (4,61 pp medidos por la librería; tasas reales de `u5_counts.json`, las celdas de menos de 30
+casos toman la tasa agrupada de su banda):
+
+| Casos por celda | 30 | 50 | 100 |
+|---|---|---|---|
+| Regla anterior (R0) | 99,9 % | 100 % | 100 % |
+| **R4** | **0,8 %** | **1,3 %** | **1,1 %** |
+
+Exigido: ≤ 5 % con 50 a 100 casos por celda y, en 30, ≤ 6 % (cumple; el 5,2 % de la exploración era una aproximación de Wald, la
+librería da 0,8 %).
+
+**Condición 3 — D\* (requisito para U5).** Con el lote `stratified` de BR-U12-06 (~1 500 casos: 250 por celda en `sexo` y 83 en los
+otros tres atributos) la variante proxy de U5 de hoy (11,66 pp) congela solo el **43,4 %**. D\* es la disparidad mínima de una variante
+proxy con la que R4 congela ≥ 95 %: la **agregada que mide la librería sobre los conteos de la variante debe ser ≥ 17,5 pp** (el
+cruce del 95 % está en 17,4 pp; en 17,47 pp congela el 95,35 %). En la disparidad real de la simulación (media por banda de max − min
+de las tasas reales del atributo disparador, sin ponderar por banda) son 15,9 a 16,0 pp. La variante sintética interpola entre el modelo base y el proxy
+de U5 (`t` = 0 y 1) y extrapola (`t` = 1,71, tasas en [0, 1]); `revisiones/U09-T01/busqueda-dstar-ronda-3.py` hace la búsqueda:
+
+| agregada de la librería (pp) | 11,66 (proxy actual) | 13,98 | 15,63 | 17,42 | 17,47 (D\*) | 18,25 | 20,04 |
+|---|---|---|---|---|---|---|---|
+| congela con `stratified` | 43,4 % | 72,6 % | 88,3 % | 95,0 % | 95,35 % | 97,4 % | 99,1 % |
+
+(Las cifras de 11,66 a 20,04 pp salen de 3 000 repeticiones, salvo las de 17,42 y 17,47 pp, de 10 000; la prueba usa 10 000.)
+
+**Requisito para U5 (U05-T05):** la variante proxy de la demo debe llevar una disparidad por `region` (el atributo disparador de las
+dos variantes) de **al menos 17,5 pp** medida con `disparity_by_band` sobre el dataset de RT-2, o RT-2 debe usar un lote mayor. El
+doble `tests/doubles/u5_counts.json` no cambia en U09-T01.
+
+**Cobertura y margen.** El intervalo de la agregada publicado (`aggregate_ci_95`, z = 1,96) no cambia. El ejemplo de BLM §3 con 6 pp
+y 2 000 casos por celda ya no congela con R4 (límite ≈ 3,1 pp); con 12 pp sí.
 
 ## Cobertura y mutación
 

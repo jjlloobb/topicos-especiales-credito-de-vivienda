@@ -14,6 +14,7 @@ from vectra_disparity import (
     CountCell,
     CountTable,
     counts_from_marginals,
+    aggregate_lower_limit,
     counts_from_records,
     disparity_by_band,
     model_aggregate,
@@ -183,6 +184,17 @@ def test_u5_proxy_variant_reaches_10_pp_and_the_base_model_stays_under_5_pp():
     assert abs(float(proxy[1]) * 100 - 11.66) < 0.05
 
 
+def test_u5_freeze_limit_rt2_proxy_is_above_the_threshold_and_the_base_model_is_not():
+    """RT-2 con la regla R4: el limite de la agregada del atributo disparador (`region` en las dos)."""
+    limits = {}
+    for variant in ("base", "proxy"):
+        counts = load_u5_counts(variant)
+        trigger, _ = _model_level(variant)[1]
+        limits[variant] = aggregate_lower_limit(counts, trigger, N_MIN)
+    assert limits["proxy"] > Decimal("0.05")
+    assert limits["base"] <= Decimal("0.05")
+
+
 @pytest.mark.parametrize("variant", ["base", "proxy"])
 def test_library_output_validates_against_the_u0_models(variant):
     results, _ = _model_level(variant)
@@ -206,17 +218,44 @@ def test_u0_rejects_an_insufficient_cell_with_a_rate():
 # Intervalo (BLM §3) ------------------------------------------------------------------------------------------------------
 
 
-def test_interval_with_few_cases_includes_zero_and_with_many_does_not():
-    def aggregate(n, favorable_b):
-        cells = [
-            (g, band, f, n)
-            for band in ("lt_20", "20_30", "gt_30")
-            for g, f in (("a", n // 2), ("b", favorable_b))
-        ]
-        return disparity_by_band(table("sexo", *cells), "sexo", N_MIN)
+def _pair_table(n, favorable_b):
+    cells = [
+        (g, band, f, n)
+        for band in ("lt_20", "20_30", "gt_30")
+        for g, f in (("a", n // 2), ("b", favorable_b))
+    ]
+    return table("sexo", *cells)
 
-    few = aggregate(50, 28)  # 6 pp con 50 casos por celda
-    many = aggregate(2000, 1120)  # 6 pp con 2 000 casos por celda
+
+def test_interval_with_few_cases_includes_zero_and_with_many_does_not():
+    few = disparity_by_band(_pair_table(50, 28), "sexo", N_MIN)  # 6 pp con 50 casos por celda
+    many = disparity_by_band(_pair_table(2000, 1120), "sexo", N_MIN)  # 6 pp con 2 000 casos por celda
     assert few.aggregate == many.aggregate == Decimal("0.0600")
     assert few.aggregate_ci_95[0] <= 0
     assert many.aggregate_ci_95[0] > 0
+
+
+def test_freeze_limit_uses_bonferroni_z_and_only_changes_the_z():
+    """BR-U9-11 (regla R4): el limite es `D_a - 3,14 * sqrt(Var)`; el intervalo de 95 % publicado no cambia."""
+    counts = _pair_table(2000, 1120)
+    result = disparity_by_band(counts, "sexo", N_MIN)
+    half_95 = (result.aggregate_ci_95[1] - result.aggregate_ci_95[0]) / 2  # = 1,96 sigma
+    sigma = half_95 / Decimal("1.96")
+    assert aggregate_lower_limit(counts, "sexo", N_MIN) == (
+        result.aggregate - Decimal("3.14") * sigma
+    ).quantize(Decimal("0.0001"), rounding="ROUND_HALF_UP")
+    assert aggregate_lower_limit(counts, "sexo", N_MIN, z=1.96) == result.aggregate_ci_95[0]
+
+
+def test_freeze_limit_with_few_cases_or_a_small_gap_does_not_exceed_the_threshold():
+    """BLM §3 (regla R4): 40 casos por celda y 6 pp, 2 000 casos y 6 pp, y 2 000 casos y 12 pp."""
+    assert aggregate_lower_limit(_pair_table(40, 22), "sexo", N_MIN) <= Decimal("0.05")  # 6 pp con 40 casos
+    assert aggregate_lower_limit(_pair_table(2000, 1120), "sexo", N_MIN) <= Decimal("0.05")  # 6 pp con 2 000
+    assert aggregate_lower_limit(_pair_table(2000, 1240), "sexo", N_MIN) > Decimal("0.05")  # 12 pp con 2 000
+
+
+def test_freeze_limit_is_none_without_an_aggregate_and_validates_n_min():
+    assert aggregate_lower_limit({}, "region", N_MIN) is None
+    assert aggregate_lower_limit(_pair_table(10, 5), "sexo", N_MIN) is None  # todas las celdas insuficientes
+    with pytest.raises(ValueError, match="n_min_invalid"):
+        aggregate_lower_limit({}, "region", 0)

@@ -29,10 +29,11 @@ intervalo es **contexto**: no decide.
 - `n_b` es el tamaño de la banda **contando solo sus celdas suficientes** del atributo y **sin** `no_informado`. La suma `Σ n_b` es solo sobre las bandas **con diferencia** (BR-U9-02); una banda sin diferencia no pesa. El valor y el intervalo usan los mismos pesos (revisión del FD de U9, 2026-10-08, H8).
 - **Intervalo de la agregada** (aproximación normal): `Var(D_a) = Σ_b w_b² · v_b`, donde `v_b = ((U_b − L_b) / (2 · 1,96))²` sale del intervalo de Newcombe de la banda; el intervalo es `D_a ± 1,96 · √Var(D_a)`.
 - Si ninguna banda tiene diferencia, la agregada del atributo es «muestra insuficiente».
+- **Límite de congelamiento** (regla R4 de BR-U9-11; arbitraje de la ronda 2 de U09-T01, 2026-11-09): con la misma `Var(D_a)`, la librería calcula también `D_a − 3,14 · √Var(D_a)` (`aggregate_lower_limit`). El intervalo de 95 % (z = 1,96) es el que se publica y se muestra; el límite con z = 3,14 solo decide el congelamiento.
 
 **BR-U9-05 — Agregada del modelo.** Es la **mayor** de las cuatro agregadas por atributo
 con valor. El atributo que la produce es el **atributo disparador**, y el paquete de contexto
-lo indica.
+lo indica. Con la regla R4 de BR-U9-11, el límite de congelamiento se calcula sobre ese atributo.
 
 **BR-U9-06 — Contexto sin bandas.** También se publica la diferencia sobre toda la población
 del atributo, sin bandas. No decide nada: sirve para comparar con la agregada por bandas.
@@ -72,10 +73,11 @@ ya suma solo celdas suficientes, así que no filtra nada.
 - **Todo o nada**: si falla la lectura del registro, la librería o el cálculo, las inválidas superan el 1 % o el agregador de U3 está **atrasado** (BR-U3-17: hay entradas con `seq` mayor que la marca de agua y la más antigua de ellas tiene `recorded_at` de hace más de 30 min; con la marca igual a la cabeza el atraso es 0, aunque el registro no tenga tráfico; revisión del FD de U9, 2026-10-08, H5), la corrida falla, **no** congela con datos parciales y **no** actualiza `vectra_bias_last_success_timestamp`. Igual publica las métricas de la corrida (BR-U9-20).
 - Una corrida es **completa** cuando terminó el cálculo y, si correspondía, el `freeze` respondió con éxito o con 409.
 
-**BR-U9-11 — Regla de congelamiento** (Q3, precisada por el usuario). Una versión evaluada
-(BR-U9-08) se congela si y solo si:
-- su agregada del modelo (BR-U9-05) es **> 5 pp**, **y**
-- el **límite inferior** del intervalo de la agregada ponderada de ese atributo (BR-U9-04) es **> 0**.
+**BR-U9-11 — Regla de congelamiento** (Q3, precisada por el usuario; **regla R4, decisión del usuario del 2026-11-09**, arbitraje de la ronda 2 de U09-T01, que sustituye a «agregada > 5 pp y límite inferior > 0»). Una versión evaluada
+(BR-U9-08) se congela si y solo si el **límite inferior** del intervalo de la agregada ponderada del **atributo disparador** (el de la agregada del modelo, BR-U9-05; BR-U9-04), calculado con la **z de Bonferroni** `z = 3,14`, es **> 5 pp**.
+- `z = 3,14` es el cuantil de una cola de `0,05 / 60`: 60 son las comparaciones de pares posibles (15 pares de 6 grupos × 4 atributos). El cuantil exacto es 3,1440; se redondea a 2 decimales como el 1,96.
+- Por qué cambia: con disparidad real 0 la regla anterior congelaba el 97,4 % de las corridas con 500 casos por celda (ronda 1 de U09-T01), porque el intervalo trata el par extremo, elegido entre hasta 6 grupos, como fijado de antemano. Con R4: 0,01 % con 500 casos por celda y 0 % con 2 000; el modelo base de U5 (4,61 pp) congela ≤ 1,3 % con 30 a 100 casos por celda (`library.md`).
+- Costo: R4 pide más disparidad real para congelar. Con el lote `stratified` de RT-2 (~1 500 casos, BR-U12-06) congela ≥ 95 % si la agregada de la variante proxy es ≥ **D\* = 17,5 pp** (la de U5 hoy, 11,66 pp, congela el 43 %): requisito para U5 (U05-T05), en `library.md`.
 
 Si todas las agregadas son «muestra insuficiente», no se congela. Una versión recién activada
 sirve hasta reunir muestra, y el dashboard lo muestra. La disparidad de las decisiones humanas

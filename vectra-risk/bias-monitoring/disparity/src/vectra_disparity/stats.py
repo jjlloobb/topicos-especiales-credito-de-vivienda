@@ -12,6 +12,9 @@ from decimal import ROUND_HALF_UP, Context, Decimal
 from fractions import Fraction
 
 Z95 = 1.96  # BR-U9-03/04: el 95 % se fija con 1,96, no con el cuantil exacto.
+# BR-U9-11 (regla R4, arbitraje 2026-11-09): z de Bonferroni de una cola, 0,05 / 60 comparaciones (15 pares de 6 grupos x
+# 4 atributos), redondeado a 2 decimales como Z95. El cuantil exacto es 3,1440; 3,14 queda 0,004 por debajo.
+Z_FREEZE = 3.14
 _QUANTUM = Decimal("0.0001")
 _CONTEXT = Context(prec=60)
 
