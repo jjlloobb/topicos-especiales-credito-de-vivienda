@@ -58,9 +58,7 @@ def test_un_timeout_o_una_red_caida_es_no_disponible() -> None:
 def test_la_llave_es_determinista_y_distingue_el_tipo_de_entidad() -> None:
     assert idempotency_key("model_version", "mv-1", 3) == idempotency_key("model_version", "mv-1", 3)
     assert idempotency_key("policy", "x", 1) != idempotency_key("data_source", "x", 1)
-    assert idempotency_key("model_version", "mv-1", 3) == uuid.uuid5(
-        uuid.NAMESPACE_URL, "urn:vectra:governance:model_version:mv-1:3"
-    )
+    assert idempotency_key("model_version", "mv-1", 3) == uuid.UUID("35cb2877-a92f-58da-bab1-6c8d4eda7976")  # valor fijo de la formula de Q-3
 
 
 def row(entry_type: str, actor: dict[str, str]) -> dict[str, object]:

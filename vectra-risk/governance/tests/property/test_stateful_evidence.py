@@ -114,9 +114,13 @@ class EvidenceMachine(RuleBasedStateMachine):
     @rule(who=replica, i=pick)
     def fast_forward(self, who: str, i: int) -> None:
         """Lleva una version hacia `activo` con el modo del registro vigente (para llegar a estados profundos)."""
-        model_id = MODELS[i % len(MODELS)]
+        self.walk(who, MODELS[i % len(MODELS)])
+
+    def walk(self, who: str, model_id: str, stop: str | None = None) -> None:
         for _ in range(5):
             state = self.model_states().get(model_id)
+            if state is not None and state == stop:
+                return
             run = self.h.admin.execute(
                 "SELECT run_id FROM validation_runs WHERE model_version_id = %s AND state = 'lanzado'", (model_id,)
             ).fetchall()
@@ -138,22 +142,49 @@ class EvidenceMachine(RuleBasedStateMachine):
             if op is None or self.attempt(who, op) is None:
                 return
 
-    @precondition(lambda self: self.models_in("activo") and self.models_in("aprobado", "inactivo"))
     @rule(
         who=replica,
         i=pick,
         mode=st.sampled_from(["down", "lost_ack", "up"]),
         freeze_first=st.booleans(),
         settle=st.booleans(),
+        ack_only=st.booleans(),
     )
-    def freeze_during_a_promotion(self, who: str, i: int, mode: str, freeze_first: bool, settle: bool) -> None:
+    def freeze_during_a_promotion(
+        self, who: str, i: int, mode: str, freeze_first: bool, settle: bool, ack_only: bool
+    ) -> None:
         """Un `mark_active` en vuelo (sin ack o con el ack perdido) y un `freeze` de la version activa (BR-U4-17)."""
+        if not (self.models_in("activo") and self.models_in("aprobado", "inactivo")):
+            self.h.registry.mode = "up"  # arma el escenario: una version activa y otra aprobada
+            if not self.models_in("activo"):
+                self.walk(who, "mv-1")
+            if not self.models_in("aprobado", "inactivo"):
+                self.walk(who, "mv-2", stop="aprobado")
+            if not (self.models_in("activo") and self.models_in("aprobado", "inactivo")):
+                return
         live = self.models_in("activo")[0]
         target = self.models_in("aprobado", "inactivo")[i % len(self.models_in("aprobado", "inactivo"))]
         self.h.registry.mode = mode
         self.attempt(who, lambda svc: svc.mark_active(ING, target))
+        acked: list[Any] = []
+        if ack_only:  # el ack queda guardado pero la TX2 no corre: la revalidacion de la TX2 es lo unico que protege
+            self.h.registry.mode = "up"
+            svc = self.h.services[who]
+            acked = [
+                r["transition_id"]
+                for r in self.h.admin.execute(
+                    "SELECT transition_id FROM transitions WHERE status = 'pendiente_registro' AND kind = 'cambio_estado' "
+                    "ORDER BY created_at, transition_number"
+                ).fetchall()
+            ]
+            for transition_id in acked:
+                svc.send(transition_id, svc.pools.tx)
+            self.h.registry.mode = mode
         if freeze_first or mode != "up":
             self.attempt(who, lambda svc: svc.freeze(BIAS, live, freeze_context(live, self.h.clock())))
+        if ack_only:  # la TX2 del llamador original llega tarde, despues del freeze
+            for transition_id in acked:
+                self.h.services[who].finish(transition_id, self.h.services[who].pools.tx)
         if settle:  # el registro vuelve y llegan los acks (o se reenvian) despues del freeze
             self.h.registry.mode = "up"
             for _ in range(3):
