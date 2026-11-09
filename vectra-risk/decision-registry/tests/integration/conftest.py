@@ -5,7 +5,7 @@ y un cliente HTTP contra la app de `create_app`, con tokens firmados con las lla
 """
 
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,7 +14,9 @@ import pytest
 from entries import entry_dict
 from registry_cluster import ClusterDb, cdb, cluster, cluster_template  # noqa: F401
 from registry_pg import db, pg, roles, template_db  # noqa: F401
+from registry_services import minio, vault  # noqa: F401
 from service_harness import APPEND_CASE, APPEND_GOVERNANCE, APPEND_SCORING, Clock, client_for, service_token
+from vectra_common import process
 from vectra_registry.api import ServiceConfig
 from vectra_registry.pools import Pools
 
@@ -63,3 +65,11 @@ async def env(cdb: ClusterDb) -> AsyncIterator[Env]:  # noqa: F811
     yield Env(cdb, pools, clock, config, client)
     await client.aclose()
     await pools.close()
+
+
+@pytest.fixture(autouse=True)
+def _process_kind() -> Iterator[None]:
+    """La CLI es un proceso `batch` y el servicio uno `service`: ninguna prueba hereda el tipo de la anterior (NFR-U0-23 (f))."""
+    process.reset_for_tests()
+    yield
+    process.reset_for_tests()

@@ -6,7 +6,10 @@ from pathlib import Path
 
 import pytest
 
+# `tests/property/` es un paquete (`__init__.py`) para que su `test_aggregator.py` no choque con el de `tests/integration/` al correr los dos
+# juntos; por eso sus hermanos (`cluster_dbs`) y los de `integration/` se agregan al path a mano.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "integration"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from cluster_dbs import drop_db, make_db  # noqa: E402
 from registry_cluster import Cluster, ClusterDb, cluster, cluster_template  # noqa: E402, F401

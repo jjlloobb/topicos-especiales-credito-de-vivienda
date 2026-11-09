@@ -1,0 +1,32 @@
+# Valores comunes del chart minimo de U3 (Paso 12 acotado a la demo). Se renderiza con
+# `make -C decision-registry render-chart`; los valores por entorno (buckets, URL de Transit, imagen) son del Paso 13.
+namespace: vectra-app
+image:
+  repository: kind-registry:5000/vectra/decision-registry
+  # Digest de ejemplo mientras ningun workflow construya la imagen (como `identity-jobs`); cada entorno fija el suyo. Sin digest no
+  # se renderiza (`required`): una imagen por etiqueta la rechaza Kyverno (`disallow-latest`).
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000001
+priorityClassName: vectra-high
+# `registry-db-rw` es el servicio de lectura-escritura de CloudNativePG (U1); F107. El usuario y la clave salen del Secret
+# `pg-role-registry-aggregator` que crea U1 (el chart no crea ningun Secret ni ExternalSecret para el agregador).
+database:
+  host: registry-db-rw.vectra-data.svc.cluster.local
+  name: registry
+  # El diseno pide `verify-full`: falta la CA de `registry-db` en `vectra-app` (CANDIDATAS.md, U03-T04).
+  sslmode: require
+  secretName: pg-role-registry-aggregator
+aggregator:
+  schedule: "*/5 * * * *"
+  # 240 s de lotes (BR-U3-17) mas el margen para terminar: debe ser menor que el periodo para que `Forbid` no salte corridas.
+  activeDeadlineSeconds: 280
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+# Una ServiceAccount por identidad (P-U3-08). Los CronJobs de checkpoint, verificacion y archivo (diferidos a T5) y el Deployment del
+# Paso 13 las usan (los nombres son los `sa:` de `platform/network/flows.yaml`).
+serviceAccounts:
+  - { name: decision-registry-service }
+  - { name: registry-checkpoint }
+  - { name: registry-archive }
+  - { name: registry-verify }
+  - { name: registry-aggregator }

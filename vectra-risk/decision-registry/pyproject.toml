@@ -18,6 +18,9 @@ dependencies = [
 requires = ["hatchling==1.27.0"]
 build-backend = "hatchling.build"
 
+[project.scripts]
+vectra-registry = "vectra_registry.cli:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/vectra_registry"]
 
