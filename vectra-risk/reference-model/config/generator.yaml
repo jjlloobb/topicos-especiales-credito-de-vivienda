@@ -76,3 +76,41 @@ label:
     employment_years: -0.10
     obligations_to_income: 4.0
     employment_type: {asalariado: 0.0, independiente: 0.6, pensionado: 0.2}
+
+# Modelo base (Paso 3; BR-U5-08, NFR-U5-10). Hiperparametros fijos: nthread, tree_method y semilla fijan el
+# `predictor.json` byte a byte.
+model:
+  nthread: 4
+  seed: 20261101
+  num_boost_round: 300
+  min_auc: 0.85   # [INTERNO] AUC minimo de validacion para entregar (BR-U5-08)
+  params: {max_depth: 4, eta: 0.08, subsample: 0.8, colsample_bytree: 0.8, min_child_weight: 5, lambda: 1.0}
+
+# Envolvente de dominio (Paso 4; BR-U5-11). MCD con una fraccion de soporte alta: varias features tienen una
+# masa grande en cero (mora, otros ingresos, obligaciones) y con el 50 % por omision la covarianza queda singular.
+envelope:
+  mcd_support_fraction: 0.95
+  mcd_random_state: 20261101
+  mcd_max_rows: 30000   # filas de `train` (muestra fija con la semilla) para el MCD; la distribucion F usa todo `train`
+  distance_grid_size: 1001
+
+# Politica sintetica de referencia (domain-entities §1; BR-U5-13). Solo para kind: sin valor normativo real.
+# `low_confidence_threshold` se calibra en la entrega (cuantil de `train`), no se fija a mano.
+reference_policy:
+  cutoff: "0.0800"
+  calibration_train_quantile: 0.03   # el umbral es este cuantil de la confianza en `train`
+  min_test_above: 0.95               # BR-U5-13: al menos el 95 % de `test` por encima del umbral
+  normative:
+    - vis_max_property_value: 200000000   # igual a vis_cap_cop; sintetico
+      usury_cap_ea: "0.2800"
+      effective_from: "2026-01-01"
+      source_ref: "sintetico: sin valor normativo real, solo para kind"
+
+# Paquete (Paso 5; BR-U5-09).
+package:
+  background_rows: 200
+  explainer_validation_rows: 1000
+  explainer_tolerance: 1.0e-6          # paridad con shap (NFR-U5-30)
+  # Suma de contribuciones + base_value vs margen: tolerancia absoluta 1e-4 (enmienda del usuario, 2026-11-08, a
+  # NFR-U5-30, NFR-U6-01 y los planes de U5 y U6; float32 da ~8.5e-6, ver explainer_validation).
+  explainer_margin_tolerance: 1.0e-4

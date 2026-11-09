@@ -6042,6 +6042,18 @@ Informes y arbitrajes en `revisiones/U02-T17/`.
 
 Informe y arbitraje en `revisiones/U03-T01/`.
 **Context**: Construcción de U3, U03-T01.
+
+---
+
+## U03-T02: ronda 1 VERDE
+**Timestamp**: 2026-11-08T20:45:53Z
+**User Input**: "sí, despacha los bloques C de U3 y U5"
+**AI Response**:
+- U03-T02 (Bloque C de U3: `chain`, `verify`, `projections` y resumen; más las candidatas F-01 y F-04 de U03-T01), ronda 1 VERDE (821d014). Dos NARANJA (cobertura de `column_mismatch` y de PBT-U3-06) y seis AMARILLO pasan a `CANDIDATAS.md` según RL-2; los dos NARANJA quedan como prioritarios.
+- Se abre el PR.
+
+Informe en `revisiones/U03-T02/`.
+**Context**: Construcción de U3, U03-T02.
 ## U05-T01: rondas 1 y 2
 **Timestamp**: 2026-11-08T18:41:34Z
 **User Input**: (sin entrada nueva; ritmo RL-1 a RL-5 aprobado por el usuario)
@@ -6053,6 +6065,22 @@ Informe y arbitraje en `revisiones/U03-T01/`.
 
 Informes y arbitraje en `revisiones/U05-T01/`.
 **Context**: Construcción de U5, U05-T01.
+
+---
+
+## U05-T02: rondas 1 y 2
+**Timestamp**: 2026-11-08T22:13:59Z
+**User Input**: "Reformular la propiedad (Recomendado)"; "1e-4 absoluta (Recomendado)"
+**AI Response**:
+- Ronda 1 NO-VERDE por un ROJO: Hypothesis refutó PBT-U5-03, porque la distancia de Mahalanobis no es monótona y la propiedad contradecía la fórmula de BR-U5-12.
+- Decisiones del usuario:
+  - PBT-U5-03 se reformula (`c_rango` no creciente y `confidence ≤ c_rango`) y BR-U5-12 no cambia;
+  - tolerancia absoluta de 1e-4 para la suma de contribuciones contra el margen, enmendada en NFR-U5-30, NFR-U6-01 y los planes de U5 y U6. La paridad con shap sigue en 1e-6.
+- Ronda 2 VERDE (96cea22), con tres AMARILLO. F-07 (puntuación de las enmiendas) lo corrige el orquestador; F-08 y F-09 pasan a candidatas.
+- Se abre el PR.
+
+Informes y arbitraje en `revisiones/U05-T02/`.
+**Context**: Construcción de U5, U05-T02.
 ## U02-T18: ronda 1 VERDE
 **Timestamp**: 2026-11-08T19:04:41Z
 **User Input**: "ya fusioné el PR 79"

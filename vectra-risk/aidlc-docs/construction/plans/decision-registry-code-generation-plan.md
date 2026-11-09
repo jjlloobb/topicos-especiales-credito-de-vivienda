@@ -83,25 +83,25 @@ vectra-risk/decision-registry/
 
 ### Bloque C — Lógica pura
 
-- [ ] **Paso 3 — `chain`**
+- [x] **Paso 3 — `chain`** (U03-T02)
   - `canonicalize` (JCS de U0), `link(prev_hash, canonical)` y `decode`.
   - Propiedades PBT-U3-04 (punto fijo de JCS) y PBT-U3-05 (verificación con un contrato más nuevo).
   - Diseño: BR-U3-09, 10; domain-entities §1.1.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest decision-registry/tests/property/test_chain.py`.
 
-- [ ] **Paso 4 — `verify`**
+- [x] **Paso 4 — `verify`** (U03-T02)
   - Función pura sobre filas y checkpoints, con los modos `incremental`, `nightly` (cadena de checkpoints + 7 días + muestra del 1 % con semilla registrada), `full` y `range`. Detecta los 6 motivos de BR-U3-12 y devuelve `IntegrityReport`.
   - Propiedades PBT-U3-02 (una manipulación) y PBT-U3-03 (reescritura detectada por checkpoint).
   - Diseño: BR-U3-11, 12; NFR-U3-33. Historia: US-402.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest decision-registry/tests/property/test_verify.py decision-registry/tests/unit/test_verify_modes.py`.
 
-- [ ] **Paso 5 — `projections`**
+- [x] **Paso 5 — `projections`** (U03-T02)
   - Las proyecciones de domain-entities §3 (`full`, `explanation`, `metrics`, `monitoring_daily` y `monitoring_freezes`; la `monitoring` por filas se retira porque ya no tiene consumidor, precisado el 2026-10-08 por U9 FD); un campo o una proyección no permitidos → `Forbidden`, sin datos parciales.
   - Propiedad PBT-U3-06.
   - Diseño: BR-U3-15. Historia: US-403.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest decision-registry/tests/property/test_projections.py`.
 
-- [ ] **Paso 6 — Resumen de la lógica pura**
+- [x] **Paso 6 — Resumen de la lógica pura** (U03-T02)
   - `aidlc-docs/construction/decision-registry/code/business-logic-summary.md`.
   - **Aceptación**: `uv run python platform/tests/test_traceability.py --unit decision-registry --section logic` (BR-U3-09..12 y 15 aparecen en las pruebas).
 
