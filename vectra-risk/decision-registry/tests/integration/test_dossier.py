@@ -218,9 +218,11 @@ async def checkpoint(env: Env, signer: Signer, covered: int) -> int:
 # --- last_full_verification ---------------------------------------------------------------------------------------------------
 
 
-def check_row(env: Env, mode: str, status: str, finished_at: datetime, result: str = "integra") -> str:
+def check_row(
+    env: Env, mode: str, status: str, finished_at: datetime, result: str = "integra", report_extra: dict[str, Any] | None = None
+) -> str:
     check_id = str(uuid.uuid4())
-    report = json.dumps({"result": result}) if status == "terminada" else None
+    report = json.dumps({"result": result, **(report_extra or {})}) if status == "terminada" else None
     reason = "interrumpida" if status == "fallida" else None
     from_seq, to_seq = (0, 1) if mode == "range" else (None, None)
     with env.cdb.db.connect() as conn:
@@ -273,3 +275,36 @@ def test_chain_builder_y_canonicalize_siguen_siendo_los_de_la_cadena() -> None:
     """El `Signer` de las pruebas firma lo mismo que verifica `verify` (JCS de `{checkpoint_seq, checkpoint_hash, recorded_at}`)."""
     assert canonicalize({"b": 1, "a": 2}) == b'{"a":2,"b":1}'
     assert iso(NOW).endswith("000000Z") and entry_dict and append
+
+
+# --- F-02: BR-U3-13, una `full` inconsistente deja todo expediente en not_verified ------------------------------------------
+
+
+INCONSISTENT = {"first_inconsistent_seq": 1, "reason": "hash"}
+
+
+async def test_br_u3_13_f02_con_la_ultima_full_inconsistente_un_tramo_limpio_sale_not_verified(env: Env) -> None:
+    await env.append("explanation_view")
+    check_row(env, "full", "terminada", NOW - timedelta(days=1), "inconsistente", INCONSISTENT)
+    body = (await dossier(env)).json()
+    assert body["integrity"]["status"] == "not_verified"  # el tramo del caso es limpio: lo dice la full
+    assert (body["integrity"]["first_inconsistent_seq"], body["integrity"]["reason"]) == (1, "hash")
+    assert body["last_full_verification"]["result"] == "inconsistente"
+    assert set(body["last_full_verification"]) == {"check_id", "finished_at", "result"}
+    RegistryDossier.model_validate_json(json.dumps(body))
+
+
+async def test_br_u3_13_f02_una_full_posterior_integra_devuelve_el_expediente_a_verified(env: Env) -> None:
+    await env.append("explanation_view")
+    check_row(env, "full", "terminada", NOW - timedelta(days=2), "inconsistente", INCONSISTENT)
+    assert (await dossier(env)).json()["integrity"]["status"] == "not_verified"
+    check_row(env, "full", "terminada", NOW - timedelta(days=1), "integra")
+    body = (await dossier(env)).json()
+    assert body["integrity"]["status"] == "verified" and body["last_full_verification"]["result"] == "integra"
+
+
+async def test_br_u3_13_f02_una_full_inconsistente_anterior_a_otra_integra_no_cuenta(env: Env) -> None:
+    await env.append("explanation_view")
+    check_row(env, "full", "terminada", NOW - timedelta(days=5), "inconsistente", INCONSISTENT)
+    check_row(env, "full", "terminada", NOW - timedelta(days=4), "integra")
+    assert (await dossier(env)).json()["integrity"]["status"] == "verified"

@@ -141,8 +141,18 @@ async def test_br_u3_03_fail_closed_de_escalamiento_desde_scoring_es_403(env: En
     assert (await env.post(data, APPEND_SCORING)).status_code == 403
 
 
-async def test_br_u3_03_fail_closed_con_local_cause_sin_escalated_at_desde_scoring_es_403(env: Env) -> None:
-    """Un `local_cause` sin `escalated_at` no pasa la validacion de U0 (BR-U0-38); con `escalated_at` es el caso anterior."""
+async def test_br_u3_03_f01_fail_closed_con_cause_y_escalated_at_desde_scoring_es_403(env: Env) -> None:
+    """F-01: el escalamiento por reintentos agotados (`cause` + `escalated_at`, valido para U0) es de case, no de scoring.
+    Mata la mutacion que exige solo `local_cause is None` y no `escalated_at is None`."""
+    payload = {"cause": "timeout", "retryable": True, "attempt": 3, "escalated_at": iso(env.clock.now)}
+    data = entry_dict("fail_closed", now=env.clock.now, payload=payload)
+    assert (await env.post(data, APPEND_SCORING)).status_code == 403
+    assert (await env.post(data, APPEND_CASE)).status_code == 200  # case si escribe el escalamiento
+    assert count(env) == 2
+
+
+async def test_br_u3_03_local_cause_sin_escalated_at_lo_rechaza_u0_con_422_antes_del_scope(env: Env) -> None:
+    """F-03: el plan dice 403, pero U0 (BR-U0-38) rechaza ese payload con 422 antes del handler; no se escribe nada."""
     data = entry_dict("fail_closed", now=env.clock.now, payload={"local_cause": "scoring_rejected", "retryable": False, "attempt": 1})
     assert (await env.post(data, APPEND_SCORING)).status_code == 422  # lo rechaza U0 antes de llegar al scope
     only_escalation = entry_dict("fail_closed", now=env.clock.now, payload={**escalated(env), "attempt": 1})

@@ -17,6 +17,7 @@ SCORING, CASE_SCOPE, GOVERNANCE = (
     Scope.REGISTRY_APPEND_GOVERNANCE,
 )
 ESCALATION = {"local_cause": "scoring_rejected", "retryable": False, "attempt": 3, "escalated_at": "2026-11-08T12:00:00.000000Z"}
+ESCALATION_WITH_CAUSE = {"cause": "timeout", "retryable": True, "attempt": 3, "escalated_at": "2026-11-08T12:00:00.000000Z"}
 PER_ATTEMPT = {"cause": "timeout", "retryable": True, "attempt": 1}
 
 
@@ -34,8 +35,8 @@ def test_br_u3_03_la_tabla_de_scopes_y_tipos(scope: Scope, entry_type: str) -> N
 
 @pytest.mark.parametrize(
     ("payload", "scoring", "case"),
-    [(PER_ATTEMPT, True, False), (ESCALATION, False, True)],
-    ids=["por_intento", "escalamiento"],
+    [(PER_ATTEMPT, True, False), (ESCALATION, False, True), (ESCALATION_WITH_CAUSE, False, True)],
+    ids=["por_intento", "escalamiento", "escalamiento_con_cause"],
 )
 def test_br_u3_03_fail_closed_es_simetrico(payload: dict[str, Any], scoring: bool, case: bool) -> None:
     entry = make("fail_closed", payload=payload)

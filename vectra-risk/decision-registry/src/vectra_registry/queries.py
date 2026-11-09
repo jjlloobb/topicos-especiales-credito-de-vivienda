@@ -22,13 +22,10 @@ from vectra_registry.chain import Row, decode
 from vectra_registry.pools import Connection, Pools
 from vectra_registry.projections import (
     Consumer,
-    DailyCount,
-    EntryTotals,
-    InvalidEntry,
     delivery_status,
+    monitoring_window,
     project,
     project_all,
-    project_monitoring_daily,
 )
 
 STATEMENT_TIMEOUT_MS = 2000
@@ -214,42 +211,89 @@ def _days(query: MonitoringQuery) -> tuple[date, date]:
     return min(s[0] for s in spans), max(s[1] for s in spans)
 
 
+#: Los rangos pedidos como una tabla (`unnest`) a la que se une cada tabla derivada: una sola pasada y la suma en PostgreSQL.
+_RANGES = (
+    "unnest(%(ids)s::text[], %(pops)s::text[], %(versions)s::text[], %(froms)s::date[], %(tos)s::date[]) "
+    "AS r(range_id, population, model_version_id, from_day, to_day)"
+)
+
+
 async def monitoring_daily(pools: Pools, scopes: Collection[Scope], query: MonitoringQuery, now: datetime) -> MonitoringWindow:
-    """`POST /v1/monitoring/daily:query`: solo lectura en la replica, con los conteos sumados en el servidor."""
+    """`POST /v1/monitoring/daily:query`: solo lectura en la replica, con los conteos **sumados en SQL** (`GROUP BY`).
+
+    El servicio nunca trae las filas diarias (hasta ~300 000 por solicitud con 3 versiones y 180 dias): PostgreSQL devuelve una
+    fila por celda y rango (BR-U3-17).
+    """
     if Scope.REGISTRY_READ_MONITORING not in scopes:
         raise Forbidden()
     first, last = _days(query)
-    window = {"first": first, "last": last}
+    window = query.unattributable_range
+    params: dict[str, Any] = {
+        "ids": [r.range_id for r in query.ranges],
+        "pops": [r.population for r in query.ranges],
+        "versions": [r.model_version_id for r in query.ranges],
+        "froms": [r.from_day for r in query.ranges],
+        "tos": [r.to_day for r in query.ranges],
+        "first": first,
+        "last": last,
+        "u_from": window.from_day if window else None,
+        "u_to": window.to_day if window else None,
+    }
+    match = (
+        "t.population = r.population AND t.model_version_id <> '-' AND t.day BETWEEN r.from_day AND r.to_day "
+        "AND (r.model_version_id IS NULL OR t.model_version_id = r.model_version_id)"
+    )
     try:
         async with pools.projections.connection() as conn, conn.transaction():
             await start_read(conn)
+            counts: dict[str, dict[tuple[str, str, str, str, str, str, str], int]] = {}
+            # Un `GROUP BY` por rango, con los predicados en el orden de la llave primaria (poblacion, version, dia): el indice
+            # acota las filas de cada rango; unir contra los 12 rangos a la vez hacia que PostgreSQL leyera la tabla entera.
+            for request in query.ranges:
+                version_filter = "model_version_id = %(version)s" if request.model_version_id else "model_version_id <> '-'"
+                cursor = await conn.execute(
+                    'SELECT population, model_version_id, attribute, "group", band, result, decision, sum(count)::bigint '  # noqa: S608
+                    f"FROM monitoring_daily WHERE population = %(pop)s AND {version_filter} AND day BETWEEN %(from)s AND %(to)s "
+                    'GROUP BY population, model_version_id, attribute, "group", band, result, decision',
+                    {"pop": request.population, "version": request.model_version_id, "from": request.from_day, "to": request.to_day},
+                )
+                counts[request.range_id] = {
+                    (str(a), str(b), str(c), str(d), str(e), str(f), str(g)): int(str(n))
+                    for a, b, c, d, e, f, g, n in await cursor.fetchall()
+                }
             cursor = await conn.execute(
-                'SELECT population, model_version_id, day, attribute, "group", band, result, decision, count '
-                "FROM monitoring_daily WHERE day BETWEEN %(first)s AND %(last)s",
-                window,
+                f"SELECT r.range_id, sum(t.total)::bigint, sum(t.invalid)::bigint FROM {_RANGES} "  # noqa: S608
+                f"JOIN monitoring_entry_totals t ON {match} GROUP BY r.range_id",
+                params,
             )
-            daily = [DailyCount(*values) for values in await cursor.fetchall()]  # type: ignore[arg-type]
+            range_totals = {str(i): (int(a), int(b)) for i, a, b in await cursor.fetchall()}  # type: ignore[call-overload]
+            versions: dict[tuple[str, str], tuple[date, date]] = {}
+            if query.include_versions:
+                cursor = await conn.execute(
+                    "SELECT model_version_id, population, min(day), max(day) FROM monitoring_daily "
+                    "WHERE day BETWEEN %(first)s AND %(last)s GROUP BY model_version_id, population",
+                    params,
+                )
+                versions = {(str(v), str(p)): (lo, hi) for v, p, lo, hi in await cursor.fetchall()}  # type: ignore[misc]
             cursor = await conn.execute(
-                "SELECT population, model_version_id, day, total, invalid FROM monitoring_entry_totals "
-                "WHERE day BETWEEN %(first)s AND %(last)s",
-                window,
+                "SELECT coalesce(sum(invalid), 0)::bigint FROM monitoring_entry_totals "
+                "WHERE model_version_id = '-' AND day BETWEEN %(u_from)s AND %(u_to)s",
+                params,
             )
-            totals = [EntryTotals(*values) for values in await cursor.fetchall()]  # type: ignore[arg-type]
+            unattributable = int((await cursor.fetchone() or (0,))[0]) if window else 0  # type: ignore[call-overload]
             cursor = await conn.execute(
-                "SELECT seq, population, model_version_id, day, reason FROM monitoring_invalid "
-                "WHERE day BETWEEN %(first)s AND %(last)s ORDER BY seq",
-                window,
+                f"SELECT DISTINCT t.seq FROM monitoring_invalid t, {_RANGES} WHERE ({match}) "  # noqa: S608
+                "OR (%(u_from)s::date IS NOT NULL AND t.model_version_id = '-' AND t.day BETWEEN %(u_from)s AND %(u_to)s) "
+                "ORDER BY t.seq LIMIT 100",
+                params,
             )
-            invalid = [InvalidEntry(*values) for values in await cursor.fetchall()]  # type: ignore[arg-type]
+            invalid_seqs = [int(row[0]) for row in await cursor.fetchall()]  # type: ignore[call-overload]
             watermark, lag = await monitoring_lag(conn, now)
     except psycopg.errors.QueryCanceled as error:
         raise timed_out(error) from error
-    try:
-        return project_monitoring_daily(
-            Consumer.MONITORING, query, daily, totals, invalid, watermark_seq=watermark, lag_seconds=lag
-        )
-    except projections.Forbidden as error:  # pragma: no cover - el scope ya se comprobo
-        raise Forbidden() from error
+    return monitoring_window(
+        Consumer.MONITORING, query, counts, range_totals, versions, unattributable, invalid_seqs, watermark_seq=watermark, lag_seconds=lag
+    )
 
 
 def freeze_records(rows: list[Row]) -> list[dict[str, Any]]:

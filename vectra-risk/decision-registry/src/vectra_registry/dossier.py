@@ -63,7 +63,8 @@ async def _range_rows(conn: Connection, low: int, high: int) -> list[Row]:
 
 async def _last_full(conn: Connection) -> dict[str, Any] | None:
     cursor = await conn.execute(
-        "SELECT check_id, finished_at, report->>'result' FROM integrity_checks "
+        "SELECT check_id, finished_at, report->>'result', report->>'first_inconsistent_seq', report->>'reason' "
+        "FROM integrity_checks "
         "WHERE mode = 'full' AND status = 'terminada' ORDER BY finished_at DESC LIMIT 1"
     )
     row = await cursor.fetchone()
@@ -73,6 +74,8 @@ async def _last_full(conn: Connection) -> dict[str, Any] | None:
         "check_id": str(row[0]),
         "finished_at": cast(datetime, row[1]).astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z"),
         "result": row[2],
+        "first_inconsistent_seq": int(str(row[3])) if row[3] is not None else None,
+        "reason": row[4],
     }
 
 
@@ -117,6 +120,9 @@ async def build_dossier(pools: Pools, case_id: UUID, public_keys: Sequence[bytes
         verify, "range", ListSource(window), public_keys=public_keys, from_seq=low, to_seq=high
     )
     status = integrity_status(report, low, high if later else "head")
+    if status["status"] == "verified" and last_full is not None and last_full["result"] == "inconsistente":
+        # BR-U3-13: tras una `full` inconsistente, todo expediente dice «no verificado» hasta que una `full` posterior de `integra`.
+        status = {**status, "status": "not_verified", "first_inconsistent_seq": last_full["first_inconsistent_seq"], "reason": last_full["reason"]}
     if status["status"] == "not_verified":
         DOSSIER_NOT_VERIFIED.inc()
     decisions = [decode(row.canonical)["payload"].get("recommendation_entry_id") for row in entries if row.entry_type == "human_decision"]
@@ -127,7 +133,8 @@ async def build_dossier(pools: Pools, case_id: UUID, public_keys: Sequence[bytes
         if row.entry_type == "recommendation":
             item["delivery_status"] = delivery_status(row.seq, decisions)
         items.append(item)
-    return {"case_id": str(case_id), "entries": items, "integrity": status, "last_full_verification": last_full}
+    shown = None if last_full is None else {k: last_full[k] for k in ("check_id", "finished_at", "result")}
+    return {"case_id": str(case_id), "entries": items, "integrity": status, "last_full_verification": shown}
 
 
 # --- Verificacion bajo demanda (BR-U3-13b) ------------------------------------------------------------------------------------

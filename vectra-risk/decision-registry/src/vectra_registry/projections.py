@@ -320,11 +320,10 @@ def project_monitoring_daily(  # noqa: PLR0913
     watermark_seq: int,
     lag_seconds: int,
 ) -> MonitoringWindow:
-    """La proyeccion `monitoring_daily` (U9 domain-entities §1.2): por cada rango, los conteos marginales sumados.
+    """La proyeccion `monitoring_daily` (U9 domain-entities §1.2) sumando en Python las filas diarias que recibe.
 
-    Suma, sin el dia, por (poblacion, version, atributo, grupo, banda, resultado, decision); `totals` por rango (`range_id`)
-    sin las filas no atribuibles; `unattributable_invalid` es un solo valor: los `invalid` de las filas `-` dentro del
-    `unattributable_range` (0 si no se pidio); hasta 100 `invalid_seqs`, los menores, de los dias pedidos.
+    El servicio no la usa con las filas crudas: suma con `GROUP BY` en SQL y llama a `monitoring_window`. Esta forma queda como
+    el oraculo de las pruebas (PBT-U3-06 y las del Paso 5): las dos rutas deben dar la misma ventana.
     """
     _check(consumer, "monitoring_daily", None)
     daily_rows, total_rows, invalid_rows = list(daily), list(totals), list(invalid)
@@ -337,32 +336,16 @@ def project_monitoring_daily(  # noqa: PLR0913
             and request.from_day <= day <= request.to_day
         )
 
-    counts: list[MonitoringMarginalCount] = []
-    range_totals: list[RangeTotals] = []
+    counts: dict[str, dict[tuple[str, str, str, str, str, str, str], int]] = {}
+    range_totals: dict[str, tuple[int, int]] = {}
     for request in query.ranges:
         summed: dict[tuple[str, str, str, str, str, str, str], int] = defaultdict(int)
         for row in daily_rows:
             if in_range(request, row.population, row.model_version_id, row.day):
                 summed[(row.population, row.model_version_id, row.attribute, row.group, row.band, row.result, row.decision)] += row.count
-        counts += [
-            MonitoringMarginalCount.model_validate(
-                {
-                    "population": population, "model_version_id": version, "range_id": request.range_id, "attribute": attribute,
-                    "group": group, "band": band, "result": result, "decision": None if decision == "-" else decision,
-                    "count": count,
-                },
-                strict=False,
-            )  # fmt: skip
-            for (population, version, attribute, group, band, result, decision), count in sorted(summed.items())
-        ]
+        counts[request.range_id] = dict(summed)
         chosen = [t for t in total_rows if in_range(request, t.population, t.model_version_id, t.day)]
-        range_totals.append(
-            RangeTotals(
-                range_id=request.range_id,
-                total_entries=sum(t.total for t in chosen),
-                invalid_entries=sum(t.invalid for t in chosen),
-            )
-        )
+        range_totals[request.range_id] = (sum(t.total for t in chosen), sum(t.invalid for t in chosen))
     window = query.unattributable_range
     unattributable = (
         sum(t.invalid for t in total_rows if t.model_version_id == UNATTRIBUTABLE and window.from_day <= t.day <= window.to_day)
@@ -383,6 +366,40 @@ def project_monitoring_daily(  # noqa: PLR0913
             or (window and entry.model_version_id == UNATTRIBUTABLE and window.from_day <= entry.day <= window.to_day)
         }
     )
+    return monitoring_window(
+        consumer, query, counts, range_totals, versions, unattributable, seqs, watermark_seq=watermark_seq, lag_seconds=lag_seconds
+    )
+
+
+def monitoring_window(  # noqa: PLR0913
+    consumer: Consumer,
+    query: MonitoringQuery,
+    counts: dict[str, dict[tuple[str, str, str, str, str, str, str], int]],
+    range_totals: dict[str, tuple[int, int]],
+    versions: dict[tuple[str, str], tuple[date, date]],
+    unattributable_invalid: int,
+    invalid_seqs: list[int],
+    *,
+    watermark_seq: int,
+    lag_seconds: int,
+) -> MonitoringWindow:
+    """Arma la `MonitoringWindow` a partir de conteos **ya sumados** (por rango: poblacion, version, atributo, grupo, banda,
+    resultado y decision), de `(total, invalid)` por rango, de `(primer, ultimo dia)` por (version, poblacion) y de las
+    `invalid_seqs` ordenadas. La suma la hace PostgreSQL con `GROUP BY` (BR-U3-17); aqui solo se da forma y se acota a 100."""
+    _check(consumer, "monitoring_daily", None)
+    marginals: list[MonitoringMarginalCount] = []
+    for request in query.ranges:
+        marginals += [
+            MonitoringMarginalCount.model_validate(
+                {
+                    "population": population, "model_version_id": version, "range_id": request.range_id, "attribute": attribute,
+                    "group": group, "band": band, "result": result, "decision": None if decision == "-" else decision,
+                    "count": count,
+                },
+                strict=False,
+            )  # fmt: skip
+            for (population, version, attribute, group, band, result, decision), count in sorted(counts.get(request.range_id, {}).items())
+        ]
     return MonitoringWindow(
         versions=[
             VersionWindow.model_validate(
@@ -390,10 +407,13 @@ def project_monitoring_daily(  # noqa: PLR0913
             )
             for (version, population), (first, last) in sorted(versions.items())
         ],
-        counts=counts,
-        totals=range_totals,
-        unattributable_invalid=unattributable,
-        invalid_seqs=seqs[:MAX_INVALID_SEQS],
+        counts=marginals,
+        totals=[
+            RangeTotals(range_id=r.range_id, total_entries=range_totals.get(r.range_id, (0, 0))[0], invalid_entries=range_totals.get(r.range_id, (0, 0))[1])
+            for r in query.ranges
+        ],
+        unattributable_invalid=unattributable_invalid,
+        invalid_seqs=invalid_seqs[:MAX_INVALID_SEQS],
         watermark_seq=watermark_seq,
         lag_seconds=lag_seconds,
     )
@@ -401,5 +421,5 @@ def project_monitoring_daily(  # noqa: PLR0913
 
 __all__ = [
     "FIELDS", "FULL_FIELDS", "PERMITTED", "PROJECTIONS", "Consumer", "DailyCount", "EntryTotals", "Forbidden", "InvalidEntry",
-    "delivery_status", "project", "project_all", "project_monitoring_daily",
+    "delivery_status", "monitoring_window", "project", "project_all", "project_monitoring_daily",
 ]  # fmt: skip
