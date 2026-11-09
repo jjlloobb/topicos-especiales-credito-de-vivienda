@@ -80,31 +80,31 @@ vectra-risk/governance/
 
 ### Bloque C — Lógica pura
 
-- [ ] **Paso 3 — `model_fsm`**
+- [x] **Paso 3 — `model_fsm`** (U04-T02)
   - Función pura con la tabla de BR-U4-01; errores `Forbidden`/`ConflictState`.
   - Propiedad PBT-U4-02 (oráculo sobre el producto completo de estados × acciones × actores).
   - Diseño: BR-U4-01, 02, 04, 10. Historias: US-203, US-305.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_model_fsm.py`.
 
-- [ ] **Paso 4 — `policy`**
+- [x] **Paso 4 — `policy`** (U04-T02)
   - Validación de la lista normativa (BR-U0-33); `normative_at(policy, fecha)` con fechas en **`America/Bogota`**; cuatro ojos; activación (la anterior pasa a `historica`).
   - Propiedades PBT-U4-03 (incluidos los bordes de la medianoche de Bogotá) y PBT-U4-04.
   - Diseño: BR-U4-10, 11; P-U4-05. Historias: US-205, US-206.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_policy.py`, y la prueba con reloj simulado: el cambio de vigencia ocurre a las 00:00 de Bogotá y no a las 19:00 de Bogotá.
 
-- [ ] **Paso 5 — `serving_config`**
+- [x] **Paso 5 — `serving_config`** (U04-T02)
   - Composición de domain-entities §5 (incluido `inference_service`) y `etag` (JCS de todos los campos; sin `bias_monitoring_age_s`, precisado el 2026-10-08 por U9 FD); prueba de ejemplo: cambiar solo `inference_service` cambia el `etag`.
   - Propiedad PBT-U4-05.
   - Diseño: BR-U4-11, 14; P-U4-07.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_serving_config.py`.
 
-- [ ] **Paso 6 — `registration`**
+- [x] **Paso 6 — `registration`** (U04-T02)
   - Formato permitido, rechazo de `pickle`/`joblib` por extensión y bytes mágicos, SHA-256 sobre los bytes de cada archivo del `manifest.json` (U5) y mismo `model_version_id` en todos; nunca deserializa.
   - Propiedad PBT-U4-06.
   - Diseño: BR-U4-06. Historia: US-201.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_registration.py`, más una prueba que hace fallar a cualquier deserializador si se lo invoca (*monkeypatch* de `pickle.loads`, `joblib.load` y `onnx.load`).
 
-- [ ] **Paso 7 — Resumen de la lógica pura**
+- [x] **Paso 7 — Resumen de la lógica pura** (U04-T02)
   - `aidlc-docs/construction/governance/code/business-logic-summary.md`.
   - **Aceptación**: `uv run python platform/tests/test_traceability.py --unit governance --section logic` (BR-U4-01, 02, 04, 06, 10, 11 y 14 aparecen en las pruebas).
 
