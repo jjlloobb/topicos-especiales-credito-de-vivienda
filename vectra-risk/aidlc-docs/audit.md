@@ -6105,6 +6105,17 @@ Informe en `revisiones/U02-T18/`.
 
 ---
 
+## U05-T04: ronda 1
+**Timestamp**: 2026-11-09T04:42:33Z
+**User Input**: "sigamos"
+**AI Response**:
+- Ronda 1 NO-VERDE sin ningún ROJO: un NARANJA (F-01, `PROXY_RUNS = 5` repite `rt2_runs` de la configuración) y cuatro AMARILLO. Los tres criterios pasan en las corridas del revisor: `make -C reference-model check` con 93,96 % de cobertura y `confidence.py` al 100 %, y `make -C platform check` con 309 pass.
+- Por RL-2 no se abre ronda 2: los cinco hallazgos pasan a `CANDIDATAS.md`.
+- Se integra `origin/main` y se abre el PR.
+
+Informe y arbitraje en `revisiones/U05-T04/`.
+**Context**: Construcción de U5, U05-T04 (cierre acotado a la demo).
+
 ## U03-T03: rondas 1 y 2
 **Timestamp**: 2026-11-09T03:36:18Z
 **User Input**: "sí, prepara y despacha el bloque D de U3"
