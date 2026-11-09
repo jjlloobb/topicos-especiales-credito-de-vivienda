@@ -16,7 +16,7 @@ import csv
 import hashlib
 import io
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Final
 
@@ -27,6 +27,13 @@ from vectra_contracts.models.features import (
 )
 
 from vectra_reference.features import PLACEHOLDER_ID, Value, base_feature_spec, validate_feature_spec
+from vectra_reference.proxy import (
+    DETAIL_FEATURE,
+    PROXY_FEATURES,
+    ZONE_FEATURE,
+    check_proxy_spec,
+    load_proxy_catalog,
+)
 from vectra_reference.train import TrainedModel, predictor_bytes
 
 MANIFEST = "manifest.json"
@@ -38,6 +45,8 @@ PACKAGE_FILES: Final = (
     "feature_dictionary.json",
     "feature_spec.json",
 )
+PURPOSE_BASE: Final = "base"
+PURPOSE_RT2: Final = "rt2-demo"  # BR-U5-15: la variante proxy solo sirve para la demostracion de RT-2
 FORBIDDEN_SUFFIXES: Final = (".pkl", ".pickle", ".joblib")
 ZIP_MAGIC: Final = b"PK\x03\x04"
 PICKLE_PROTOCOLS: Final = tuple(range(2, 6))
@@ -122,6 +131,19 @@ _DICTIONARY: Final[dict[str, tuple[str, str | None, str, str]]] = {
         "El canal por el que llegó la solicitud se asocia con un riesgo mayor.",
         "El canal por el que llegó la solicitud se asocia con un riesgo menor.",
     ),
+    # Solo la variante proxy (RT-2): ambas se marcan `applicant_safe = false` (no se muestran al solicitante).
+    ZONE_FEATURE: (
+        "Zona de la vivienda",
+        None,
+        "La zona de la vivienda se asocia con un riesgo mayor.",
+        "La zona de la vivienda se asocia con un riesgo menor.",
+    ),
+    DETAIL_FEATURE: (
+        "Detalle del canal de originación",
+        None,
+        "El detalle del canal por el que llegó la solicitud se asocia con un riesgo mayor.",
+        "El detalle del canal por el que llegó la solicitud se asocia con un riesgo menor.",
+    ),
 }
 
 
@@ -190,8 +212,10 @@ def _render(
     background: Sequence[Mapping[str, Value]],
     base_value: float,
     dictionary_version: str,
+    spec_for: Callable[[str], FeatureSpec] = base_feature_spec,
+    not_applicant_safe: Sequence[str] = (),
 ) -> dict[str, bytes]:
-    spec = base_feature_spec(model_version_id)
+    spec = spec_for(model_version_id)
     if tuple(item.feature_id for item in spec.features) != model.feature_order:
         raise PackageError("feature_order_differs_from_spec")
     return {
@@ -209,7 +233,9 @@ def _render(
         "background.csv": _background_csv(model.feature_order, background),
         "domain_envelope.json": dump_json({**envelope, "model_version_id": model_version_id}),
         "feature_dictionary.json": dump_json(
-            feature_dictionary(spec, dictionary_version).model_dump(mode="json")
+            feature_dictionary(spec, dictionary_version, not_applicant_safe=not_applicant_safe).model_dump(
+                mode="json"
+            )
         ),
         "feature_spec.json": dump_json(spec.model_dump(mode="json")),
     }
@@ -223,22 +249,38 @@ def build_package(
     base_value: float,
     config: Mapping[str, Any],
     stats: Mapping[str, Any],
+    *,
+    spec_for: Callable[[str], FeatureSpec] = base_feature_spec,
+    purpose: str = PURPOSE_BASE,
+    not_applicant_safe: Sequence[str] = (),
+    extra_meta: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Escribe el paquete en `out_dir` y devuelve el manifiesto. Verifica el resultado antes de devolverlo."""
+    """Escribe el paquete en `out_dir` y devuelve el manifiesto. Verifica el resultado antes de devolverlo.
+
+    La variante proxy (BR-U5-15) pasa su `spec_for`, `purpose = rt2-demo` y `extra_meta = {"rt2_run": n}`; los metadatos
+    entran en el hash del `model_version_id`, asi que cada corrida tiene un id distinto con el mismo predictor.
+    """
     dictionary_version = str(config["generator_version"])
-    pending = _render(PLACEHOLDER_ID, model, envelope, background, base_value, dictionary_version)
+
+    def render(version: str) -> dict[str, bytes]:
+        return _render(
+            version, model, envelope, background, base_value, dictionary_version, spec_for, not_applicant_safe
+        )
+
+    pending = render(PLACEHOLDER_ID)
     meta: dict[str, Any] = {
         "manifest_version": 1,
         "generator_version": config["generator_version"],
         "seed": config["seed"],
-        "purpose": "base",
+        "purpose": purpose,
+        **(extra_meta or {}),
         **stats,
     }
     digest = sha256(
         dump_json({**meta, "files": [{"name": n, "sha256": sha256(pending[n])} for n in sorted(pending)]})
     )[:8]
     model_version_id = f"mv-{config['reference_date']}-{digest}"
-    files = _render(model_version_id, model, envelope, background, base_value, dictionary_version)
+    files = render(model_version_id)
     manifest = {
         **meta,
         "model_version_id": model_version_id,
@@ -296,10 +338,11 @@ def verify_package(directory: Path) -> list[str]:
                     errors.append(f"model_version_id_inside_mismatch:{name}")
             except (ValueError, AttributeError):
                 errors.append(f"json_unreadable:{name}")
-    return errors + _verify_features(directory)
+    extra = PROXY_FEATURES if manifest.get("purpose") == PURPOSE_RT2 else ()
+    return errors + _verify_features(directory, extra)
 
 
-def _verify_features(directory: Path) -> list[str]:
+def _verify_features(directory: Path, extra_allowed: Sequence[str] = ()) -> list[str]:
     try:
         spec = FeatureSpec.model_validate_json((directory / "feature_spec.json").read_bytes())
         dictionary = FeatureDictionary.model_validate_json(
@@ -309,11 +352,15 @@ def _verify_features(directory: Path) -> list[str]:
         return ["feature_files_unreadable"]
     errors: list[str] = []
     try:
-        validate_feature_spec(spec)
+        validate_feature_spec(spec, extra_allowed)
     except ValueError as exc:
         errors.append(str(exc))
     try:
         check_dictionary_coverage(spec, dictionary)
     except PackageError as exc:
         errors.append(str(exc))
+    if (
+        extra_allowed
+    ):  # variante proxy: BR-U5-15, cada zona con al menos 5 municipios; y `applicant_safe = false`
+        errors += check_proxy_spec(spec, dictionary, load_proxy_catalog())
     return errors

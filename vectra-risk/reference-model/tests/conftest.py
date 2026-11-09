@@ -9,7 +9,7 @@ from types import ModuleType
 import pytest
 from hypothesis import HealthCheck, settings
 from vectra_reference.generate import load_config, with_overrides
-from vectra_reference.release import Release, run_release
+from vectra_reference.release import ProxyRelease, Release, run_adversarial, run_proxy_release, run_release
 
 _COMMON = {
     "print_blob": True,
@@ -31,6 +31,18 @@ def pytest_report_header() -> str:
 def reference_release(tmp_path_factory: pytest.TempPathFactory) -> Release:
     """La entrega completa con la semilla de referencia (Pasos 2 a 5), una sola vez por sesion de pruebas."""
     return run_release(tmp_path_factory.mktemp("release"))
+
+
+@pytest.fixture(scope="session")
+def reference_proxy(reference_release: Release) -> ProxyRelease:
+    """Los 5 paquetes de la variante proxy (Paso 6), escritos junto a la entrega de referencia."""
+    return run_proxy_release(reference_release)
+
+
+@pytest.fixture(scope="session")
+def reference_adversarial(reference_release: Release) -> dict[str, object]:
+    """El conjunto adversarial (Paso 7) escrito en `adversarial/` de la entrega de referencia: su manifiesto."""
+    return run_adversarial(reference_release)
 
 
 @pytest.fixture(scope="session")

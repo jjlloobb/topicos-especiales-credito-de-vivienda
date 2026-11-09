@@ -85,11 +85,20 @@ def train_model(
     config: Mapping[str, Any],
     *,
     enforce_min_auc: bool = True,
+    extra_allowed: Sequence[str] = (),
+    extra_vocabulary: Mapping[str, Sequence[str]] | None = None,
 ) -> TrainedModel:
-    """Entrena y mide el AUC de validacion. `spec` fuera de §3.1 -> `FeatureSpecError` antes de entrenar."""
-    validate_feature_spec(spec)
+    """Entrena y mide el AUC de validacion. `spec` fuera de §3.1 -> `FeatureSpecError` antes de entrenar.
+
+    La variante proxy (BR-U5-15) pasa sus dos features de busqueda en `extra_allowed` y sus valores en `extra_vocabulary`.
+    """
+    validate_feature_spec(spec, extra_allowed)
     feature_order = tuple(item.feature_id for item in spec.features)
-    vocabulary = {k: v for k, v in categorical_vocabulary(config).items() if k in feature_order}
+    all_vocabulary = {
+        **categorical_vocabulary(config),
+        **{k: list(v) for k, v in (extra_vocabulary or {}).items()},
+    }
+    vocabulary = {k: v for k, v in all_vocabulary.items() if k in feature_order}
     dtrain = xgb.DMatrix(
         encode(train.values, feature_order, vocabulary), label=train.y, feature_names=list(feature_order)
     )

@@ -141,14 +141,45 @@ def test_pbt_u5_03_confidence_stays_below_c_rango_when_one_feature_is_slightly_o
     assert confidence_raw(envelope, values) <= range_confidence(envelope, values)
 
 
-def test_pbt_u5_03_the_counterexample_of_the_review_is_a_valid_case(envelope: dict[str, Any]) -> None:
-    """El caso F-01 (`loan_to_value` sube desde p99): `confidence` puede subir, `c_rango` no."""
-    values = {item["name"]: (item["p1"] + item["p99"]) / 2 for item in envelope["numeric"]}
-    values.update({name: seen[0] for name, seen in envelope["categories"].items()})
+# El contraejemplo real de la ronda 1 de U05-T02 (F-01 del revisor, atendido como F-08 en U05-T03): ITI = 1,0, antiguedad
+# de 1 mes y `loan_to_value` desde p99 = 0,9. El informe no fija las demas features; estas salen de una busqueda aleatoria
+# (semilla 1, 3 000 intentos, 1 435 casos) sobre la envolvente de referencia. Con ellas `confidence` SUBE al subir ltv.
+COUNTEREXAMPLE = {
+    "installment_to_income": 1.0,
+    "monthly_income": 17325265.459496222,
+    "other_income": 4781359.566896348,
+    "monthly_obligations": 3302171.9617618355,
+    "employment_months": 1.0,
+    "max_days_past_due_12m": 19.9361666912667,
+    "term_months": 360.0,
+    "proposed_rate_ea": 0.1483662040697973,
+}
+
+
+def test_pbt_u5_03_the_counterexample_of_the_review_is_a_valid_case(reference_release: Release) -> None:
+    """El caso F-01 (U05-T02, ronda 1): `confidence` puede subir mientras `c_rango` no sube, y `confidence <= c_rango`."""
+    envelope = reference_release.envelope
     ltv = next(i for i in envelope["numeric"] if i["name"] == "loan_to_value")
-    near, far = ({**values, "loan_to_value": ltv["p99"] + k} for k in (0.0, 0.5))
-    assert range_confidence(envelope, far) <= range_confidence(envelope, near)
-    assert confidence_raw(envelope, far) <= range_confidence(envelope, far)
+    assert ltv["p99"] == pytest.approx(0.9)  # el caso empieza en el borde p99
+    categories = {name: seen[0] for name, seen in envelope["categories"].items()}
+    steps = [ltv["p99"] + 0.0125 * k for k in range(8)]  # 0,9 .. 0,9875
+    cases = [{**COUNTEREXAMPLE, **categories, "loan_to_value": x} for x in steps]
+    for (
+        values
+    ) in cases:  # el caso es una entrada valida de la envolvente: todas las numericas dentro salvo ltv
+        assert all(
+            item["p1"] <= values[item["name"]] <= item["p99"]
+            for item in envelope["numeric"]
+            if item["name"] != "loan_to_value"
+        )
+    raw = [confidence_raw(envelope, v) for v in cases]
+    c_range = [range_confidence(envelope, v) for v in cases]
+    # confidence sube al pasar de 0,9 a 0,9125 (la formula de BR-U5-12 no es monotona, la distancia de Mahalanobis no lo es)
+    assert raw[1] > raw[0]
+    assert any(b > a for a, b in zip(raw, raw[1:], strict=False))
+    # ... pero c_rango no sube nunca al alejarse de p99, y confidence nunca lo supera
+    assert all(b <= a for a, b in zip(c_range, c_range[1:], strict=False))
+    assert all(r <= c for r, c in zip(raw, c_range, strict=True))
 
 
 # PBT-U5-04 ------------------------------------------------------------------------------------------------------

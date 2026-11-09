@@ -1,0 +1,21 @@
+# Catalogo de la variante proxy (RT-2; BR-U5-14, BR-U5-15; domain-entities §4). Sintetico: sin valor geografico ni comercial real.
+#
+# `zonas`: cada zona agrupa departamentos (codigos DANE de U0); la busqueda `municipality_code -> zona_vivienda` ocurre
+# dentro de `derive` y cada zona debe reunir al menos `min_municipios_por_zona` municipios, para que la zona no permita
+# volver al municipio (BR-U0-34, BR-U5-15). Las zonas siguen de cerca las regiones de U0 (por eso son un proxy de `region`),
+# pero no coinciden con ellas: `zona_4` mezcla pacifico y andina, y `zona_5` suma la region insular (2 municipios) al caribe.
+min_municipios_por_zona: 5
+zona_sin_dato: "sin_zona"          # `default` de la busqueda: un municipio ajeno al catalogo cae aqui
+zonas:
+  zona_1: ["05", "17", "63", "66"]                                  # andina occidental
+  zona_2: ["11", "25", "15"]                                        # andina central
+  zona_3: ["68", "54", "41", "73"]                                  # andina oriental y sur
+  zona_4: ["76", "19", "52", "27", "18"]                            # pacifico y suroccidente
+  zona_5: ["08", "13", "20", "23", "44", "47", "70", "88"]          # caribe e insular
+  zona_6: ["50", "85", "81", "86", "91", "94", "95", "97", "99"]    # orinoquia y amazonia
+# `canal_originacion_detalle`: el canal y, para `aliado_inmobiliario`, el grupo del corredor (`SYN-BRK-NNN`).
+# La clave de la busqueda es `channel|broker_id`; `broker_id` nunca llega al vector, solo el detalle.
+canal_sin_dato: "canal_sin_detalle"
+canal_sin_corredor: "aliado_sin_corredor"
+corredores_por_grupo: 10             # SYN-BRK-001..010 -> aliado_grupo_a, 011..020 -> aliado_grupo_b, ...
+grupos_de_corredores: ["aliado_grupo_a", "aliado_grupo_b", "aliado_grupo_c", "aliado_grupo_d"]
