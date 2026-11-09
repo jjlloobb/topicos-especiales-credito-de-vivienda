@@ -89,9 +89,9 @@ vectra-risk/reference-model/
 ### Bloque D — Variante proxy y conjunto adversarial
 
 - [x] **Paso 6 — Variante proxy (RT-2)** (U05-T03)
-  - `zona_vivienda` (≥ 5 municipios por zona) y `canal_originacion_detalle` como búsquedas en el `feature_spec`; etiqueta con dependencia parcial; disparidad agregada ≥ 10 pp con la librería de U9 (doble mientras no exista); `purpose = rt2-demo`; 5 paquetes con `rt2_run` de 1 a 5 y `model_version_id` distintos (cuarta revisión de coherencia entre unidades, 2026-10-31).
+  - `zona_vivienda` (≥ 5 municipios por zona) y `canal_originacion_detalle` como búsquedas en el `feature_spec`; etiqueta con dependencia parcial; disparidad agregada ≥ 18 pp por `region` con la librería de U9 y R4 congela ≥ 95 % de las muestras `stratified` (retrabajo en U05-T05, BR-U5-14 enmendada; antes ≥ 10 pp con un doble de la librería); `purpose = rt2-demo`; 5 paquetes con `rt2_run` de 1 a 5 y `model_version_id` distintos (cuarta revisión de coherencia entre unidades, 2026-10-31).
   - Diseño: BR-U5-06, 14, 15. Historia: US-303.
-  - **Aceptación**: `uv run pytest reference-model/tests/examples/test_proxy.py` (disparidad del modelo base < 5 pp y de la variante ≥ 10 pp; ninguna zona con menos de 5 municipios; `municipality_code` no aparece en el `FeatureVector` producido por `derive`; 5 `model_version_id` distintos, con el mismo predictor).
+  - **Aceptación**: `uv run pytest reference-model/tests/examples/test_proxy.py` (disparidad del modelo base < 5 pp y de la variante ≥ 18 pp por `region`; la tasa de congelamiento con R4: `uv run pytest reference-model/tests -m simulation`; ninguna zona con menos de 5 municipios; `municipality_code` no aparece en el `FeatureVector` producido por `derive`; 5 `model_version_id` distintos, con el mismo predictor).
 
 - [x] **Paso 7 — Conjunto adversarial** (U05-T03)
   - 20 pares RT-1, 18 casos RT-4 y los paquetes RT-3 (a)–(d), con `adversarial/manifest.json` y el resultado esperado de cada caso.

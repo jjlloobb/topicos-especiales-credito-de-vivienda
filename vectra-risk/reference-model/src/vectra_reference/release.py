@@ -3,7 +3,7 @@
 Falla (excepcion y codigo de salida distinto de 0) si una regla de calidad no se cumple: AUC de validacion
 (BR-U5-08), calibracion contra RT-4 (BR-U5-13), paridad del explicador (NFR-U5-30) o un paquete invalido
 (BR-U5-09, BR-U5-10), la disparidad del modelo base (BR-U5-06, menor de 5 pp), la disparidad de la variante proxy
-(BR-U5-14, al menos 10 pp) y el conjunto adversarial (BR-U5-16..18).
+(BR-U5-14 enmendada en U05-T05, al menos 18 pp) y el conjunto adversarial (BR-U5-16..18).
 
 `run_release` hace los Pasos 2 a 5 (modelo base); `run_proxy_release` el Paso 6 (5 paquetes de la variante RT-2) y
 `run_adversarial` el Paso 7. `main` corre los tres; `--only base` corre solo el primero.
@@ -141,7 +141,7 @@ def run_release(
     )
 
     background = _background(config, splits["train"])
-    # BR-U5-06: la disparidad del modelo base sobre `validation`, con el doble de la libreria de U9 y el `outcome` completo
+    # BR-U5-06: la disparidad del modelo base sobre `validation`, con la libreria de U9 y el `outcome` completo
     # de BR-U7-04/05 (baja confianza, usura y corte), debe ser < 5 pp.
     reference_date = date.fromisoformat(str(config["reference_date"]))
     validation_rows = read_rows(paths["validation"])
@@ -278,6 +278,35 @@ def run_proxy_release(
     if len(set(ids)) != len(ids):
         raise px.ProxyError("model_version_id_repeated")
     return ProxyRelease(manifests, directories, model, envelope, explainer, disparity, trigger)
+
+
+def partition_outcomes(
+    base: Release,
+    proxy: ProxyRelease | None = None,
+    config: dict[str, Any] | None = None,
+    partition: str = "test",
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Filas de una particion y el `outcome` (BR-U7-04/05) que les da el modelo base o, con `proxy`, la variante.
+
+    La variante se sirve con la politica de referencia del modelo base, como en `run_proxy_release`. Sirve a la medicion
+    de la regla R4 sobre muestras `stratified` de `test` (U05-T05; BR-U12-06).
+    """
+    config = config or gen.load_config()
+    rows = read_rows(base.datasets[partition])
+    reference_date = date.fromisoformat(str(config["reference_date"]))
+    if proxy is None:
+        model, envelope, values = base.model, base.envelope, base.splits[partition].values
+    else:
+        spec = px.proxy_feature_spec(px.load_proxy_catalog(), config, PLACEHOLDER_ID)
+        model, envelope = proxy.model, proxy.envelope
+        values = [
+            px.with_lookups(v, r, spec) for v, r in zip(base.splits[partition].values, rows, strict=True)
+        ]
+    probabilities = _probabilities(model.booster, model.feature_order, model.vocabulary, values)
+    outcomes = px.outcomes_of(
+        rows, probabilities, _confidences(envelope, values), base.policy, reference_date
+    )
+    return rows, outcomes
 
 
 def run_adversarial(base: Release, config: dict[str, Any] | None = None) -> dict[str, Any]:

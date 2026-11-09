@@ -20,6 +20,7 @@ from vectra_contracts.labels import derive
 from vectra_contracts.models.application import ApplicationIn
 from vectra_contracts.models.features import FeatureDictionary, FeatureSpec
 from vectra_contracts.models.governance import PolicyDraft
+from vectra_disparity import counts_from_records, disparity_by_band, model_aggregate
 from vectra_reference import generate as gen
 from vectra_reference import proxy as px
 from vectra_reference.envelope.confidence import confidence
@@ -69,15 +70,19 @@ def _file_sha(manifest: dict[str, Any], name: str) -> str:
 # Disparidad (BR-U5-06, BR-U5-14) --------------------------------------------------------------------------------
 
 
-def test_the_base_disparity_is_below_5_pp_and_the_variants_are_at_least_10_pp(
+def test_the_base_disparity_is_below_5_pp_and_the_variants_are_at_least_18_pp_by_region(
     reference_release: Release, reference_proxy: ProxyRelease
 ) -> None:
     base = _manifest(reference_release.package_dir)
     assert base["purpose"] == "base"
     assert base["disparity_pp"] < 5.0
+    print(f"\ndisparidad por region (validation, libreria de U9): base={base['disparity_pp']} pp")  # noqa: T201
     for run in RUNS:
         manifest = _manifest(_package(reference_release, run))
-        assert manifest["disparity_pp"] >= 10.0, run
+        print(  # noqa: T201
+            f"variante run-{run}: {manifest['disparity_pp']} pp ({manifest['disparity_trigger_attribute']})"
+        )
+        assert manifest["disparity_pp"] >= 18.0, run  # BR-U5-14 enmendada (U05-T05)
         assert manifest["purpose"] == PURPOSE_RT2 == "rt2-demo"
         assert manifest["base_disparity_pp"] == base["disparity_pp"]
         assert (
@@ -354,47 +359,45 @@ def test_the_label_depends_partially_on_the_zone_and_the_channel_detail(
     assert (proxy_y == px.proxy_labels(rows, base_y, spec, CONFIG, 0)).all()  # determinista
 
 
-# Doble de la libreria de U9 (BR-U9-01..05) ----------------------------------------------------------------------
+# Medicion con la libreria de U9 (BR-U9-01..05) ----------------------------------------------------------------------
 
 
-def _record(group: str, band: str, favorable: bool, attribute: str = "region") -> tuple[dict[str, str], bool]:
-    labels = {"sexo": "F", "rango_edad": "26-35", "region": "andina", "estrato": "3", "banda": band}
-    labels[attribute] = group
-    return labels, favorable
+def _labelled(group: str, band: str, n: int, favorable: int) -> list[dict[str, str]]:
+    labels = {"sexo": "F", "rango_edad": "26-35", "region": group, "estrato": "3", "banda": band}
+    return [{**labels, "outcome": "favorable" if i < favorable else "desfavorable"} for i in range(n)]
 
 
-def _cell(group: str, band: str, n: int, favorable: int) -> list[tuple[dict[str, str], bool]]:
-    return [_record(group, band, i < favorable) for i in range(n)]
+def _aggregate(records: list[dict[str, str]], attribute: str) -> float | None:
+    result = disparity_by_band(counts_from_records(records), attribute, px.N_MIN)
+    return None if result.aggregate is None else float(result.aggregate)
 
 
-def test_the_disparity_double_follows_br_u9_01_to_05() -> None:
+def test_the_measurement_is_the_library_of_u9_and_follows_br_u9_01_to_05() -> None:
     # Banda lt_20: andina 100 casos con 90 % favorables, caribe 100 con 70 %: d = 0,20 (n_b = 200).
     # Banda 20_30: andina 50 con 80 %, caribe 50 con 76 %: d = 0,04 (n_b = 100).
     records = (
-        _cell("andina", "lt_20", 100, 90)
-        + _cell("caribe", "lt_20", 100, 70)
-        + _cell("andina", "20_30", 50, 40)
-        + _cell("caribe", "20_30", 50, 38)
+        _labelled("andina", "lt_20", 100, 90)
+        + _labelled("caribe", "lt_20", 100, 70)
+        + _labelled("andina", "20_30", 50, 40)
+        + _labelled("caribe", "20_30", 50, 38)
     )
-    expected = (200 * 0.20 + 100 * 0.04) / 300
-    assert px.disparity_by_attribute(records, "region") == pytest.approx(expected)
-    aggregate = px.model_aggregate(records)
-    assert aggregate is not None
-    assert aggregate[0] == "region"
-    assert aggregate[1] == pytest.approx(expected)
+    assert _aggregate(records, "region") == pytest.approx((200 * 0.20 + 100 * 0.04) / 300, abs=1e-4)
+    assert px.model_trigger(counts_from_records(records))[0] == "region"
+    assert not hasattr(px, "disparity_by_attribute")  # el doble de U9 ya no existe
+    assert px.model_aggregate is model_aggregate  # la agregada es la de la libreria, no una copia
 
 
-def test_the_disparity_double_ignores_small_cells_and_no_informado_and_single_group_bands() -> None:
+def test_the_measurement_ignores_small_cells_and_no_informado_and_single_group_bands() -> None:
     records = (
-        _cell("andina", "lt_20", 100, 90)
-        + _cell("caribe", "lt_20", 100, 70)
-        + _cell("pacifica", "lt_20", 29, 0)  # < 30: no entra (BR-U9-02)
-        + _cell("no_informado", "lt_20", 100, 0)  # no es extremo (BR-U9-02)
-        + _cell("andina", "gt_30", 100, 10)  # una sola celda suficiente: no hay diferencia (BR-U9-02)
-        + _cell("caribe", "gt_30", 29, 29)
+        _labelled("andina", "lt_20", 100, 90)
+        + _labelled("caribe", "lt_20", 100, 70)
+        + _labelled("pacifica", "lt_20", 29, 0)  # < 30: no entra (BR-U9-02)
+        + _labelled("no_informado", "lt_20", 100, 0)  # no es extremo (BR-U9-02)
+        + _labelled("andina", "gt_30", 100, 10)  # una sola celda suficiente: no hay diferencia (BR-U9-02)
+        + _labelled("caribe", "gt_30", 29, 29)
     )
-    assert px.disparity_by_attribute(records, "region") == pytest.approx(0.20)
-    assert px.disparity_by_attribute(_cell("andina", "lt_20", 100, 50), "region") is None
+    assert _aggregate(records, "region") == pytest.approx(0.20)
+    assert _aggregate(_labelled("andina", "lt_20", 100, 50), "region") is None
 
 
 def _policy() -> PolicyDraft:
@@ -462,22 +465,19 @@ def test_a_cell_of_cases_under_the_cutoff_with_low_confidence_is_not_favorable()
 
 
 def test_the_aggregate_of_the_model_is_the_largest_attribute() -> None:
-    records = [
-        *_cell("andina", "lt_20", 100, 90),
-        *_cell("caribe", "lt_20", 100, 70),
-    ]
-    other = [({**labels, "sexo": "F" if i % 2 else "M"}, fav) for i, (labels, fav) in enumerate(records)]
-    result = px.model_aggregate(other)
-    assert result is not None and result[0] == "region" and result[1] == pytest.approx(0.20)
+    records = [*_labelled("andina", "lt_20", 100, 90), *_labelled("caribe", "lt_20", 100, 70)]
+    other = [{**r, "sexo": "F" if i % 2 else "M"} for i, r in enumerate(records)]
+    trigger, aggregate = px.model_trigger(counts_from_records(other))
+    assert trigger == "region" and aggregate == pytest.approx(0.20)
 
 
 def test_the_quality_gates_fail_when_the_disparity_is_out_of_range() -> None:
     px.check_base_disparity(4.99, CONFIG)
-    px.check_proxy_disparity(10.0, CONFIG)
+    px.check_proxy_disparity(18.0, CONFIG)
     with pytest.raises(px.ProxyError, match="base_disparity_not_below"):
         px.check_base_disparity(5.0, CONFIG)
     with pytest.raises(px.ProxyError, match="proxy_disparity_below"):
-        px.check_proxy_disparity(9.99, CONFIG)
+        px.check_proxy_disparity(17.99, CONFIG)
 
 
 def test_the_proxy_manifest_is_deterministic_json(
