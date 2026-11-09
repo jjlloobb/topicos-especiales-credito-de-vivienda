@@ -397,7 +397,7 @@ def test_el_servicemonitor_apunta_al_puerto_8081_del_service() -> None:
 
 
 def test_los_pods_llevan_las_etiquetas_que_espera_flows_yaml() -> None:
-    """INF-U3-06, NFR-U3-41, F42, F44, F96, F107: las etiquetas de cada pod son las que `platform/network/flows.yaml` selecciona."""
+    """INF-U3-06, F42, F44, F96, F107: las etiquetas de cada pod son las que `platform/network/flows.yaml` selecciona."""
     spec = importlib.util.spec_from_file_location("network_generate", ROOT / "platform/network/generate.py")
     assert spec and spec.loader
     network = importlib.util.module_from_spec(spec)

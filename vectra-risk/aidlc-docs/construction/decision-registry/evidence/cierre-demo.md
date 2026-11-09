@@ -11,6 +11,7 @@ Lista que acepta `platform/tests/test_traceability.py --unit decision-registry -
 | BR-U3-08 | Paso 11 (`checkpoint`) y Paso 12 (CronJob `registry-checkpoint`) | Enmienda §3 U3, Pasos 11 y 12; T5 | El checkpoint horario firmado; depende además de la decisión del `recorded_at` firmado (`CANDIDATAS.md`, U03-T04). `test_traceability.py` no ve las BR-U3 |
 | BR-U3-13b | Paso 12 (CronJob `registry-verify-ondemand`, `test_ondemand.py`) | Enmienda §3 U3, Paso 12; T5 | Verificación bajo demanda asíncrona. `test_traceability.py` no ve las BR-U3 |
 | INF-U3-02 | Paso 11 (`checkpoint`) y Paso 12 (políticas HCL nuevas) | Enmienda §3 U3, Pasos 11, 12 y 13 (URL de Transit); P-6; T5 | Backend de firma (Transit) y su política por identidad para el checkpoint |
+| NFR-U3-41 | Paso 11 (`checkpoint`) | Enmienda §3 U3, Paso 11; T5 | Trazabilidad del checkpoint horario; sin `checkpoint` no hay qué probar, y una mención en un docstring no es trazabilidad |
 | NFR-U3-12 | Paso 11 (`checkpoint`) y Paso 14 (`CheckpointMissing`) | Enmienda §3 U3, Pasos 11 y 14; T2; T5 | Los appends siguen con la bóveda caída: solo se atrasa el checkpoint, que no existe en la demo |
 | NFR-U3-01 | Paso 14 (`docs/retention.md`) | Enmienda §3 U3, Paso 14; T2 | Retención de 10 años documentada, con los **[VERIFICAR]** |
 | NFR-U3-02 | Paso 14 (`docs/retention.md`) | Enmienda §3 U3, Paso 14; T2 | Procedimiento de habeas data sin supresión |
