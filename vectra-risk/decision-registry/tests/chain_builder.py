@@ -20,6 +20,7 @@ from vectra_registry.chain import GENESIS_PREV_HASH, Row, canonicalize, decode, 
 
 T0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
 CONTRACT = "0.1.0"
+ROLES = ["cro", "cumplimiento", "analista"]
 CASES = [uuid.uuid5(uuid.NAMESPACE_URL, f"case-{i}") for i in range(4)]
 
 
@@ -47,7 +48,8 @@ def entry_fields(
         "seq": seq,
         "entry_type": entry_type,
         "idempotency_key": str(uuid.uuid5(uuid.NAMESPACE_URL, f"entry-{seq}")),
-        "actor": {"kind": "service", "id": f"svc-{seq % 3}"},
+        # `actor_role` es una columna consultable: los pares (seq par) llevan rol y los impares no (BR-U3-09).
+        "actor": {"kind": "service", "id": f"svc-{seq % 3}", **({"role": ROLES[seq % len(ROLES)]} if seq % 2 == 0 else {})},
         "occurred_at": recorded_at - timedelta(seconds=1),
         "recorded_at": recorded_at,
         "correlation_id": f"{seq:032x}",
@@ -110,7 +112,11 @@ def build_chain(
     for i, kind in enumerate(kinds):
         extra: dict[str, object] = {}
         if kind in {"recommendation", "human_decision"}:
-            extra = {"case_id": str(CASES[i % len(CASES)]), "model_version_id": f"m{i % 2}"}
+            extra = {
+                "case_id": str(CASES[i % len(CASES)]),
+                "model_version_id": f"m{i % 2}",
+                "policy_version_id": f"p{i % 3}",  # columna consultable (BR-U3-09): `verify` la compara con `canonical`
+            }
         append(kind, {"n": i, "texto": f"caso {i} ñandú"}, **extra)
         since += 1
         if checkpoint_every is not None and since == checkpoint_every:

@@ -3,7 +3,7 @@ root_package = vectra_registry
 include_external_packages = True
 
 # NFR-U3-50, P-U3-05: la logica pura no hace E/S (ni base, ni red, ni archivos, ni procesos, ni asyncio).
-# Los modulos de servicio de §1 (append, api, ...) se agregan aqui cuando existan (Bloque D).
+# Los modulos de servicio (append, api, ...) hacen E/S y no los importa la logica pura (Bloque D).
 [importlinter:contract:pure-no-io]
 name = chain, verify y projections sin E/S
 type = forbidden
@@ -30,3 +30,20 @@ forbidden_modules =
     asyncio
     vectra_common
 allow_indirect_imports = True
+
+[importlinter:contract:pure-no-service]
+name = la logica pura no importa los modulos de servicio
+type = forbidden
+source_modules =
+    vectra_registry.chain
+    vectra_registry.verify
+    vectra_registry.projections
+forbidden_modules =
+    vectra_registry.append
+    vectra_registry.api
+    vectra_registry.dossier
+    vectra_registry.health
+    vectra_registry.locks
+    vectra_registry.pools
+    vectra_registry.queries
+    vectra_registry.service

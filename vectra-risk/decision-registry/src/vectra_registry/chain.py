@@ -8,7 +8,7 @@ import hashlib
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID
 
@@ -52,9 +52,11 @@ def format_timestamp(moment: datetime) -> str:
 
 
 def _plain(value: object) -> object:
-    """Los `datetime` salen en el formato fijo y los `UUID` como texto; el resto lo decide JCS."""
+    """Los `datetime` salen en el formato fijo, los `date` en ISO y los `UUID` como texto; el resto lo decide JCS."""
     if isinstance(value, datetime):
         return format_timestamp(value)
+    if isinstance(value, date):  # un `date` del payload (por ejemplo `window_start`): ISO 8601 sin hora
+        return value.isoformat()
     if isinstance(value, UUID):
         return str(value)
     if isinstance(value, Mapping):
