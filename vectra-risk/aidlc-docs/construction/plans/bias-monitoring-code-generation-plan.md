@@ -57,7 +57,7 @@ vectra-risk/bias-monitoring/
 
 ### Bloque A — Estructura y configuración
 
-- [ ] **Paso 1 — Esqueleto de `bias-monitoring/`**
+- [x] **Paso 1 — Esqueleto de `bias-monitoring/`** (U09-T01)
   - Directorios de §1; `pyproject.toml` con dos miembros del workspace: `vectra_disparity` (sin dependencias de runtime fuera de la biblioteca estándar) y `vectra_bias` (depende de `vectra_contracts`, `vectra_common` y `vectra_disparity`).
   - Dependencias de desarrollo directas: Fairlearn, pandas y numpy, solo para pruebas y la simulación; scipy y scikit-learn llegan como transitivas de Fairlearn. Herramientas de prueba: pytest, pytest-cov (coverage.py), Hypothesis y mutmut (revisión del FD de U10, 2026-10-10, B9).
   - Contratos de import-linter:
@@ -68,7 +68,7 @@ vectra-risk/bias-monitoring/
   - Diseño: P-U9-04, 05; NFR-U9-30.
   - **Aceptación**: `uv sync --frozen && uv run lint-imports --config bias-monitoring/.importlinter && make -C bias-monitoring check` sobre el esqueleto; prueba de que el árbol de dependencias de runtime de `vectra_disparity` está vacío.
 
-- [ ] **Paso 2 — Constantes y parámetros**
+- [x] **Paso 2 — Constantes y parámetros** (U09-T01)
   - `vectra_bias/config.py`, con las constantes del código:
     - timeouts y reintentos de P-U9-02;
     - caché de 64 entradas y 15 min (P-U9-03);
@@ -84,7 +84,7 @@ vectra-risk/bias-monitoring/
 
 ### Bloque B — Librería `vectra_disparity`
 
-- [ ] **Paso 3 — `stats`**
+- [x] **Paso 3 — `stats`** (U09-T01)
   - Funciones puras:
     - intervalo de Wilson;
     - diferencia de Newcombe (método 10);
@@ -94,7 +94,7 @@ vectra-risk/bias-monitoring/
   - Diseño: BR-U9-03, 04.
   - **Aceptación**: `uv run pytest bias-monitoring/tests/unit/test_stats.py`, con valores de referencia publicados de Newcombe (1998) para varios pares de proporciones, con tolerancia de 1e−4.
 
-- [ ] **Paso 4 — `counts` y `disparity`**
+- [x] **Paso 4 — `counts` y `disparity`** (U09-T01)
   - `counts`:
     - `counts_from_records(records) -> dict[atributo, CountTable]`;
     - `CountTable` a partir de los `MonitoringMarginalCount` de un rango.
@@ -112,7 +112,7 @@ vectra-risk/bias-monitoring/
     - un grupo con una celda insuficiente → su tasa sin bandas no aparece y `population_difference_partial = true`;
     - los conteos de la variante proxy de U5 → agregada ≥ 10 pp; los del modelo base → < 5 pp.
 
-- [ ] **Paso 5 — Resumen de la librería y simulación estadística**
+- [x] **Paso 5 — Resumen de la librería y simulación estadística** (U09-T01; `mutmut` diferido por la demo (T3))
   - Cobertura de ramas **100 %** en `stats` y `disparity`; `mutmut` en `stats` y `disparity`, con 0 sobrevivientes sin justificar.
   - Simulación (`tests/simulation/`):
     - cobertura del intervalo de Newcombe con un par fijo (≥ 93 % de 10 000 repeticiones);
