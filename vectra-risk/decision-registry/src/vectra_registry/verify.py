@@ -86,10 +86,9 @@ def sample_segments(covered_seqs: Iterable[int], seed: int) -> list[tuple[int, i
     """
     segments: list[tuple[int, int]] = []
     previous = 0
-    for covered in sorted(set(covered_seqs)):
-        if not segments or covered > previous:
-            segments.append((previous, covered))
-            previous = covered
+    for covered in sorted(set(covered_seqs)):  # distintas y crecientes: cada una cierra un segmento nuevo
+        segments.append((previous, covered))
+        previous = covered
     if not segments:
         return []
     chosen = random.Random(seed).sample(range(len(segments)), math.ceil(len(segments) * SAMPLE_FRACTION))  # noqa: S311

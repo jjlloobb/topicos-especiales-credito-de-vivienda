@@ -1,6 +1,6 @@
 {{- /* CronJob registry-aggregator (BR-U3-17; INF-U3-03; F107). Sin digest no se renderiza. */ -}}
 {{- $digest := required "image.digest es obligatorio: sin digest no se renderiza" .Values.image.digest -}}
-{{- $repository := required "image.repository es obligatorio" .Values.image.repository -}}
+{{- $repository := include "decision-registry.repository" . -}}
 {{- $db := .Values.database -}}
 apiVersion: batch/v1
 kind: CronJob
@@ -11,6 +11,8 @@ metadata:
     app.kubernetes.io/name: registry-aggregator
     app.kubernetes.io/part-of: decision-registry
     vectra.io/criticality: high
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   schedule: {{ .Values.aggregator.schedule | quote }}
   concurrencyPolicy: Forbid
