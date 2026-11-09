@@ -30,6 +30,23 @@ ACTIVE_DEADLINE_SECONDS: Final = 7200  # BR-U4-05: 2 h
 BACKOFF_LIMIT: Final = 0
 K8S_TIMEOUT: Final = 5.0  # NFR-U4-25
 JOB_SERVICE_ACCOUNT: Final = "model-validation-job"
+# INF-U4-01 (quinta revision de coherencia entre unidades, 2026-10-31): `model-validation-job`. Una prueba lee la tabla del diseno.
+JOB_PRIORITY_CLASS: Final = "vectra-low"
+JOB_RESOURCES: Final = {
+    "requests": {"cpu": "500m", "memory": "1Gi"},
+    "limits": {"cpu": "2", "memory": "4Gi"},
+}
+# U1 P-U1-05: todo Job de un namespace mallado lleva explicita la anotacion del sidecar nativo de Linkerd, para que termine
+# cuando termina su contenedor aunque la mutacion de Kyverno no se aplicara.
+LINKERD_NATIVE_SIDECAR: Final = {"config.alpha.linkerd.io/proxy-enable-native-sidecar": "true"}
+# F31 (`minio-validation`, usuario `validation-readonly`, U1), F32 y F50 (cliente `model-validation-job` de Keycloak; su llave
+# privada la materializa el `ExternalSecret` del chart de U4, Paso 13).
+MINIO_SECRET: Final = "minio-validation"  # noqa: S105
+MINIO_ACCESS_KEY: Final = "validation-readonly"
+CLIENT_SECRET: Final = "model-validation-job-client"  # noqa: S105
+CLIENT_KEY_DIR: Final = "/var/run/vectra/client"
+DEFAULT_S3_ENDPOINT: Final = "http://minio.vectra-data.svc.cluster.local:9000"
+DEFAULT_TOKEN_URL: Final = "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token"  # noqa: S105
 Mode = Literal["validacion", "source_comparison"]
 
 
@@ -84,6 +101,8 @@ class JobSpec:
     explainer_uri: str
     dataset_ref: str
     callback_url: str
+    s3_endpoint: str = DEFAULT_S3_ENDPOINT
+    token_url: str = DEFAULT_TOKEN_URL
     source_id: str | None = None
     baseline_version_id: str | None = None
 
@@ -101,6 +120,11 @@ def job_manifest(spec: JobSpec) -> dict[str, Any]:
         "VECTRA_EXPLAINER_URI": spec.explainer_uri,
         "VECTRA_DATASET_REF": spec.dataset_ref,
         "VECTRA_GOVERNANCE_URL": spec.callback_url,
+        "VECTRA_S3_ENDPOINT": spec.s3_endpoint,
+        "VECTRA_S3_ACCESS_KEY": MINIO_ACCESS_KEY,
+        "VECTRA_TOKEN_URL": spec.token_url,
+        "VECTRA_CLIENT_ID": JOB_SERVICE_ACCOUNT,
+        "VECTRA_CLIENT_KEY_PATH": f"{CLIENT_KEY_DIR}/private-key",
     }
     if spec.source_id is not None and spec.baseline_version_id is not None:
         env["VECTRA_SOURCE_ID"] = spec.source_id
@@ -120,27 +144,39 @@ def job_manifest(spec: JobSpec) -> dict[str, Any]:
             "activeDeadlineSeconds": ACTIVE_DEADLINE_SECONDS,
             "backoffLimit": BACKOFF_LIMIT,
             "template": {
-                "metadata": {"labels": labels},
+                "metadata": {"labels": labels, "annotations": dict(LINKERD_NATIVE_SIDECAR)},
                 "spec": {
                     "restartPolicy": "Never",
                     "serviceAccountName": JOB_SERVICE_ACCOUNT,
-                    "priorityClassName": "vectra-low",
+                    "automountServiceAccountToken": False,  # sin token de Kubernetes (INF-U4-01)
+                    "priorityClassName": JOB_PRIORITY_CLASS,
                     "securityContext": {"runAsNonRoot": True},
                     "containers": [
                         {
                             "name": "model-validation-job",
                             "image": spec.image,
-                            "env": [{"name": name, "value": value} for name, value in env.items()],
+                            "env": [
+                                *({"name": name, "value": value} for name, value in env.items()),
+                                {
+                                    "name": "VECTRA_S3_SECRET_KEY",
+                                    "valueFrom": {"secretKeyRef": {"name": MINIO_SECRET, "key": "secretKey"}},
+                                },
+                            ],
+                            "volumeMounts": [
+                                {"name": "client-key", "mountPath": CLIENT_KEY_DIR, "readOnly": True},
+                                {"name": "tmp", "mountPath": "/tmp"},  # noqa: S108  # emptyDir: la raiz es de solo lectura
+                            ],
                             "securityContext": {
                                 "allowPrivilegeEscalation": False,
                                 "readOnlyRootFilesystem": True,
                                 "capabilities": {"drop": ["ALL"]},
                             },
-                            "resources": {
-                                "requests": {"cpu": "250m", "memory": "512Mi"},
-                                "limits": {"cpu": "1", "memory": "1Gi"},
-                            },
+                            "resources": {kind: dict(values) for kind, values in JOB_RESOURCES.items()},
                         }
+                    ],
+                    "volumes": [
+                        {"name": "client-key", "secret": {"secretName": CLIENT_SECRET, "defaultMode": 0o400}},
+                        {"name": "tmp", "emptyDir": {}},
                     ],
                 },
             },

@@ -1,0 +1,12 @@
+# Valores del chart de U4 `governance` (por ahora, solo lo del `model-validation-job`; el resto lo agrega U04-T06).
+# El Job lo crea el servicio por K01 (`job_manifest`, `k8s_jobs.py`) en este namespace y usa estos dos objetos por nombre.
+validationJob:
+  namespace: vectra-staging
+  serviceAccount: model-validation-job
+  # Secret que materializa el ExternalSecret; el Job lo monta en /var/run/vectra/client (`CLIENT_SECRET` de `k8s_jobs.py`).
+  clientSecret: model-validation-job-client
+  # Ruta de la boveda: `identity/clients/<clientId>` (U2; `platform/kind/vault_paths.py`), propiedad `private-key` (ES256, PEM).
+  vaultKey: identity/clients/model-validation-job
+  vaultProperty: private-key
+  secretStore: { name: vectra-store, kind: ClusterSecretStore }
+  refreshInterval: 1h
