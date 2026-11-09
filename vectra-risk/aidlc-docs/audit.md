@@ -6086,3 +6086,21 @@ Informe en `revisiones/U02-T18/`.
 - Al preparar la tarea se encontró que Keycloak no tiene administrador de arranque configurado (`KC_BOOTSTRAP_ADMIN_*`). Entra en U02-T19.
 - U02-T19 cubre B-1, B-2 y B-4.
 **Context**: Construcción de U2, Paso 16.
+
+---
+
+## U03-T03: rondas 1 y 2
+**Timestamp**: 2026-11-09T03:36:18Z
+**User Input**: "sí, prepara y despacha el bloque D de U3"
+**AI Response**:
+- Ronda 1 NO-VERDE por dos ROJO:
+  - BR-U3-03: el escalamiento desde scoring no estaba probado;
+  - BR-U3-13: el expediente salía `verified` aunque la última `full` hubiera dado inconsistente.
+
+  F-04 (`daily:query` sumaba en Python) entró por la demo 7.4.
+- Ronda 2 VERDE (62254e2). El revisor midió con una sonda que el `statement_timeout` no cubre el commit síncrono, y que el reintento no duplica. Un NARANJA (la prueba de volumen del peor caso sin versión, tope por solicitud) queda como candidata prioritaria.
+- F-03, la contradicción entre el plan (403) y U0 (422), queda pendiente de decisión del usuario.
+- Se abre el PR.
+
+Informes y arbitraje en `revisiones/U03-T03/`.
+**Context**: Construcción de U3, U03-T03.
