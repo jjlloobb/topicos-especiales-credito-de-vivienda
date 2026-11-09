@@ -3,6 +3,8 @@
 **Estado: APROBADO por el usuario el 2026-11-08**, con las recomendaciones de DD-1 a DD-4 (sección 5).
 Levanta la restricción de código de `aidlc-state.md` para U3–U12, con este alcance.
 
+**Enmienda del 2026-11-09:** `demo-recorte-funcional.md`, aprobada por el usuario, afina la tabla de §3 con un recorte por funcionalidad (E\*F), amplía RL-1 (P-2) y adelanta U9 A+B en paralelo con U4. Donde las dos difieran, rige la enmienda.
+
 ## 1. Qué es «la demo»
 
 La sustentación de la sesión 16 (`entradas/prd.md` §13), corrida en `kind-vectra` en esta máquina
@@ -273,7 +275,7 @@ U02-T17, un paso pequeño, costó unas 12 horas, 3 rondas, 2 revisiones de códi
 
 | Id | Regla |
 |---|---|
-| RL-1 | **Una tarea por bloque** del plan de la unidad (A, B, C…), no por paso. Un bloque de un solo paso puede juntarse con el siguiente. El alcance y la aceptación de cada paso del bloque se copian sin recortes |
+| RL-1 | **Una tarea por bloque** del plan de la unidad (A, B, C…), no por paso. Bloques contiguos pueden juntarse en una tarea, hasta unos 6 pasos con código; la fusión de cada unidad está en `demo-recorte-funcional.md` §4 (enmienda P-2, 2026-11-09). El alcance y la aceptación de cada paso, con el recorte E\*F de la enmienda, se copian sin más recortes |
 | RL-2 | **Máximo 2 rondas** por tarea. Solo un ROJO bloquea. NARANJA y AMARILLO van a `CANDIDATAS.md`, salvo que rompan una de las cuatro demos (§1). Si tras la ronda 2 queda un ROJO, decide el usuario |
 | RL-3 | **Sin revisión de código adicional** después de un VERDE, salvo que el usuario la pida |
 | RL-4 | Cada tarea corre el `make check` **de su unidad** y las pruebas de U1 que su diff toque. El `make check` de todas las unidades corre una vez, al cerrar la unidad |
