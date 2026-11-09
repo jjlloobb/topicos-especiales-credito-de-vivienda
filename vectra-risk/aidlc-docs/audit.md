@@ -6178,3 +6178,11 @@ Informes y arbitraje en `revisiones/U05-T03/`.
 
 Informes y arbitraje en `revisiones/U02-T19/`.
 **Context**: Construcción de U2, U02-T19.
+
+## U09-T01: arbitraje de la ronda 1 (BR-U9-11)
+**Timestamp**: 2026-11-09T20:00:00Z
+**User Input**: "sí, sigue con las siguientes tareas en paralelo" — respuesta a la pregunta sobre BR-U9-11: "Fix the rule (Recommended)"
+**AI Response**:
+- La ronda 1 de U09-T01 salió NO-VERDE por un ROJO (F-01): con disparidad real 0, BR-U9-11 congela el 97,4 % de las veces con 500 casos por celda (CA-8 exige ≤ 5 %).
+- El usuario decidió corregir la regla. Las tres condiciones que debe cumplir están en `revisiones/U09-T01/arbitraje-ronda-1.md`.
+**Context**: Construcción de U9, U09-T01.
