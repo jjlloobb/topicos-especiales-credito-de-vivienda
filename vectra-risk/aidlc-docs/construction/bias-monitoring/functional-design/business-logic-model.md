@@ -32,7 +32,7 @@ flowchart TD
     readFail{"Lectura completa y agregador al dia?"}
     invalid{"Invalidas > 1 %?"}
     calc["Calcular modelo y decisiones humanas por version"]
-    rule{"Agregada > 5 pp y limite inferior > 0?"}
+    rule{"Limite inferior con z = 3,14 del atributo disparador > 5 pp? (R4)"}
     freeze["POST freeze con FreezeContext (F27)"]
     freezeOk{"Exito o 409?"}
     human["Alerta DisparidadDecisionHumana si aplica"]
@@ -67,7 +67,7 @@ CronJob cada 15 min
   por cada versión con recomendaciones hoy o ayer:
      modelo  = disparidad de hoy-29 a hoy (BR-U9-01..05)
      humana  = disparidad de hoy-29 a hoy por decided_at + tasa de apartamiento
-     decide(modelo): agregada > 5 pp y límite inferior > 0 ?
+     decide(modelo): límite inferior de la agregada del atributo disparador, con z = 3,14, > 5 pp ? (regla R4, BR-U9-11)
         sí -> FreezeContext(antes hoy-36..hoy-7, después hoy-29..hoy, últimos 7 días hoy-6..hoy) -> POST freeze (F27)
               éxito o 409 -> sigue ; timeout/5xx/circuito -> 3 reintentos -> corrida fallida + BiasFreezeFailed
      decide(humana) -> solo alerta DisparidadDecisionHumana; nunca freeze

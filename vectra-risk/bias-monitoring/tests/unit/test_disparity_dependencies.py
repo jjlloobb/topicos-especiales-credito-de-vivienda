@@ -1,4 +1,8 @@
-"""Paso 1: el arbol de dependencias de runtime de `vectra_disparity` esta vacio (P-U9-05). CA-2."""
+"""Paso 1: el arbol de dependencias de runtime de `vectra_disparity` esta vacio (P-U9-05). CA-2.
+
+NFR-U9-30: los contratos de import-linter viven en `bias-monitoring/.importlinter` (`make check` corre `lint-imports`); esta prueba
+completa el contrato `forbidden` con la comprobacion por AST de que todo import es de la biblioteca estandar.
+"""
 
 import ast
 import sys

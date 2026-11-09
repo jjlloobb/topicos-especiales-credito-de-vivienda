@@ -1,5 +1,6 @@
 [project]
 name = "vectra-disparity"
+# NFR-U9-54: SemVer; la API publica es `vectra_disparity.__all__`. Un cambio incompatible sube la mayor (ver `library.md`).
 version = "1.0.0"
 description = "U9: libreria pura de disparidad por grupo y banda (solo biblioteca estandar)"
 requires-python = ">=3.12,<3.13"
