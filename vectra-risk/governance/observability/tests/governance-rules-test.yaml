@@ -1,0 +1,48 @@
+rule_files:
+- ../governance-rules.yaml
+evaluation_interval: 1m
+tests:
+# Una compensacion pendiente desde el minuto 2: en `pending` a los 2 min, dispara tras `for: 1m` y se mantiene mientras siga sin escribirse (nunca se abandona).
+- interval: 1m
+  input_series:
+  - series: vectra_governance_compensation_events_pending{pod="governance-0"}
+    values: 0 0 2 2 2 2 2 2
+  - series: vectra_governance_compensation_events_pending{pod="governance-1"}
+    values: 0 0 2 2 2 2 2 2
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: CompensationEventPending
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: CompensationEventPending
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: Una transicion_descartada sin escribir en el registro (BR-U4-17)
+        runbook_url: governance/runbooks/compensation-event-pending.md
+  - eval_time: 7m
+    alertname: CompensationEventPending
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+      exp_annotations:
+        summary: Una transicion_descartada sin escribir en el registro (BR-U4-17)
+        runbook_url: governance/runbooks/compensation-event-pending.md
+# Sin compensaciones pendientes, o con una que se escribe antes de 1 min, no hay alerta.
+- interval: 1m
+  input_series:
+  - series: vectra_governance_compensation_events_pending{pod="governance-0"}
+    values: 0 0 0 0 0 0
+  - series: vectra_governance_compensation_events_pending{pod="governance-1"}
+    values: 1 0 0 0 0 0
+  alert_rule_test:
+  - eval_time: 0m
+    alertname: CompensationEventPending
+    exp_alerts: []
+  - eval_time: 1m
+    alertname: CompensationEventPending
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: CompensationEventPending
+    exp_alerts: []

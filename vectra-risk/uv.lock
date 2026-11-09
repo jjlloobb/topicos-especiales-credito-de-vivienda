@@ -1678,6 +1678,7 @@ version = "0.1.0"
 source = { editable = "governance" }
 dependencies = [
     { name = "alembic" },
+    { name = "httpx" },
     { name = "psycopg", extra = ["binary"] },
     { name = "vectra-common" },
     { name = "vectra-contracts" },
@@ -1693,6 +1694,7 @@ validation = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = "==1.20.1" },
+    { name = "httpx", specifier = "==0.28.1" },
     { name = "lightgbm", marker = "extra == 'validation'", specifier = "==4.7.0" },
     { name = "onnxruntime", marker = "extra == 'validation'", specifier = "==1.31.1" },
     { name = "psycopg", extras = ["binary"], specifier = "==3.3.8" },
