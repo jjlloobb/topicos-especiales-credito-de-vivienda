@@ -52,7 +52,7 @@ dev = [
   "numpy==2.5.4",
   # U04-T05: el Job de validacion (extra `validation`) y su fixture ONNX; `onnx` solo construye el modelo de prueba.
   "vectra-governance[validation]",
-  "onnx==1.19.1",
+  "onnx==1.22.0",
   # U06-T01: U6 (model-serving) se instala editable para que `uv run` importe sus paquetes.
   "vectra-model-serving",
 ]
