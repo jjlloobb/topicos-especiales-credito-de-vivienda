@@ -107,7 +107,7 @@ vectra-risk/decision-registry/
 
 ### Bloque D — Servicio
 
-- [ ] **Paso 7 — Append**
+- [x] **Paso 7 — Append** (U03-T03)
   - Autorización por scope, tipo y, en `fail_closed`, forma del payload: scoring sin `local_cause` ni `escalated_at`, case solo con `escalated_at` (BR-U3-03). Tamaño de 64 KiB (BR-U3-07). Idempotencia dentro del lock por **campos de negocio**, sin `occurred_at`, `correlation_id` ni `contract_version` (BR-U3-06). `recorded_at` no decreciente. La ventana de ±5 min de `occurred_at` y `check_business_time` (BR-U0-37) se aplican **solo a llaves nuevas**, después de la búsqueda de idempotencia (BR-U3-05) (precisado el 2026-10-06, revisión del FD de U8).
   - Lock, hash, `INSERT` y commit con `synchronous_commit = remote_apply` (BR-U3-04).
   - Tiempos límite de P-U3-02, sin reintento interno; pools de P-U3-04 (`append` 2, `dossier` 1, `projections` 1, `health` 1).
@@ -121,7 +121,7 @@ vectra-risk/decision-registry/
     - los 5 tipos de evento de gobierno con actor y rol (US-404);
     - `fail_closed` con `escalated_at` desde `registry:append:scoring` → 403; `fail_closed` con `local_cause` (sin `escalated_at`) desde `registry:append:scoring` → 403; `fail_closed` sin `escalated_at` desde `registry:append:case` → 403; cada scope con su forma correcta → aceptado (BR-U3-03 simétrica, precisado el 2026-10-06, revisión del FD de U8).
 
-- [ ] **Paso 8 — Proyecciones, expediente y verificación bajo demanda**
+- [x] **Paso 8 — Proyecciones, expediente y verificación bajo demanda** (U03-T03)
   - `GET /v1/entries` con la proyección del consumidor (réplica); devuelve `Page[EntryProjection]`, con `RegistryEntry`, `ExplanationProjection`, `MetricsProjection`, `FreezeProjection` o `FrozenResolutionProjection` según la proyección (revisión de consistencia entre unidades, 2026-11-01). La proyección `monitoring_freezes` devuelve en cada `freeze` también su `recorded_at` (campo de `FreezeProjection`, no de `FreezeRecord`, que no cambia; pendientes consolidados, 2026-10-10; revisión de consistencia entre unidades, 2026-11-01) y el `context_package` completo, y la `metrics`, `case_id` y `recorded_at` de cada entrada (los usa U12; pendientes posteriores al cierre, 2026-10-10). En `metrics` (FD de U11, 2026-10-10; `first_evaluation` agregado en la revisión del FD de U11): `recommendation` con `model_version_id`, `channel`, `received_at`, `attempt` y `first_evaluation`; cada `human_decision` con su recomendación referenciada resuelta en el servidor (o `null`); filtros por `recorded_at` y `seq >`; paginación por clave: `entry_type`, `recorded_from`, `seq_after` y `limit` (≤ 1 000) en orden de `seq`, con `next_seq_after` en la respuesta (NFR Design de U11, 2026-10-10, P-U11-01). Aceptación adicional: una decisión que referencia una recomendación de hace 60 días trae sus campos aunque la consulta solo pida 35 días de `recorded_at` (decía 36; pendientes consolidados, tercera tanda, 2026-10-10); una que referencia un `freeze` → `recommendation: null`. Filtros (`EntryFilter`): `case_id`, `entry_type`, `seq`, rango de `recorded_at`; la proyección `explanation` exige `case_id` y `seq` y devuelve como máximo una entrada (BR-U7-13; agregado por U7 NFR Design Q3).
   - Gauge `vectra_registry_monitoring_lag_seconds`, calculado cada 60 s con el pool `projections` (BR-U3-17; segunda revisión del FD de U9, 2026-10-08).
   - `POST /v1/monitoring/daily:query` (`registry:read:monitoring`, réplica; solo lectura, con el `MonitoringQuery` de U0 en el cuerpo; sexta revisión del FD de U9, 2026-10-10): `versions` (primer y último día por versión y población), hasta 12 rangos de días (`from_day ≤ to_day`), **sumados en el servidor**, y el `unattributable_range` opcional, del que devuelve un único `unattributable_invalid` (séptima revisión del FD de U9, 2026-10-10); devuelve conteos por rango, `total_entries`, `invalid_entries`, hasta 100 `invalid_seqs`, `watermark_seq` y el atraso; `GET /v1/monitoring/freezes` (BR-U3-17; precisado el 2026-10-08 por U9 FD).
@@ -145,13 +145,13 @@ vectra-risk/decision-registry/
     - paginación de `GET /v1/entries` (pendientes posteriores al cierre, 2026-10-10): `limit = 1001` → 422; 2 500 entradas con `limit = 1000` → tres páginas sin huecos ni repetidos, con `next_seq_after` en las dos primeras y `null` en la última; `seq_after` igual a la cabeza → página vacía con `next_seq_after: null`;
     - proyección `metrics`: `first_evaluation` sale tal como lo guardó U8 (`true` en el intento 1 de un caso nunca degradado, `false` en un reintento) y `received_at` es igual en todos los intentos del caso (pendientes posteriores al cierre, 2026-10-10).
 
-- [ ] **Paso 9 — Readiness y contratos de rutas**
+- [x] **Paso 9 — Readiness y contratos de rutas** (U03-T03)
   - Readiness con `registry_health` (standby síncrono, cache de 5 s).
   - Las rutas de U3 se registran como `RouteContract` en el registro de contratos de U0, con scopes, roles y MFA. `POST /v1/entries` y `GET /v1/entries` usan `any_scopes`; el handler sigue comprobando qué tipo de entrada o proyección permite cada scope (BR-U3-03, BR-U3-14; Code Generation de U0, 2026-10-31).
   - Diseño: P-U3-01; NFR-U3-11; P-U0-12.
   - **Aceptación**: `uv run pytest decision-registry/tests/integration/test_health.py` (standby detenido → `/readyz` 503 en ≤ 5 s); `make -C contracts openapi && git diff --exit-code contracts/openapi/` incluye las rutas de U3.
 
-- [ ] **Paso 10 — Resumen del servicio**
+- [x] **Paso 10 — Resumen del servicio** (U03-T03)
   - `aidlc-docs/construction/decision-registry/code/api-summary.md`.
   - **Aceptación**: `uv run python platform/tests/test_traceability.py --unit decision-registry --section api` (BR-U3-01..07 y 13..16 aparecen en las pruebas).
 
