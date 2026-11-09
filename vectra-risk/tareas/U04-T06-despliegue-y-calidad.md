@@ -37,7 +37,7 @@ Rige RL-1 a RL-5 (`demo-kind-alcance.md` §6): máximo 2 rondas, y solo un ROJO 
 - **Sin `AuthorizationPolicy` ni `HTTPRoute`** en el chart: las genera U1.
 - **Reglas de admisión** del plan: imagen por digest, `runAsNonRoot`, `readOnlyRootFilesystem`, recursos, `priorityClassName`, `vectra.io/criticality`, 2 réplicas o más, spread, PDB y HPA.
 - **Perfil de recursos:** DD-3 b. Sin `values-kind-demo.yaml`; el chart usa los values de kind existentes.
-- **Imagen del servicio** (propuesta: confirmar con el usuario antes de despachar). El plan de U4 no asigna el `Dockerfile` del servicio a ningún paso, como pasó en U3, donde el usuario lo agregó al Paso 13 (2026-11-09). Sin imagen el servicio no arranca en kind.
+- **Imagen del servicio** (agregada al Paso 16 por decisión del usuario, 2026-11-09). El plan de U4 no asigna el `Dockerfile` del servicio a ningún paso, como pasó en U3, donde el usuario lo agregó al Paso 13 (2026-11-09). Sin imagen el servicio no arranca en kind.
   - `governance/Dockerfile`, multi-stage, como `decision-registry/Dockerfile`, con `tzdata` para `America/Bogota` (INF-U4-01, P-U4-05).
   - Solo el runtime de `vectra-governance` y sus dependencias del workspace. Sin ONNX Runtime, `xgboost` ni `lightgbm` (la regla de `sbom-check` del Paso 14, que se difiere, se comprueba aquí con `pip list`).
   - Usuario `65532:65532`, `FROM` por digest, target `image` en `governance/Makefile`. El push y el digest real son de U04-T07. Sin firma ni SBOM (T1).
@@ -149,7 +149,7 @@ Desde `vectra-risk/`, con las herramientas de `platform/install-tools.sh`. Ning�
   ```
   Esperado: código 0 y ninguna línea «sin prueba». `--all` cumple «sin fallos nuevos». La lista de diferidos de `cierre-demo.md` no contiene identificadores de pasos que entran.
 
-- [ ] **CA-9** — Imagen del servicio (si el usuario la confirma).
+- [ ] **CA-9** — Imagen del servicio (agregada al Paso 16 por decisión del usuario).
   ```bash
   make -C governance image
   docker image inspect localhost:5001/vectra/governance:dev --format '{{.Config.User}}'
@@ -177,6 +177,6 @@ Desde `vectra-risk/`, con las herramientas de `platform/install-tools.sh`. Ning�
 
 - **Presupuesto de memoria de kind (detención con reporte):** `BUDGET_GIB` está en 6,1. Con governance entra un Deployment de 2 réplicas × (256 + 20) MiB, ≈ 0,54 GiB. Si `test_kind_profile.py` falla por eso, **detente y repórtalo** con la cifra y las opciones (subir el tope, DD-3 a, otra). No cambies `BUDGET_GIB` ni el perfil por tu cuenta.
 - `sslmode` de `governance-db`: el mismo que use U3. No lo cambies sin la CA.
-- Archivos que se modifican en su sitio: `governance/chart/`, `governance/Makefile`, `governance/tests/`, `vectra-risk-gitops/components.yaml` y lo generado, el plan y `CANDIDATAS.md`. Archivos nuevos: `governance/Dockerfile` (si se confirma), `governance/docs/slo.md`, los dos runbooks y `aidlc-docs/construction/governance/evidence/cierre-demo.md` (solo «Diferido por la demo»).
+- Archivos que se modifican en su sitio: `governance/chart/`, `governance/Makefile`, `governance/tests/`, `vectra-risk-gitops/components.yaml` y lo generado, el plan y `CANDIDATAS.md`. Archivos nuevos: `governance/Dockerfile`, `governance/docs/slo.md`, los dos runbooks y `aidlc-docs/construction/governance/evidence/cierre-demo.md` (solo «Diferido por la demo»).
 - **Otros codificadores en paralelo:** no toques directorios de otras unidades.
 - **Bitácora:** `bitacoras/U04-T06.md`, con la cobertura de partida y la final, la lista de diferidos razonada, los pares falla-pasa y la memoria de kind con y sin governance.
