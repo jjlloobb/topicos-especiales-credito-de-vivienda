@@ -413,7 +413,7 @@
   "reference_date": "2026-01-01",
   "script": "bias-monitoring/tests/doubles/generate_u5_counts.py",
   "seed": 20261101,
-  "u5_commit": "bb86d713aa48d58a98419f2d7dcb2e45f3aae88c",
+  "u5_commit": "0da820fb658b5456ab9985c6fd3dd072e65be4b1",
   "u5_disparity_pp": {
    "base": 4.61,
    "proxy": 25.41
