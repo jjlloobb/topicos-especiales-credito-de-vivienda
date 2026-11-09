@@ -1,0 +1,7 @@
+apiVersion: v2
+name: decision-registry
+description: >-
+  Chart minimo de U3: el CronJob registry-aggregator (BR-U3-17) y las ServiceAccounts por identidad (P-U3-08).
+  El Paso 13 (Bloque F) lo completa con el Deployment, el HPA, el PDB, el ServiceMonitor y los buckets.
+type: application
+version: 0.1.0

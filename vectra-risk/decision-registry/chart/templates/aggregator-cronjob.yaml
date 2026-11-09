@@ -1,0 +1,57 @@
+{{- /* CronJob registry-aggregator (BR-U3-17; INF-U3-03; F107). Sin digest no se renderiza. */ -}}
+{{- $digest := required "image.digest es obligatorio: sin digest no se renderiza" .Values.image.digest -}}
+{{- $repository := required "image.repository es obligatorio" .Values.image.repository -}}
+{{- $db := .Values.database -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: registry-aggregator
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: registry-aggregator
+    app.kubernetes.io/part-of: decision-registry
+    vectra.io/criticality: high
+spec:
+  schedule: {{ .Values.aggregator.schedule | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: {{ .Values.aggregator.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: registry-aggregator
+            app.kubernetes.io/part-of: decision-registry
+            vectra.io/workload: registry-aggregator
+          annotations:
+            config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+        spec:
+          serviceAccountName: registry-aggregator
+          priorityClassName: {{ .Values.priorityClassName }}
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: registry-aggregator
+              image: {{ printf "%s@%s" $repository $digest | quote }}
+              imagePullPolicy: IfNotPresent
+              command: [vectra-registry, aggregator, run]
+              env:
+                # Sin credenciales en la URL: libpq lee PGUSER y PGPASSWORD del Secret de U1 (`pg-role-registry-aggregator`).
+                - name: REGISTRY_AGGREGATOR_DSN
+                  value: {{ printf "postgresql://%s/%s?sslmode=%s" $db.host $db.name $db.sslmode | quote }}
+                - name: PGUSER
+                  valueFrom: { secretKeyRef: { name: {{ $db.secretName | quote }}, key: username } }
+                - name: PGPASSWORD
+                  valueFrom: { secretKeyRef: { name: {{ $db.secretName | quote }}, key: password } }
+                - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+              securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+              resources:
+                {{- toYaml .Values.aggregator.resources | nindent 16 }}
