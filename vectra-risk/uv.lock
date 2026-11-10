@@ -9,7 +9,9 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "core-banking-mock",
     "vectra-bias",
+    "vectra-case",
     "vectra-common",
     "vectra-contracts",
     "vectra-decision-registry",
@@ -223,6 +225,17 @@ sdist = { url = "https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6", size = 25335, upload-time = "2022-10-25T02:36:20.889Z" },
 ]
+
+[[package]]
+name = "core-banking-mock"
+version = "0.1.0"
+source = { editable = "case-management/core_banking_mock" }
+dependencies = [
+    { name = "vectra-common" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "vectra-common" }]
 
 [[package]]
 name = "coverage"
@@ -1685,6 +1698,27 @@ requires-dist = [
 ]
 
 [[package]]
+name = "vectra-case"
+version = "0.1.0"
+source = { editable = "case-management" }
+dependencies = [
+    { name = "alembic" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "sqlalchemy" },
+    { name = "vectra-common" },
+    { name = "vectra-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "alembic", specifier = "==1.20.1" },
+    { name = "psycopg", extras = ["binary"], specifier = "==3.3.8" },
+    { name = "sqlalchemy", specifier = "==2.1.8" },
+    { name = "vectra-common", editable = "contracts/python/vectra_common" },
+    { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
+]
+
+[[package]]
 name = "vectra-common"
 version = "0.1.0"
 source = { editable = "contracts/python/vectra_common" }
@@ -1888,6 +1922,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "axe-playwright-python" },
+    { name = "core-banking-mock" },
     { name = "fairlearn" },
     { name = "httpx" },
     { name = "hypothesis" },
@@ -1909,6 +1944,7 @@ dev = [
     { name = "testcontainers" },
     { name = "types-pyyaml" },
     { name = "vectra-bias" },
+    { name = "vectra-case" },
     { name = "vectra-disparity" },
     { name = "vectra-explainability" },
     { name = "vectra-governance", extra = ["validation"] },
@@ -1928,6 +1964,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "axe-playwright-python", specifier = "==0.1.8" },
+    { name = "core-banking-mock", editable = "case-management/core_banking_mock" },
     { name = "fairlearn", specifier = "==0.15.0" },
     { name = "httpx", specifier = "==0.28.1" },
     { name = "hypothesis", specifier = "==6.170.14" },
@@ -1949,6 +1986,7 @@ dev = [
     { name = "testcontainers", specifier = "==4.14.2" },
     { name = "types-pyyaml" },
     { name = "vectra-bias", editable = "bias-monitoring" },
+    { name = "vectra-case", editable = "case-management" },
     { name = "vectra-disparity", editable = "bias-monitoring/disparity" },
     { name = "vectra-explainability", editable = "scoring-explainability/explainability" },
     { name = "vectra-governance", extras = ["validation"], editable = "governance" },
