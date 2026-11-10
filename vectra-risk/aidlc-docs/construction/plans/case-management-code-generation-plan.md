@@ -69,7 +69,7 @@ vectra-risk/case-management/
 
 ### Bloque A — Estructura y configuración
 
-- [ ] **Paso 1 — Esqueleto de `case-management/`**
+- [x] **Paso 1 — Esqueleto de `case-management/`** (U08-T01)
   - Directorios de §1; `pyproject.toml` (dos miembros del workspace: `vectra_case` y `core_banking_mock`) que dependen de `vectra_contracts` y `vectra_common`.
   - Contratos de import-linter:
     - `case_fsm`, `backoff`, `decision` y `views` no importan `db`, `httpx` ni `vectra_common.deps` (funciones puras);
@@ -79,7 +79,7 @@ vectra-risk/case-management/
   - Diseño: BR-U8-06, 22; NFR-U8-34, 43; P-U8-02. Historia: US-603.
   - **Aceptación**: `uv sync --frozen && uv run lint-imports --config case-management/.importlinter && make -C case-management check` sobre el esqueleto; `uv run pytest case-management/tests/unit/test_core_client_readonly.py`.
 
-- [ ] **Paso 2 — Constantes tipadas**
+- [x] **Paso 2 — Constantes tipadas** (U08-T01)
   - `vectra_case/config.py`:
     - timeouts de NFR-U8-30 (`serving-config` 500 ms, `feature_spec` 1 s, scoring 7 s, registro 2,5 s, core 500 ms);
     - pools de P-U8-02 (scoring 16, governance 4 y 2, registro 10, core 10), `RECONCILER_CONCURRENCY = 4` y pool de `case-db` ≤ 5;
@@ -96,7 +96,7 @@ vectra-risk/case-management/
 
 ### Bloque B — Base de datos
 
-- [ ] **Paso 3 — Migraciones de `case-db`**
+- [x] **Paso 3 — Migraciones de `case-db`** (U08-T01)
   - Tablas de domain-entities §1–§3, con:
     - el índice único parcial «un trabajo vivo por caso» en `evaluation_jobs` y `CHECK (attempt BETWEEN 0 AND 6)`;
     - la clave única (`case_id`, `user_id`) en `explanation_views`;
