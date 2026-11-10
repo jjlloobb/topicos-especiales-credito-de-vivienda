@@ -346,7 +346,12 @@ class IdentityProvider:
     def browser(self, url: str) -> None:
         self.auth = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
         assert self.auth["code_challenge_method"] == "S256" and self.auth["client_id"] == "promotion-tool"
-        assert self.auth["redirect_uri"].startswith("http://127.0.0.1:") and "governance:promotion" in self.auth["scope"]
+        assert "governance:promotion" in self.auth["scope"]
+        # Forma exacta del diseno de U2 (domain-entities 2.1) y del realm (`http://127.0.0.1`): loopback IPv4, cualquier
+        # puerto, SIN ruta. Keycloak ignora el puerto (RFC 8252 7.3) pero compara la ruta exacta.
+        redirect = urlparse(self.auth["redirect_uri"])
+        if (redirect.scheme, redirect.hostname, redirect.path, redirect.query, redirect.fragment) != ("http", "127.0.0.1", "", "", "") or redirect.port is None:
+            raise AssertionError(f"Invalid parameter: redirect_uri={self.auth['redirect_uri']}")
         httpx.get(self.auth["redirect_uri"], params={"code": "code-1", "state": self.auth["state"]})
 
     def transport(self, request: httpx.Request) -> httpx.Response:

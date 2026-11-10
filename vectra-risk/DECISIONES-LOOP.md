@@ -74,3 +74,13 @@ El revisor lo comprueba corriendo `--all` también sobre la base. Rige para toda
 - es nuevo, es de la unidad de la tarea, esa unidad no tiene `evidence/cierre-demo.md` y no pertenece a un paso que la tarea cubre.
 
 Un identificador de un paso que la tarea cubre debe quedar trazado. El revisor corre `--all` en la base y en la rama, y cruza cada fallo nuevo con los pasos de la tarea. Detalle en `revisiones/U09-T01/arbitraje-ronda-3.md`.
+
+## 7. Presupuesto de memoria de kind con U6 (2026-11-09)
+
+El revisor de U06-T02 midió que, con 512 MiB por pod de serving, U6 sube lo pedido en kind de 6,0 GiB a ≈ 8,1 GiB con el modelo activo y a ≈ 10,2 GiB durante una promoción (M1 y M2 en `prod`), y que con U7 y U9–U12 el pico no cabe en la máquina de 14 GiB. El usuario eligió la **opción (c)**:
+
+- en kind, los requests de memoria de los componentes de `model-serving` bajan de 512 a **256 MiB por pod**, con un override en los values de kind del chart de U6; **sin** tocar las 2 réplicas mínimas, el HPA ni los PDB (sigue cumpliendo `require-hpa-bounds`, y el escenario 2 de U6 conserva «nunca menos de 2 réplicas»);
+- `BUDGET_GIB` de `platform/tests/test_kind_profile.py` sube a la cifra medida con U6 incluida (≈ 8,3 GiB) y se vuelve a revisar con cada unidad nueva;
+- staging y prod no cambian; el escenario de memoria de U06-T03 comprueba en kind que 256 MiB bastan para el modelo de referencia.
+
+Descartadas: (a) solo subir `BUDGET_GIB` (con U7–U12 el pico ≈ 13 GiB no cabe) y (b) DD-3 a con 1 réplica (choca con `require-hpa-bounds` y rompe el escenario 2). Lo aplica U06-T03.

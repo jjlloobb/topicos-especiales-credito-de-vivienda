@@ -54,7 +54,7 @@ def login(
     state = secrets.token_urlsafe(16)
     server = HTTPServer(("127.0.0.1", 0), _Callback)
     server.result = {}  # type: ignore[attr-defined]
-    redirect_uri = f"http://127.0.0.1:{server.server_port}/callback"
+    redirect_uri = f"http://127.0.0.1:{server.server_port}"  # sin ruta: como el diseno de U2 y el realm
     url = f"{issuer}{OIDC}/auth?" + urlencode(
         {
             "client_id": CLIENT_ID,
