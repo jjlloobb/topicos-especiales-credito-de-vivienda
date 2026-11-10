@@ -6226,3 +6226,14 @@ Informes y arbitraje en `revisiones/U02-T19/`.
 - La ronda 2 de U03-T05 salió NO-VERDE por un ROJO: `test_traceability.py --all` da rc=1 por 26 identificadores de U4 que vienen de main. U3 está limpio.
 - El usuario aprobó la regla «sin fallos nuevos» para todas las tareas de la demo (`DECISIONES-LOOP.md` §6). Se abre el PR.
 **Context**: Construcción de U3, U03-T05.
+## U09-T02: R4 sobre todos los atributos (F-03, opción (b))
+**Timestamp**: 2026-11-10T00:00:00Z
+**User Input**: decisión del usuario del 2026-11-10 sobre F-03 de `revisiones/U09-T01/ronda-3.md` (opción (b): R4 sobre todos los atributos), aplicada al preparar U09-T02.
+**AI Response**:
+- Enmienda de diseño de U9 (F-03 opción (b), decisión del usuario del 2026-11-10):
+  - BR-U9-11: la regla pasa a «algún atributo con límite R4 > umbral»; corrige la cuenta de F-04 (46 comparaciones reales, cuantil 3,065; 60 es una cota; se mantiene `z = 3,14`);
+  - BR-U9-05: el atributo disparador solo se muestra en el paquete; BR-U9-15: `implicated` con el atributo y su límite; BR-U9-20: `vectra_bias_aggregate_lower` es el límite R4 por atributo;
+  - BLM §2.1 y §3 (PBT-U9-04, RT-2, enmascaramiento, validación estadística), domain-entities §2.6 y §3.1, `library.md` (dos columnas: solo el disparador y (b)) y el comentario de `Z_FREEZE`.
+- Re-medición con la librería real y `vectra_bias.freeze_rule`, 10 000 repeticiones: las condiciones 1 y 2 no cambian; el proxy actual de U5 (25,41 pp) congela el 100 % con `stratified`; `DSTAR_T` pasa de 1,71 a 0,69 (D\* = 18,1 pp).
+- Pasos 6, 7 y 8 del plan de U9 en `[x]` (U09-T02). Candidatas nuevas en `CANDIDATAS.md`: `initial_disparity` de U4 y `test_r4_freeze_rate.py` de U5 con la regla (b).
+**Context**: Construcción de U9, U09-T02.

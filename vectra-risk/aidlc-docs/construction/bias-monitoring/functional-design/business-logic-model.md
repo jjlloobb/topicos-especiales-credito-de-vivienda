@@ -32,7 +32,7 @@ flowchart TD
     readFail{"Lectura completa y agregador al dia?"}
     invalid{"Invalidas > 1 %?"}
     calc["Calcular modelo y decisiones humanas por version"]
-    rule{"Limite inferior con z = 3,14 del atributo disparador > 5 pp? (R4)"}
+    rule{"Algun atributo con limite inferior (z = 3,14) > 5 pp? (R4 sobre todos los atributos, 2026-11-10)"}
     freeze["POST freeze con FreezeContext (F27)"]
     freezeOk{"Exito o 409?"}
     human["Alerta DisparidadDecisionHumana si aplica"]
@@ -67,7 +67,7 @@ CronJob cada 15 min
   por cada versión con recomendaciones hoy o ayer:
      modelo  = disparidad de hoy-29 a hoy (BR-U9-01..05)
      humana  = disparidad de hoy-29 a hoy por decided_at + tasa de apartamiento
-     decide(modelo): límite inferior de la agregada del atributo disparador, con z = 3,14, > 5 pp ? (regla R4, BR-U9-11)
+     decide(modelo): límite inferior de la agregada de algún atributo, con z = 3,14, > 5 pp ? (regla R4 sobre todos los atributos, BR-U9-11; F-03 opción (b), decisión del usuario del 2026-11-10)
         sí -> FreezeContext(antes hoy-36..hoy-7, después hoy-29..hoy, últimos 7 días hoy-6..hoy) -> POST freeze (F27)
               éxito o 409 -> sigue ; timeout/5xx/circuito -> 3 reintentos -> corrida fallida + BiasFreezeFailed
      decide(humana) -> solo alerta DisparidadDecisionHumana; nunca freeze
@@ -105,14 +105,15 @@ BFF (cumplimiento)      -> GET /v1/freezes/{id}          -> monitoring_freezes (
 | PBT-U9-01 | `disparity` | **Oráculo de Fairlearn**: para toda `CountTable`, expandida a filas, las tasas por grupo y banda coinciden con `MetricFrame(selection_rate)` y la diferencia por banda con `demographic_parity_difference` restringida a los grupos suficientes (tolerancia 1e−9) | Oráculo | Tablas con 1 a 7 grupos por atributo, 3 bandas, conteos de 0 a 5 000, celdas alrededor de `n_min`, `no_informado` presente o ausente |
 | PBT-U9-02 | `disparity` | La agregada está entre la menor y la mayor diferencia por banda; con una sola banda válida es igual a ella; no cambia al permutar grupos o bandas; multiplicar todos los conteos por k ≥ 1 **cuando ninguna celda cambia de estado** (todas ≥ `n_min` o todas siguen igual) deja los valores iguales y nunca ensancha el intervalo; si una celda cruza `n_min`, la propiedad no aplica y el generador la excluye (revisión del FD de U9, 2026-10-08, H9); los pesos solo cuentan celdas suficientes | Invariante | Las mismas tablas y factores k |
 | PBT-U9-03 | `disparity` + `publish` | Una celda con `n < n_min` nunca tiene `rate`, nunca entra en una diferencia y nunca publica una tasa; `no_informado` nunca es extremo; la diferencia sin bandas nunca incluye la tasa de un grupo con alguna celda insuficiente, y entonces `population_difference_partial = true` (precisado el 2026-10-10 por U9 NFR Requirements) | Invariante | Tablas con celdas pequeñas y `no_informado` |
-| PBT-U9-04 | `freeze_rule` | `freeze` ⇔ límite inferior de la agregada del atributo disparador, con z = 3,14 (BR-U9-11, regla R4; 2026-11-09), `> umbral`, contra un oráculo por tabla de verdad; todo insuficiente → no congela; la población `humana` nunca produce `freeze` | Oráculo | Resultados con agregadas e intervalos alrededor de los bordes (límite 4,99 / 5,00 / 5,01 pp) |
+| PBT-U9-04 | `freeze_rule` | `freeze` ⇔ población `modelo` y **algún atributo** con límite inferior de la agregada, con z = 3,14 (BR-U9-11, regla R4; F-03 opción (b), decisión del usuario del 2026-11-10), `> umbral`, contra un oráculo por tabla de verdad (antes: solo el atributo disparador, 2026-11-09); todo insuficiente → no congela; la población `humana` nunca produce `freeze` | Oráculo | Resultados con agregadas e intervalos alrededor de los bordes (límite 4,99 / 5,00 / 5,01 pp) **en cualquier atributo**, no solo en el de la mayor agregada |
 | PBT-U9-05 | `run` + `freeze_client` | **Stateful (PBT-06)**: para toda secuencia de corridas con lecturas completas o fallidas, inválidas por debajo y por encima del 1 %, mediciones sobre y bajo el umbral, y respuestas de `freeze` (éxito, 409, 5xx, timeout), y Keycloak sin token para `bias-monitoring-job` (E7; revisión del NFR Requirements de U9, 2026-10-10 (segunda)): bias solo llama a `freeze`; nunca llama a `freeze` con datos parciales; `last_success` avanza ⇔ la corrida fue completa; como máximo 4 llamadas a `freeze` por versión y corrida; tras un congelamiento, una medición bajo el umbral no produce ninguna llamada; la población `humana` nunca llama; **tras una reactivación** de cumplimiento, la ventana empieza al día siguiente y los datos anteriores nunca vuelven a congelar la versión (revisión del FD de U9, 2026-10-08, H1); una corrida fallida igual publica el grupo `run` y nunca el `success`; **ciclo de vida del grupo `freeze-<v>`** (revisión del Infrastructure Design de U10, 2026-10-10): después de cada corrida, el grupo de `v` existe ⇔ el último `freeze` de `v` falló tras los reintentos **y** después no hubo un `freeze` de `v` con éxito o 409 **ni** una corrida completa en la que `v` no cumplía la regla o no se evaluaba; una corrida que falla antes del cálculo nunca crea ni borra grupos; ningún `DELETE` toca un grupo de otro `job` | Stateful | Secuencias de 1 a 40 corridas con un registro y un governance dobles, con comandos `reactivar` intercalados |
 | PBT-U9-06 | `counts` | `counts_from_records` y la expansión a filas son inversas; la `CountTable` de un rango es la suma de las de cualquier partición de ese rango (lo que U3 suma en el servidor coincide con sumar por día) | Round-trip / Invariante | Filas etiquetadas generadas; particiones de 30 días |
 | PBT-U9-07 | `compare` | `compare_source(pre, pre)` da `delta = 0` en todas las agregadas; intercambiar `pre` y `post` invierte el signo de `delta` | Invariante | Pares de tablas |
 | PBT-U9-08 | `context` | El paquete nunca contiene una tasa de una celda insuficiente, ni la tasa sin bandas de un grupo con alguna celda insuficiente (BR-U9-06; NFR-U9-31; revisión del NFR Requirements de U9, 2026-10-10), ni campos fuera de §3.1; con menos de 7 días de datos, `before = sin_datos` | Invariante | Resultados con historia de 0 a 40 días |
 
 **Pruebas de ejemplo obligatorias (PBT-10):**
-- **RT-2** (US-303): los conteos de la variante proxy de U5 (≥ 10 pp) → `freeze` con el atributo disparador; los del modelo base (< 5 pp) → sin `freeze`;
+- **RT-2** (US-303): los conteos de la variante proxy de U5 (≥ 10 pp) → `freeze` con el atributo disparador en el paquete (y `region` en `implicated`); los del modelo base (< 5 pp) → sin `freeze`;
+- **enmascaramiento (F-03, 2026-11-10)**: `region` con 5 grupos a 0,50 y uno a 0,70 (40 casos por celda; agregada 0,2000, límite R4 0,0132) y `sexo` con 0,50 y 0,60 (3 000 por celda; agregada 0,1000, límite R4 0,0768) → `freeze` por `sexo`, aunque el disparador es `region`; `implicated` nombra `sexo` con su `freeze_lower_limit`;
 - muestra insuficiente (US-301): una banda de `region = insular` con 12 casos → «muestra insuficiente» y fuera de la agregada;
 - humana alta y modelo bajo (US-302): `DisparidadDecisionHumana` y ninguna llamada a `freeze`;
 - permanece congelado (US-303): tras el `freeze`, una medición de 1 pp → ninguna llamada a governance;
@@ -134,11 +135,11 @@ BFF (cumplimiento)      -> GET /v1/freezes/{id}          -> monitoring_freezes (
 - inválidas: 0,5 % → la corrida completa y `BiasInvalidEntries`; 1,5 % → corrida fallida, sin `freeze` y sin `last_success`;
 - agregador de U3 atrasado 45 min → corrida fallida, sin `freeze` y sin `last_success`;
 - `freeze` con 409 → corrida completa; con 5xx persistente → 4 llamadas, corrida fallida y `BiasFreezeFailed`;
-- intervalo (regla R4, 2026-11-09): con 40 casos por celda y 6 pp de diferencia, el límite con z = 3,14 es ≤ 5 pp → sin `freeze`; con 2 000 casos por celda y 6 pp, también (≈ 3,1 pp); con 2 000 casos por celda y 12 pp → `freeze`.
+- intervalo (regla R4, 2026-11-09; sobre todos los atributos desde el 2026-11-10, F-03 opción (b)): con 40 casos por celda y 6 pp de diferencia, el límite con z = 3,14 es ≤ 5 pp → sin `freeze`; con 2 000 casos por celda y 6 pp, también (≈ 3,1 pp); con 2 000 casos por celda y 12 pp → `freeze`.
 
 **Validación estadística (no PBT):** una simulación con proporciones conocidas:
 - comprueba que el intervalo de Newcombe cubre la diferencia real de un par fijo en ≥ 93 % de 10 000 repeticiones;
-- **mide** con la librería real, y con la regla R4 de BR-U9-11 (2026-11-09), tres cosas (10 000 repeticiones):
+- **mide** con la librería real y con `vectra_bias.freeze_rule` (la regla R4 de BR-U9-11 sobre todos los atributos, F-03 opción (b), decisión del usuario del 2026-11-10; la simulación no reimplementa la regla), tres cosas (10 000 repeticiones):
   - **condición 1**: la tasa de congelamientos falsos con disparidad real 0, con 30, 100, 500 y 2 000 casos por celda y los cuatro atributos; se exige ≤ 5 % con ≥ 500 casos por celda; por debajo queda como limitación conocida del par extremo;
   - **condición 2**: el modelo base de U5 (4,61 pp) congela ≤ 5 % con celdas de 50 a 100 casos (y ≤ 6 % con 30);
   - **condición 3**: **D\***, la disparidad mínima de una variante proxy con la que se congela ≥ 95 % con el lote `stratified` (~1 500 casos); se prueba con una variante sintética de D\* y se documenta como requisito para U5.
