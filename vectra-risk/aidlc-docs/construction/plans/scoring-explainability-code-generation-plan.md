@@ -81,7 +81,7 @@ vectra-risk/scoring-explainability/
 
 ### Bloque B — Lógica pura
 
-- [ ] **Paso 3 — `policy`**
+- [x] **Paso 3 — `policy`** (U07-T02)
   - `evaluate(PolicyEvaluationInput) -> PolicyResult`:
     - las cinco reglas, evaluadas todas y con sus motivos acumulados en el orden de la tabla;
     - `cutoff_efectivo` por canal;
@@ -93,7 +93,7 @@ vectra-risk/scoring-explainability/
     - ejemplo de US-207: tasa sobre usura y normativa no vigente → `revision_requerida` con los dos motivos;
     - un caso RT-4 de U5 → `baja_confianza`.
 
-- [ ] **Paso 4 — `narrative`**
+- [x] **Paso 4 — `narrative`** (U07-T02)
   - `TemplateNarrativeGenerator` (`template:v1`) detrás de la interfaz `NarrativeGenerator`, con una sola implementación registrada:
     - top 5 por |SHAP|, sin ceros y con desempate por `feature_id`;
     - intensidad `fuerte`, `moderada` o `leve`;
@@ -106,7 +106,7 @@ vectra-risk/scoring-explainability/
     - `uv run python contracts/tools/forbidden_phrases.py` sobre las plantillas de la narrativa (BR-U0-94) (revisión de consistencia entre unidades, 2026-11-01);
     - una sola implementación de `NarrativeGenerator`.
 
-- [ ] **Paso 5 — `factuality`**
+- [x] **Paso 5 — `factuality`** (U07-T02)
   - `FactualityValidator` independiente del generador:
     - parte la narrativa;
     - reconoce `label_es` y la dirección contra el diccionario;
@@ -117,13 +117,13 @@ vectra-risk/scoring-explainability/
     - PBT-U7-05 (mutaciones);
     - una narrativa con un factor invertido → `False`.
 
-- [ ] **Paso 6 — `applicant`**
+- [x] **Paso 6 — `applicant`** (U07-T02)
   - Hasta 3 factores `applicant_safe` con SHAP > 0, plantilla `applicant:v1` y leyenda.
   - Ningún campo prohibido ni número. No se guarda.
   - Diseño: BR-U7-14. Historia: US-110.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest scoring-explainability/tests/property/test_applicant.py`: PBT-U7-06, más el ejemplo de un rechazo sin campos prohibidos; `uv run python contracts/tools/forbidden_phrases.py` sobre la plantilla `applicant:v1` (BR-U0-94) (revisión de consistencia entre unidades, 2026-11-01).
 
-- [ ] **Paso 7 — Resumen de la lógica pura**
+- [x] **Paso 7 — Resumen de la lógica pura** (U07-T02, acotado a la demo)
   - Cobertura de ramas **100 %** en `policy`, `narrative` y `factuality`.
   - `mutmut` en `policy` y `factuality`, con 0 sobrevivientes sin justificar.
   - Resumen en `aidlc-docs/construction/scoring-explainability/code/logic.md`.

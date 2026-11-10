@@ -59,7 +59,7 @@ Procesos: el **CronJob** de cálculo (cliente `bias-monitoring-job`), el **servi
 |---|---|---|
 | NFR-U9-50 | Cobertura de ramas **100 %** en `stats`, `disparity`, `freeze_rule`, `context` y `window`; ≥ 95 % en el resto | `pytest --cov --cov-branch` con umbral por módulo |
 | NFR-U9-51 | `mutmut` en `stats`, `disparity` y `freeze_rule`, con 0 sobrevivientes sin justificar | `mutmut run` en CI |
-| NFR-U9-52 | PBT-U9-01..08 con el perfil `ci` (500 ejemplos, semilla impresa) | CI |
+| NFR-U9-52 | PBT-U9-01..08 con el perfil `ci` (500 ejemplos, semilla impresa). Las PBT stateful (PBT-U9-05) se escalan con su número de ejemplos y de pasos **nombrado en la prueba y en `code/services.md`**, conservando todos sus comandos e invariantes, como U3 y U4 (enmienda del 2026-11-10, decisión del usuario tras U09-T02) | CI |
 | NFR-U9-53 | **Simulación estadística** (BLM §3): cobertura del intervalo y tasa de congelamientos falsos, con 10 000 repeticiones, **cada noche** en CI y en todo PR que cambie `stats` o `freeze_rule` | Workflow nocturno y regla de rutas en el PR |
 | NFR-U9-54 | La librería `vectra_disparity` se versiona con SemVer; su versión viaja en cada paquete de contexto (BR-U9-15) y en el informe de validación de U4 | Prueba de que el paquete lleva `library_version` |
 

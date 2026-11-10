@@ -1,0 +1,5 @@
+# template:v1 — plantilla de la narrativa para el analista (BR-U7-10). Cada linea es `@clave texto`; las demas se ignoran.
+# Cambiar el texto es cambiar de version de plantilla: el validador de factualidad (BR-U7-11) lo comprueba por separado.
+@header Explicación del riesgo estimado — método SHAP · modelo {model_version_id} · plantilla template:v1
+@line {n}. {label_es}: {phrase} (influencia {intensity}).
+@posthoc Aproximación post-hoc: describe qué variables movieron el riesgo estimado; no es una lectura del razonamiento del modelo
