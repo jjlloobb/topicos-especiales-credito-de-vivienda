@@ -474,3 +474,12 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
 - Plantilla de tareas (revisor, U00-T03, ronda 1, F-04, AMARILLO): un criterio que pide `grep <módulo>` vacío choca con un contrato de import-linter que tiene que nombrar ese módulo para prohibirlo. Acotar estos grep a `*.py`.
 - U0, semilla de Hypothesis (revisor, U00-T03, ronda 1, F-05, AMARILLO): el perfil `ci` usa `print_blob` y solo imprime la semilla cuando la prueba falla. Ver la candidata «imprimir la semilla en verde» (U07-T02).
 - U0, `bench_gate` (revisor, U00-T03): `test_bench_derive` llegó a p99 de 5,1 ms (límite 2 ms) con carga de 12 a 14. Sin carga da entre 0,34 y 1,56 ms. Es la misma familia que la candidata del bench de U04-T09.
+- **U0, token de construcción: R2-01 sigue abierta en parte** (revisor, U00-T03, ronda 2, F-01, NARANJA). Corrige lo que dice arriba la entrada de R2-01 y `nfr-design-patterns.md:52`: la lista de contenedores de `read_wire` no está cerrada, y la ruta por nombre tampoco. Sin importar `_internal` todavía se puede abrir la ventana de acuñación y fabricar un `Ready` o una `Recommendation`, por cuatro caminos:
+  - `from vectra_contracts.outcome import _minting`, un import estático que ni la prueba AST ni import-linter detectan;
+  - una clase con `__module__ = "vectra_contracts.…"`, porque la comprobación es un `startswith`;
+  - un espía sobre `CaseDetail.model_validate_json`;
+  - una tarea `asyncio` creada dentro de la ventana.
+
+  Arreglo: mover `_MINTING` y `_minting` a `outcome/_internal.py`, o añadirlos al detector; cambiar el `startswith` por un conjunto explícito de clases; corregir los dos textos. Los cuatro caminos exigen código hostil dentro del proceso, y la demo no lo tiene. Sondas en `revisiones/U00-T03/ronda-2.md`.
+- U8, `case-management/tests/unit/test_private_token.py:22` (revisor, U00-T03, ronda 2, F-04, AMARILLO): `_holds_token` solo entra en `dict`, `list`, `tuple`, `set` y `frozenset`, hasta profundidad 3. No mira atributos, `partial` ni closures.
+- U0, pickle (revisor, U00-T03, ronda 2): un estado de pickle manipulado (`__setstate__` con `registry_entry_id=""`) produce una instancia sellada que se puede anidar. Es la misma clase que el límite de `__new__` aceptado en P-1.
