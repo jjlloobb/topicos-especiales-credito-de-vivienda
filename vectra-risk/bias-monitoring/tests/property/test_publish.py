@@ -82,7 +82,7 @@ def test_no_series_publishes_the_rate_of_an_insufficient_cell(counts):
         "vectra_bias_disparity", "vectra_bias_aggregate_lower", "vectra_bias_rule_met", "vectra_bias_cell_size",
     }  # fmt: skip
 
-    for attribute, table in counts.items():
+    for attribute, tbl in counts.items():
         expected, partial = _sin_bandas_oracle(tbl)
         published = [
             (lab, v)
