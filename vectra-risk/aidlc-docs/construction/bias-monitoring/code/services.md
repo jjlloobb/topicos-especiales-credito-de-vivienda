@@ -77,25 +77,6 @@ espera ≤ 10 s (`GRACEFUL_SHUTDOWN`). El `preStop` de 5 s es un campo del `Depl
 - `invalid_entries` = suma de `RangeTotals.invalid_entries` de los rangos de la consulta, sin `unattributable_range`.
 - `compare` rechaza además una celda repetida (`duplicate_cell`) con 422; `PrePostReport.pre` y `.post` llevan `model_version_id` «pre» y «post» y una ventana de 1970 porque `DisparityResult` los exige y una fuente no tiene versión ni ventana.
 
-## PBT-U9-05 frente a NFR-U9-52
-
-NFR-U9-52 pide PBT-U9-01..08 con el perfil `ci` (500 ejemplos, semilla impresa). U09-T02 había aceptado **120 × 80** para PBT-U9-05 porque estimaba ≈ 0,15 s por corrida
-y más de 6 min para 500 × 80. **Decisión del usuario (2026-11-10, U09-T04, P-2 = a): PBT-U9-05 vuelve a 500 × 80, la letra de NFR-U9-52**
-(`max_examples = 500` y `stateful_step_count = 80` en `tests/property/test_run_machine.py`). Las PBT no se recortan (alcance §2.1): la razón del ajuste no se sostenía con la medición.
-
-- **Qué se conserva.** Todos los comandos (nivel de disparidad, retirar versión, avanzar el día, reactivar, correr con sus fallas) y todos los invariantes de la BLM §3. El cambio es solo de configuración de la prueba.
-- **Cifras medidas** (`HYPOTHESIS_PROFILE=ci`, `test_run_machine.py`, una sola corrida de la máquina de estados, esta máquina):
-
-  | Ajuste | Ejemplos explorados | Corridas del CronJob | Máx. corridas en una secuencia | Tiempo |
-  |---|---|---|---|---|
-  | 120 × 80 (el de U09-T02, **retirado**) | 135 | 1 829 | 40 | 29 s (U09-T03); 44 s con las dos pruebas del archivo (U09-T04) |
-  | **500 × 80 (el de hoy, NFR-U9-52)** | 555 | 7 154 | 40 | 2 min 17 s (U09-T03); **1 min 52 s con las dos pruebas del archivo (U09-T04)** |
-
-  Cada corrida del CronJob cuesta ≈ 16 a 19 ms en esta máquina (no 0,15 s, la cifra de U09-T02). El costo de la decisión: ≈ 1 min 10 s más en `make property` y otro tanto en `coverage-bias`, que repite las pruebas con la medición de ramas.
-- **Origen.** Candidata F-01 de `revisiones/U09-T02/ronda-1.md` y F-01 de `revisiones/U09-T03/ronda-1.md` (`CANDIDATAS.md`). El texto de NFR-U9-52 es del usuario y no cambia.
-
-El comentario de `test_run_machine.py` y el del objetivo `property` del `Makefile` citan NFR-U9-52 con la cifra de hoy.
-
 ## Cobertura (NFR-U9-50)
 
 Ramas, con `pytest-cov --cov-branch` (`make -C bias-monitoring coverage-bias`: los dos comandos de CA-5). Exigido: 100 % en `freeze_rule`, `context` y `window`, y ≥ 95 % en el resto de `vectra_bias`.

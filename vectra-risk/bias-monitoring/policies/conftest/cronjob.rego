@@ -166,50 +166,75 @@ duration_seconds(value) := to_number(parts[1]) * {"s": 1, "m": 60, "h": 3600}[pa
 
 policy := yaml.unmarshal(input.data["values-monitoring-policy.yaml"]) if is_policy
 
+# Booleanos aparte por condicion: una llamada indefinida dentro de `not` deja indefinido el cuerpo y la regla no dispara; y el orden entre tipos
+# de Rego hace que `"abc" >= 30` sea verdadero. Cada valor debe ser del tipo que `config.parse_policy` acepta, o la regla dispara.
+number_in(value, low, high) if {
+	is_number(value)
+	value >= low
+	value <= high
+}
+
+integer_in(value, low, high) if {
+	number_in(value, low, high)
+	value == floor(value)
+}
+
+# Una duracion valida de `config._DURATION`: `^\d+[smh]$`. Cualquier otra cosa ("1h30m", "90", "abc") no es una duracion.
+valid_duration(value) if {
+	is_string(value)
+	regex.match(`^\d+[smh]$`, value)
+}
+
+stale_seconds_at_least(value, floor_s) if {
+	valid_duration(value)
+	duration_seconds(value) >= floor_s
+}
+
 # regla: policy-ranges
 deny contains msg if {
 	is_policy
-	not policy.threshold_pp >= 1
-	msg := sprintf("policy-ranges: threshold_pp %v; el rango es de 1 a 20 pp", [policy.threshold_pp])
+	not number_in(policy.threshold_pp, 1, 20)
+	msg := sprintf("policy-ranges: threshold_pp %v; debe ser un numero de 1 a 20 pp", [policy.threshold_pp])
 }
 
 deny contains msg if {
 	is_policy
-	not policy.threshold_pp <= 20
-	msg := sprintf("policy-ranges: threshold_pp %v; el rango es de 1 a 20 pp", [policy.threshold_pp])
+	not integer_in(policy.n_min, 30, 1000000000)
+	msg := sprintf("policy-ranges: n_min %v; debe ser un entero y el piso es 30", [policy.n_min])
 }
 
 deny contains msg if {
 	is_policy
-	not policy.n_min >= 30
-	msg := sprintf("policy-ranges: n_min %v; el piso es 30", [policy.n_min])
-}
-
-deny contains msg if {
-	is_policy
-	not policy.window_days >= 7
-	msg := sprintf("policy-ranges: window_days %v; el rango es de 7 a 90 dias", [policy.window_days])
-}
-
-deny contains msg if {
-	is_policy
-	not policy.window_days <= 90
-	msg := sprintf("policy-ranges: window_days %v; el rango es de 7 a 90 dias", [policy.window_days])
+	not integer_in(policy.window_days, 7, 90)
+	msg := sprintf("policy-ranges: window_days %v; debe ser un entero de 7 a 90 dias", [policy.window_days])
 }
 
 # regla: policy-stale
-# W >= 30 min y W >= 4 x el intervalo entre corridas.
+# W es una duracion valida (`<n>s`, `<n>m` o `<n>h`), W >= 30 min y W >= 4 x el intervalo entre corridas.
 deny contains msg if {
 	is_policy
-	not duration_seconds(policy.stale_after) >= 1800
-	msg := sprintf("policy-stale: stale_after %v; el piso es 30 min", [policy.stale_after])
+	not valid_duration(policy.stale_after)
+	msg := sprintf("policy-stale: stale_after %v no es una duracion valida (<n>s, <n>m o <n>h)", [policy.stale_after])
 }
 
 deny contains msg if {
 	is_policy
-	interval := interval_of(policy.schedule)
-	not duration_seconds(policy.stale_after) >= 4 * interval * 60
-	msg := sprintf("policy-stale: stale_after %v es menos de 4 x el intervalo de %d min", [policy.stale_after, interval])
+	valid_duration(policy.stale_after)
+	not stale_seconds_at_least(policy.stale_after, 1800)
+	msg := sprintf("policy-stale: stale_after %v; el piso es 30 min", [policy.stale_after])
+}
+
+stale_covers_interval(value, schedule) if {
+	interval := interval_of(schedule)
+	stale_seconds_at_least(value, 4 * interval * 60)
+}
+
+deny contains msg if {
+	is_policy
+	valid_duration(policy.stale_after)
+	interval_of(policy.schedule)
+	not stale_covers_interval(policy.stale_after, policy.schedule)
+	msg := sprintf("policy-stale: stale_after %v es menos de 4 x el intervalo del horario", [policy.stale_after])
 }
 
 # regla: policy-schedule

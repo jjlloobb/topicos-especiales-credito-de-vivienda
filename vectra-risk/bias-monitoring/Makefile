@@ -32,7 +32,7 @@ test:
 
 # Pasos 6 a 9: PBT-U9-03 (publish), 04, 05, 07 (compare) y 08 con el perfil `ci` y la semilla impresa (sin `-q`, que oculta la cabecera con la semilla). `test_run_machine.py` fija sus
 # propios ejemplos: PBT-U9-05 va con 500 secuencias de hasta 80 pasos, la letra de NFR-U9-52 (decision del usuario, U09-T04 P-2 = a). Cada paso
-# es una corrida completa contra los dobles (~16 ms): la maquina tarda ~2 min en el perfil `ci`. La cifra medida esta en `code/services.md`.
+# es una corrida completa contra los dobles (~16 ms): la maquina tarda ~2 min en el perfil `ci`. Las cifras medidas estan en `evidence/cierre-demo.md`.
 property:
 	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest bias-monitoring/tests/property/test_freeze_rule.py \
 		bias-monitoring/tests/property/test_context.py bias-monitoring/tests/property/test_publish.py \

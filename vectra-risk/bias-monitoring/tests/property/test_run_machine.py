@@ -226,8 +226,8 @@ class RunMachine(RuleBasedStateMachine):
 
 
 # NFR-U9-52: PBT-U9-05 corre con 500 ejemplos x 80 pasos, la letra del requisito (decision del usuario en U09-T04, P-2 = a: las PBT no se recortan).
-# Cada paso es una corrida completa del CronJob contra los dobles (~16 ms medidos; 500 x 80 tarda ~2 min en el perfil `ci`). `code/services.md`
-# («PBT-U9-05 frente a NFR-U9-52») guarda la cifra medida; el ajuste a 120 x 80 de U09-T02 queda retirado.
+# Cada paso es una corrida completa del CronJob contra los dobles (~16 ms medidos; 500 x 80 tarda ~2 min en el perfil `ci`). `evidence/cierre-demo.md`
+# («Decisiones», P-2) guarda las cifras medidas; el ajuste a 120 x 80 de U09-T02 queda retirado.
 RunMachine.TestCase.settings = settings(max_examples=500, stateful_step_count=80, deadline=None)
 TestRunMachine = RunMachine.TestCase
 
