@@ -17,7 +17,15 @@ from vectra_disparity import ATTRIBUTES, BANDS, CountCell, CountTable, aggregate
 
 N_MIN = 30
 THRESHOLD = Decimal(5)
-EDGES = [None, Decimal("-0.0100"), Decimal("0.0000"), Decimal("0.0499"), Decimal("0.0500"), Decimal("0.0501"), Decimal("0.3000")]
+EDGES = [
+    None,
+    Decimal("-0.0100"),
+    Decimal("0.0000"),
+    Decimal("0.0499"),
+    Decimal("0.0500"),
+    Decimal("0.0501"),
+    Decimal("0.3000"),
+]
 limit_strategy = st.one_of(st.sampled_from(EDGES), st.decimals(Decimal("-0.5"), Decimal("0.6"), places=4))
 limits_strategy = st.fixed_dictionaries({a: limit_strategy for a in ATTRIBUTES})
 
@@ -36,7 +44,11 @@ def test_decide_matches_the_truth_table_for_any_attribute(population, limits):
     assert decision.rule_met is expected_met
     assert (decision.reason == "supera_umbral") is expected_met
     assert [m.attribute for m in decision.met] == [
-        a for a, _ in sorted(((a, v) for a, v in limits.items() if v is not None and v > Decimal("0.05")), key=lambda kv: (-kv[1], kv[0]))
+        a
+        for a, _ in sorted(
+            ((a, v) for a, v in limits.items() if v is not None and v > Decimal("0.05")),
+            key=lambda kv: (-kv[1], kv[0]),
+        )
     ]
     assert all(a.limit > Decimal("0.05") for a in decision.met)
 
@@ -54,7 +66,9 @@ def test_the_human_population_never_freezes(limits):
     assert not decide("humana", THRESHOLD, limits).freeze
 
 
-@given(limits=limits_strategy, threshold=st.sampled_from([Decimal(1), Decimal(5), Decimal("7.5"), Decimal(20)]))
+@given(
+    limits=limits_strategy, threshold=st.sampled_from([Decimal(1), Decimal(5), Decimal("7.5"), Decimal(20)])
+)
 def test_the_threshold_is_in_percentage_points(limits, threshold):
     decision = decide("modelo", threshold, limits)
     assert decision.freeze is any(v is not None and v > threshold / 100 for v in limits.values())

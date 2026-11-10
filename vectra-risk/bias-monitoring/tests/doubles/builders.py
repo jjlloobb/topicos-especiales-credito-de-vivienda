@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date
 
+from vectra_contracts.catalog import Decision
 from vectra_contracts.models.monitoring import MonitoringMarginalCount
 from hypothesis import strategies as st
 from vectra_disparity import ATTRIBUTES, BANDS, UNINFORMED, CountCell, CountTable
@@ -54,7 +55,10 @@ def marginals_of(
     rows = []
     for attribute, tbl in counts.items():
         for cell in tbl.cells:
-            for result, count in (("favorable", cell.favorable), ("desfavorable", cell.total - cell.favorable)):
+            for result, count in (
+                ("favorable", cell.favorable),
+                ("desfavorable", cell.total - cell.favorable),
+            ):
                 if count:
                     rows.append(
                         MonitoringMarginalCount(
@@ -65,7 +69,9 @@ def marginals_of(
                             group=cell.group,
                             band=cell.band,  # type: ignore[arg-type]
                             result=result,
-                            decision=("sigue" if result == "favorable" else "se_aparta") if decisions else None,
+                            decision=Decision("sigue" if result == "favorable" else "se_aparta")
+                            if decisions
+                            else None,
                             count=count,
                         )
                     )

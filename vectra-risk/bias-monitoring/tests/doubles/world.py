@@ -8,7 +8,6 @@ le pide con un reloj virtual y, si supera el timeout que el cliente puso en la s
 
 from __future__ import annotations
 
-import json
 import re
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping
@@ -21,6 +20,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from vectra_common.errors import DependencyUnavailable
 from vectra_common.service_token import ServiceTokenProvider
+from vectra_contracts.catalog import Decision
 from vectra_contracts.models.monitoring import (
     FreezeContext,
     MonitoringMarginalCount,
@@ -169,7 +169,11 @@ class Registry(_Slow):
                 for result, count in (("favorable", c.favorable), ("desfavorable", c.total - c.favorable)):
                     if count:
                         decision = ("sigue" if result == "favorable" else "se_aparta") if decisions else None
-                        self.rows.append(Daily(population, version, day, attribute, c.group, c.band, result, decision, count))
+                        self.rows.append(
+                            Daily(
+                                population, version, day, attribute, c.group, c.band, result, decision, count
+                            )
+                        )
         entry = self.entries[(version, population, day)]
         entry[0] += max(sizes, default=0) + invalid
         entry[1] += invalid
@@ -211,7 +215,9 @@ class Registry(_Slow):
                     and r.from_day <= d.day <= r.to_day
                     and (r.model_version_id is None or d.version == r.model_version_id)
                 ):
-                    sums[(d.version, d.attribute, d.group, d.band, d.result, d.decision, d.population)] += d.count
+                    sums[(d.version, d.attribute, d.group, d.band, d.result, d.decision, d.population)] += (
+                        d.count
+                    )
             counts += [
                 MonitoringMarginalCount(
                     population=pop,  # type: ignore[arg-type]
@@ -221,14 +227,18 @@ class Registry(_Slow):
                     group=g,
                     band=b,  # type: ignore[arg-type]
                     result=res,
-                    decision=dec,  # type: ignore[arg-type]
+                    decision=None if dec is None else Decision(dec),
                     count=n,
                 )
                 for (v, a, g, b, res, dec, pop), n in sorted(sums.items(), key=lambda kv: str(kv[0]))
             ]
             total = invalid = 0
             for (v, pop, day), (t, i) in self.entries.items():
-                if pop == r.population and r.from_day <= day <= r.to_day and (r.model_version_id in (None, v)):
+                if (
+                    pop == r.population
+                    and r.from_day <= day <= r.to_day
+                    and (r.model_version_id in (None, v))
+                ):
                     total += t
                     invalid += i
                     if i:
@@ -237,11 +247,19 @@ class Registry(_Slow):
         unattributable = 0
         if query.unattributable_range is not None:
             window = query.unattributable_range
-            unattributable = sum(n for d, n in self.unattributable.items() if window.from_day <= d <= window.to_day)
+            unattributable = sum(
+                n for d, n in self.unattributable.items() if window.from_day <= d <= window.to_day
+            )
         versions: list[VersionWindow] = []
         if query.include_versions:
-            low = min([r.from_day for r in query.ranges] + ([query.unattributable_range.from_day] if query.unattributable_range else []))
-            high = max([r.to_day for r in query.ranges] + ([query.unattributable_range.to_day] if query.unattributable_range else []))
+            low = min(
+                [r.from_day for r in query.ranges]
+                + ([query.unattributable_range.from_day] if query.unattributable_range else [])
+            )
+            high = max(
+                [r.to_day for r in query.ranges]
+                + ([query.unattributable_range.to_day] if query.unattributable_range else [])
+            )
             spans: dict[tuple[str, str], list[date]] = defaultdict(list)
             for d in self.rows:
                 if low <= d.day <= high:
@@ -276,7 +294,9 @@ class Governance(_Slow):
     def __init__(self, clock: VirtualClock, on_freeze: Callable[[str], None] | None = None) -> None:
         super().__init__(clock)
         self.frozen: set[str] = set()
-        self.script: dict[str, list[str]] = defaultdict(list)  # por version: "ok" | "409" | "5xx" | "timeout" | "403" | "400"
+        self.script: dict[str, list[str]] = defaultdict(
+            list
+        )  # por version: "ok" | "409" | "5xx" | "timeout" | "403" | "400"
         self.on_freeze = on_freeze
         self.packages: list[FreezeContext] = []
 
@@ -315,9 +335,9 @@ class Governance(_Slow):
             return problem(409)
         self.frozen.add(model_id)
         self.packages.append(context)
+        call.status = 204
         if self.on_freeze is not None:
             self.on_freeze(model_id)
-        call.status = 204
         return httpx.Response(204)
 
     def freeze_calls(self, version: str | None = None) -> list[Call]:
@@ -327,7 +347,7 @@ class Governance(_Slow):
         return httpx.MockTransport(self.handle)
 
 
-_LINE = re.compile(r'^([a-z_:][a-z0-9_:]*)(\{(.*)\})? (\S+)$')
+_LINE = re.compile(r"^([a-z_:][a-z0-9_:]*)(\{(.*)\})? (\S+)$")
 _LABEL = re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*)="((?:[^"\\]|\\.)*)"')
 
 
@@ -399,7 +419,9 @@ class Pushgateway(_Slow):
         return httpx.MockTransport(self.handle)
 
 
-def freeze_record(version: str, frozen_at: datetime, resolutions: Iterable[tuple[str, datetime]] = ()) -> dict[str, Any]:
+def freeze_record(
+    version: str, frozen_at: datetime, resolutions: Iterable[tuple[str, datetime]] = ()
+) -> dict[str, Any]:
     """Un `FreezeRecord` de U3 valido contra U0, con un paquete minimo."""
     empty = {
         "population": "modelo",

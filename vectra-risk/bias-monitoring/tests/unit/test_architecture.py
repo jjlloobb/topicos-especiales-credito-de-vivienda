@@ -29,7 +29,11 @@ def cell_result_with_rate(source: str) -> list[int]:
         if isinstance(node, ast.Call):
             func = node.func
             direct = _name(func) == CELL_RESULT
-            construct = isinstance(func, ast.Attribute) and func.attr == "model_construct" and _name(func.value) == CELL_RESULT
+            construct = (
+                isinstance(func, ast.Attribute)
+                and func.attr == "model_construct"
+                and _name(func.value) == CELL_RESULT
+            )
             if (direct or construct) and (any(k.arg == "rate" for k in node.keywords) or len(node.args) >= 4):
                 lines.append(node.lineno)
         if isinstance(node, ast.Dict):
@@ -40,11 +44,15 @@ def cell_result_with_rate(source: str) -> list[int]:
 
 
 def test_the_detector_finds_a_cell_result_with_a_rate():
-    assert cell_result_with_rate("CellResult(group='a', band='lt_20', n=1, rate='0.5000', status='suficiente')") == [1]
+    assert cell_result_with_rate(
+        "CellResult(group='a', band='lt_20', n=1, rate='0.5000', status='suficiente')"
+    ) == [1]
     assert cell_result_with_rate("x.CellResult(*args)") == []
     assert cell_result_with_rate("CellResult.model_construct(rate=1)") == [1]
     assert cell_result_with_rate("{'group': 'a', 'band': 'b', 'rate': 1, 'status': 's'}") == [1]
-    assert cell_result_with_rate("CellResult(group='a', band='lt_20', n=1, status='muestra_insuficiente')") == []
+    assert (
+        cell_result_with_rate("CellResult(group='a', band='lt_20', n=1, status='muestra_insuficiente')") == []
+    )
 
 
 def test_no_module_of_vectra_bias_builds_a_cell_result_with_a_rate():

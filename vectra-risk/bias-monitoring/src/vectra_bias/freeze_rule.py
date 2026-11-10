@@ -44,7 +44,9 @@ def decide(population: str, threshold_pp: Decimal, limits: Mapping[str, Decimal 
     if not present:
         return FreezeDecision(False, False, "muestra_insuficiente", ())
     met = tuple(
-        AttributeLimit(a, v) for a, v in sorted(present.items(), key=lambda kv: (-kv[1], kv[0])) if v > threshold
+        AttributeLimit(a, v)
+        for a, v in sorted(present.items(), key=lambda kv: (-kv[1], kv[0]))
+        if v > threshold
     )
     top = max(present.values())
     if met:

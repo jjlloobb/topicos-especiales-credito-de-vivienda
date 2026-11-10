@@ -93,18 +93,37 @@ def population_series(version: str, population: str, report: PopulationReport) -
         base = {"model_version_id": version, "population": population, "attribute": attribute.attribute}
         for band in attribute.bands:
             if band.difference is not None:
-                out.append(_s("vectra_bias_disparity", band.difference, **base, band=band.band, partial="false"))
+                out.append(
+                    _s("vectra_bias_disparity", band.difference, **base, band=band.band, partial="false")
+                )
         if attribute.aggregate is not None:
-            out.append(_s("vectra_bias_disparity", attribute.aggregate, **base, band=AGGREGATE_BAND, partial="false"))
+            out.append(
+                _s("vectra_bias_disparity", attribute.aggregate, **base, band=AGGREGATE_BAND, partial="false")
+            )
         if attribute.population_difference is not None:
             partial = "true" if attribute.population_difference_partial else "false"
-            out.append(_s("vectra_bias_disparity", attribute.population_difference, **base, band=NO_BANDS, partial=partial))
+            out.append(
+                _s(
+                    "vectra_bias_disparity",
+                    attribute.population_difference,
+                    **base,
+                    band=NO_BANDS,
+                    partial=partial,
+                )
+            )
         limit = report.limits.get(attribute.attribute)
         if limit is not None:
             out.append(_s("vectra_bias_aggregate_lower", limit, **base))
         for cell in attribute.cells:
             out.append(_s("vectra_bias_cell_size", cell.n, **base, group=cell.group, band=cell.band))
-    out.append(_s("vectra_bias_rule_met", int(report.decision.rule_met), model_version_id=version, population=population))
+    out.append(
+        _s(
+            "vectra_bias_rule_met",
+            int(report.decision.rule_met),
+            model_version_id=version,
+            population=population,
+        )
+    )
     return out
 
 
@@ -156,18 +175,31 @@ async def _op(
     """`None` si el Pushgateway respondio 2xx; si no, un codigo estable (sin texto de la respuesta)."""
     try:
         response = await deps.call(
-            client, method, path, timeout=timeout, headers={"content-type": "text/plain; version=0.0.4"}, content=content
+            client,
+            method,
+            path,
+            timeout=timeout,
+            headers={"content-type": "text/plain; version=0.0.4"},
+            content=content,
         )
     except (DependencyTimeout, DependencyUnavailable) as error:
         return f"{method}:{what}:{type(error).__name__}"
-    return None if response.status_code <= HTTP_ACCEPTED_MAX else f"{method}:{what}:status_{response.status_code}"
+    return (
+        None
+        if response.status_code <= HTTP_ACCEPTED_MAX
+        else f"{method}:{what}:status_{response.status_code}"
+    )
 
 
 async def list_groups(client: deps.DependencyClient) -> list[str] | str:
     """Los grupos `freeze-<v>` del job de bias (`GET /api/v1/metrics`); un codigo de error si la lectura falla."""
     try:
         response = await deps.call(
-            client, "GET", "/api/v1/metrics", timeout=config.GROUP_CALL_TIMEOUT_S, headers={"accept": "application/json"}
+            client,
+            "GET",
+            "/api/v1/metrics",
+            timeout=config.GROUP_CALL_TIMEOUT_S,
+            headers={"accept": "application/json"},
         )
         data: Any = response.json() if response.status_code <= HTTP_ACCEPTED_MAX else None
     except (DependencyTimeout, DependencyUnavailable) as error:
@@ -202,7 +234,9 @@ async def publish(client: deps.DependencyClient, report: RunReport) -> PublishRe
     return result
 
 
-async def _freeze_groups(client: deps.DependencyClient, report: RunReport, result: PublishResult) -> list[str | None]:
+async def _freeze_groups(
+    client: deps.DependencyClient, report: RunReport, result: PublishResult
+) -> list[str | None]:
     """Ciclo de vida del grupo `freeze-<v>` (BR-U9-20): `PUT` al fallar el `freeze`; `DELETE` con un `freeze` exitoso o 409, o en
     una corrida **completa** en la que `v` ya no cumple la regla o ya no se evalua (hasta `MAX_STALE_GROUP_DELETES`)."""
     errors: list[str | None] = []

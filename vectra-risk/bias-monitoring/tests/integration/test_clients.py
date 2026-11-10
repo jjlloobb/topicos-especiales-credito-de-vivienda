@@ -67,9 +67,20 @@ def config_threshold():
 
 def ranges_for(version: str) -> list[MonitoringRangeRequest]:
     r = version_ranges(TODAY, 30, TODAY - timedelta(days=60), None)
-    spans = {"antes": ("modelo", r.before), "despues": ("modelo", r.after), "7d": ("modelo", r.last_7_days), "humana": ("humana", r.human_after)}
+    spans = {
+        "antes": ("modelo", r.before),
+        "despues": ("modelo", r.after),
+        "7d": ("modelo", r.last_7_days),
+        "humana": ("humana", r.human_after),
+    }
     return [
-        MonitoringRangeRequest(range_id=f"{version}:{k}", model_version_id=version, population=p, from_day=s.from_day, to_day=s.to_day)
+        MonitoringRangeRequest(
+            range_id=f"{version}:{k}",
+            model_version_id=version,
+            population=p,
+            from_day=s.from_day,
+            to_day=s.to_day,
+        )
         for k, (p, s) in spans.items()
     ]
 
@@ -89,7 +100,11 @@ def test_every_call_is_cut_at_its_timeout_with_slow_doubles():
     with pytest.raises(RegistryError):
         run(query_daily(registry, query))
     assert world.clock.slept == [config.FREEZES_TIMEOUT_S, config.QUERY_TIMEOUT_S]
-    assert [c.timeout for c in world.registry.calls] == [config.FREEZES_TIMEOUT_S, config.QUERY_TIMEOUT_S] == [3, 5]
+    assert (
+        [c.timeout for c in world.registry.calls]
+        == [config.FREEZES_TIMEOUT_S, config.QUERY_TIMEOUT_S]
+        == [3, 5]
+    )
 
     world.clock.slept.clear()
     world.governance.delay = 60.0
@@ -124,7 +139,9 @@ def test_registry_errors_are_a_single_reading_failure():
 
 def test_the_freezes_come_back_as_u0_records():
     world = World()
-    world.registry.freezes = [freeze_record("v1", NOW - timedelta(days=3), [("reactivar", NOW - timedelta(days=1))])]
+    world.registry.freezes = [
+        freeze_record("v1", NOW - timedelta(days=3), [("reactivar", NOW - timedelta(days=1))])
+    ]
     records = run(read_freezes(registry_client(world)))
     assert [r.model_version_id for r in records] == ["v1"]
     assert records[0].resolutions[0].action == "reactivar"
@@ -156,13 +173,25 @@ def test_a_single_version_group_of_up_to_three_versions_is_one_request():
 def test_the_registry_double_sums_the_days_of_a_range_and_reports_the_versions():
     world = World()
     for d in range(3):
-        world.registry.add_day("v1", "modelo", TODAY - timedelta(days=d), uniform(0.5, 40), invalid=1 if d == 0 else 0)
+        world.registry.add_day(
+            "v1", "modelo", TODAY - timedelta(days=d), uniform(0.5, 40), invalid=1 if d == 0 else 0
+        )
     query = MonitoringQuery(
-        ranges=[MonitoringRangeRequest(range_id="a", model_version_id="v1", population="modelo", from_day=TODAY - timedelta(days=5), to_day=TODAY)],
+        ranges=[
+            MonitoringRangeRequest(
+                range_id="a",
+                model_version_id="v1",
+                population="modelo",
+                from_day=TODAY - timedelta(days=5),
+                to_day=TODAY,
+            )
+        ],
         include_versions=True,
     )
     window = run(query_daily(registry_client(world), query))
-    assert [(v.model_version_id, v.first_day, v.last_day) for v in window.versions] == [("v1", TODAY - timedelta(days=2), TODAY)]
+    assert [(v.model_version_id, v.first_day, v.last_day) for v in window.versions] == [
+        ("v1", TODAY - timedelta(days=2), TODAY)
+    ]
     assert sum(c.count for c in window.counts if c.attribute == "sexo") == 3 * 2 * 3 * 40
     assert [(t.total_entries, t.invalid_entries) for t in window.totals] == [(3 * 720 + 1, 1)]
 

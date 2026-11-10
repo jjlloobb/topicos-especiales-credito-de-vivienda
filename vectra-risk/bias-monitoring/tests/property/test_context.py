@@ -103,7 +103,9 @@ def test_the_package_never_carries_a_rate_of_an_insufficient_cell_or_fields_outs
         if node.get("status") == "muestra_insuficiente":
             assert node.get("rate") is None  # una celda insuficiente lleva solo su tamano
         if node.get("status") == "suficiente":
-            assert node["rate"] in sufficient_rates or Decimal(node["rate"]) in {Decimal(r) for r in sufficient_rates}
+            assert node["rate"] in sufficient_rates or Decimal(node["rate"]) in {
+                Decimal(r) for r in sufficient_rates
+            }
         if "freeze_lower_limit" in node:
             assert set(node) == {"attribute", "freeze_lower_limit", "bands"}
             assert all(set(b) == {"band", "difference", "extreme_pair"} for b in node["bands"])
@@ -121,7 +123,9 @@ def test_the_package_never_carries_a_rate_of_an_insufficient_cell_or_fields_outs
 def test_with_fewer_than_7_days_of_data_before_is_without_data(counts, history):
     package = _package(counts, history)
     assume(package is not None)
-    if history <= 7:  # con 7 dias de datos el rango «antes» (que termina hoy - 7) cae entero antes del inicio de la ventana
+    if (
+        history <= 7
+    ):  # con 7 dias de datos el rango «antes» (que termina hoy - 7) cae entero antes del inicio de la ventana
         assert package.before == "sin_datos"
     else:
         assert package.before != "sin_datos"
@@ -152,7 +156,8 @@ def _essentials(package: FreezeContext) -> dict[str, Any]:
                 "model_aggregate": m["model_aggregate"],
                 "trigger_attribute": m["trigger_attribute"],
                 "attributes": [
-                    {k: a[k] for k in ("attribute", "bands", "aggregate", "aggregate_ci_95")} for a in m["attributes"]
+                    {k: a[k] for k in ("attribute", "bands", "aggregate", "aggregate_ci_95")}
+                    for a in m["attributes"]
                 ],
             }
         )
@@ -169,7 +174,12 @@ def test_the_cell_trimming_order_is_before_then_last_7_days_then_after_and_the_e
     size_full = size_bytes(full)
     # Un limite justo por debajo del tamano completo quita primero las celdas de `before`.
     first = _package(counts, 40, max_bytes=size_full - 1)
-    assert first.truncated and cells(first.before) == 0 and cells(first.last_7_days) > 0 and cells(first.after) > 0
+    assert (
+        first.truncated
+        and cells(first.before) == 0
+        and cells(first.last_7_days) > 0
+        and cells(first.after) > 0
+    )
     # Un limite por debajo del tamano sin `before` quita tambien las de `last_7_days`.
     second = _package(counts, 40, max_bytes=size_bytes(first) - 1)
     assert cells(second.before) == 0 and cells(second.last_7_days) == 0 and cells(second.after) > 0

@@ -34,7 +34,9 @@ class RegistryError(Exception):
     """Lectura fallida o incompleta: la corrida falla con `reason=lectura` y nunca congela (BR-U9-10)."""
 
 
-async def _send(client: deps.DependencyClient, method: str, path: str, timeout: float, content: bytes | None) -> bytes:
+async def _send(
+    client: deps.DependencyClient, method: str, path: str, timeout: float, content: bytes | None
+) -> bytes:
     try:
         response = await deps.call(client, method, path, timeout=timeout, headers=_JSON, content=content)
     except (DependencyTimeout, DependencyUnavailable) as error:
@@ -55,7 +57,9 @@ async def read_freezes(client: deps.DependencyClient) -> list[FreezeRecord]:
 
 async def query_daily(client: deps.DependencyClient, query: MonitoringQuery) -> MonitoringWindow:
     """Una solicitud de `monitoring/daily:query` (timeout de `config.QUERY_TIMEOUT_S` por solicitud)."""
-    body = await _send(client, "POST", QUERY_PATH, config.QUERY_TIMEOUT_S, query.model_dump_json(exclude_none=True).encode())
+    body = await _send(
+        client, "POST", QUERY_PATH, config.QUERY_TIMEOUT_S, query.model_dump_json(exclude_none=True).encode()
+    )
     try:
         return MonitoringWindow.model_validate_json(body)
     except ValidationError as error:

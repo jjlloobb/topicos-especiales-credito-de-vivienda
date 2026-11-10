@@ -35,7 +35,9 @@ from vectra_disparity import __version__ as LIBRARY_VERSION
 
 from vectra_bias.freeze_rule import FreezeDecision
 
-MAX_PACKAGE_BYTES = 48 * 1024  # BR-U9-15: para que el evento `freeze` quepa en los 64 KiB del registro (BR-U3-07)
+MAX_PACKAGE_BYTES = (
+    48 * 1024
+)  # BR-U9-15: para que el evento `freeze` quepa en los 64 KiB del registro (BR-U3-07)
 NO_DATA = "sin_datos"
 UNINFORMED = "no_informado"
 
@@ -102,7 +104,9 @@ def departure_rates(marginals: Iterable[Any], n_min: int) -> list[DepartureRate]
     ]
 
 
-def implicated(after: DisparityResult, decision: FreezeDecision, threshold_pp: Decimal) -> list[dict[str, Any]]:
+def implicated(
+    after: DisparityResult, decision: FreezeDecision, threshold_pp: Decimal
+) -> list[dict[str, Any]]:
     """Por atributo que cumplio la regla R4: el atributo, su limite y las bandas cuya diferencia supera el umbral (BR-U9-15)."""
     threshold = Decimal(threshold_pp) / 100
     by_attribute = {a.attribute: a for a in after.attributes}
@@ -120,7 +124,9 @@ def implicated(after: DisparityResult, decision: FreezeDecision, threshold_pp: D
 def _without_cells(result: DisparityResult | str) -> DisparityResult | str:
     if isinstance(result, str):
         return result
-    return result.model_copy(update={"attributes": [a.model_copy(update={"cells": []}) for a in result.attributes]})
+    return result.model_copy(
+        update={"attributes": [a.model_copy(update={"cells": []}) for a in result.attributes]}
+    )
 
 
 def size_bytes(context: FreezeContext) -> int:
@@ -173,5 +179,7 @@ def build_context_package(
     for field in ("before", "last_7_days", "after"):
         if size_bytes(context) <= max_bytes:
             return context
-        context = context.model_copy(update={field: _without_cells(getattr(context, field)), "truncated": True})
+        context = context.model_copy(
+            update={field: _without_cells(getattr(context, field)), "truncated": True}
+        )
     return context

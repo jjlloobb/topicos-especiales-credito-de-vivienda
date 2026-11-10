@@ -29,11 +29,11 @@ intervalo es **contexto**: no decide.
 - `n_b` es el tamaño de la banda **contando solo sus celdas suficientes** del atributo y **sin** `no_informado`. La suma `Σ n_b` es solo sobre las bandas **con diferencia** (BR-U9-02); una banda sin diferencia no pesa. El valor y el intervalo usan los mismos pesos (revisión del FD de U9, 2026-10-08, H8).
 - **Intervalo de la agregada** (aproximación normal): `Var(D_a) = Σ_b w_b² · v_b`, donde `v_b = ((U_b − L_b) / (2 · 1,96))²` sale del intervalo de Newcombe de la banda; el intervalo es `D_a ± 1,96 · √Var(D_a)`.
 - Si ninguna banda tiene diferencia, la agregada del atributo es «muestra insuficiente».
-- **Límite de congelamiento** (regla R4 de BR-U9-11; arbitraje de la ronda 2 de U09-T01, 2026-11-09): con la misma `Var(D_a)`, la librería calcula también `D_a − 3,14 · √Var(D_a)` (`aggregate_lower_limit`). El intervalo de 95 % (z = 1,96) es el que se publica y se muestra; el límite con z = 3,14 solo decide el congelamiento.
+- **Límite de congelamiento** (regla R4 de BR-U9-11; arbitraje de la ronda 2 de U09-T01, 2026-11-09): con la misma `Var(D_a)`, la librería calcula también `D_a − 3,14 · √Var(D_a)` (`aggregate_lower_limit`) de **cada** atributo con agregada (F-03 opción (b), decisión del usuario del 2026-11-10). El intervalo de 95 % (z = 1,96) es el que se publica y se muestra; el límite con z = 3,14 solo decide el congelamiento.
 
 **BR-U9-05 — Agregada del modelo.** Es la **mayor** de las cuatro agregadas por atributo
 con valor. El atributo que la produce es el **atributo disparador**, y el paquete de contexto
-lo indica. Con la regla R4 de BR-U9-11, el límite de congelamiento se calcula sobre ese atributo.
+lo indica. El atributo disparador es el que muestra el paquete; **no** decide el congelamiento: la regla R4 de BR-U9-11 mira todos los atributos (F-03 opción (b), decisión del usuario del 2026-11-10; antes, el límite se calculaba solo sobre ese atributo).
 
 **BR-U9-06 — Contexto sin bandas.** También se publica la diferencia sobre toda la población
 del atributo, sin bandas. No decide nada: sirve para comparar con la agregada por bandas.
@@ -113,7 +113,7 @@ por cumplimiento. Sus valores viajan en cada paquete y en cada respuesta del das
   - **últimos 7 días**: de hoy − 6 a hoy, porque la ventana desplazada comparte 23 días con la actual y diluiría un cambio reciente.
 - Las tres respetan el inicio de la ventana de la versión (BR-U9-08).
 - Si la versión tiene menos de 7 días con datos, el «antes» es «sin datos» y el paquete lo dice.
-- Atributo disparador, grupos y bandas implicados (los de las bandas cuya diferencia supera el umbral) y volumen afectado: recomendaciones de la versión en la ventana y cuántas fueron `favorable`.
+- Atributo disparador (BR-U9-05), atributos y bandas implicados y volumen afectado. `implicated` lleva un objeto por **atributo que cumplió la regla R4** de BR-U9-11, con `attribute`, `freeze_lower_limit` (su límite R4, `Decimal4`) y `bands` (las bandas de ese atributo cuya diferencia supera el umbral, con `band`, `difference` y `extreme_pair`); así se conserva el sentido de «grupos y bandas implicados» y se agrega el atributo y su límite, que puede no ser el disparador (F-03 opción (b), decisión del usuario del 2026-11-10). Volumen afectado: recomendaciones de la versión en la ventana y cuántas fueron `favorable`.
 - **Sin datos de ningún solicitante**: solo conteos y tasas; una celda insuficiente lleva solo su tamaño.
 - **Tamaño** (revisión del FD de U9, 2026-10-08, H10): el paquete canónico (JCS) no supera **48 KiB**, para que el evento `freeze` quepa en los 64 KiB del registro (BR-U3-07) con lo que agrega governance. Si los supera, bias quita, en este orden, las celdas de `before`, las de `last_7_days` y las de `after`, y conserva siempre las agregadas, las bandas y el atributo disparador; el paquete indica `truncated = true`. El congelamiento **nunca** espera ni se omite por el tamaño del paquete.
 
@@ -156,7 +156,7 @@ evento `freeze` del registro (BR-U4-15). Si el evento superara 60 KiB, governanc
   - `job="bias-monitoring", group="run"`: las métricas de la corrida. Se empuja siempre; el `PUT` reemplaza el grupo, así que las series de versiones que ya no se evalúan desaparecen en la corrida siguiente.
 - Métricas del grupo `run`:
   - `vectra_bias_last_run_timestamp` y `vectra_bias_last_run_ok` (1 o 0), con `vectra_bias_last_run_failure{reason}` = 1 para el motivo de la falla (`lectura`, `libreria`, `invalidas`, `agregador_atrasado`, `token` (Keycloak no entrega token al cliente `bias-monitoring-job`, E7), `freeze`; `token` agregado en la revisión del NFR Requirements de U9, 2026-10-10 (segunda));
-  - `vectra_bias_disparity{model_version_id, population, attribute, band, partial}` (`partial` ∈ {`true`, `false`}; solo `true` en `band = sin_bandas` con `population_difference_partial`) (`population` ∈ {`modelo`, `humana`}; `band` incluye `agregada` y `sin_bandas`) y `vectra_bias_aggregate_lower{model_version_id, population, attribute}`;
+  - `vectra_bias_disparity{model_version_id, population, attribute, band, partial}` (`partial` ∈ {`true`, `false`}; solo `true` en `band = sin_bandas` con `population_difference_partial`) (`population` ∈ {`modelo`, `humana`}; `band` incluye `agregada` y `sin_bandas`) y `vectra_bias_aggregate_lower{model_version_id, population, attribute}` (el **límite R4** de cada atributo con agregada, que es el que decide con la regla de BR-U9-11; F-03 opción (b), decisión del usuario del 2026-11-10);
   - `vectra_bias_rule_met{model_version_id, population}` (1 si se cumple BR-U9-11), que alimenta `DisparidadDecisionHumana`;
   - `vectra_bias_cell_size{model_version_id, population, attribute, group, band}`;
   - `vectra_bias_invalid_entries` y `vectra_bias_total_entries`.

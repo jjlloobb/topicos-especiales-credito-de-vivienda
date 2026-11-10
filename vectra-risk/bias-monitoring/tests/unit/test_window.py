@@ -96,14 +96,21 @@ def test_investigar_then_reactivar_counts_the_reactivar():
 
 def test_two_reactivations_the_last_one_wins_and_descartar_does_not_count():
     d = date(2026, 11, 1)
-    record = _record("v1", ("reactivar", _utc(d)), ("descartar", _utc(d + timedelta(days=5))), ("reactivar", _utc(d + timedelta(days=3))))
+    record = _record(
+        "v1",
+        ("reactivar", _utc(d)),
+        ("descartar", _utc(d + timedelta(days=5))),
+        ("reactivar", _utc(d + timedelta(days=3))),
+    )
     assert last_reactivation([record]) == {"v1": _utc(d + timedelta(days=3))}
     assert last_reactivation([_record("v2", ("descartar", _utc(d)))]) == {}
 
 
 def test_only_versions_with_recommendations_today_or_yesterday_are_evaluated():
     def vw(v, pop, last):
-        return VersionWindow(model_version_id=v, population=pop, first_day=TODAY - timedelta(days=50), last_day=last)
+        return VersionWindow(
+            model_version_id=v, population=pop, first_day=TODAY - timedelta(days=50), last_day=last
+        )
 
     versions = [
         vw("hoy", "modelo", TODAY),

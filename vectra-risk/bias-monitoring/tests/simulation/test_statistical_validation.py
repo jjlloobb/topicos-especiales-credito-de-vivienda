@@ -1,9 +1,12 @@
 """Validacion estadistica (no PBT; BLM §3, NFR-U9-53): cobertura de Newcombe y las tres condiciones de BR-U9-11.
 
+La regla que se mide es la de produccion, `vectra_bias.freeze_rule` (regla R4 sobre **todos** los atributos, F-03 opcion (b),
+decision del usuario del 2026-11-10): la simulacion no la reimplementa.
+
 Condicion 1: con disparidad real 0 y >= 500 casos por celda, congelamientos falsos <= 5 %.
 Condicion 2: el modelo base de U5 (4,61 pp reales) congela <= 5 % con celdas de 50 a 100 casos (en 30, <= 6 %).
-Condicion 3 (reformulada en el arbitraje de la ronda 2): con el lote `stratified` de BR-U12-06, una variante proxy con
-disparidad real >= D* congela >= 95 %. D* sale de `revisiones/U09-T01/busqueda-dstar-ronda-3.py`.
+Condicion 3 (reformulada en el arbitraje de la ronda 2): con el lote `stratified` de BR-U12-06, la variante proxy actual de U5
+(t = 1) congela >= 95 %, y una variante con disparidad real >= D* tambien. D* sale de `revisiones/U09-T02/busqueda-dstar.py`.
 """
 
 from __future__ import annotations
@@ -14,14 +17,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from vectra_disparity import (
-    BANDS,
-    CountCell,
-    CountTable,
-    aggregate_lower_limit,
-    disparity_by_band,
-    model_aggregate,
-)
+from vectra_bias.freeze_rule import attribute_limits, decide
+from vectra_disparity import BANDS, CountCell, CountTable
 from vectra_disparity.stats import newcombe_float
 
 pytestmark = pytest.mark.simulation
@@ -35,7 +32,7 @@ GROUPS = {"sexo": 2, "rango_edad": 6, "region": 6, "estrato": 6}
 CELL_SIZES = (30, 100, 500, 2000)
 BASE_CELL_SIZES = (30, 50, 100)
 U5_COUNTS = Path(__file__).parents[1] / "doubles" / "u5_counts.json"
-DSTAR_T = 1.71  # D* (17,5 pp de agregada de la libreria, 95,35 %); el cruce del 95 % esta en 1,70
+DSTAR_T = None  # se fija con `revisiones/U09-T02/busqueda-dstar.py`
 STRATIFIED_BATCH = (
     1500  # ~1 500 casos `stratified` (BR-U12-06), repartidos en partes iguales por atributo, grupo y banda
 )
@@ -91,15 +88,8 @@ def true_model_disparity(truth: dict[str, np.ndarray]) -> float:
 
 
 def _freezes(counts: dict[str, CountTable]) -> bool:
-    """BR-U9-11 (regla R4) sobre la salida de la libreria; `freeze_rule` llega en el Bloque C.
-
-    Congela si el limite inferior de la agregada del atributo disparador, con la z de Bonferroni, es > umbral.
-    """
-    best = model_aggregate(disparity_by_band(counts, attribute, N_MIN) for attribute in GROUPS)
-    if best is None:
-        return False
-    limit = aggregate_lower_limit(counts, best[0], N_MIN)
-    return limit is not None and limit > THRESHOLD
+    """BR-U9-11 (regla R4 sobre todos los atributos) con `vectra_bias.freeze_rule`, la misma que usa el CronJob."""
+    return decide("modelo", Decimal(5), attribute_limits(counts, N_MIN)).freeze
 
 
 def freeze_rate(truth: dict[str, np.ndarray], cell_size, repetitions: int, rng: np.random.Generator) -> float:

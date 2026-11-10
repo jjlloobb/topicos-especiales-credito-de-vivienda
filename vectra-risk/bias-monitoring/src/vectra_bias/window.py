@@ -44,7 +44,11 @@ def last_reactivation(records: Iterable[FreezeRecord]) -> dict[str, datetime]:
 
 def evaluated_versions(versions: Sequence[VersionWindow], today: date) -> list[str]:
     """Versiones con recomendaciones hoy o ayer (BR-U9-08), en orden estable."""
-    seen = {v.model_version_id for v in versions if v.population == "modelo" and v.last_day >= today - timedelta(days=1)}
+    seen = {
+        v.model_version_id
+        for v in versions
+        if v.population == "modelo" and v.last_day >= today - timedelta(days=1)
+    }
     return sorted(seen)
 
 
@@ -60,7 +64,9 @@ def _clip(nominal_from: date, nominal_to: date, start: date) -> Span | None:
     return Span(first, nominal_to) if first <= nominal_to else None
 
 
-def version_ranges(today: date, window_days: int, first_day: date, reactivated_at: datetime | None) -> VersionRanges:
+def version_ranges(
+    today: date, window_days: int, first_day: date, reactivated_at: datetime | None
+) -> VersionRanges:
     """Los rangos de BR-U9-15 desde `window_days` (con 30: antes de hoy-36 a hoy-7, despues de hoy-29 a hoy, 7 dias de hoy-6 a hoy).
 
     Todos respetan el inicio de la ventana. Con menos de 7 dias de datos el rango «antes» queda vacio (`None` = `sin_datos`).

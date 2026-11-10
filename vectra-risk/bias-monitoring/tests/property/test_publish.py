@@ -39,26 +39,51 @@ def _sin_bandas_oracle(table) -> tuple[str | None, bool]:
 def test_no_series_publishes_the_rate_of_an_insufficient_cell(counts):
     world = World()
     population = population_report(counts, "modelo", "v1")
-    report = RunReport(T0, T0, True, None, True, (VersionReport("v1", population, population_report(uniform(0.5, 100), "humana", "v1")),), 0, 1)
+    report = RunReport(
+        T0,
+        T0,
+        True,
+        None,
+        True,
+        (VersionReport("v1", population, population_report(uniform(0.5, 100), "humana", "v1")),),
+        0,
+        1,
+    )
     client = batch_client("pushgateway", PUSHGATEWAY_URL, world.pushgateway.transport())
     assert asyncio.run(publish(client, report)).ok
-    series = [(n, l, v) for n, l, v in world.pushgateway.group("bias-monitoring", "run") if l.get("population") == "modelo"]
+    series = [
+        (n, lab, v)
+        for n, lab, v in world.pushgateway.group("bias-monitoring", "run")
+        if lab.get("population") == "modelo"
+    ]
 
     # Solo `cell_size` lleva el grupo de la celda: ninguna otra serie puede ser la tasa de una celda.
-    assert all("group" not in l for n, l, _ in series if n != "vectra_bias_cell_size")
-    assert {l["band"] for n, l, _ in series if n == "vectra_bias_disparity"} <= BANDS_AND_AGGREGATES
-    sizes = {(l["attribute"], l["group"], l["band"]): int(v) for n, l, v in series if n == "vectra_bias_cell_size"}
+    assert all("group" not in lab for n, lab, _ in series if n != "vectra_bias_cell_size")
+    assert {lab["band"] for n, lab, _ in series if n == "vectra_bias_disparity"} <= BANDS_AND_AGGREGATES
+    sizes = {
+        (lab["attribute"], lab["group"], lab["band"]): int(v)
+        for n, lab, v in series
+        if n == "vectra_bias_cell_size"
+    }
     for attribute, table in counts.items():
         for cell in table.cells:
-            assert sizes[(attribute, cell.group, cell.band)] == cell.total  # el tamano se publica siempre, insuficiente o no
+            assert (
+                sizes[(attribute, cell.group, cell.band)] == cell.total
+            )  # el tamano se publica siempre, insuficiente o no
     assert {n for n, _, _ in series} <= {
         "vectra_bias_disparity", "vectra_bias_aggregate_lower", "vectra_bias_rule_met", "vectra_bias_cell_size",
     }  # fmt: skip
 
     for attribute, table in counts.items():
         expected, partial = _sin_bandas_oracle(table)
-        published = [(l, v) for n, l, v in series if n == "vectra_bias_disparity" and l["attribute"] == attribute and l["band"] == "sin_bandas"]
+        published = [
+            (lab, v)
+            for n, lab, v in series
+            if n == "vectra_bias_disparity" and lab["attribute"] == attribute and lab["band"] == "sin_bandas"
+        ]
         if expected is None:
             assert published == []
         else:
-            assert [(l["partial"], v) for l, v in published] == [("true" if partial else "false", expected)]
+            assert [(lab["partial"], v) for lab, v in published] == [
+                ("true" if partial else "false", expected)
+            ]
