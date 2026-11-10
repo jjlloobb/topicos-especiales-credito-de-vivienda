@@ -104,3 +104,35 @@ def full_catalog(rate_gap: float = 0.1, n: int = 500) -> dict[str, CountTable]:
             rates[UNINFORMED] = 0.5
         counts[attribute] = table(attribute, rates, n)
     return counts
+
+
+def ensure_batch() -> None:
+    """`process.init("batch")` una vez por proceso de pruebas (los clientes del CronJob van sin breaker)."""
+    from vectra_common import process
+    from vectra_contracts.errors import ContractViolation
+
+    try:
+        process.current()
+    except ContractViolation:
+        process.init("batch")
+
+
+def batch_client(name: str, url: str, transport, token=None):
+    from vectra_common.deps import DependencyClient
+
+    ensure_batch()
+    return DependencyClient(name, url, "disabled", 4, transport=transport, token_source=token)
+
+
+def population_report(counts, population: str, version: str, n_min: int = 30, threshold_pp=None):
+    """`PopulationReport` de `publish` a partir de tablas de conteo, con la libreria y la regla reales."""
+    from datetime import date
+    from decimal import Decimal
+
+    from vectra_bias.context import measure
+    from vectra_bias.freeze_rule import attribute_limits, decide
+    from vectra_bias.publish import PopulationReport
+
+    limits = attribute_limits(counts, n_min)
+    result = measure(counts, n_min, population, version, date(2026, 10, 11), date(2026, 11, 9))
+    return PopulationReport(result, limits, decide(population, threshold_pp or Decimal(5), limits))
