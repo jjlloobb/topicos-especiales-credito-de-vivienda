@@ -1,0 +1,17 @@
+[project]
+name = "vectra-scoring"
+version = "0.1.0"
+description = "U7 scoring-service: orquesta la recomendacion (miembro 1 de 2 de scoring-explainability)"
+requires-python = ">=3.12,<3.13"
+dependencies = ["vectra-contracts", "vectra-common"]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/scoring"]
+
+[tool.uv.sources]
+vectra-contracts = { workspace = true }
+vectra-common = { workspace = true }
