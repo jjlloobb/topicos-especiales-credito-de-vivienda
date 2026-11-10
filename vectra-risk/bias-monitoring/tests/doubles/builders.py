@@ -142,3 +142,26 @@ def population_report(counts, population: str, version: str, n_min: int = 30, th
     limits = attribute_limits(counts, n_min)
     result = measure(counts, n_min, population, version, date(2026, 10, 11), date(2026, 11, 9))
     return PopulationReport(result, limits, decide(population, threshold_pp or Decimal(5), limits))
+
+
+def contract_tables(counts: Mapping[str, CountTable]) -> list:
+    """Tablas de la libreria a las `CountTable` de U0 que lleva `CompareSourceRequest`."""
+    from vectra_contracts.models.monitoring import CountCell as ContractCell
+    from vectra_contracts.models.monitoring import CountTable as ContractTable
+
+    return [
+        ContractTable(
+            attribute=attribute,  # type: ignore[arg-type]
+            cells=[
+                ContractCell(group=c.group, band=c.band, favorable=c.favorable, total=c.total)
+                for c in t.cells
+            ],  # type: ignore[arg-type]
+        )
+        for attribute, t in counts.items()
+    ]
+
+
+def compare_request(source_id: str, pre: Mapping[str, CountTable], post: Mapping[str, CountTable]):
+    from vectra_contracts.models.monitoring import CompareSourceRequest
+
+    return CompareSourceRequest(source_id=source_id, pre=contract_tables(pre), post=contract_tables(post))

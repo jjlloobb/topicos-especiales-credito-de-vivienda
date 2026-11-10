@@ -1,3 +1,9 @@
 [run]
 branch = True
 source = vectra_disparity
+
+[report]
+# El `if __name__ == "__main__"` de los dos puntos de entrada lo recorren las pruebas de subproceso (`test_entrypoint.py`), que
+# `pytest-cov` no mide.
+exclude_also =
+    if __name__ == .__main__.:
