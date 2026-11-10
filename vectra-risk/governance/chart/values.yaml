@@ -26,6 +26,20 @@ keycloak:
   jwksUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/certs
   tokenUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token
   caConfigMap: vectra-internal-ca
+# Identidad del propio `governance-service` ante sus pares (F24 registro, F25 bias): `private_key_jwt` (F50). El ExternalSecret materializa la llave ES256
+# del cliente `governance-service` de U2 (`identity/clients/<clientId>`, propiedad `private-key`) en `vectra-app`; el Deployment la monta de solo lectura.
+serviceIdentity:
+  clientId: governance-service
+  secretName: governance-service-client
+  mountPath: /var/run/vectra/client
+  vaultKey: identity/clients/governance-service
+  vaultProperty: private-key
+  secretStore: { name: vectra-store, kind: ClusterSecretStore }
+  refreshInterval: 1h
+# Los Services de los pares a los que governance escribe: `decision-registry-service` (U3, F24) y `bias-monitoring-service` (U9, F25), en `vectra-app`.
+peers:
+  registryUrl: http://decision-registry-service.vectra-app.svc.cluster.local:8080
+  biasUrl: http://bias-monitoring-service.vectra-app.svc.cluster.local:8080
 # Model-store (F47): lectura con `minio-governance` (`governance-readonly`), Secret de U1 en `vectra-app`.
 modelStore:
   endpoint: http://minio.vectra-data.svc.cluster.local:9000

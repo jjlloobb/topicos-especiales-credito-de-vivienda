@@ -206,7 +206,13 @@ class ApiWorld:
             store=self.store,
             jobs=self.k8s.client(),
             comparer=self.bias,
-            config=ApiConfig(validation_image=IMAGE, validation_dataset="s3://model-store/validation/dataset.csv"),
+            config=ApiConfig(
+                validation_image=IMAGE,
+                validation_dataset="s3://model-store/validation/dataset.csv",
+                callback_url="http://governance-service.vectra-app.svc.cluster.local:8080",
+                job_s3_endpoint="http://minio.vectra-data.svc.cluster.local:9000",
+                job_token_url="https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token",
+            ),
         )
         self.app = create_governance_app(self.deps, authenticator=u0_auth.authenticator())
         self.client = httpx.AsyncClient(

@@ -1,0 +1,22 @@
+{{- /* ExternalSecret de la llave `private_key_jwt` del propio governance-service (U04-T08, ronda 2): ESO la materializa en vectra-app desde la boveda
+       (`identity/clients/governance-service`, propiedad `private-key`, U2). Es la identidad con la que firma el token de F24 (registro) y F25 (bias). */ -}}
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.serviceIdentity.secretName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: governance-service
+    app.kubernetes.io/part-of: governance
+spec:
+  refreshInterval: {{ .Values.serviceIdentity.refreshInterval }}
+  secretStoreRef:
+    name: {{ .Values.serviceIdentity.secretStore.name }}
+    kind: {{ .Values.serviceIdentity.secretStore.kind }}
+  target:
+    name: {{ .Values.serviceIdentity.secretName }}
+  data:
+    - secretKey: private-key
+      remoteRef:
+        key: {{ .Values.serviceIdentity.vaultKey }}
+        property: {{ .Values.serviceIdentity.vaultProperty }}

@@ -87,7 +87,7 @@ def test_el_chart_sin_tocar_pasa_las_dos_pasadas() -> None:
     docs = render()
     assert conftest(docs).returncode == 0
     assert conftest(docs, "--combine", "--namespace", "chart_set").returncode == 0
-    assert len(docs) == 12
+    assert len(docs) == 13
 
 
 def test_sin_digest_no_se_renderiza() -> None:
@@ -211,6 +211,18 @@ CASES: list[tuple[str, Change]] = [
     ("service-oidc", _drop_env(service_container, "VECTRA_OIDC_ISSUER")),
     ("service-oidc", _drop_env(service_container, "VECTRA_CA_BUNDLE")),
     ("service-oidc", _set_env(service_container, "VECTRA_JWKS_URL", "http://keycloak/certs")),
+    # Identidad propia y pares (U04-T08)
+    ("service-identity", _drop_env(service_container, "VECTRA_CLIENT_ID")),
+    ("service-identity", _drop_env(service_container, "VECTRA_TOKEN_URL")),
+    ("service-identity", _drop_env(service_container, "GOVERNANCE_REGISTRY_URL")),
+    ("service-identity", _drop_env(service_container, "GOVERNANCE_BIAS_URL")),
+    ("service-identity", _drop_env(service_container, "VECTRA_CLIENT_KEY_PATH")),
+    ("service-identity", _set_env(service_container, "VECTRA_CLIENT_KEY_PATH", "/otro/private-key")),
+    ("service-identity", lambda docs: service_container(docs).__setitem__("volumeMounts", [m for m in service_container(docs)["volumeMounts"] if m["name"] != "service-identity"])),
+    ("service-identity", lambda docs: [m.pop("readOnly") for m in service_container(docs)["volumeMounts"] if m["name"] == "service-identity"]),
+    ("service-identity", lambda docs: [v["secret"].update({"secretName": "otro"}) for v in deployment(docs)["spec"]["template"]["spec"]["volumes"] if v["name"] == "service-identity"]),
+    ("documents-exact", _remove("ExternalSecret", "governance-service-client")),
+    ("no-plain-secret", _extra("ExternalSecret", "governance-service-client", "vectra-staging")),
     # Imagen y endurecimiento
     ("workload-image", _at(D, [*SCTR, "image"], "kind-registry:5000/vectra/governance:dev")),
     ("workload-image", _at(D, [*SCTR, "image"], "docker.io/otro/imagen@sha256:" + "a" * 64)),
