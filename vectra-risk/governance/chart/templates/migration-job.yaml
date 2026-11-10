@@ -1,0 +1,53 @@
+{{- /* Job de migracion (hook de sync de Argo CD; F44; INF-U4-01). `alembic upgrade head` con gov_migrator. */ -}}
+{{- $digest := required "image.digest es obligatorio: sin digest no se renderiza" .Values.image.digest -}}
+{{- $repository := include "governance.repository" (list . "governance" .Values.image.repository) -}}
+{{- $db := .Values.database -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: governance-migration
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: governance-migration
+    app.kubernetes.io/part-of: governance
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    # Despues de las ServiceAccounts (wave 0) y antes del Deployment (wave 2).
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: governance-migration
+        app.kubernetes.io/part-of: governance
+        vectra.io/workload: migration-governance
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+    spec:
+      serviceAccountName: migration-governance
+      priorityClassName: {{ .Values.migration.priorityClassName }}
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: governance-migration
+          image: {{ printf "%s@%s" $repository $digest | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [alembic, -c, /app/alembic.ini, upgrade, head]
+          env:
+            # Sin credenciales en la URL: libpq lee PGUSER y PGPASSWORD del Secret de U1 (`pg-role-gov-migrator`).
+            - name: GOVERNANCE_DATABASE_URL
+              value: {{ printf "postgresql://%s/%s?sslmode=%s" $db.host $db.name $db.sslmode | quote }}
+            - name: PGUSER
+              valueFrom: { secretKeyRef: { name: {{ $db.secrets.migrator | quote }}, key: username } }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: {{ $db.secrets.migrator | quote }}, key: password } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}

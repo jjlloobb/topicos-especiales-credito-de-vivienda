@@ -1,0 +1,35 @@
+{{- /* RBAC de K01 (P-U4-03, NFR-U4-25): `governance-service` crea y lee los Jobs del model-validation-job en vectra-staging. Nada mas:
+sin comodines, sin otros recursos, sin delete/list/watch. */ -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: governance-validation-jobs
+  namespace: {{ .Values.rbac.namespace }}
+  labels:
+    app.kubernetes.io/name: governance-validation-jobs
+    app.kubernetes.io/part-of: governance
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [create, get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: governance-validation-jobs
+  namespace: {{ .Values.rbac.namespace }}
+  labels:
+    app.kubernetes.io/name: governance-validation-jobs
+    app.kubernetes.io/part-of: governance
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: governance-validation-jobs
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.rbac.serviceAccount }}
+    namespace: {{ .Values.namespace }}
