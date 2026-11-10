@@ -2,7 +2,10 @@
 
 import io
 import json
+import subprocess
+import sys
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -18,8 +21,10 @@ from vectra_reference.features import (
     NUMERIC_FEATURES,
     base_feature_spec,
     categorical_vocabulary,
+    row_values,
 )
 from vectra_reference.generate import build_rows, load_config, with_overrides
+from vectra_reference.train import encode
 from vectra_validation.confidence import distances
 from vectra_validation.config import JobConfig
 from vectra_validation.features import Dataset, build_dataset
@@ -70,11 +75,15 @@ def dataset(data: list[dict[str, Any]]) -> Dataset:
 
 
 def xgboost_bytes(data: list[dict[str, Any]]) -> bytes:
-    """Un XGBoost real entrenado sobre el dataset de fixture (JSON, como `predictor.json` de U5)."""
-    d = dataset(data)
+    """Un XGBoost real entrenado sobre el dataset de fixture (JSON, como `predictor.json` de U5).
+
+    La matriz es la de U5 (`vectra_reference.train.encode` sobre `row_values`), no la del propio Job: asi una divergencia de
+    codificacion entre el Job y U5 no queda escondida por el fixture.
+    """
+    matrix = encode([row_values(r) for r in data], BASE_FEATURES, categorical_vocabulary(CONFIG))
     booster = xgb.train(
         {"objective": "binary:logistic", "max_depth": 3, "eta": 0.3, "seed": 7},
-        xgb.DMatrix(d.matrix, label=np.array(d.defaults), feature_names=list(BASE_FEATURES)),
+        xgb.DMatrix(matrix, label=np.array([int(r["default"]) for r in data]), feature_names=list(BASE_FEATURES)),
         num_boost_round=20,
     )
     return bytes(booster.save_raw(raw_format="json"))
@@ -199,3 +208,27 @@ def package(artifact_name: str, artifact: bytes, data: list[dict[str, Any]], *, 
         }
     )
     return prefix + artifact_name, store
+
+
+ROOT = Path(__file__).resolve().parents[3]
+U5_OUT = ROOT / "reference-model" / ".out"
+
+
+def u5_base_release() -> Path:
+    """`reference-model/.out` con el modelo base real de U5 (`release --only base`); lo genera si falta (unos 80 s, determinista)."""
+    if not (U5_OUT / "package" / "manifest.json").is_file():
+        subprocess.run(  # noqa: S603
+            [sys.executable, "-m", "vectra_reference.release", "--out", str(U5_OUT), "--only", "base"], check=True, cwd=ROOT
+        )
+    return U5_OUT
+
+
+def u5_package_store(out: Path) -> tuple[str, MemoryStore, str]:
+    """El paquete real de U5 y su `validation.parquet` en un store en memoria; devuelve (artifact_uri, store, model_version_id)."""
+    prefix = "s3://model-store/u5/"
+    manifest = (out / "package" / "manifest.json").read_bytes()
+    version = json.loads(manifest)["files"][0]["model_version_id"]
+    objects = {prefix + f.name: f.read_bytes() for f in (out / "package").iterdir()}
+    objects[prefix + "manifest.json"] = manifest
+    objects[DATASET] = (out / "datasets" / "validation.parquet").read_bytes()
+    return prefix + "predictor.json", MemoryStore(objects), str(version)
