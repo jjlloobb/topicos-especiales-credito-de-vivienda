@@ -1,4 +1,4 @@
-"""BR-U7-02, AUTONOMIA-03: nada de U7 nombra al core bancario. Los nombres salen de X01 en `forbidden.yaml` y de `flows.yaml`."""
+"""BR-U7-02, NFR-U7-30, P-U7-07, AUTONOMIA-03: nada de U7 nombra al core bancario. Los nombres salen de X01 en `forbidden.yaml` y de `flows.yaml`."""
 
 from pathlib import Path
 

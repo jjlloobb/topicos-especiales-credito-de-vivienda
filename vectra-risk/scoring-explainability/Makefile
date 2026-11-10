@@ -5,6 +5,9 @@ SRC := scoring-explainability/scoring/src:scoring-explainability/explainability/
 
 .PHONY: lint test check
 
+# Contratos de import-linter (`.importlinter`): BR-U7-11 (factuality no importa narrative), P-U0-07 y NFR-U7-43 (sin httpx directo
+# ni librerias de circuit breaking: el breaker es el de vectra_common.deps), NFR-U7-32 (sin clientes de LLM; narrativa de plantilla).
+# NFR-U7-30 y P-U7-07 (sin salida al core ni a internet desde U7) los cubre tests/unit/test_no_core_client.py.
 lint:
 	$(UV) ruff check scoring-explainability
 	$(UV) ruff format --check scoring-explainability

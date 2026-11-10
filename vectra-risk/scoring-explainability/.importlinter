@@ -4,6 +4,8 @@ root_packages =
     explainability
     vectra_common
 include_external_packages = True
+# `vectra_common` es raiz para que los contratos vean lo que arrastra `deps` (httpx). Efecto: un import futuro de una libreria
+# prohibida (p. ej. `google.*`, por OpenTelemetry/protobuf) en U0 romperia estos contratos de U7 aunque U7 no lo importe.
 
 # BR-U7-11: el validador de factualidad es independiente del generador, directa o indirectamente.
 [importlinter:contract:factuality-sin-narrative]
