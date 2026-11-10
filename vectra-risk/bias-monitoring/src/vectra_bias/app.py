@@ -195,5 +195,5 @@ def main() -> None:
 
 __all__ = ["REQUIRED", "SERVICE", "ConfigError", "build", "build_app", "config_from_env", "main"]
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     main()
