@@ -193,8 +193,8 @@ def aggregate_lower_limit(
     """Limite inferior de la agregada del atributo con la `z` de Bonferroni de BR-U9-11 (regla R4); `None` si es insuficiente.
 
     Es `D_a - z * sqrt(Var(D_a))` con la misma `Var(D_a)` de BR-U9-04; solo cambia la `z` (3,14 en vez de 1,96). El
-    intervalo de 95 % que se publica (`aggregate_ci_95`) no cambia. `freeze_rule` congela si este limite, del atributo
-    disparador (BR-U9-05), es mayor que el umbral; `z` es un argumento solo para las pruebas.
+    intervalo de 95 % que se publica (`aggregate_ci_95`) no cambia. `freeze_rule` congela si este limite, de **algun** atributo
+    (F-03 opcion (b), decision del usuario del 2026-11-10), es mayor que el umbral; `z` es un argumento solo para las pruebas.
     """
     if n_min < 1:
         raise ValueError(f"n_min_invalid:{n_min}")

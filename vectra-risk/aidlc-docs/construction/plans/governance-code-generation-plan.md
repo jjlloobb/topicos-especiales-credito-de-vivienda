@@ -201,7 +201,7 @@ vectra-risk/governance/
 
 ### Bloque F — Despliegue y operación
 
-- [ ] **Paso 16 — Chart, flujos y RBAC**
+- [x] **Paso 16 — Chart, flujos y RBAC** (U04-T06, acotado a la demo)
   - Deployment: HPA de 2 a 6, spread, PDB, `vectra-high`, recursos de INF-U4-01, `tzdata`.
   - CronJob `model-archive` (sidecar nativo de Linkerd, `Forbid`); Job de migración como hook, con la `ServiceAccount` `migration-governance`, la etiqueta `vectra.io/workload: migration-governance` (F44) y `pg-role-gov-migrator`. El servicio y `model-archive` montan `pg-role-gov-app` y `pg-role-gov-archiver`, y para leer el model-store `minio-governance` (`governance-readonly`, F47) y `minio-model-archive` (`model-archive-writer`, F101), todos de U1; la credencial del S3 del banco de F100 sigue en este chart. En kind, el destino es MinIO por F118, con `minio-model-archive` (revisión de consistencia entre unidades, 2026-11-01).
   - RBAC K01; values del bucket por entorno en `vectra-risk-gitops/values/<env>/governance.yaml` (revisión de consistencia entre unidades, 2026-11-01).
@@ -212,20 +212,20 @@ vectra-risk/governance/
   - Diseño: NFR-U4-03, 25; INF-U4-01..05.
   - **Aceptación**: `helm template` + `conftest test governance/chart/`; `conftest test` sobre los values de staging (el `InferenceService` de la versión activa es solo predictor, 1 réplica, `vectra-low`; tercera revisión del FD de U9, 2026-10-10); `uv run python platform/network/generate.py --check && uv run pytest platform/network/tests` (F100–F102 presentes).
 
-- [ ] **Paso 17 — Alertas, runbooks y documentación**
+- [x] **Paso 17 — Alertas, runbooks y documentación** (U04-T06, acotado a la demo)
   - `PrometheusRule` con las alertas de P-U4-08 (incluidas `ServingConfigStale` (revisión de coherencia entre unidades, 2026-10-10), `ServingConfigConvergenceSlow`, `ModelArchivePending` y `CompensationEventPending`, esta última precisado el 2026-10-06, revisión del FD de U8) y sus runbooks, cada una con `runbook_url`.
   - `docs/slo.md` (governance dentro del SLO, NFR-U4-01).
   - Diseño: NFR-U4-01, 07; P-U4-08; BR-U4-08, 11, 16.
   - **Aceptación**: `promtool test rules governance/observability/rules/tests/*.yaml`; `uv run python platform/tests/test_runbooks.py --root governance`; `test -s governance/docs/slo.md`.
 
-- [ ] **Paso 18 — Application de GitOps**
+- [x] **Paso 18 — Application de GitOps** (U04-T06)
   - Entrada `governance` en `vectra-risk-gitops/components.yaml` con `wave: 5` (migración como hook, servicio y CronJob); `generate.py` escribe las Applications y los values por entorno van en `vectra-risk-gitops/values/<env>/governance.yaml` (revisión de consistencia entre unidades, 2026-11-01).
   - Diseño: P-U1-12.
   - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`, `uv run python platform/tests/test_waves.py` y `kyverno test` de `disallow-argocd-auto-sync` (revisión de consistencia entre unidades, 2026-11-01).
 
 ### Bloque G — Calidad
 
-- [ ] **Paso 19 — Cobertura, mutación, trazabilidad y especificación de carga**
+- [x] **Paso 19 — Cobertura, mutación, trazabilidad y especificación de carga** (U04-T06, acotado a la demo)
   - Cobertura de ramas ≥ 95 % y **100 %** en `model_fsm`, `policy` y `evidence`; `mutmut` en `model_fsm`; trazabilidad de cada BR-U4 a una prueba.
   - Script k6: `serving-config` con 12 clientes cada 5 s (6 de scoring y 6 de `case-worker`), una lectura de `feature_spec` por cliente de U8 al cambiar de versión y transiciones con firma (precisado el 2026-10-06 por U8 NFR Requirements, NFR-U8-15).
   - Diseño: NFR-U4-10, 11, 41.

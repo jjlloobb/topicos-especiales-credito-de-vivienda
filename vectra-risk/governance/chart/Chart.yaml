@@ -1,8 +1,9 @@
 apiVersion: v2
 name: governance
 description: >-
-  Chart de U4 (Paso 13, acotado a la demo): la ServiceAccount `model-validation-job` y el ExternalSecret con la llave
-  `private_key_jwt` de su cliente de Keycloak, en `vectra-staging` (F32, F50). El Deployment, el hook de migracion, RBAC y los
-  flujos son de U04-T06.
+  Chart de U4 (Pasos 13 y 16, acotados a la demo): el Deployment governance-service con su Service, HPA, PDB y ServiceMonitor, el Job de
+  migracion como hook de Argo CD, las ServiceAccounts, el Role de K01 en vectra-staging y, en ese namespace, la ServiceAccount y el
+  ExternalSecret del model-validation-job (F32, F50).
+  Diferido por la demo: CronJob model-archive, pg-role-gov-archiver, minio-model-archive, F100 y los values de staging de INF-U4-05.
 type: application
-version: 0.1.0
+version: 0.2.0

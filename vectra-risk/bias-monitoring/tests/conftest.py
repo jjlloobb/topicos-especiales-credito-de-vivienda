@@ -1,7 +1,9 @@
 """Perfiles de Hypothesis de U9 (NFR-U9-52: perfil `ci` con 500 ejemplos y semilla impresa), iguales a los de U0."""
 
 import os
+import random
 
+import pytest
 from hypothesis import HealthCheck, settings
 
 _COMMON = {
@@ -16,5 +18,22 @@ _profile = os.environ.get("HYPOTHESIS_PROFILE", "dev")
 settings.load_profile(_profile)
 
 
+#: La semilla de las propiedades (NFR-U9-52: «semilla impresa»): `HYPOTHESIS_SEED` o `--hypothesis-seed` para repetir una
+#: corrida; si no, una nueva por corrida. Se imprime en la cabecera para poder reproducir un fallo.
+_seed: list[int] = []
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure(config: pytest.Config) -> None:
+    given = config.getoption("hypothesis_seed", default=None)
+    seed = (
+        int(given)
+        if given is not None
+        else int(os.environ.get("HYPOTHESIS_SEED", random.SystemRandom().randrange(2**32)))
+    )
+    config.option.hypothesis_seed = str(seed)
+    _seed.append(seed)
+
+
 def pytest_report_header() -> str:
-    return f"hypothesis profile: {_profile}"
+    return f"hypothesis profile: {_profile}, hypothesis seed: {_seed[0] if _seed else 'n/a'}"

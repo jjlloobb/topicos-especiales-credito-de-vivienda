@@ -99,8 +99,11 @@ filas etiquetadas (U4 `model-validation-job`, U5).
 | `departure_rates` | Solo en `humana`: por grupo y banda, `se_aparta / (sigue + se_aparta)` (BR-U9-14) |
 
 ### 2.6 `FreezeDecision`
-`freeze: bool` y `reason`: `supera_umbral`, `bajo_umbral`, `intervalo_incluye_cero` o
-`muestra_insuficiente` (BR-U9-11).
+`freeze: bool`, `rule_met: bool`, `reason` y `met`: los atributos que cumplieron la regla, cada uno con su límite R4, del mayor
+límite al menor (BR-U9-11 sobre todos los atributos; F-03 opción (b), decisión del usuario del 2026-11-10).
+- `freeze` ⇔ población `modelo` y algún atributo con límite R4 > umbral. La población `humana` nunca da `freeze`, pero `rule_met` informa si cumple la regla (`vectra_bias_rule_met{population="humana"}`, BR-U9-14).
+- `reason`: `supera_umbral` (algún límite > umbral), `muestra_insuficiente` (todas las agregadas insuficientes), `intervalo_incluye_cero` (el mayor límite ≤ 0) o `bajo_umbral` (0 < mayor límite ≤ umbral).
+- Los límites se calculan con `vectra_disparity.aggregate_lower_limit` (z = `Z_FREEZE`) sobre los mismos conteos que dieron el `AttributeResult`, en la escala de la librería (proporciones: el umbral en pp se divide entre 100).
 
 ### 2.7 `RunReport` (una corrida)
 `run_id`, `started_at`, `finished_at`, `status` (`completa \| fallida`), `failure_reason?`,
@@ -123,7 +126,7 @@ el log de la corrida (sin datos del solicitante).
 | `window_start` | Inicio de la ventana de la versión (BR-U9-08) |
 | `truncated` | `true` si se quitaron celdas para no superar 48 KiB (BR-U9-15) |
 | `trigger_attribute` | — |
-| `implicated` | Grupos y bandas cuya diferencia supera el umbral |
+| `implicated` | Un objeto por **atributo que cumplió la regla R4** (BR-U9-11): `attribute`, `freeze_lower_limit` (su límite R4, `Decimal4`) y `bands` (las bandas de ese atributo cuya diferencia supera el umbral, con `band`, `difference` y `extreme_pair`). El atributo puede no ser el disparador (F-03 opción (b), decisión del usuario del 2026-11-10); U0 lo admite porque `implicated` es `list[JsonValue]` |
 | `affected_volume` | Recomendaciones de la versión en la ventana y cuántas fueron `favorable` (tipo `AffectedVolume` de U0: `total`, `favorable`) (revisión de consistencia entre unidades, 2026-11-01) |
 
 Solo agregados: una celda insuficiente lleva solo su tamaño. Governance agrega

@@ -124,7 +124,7 @@ vectra-risk/bias-monitoring/
 
 ### Bloque C — Lógica del CronJob
 
-- [ ] **Paso 6 — `window`, `freeze_rule` y `context`**
+- [x] **Paso 6 — `window`, `freeze_rule` y `context`** (U09-T02)
   - `window`: inicio de la ventana de cada versión, el más tardío entre el primer día con datos y el día siguiente (UTC) al `recorded_at` de su última reactivación; rangos de 30 días UTC (BR-U9-08).
   - `freeze_rule`: `decide(result, threshold) -> FreezeDecision` (BR-U9-11); la población `humana` nunca produce `freeze`.
   - `context`: `build_context_package` con antes, después y últimos 7 días, sin tasas de celdas insuficientes, ≤ 48 KiB con recorte ordenado y `truncated` (BR-U9-15).
@@ -135,7 +135,7 @@ vectra-risk/bias-monitoring/
     - paquete con los catálogos completos → ≤ 48 KiB o `truncated = true` con las agregadas intactas;
     - con 40 casos por celda y 6 pp → sin `freeze`; con 2 000 casos y 6 pp → `freeze`.
 
-- [ ] **Paso 7 — `registry_client`, `freeze_client` y `publish`**
+- [x] **Paso 7 — `registry_client`, `freeze_client` y `publish`** (U09-T02)
   - `registry_client`:
     - `GET /v1/monitoring/freezes`;
     - `POST /v1/monitoring/daily:query` en solicitudes de ≤ 12 rangos, con `unattributable_range` solo en la primera;
@@ -155,7 +155,7 @@ vectra-risk/bias-monitoring/
     - una versión que deja de evaluarse desaparece del grupo `run`;
     - 20 grupos `freeze-<v>` de versiones que ya no se evalúan → la corrida borra 16 y la siguiente, los 4 restantes; cada operación corta a los 5 s.
 
-- [ ] **Paso 8 — `run`: la corrida completa**
+- [x] **Paso 8 — `run`: la corrida completa** (U09-T02)
   - Orden de P-U9-01:
     1. token;
     2. lectura (atraso del agregador e inválidas);

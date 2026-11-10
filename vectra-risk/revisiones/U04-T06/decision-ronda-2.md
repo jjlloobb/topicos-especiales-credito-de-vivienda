@@ -1,0 +1,3 @@
+# Decisión tras la ronda 2 — U04-T06
+
+Usuario, 2026-11-10. Tras la ronda 2 (la última por RL-2) quedaron dos ROJO, ambos del runbook `governance/runbooks/kind-politica-de-referencia.md` (F-01 y F-02 de `ronda-2.md`). Decisión: **U04-T06 se fusiona** (chart, imagen, documentación, Application, cobertura y trazabilidad están verificados) y **el arreglo del runbook pasa a U04-T07**, la guía de kind de U4, que es donde el operador lo ejecuta y que de todos modos espera a U04-T08 (punto de entrada del servicio). El runbook queda marcado como «no ejecutar hasta U04-T07». F-03 a F-05 de la ronda 2 van a U04-T07 junto con el runbook.

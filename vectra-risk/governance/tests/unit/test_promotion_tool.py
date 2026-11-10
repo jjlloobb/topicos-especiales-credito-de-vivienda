@@ -1,4 +1,4 @@
-"""`promotion-tool` (Paso 12; BR-U4-08 y 09; NFR-U4-20 y 21): PR de un commit firmado, sin tokens en disco y con el esquema de U6.
+"""`promotion-tool` (Paso 12; BR-U4-08 y BR-U4-09; NFR-U4-20 y 21): PR de un commit firmado, sin tokens en disco y con el esquema de U6.
 
 Dobles: el IdP (Keycloak, con PKCE verificado), la API de governance (`MockTransport`), `gh` y el comando `kubectl diff` (un `Runner`
 que los intercepta). `git` y `helm` son los reales, sobre un repositorio de fixture en `tmp_path`; ninguna prueba toca un cluster.
