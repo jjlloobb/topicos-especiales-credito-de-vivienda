@@ -395,7 +395,10 @@ def test_los_flujos_f44_f47_f101_y_f102_estan_en_flows_yaml() -> None:
 
 
 def test_la_ruta_freeze_solo_admite_bias_monitoring_job() -> None:
-    """INF-U4-04 (F27): la `AuthorizationPolicy` de `freeze` se genera de `http_routes.governance-service`; solo `bias-monitoring-job`."""
+    """INF-U4-04 (F27) y BR-U4-16: la `AuthorizationPolicy` de `freeze` se genera de `http_routes.governance-service`; solo `bias-monitoring-job`.
+
+    BR-U4-16: bias solo puede llamar a `freeze` (X04); el servicio HTTP de bias (`bias-monitoring-service`) queda fuera de esa ruta.
+    """
     flows, _ = network().load()
     routes = flows["http_routes"]["governance-service"]["_routes"]
     freeze = [r for r in routes.values() if any("freeze" in m.get("regex", m.get("exact", "")) for m in r["matches"])]
