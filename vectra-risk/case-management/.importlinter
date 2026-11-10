@@ -3,6 +3,8 @@ root_packages =
     vectra_case
     core_banking_mock
     vectra_common
+    vectra_contracts
+# `vectra_contracts` entra al grafo para poder nombrar `outcome._internal` en el contrato `private-token`.
 # `vectra_common` (U0) entra al grafo solo para poder nombrar `vectra_common.deps`: un subpaquete de un paquete externo no es valido.
 include_external_packages = True
 
@@ -60,3 +62,17 @@ forbidden_modules =
     aiobreaker
     purgatory
 allow_indirect_imports = True
+
+# P-U0-03, capa 3 (F-01 de la ronda 1 de U08-T02): el token de construccion de `Recommendation` es de `outcome`. Rodeo temporal: solo
+# `vectra_case.views` lo importa, para validar `CaseDetail`, hasta que una tarea de U0 publique una via publica de lectura; entonces
+# se retira el `ignore_imports` de abajo.
+[importlinter:contract:private-token]
+name = ningun modulo de vectra_case importa el token privado de outcome (excepcion temporal: views)
+type = forbidden
+source_modules =
+    vectra_case
+forbidden_modules =
+    vectra_contracts.outcome._internal
+allow_indirect_imports = True
+ignore_imports =
+    vectra_case.views -> vectra_contracts.outcome._internal
