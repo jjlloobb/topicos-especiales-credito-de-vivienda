@@ -1,0 +1,48 @@
+[importlinter]
+root_packages =
+    scoring
+    explainability
+    vectra_common
+include_external_packages = True
+
+# BR-U7-11: el validador de factualidad es independiente del generador, directa o indirectamente.
+[importlinter:contract:factuality-sin-narrative]
+name = factuality no importa narrative
+type = forbidden
+source_modules =
+    explainability.factuality
+forbidden_modules =
+    explainability.narrative
+
+# P-U0-07: toda llamada saliente pasa por `vectra_common.deps`; por eso se permite el camino indirecto (deps importa httpx).
+[importlinter:contract:httpx-solo-en-deps]
+name = ningun modulo de U7 importa httpx directamente
+type = forbidden
+source_modules =
+    scoring
+    explainability
+forbidden_modules =
+    httpx
+allow_indirect_imports = True
+
+# NFR-U7-43: el circuit breaker es el de `vectra_common.deps`. NFR-U7-32: la narrativa es de plantilla, sin clientes de LLM.
+[importlinter:contract:sin-breakers-ni-llm]
+name = sin librerias de circuit breaking ni clientes de LLM
+type = forbidden
+source_modules =
+    scoring
+    explainability
+forbidden_modules =
+    pybreaker
+    circuitbreaker
+    aiobreaker
+    purgatory
+    openai
+    anthropic
+    litellm
+    langchain
+    cohere
+    ollama
+    mistralai
+    transformers
+    google
