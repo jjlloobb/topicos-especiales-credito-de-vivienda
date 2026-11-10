@@ -28,7 +28,8 @@ env_value(c, name) := value if {
 	value := e.value
 } else := ""
 
-source_uri(c) := object.get(input.spec[c].annotations, "internal.serving.kserve.io/storage-initializer-sourceuri", "")
+# KServe descarta la anotacion internal.serving.kserve.io/storage-initializer-sourceuri: el storageUri viaja en la variable STORAGE_URI.
+source_uri(c) := env_value(c, "STORAGE_URI")
 
 version := input.metadata.annotations["vectra.io/model-version-id"]
 
@@ -59,8 +60,8 @@ deny contains msg if {
 deny contains msg if {
 	is_isvc
 	some c in components
-	env_value(c, "STORAGE_URI") != source_uri(c)
-	msg := sprintf("storage-uri-equal: %s: STORAGE_URI y la anotacion del storage initializer difieren", [c])
+	source_uri(c) == ""
+	msg := sprintf("storage-uri-equal: %s sin la variable STORAGE_URI", [c])
 }
 
 # regla: storage-uri-equal
@@ -319,4 +320,12 @@ secure(s) if {
 	s.readOnlyRootFilesystem == true
 	s.allowPrivilegeEscalation == false
 	not s.privileged
+}
+
+# regla: explicit-command
+deny contains msg if {
+	is_isvc
+	some c in components
+	not container(c).command == ["python", "-m", sprintf("vectra_%s", [c])]
+	msg := sprintf("explicit-command: %s sin command python -m vectra_%s (KServe agrega args que reemplazarian el CMD)", [c, c])
 }

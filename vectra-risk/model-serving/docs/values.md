@@ -30,6 +30,12 @@ No hay más campos. Lo demás lo deduce el chart:
   No se escribe en el values, así que no puede quedar incoherente con la versión.
 - **Namespace:** `prod` e `inactive` → `vectra-serving`; `staging` → `vectra-staging`.
 - **Predictor y explicador:** mismo `storageUri` y misma anotación `vectra.io/model-version-id`. En `staging` solo hay predictor.
+- **Cómo llega el paquete al contenedor:** el chart pone `storageUri` en la variable `STORAGE_URI` de `kserve-container` (KServe descarta la
+  anotación `internal.serving.kserve.io/storage-initializer-sourceuri`, por eso no se escribe). El storage initializer descarga el paquete,
+  lo deja en el volumen `kserve-provision-location` (`emptyDir`, 1 GiB, declarado por el chart) montado en `/mnt/models`, y dentro del pod
+  reescribe `STORAGE_URI` a `/mnt/models`. El cargador de U06-T01 lee `MODEL_DIR`, que el chart fija en `/mnt/models` (igual que su valor por omisión).
+- **Arranque:** los dos contenedores declaran `command: ["python", "-m", "vectra_predictor"|"vectra_explainer"]`. KServe agrega `args`
+  (`--model_name`, `--predictor_host`, `--http_port`) al explicador y, sin `command`, reemplazarían el `CMD` de la imagen; el programa ignora `sys.argv`.
 - **Réplicas, recursos, prioridad, HPA, spread y PDB:** del perfil (INF-U6-01, INF-U6-02), definidos en `chart/values.yaml` bajo
   `profiles`. `promotion-tool` no los toca: solo elige el perfil.
 

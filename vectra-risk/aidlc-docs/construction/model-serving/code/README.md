@@ -28,6 +28,6 @@ Ver `aidlc-docs/construction/model-serving/evidence/cierre-demo.md`. Fuera de U0
 
 ## Decisiones de la plantilla que el operador verifica en el Paso 11
 
-- El `storageUri` viaja como `STORAGE_URI` del contenedor y como anotación `internal.serving.kserve.io/storage-initializer-sourceuri` del componente; el volumen `kserve-provision-location` (`emptyDir` de 1 GiB) lo declara el chart. Hay que confirmar en kind que el storage initializer se inyecta en el predictor y en el explicador.
+- El `storageUri` viaja como `STORAGE_URI` del contenedor y (KServe descarta la anotación `internal.serving.kserve.io/storage-initializer-sourceuri`, que el chart ya no escribe; dentro del pod el storage initializer lo reescribe a `/mnt/models`, que lee `MODEL_DIR`); los contenedores declaran `command` porque KServe agrega `args` al explicador; el volumen `kserve-provision-location` (`emptyDir` de 1 GiB) lo declara el chart. Hay que confirmar en kind que el storage initializer se inyecta en el predictor y en el explicador.
 - La credencial de F46 es el Secret `minio-kserve` de U1, referenciado en `secrets` de la `ServiceAccount` `kserve-model`. Sus claves son `accessKey` y `secretKey`, no las `AWS_*` que KServe espera por defecto: hay que confirmar en kind cómo las lee el storage initializer (`CANDIDATAS.md`).
 - `vectra.io/serving-state: inactivo` y `vectra.io/hpa-exempt` se declaran en el `InferenceService` y en los pods de cada componente; hay que confirmar que KServe los propaga al `Deployment` que evalúa Kyverno (Paso 19 de U1, INF-U6-02).

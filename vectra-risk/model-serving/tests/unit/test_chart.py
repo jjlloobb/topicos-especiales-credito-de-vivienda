@@ -63,7 +63,6 @@ def _explainer_version(docs: list[Doc]) -> None:
 
 def _explainer_uri(docs: list[Doc]) -> None:
     other = "s3://model-store/mv-2026-01-01-ffffffff/"
-    spec(docs, "explainer")["annotations"]["internal.serving.kserve.io/storage-initializer-sourceuri"] = other
     container(docs, "explainer")["env"][-1]["value"] = other
 
 
@@ -74,7 +73,6 @@ def _env_uri(docs: list[Doc]) -> None:
 def _adversarial(docs: list[Doc]) -> None:
     uri = "s3://model-store/adversarial/rt3-a/"
     for component in ("predictor", "explainer"):
-        spec(docs, component)["annotations"]["internal.serving.kserve.io/storage-initializer-sourceuri"] = uri
         container(docs, component)["env"][-1]["value"] = uri
 
 
@@ -162,6 +160,13 @@ def _del(component: str, *path: str) -> Callable[[list[Doc]], None]:
         for key in path[:-1]:
             node = node[key]
         del node[path[-1]]
+
+    return change
+
+
+def _del_command(component: str) -> Callable[[list[Doc]], None]:
+    def change(docs: list[Doc]) -> None:
+        del container(docs, component)["command"]
 
     return change
 
@@ -261,11 +266,10 @@ CASES: list[tuple[str, str, Callable[[list[Doc]], None]]] = [
     ("container-security", "prod", _rw_rootfs),
     ("version-annotation-equal", "prod", _del("explainer", "annotations", "vectra.io/model-version-id")),
     ("storage-uri-equal", "prod", _no_storage_env),
-    (
-        "storage-uri-equal",
-        "prod",
-        _del("predictor", "annotations", "internal.serving.kserve.io/storage-initializer-sourceuri"),
-    ),
+    ("explicit-command", "prod", _del_command("explainer")),
+    ("explicit-command", "prod", _del_command("predictor")),
+    ("explicit-command", "inactive", _del_command("explainer")),
+    ("explicit-command", "staging", _del_command("predictor")),
     ("priority-by-profile", "prod", _del("predictor", "priorityClassName")),
     ("component-identity", "prod", _del("predictor", "labels", "vectra.io/component")),
     ("component-identity", "prod", _del("predictor", "serviceAccountName")),

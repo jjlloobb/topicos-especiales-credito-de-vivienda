@@ -1,6 +1,8 @@
 {{- /* Un InferenceService por entrada de .Values.inferenceServices (P-U6-02): predictor y explicador del mismo storageUri y de la
 misma anotacion de version (NFR-U6-02); el perfil (prod, inactive, staging) fija replicas, recursos y prioridad (INF-U6-01, INF-U6-02).
 prod: 2 a 4 y 2 a 6 replicas, HPA por CPU, spread y PDB (NFR-U6-11, P-U6-04); staging: 1 replica, sin HPA, solo predictor (NFR-U6-20).
+command explicito: KServe agrega args (--model_name, --predictor_host, --http_port) al explicador y, sin command, reemplazarian el CMD de la imagen;
+el programa ignora sys.argv. El paquete llega por STORAGE_URI (el storage initializer lo deja en /mnt/models, MODEL_DIR).
 Pods con runAsNonRoot, readOnlyRootFilesystem y automountServiceAccountToken: false (NFR-U6-32). */ -}}
 {{- $seen := dict -}}
 {{- range $item := .Values.inferenceServices }}
@@ -62,7 +64,6 @@ spec:
       {{- end }}
     annotations:
       vectra.io/model-version-id: {{ $item.modelVersionId | quote }}
-      internal.serving.kserve.io/storage-initializer-sourceuri: {{ $item.storageUri | quote }}
       {{- if eq $item.profile "inactive" }}
       vectra.io/hpa-exempt: "true"
       {{- end }}
@@ -89,6 +90,7 @@ spec:
     containers:
       - name: kserve-container
         image: {{ include "model-serving.image" (dict "root" $ "component" $component) }}
+        command: ["python", "-m", "vectra_{{ $component }}"]
         ports:
           - { name: http, containerPort: {{ $.Values.ports.http }}, protocol: TCP }
           - { name: metrics, containerPort: {{ $.Values.ports.metrics }}, protocol: TCP }
