@@ -55,7 +55,9 @@ def clear(world: World, version: str) -> None:
         del world.registry.entries[key]
 
 
-def make_deps(world: World, clock: Callable[[], datetime], *, keycloak=True) -> Deps:
+def make_deps(
+    world: World, clock: Callable[[], datetime], *, keycloak=True, policy: config.MonitoringPolicy = POLICY
+) -> Deps:
     registry_token = (
         world.keycloak.provider("decision-registry-service", ("registry:read:monitoring",))
         if keycloak
@@ -68,7 +70,7 @@ def make_deps(world: World, clock: Callable[[], datetime], *, keycloak=True) -> 
         registry=batch_client("registry", REGISTRY_URL, world.registry.transport(), registry_token),
         governance=batch_client("governance", GOVERNANCE_URL, world.governance.transport(), governance_token),
         pushgateway=batch_client("pushgateway", PUSHGATEWAY_URL, world.pushgateway.transport()),
-        policy=POLICY,
+        policy=policy,
         sleep=world.clock.sleep,
         clock=clock,
     )
