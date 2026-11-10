@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bias-monitoring
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '5'
+spec:
+  project: vectra-kind
+  source:
+    repoURL: https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda.git
+    targetRevision: main
+    path: vectra-risk/bias-monitoring/chart
+    helm:
+      valueFiles:
+      - /vectra-risk/vectra-risk-gitops/envs/kind/values.yaml
+      - /vectra-risk/bias-monitoring/chart/values-monitoring-policy.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-app
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

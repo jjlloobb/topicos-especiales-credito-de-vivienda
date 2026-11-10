@@ -46,8 +46,6 @@ from vectra_contracts.outcome import (
 
 from scoring.clients import (
     ExplainabilityClient,
-    PolicyParameters,
-    PolicySource,
     PredictClient,
     RegistryClient,
 )
@@ -61,7 +59,6 @@ from scoring.config import (
     PRE_REGISTRY_BUDGET_MS,
 )
 from scoring.metrics import (
-    DEADLINE_EXHAUSTED,
     FAILCLOSED,
     RECOMMENDATIONS,
     REGISTRY_ABANDONED,
@@ -128,7 +125,6 @@ class Orchestrator:
         predictor: PredictClient,
         explainer: ExplainabilityClient,
         registry: RegistryClient,
-        policy_source: PolicySource,
         clock: Clock = lambda: datetime.now(UTC),
         uuid_factory: Callable[[], UUID] = uuid4,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
@@ -138,7 +134,6 @@ class Orchestrator:
         self._predictor = predictor
         self._explainer = explainer
         self._registry = registry
-        self._policies = policy_source
         self._clock = clock
         self._uuid = uuid_factory
         self._sleep = sleep
@@ -167,10 +162,8 @@ class Orchestrator:
                 config.inference_service, request.features, pre_deadline
             )
             if isinstance(prediction, Prediction):
-                policy_result = await self._policy(config, request, prediction, pre_deadline)
-                if policy_result is None:
-                    pass
-                elif prediction.model_version_id != config.model_version_id:
+                policy_result = self._policy(config, request, prediction)
+                if prediction.model_version_id != config.model_version_id:
                     # El predictor del `inference_service` de `serving-config` respondio otra version: desincronia. No se pide
                     # una explicacion que ya no podria coincidir con lo registrado (AUTONOMIA-06).
                     explainer = ExplainerError.VERSION_MISMATCH
@@ -197,18 +190,8 @@ class Orchestrator:
         RECOMMENDATIONS.labels(outcome=outcome.outcome.value).inc()
         return outcome
 
-    async def _policy(
-        self, config: ServingConfig, request: ScoringRequest, prediction: Prediction, deadline: datetime
-    ) -> PolicyResult | None:
-        remaining = (deadline - self._clock()).total_seconds()
-        parameters: PolicyParameters | None = None
-        try:
-            async with asyncio.timeout(max(remaining, 0)):
-                parameters = await self._policies.get(config.policy_version_id)
-        except TimeoutError:
-            DEADLINE_EXHAUSTED.labels(stage="serving_config").inc()
-        if parameters is None:
-            return None
+    def _policy(self, config: ServingConfig, request: ScoringRequest, prediction: Prediction) -> PolicyResult:
+        """BR-U7-04: los parametros de la politica salen del mismo `ServingConfig` (misma foto, sin otra llamada; U04-T09)."""
         return evaluate(
             PolicyEvaluationInput(
                 policy_version_id=config.policy_version_id,
@@ -217,9 +200,9 @@ class Orchestrator:
                 property_value=request.policy_inputs.property_value,
                 proposed_rate_ea=request.policy_inputs.proposed_rate_ea,
                 channel=request.policy_inputs.channel,
-                cutoff=parameters.cutoff,
-                low_confidence_threshold=parameters.low_confidence_threshold,
-                channel_rules=parameters.channel_rules,
+                cutoff=config.cutoff,
+                low_confidence_threshold=config.low_confidence_threshold,
+                channel_rules=config.channel_rules,
                 normative=config.normative_current,
             )
         )

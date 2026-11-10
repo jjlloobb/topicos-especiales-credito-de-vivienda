@@ -65,6 +65,10 @@ components:
   # el chart pone el namespace de cada recurso (la ServiceAccount y el ExternalSecret del model-validation-job y el Role de K01 van en `vectra-staging`),
   # el mismo patron que `model-serving` (su predictor de staging). `model-archive` (wave 5, T5) esta diferido.
   - { name: governance, wave: 5, namespace: vectra-app, path: governance/chart, env_values: true }
+  # U9 (U09-T04): el servicio `bias-monitoring-service` (2 replicas fijas, `vectra.io/hpa-exempt`, PDB, ServiceMonitor) y el CronJob `bias-monitoring-job`
+  # (el unico que congela), con la identidad (ExternalSecret) de cada proceso. `values-monitoring-policy.yaml` va en `values` (INF-U9-03): el archivo
+  # vive en el monorepo y lo cubre CODEOWNERS. El Job `x04-probe` (T5) y las alertas (T2) estan diferidos.
+  - { name: bias-monitoring, wave: 5, namespace: vectra-app, path: bias-monitoring/chart, env_values: true, values: [bias-monitoring/chart/values-monitoring-policy.yaml] }
   # U6 (U06-T02): los InferenceService de cada version (azul/verde). Los values por entorno no declaran ninguno: los agrega `promotion-tool` por PR
   # (esquema: model-serving/chart/values.schema.json y model-serving/docs/values.md). El Application es de vectra-serving; el perfil `staging` crea su
   # predictor en vectra-staging con el namespace explicito del recurso.

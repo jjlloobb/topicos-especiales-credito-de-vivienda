@@ -15,8 +15,6 @@ from strategies import auth as u0
 from vectra_common.authn import Authenticator
 from vectra_common.jwks_cache import JwksCache
 
-from doubles.worlds import StaticPolicy
-
 
 def main() -> None:
     env = os.environ
@@ -27,7 +25,7 @@ def main() -> None:
 
     authenticator = Authenticator(issuer=u0.ISSUER, audience="scoring-service", jwks=JwksCache(fetch))
     settings = Settings(env["GOV_URL"], env["EXPLAIN_URL"], env["REGISTRY_URL"], env["KSERVE_URL"])
-    app = create_scoring_app(build_deps(settings, StaticPolicy()), authenticator=authenticator)
+    app = create_scoring_app(build_deps(settings), authenticator=authenticator)
     asyncio.run(serve(app, host="127.0.0.1", port=int(env["PORT"]), ops_port=int(env["OPS_PORT"])))
 
 

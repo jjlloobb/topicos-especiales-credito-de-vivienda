@@ -50,7 +50,6 @@ class Scenario:
     predict: str
     explain: str
     registry: str
-    policy: bool
 
 
 scenarios = st.builds(
@@ -60,7 +59,6 @@ scenarios = st.builds(
     predict=st.sampled_from(PREDICT),
     explain=st.sampled_from(EXPLAIN),
     registry=st.sampled_from(REGISTRY),
-    policy=st.booleans(),
 )
 
 
@@ -104,7 +102,6 @@ def configure(world: ScoringWorld, scenario: Scenario) -> None:
             transports["registry"].fault = "timeout"
         case "reject_422":
             registry.reject_status = 422
-    world.policy.parameters = world.policy.parameters if scenario.policy else None
 
 
 def oracle(scenario: Scenario) -> FailClosedCause | None:
@@ -115,11 +112,7 @@ def oracle(scenario: Scenario) -> FailClosedCause | None:
         return FailClosedCause.SERVING_CONFIG_UNAVAILABLE
     if not scenario.same_version:
         return FailClosedCause.VERSION_MISMATCH  # sin llamadas
-    if (
-        scenario.predict in ("timeout", "connect", "http503")
-        or not scenario.policy
-        and scenario.predict != "invalid_score"
-    ):
+    if scenario.predict in ("timeout", "connect", "http503"):
         return FailClosedCause.SERVING_CONFIG_UNAVAILABLE
     if scenario.predict == "invalid_score":
         return FailClosedCause.MODEL_OUTPUT_INVALID

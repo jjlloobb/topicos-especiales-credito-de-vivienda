@@ -422,22 +422,65 @@ def _workflow() -> str:
     return (jc.EDGE.parent.parent / ".github" / "workflows" / "supply-chain.yml").read_text(encoding="utf-8")
 
 
-def test_t1_supply_chain_skips_exactly_the_three_realm_configmaps() -> None:
-    workflow = yaml.safe_load(_workflow())
+_KIND_KEYCLOAK = "vectra-risk/identity-edge/keycloak/rendered/kind/keycloak.yaml"
+
+
+def _expected_skip_files() -> list[str]:
+    return [
+        "vectra-risk/platform/secrets/eso-rbac-secrets-read-kind.yaml",
+        *(f"vectra-risk/identity-edge/jobs/rendered/{env}/realm-configmap.yaml" for env in jc.ENVS),
+        "vectra-risk/identity-edge/keycloak/rendered/kind/config-cli-realm.yaml",
+    ]
+
+
+def _skipped(text: str) -> list[str]:
+    workflow = yaml.safe_load(text)
     (step,) = [
         s for job in workflow["jobs"].values() for s in job["steps"] if "trivy-action" in s.get("uses", "")
     ]
-    skipped = [f.strip() for f in step["with"]["skip-files"].split(",")]
-    assert skipped == [
-        "vectra-risk/platform/secrets/eso-rbac-secrets-read-kind.yaml",
-        *(f"vectra-risk/identity-edge/jobs/rendered/{env}/realm-configmap.yaml" for env in jc.ENVS),
-    ]
+    return [f.strip() for f in step["with"]["skip-files"].split(",")]
+
+
+def _assert_skip_files(text: str) -> None:
+    skipped = _skipped(text)
+    assert skipped == _expected_skip_files()
     assert not [f for f in skipped if any(c in f for c in "*?[")]
-    for env in jc.ENVS:
-        assert (jc.EDGE.parent / skipped[1 + jc.ENVS.index(env)].removeprefix("vectra-risk/")).is_file()
-    text = _workflow()
+    for f in skipped:
+        assert (jc.EDGE.parent / f.removeprefix("vectra-risk/")).is_file()
+    assert _KIND_KEYCLOAK not in skipped
+    assert not [f for f in skipped if "keycloak/rendered/staging" in f or "keycloak/rendered/prod" in f]
     assert "KSV-0109" in text and "realm-lint" in text
     assert "trivyignores: vectra-risk/.trivyignore" in text and "scanners: vuln,misconfig,secret" in text
+
+
+def test_t1_supply_chain_skips_exactly_the_realm_configmaps_and_the_kind_secret_read() -> None:
+    """Decision T1 (U02-T08, KSV-0109) plus the U02-T19 ConfigMap split (PR 85) and KSV-0041 (kind only)."""
+    _assert_skip_files(_workflow())
+
+
+def _mutated(old: str, new: str) -> str:
+    text = _workflow()
+    line = next(ln for ln in text.splitlines() if "skip-files:" in ln)
+    assert old in line
+    return text.replace(line, line.replace(old, new))
+
+
+@pytest.mark.parametrize("index", range(5))
+def test_t1_supply_chain_skip_list_fails_when_an_entry_is_removed(index: int) -> None:
+    entry = _expected_skip_files()[index]
+    mutated = _mutated(entry, "")
+    mutated = "\n".join(ln.replace(": ,", ": ").replace(",,", ",").rstrip(",") for ln in mutated.splitlines())
+    with pytest.raises(AssertionError):
+        _assert_skip_files(mutated)
+
+
+@pytest.mark.parametrize(
+    "extra", [_KIND_KEYCLOAK, "vectra-risk/identity-edge/keycloak/rendered/*/keycloak.yaml"]
+)
+def test_t1_supply_chain_skip_list_fails_when_an_entry_or_wildcard_is_added(extra: str) -> None:
+    last = _expected_skip_files()[-1]
+    with pytest.raises(AssertionError):
+        _assert_skip_files(_mutated(last, f"{last},{extra}"))
 
 
 def test_t1_trivyignore_mentions_the_new_skip() -> None:

@@ -10,7 +10,6 @@ from scoring.app import ScoringDeps
 from scoring.app import Settings as ScoringSettings
 from scoring.app import build_deps as build_scoring_deps
 from scoring.app import create_scoring_app
-from scoring.clients import PolicyParameters
 from vectra_contracts.models.api import ScoringRequest
 from vectra_contracts.models.explanation import FailClosed
 from vectra_contracts.outcome import Recommendation
@@ -94,20 +93,6 @@ def explainability_world(
 SCORING_TEMPLATE = "http://{inference_service}-predictor.vectra-serving"
 
 
-class StaticPolicy:
-    """La fuente de la politica activa en las pruebas (la real esta sin definir, ver la bitacora)."""
-
-    def __init__(self, cutoff: str = "0.5000", low_confidence_threshold: str = "0.6000") -> None:
-        self.parameters: PolicyParameters | None = PolicyParameters(
-            cutoff=cutoff, low_confidence_threshold=low_confidence_threshold, channel_rules=[]
-        )
-        self.calls = 0
-
-    async def get(self, policy_version_id: str) -> PolicyParameters | None:
-        self.calls += 1
-        return self.parameters
-
-
 class FakeToken:
     """Un `TokenSource` firmado con la llave de prueba de U0, para que la app real de explainability autentique a scoring."""
 
@@ -132,7 +117,6 @@ class ScoringWorld:
     kserve: KServeDouble
     explain: ExplainabilityDouble
     registry: RegistryDouble
-    policy: StaticPolicy
     deps: ScoringDeps
     app: FastAPI
     transports: dict[str, AsgiTransport]
@@ -176,7 +160,6 @@ def scoring_world(
     kserve: KServeDouble | None = None,
     explain: ExplainabilityDouble | None = None,
     registry: RegistryDouble | None = None,
-    policy: StaticPolicy | None = None,
     real_explainability: bool = False,
     **kwargs: Any,
 ) -> ScoringWorld:
@@ -185,7 +168,7 @@ def scoring_world(
         kserve or KServeDouble(),
         explain or ExplainabilityDouble(),
     )
-    registry, policy = registry or RegistryDouble(), policy or StaticPolicy()
+    registry = registry or RegistryDouble()
     chain = explainability_world(gov=gov, kserve=kserve, registry=registry) if real_explainability else None
     transports = {
         "serving_config": AsgiTransport(gov.app),
@@ -195,7 +178,6 @@ def scoring_world(
     }
     deps = build_scoring_deps(
         ScoringSettings("http://governance", "http://explainability", "http://registry", SCORING_TEMPLATE),
-        policy,
         tokens=_tokens,
         transports=transports,
         sleep=_no_sleep,
@@ -203,7 +185,7 @@ def scoring_world(
         **kwargs,
     )
     app = create_scoring_app(deps, authenticator=authenticator("scoring-service"))
-    return ScoringWorld(gov, kserve, explain, registry, policy, deps, app, transports, chain)
+    return ScoringWorld(gov, kserve, explain, registry, deps, app, transports, chain)
 
 
 async def _no_sleep(_seconds: float) -> None:

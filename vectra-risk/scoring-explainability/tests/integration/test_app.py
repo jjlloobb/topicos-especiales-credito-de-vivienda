@@ -2,15 +2,34 @@
 
 import asyncio
 import json
+import os
+import socket
+import subprocess
+import sys
+from pathlib import Path
 from uuid import uuid4
 
 import explainability.metrics as explainability_metrics
 import httpx
 import pytest
 import scoring.metrics as scoring_metrics
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from doubles.explainability import ExplainabilityDouble
+from doubles.governance import GovernanceDouble
+from doubles.kserve import KServeDouble
+from doubles.registry import RegistryDouble
+from doubles.servers import Server
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route
+from strategies import auth as u0
+from vectra_contracts.catalog import Outcome, ReasonCode
+from vectra_contracts.outcome import RecommendResult, Recommendation
 from doubles.auth import authenticator, service_headers, user_headers
 from doubles.registry import seed_recommendation
-from doubles.samples import explain_request, scoring_request
+from doubles.samples import explain_request, scoring_request, serving_config
 from doubles.worlds import explainability_world, scoring_world
 from explainability.app import REQUIRED_ENV as EXPLAINABILITY_ENV
 from explainability.app import build_handlers as explainability_handlers
@@ -18,7 +37,6 @@ from explainability.app import settings_from_env as explainability_settings
 from prometheus_client import generate_latest
 from scoring.app import REQUIRED_ENV as SCORING_ENV
 from scoring.app import build_handlers as scoring_handlers
-from scoring.app import main as scoring_main
 from scoring.app import settings_from_env as scoring_settings
 from vectra_common.metrics import REGISTRY as METRICS
 from vectra_common.ops_server import GRACEFUL_SHUTDOWN
@@ -182,13 +200,150 @@ def test_the_chart_only_injects_urls_and_the_settings_name_what_is_missing() -> 
     assert scoring_settings(good).predictor_url_template == "http://x/{inference_service}"
 
 
-def test_scoring_does_not_start_in_the_cluster_until_the_policy_source_is_defined(
-    monkeypatch: pytest.MonkeyPatch,
+class _RealProcess:
+    """`python -m scoring.app` como proceso, con `REQUIRED_ENV` y los `VECTRA_*` de U0 apuntando a dobles HTTP (U04-T09, CA-6).
+
+    El unico ajuste es de puertos: `ops_server.serve` usa 8080/8081 por omision, y aqui se cambian por puertos libres para que
+    dos corridas no choquen; el `main()` que se ejecuta es el real (`runpy`, `run_name="__main__"`)."""
+
+    def __init__(self, tmp_path: Path, gov: GovernanceDouble, kserve: KServeDouble) -> None:
+        self.gov, self.kserve = gov, kserve
+        self.explain, self.registry = ExplainabilityDouble(), RegistryDouble()
+        self.servers = [
+            Server(app).start()
+            for app in (
+                gov.app,
+                self.explain.app,
+                self.registry.app,
+                kserve.app,
+                Starlette(routes=[Route("/jwks", self._jwks)]),
+                Starlette(routes=[Route("/token", self._token, methods=["POST"])]),
+            )
+        ]
+        key = tmp_path / "client.pem"
+        key.write_bytes(
+            ec.generate_private_key(ec.SECP256R1()).private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            )
+        )
+        self.port, self.ops_port = _free_port(), _free_port()
+        code = (
+            "import runpy, vectra_common.ops_server as o\n"
+            f"o.serve.__kwdefaults__.update(port={self.port}, ops_port={self.ops_port})\n"
+            "runpy.run_module('scoring.app', run_name='__main__')\n"
+        )
+        self.env = {
+            **os.environ,
+            "SCORING_GOVERNANCE_URL": self.servers[0].url,
+            "SCORING_EXPLAINABILITY_URL": self.servers[1].url,
+            "SCORING_REGISTRY_URL": self.servers[2].url,
+            "SCORING_PREDICTOR_URL_TEMPLATE": self.servers[3].url + "/{inference_service}",
+            "VECTRA_OIDC_ISSUER": u0.ISSUER,
+            "VECTRA_JWKS_URL": self.servers[4].url + "/jwks",
+            "VECTRA_CLIENT_ID": "scoring-service",
+            "VECTRA_TOKEN_URL": self.servers[5].url + "/token",
+            "VECTRA_CLIENT_KEY_PATH": str(key),
+        }
+        self.process = subprocess.Popen([sys.executable, "-c", code], env=self.env)  # noqa: S603
+
+    @staticmethod
+    async def _jwks(_request: Request) -> JSONResponse:
+        return JSONResponse(u0.jwks_document())
+
+    @staticmethod
+    async def _token(_request: Request) -> JSONResponse:
+        return JSONResponse({"access_token": "t", "expires_in": 300})
+
+    async def ready(self) -> None:
+        async with httpx.AsyncClient() as client:
+            for _ in range(400):
+                assert self.process.poll() is None, (
+                    f"scoring.app termino al arrancar: {self.process.returncode}"
+                )
+                try:
+                    if (await client.get(f"http://127.0.0.1:{self.ops_port}/readyz")).status_code == 200:
+                        return
+                except httpx.TransportError:
+                    pass
+                await asyncio.sleep(0.05)
+        raise AssertionError("scoring.app no quedo listo")
+
+    async def recommend(self) -> Recommendation:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.post(
+                f"http://127.0.0.1:{self.port}/v1/recommendations",
+                content=scoring_request().model_dump_json(),
+                headers={
+                    "content-type": "application/json",
+                    **service_headers("scoring-service", "case:recommend"),
+                },
+            )
+        assert response.status_code == 200, response.text
+        result = RecommendResult.from_wire(response.content)
+        assert isinstance(result, Recommendation), result
+        return result
+
+    def stop(self) -> None:
+        if self.process.poll() is None:
+            self.process.kill()
+        self.process.wait()
+        for server in self.servers:
+            server.stop()
+
+
+def _free_port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+async def test_main_starts_the_real_process_and_the_outcome_follows_the_cutoff_served_by_serving_config(
+    tmp_path: Path,
 ) -> None:
-    for name in SCORING_ENV:
-        monkeypatch.setenv(name, "http://x/{inference_service}")
-    with pytest.raises(ContractViolation, match="policy_source_undefined"):
-        scoring_main()
+    kserve = KServeDouble()
+    kserve.score = 0.4  # el mismo score queda de un lado u otro del corte segun lo que sirva `serving-config`
+    gov = GovernanceDouble(serving_config(cutoff="0.5000", low_confidence_threshold="0.1000"))
+    process = _RealProcess(tmp_path, gov, kserve)
+    try:
+        await process.ready()
+        first = await process.recommend()
+        assert first.policy_version_id == gov.config.policy_version_id
+        assert first.outcome is Outcome.FAVORABLE and ReasonCode.SCORE_BAJO_CORTE in first.reasons
+        gov.config = serving_config(cutoff="0.3000", low_confidence_threshold="0.1000", etag="etag-2")
+        await asyncio.sleep(5.3)  # P-U7-05: la cache de `serving-config` de scoring dura <= 5 s
+        second = await process.recommend()
+        assert (
+            second.outcome is Outcome.DESFAVORABLE
+            and ReasonCode.SCORE_SOBRE_CORTE in second.reasons
+            and ReasonCode.SCORE_BAJO_CORTE not in second.reasons
+        )
+    finally:
+        process.stop()
+
+
+async def test_main_policy_parameters_and_policy_version_id_come_from_the_same_snapshot() -> None:
+    world = scoring_world()
+    world.kserve.score = 0.4
+    world.deps.orchestrator._serving._ttl = 0  # noqa: SLF001 - sin cache: cada solicitud lee la foto vigente del doble
+    try:
+        world.gov.config = serving_config(
+            policy_version_id="pol-a", cutoff="0.5000", low_confidence_threshold="0.1000", etag="a"
+        )
+        first = await world.recommend(scoring_request())
+        world.gov.config = serving_config(
+            policy_version_id="pol-b", cutoff="0.3000", low_confidence_threshold="0.1000", etag="b"
+        )
+        second = await world.recommend(scoring_request())
+        assert isinstance(first, Recommendation) and isinstance(second, Recommendation)
+        assert (first.policy_version_id, first.outcome) == ("pol-a", Outcome.FAVORABLE)
+        assert (second.policy_version_id, second.outcome) == ("pol-b", Outcome.DESFAVORABLE)
+        assert [call.method for call in world.gov.calls].count(
+            "GET"
+        ) == 2  # sin una segunda llamada por solicitud
+    finally:
+        await world.aclose()
 
 
 def test_the_authenticator_helper_checks_the_service_audience() -> None:

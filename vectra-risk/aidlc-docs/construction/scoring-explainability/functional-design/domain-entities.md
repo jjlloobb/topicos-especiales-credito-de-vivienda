@@ -21,7 +21,7 @@ redefinen aquí.
 |---|---|
 | `score`, `confidence` | `Prediction` cuantizada (U0 §3.6) |
 | `property_value`, `proposed_rate_ea`, `channel` | `ScoringRequest.policy_inputs` |
-| `cutoff`, `low_confidence_threshold`, `channel_rules` | Política activa (`policy_version_id` de `serving-config`) |
+| `cutoff`, `low_confidence_threshold`, `channel_rules` | `serving-config` (los copia governance de la política `activa`; misma foto que `policy_version_id`, sin segunda llamada) (precisado el 2026-11-10, U04-T09: decisión del usuario) |
 | `normative` | `serving-config.normative_current` (puede ser nulo, Q1) |
 
 ### `PolicyResult` (U0 §3.6)

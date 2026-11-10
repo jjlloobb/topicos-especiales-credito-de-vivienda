@@ -1,0 +1,28 @@
+{{- /* Un ExternalSecret por proceso (INF-U9-04; leccion de U04-T08): ESO materializa en vectra-app la llave `private_key_jwt` de cada cliente de U2
+(`identity/clients/<clientId>`, propiedad `private-key`). El servicio nunca recibe la del CronJob. */ -}}
+{{- range $process := list "service" "job" }}
+{{- $id := index $.Values.identity $process }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $id.secretName }}
+  namespace: {{ $.Values.namespace }}
+  labels:
+    app.kubernetes.io/name: bias-monitoring-{{ $process }}
+    app.kubernetes.io/part-of: bias-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  refreshInterval: {{ $.Values.identity.refreshInterval }}
+  secretStoreRef:
+    name: {{ $.Values.identity.secretStore.name }}
+    kind: {{ $.Values.identity.secretStore.kind }}
+  target:
+    name: {{ $id.secretName }}
+  data:
+    - secretKey: private-key
+      remoteRef:
+        key: {{ $id.vaultKey }}
+        property: {{ $.Values.identity.vaultProperty }}
+{{- end }}

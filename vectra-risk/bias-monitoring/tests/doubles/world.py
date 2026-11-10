@@ -84,7 +84,8 @@ def _scopes_of(request: httpx.Request) -> tuple[str, set[str]] | None:
     header = request.headers.get("authorization", "")
     if not header.startswith("Bearer tok|"):
         return None
-    _, audience, scopes = header.removeprefix("Bearer ").split("|")
+    # `tok|<audiencia>|<scopes>` (el doble en proceso) o `tok|<audiencia>|<scopes>|<cliente>` (el Keycloak HTTP de `http_doubles`, U09-T04).
+    _, audience, scopes, *_client = header.removeprefix("Bearer ").split("|")
     return audience, set(scopes.split())
 
 

@@ -11,7 +11,7 @@ plantilla por configuracion (INF-U7-04).
 import json
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Literal, Protocol
+from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError
 from vectra_common import deps
@@ -19,10 +19,8 @@ from vectra_common.deps import CircuitState, DependencyClient
 from vectra_common.errors import DependencyTimeout, DependencyUnavailable
 from vectra_contracts.catalog import ExplainerError
 from vectra_contracts.models.api import ExplainRequest
-from vectra_contracts.models.base import StrictModel, UnitDecimal4
 from vectra_contracts.models.explanation import Explanation, Prediction, RegistryAck
 from vectra_contracts.models.features import FeatureVector
-from vectra_contracts.models.governance import ChannelRule
 from vectra_contracts.models.registry import RegistryEntryIn
 from vectra_contracts.outcome import InvalidModelOutput, quantize_prediction
 
@@ -34,24 +32,6 @@ CONFLICT = 409
 UNPROCESSABLE = 422
 BAD_GATEWAY_TIMEOUT = 504
 SERVICE_UNAVAILABLE = 503
-
-
-class PolicyParameters(StrictModel):
-    """Lo que la politica activa aporta a `PolicyEvaluationInput` y `serving-config` no trae (BR-U7-04)."""
-
-    cutoff: UnitDecimal4
-    low_confidence_threshold: UnitDecimal4
-    channel_rules: list[ChannelRule]
-
-
-class PolicySource(Protocol):
-    """De donde salen `cutoff`, `low_confidence_threshold` y `channel_rules` de `policy_version_id`.
-
-    `ServingConfig` (U0) no los trae y ninguna ruta del contrato los sirve a un cliente de servicio (`GET /v1/policies` pide roles de
-    usuario): la fuente real queda sin definir (ver la bitacora de U07-T03). `None` = no disponible.
-    """
-
-    async def get(self, policy_version_id: str) -> PolicyParameters | None: ...
 
 
 class _PredictionOut(BaseModel):
