@@ -1,0 +1,2 @@
+# applicant:v1 — plantilla del resumen para el solicitante (BR-U7-14), en lenguaje llano. Cada linea es `@clave texto`.
+@posthoc Esta es una aproximación posterior a la decisión: indica qué aspectos de su solicitud pesaron más en el riesgo estimado, pero no es una lectura exacta del razonamiento del modelo.
