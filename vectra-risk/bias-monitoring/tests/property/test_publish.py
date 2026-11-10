@@ -73,8 +73,8 @@ def test_no_series_publishes_the_rate_of_an_insufficient_cell(counts):
         for n, lab, v in series
         if n == "vectra_bias_cell_size"
     }
-    for attribute, table in counts.items():
-        for cell in table.cells:
+    for attribute, tbl in counts.items():
+        for cell in tbl.cells:
             assert (
                 sizes[(attribute, cell.group, cell.band)] == cell.total
             )  # el tamano se publica siempre, insuficiente o no
@@ -83,7 +83,7 @@ def test_no_series_publishes_the_rate_of_an_insufficient_cell(counts):
     }  # fmt: skip
 
     for attribute, table in counts.items():
-        expected, partial = _sin_bandas_oracle(table)
+        expected, partial = _sin_bandas_oracle(tbl)
         published = [
             (lab, v)
             for n, lab, v in series
