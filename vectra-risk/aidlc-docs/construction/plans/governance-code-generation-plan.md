@@ -128,7 +128,8 @@ vectra-risk/governance/
     - con la base pausada, `serving-config` sigue respondiendo la última copia durante 29 s y responde 503 a los 30 s; el gauge de edad crece y vuelve a 0 al reanudar la base (revisión de coherencia entre unidades, 2026-10-10);
     - `pg_stat_activity` cuenta 5 conexiones por réplica.
 
-- [x] **Paso 10 — Endpoints** (U04-T04, acotado a la demo)
+- [x] **Paso 10 — Endpoints** (U04-T04, acotado a la demo; arranque completado en U04-T08)
+  - Nota (U04-T08): arranque completado en U04-T08. `vectra_governance.service` (`config_from_env`, `build_app`, `main`) arma `ApiDeps` desde las variables del chart, con el cliente S3 de F47 (`s3_store.py`, SigV4 contra MinIO) y `Background` en el ciclo de vida; `test_container_start.py` arranca la imagen de verdad.
   - Modelos: registrar, lanzar validación (Job en `vectra-staging` por K01, con TTL, `activeDeadlineSeconds` y `backoffLimit: 0`), recibir el informe (F32), aprobar o rechazar, `mark_active`, retirar.
   - Registro: los paquetes RT-3 (a), (c) y (d) de U5 → 422 sin crear la versión; (b) → aceptado (BR-U4-06; doble de los paquetes hasta que exista U5; quinta revisión de coherencia entre unidades, 2026-10-31).
   - `freeze` (solo `governance:freeze`).

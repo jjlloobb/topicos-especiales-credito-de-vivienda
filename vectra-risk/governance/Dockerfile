@@ -26,6 +26,6 @@ COPY governance/migrations /app/migrations
 # Usuario numerico distinto de root (require-run-as-non-root); el mismo `runAsUser`/`runAsGroup` del chart.
 USER 65532:65532
 EXPOSE 8080 8081
-# El servicio; el Job de migracion fija su propio `command`. `vectra_governance.service` (el `build_app` que cablea pools, store y lanzador) no
-# existe todavia: es una candidata de U04-T04 que esta tarea registra (CANDIDATAS.md); el chart ya le entrega su configuracion por entorno.
+# El servicio; el Job de migracion fija su propio `command`. `vectra_governance.service` (U04-T08: `config_from_env`, `build_app` y `main`)
+# lee del entorno la configuracion que le entrega el chart; `tests/integration/test_container_start.py` arranca esta imagen de verdad.
 CMD ["python", "-m", "vectra_governance.service"]

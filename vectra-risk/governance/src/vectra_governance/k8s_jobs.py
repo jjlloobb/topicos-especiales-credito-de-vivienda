@@ -50,8 +50,6 @@ CLIENT_KEY_DIR: Final = "/var/run/vectra/client"
 # `decision-registry/chart`): `vectra_common` exige `VECTRA_CA_BUNDLE` para hablar https con Keycloak y no desactiva la verificacion.
 CA_CONFIGMAP: Final = "vectra-internal-ca"
 CA_DIR: Final = "/etc/vectra/ca"
-DEFAULT_S3_ENDPOINT: Final = "http://minio.vectra-data.svc.cluster.local:9000"
-DEFAULT_TOKEN_URL: Final = "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token"  # noqa: S105
 Mode = Literal["validacion", "source_comparison"]
 
 
@@ -108,8 +106,8 @@ class JobSpec:
     dataset_ref: str
     callback_url: str
     policy: PolicyDraft
-    s3_endpoint: str = DEFAULT_S3_ENDPOINT
-    token_url: str = DEFAULT_TOKEN_URL
+    s3_endpoint: str
+    token_url: str
     source_id: str | None = None
     baseline_version_id: str | None = None
 
