@@ -7,7 +7,7 @@ cliente HTTP del registro, los 409 con transicion pendiente de politicas y fuent
 
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC
 from decimal import Decimal
 
 import httpx
@@ -359,7 +359,6 @@ def test_abandono_de_una_unidad_con_todas_sus_mitades_con_ack_la_confirma(world:
 
 
 def test_si_la_abandonada_tampoco_se_puede_reenviar_la_nueva_da_idempotency_conflict(world: World) -> None:  # noqa: F811
-    from evidence_support import Written
 
     world.a.register(ING, new_model("mv-1"))
     world.registry.mode = "down"
