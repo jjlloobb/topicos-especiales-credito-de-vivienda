@@ -5,12 +5,12 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from decimal import Decimal
+from fractions import Fraction
 
-from builders import batch_client, population_report, small_tables, uniform
-from hypothesis import given
+from builders import batch_client, population_report, small_tables, table, uniform
+from hypothesis import example, given
 from vectra_bias.publish import RunReport, VersionReport, publish
-from vectra_disparity import UNINFORMED
+from vectra_disparity import UNINFORMED, quantize4
 from world import PUSHGATEWAY_URL, World
 
 N_MIN = 30
@@ -29,12 +29,20 @@ def _sin_bandas_oracle(table) -> tuple[str | None, bool]:
         acc = totals.setdefault(cell.group, [0, 0])
         acc[0] += cell.favorable
         acc[1] += cell.total
-    rates = [f / n for g, (f, n) in totals.items() if g not in excluded and n > 0]
+    rates = [Fraction(f, n) for g, (f, n) in totals.items() if g not in excluded and n > 0]
     if len(rates) < 2:
         return None, bool(excluded)
-    return f"{Decimal(max(rates) - min(rates)):.4f}", bool(excluded)
+    return str(quantize4(max(rates) - min(rates))), bool(excluded)
 
 
+def _rounding_tie() -> dict:
+    """La diferencia sin bandas de `sexo` es 9/480 = 0,01875 exacto: mitad hacia arriba da 0,0188 (la libreria usa fracciones)."""
+    counts = uniform(0.5, 100)
+    counts["sexo"] = table("sexo", {"F": 3 / 160, "M": 0.0}, 160)
+    return counts
+
+
+@example(counts=_rounding_tie())
 @given(counts=small_tables())
 def test_no_series_publishes_the_rate_of_an_insufficient_cell(counts):
     world = World()

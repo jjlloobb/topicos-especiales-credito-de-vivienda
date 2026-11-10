@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from fractions import Fraction
 from typing import Any
 
 from builders import full_catalog, small_tables
@@ -15,7 +16,7 @@ from vectra_bias.context import MAX_PACKAGE_BYTES, build_context_package, measur
 from vectra_bias.freeze_rule import attribute_limits, decide
 from vectra_bias.window import version_ranges
 from vectra_contracts.models.monitoring import AffectedVolume, FreezeContext
-from vectra_disparity import ATTRIBUTES, UNINFORMED, CountTable
+from vectra_disparity import ATTRIBUTES, UNINFORMED, CountTable, quantize4
 from vectra_disparity import __version__ as LIBRARY_VERSION
 
 TODAY = date(2026, 11, 9)
@@ -81,10 +82,10 @@ def _population_difference_oracle(table: CountTable) -> tuple[str | None, bool]:
         acc = totals.setdefault(cell.group, [0, 0])
         acc[0] += cell.favorable
         acc[1] += cell.total
-    rates = [f / n for g, (f, n) in totals.items() if g not in excluded and n > 0]
+    rates = [Fraction(f, n) for g, (f, n) in totals.items() if g not in excluded and n > 0]
     if len(rates) < 2:
         return None, bool(excluded)
-    return f"{Decimal(max(rates) - min(rates)):.4f}", bool(excluded)
+    return str(quantize4(max(rates) - min(rates))), bool(excluded)
 
 
 @given(counts=small_tables(), history=st.integers(0, 40))
@@ -97,15 +98,16 @@ def test_the_package_never_carries_a_rate_of_an_insufficient_cell_or_fields_outs
     assert package.library_version == LIBRARY_VERSION
 
     sufficient_rates = {
-        f"{c.favorable / c.total:.4f}" for t in counts.values() for c in t.cells if c.total >= N_MIN
+        str(quantize4(Fraction(c.favorable, c.total)))
+        for t in counts.values()
+        for c in t.cells
+        if c.total >= N_MIN
     }
     for node in _walk(dumped):
         if node.get("status") == "muestra_insuficiente":
             assert node.get("rate") is None  # una celda insuficiente lleva solo su tamano
         if node.get("status") == "suficiente":
-            assert node["rate"] in sufficient_rates or Decimal(node["rate"]) in {
-                Decimal(r) for r in sufficient_rates
-            }
+            assert node["rate"] in sufficient_rates
         if "freeze_lower_limit" in node:
             assert set(node) == {"attribute", "freeze_lower_limit", "bands"}
             assert all(set(b) == {"band", "difference", "extreme_pair"} for b in node["bands"])
