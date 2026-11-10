@@ -2,3 +2,16 @@
 # model-serving/docs/values.md, esquema en model-serving/chart/values.schema.json. U06-T02 no declara ningun InferenceService.
 # El digest real de las imagenes (`images.predictor.digest` y `images.explainer.digest`) lo fija el operador en el Paso 11 de U6.
 inferenceServices: []
+# Presupuesto de memoria de kind (DECISIONES-LOOP.md §7, opcion c, decision del usuario 2026-11-09, U06-T03): 256 Mi por pod en lugar de los
+# 512 Mi de INF-U6-01, solo aqui. Replicas, HPA y PDB no cambian (require-hpa-bounds; el activo nunca baja de 2). Staging y prod siguen en
+# chart/values.yaml (test_kind_profile.py lo comprueba). Los limits tampoco cambian: el modelo de referencia usa menos de 256 Mi, y el
+# escenario de memoria del Paso 11 (kubectl top) lo confirma en kind. `promotion-tool` no toca esta clave.
+profiles:
+  prod:
+    predictor: { resources: { requests: { memory: 256Mi } } }
+    explainer: { resources: { requests: { memory: 256Mi } } }
+  inactive:
+    predictor: { resources: { requests: { memory: 256Mi } } }
+    explainer: { resources: { requests: { memory: 256Mi } } }
+  staging:
+    predictor: { resources: { requests: { memory: 256Mi } } }

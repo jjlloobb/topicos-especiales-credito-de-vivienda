@@ -121,7 +121,7 @@ vectra-risk/model-serving/
 
 ### Bloque E — Verificación en kind (con aprobación humana)
 
-- [ ] **Paso 11 — Puerta de aprobación y escenarios en kind**
+- [ ] **Paso 11 — Puerta de aprobación y escenarios en kind** — guía lista, pendiente del operador (U06-T03: `model-serving/docs/paso-11-kind.md`; escenarios 1 a 3 y memoria; 4 a 6 diferidos por la demo). Pasa a `[x] (U06-T03, acotado a la demo)` cuando el operador adjunte la evidencia
   - **Requisito previo**: un PR con los Pasos 1–10 aprobado por un humano, sobre U1–U4 instalados en kind y un paquete de U5 registrado.
   - El operador ejecuta, con evidencia:
     1. promoción de M1 a M2 con tráfico continuo (los cuatro PR) → 0 respuestas `version_mismatch`;
@@ -135,11 +135,11 @@ vectra-risk/model-serving/
 
 ### Bloque F — Cierre
 
-- [ ] **Paso 12 — Repositorio, migraciones y frontend: N/A**
+- [x] (U06-T03) **Paso 12 — Repositorio, migraciones y frontend: N/A**
   - U6 no tiene base de datos, migraciones ni interfaz.
   - **Aceptación**: `test ! -d model-serving/migrations && test ! -d model-serving/frontend`.
 
-- [ ] **Paso 13 — Cierre de la unidad**
+- [x] (U06-T03, acotado a la demo) **Paso 13 — Cierre de la unidad**
   - **Aceptación**: `make -C model-serving check`, que corre en orden las verificaciones estáticas y las pruebas de los Pasos 1–10 y termina en 0. Las de kind (Paso 11) se revisan como evidencia en el PR.
 
 ---

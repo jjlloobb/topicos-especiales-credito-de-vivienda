@@ -37,7 +37,8 @@ No hay más campos. Lo demás lo deduce el chart:
 - **Arranque:** los dos contenedores declaran `command: ["python", "-m", "vectra_predictor"|"vectra_explainer"]`. KServe agrega `args`
   (`--model_name`, `--predictor_host`, `--http_port`) al explicador y, sin `command`, reemplazarían el `CMD` de la imagen; el programa ignora `sys.argv`.
 - **Réplicas, recursos, prioridad, HPA, spread y PDB:** del perfil (INF-U6-01, INF-U6-02), definidos en `chart/values.yaml` bajo
-  `profiles`. `promotion-tool` no los toca: solo elige el perfil.
+  `profiles`. `promotion-tool` no los toca: solo elige el perfil. Excepción de kind (DECISIONES-LOOP.md §7): `values/kind/model-serving.yaml`
+  baja los requests de memoria a 256 MiB por pod con una clave `profiles` propia; `promotion-tool` la deja intacta, como `images`.
 
 | Perfil | Réplicas | Prioridad | Otros |
 |---|---|---|---|
