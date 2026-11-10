@@ -1,5 +1,8 @@
 # Cargar la política de referencia en kind
 
+> **No ejecutar todavía.** La revisión de U04-T06 (ronda 2, `revisiones/U04-T06/ronda-2.md`) encontró que este runbook no corre tal cual: `disallow-plain-secrets` rechaza los Secrets del token y la verificación va después de la limpieza. Por decisión del usuario (2026-11-10) se corrige en **U04-T07**, que además espera al punto de entrada del servicio (U04-T08).
+
+
 Lo ejecuta el operador en U04-T07 (escenarios 2 y 3 del flujo base de la demo; P-7). Sin una política `activa`, `serving-config` no tiene `policy_version_id` y `POST /v1/models/{id}/validations` responde 409 (el Job necesita el `cutoff`).
 
 ## Síntoma
