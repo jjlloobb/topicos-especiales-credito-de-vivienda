@@ -3,11 +3,13 @@
 BR-U4-10 (cuatro ojos, 409), BR-U4-11 (activacion y `normative_current`), BR-U4-12 (ningun servicio escribe politica).
 """
 
+import time
 from datetime import date, timedelta
+from decimal import Decimal
 
 import pytest
 from api_support import ApiWorld
-from evidence_support import START, normative, policy_draft, to_activo
+from evidence_support import START, normative, policy_draft, to_activo, wait_for
 
 pytestmark = pytest.mark.integration
 
@@ -118,3 +120,66 @@ async def test_br_u4_11_a_future_normative_is_not_current_until_its_day(world: A
     world.refresh()
     served = (await world.client.get("/v1/serving-config", headers=world.service("scoring-service", "governance:read-serving"))).json()
     assert "normative_current" not in served
+
+
+async def test_u04_t09_serving_config_serves_the_active_policy_and_activating_another_changes_it_in_under_1_s(
+    world: ApiWorld,
+) -> None:
+    """U04-T09: `cutoff`, `low_confidence_threshold` y `channel_rules` viajan en `serving-config`; la lectura de vuelta es SQL."""
+    to_activo(world.svc, "mv-2026-01-01-aaaaaaaa")
+    headers = world.service("scoring-service", "governance:read-serving")
+    active = "SELECT policy_version_id, cutoff, low_confidence_threshold, channel_rules FROM policies WHERE state = 'activa'"
+
+    def served_matches_row(served: dict[str, object]) -> None:
+        (row,) = world.sql(active)
+        assert served["policy_version_id"] == row["policy_version_id"]
+        assert Decimal(str(served["cutoff"])) == Decimal(str(row["cutoff"]))
+        assert Decimal(str(served["low_confidence_threshold"])) == Decimal(str(row["low_confidence_threshold"]))
+        # La API omite los nulos (`exclude_none`); la columna `jsonb` los guarda explicitos.
+        assert served["channel_rules"] == [{k: v for k, v in rule.items() if v is not None} for rule in row["channel_rules"]]
+
+    rules_a = [{"channel": "web", "cutoff": "0.7000"}]
+    a = await propose(world, "cro-1", cutoff="0.5000", low_confidence_threshold="0.2000", channel_rules=rules_a)
+    assert (await approve(world, a, "cro-2")).status_code == 204
+    world.cache.start()
+    try:
+        assert world.cache.wait_ready(10)
+        assert wait_for(lambda: world.cache.listening, 5) is not None
+        first = await world.client.get("/v1/serving-config", headers=headers)
+        assert first.status_code == 200, first.text
+        served_a = first.json()
+        assert served_a["policy_version_id"] == a and served_a["cutoff"] == "0.5000"
+        assert served_a["low_confidence_threshold"] == "0.2000" and served_a["channel_rules"] == rules_a
+        served_matches_row(served_a)
+
+        rules_b = [{"channel": "agencia", "cutoff": "0.4000"}, {"channel": "web"}]
+        b = await propose(world, "cro-3", cutoff="0.6500", low_confidence_threshold="0.3000", channel_rules=rules_b)
+        started = time.monotonic()
+        assert (await approve(world, b, "cro-4")).status_code == 204
+        took = wait_for(lambda: world.cache.current().policy_version_id == b, 1.0)  # NFR-U4-05: <= 1 s
+        assert took is not None and time.monotonic() - started <= 1.0, "serving-config no sirvio B en 1 s"
+        second = await world.client.get("/v1/serving-config", headers=headers)
+        served_b = second.json()
+        assert served_b["policy_version_id"] == b and served_b["cutoff"] == "0.6500"
+        assert served_b["low_confidence_threshold"] == "0.3000" and served_b["channel_rules"] == rules_b
+        assert served_b["etag"] != served_a["etag"]
+        served_matches_row(served_b)
+        stale = await world.client.get("/v1/serving-config", headers={**headers, "If-None-Match": f'"{served_a["etag"]}"'})
+        assert stale.status_code == 200 and stale.json()["policy_version_id"] == b  # no 304
+        assert {r["policy_version_id"]: r["state"] for r in world.sql("SELECT policy_version_id, state FROM policies")} == {
+            a: "historica",
+            b: "activa",
+        }
+    finally:
+        world.cache.stop()
+
+
+async def test_u04_t09_without_an_active_policy_serving_config_is_503_even_with_an_active_model(world: ApiWorld) -> None:
+    to_activo(world.svc, "mv-2026-01-01-aaaaaaaa")
+    world.refresh()
+    response = await world.client.get(
+        "/v1/serving-config", headers=world.service("scoring-service", "governance:read-serving")
+    )
+    assert response.status_code == 503, response.text
+    assert response.json()["code"] == "dependency_unavailable"  # el detalle `no_serving_config` es interno (test_convergence)
+    assert world.sql("SELECT count(*) AS n FROM policies WHERE state = 'activa'")[0]["n"] == 0

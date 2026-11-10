@@ -37,6 +37,8 @@ class KServeDouble:
             routes=[
                 Route("/v1/models/{name}:predict", self._predict, methods=["POST"]),
                 Route("/v1/models/{name}:explain", self._explain, methods=["POST"]),
+                # La plantilla de URL de una prueba con proceso real es `http://127.0.0.1:<puerto>/{inference_service}`.
+                Route("/{prefix}/v1/models/{name}:predict", self._predict, methods=["POST"]),
             ]
         )
 

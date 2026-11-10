@@ -11,7 +11,7 @@ from doubles.kserve import KServeDouble
 from doubles.registry import RegistryDouble
 from doubles.samples import ISVC, explain_request, scoring_request, vector
 from doubles.servers import Server
-from doubles.worlds import ScoringWorld, StaticPolicy, scoring_world
+from doubles.worlds import ScoringWorld, scoring_world
 from scoring import config
 from scoring.app import Settings, build_deps
 from vectra_common.deps import CircuitState
@@ -181,14 +181,18 @@ async def test_a_hung_kserve_exhausts_its_20_connections_and_an_explanation_in_p
             Settings(
                 servers[2].url, servers[1].url, servers[3].url, servers[0].url
             ),  # la plantilla sin marcador: un solo host
-            StaticPolicy(),
         )
         orchestrator = deps.orchestrator
         hung = [
             asyncio.create_task(orchestrator._predictor.predict(ISVC, vector(), _in(10)))  # noqa: SLF001
             for _ in range(30)
         ]
-        await asyncio.sleep(0.15)
+        # Espera acotada a que lleguen las 20 conexiones (los 300 ms del timeout de `:predict` las cortan): un `sleep` fijo falla
+        # con la maquina cargada (candidata F-03 de U07-T03; tocado en U04-T09 solo para poder verificar `make check`).
+        for _ in range(50):
+            if kserve.recorder.count("predict") >= config.PREDICT_POOL:
+                break
+            await asyncio.sleep(0.005)
         arrived = kserve.recorder.count("predict")
         started = time.perf_counter()
         explained = await orchestrator._explainer.explain(explain_request(), _in(10))  # noqa: SLF001

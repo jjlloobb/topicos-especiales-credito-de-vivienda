@@ -265,29 +265,6 @@ async def test_an_unreadable_registry_ack_is_not_retried(score_world: ScoringWor
     )  # 1 intento + el fail_closed
 
 
-class _SlowPolicy:
-    async def get(self, policy_version_id: str) -> None:
-        await asyncio.sleep(5)
-
-
-async def test_a_policy_source_that_exceeds_the_pre_registry_budget_is_serving_config_unavailable() -> None:
-    world = scoring_world(policy=_SlowPolicy())  # type: ignore[arg-type]
-    started = asyncio.get_running_loop().time()
-    result = await world.recommend(scoring_request())
-    assert isinstance(result, FailClosed) and result.cause is FailClosedCause.SERVING_CONFIG_UNAVAILABLE
-    assert asyncio.get_running_loop().time() - started < 1.0
-    await world.aclose()
-
-
-async def test_a_policy_source_without_the_policy_is_serving_config_unavailable(
-    score_world: ScoringWorld,
-) -> None:
-    score_world.policy.parameters = None
-    result = await score_world.recommend(scoring_request())
-    assert isinstance(result, FailClosed) and result.cause is FailClosedCause.SERVING_CONFIG_UNAVAILABLE
-    assert score_world.explain.calls == []  # sin politica no se pide la explicacion
-
-
 def test_the_default_append_jitter_is_between_0_and_100_ms() -> None:
     from scoring.orchestrator import default_jitter
 

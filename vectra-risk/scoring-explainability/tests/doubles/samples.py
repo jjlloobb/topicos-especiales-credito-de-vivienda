@@ -13,7 +13,7 @@ from vectra_contracts.models.features import (
     IntFeature,
     MonitoringLabels,
 )
-from vectra_contracts.models.governance import NormativeParams, ServingConfig
+from vectra_contracts.models.governance import ChannelRule, NormativeParams, ServingConfig
 
 MODEL = "mv-0000abcd"
 OTHER_MODEL = "mv-0000ffff"
@@ -70,11 +70,18 @@ def serving_config(
     isvc: str = ISVC,
     etag: str = "etag-1",
     with_normative: bool = True,
+    cutoff: str = "0.5000",
+    low_confidence_threshold: str = "0.6000",
+    channel_rules: list[ChannelRule] | None = None,
+    policy_version_id: str = POLICY,
 ) -> ServingConfig:
     return ServingConfig(
         model_version_id=model_version_id,
         state=state,  # type: ignore[arg-type]
-        policy_version_id=POLICY,
+        policy_version_id=policy_version_id,
+        cutoff=cutoff,  # type: ignore[arg-type]
+        low_confidence_threshold=low_confidence_threshold,  # type: ignore[arg-type]
+        channel_rules=channel_rules or [],
         feature_dictionary_version="d-1",
         effective_from=NOW,
         inference_service=isvc,

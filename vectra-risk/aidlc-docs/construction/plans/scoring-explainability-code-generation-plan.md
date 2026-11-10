@@ -167,6 +167,7 @@ vectra-risk/scoring-explainability/
 ### Bloque D — `scoring-service`
 
 - [x] **Paso 10 — Clientes y caché de `serving-config`** (U07-T03)
+  - Nota (U04-T09): ampliado en U04-T09 (política en `serving-config`): se quitan `PolicySource` y `PolicyParameters`; `scoring.app.main` arranca con `REQUIRED_ENV` y los tokens de servicio.
   - Un `httpx.AsyncClient` por dependencia con `deps.call` (P-U7-04): `:predict` 20, explainability 20, registro 10, `serving-config` 5. Cada uno con su circuit breaker y la causa que le corresponde. NFR-U7-11 se escribe `BreakerConfig(open_for=10, window_size=20, failure_ratio=0.5, window_seconds=30)`, y el token de servicio es `service_token.provider_from_env(audience, scopes)`, pasado como `token_source` a `DependencyClient`; ante un 401, `deps.call` reintenta una vez (revisión de consistencia entre unidades, 2026-11-01).
   - `serving_config_client`:
     - caché ≤ 5 s con `If-None-Match`;
@@ -180,6 +181,7 @@ vectra-risk/scoring-explainability/
     - con explainability caído, tras 20 llamadas → `FailClosed` en < 50 ms.
 
 - [x] **Paso 11 — `orchestrator`** (U07-T03)
+  - Nota (U04-T09): ampliado en U04-T09 (política en `serving-config`): `cutoff`, `low_confidence_threshold` y `channel_rules` salen del mismo `ServingConfig`, sin segunda llamada.
   - Secuencia de BR-U0-08 con `check_preconditions` y `build_outcome` de U0:
     - presupuesto previo al registro de 700 ms, con `deadline=` en cada llamada y `x-vectra-deadline` hacia explainability;
     - append de la `recommendation` con `idempotency_key` = UUID v4 generado al recibir cada `POST /v1/recommendations`, **nunca** derivado de `case_id` ni de `attempt`, y reutilizado solo por el reintento de ese append: 2 intentos, solo ante 503, timeout o error de conexión, sin reintento con el circuito abierto (BR-U7-15; precisado el 2026-10-06, revisión del FD de U8);

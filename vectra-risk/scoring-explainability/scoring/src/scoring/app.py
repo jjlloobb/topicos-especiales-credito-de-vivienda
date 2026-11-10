@@ -14,7 +14,7 @@ from typing import Any, Final
 
 from fastapi import FastAPI
 from fastapi.responses import Response
-from vectra_common import process
+from vectra_common import process, service_token
 from vectra_common.app_factory import Handler, HandlerKey, RequestContext, create_app
 from vectra_common.authn import Authenticator
 from vectra_common.deps import DependencyClient, TokenSource
@@ -25,7 +25,7 @@ from vectra_contracts.models.api import ScoringRequest
 from vectra_contracts.routes import REGISTRY
 
 from scoring import config
-from scoring.clients import ExplainabilityClient, PolicySource, PredictClient, RegistryClient
+from scoring.clients import ExplainabilityClient, PredictClient, RegistryClient
 from scoring.orchestrator import Orchestrator
 from scoring.serving_config_client import ServingConfigClient
 
@@ -79,7 +79,6 @@ def _no_token(_audience: str, _scopes: tuple[Scope, ...]) -> TokenSource | None:
 
 def build_deps(
     settings: Settings,
-    policy_source: PolicySource,
     tokens: TokenFactory = _no_token,
     transports: Mapping[str, Any] | None = None,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
@@ -128,7 +127,6 @@ def build_deps(
         PredictClient(predict, settings.predictor_url_template),
         ExplainabilityClient(explain),
         RegistryClient(registry),
-        policy_source,
         clock=clock,
         **orchestrator_kwargs,
     )
@@ -174,9 +172,11 @@ def run(deps: ScoringDeps) -> None:
 
 
 def main() -> None:
-    """Arranque en el cluster. Falta la fuente de `cutoff`, `low_confidence_threshold` y `channel_rules` (ver `PolicySource`):
-    hasta que el diseno la defina, el proceso no arranca en lugar de fallar cerrado en silencio en cada solicitud."""
-    settings_from_env(os.environ)
-    raise ContractViolation(
-        "policy_source_undefined: ServingConfig no trae los parametros de la politica y ninguna ruta del contrato los sirve a scoring"
-    )
+    """Arranque en el cluster: las variables de `REQUIRED_ENV` y los tokens de servicio de U2 (`VECTRA_CLIENT_*`).
+    La politica activa viaja en `serving-config` (U04-T09): no hay otra fuente que configurar."""
+    settings = settings_from_env(os.environ)
+    run(build_deps(settings, tokens=service_token.provider_from_env))
+
+
+if __name__ == "__main__":
+    main()
