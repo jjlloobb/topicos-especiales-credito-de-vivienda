@@ -51,7 +51,7 @@ Entrada: `CaseRow` (la fila de `cases` y lo ya leído: identificadores, decisió
 - `application`: se quitan explícitamente `sex` y `socioeconomic_stratum` y se valida como `ApplicationView` con las reglas JSON.
 - `identifiers`: `None` si el caso está anonimizado, aunque la fila los traiga.
 - `persistent_failure`: exige `no_disponible` y `no_disponible_since` (`ValueError` si no); `since` es ese dato, `last_cause` es `""` si falta.
-- Hallazgo sobre U0 (no corregido aquí): `CaseDetail.recommendation` exige el token privado de `vectra_contracts.outcome` incluso con una instancia válida; `case_detail` pasa `CONSTRUCTION_TOKEN` como contexto de validación. Ver «tarea candidata» en `CANDIDATAS.md`.
+- **Rodeo temporal (F-01 de la ronda 1; hasta una tarea de U0):** `CaseDetail.recommendation` exige el token privado de `vectra_contracts.outcome` incluso con una instancia válida. `case_detail` lo importa dentro de la función y lo usa solo como contexto de esa validación: ningún nombre del módulo lo contiene (lo prueba `tests/unit/test_private_token.py`). `.importlinter` (contrato `private-token`) prohíbe `vectra_contracts.outcome._internal` a todo `vectra_case` con una única excepción, `vectra_case.views`. Una tarea de U0 publicará una vía pública de lectura de `CaseDetail`; entonces se retiran el import, la excepción y esas pruebas.
 
 ## Cobertura (NFR-U8-50, 52)
 

@@ -24,17 +24,12 @@ from vectra_contracts.models.application import (
 )
 from vectra_contracts.models.base import validate_nested
 from vectra_contracts.outcome import Recommendation
-from vectra_contracts.outcome._internal import CONSTRUCTION_TOKEN
 
 SHOWS_RESULT: Final = frozenset({CaseState.LISTO, CaseState.DECIDIDO})
 SHOWS_FAILURE: Final = frozenset({CaseState.EN_SINCRONIZACION, CaseState.NO_DISPONIBLE})
 # `cases.application` guarda estos dos campos para el monitoreo (FR-ING-05); `ApplicationView` no los tiene.
 MONITORING_ONLY: Final = ("sex", "socioeconomic_stratum")
 DOC_SUFFIX: Final = 4
-# HALLAZGO sobre U0 (no se corrige aqui): `CaseDetail.recommendation` es una `Recommendation`, cuyo validador exige el token privado
-# del paquete `outcome` aun cuando el valor ya es una instancia valida; sin el contexto no hay forma publica de construir un `CaseDetail`
-# con recomendacion. Se pasa el token solo a la validacion de `CaseDetail`; el cierre es una tarea de U0 (ver bitacora).
-_CONTEXT: Final = {"token": CONSTRUCTION_TOKEN}
 
 
 @dataclass(frozen=True)
@@ -104,7 +99,13 @@ def case_detail(row: CaseRow) -> CaseDetail:
         "attempts": row.attempts,
         "last_cause": row.last_cause if row.state in SHOWS_FAILURE else None,
     }
-    return CaseDetail.model_validate(fields, context=_CONTEXT)
+    # RODEO TEMPORAL (hallazgo F-01 de la ronda 1; U0 no se toca aqui): `CaseDetail.recommendation` es una `Recommendation`, cuyo
+    # validador exige el token privado de `outcome` aun con una instancia ya valida. El token se importa DENTRO de la funcion y
+    # solo vive en esta llamada: ningun nombre del modulo lo contiene. `.importlinter` prohibe `vectra_contracts.outcome._internal`
+    # a todo `vectra_case` salvo a este modulo. Una tarea de U0 publicara una via publica de lectura y retirara esta excepcion.
+    from vectra_contracts.outcome._internal import CONSTRUCTION_TOKEN
+
+    return CaseDetail.model_validate(fields, context={"token": CONSTRUCTION_TOKEN})
 
 
 def persistent_failure(row: CaseRow) -> PersistentFailure:
