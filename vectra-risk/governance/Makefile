@@ -2,7 +2,7 @@
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 UV := cd $(ROOT) && uv run
 
-.PHONY: lint test rules image-validation check
+.PHONY: lint test rules image image-validation check
 
 lint:
 	$(UV) ruff check governance
@@ -20,6 +20,11 @@ PROMTOOL := $(firstword $(shell command -v promtool) $(wildcard $(ROOT)/platform
 rules:
 	@if [ -z "$(PROMTOOL)" ]; then echo "promtool no disponible: se omite (lo corre el CI)"; else \
 	  cd $(ROOT) && $(PROMTOOL) check rules governance/observability/*.yaml && $(PROMTOOL) test rules governance/observability/tests/*.yaml; fi
+
+# Imagen local de `governance-service` (Paso 16, agregado por el usuario). Contexto: la raiz de vectra-risk/. El `docker push` a `kind-registry` y el
+# digest real los hace el operador en U04-T07 (AUTONOMIA-01).
+image:
+	cd $(ROOT) && docker build -t localhost:5001/vectra/governance:dev -f governance/Dockerfile .
 
 # Imagen local del `model-validation-job` (Paso 13). Contexto: la raiz de vectra-risk/. El `docker push` a `kind-registry` y el digest real
 # los hace el operador en U04-T07 (AUTONOMIA-01).
