@@ -4,3 +4,12 @@ kserve:
   controller:
     # v0.21 lo llama `Standard` y acepta este nombre como obsoleto (pkg/constants: LegacyRawDeployment).
     deploymentMode: RawDeployment
+  # U01-T08 (F46): el storage initializer lee `s3://model-store` con el Secret `minio-kserve` (claves AWS_*, ver
+  # platform/data/chart/values.yaml). El chart kserve-resources v0.21.0 genera `credentials.s3` de `inferenceservice-config`
+  # desde `kserve.storage.s3.*` (files/common/configmap-patch.yaml). MinIO no tiene TLS propio en ningun entorno: el cifrado
+  # en transito es el mTLS de Linkerd, el mismo endpoint que usan Loki y Tempo.
+  storage:
+    s3:
+      endpoint: minio.vectra-data.svc:9000
+      useHttps: "0"
+      verifySSL: "false"
