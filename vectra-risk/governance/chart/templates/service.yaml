@@ -1,0 +1,147 @@
+{{- /* Deployment governance-service, Service, HPA y PDB (Paso 16; INF-U4-01; NFR-U4-03; F41, F47, F60). Sin digest no se renderiza. */ -}}
+{{- $digest := required "image.digest es obligatorio: sin digest no se renderiza" .Values.image.digest -}}
+{{- $repository := include "governance.repository" (list . "governance" .Values.image.repository) -}}
+{{- $validation := include "governance.repository" (list . "model-validation-job" .Values.validation.image.repository) -}}
+{{- $db := .Values.database -}}
+{{- $svc := .Values.service -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: governance-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: governance-service
+    app.kubernetes.io/part-of: governance
+    vectra.io/criticality: {{ $svc.criticality }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: {{ $svc.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: governance-service
+        app.kubernetes.io/part-of: governance
+    spec:
+      serviceAccountName: governance-service
+      priorityClassName: {{ $svc.priorityClassName }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: governance-service
+      containers:
+        - name: governance-service
+          image: {{ printf "%s@%s" $repository $digest | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [python, -m, vectra_governance.service]
+          ports:
+            - { name: http, containerPort: {{ $svc.port }} }
+            - { name: metrics, containerPort: {{ $svc.metricsPort }} }
+          env:
+            # Un solo rol (`gov_app`): sin credenciales en la URL; libpq lee PGUSER y PGPASSWORD del Secret de U1 (`pg-role-gov-app`).
+            - name: GOVERNANCE_DATABASE_DSN
+              value: {{ printf "postgresql://%s/%s?sslmode=%s" $db.host $db.name $db.sslmode | quote }}
+            - name: PGUSER
+              valueFrom: { secretKeyRef: { name: {{ $db.secrets.app | quote }}, key: username } }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: {{ $db.secrets.app | quote }}, key: password } }
+            # Model-store (F47): `minio-governance` (`governance-readonly`), de U1.
+            - { name: GOVERNANCE_S3_ENDPOINT, value: {{ .Values.modelStore.endpoint | quote }} }
+            - name: GOVERNANCE_S3_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: {{ .Values.modelStore.secretName | quote }}, key: accessKey } }
+            - name: GOVERNANCE_S3_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: {{ .Values.modelStore.secretName | quote }}, key: secretKey } }
+            # Lo que el servicio entrega al model-validation-job (`ApiConfig` y `JobSpec`): imagen, dataset, informe, S3 y token.
+            - { name: GOVERNANCE_VALIDATION_IMAGE, value: {{ printf "%s@%s" $validation .Values.validation.image.digest | quote }} }
+            - { name: GOVERNANCE_VALIDATION_DATASET, value: {{ .Values.validation.datasetRef | quote }} }
+            - { name: GOVERNANCE_CALLBACK_URL, value: {{ .Values.validation.callbackUrl | quote }} }
+            - { name: GOVERNANCE_JOB_S3_ENDPOINT, value: {{ .Values.validation.s3Endpoint | quote }} }
+            - { name: GOVERNANCE_JOB_TOKEN_URL, value: {{ .Values.keycloak.tokenUrl | quote }} }
+            # Variables de U0 (F50): sin ellas `create_app` no arranca. La CA de Keycloak se monta del ConfigMap de U1 (Bundle de trust-manager).
+            - { name: VECTRA_OIDC_ISSUER, value: {{ .Values.keycloak.issuer | quote }} }
+            - { name: VECTRA_JWKS_URL, value: {{ .Values.keycloak.jwksUrl | quote }} }
+            - { name: VECTRA_CA_BUNDLE, value: /etc/vectra/ca/ca.crt }
+          startupProbe:
+            httpGet: { path: /healthz, port: metrics }
+            periodSeconds: 2
+            failureThreshold: 30
+          # Liveness no depende de la base; readiness = copia de `serving-config` cargada (NFR-U4-03): con la base caida siguen las lecturas.
+          livenessProbe:
+            httpGet: { path: /healthz, port: metrics }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /readyz, port: metrics }
+            periodSeconds: 5
+            failureThreshold: 2
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: keycloak-ca, mountPath: /etc/vectra/ca, readOnly: true }
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+      volumes:
+        - name: keycloak-ca
+          configMap: { name: {{ .Values.keycloak.caConfigMap | quote }}, items: [{ key: ca.crt, path: ca.crt }] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: governance-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: governance-service
+    app.kubernetes.io/part-of: governance
+spec:
+  selector:
+    app.kubernetes.io/name: governance-service
+  ports:
+    - { name: http, port: {{ $svc.port }}, targetPort: http }
+    - { name: metrics, port: {{ $svc.metricsPort }}, targetPort: metrics }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: governance-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: governance-service
+    app.kubernetes.io/part-of: governance
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: governance-service }
+  minReplicas: {{ $svc.hpa.minReplicas }}
+  maxReplicas: {{ $svc.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: {{ $svc.hpa.cpuUtilization }} }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: governance-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: governance-service
+    app.kubernetes.io/part-of: governance
+spec:
+  minAvailable: {{ $svc.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: governance-service
