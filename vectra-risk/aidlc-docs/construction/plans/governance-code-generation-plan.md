@@ -234,7 +234,7 @@ vectra-risk/governance/
 
 ### Bloque H — Verificación en kind (con aprobación humana)
 
-- [ ] **Paso 20 — Puerta de aprobación, instalación y escenarios en kind**
+- [ ] **Paso 20 — Puerta de aprobación, instalación y escenarios en kind** (U04-T07, acotado a la demo: **guía lista, pendiente del operador**; `governance/docs/paso-20-kind.md`, scripts en `governance/docs/kind/` y plantillas en `evidence/kind/`; pasa a `[x]` cuando el operador adjunte la evidencia. Entran el arranque P-7 y los escenarios 2, 3, 4 y 7 —el 7 solo hasta `serving-config`, pendiente de U7 Paso 18—; se difieren el 1, 5, 6, 8 y 9)
   - **Requisito previo**: un PR con los Pasos 1–19 aprobado por un humano, sobre U1–U3 instalados en kind.
   - El operador sincroniza la wave 5 y ejecuta, con evidencia:
     1. la prueba de carga k6;
@@ -251,11 +251,11 @@ vectra-risk/governance/
 
 ### Bloque I — Cierre
 
-- [ ] **Paso 21 — Frontend: N/A**
+- [x] **Paso 21 — Frontend: N/A** (U04-T07: `test ! -d governance/frontend`)
   - Las pantallas de governance son de U10 (SPA) vía el BFF.
   - **Aceptación**: `test ! -d governance/frontend`.
 
-- [ ] **Paso 22 — Cierre de la unidad**
+- [x] **Paso 22 — Cierre de la unidad** (U04-T07, acotado a la demo: `evidence/cierre-demo.md`)
   - **Aceptación**: `make -C governance check`, que corre en orden las verificaciones estáticas y de integración (Testcontainers) de los Pasos 2–19 y termina en 0. Las de kind (Paso 20) se revisan como evidencia en el PR.
 
 ---

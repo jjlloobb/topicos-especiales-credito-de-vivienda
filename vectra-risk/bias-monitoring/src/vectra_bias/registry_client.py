@@ -20,11 +20,24 @@ from vectra_contracts.models.monitoring import (
     MonitoringRangeRequest,
     MonitoringWindow,
 )
+from vectra_contracts.routes import REGISTRY
 
 from vectra_bias import config
 
-FREEZES_PATH: Final = "/v1/monitoring/freezes"
-QUERY_PATH: Final = "/v1/monitoring/daily:query"
+REGISTRY_SERVICE: Final = "decision-registry-service"
+
+
+def route_path(service: str, method: str, tail: str) -> str:
+    """La ruta del contrato de `service` (`REGISTRY` de U0) con ese metodo y que termina en `tail`. Falla si no hay exactamente una:
+    ningun modulo de U9 escribe una ruta del contrato como literal."""
+    found = [r.path for r in REGISTRY[service] if r.method == method and r.path.endswith(tail)]
+    if len(found) != 1:
+        raise LookupError(f"{service} {method} ...{tail}: {len(found)} rutas en el contrato")
+    return found[0]
+
+
+FREEZES_PATH: Final = route_path(REGISTRY_SERVICE, "GET", "/freezes")
+QUERY_PATH: Final = route_path(REGISTRY_SERVICE, "POST", ":query")
 MAX_RANGES_PER_QUERY: Final = 12  # `MonitoringQuery.ranges` (U0 §9.4): con 4 por version caben 3 versiones
 _FREEZES = TypeAdapter(list[FreezeRecord])
 _JSON: Final = {"content-type": "application/json", "accept": "application/json"}

@@ -4,9 +4,10 @@
 **Historias que implementa:** ninguna nueva. Empaqueta, despliega por GitOps y mide lo que implementan los Pasos 1 a 13.
 **Depende de:**
 - U07-T03 (servicios), fusionado en `main`;
+- **U04-T09** (la política activa en `serving-config`, decisión del usuario del 2026-11-10), fusionado en `main`. Sin esa tarea, `scoring.app.main` termina con `policy_source_undefined` y el contenedor de scoring no arranca;
 - U06-T03 (presupuesto de kind con U6, `BUDGET_GIB` = 8,5) y U04-T06 (chart de governance, que vuelve a subir `BUDGET_GIB`), fusionados en `main`: la cifra de partida del presupuesto es la que dejen.
 
-**Se despacha** cuando U07-T03, U06-T03 y U04-T06 estén fusionados en `main`.
+**Se despacha** cuando U07-T03, U04-T09, U06-T03 y U04-T06 estén fusionados en `main`.
 **Rama:** `tarea/U07-T04`, desde `origin/main`.
 
 Bloque E del plan de U7 (`aidlc-docs/construction/plans/scoring-explainability-code-generation-plan.md`) más el cierre, tarea «E+cierre (14, 15, 17, 19, 20)» de `demo-recorte-funcional.md` §8. La verificación en kind (Paso 18) se consolida en U12 (enmienda §8). La enmienda rige donde difiera del alcance (`demo-kind-alcance.md`):

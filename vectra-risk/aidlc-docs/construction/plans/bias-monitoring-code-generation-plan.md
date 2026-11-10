@@ -177,7 +177,7 @@ vectra-risk/bias-monitoring/
 
 ### Bloque D — Servicio HTTP
 
-- [ ] **Paso 9 — `dashboard`, `freezes`, `compare` y la app**
+- [x] **Paso 9 — `dashboard`, `freezes`, `compare` y la app** (U09-T03)
   - `create_app` de U0 con:
     - `GET /v1/disparity` y `GET /v1/freezes` (`cumplimiento` y `cro`);
     - `GET /v1/freezes/{id}` (solo `cumplimiento`);
@@ -206,7 +206,7 @@ vectra-risk/bias-monitoring/
     - PBT-U0-07 en modo strict sobre los dos eventos de log;
     - registro caído → 503 sin datos parciales y circuito abierto tras 20 llamadas.
 
-- [ ] **Paso 10 — Resumen del CronJob y del servicio**
+- [x] **Paso 10 — Resumen del CronJob y del servicio** (U09-T03; `mutmut` diferido por la demo (T3))
   - Cobertura de ramas **100 %** en `freeze_rule`, `context` y `window`, y ≥ 95 % en el resto; `mutmut` en `freeze_rule`; PBT-U9-01..08 con el perfil `ci`.
   - Resumen en `aidlc-docs/construction/bias-monitoring/code/services.md`.
   - Diseño: NFR-U9-50, 51, 52.
