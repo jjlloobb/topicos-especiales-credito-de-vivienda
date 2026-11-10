@@ -5,10 +5,10 @@
 **Depende de:**
 - U06-T02 (PR #104, en `main`);
 - **U01-T08** (credencial S3 de KServe): sin ella ningún predictor llega a Ready;
-- **la decisión del usuario sobre el presupuesto de memoria de kind** (ver «Presupuesto»), registrada en `DECISIONES-LOOP.md` antes del despacho;
+- la decisión del usuario sobre el presupuesto de memoria de kind: **opción (c)**, registrada en `DECISIONES-LOOP.md` §7;
 - para la parte del operador: U1–U4 instalados en kind (U04-T07 hace el arranque de la política y del modelo de referencia, P-7) y U04-T05b (`promotion-tool`).
 
-**Se despacha** cuando U01-T08 esté fusionada y el usuario haya decidido el presupuesto. La parte del operador sigue la ruta crítica (RL-5).
+**Se despacha** cuando U01-T08 esté fusionada. La parte del operador sigue la ruta crítica (RL-5).
 **Rama:** `tarea/U06-T03`, desde `origin/main`.
 
 Bloques E y F del plan de U6, fusionados como «E+F (11–13)» (`demo-recorte-funcional.md` §4):
@@ -41,7 +41,7 @@ Más 0,27 GiB del predictor de staging. Además, `platform/tests/test_kind_profi
 
 Esta tarea:
 1. **Amplía `requested_gib()`** de `test_kind_profile.py` para contar los `InferenceService` declarados en los values de kind de `model-serving` (réplicas mínimas por componente × requests + proxy), con su prueba (U1, autorizado por esta tarea).
-2. **Aplica la decisión del usuario** registrada en `DECISIONES-LOOP.md` (subir `BUDGET_GIB` a la cifra decidida, o reducir el perfil en kind según DD-3 a). Si la decisión no está registrada, **detente y repórtalo**: no la tomes tú.
+2. **Aplica la decisión del usuario** de `DECISIONES-LOOP.md` §7 (opción c, 2026-11-09): en los values de kind de `model-serving` (no en `chart/values.yaml`, que rige staging y prod), los requests de memoria de predictor y explicador bajan a **256 MiB por pod**, sin tocar réplicas, HPA ni PDB; una regla de conftest o prueba confirma que staging y prod siguen en los valores de INF-U6-01. Después sube `BUDGET_GIB` a la cifra que dé `requested_gib()` con U6 incluida (en el peor momento que el perfil de kind declare), redondeada hacia arriba a 0,1 GiB, con el comentario de la decisión. Si con 256 MiB la cifra pasa de ≈ 8,5 GiB, **detente y repórtalo**.
 
 ### Guía del operador (Paso 11)
 
@@ -86,7 +86,7 @@ Lo repetible va en `model-serving/docs/kind/`, sin credenciales en el código. `
 
 Desde `vectra-risk/`. Ninguno toca el clúster.
 
-- [ ] **CA-1** — Presupuesto: `uv run pytest platform/tests/test_kind_profile.py -v` en verde, con un caso que demuestra que los `InferenceService` de kind se cuentan (rojo primero: un `InferenceService` en los values de kind no cambiaba `requested_gib()`), y `BUDGET_GIB` o el perfil según la decisión registrada.
+- [ ] **CA-1** — Presupuesto: `uv run pytest platform/tests/test_kind_profile.py -v` en verde, con un caso que demuestra que los `InferenceService` de kind se cuentan (rojo primero: un `InferenceService` en los values de kind no cambiaba `requested_gib()`); los values de kind de U6 piden 256 MiB por pod y staging y prod siguen en INF-U6-01 (prueba); `BUDGET_GIB` en la cifra medida (§7 de `DECISIONES-LOOP.md`).
 - [ ] **CA-2** — Guía: `test -s model-serving/docs/paso-11-kind.md`, con comando, salida esperada y ruta de evidencia para los escenarios 1, 2 y 3 y la memoria.
 - [ ] **CA-3** — Scripts: `shellcheck model-serving/docs/kind/*.sh` en 0, su prueba en 0 y `! grep -rnE "kubectl apply|helm (install|upgrade)|argocd app sync" model-serving/docs/kind/`.
 - [ ] **CA-4** — N/A: `test ! -d model-serving/migrations && test ! -d model-serving/frontend`.
