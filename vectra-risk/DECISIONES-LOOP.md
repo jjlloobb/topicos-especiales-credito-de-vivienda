@@ -84,3 +84,7 @@ El revisor de U06-T02 midió que, con 512 MiB por pod de serving, U6 sube lo ped
 - staging y prod no cambian; el escenario de memoria de U06-T03 comprueba en kind que 256 MiB bastan para el modelo de referencia.
 
 Descartadas: (a) solo subir `BUDGET_GIB` (con U7–U12 el pico ≈ 13 GiB no cabe) y (b) DD-3 a con 1 réplica (choca con `require-hpa-bounds` y rompe el escenario 2). Lo aplica U06-T03.
+
+## 8. Verificación en kind consolidada en U12 (2026-11-10)
+
+El usuario preguntó por cuarta vez si se podía trabajar solo en lo necesario para la demo. Aceptó la recomendación: quitar los bloques de verificación en kind de U3, U7, U8, U9, U10 y U11, pasar su cierre a la última tarea de código y hacer la verificación una sola vez en U12 Paso 18, con los ensayos de las cuatro demos. U4 y U6 conservan sus guías de kind (arranque de la política y del modelo, P-7). Pasa de ≈ 33 a ≈ 27 tareas pendientes. Las revisiones por tarea se mantienen. Detalle en `aidlc-docs/construction/plans/demo-recorte-funcional.md` §8.

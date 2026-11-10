@@ -416,3 +416,29 @@ Notas:
 ## 7. Tareas en curso al aprobar la enmienda
 
 - **U03-T04** (Pasos 11 y 12 de U3) ya tenía implementados `verify`, `archive`, `worm` y las políticas HCL cuando se aprobó la enmienda. Ese código se queda, porque ya está probado y quitarlo cuesta más que conservarlo; P-6 rige para el trabajo nuevo. `checkpoint` se difiere con el Paso 11 (§3, U3). La decisión de diseño sobre su firma (opción A: firmar el `recorded_at` de la entrada cubierta, usuario, 2026-11-09) queda registrada en `CANDIDATAS.md` para el cierre completo.
+
+## 8. Enmienda del 2026-11-10: verificación en kind consolidada en U12
+
+**Aprobada por el usuario el 2026-11-10** (cuarta vez que pregunta si se puede trabajar solo en lo necesario; aceptó la recomendación del orquestador). No cambia el código de ninguna demo ni las PBT.
+
+**Regla.** Los bloques de «verificación en kind» por unidad se quitan para U3, U7, U8, U9, U10 y U11:
+- el paso de kind de cada una (U3 Paso 18, U7 Paso 18, U8 Paso 24, U9 Paso 16, U10 Paso 22, U11 Paso 16) queda `[ ]` con la nota «consolidado en U12 Paso 18 (enmienda §8)». Sus escenarios que sostienen una demo los cubren los ensayos de las cuatro demos y las secciones de `verify` de U12 (Paso 18, «Primera verificación completa en kind»);
+- el **cierre** de cada unidad (los pasos N/A y «Cierre de la unidad», con su `evidence/cierre-demo.md`) pasa a la **última tarea de código** de la unidad. Para U3, cuyo código ya está en `main`, el cierre es una tarea corta de documentación;
+- **U4 y U6 conservan** sus guías de kind (U04-T07 y U06-T03, ya escritas), porque arrancan la política y el modelo de referencia (P-7) que todas las demos necesitan, y el operador las ejecuta antes de U12.
+
+**Por qué.** Ahorra unas 6 tareas y seis corridas del operador en kind. **Costo aceptado:** un fallo en kind aparece en U12 y cuesta más ubicar su unidad. Las revisiones por tarea no se recortan (los revisores encontraron cuatro defectos que habrían roto el flujo base en kind sin que ninguna prueba fallara).
+
+**Conteo de tareas pendientes al aprobarla** (desde U3 en adelante, con la fusión de §4):
+
+| Unidad | Tareas pendientes | Reparto |
+|---|---|---|
+| U3 | 1 | cierre (documentación) |
+| U4 | 2 | U04-T06 (en curso) y U04-T07 (guía de kind) |
+| U6 | 0 | guía de kind en U06-T03 (#108); la ejecuta el operador |
+| U7 | 4 | A (1–2) · B (3–5, 7) · C+D (8, 10–13) · E+cierre (14, 15, 17, 19, 20) |
+| U8 | 5 | A+B · C · D (9–13) · E+F (14, 15, 17, 18) · G+cierre (19–23, 25, 26) |
+| U9 | 3 | C · D · E+cierre (11, 12, 14, 17, 18) |
+| U10 | 4 | A+B · C+D (5–9) · E (10–16) · F+cierre (17, 18, 21, 23, 24) |
+| U11 | 3 | A+B · C+D · E+cierre (10–13, 15, 17, 18) |
+| U12 | 5 | sin cambio (su Paso 18 es la verificación consolidada) |
+| **Total** | **≈ 27** | antes ≈ 33 |
