@@ -19,7 +19,7 @@ Lo del codificador, sin clúster, desde `vectra-risk/` (la salida de cada comand
 | 14 | Presupuesto de memoria de kind | `uv run pytest platform/tests/test_kind_profile.py` | `6 passed`. `requested_gib()` = 9,2656 GiB con U9 (8,9766 sin ella; suma 2 réplicas × (128 + 20) MiB = 0,2891 GiB); `BUDGET_GIB` 9,0 → 9,3 (`DECISIONES-LOOP.md` §7). Umbral de detención 9,49 GiB: no se pasó |
 | 17 | N/A: sin base de datos, migraciones ni interfaz | `test ! -d bias-monitoring/migrations && test ! -d bias-monitoring/frontend` | 0 |
 | 18 | `make -C bias-monitoring check`: `ruff`, import-linter, pruebas con el perfil `ci`, propiedades (PBT-U9-05 con 500 × 80), cobertura de ramas de la librería (100 %) y de `vectra_bias` (99,92 %; 100 % en `freeze_rule`, `context` y `window`), simulación (7), chart, imagen, admisión y trazabilidad | `make -C bias-monitoring check` | rc 0 en 22 min 55 s (ver «Decisión de P-2») |
-| 18 | `make -C platform check` y el `make check` de todas las unidades (RL-4) | ver la bitácora | PLACEHOLDER-CA11 |
+| 18 | `make -C platform check` y el `make check` de todas las unidades (RL-4) | ver la bitácora | **No cerrado al entregar** (ver la bitácora, «CA-10 y CA-11»): `make -C bias-monitoring check` rc 0 (22 min 55 s); `decision-registry` rc 0 (27 min 34 s) y `contracts` rc 0 (16 min 46 s, tras `npm ci`); `platform` falló una vez por una prueba de U1 que exige registrar la Application en su tabla de waves (corregido, rerun pendiente); `identity-edge` falló por un chart de `platform/.charts` que faltaba en el worktree (se bajó; rerun pendiente); `governance`, `reference-model`, `model-serving` y `scoring-explainability` sin resultado al entregar |
 
 ## Decisiones
 
