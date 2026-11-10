@@ -54,7 +54,7 @@ Marca `[x]` los Pasos 1 y 2 con `(U07-T01)`.
 
 **Fuera** (rechazar aunque se vea roto o tentador):
 
-- La lógica de `policy`, `narrative`, `factuality` y `applicant` (U07-T02; `applicant` está en D).
+- La lógica de `policy`, `narrative`, `factuality` y `applicant` (U07-T02).
 - Clientes, `orchestrator`, endpoints y `create_app` (U07-T03).
 - Chart, Dockerfiles, Application y cierre (U07-T04).
 - Workflows de CI propios (T4).

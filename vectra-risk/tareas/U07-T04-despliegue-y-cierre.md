@@ -19,7 +19,7 @@ Bloque E del plan de U7 (`aidlc-docs/construction/plans/scoring-explainability-c
 | 17 Applications, carga y trazabilidad | **E\*** | Entran la Application (wave 5) y la trazabilidad con la lista de diferidos. Se difiere el script k6 y su `k6 inspect` | Enmienda §3 U7; T3; P-4 |
 | 18 Verificación en kind | — | Queda `[ ]` con «consolidado en U12 Paso 18 (enmienda §8)». Sus escenarios de demo (5, 7 y el humo del flujo base) los cubre U12; el 1–4, 6, 8 y 9 se difieren (P-10) | Enmienda §3 U7 y §8 |
 | 19 Repositorio, migraciones y frontend: N/A | **N/A** | — | — |
-| 20 Cierre de la unidad | **E\*** | Cierre acotado, sin los Pasos 6 y 9 (según P-1) | Enmienda §3 U7 y §8 |
+| 20 Cierre de la unidad | **E\*** | Cierre acotado. Los Pasos 6 y 9 entran (P-1 = (a), decisión del usuario del 2026-11-10) | Enmienda §3 U7, §6 P-1 y §8 |
 
 Rige RL-1 a RL-5 (`demo-kind-alcance.md` §6): máximo 2 rondas, y solo un ROJO bloquea. Para `test_traceability.py --all` rige `DECISIONES-LOOP.md` §6, con su enmienda.
 
@@ -35,7 +35,7 @@ Rige RL-1 a RL-5 (`demo-kind-alcance.md` §6): máximo 2 rondas, y solo un ROJO 
   - base Python oficial con cada `FROM` fijado por digest;
   - usuario `65532:65532`, el mismo `runAsUser`/`runAsGroup` del chart;
   - solo el runtime del servicio y sus dependencias del workspace (U0), sin dependencias de desarrollo;
-  - las plantillas (`template_v1.txt`, y `applicant_v1.txt` solo si P-1 eligió (a)) van dentro de la imagen de explainability;
+  - las plantillas `template_v1.txt` y `applicant_v1.txt` van dentro de la imagen de explainability;
   - arranque con `vectra_common.ops_server.run_service(app)` (8080 y 8081).
 - Targets `image-scoring` e `image-explainability` en `scoring-explainability/Makefile`, con tags `localhost:5001/vectra/scoring-service:dev` y `localhost:5001/vectra/explainability-service:dev`.
 - El push a `kind-registry` y el digest real los hace el operador en la verificación consolidada de U12 Paso 18 (enmienda §8). Deja los comandos (build, push, digest y el PR de values de kind) en `scoring-explainability/docs/imagenes.md`, sin ejecutarlos. Sin firma ni SBOM (T1) y sin workflow nuevo (T4).
@@ -68,12 +68,12 @@ Rige RL-1 a RL-5 (`demo-kind-alcance.md` §6): máximo 2 rondas, y solo un ROJO 
 
 - Entrada `scoring-explainability` en `vectra-risk-gitops/components.yaml`: `wave: 5`, `namespace: vectra-app`, `path: scoring-explainability/chart`, `env_values: true` (como `decision-registry`). `generate.py` escribe una Application por entorno, sin `syncPolicy.automated`. Values en `vectra-risk-gitops/values/<env>/scoring-explainability.yaml`.
 - **Trazabilidad (P-4).** `test_traceability.py --unit scoring-explainability --all` en 0 con la lista «Diferido por la demo» de `aidlc-docs/construction/scoring-explainability/evidence/cierre-demo.md`:
-  - cada fila lleva el identificador, el paso que lo implementaría y la cita del recorte (T1, T2, T3, P-1, §3 o §8 de la enmienda);
-  - solo entran identificadores de partes diferidas: BR-U7-13, BR-U7-14 y NFR-U7-03 (enmienda §3 U7, Paso 17; salen si P-1 eligió (a)), lo del Paso 16 (T2), `mutmut` del Paso 7 (NFR-U7-41, T3), la carga del Paso 17 (T3) y lo que solo verifica el Paso 18 (consolidado en U12, §8);
-  - los identificadores de los Pasos 1 a 15 que entran se trazan en el código o en las pruebas, no en la lista;
+  - cada fila lleva el identificador, el paso que lo implementaría y la cita del recorte (T1, T2, T3, §3 o §8 de la enmienda);
+  - solo entran identificadores de partes diferidas: lo del Paso 16 (T2), `mutmut` del Paso 7 (NFR-U7-41, T3), la carga del Paso 17 (T3) y lo que solo verifica el Paso 18 (consolidado en U12, §8);
+  - los identificadores de los Pasos 1 a 15 que entran se trazan en el código o en las pruebas, no en la lista. Eso incluye **todos** los de los Pasos 6 y 9 (BR-U7-13, BR-U7-14, NFR-U7-03 y P-U7-03): la tabla de la enmienda (§3 U7, Paso 17) ponía BR-U7-13, BR-U7-14 y NFR-U7-03 en la lista, pero P-1 = (a) los hace entrar y ninguno puede estar en ella. NFR-U7-03 se traza en el handler o en `test_applicant_summaries.py` (Paso 9); su medición de p95 con carga se difiere con k6 (T3) y se anota en «Comprobado / no comprobado» de `cierre-demo.md`, no como fila de la lista;
   - el codificador corre primero la prueba, registra qué identificadores marca y justifica cada uno.
 - `test_traceability.py` no ve las BR-U7 (están en párrafos en negrita; candidata de U03-T02). Por eso hay un `git grep` por BR (CA-6), como en U3.
-- Diseño: P-U1-12; NFR-U7-01, 02, 03 (los tres se difieren con k6).
+- Diseño: P-U1-12; NFR-U7-01, 02, 03. La medición de carga de los tres se difiere con k6 (T3); NFR-U7-03 queda trazado por el Paso 9.
 
 ### Paso 18 — Consolidado en U12
 
@@ -88,7 +88,7 @@ Rige RL-1 a RL-5 (`demo-kind-alcance.md` §6): máximo 2 rondas, y solo un ROJO 
 - `make -C scoring-explainability check` corre en orden las verificaciones estáticas, las propiedades y las pruebas de integración de los Pasos 1 a 17 que entran, y termina en 0.
 - `aidlc-docs/construction/scoring-explainability/evidence/cierre-demo.md` completo, con el formato de `aidlc-docs/construction/reference-model/evidence/cierre-demo.md`:
   - **Comprobado:** cada paso que entra, con su comando y su resultado;
-  - **Diferido por la demo:** la lista de P-4, más los Pasos 6 y 9 (según P-1), el 16 (T2), `mutmut` (T3), k6 (T3), firma y SBOM (T1), y los escenarios 1–4, 6, 8 y 9 del Paso 18 (P-10), cada uno con su destino;
+  - **Diferido por la demo:** la lista de P-4, más el Paso 16 (T2), `mutmut` (T3), k6 (T3), firma y SBOM (T1), y los escenarios 1–4, 6, 8 y 9 del Paso 18 (P-10), cada uno con su destino;
   - **Pendiente en U12:** los escenarios 5 (promoción → 0 `version_mismatch`), 7 (freeze → `model_frozen` ≤ 6 s) y el humo del flujo base, más el push de las imágenes, que verifica U12 Paso 18 (enmienda §8).
 - RL-4: al cerrar la unidad, el `make check` de todas las unidades corre una vez (CA-10).
 
@@ -113,7 +113,7 @@ Rige RL-1 a RL-5 (`demo-kind-alcance.md` §6): máximo 2 rondas, y solo un ROJO 
 ## Archivos de contexto
 
 - `aidlc-docs/construction/plans/scoring-explainability-code-generation-plan.md`: §1, Pasos 14 a 20, §3 y «Reglas de admisión».
-- `aidlc-docs/construction/plans/demo-recorte-funcional.md`: §2, §3 U7, §5.3 (T6 frente a la admisión), §6 (P-1, P-4, P-10) y §8.
+- `aidlc-docs/construction/plans/demo-recorte-funcional.md`: §2, §3 U7, §5.3 (T6 frente a la admisión), §6 (P-1, decidida el 2026-11-10: opción (a); P-4, P-10) y §8.
 - `aidlc-docs/construction/plans/demo-kind-alcance.md`: §2 (T1 a T6), §5 (DD-3) y §6.
 - `DECISIONES-LOOP.md` §6 y §7.
 - `aidlc-docs/construction/scoring-explainability/infrastructure-design/` (INF-U7-01 a 05, `deployment-architecture.md` §3) y `nfr-design/nfr-design-patterns.md` (P-U7-06, 07).
@@ -136,10 +136,10 @@ Desde `vectra-risk/`, con las herramientas de `platform/install-tools.sh`. Ningu
   platform/.tools/bin/hadolint scoring-explainability/*/Dockerfile
   make -C scoring-explainability image-scoring image-explainability
   for s in scoring-service explainability-service; do docker image inspect localhost:5001/vectra/$s:dev --format '{{.Config.User}}'; docker run --rm --entrypoint sh localhost:5001/vectra/$s:dev -c '! pip list 2>/dev/null | grep -iE "^(openai|anthropic|langchain[a-z-]*|pybreaker|circuitbreaker|aiobreaker|purgatory[a-z-]*|pytest|hypothesis) " && echo OK'; done
-  docker run --rm --entrypoint sh localhost:5001/vectra/explainability-service:dev -c 'find / -name template_v1.txt 2>/dev/null | grep -q . && echo OK-plantilla'
+  docker run --rm --entrypoint sh localhost:5001/vectra/explainability-service:dev -c 'for p in template_v1.txt applicant_v1.txt; do find / -name $p 2>/dev/null | grep -q . || exit 1; done && echo OK-plantillas'
   grep -nE '^FROM .*@sha256:[0-9a-f]{64}' scoring-explainability/*/Dockerfile
   ```
-  Esperado: `hadolint` en 0, usuario `65532:65532` y `OK` en las dos, `OK-plantilla`, y cada `FROM` por digest. Si `hadolint` no está en `platform/.tools/bin` del worktree, usa el del checkout principal tras comparar la versión con `tools.env`.
+  Esperado: `hadolint` en 0, usuario `65532:65532` y `OK` en las dos, `OK-plantillas`, y cada `FROM` por digest. Si `hadolint` no está en `platform/.tools/bin` del worktree, usa el del checkout principal tras comparar la versión con `tools.env`.
 
 - [ ] **CA-2** — Paso 15: render, esquema y `conftest` del chart.
   ```bash
@@ -177,10 +177,10 @@ Desde `vectra-risk/`, con las herramientas de `platform/install-tools.sh`. Ningu
 - [ ] **CA-6** — Paso 17: trazabilidad (P-4).
   ```bash
   uv run python platform/tests/test_traceability.py --unit scoring-explainability --all \
-    && for n in 01 02 03 04 05 06 07 08 09 10 11 12 15 16; do git grep -qiE "BR-U7-$n([^0-9]|$)" -- scoring-explainability/tests || echo "BR-U7-$n sin prueba"; done
+    && for n in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16; do git grep -qiE "BR-U7-$n([^0-9]|$)" -- scoring-explainability/tests || echo "BR-U7-$n sin prueba"; done
   grep -n "Diferido por la demo" -A40 aidlc-docs/construction/scoring-explainability/evidence/cierre-demo.md
   ```
-  Esperado: código 0 y ninguna línea «sin prueba». Si P-1 eligió (a), el bucle incluye también 13 y 14. `--all` cumple la regla de `DECISIONES-LOOP.md` §6 con su enmienda. La lista no contiene identificadores de los Pasos 1 a 15 que entran.
+  Esperado: código 0 y ninguna línea «sin prueba». `--all` cumple la regla de `DECISIONES-LOOP.md` §6 con su enmienda. La lista no contiene identificadores de los Pasos 1 a 15 que entran.
 
 - [ ] **CA-7** — Presupuesto de kind.
   ```bash
@@ -238,7 +238,7 @@ Desde `vectra-risk/`, con las herramientas de `platform/install-tools.sh`. Ningu
 ## Notas
 
 - **Presupuesto de kind:** ver la sección del Alcance. Registra en la bitácora la cifra con y sin U7, y el desglose por unidad.
-- **P-1:** la plantilla `applicant_v1.txt`, BR-U7-13, BR-U7-14 y NFR-U7-03 dependen de lo que decidió el usuario para U07-T03. Si P-1 sigue abierta al despachar esta tarea, **detente y repórtalo**.
+- **P-1:** decisión del usuario del 2026-11-10: opción (a) (enmienda §6 P-1). `/v1/applicant-summaries` y `applicant` ya están en `main` (U07-T03 y U07-T02); la plantilla `applicant_v1.txt` va en la imagen y BR-U7-13 y 14 se trazan a pruebas.
 - Archivos que se modifican en su sitio: `scoring-explainability/` (Dockerfiles, `chart/`, `policies/`, `tests/`, `Makefile`), `vectra-risk-gitops/components.yaml` y lo generado, `vectra-risk-gitops/values/<env>/scoring-explainability.yaml`, `platform/tests/test_kind_profile.py` (solo `BUDGET_GIB`), el plan y `CANDIDATAS.md`. Archivos nuevos: `scoring-explainability/docs/imagenes.md` y `aidlc-docs/construction/scoring-explainability/evidence/cierre-demo.md`.
 - **Otros codificadores en paralelo:** no toques directorios de otras unidades.
 - Docker está disponible para construir las imágenes.
