@@ -53,7 +53,7 @@ vectra-risk/scoring-explainability/
 
 ### Bloque A — Estructura y configuración
 
-- [ ] **Paso 1 — Esqueleto de `scoring-explainability/`**
+- [x] **Paso 1 — Esqueleto de `scoring-explainability/`** (U07-T01)
   - Directorios de §1; `pyproject.toml` (dos miembros del workspace) que dependen de `vectra_contracts` y `vectra_common`.
   - Contratos de import-linter:
     - `factuality` no importa `narrative` (BR-U7-11);
@@ -63,7 +63,7 @@ vectra-risk/scoring-explainability/
   - Diseño: BR-U7-02, 11; NFR-U7-30, 32, 43; P-U7-07.
   - **Aceptación**: `uv sync --frozen && uv run lint-imports --config scoring-explainability/.importlinter && make -C scoring-explainability check` sobre el esqueleto; `uv run pytest scoring-explainability/tests/unit/test_no_core_client.py`.
 
-- [ ] **Paso 2 — Presupuestos como constantes**
+- [x] **Paso 2 — Presupuestos como constantes** (U07-T01)
   - `scoring/config.py` y `explainability/config.py`:
     - presupuesto previo al registro (700 ms);
     - timeouts por llamada de NFR-U7-10;
