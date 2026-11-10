@@ -102,7 +102,8 @@ def test_the_chart_renders_the_service_account_and_the_external_secret_in_vectra
     assert secret["spec"]["data"] == [
         {"secretKey": "private-key", "remoteRef": {"key": "identity/clients/model-validation-job", "property": "private-key"}}
     ]
-    assert [d for (kind, _), d in docs.items() if kind == "ExternalSecret"] == [secret]  # el unico ExternalSecret del chart
+    # Los unicos ExternalSecret del chart: el de este Job y, desde U04-T08, el de la identidad del propio governance-service.
+    assert sorted(name for (kind, name) in docs if kind == "ExternalSecret") == sorted([CLIENT_SECRET, "governance-service-client"])
 
 
 # --- F-03 (ronda 2): la CA interna para pedir el token por https (VECTRA_CA_BUNDLE, deps._verify_context) -----------------------

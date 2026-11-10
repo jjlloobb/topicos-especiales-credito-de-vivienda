@@ -586,6 +586,9 @@ def create_governance_app(deps: ApiDeps, *, authenticator: Authenticator | None 
                 deps.background.stop()
             deps.cache.stop()
             deps.evidence.pools.close()
+            close = getattr(deps.store, "close", None)
+            if close is not None:
+                close()  # el cliente S3 (F47) cierra su pool de conexiones
 
     app.router.lifespan_context = lifespan
     return app

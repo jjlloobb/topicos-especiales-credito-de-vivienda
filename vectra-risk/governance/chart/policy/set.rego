@@ -25,6 +25,7 @@ expected_documents := {
 	["RoleBinding", "governance-validation-jobs", "vectra-staging"],
 	["ServiceAccount", "model-validation-job", "vectra-staging"],
 	["ExternalSecret", "model-validation-job-client", "vectra-staging"],
+	["ExternalSecret", "governance-service-client", "vectra-app"],
 }
 
 actual_documents := [[d.kind, d.metadata.name, object.get(d.metadata, "namespace", "")] | some d in listed]
@@ -60,8 +61,8 @@ deny contains msg if {
 }
 
 # regla: no-plain-secret
-# El chart no crea ningun Secret: las credenciales salen de los Secrets de U1 (`pg-role-gov-*`, `minio-governance`). El unico ExternalSecret es el de la
-# llave del model-validation-job en vectra-staging (U04-T05); el del S3 del banco esta diferido (T5).
+# El chart no crea ningun Secret: las credenciales salen de los Secrets de U1 (`pg-role-gov-*`, `minio-governance`). Los unicos ExternalSecret son el de la
+# llave del model-validation-job en vectra-staging (U04-T05) y el de la llave del propio servicio en vectra-app (U04-T08); el del S3 del banco esta diferido (T5).
 deny contains msg if {
 	some d in listed
 	d.kind == "Secret"
@@ -71,8 +72,8 @@ deny contains msg if {
 deny contains msg if {
 	some d in listed
 	d.kind == "ExternalSecret"
-	not [d.metadata.name, d.metadata.namespace] == ["model-validation-job-client", "vectra-staging"]
-	msg := sprintf("no-plain-secret: el ExternalSecret %s no va en el chart (solo el del model-validation-job)", [d.metadata.name])
+	not [d.metadata.name, d.metadata.namespace] in {["model-validation-job-client", "vectra-staging"], ["governance-service-client", "vectra-app"]}
+	msg := sprintf("no-plain-secret: el ExternalSecret %s no va en el chart (solo el del model-validation-job y el del governance-service)", [d.metadata.name])
 }
 
 # regla: servicemonitor-port

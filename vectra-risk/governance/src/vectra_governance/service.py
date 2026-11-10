@@ -10,14 +10,13 @@ el mensaje la nombra.
 | `GOVERNANCE_S3_ENDPOINT`, `_ACCESS_KEY`, `_SECRET_KEY` | model-store (F47), credencial `minio-governance`                     |
 | `GOVERNANCE_VALIDATION_IMAGE`, `_DATASET`         | imagen y dataset del `model-validation-job`                              |
 | `GOVERNANCE_CALLBACK_URL`                         | a donde el Job devuelve el informe (F32)                                 |
-| `GOVERNANCE_JOB_S3_ENDPOINT`, `GOVERNANCE_JOB_TOKEN_URL` | endpoint S3 y URL del token que recibe el Job; el token URL es tambien el del servicio |
+| `GOVERNANCE_JOB_S3_ENDPOINT`, `GOVERNANCE_JOB_TOKEN_URL` | endpoint S3 y URL del token que recibe el Job |
 | `VECTRA_OIDC_ISSUER`, `VECTRA_JWKS_URL`, `VECTRA_CA_BUNDLE` | validacion de tokens (U0, F50)                                 |
 
-**Opcionales** (el chart de U04-T06 **no** las entrega todavia; se registra como hallazgo de U04-T08): `GOVERNANCE_REGISTRY_URL`
-(F24, por omision el Service de U3), `GOVERNANCE_BIAS_URL` (F25, el de U9), `VECTRA_CLIENT_ID` (`governance-service`),
-`VECTRA_CLIENT_KEY_PATH` (`/var/run/vectra/client/private-key`), `VECTRA_CLIENT_KEY_ID` y `GOVERNANCE_REPLICA` (por omision
-`HOSTNAME`). Sin la llave del cliente el servicio arranca y sirve `serving-config`, pero no puede firmar el token del registro:
-las transiciones quedan `pendiente_registro` (503) y el reconciliador las reintenta (P-U4-03).
+El chart (U04-T08, ronda 2) tambien entrega `GOVERNANCE_REGISTRY_URL` (F24), `GOVERNANCE_BIAS_URL` (F25), `VECTRA_CLIENT_ID`,
+`VECTRA_CLIENT_KEY_PATH` (la llave `private_key_jwt` montada de solo lectura) y `VECTRA_TOKEN_URL` (el token propio; `GOVERNANCE_JOB_TOKEN_URL`
+es solo para el Job). Sin valores por omision. **Opcionales**: `VECTRA_CLIENT_KEY_ID` y `GOVERNANCE_REPLICA` (por omision `HOSTNAME`). Si la llave
+no existe al arrancar, el servicio avisa (`log.warning`), sirve `serving-config` y las transiciones quedan `pendiente_registro` (503; P-U4-03).
 
 El cliente de Kubernetes (K01) es in-cluster: `KUBERNETES_SERVICE_HOST`/`_PORT`, el token del ServiceAccount y su CA, leidos en
 cada llamada. Fuera del cluster (un `docker run`) crear un Job falla con 503, no al arrancar.
@@ -63,22 +62,17 @@ REQUIRED: Final = (
     "GOVERNANCE_CALLBACK_URL",
     "GOVERNANCE_JOB_S3_ENDPOINT",
     "GOVERNANCE_JOB_TOKEN_URL",
-    "VECTRA_OIDC_ISSUER",
-    "VECTRA_JWKS_URL",
-    "VECTRA_CA_BUNDLE",
-)
-#: Variables opcionales que el chart todavia no entrega (ver el docstring del modulo).
-OPTIONAL: Final = (
     "GOVERNANCE_REGISTRY_URL",
     "GOVERNANCE_BIAS_URL",
     "VECTRA_CLIENT_ID",
     "VECTRA_CLIENT_KEY_PATH",
-    "VECTRA_CLIENT_KEY_ID",
-    "GOVERNANCE_REPLICA",
+    "VECTRA_TOKEN_URL",
+    "VECTRA_OIDC_ISSUER",
+    "VECTRA_JWKS_URL",
+    "VECTRA_CA_BUNDLE",
 )
-DEFAULT_REGISTRY_URL: Final = "http://decision-registry-service.vectra-app.svc.cluster.local:8080"
-DEFAULT_BIAS_URL: Final = "http://bias-monitoring-service.vectra-app.svc.cluster.local:8080"
-DEFAULT_CLIENT_KEY_PATH: Final = "/var/run/vectra/client/private-key"
+#: Variables opcionales (el chart no las pone): el id de la llave y el nombre de la replica.
+OPTIONAL: Final = ("VECTRA_CLIENT_KEY_ID", "GOVERNANCE_REPLICA")
 SERVICEACCOUNT: Final = Path("/var/run/secrets/kubernetes.io/serviceaccount")
 REGISTRY_AUDIENCE: Final = "decision-registry-service"
 BIAS_AUDIENCE: Final = "bias-monitoring-service"
@@ -126,12 +120,12 @@ def config_from_env(environ: Mapping[str, str] | None = None) -> ServiceConfig:
             job_s3_endpoint=env["GOVERNANCE_JOB_S3_ENDPOINT"],
             job_token_url=env["GOVERNANCE_JOB_TOKEN_URL"],
         ),
-        registry_url=env.get("GOVERNANCE_REGISTRY_URL") or DEFAULT_REGISTRY_URL,
-        bias_url=env.get("GOVERNANCE_BIAS_URL") or DEFAULT_BIAS_URL,
-        client_id=env.get("VECTRA_CLIENT_ID") or SERVICE,
-        client_key_path=env.get("VECTRA_CLIENT_KEY_PATH") or DEFAULT_CLIENT_KEY_PATH,
+        registry_url=env["GOVERNANCE_REGISTRY_URL"],
+        bias_url=env["GOVERNANCE_BIAS_URL"],
+        client_id=env["VECTRA_CLIENT_ID"],
+        client_key_path=env["VECTRA_CLIENT_KEY_PATH"],
         client_key_id=env.get("VECTRA_CLIENT_KEY_ID") or None,
-        token_url=env["GOVERNANCE_JOB_TOKEN_URL"],
+        token_url=env["VECTRA_TOKEN_URL"],
     )
 
 
@@ -192,6 +186,12 @@ def build_app(
     La validacion de tokens (`authenticator_from_env`) lee `os.environ`; `environ` solo reemplaza al resto de la configuracion."""
     env = os.environ if environ is None else environ
     config = config_from_env(env)
+    if not Path(config.client_key_path).is_file():
+        log.warning(
+            "no existe la llave del cliente %s: el servicio sirve serving-config, pero no puede firmar el token del registro "
+            "(las transiciones quedan pendiente_registro)",
+            config.client_id,
+        )
     if authenticator is None:
         authenticator = authenticator_from_env(SERVICE)  # lee `os.environ` (U0): issuer, JWKS y CA
     make_token = tokens or service_tokens(config)

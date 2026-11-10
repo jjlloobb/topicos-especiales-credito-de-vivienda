@@ -18,6 +18,9 @@ from pathlib import Path
 from typing import Any
 
 import docker
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from evidence_support import policy_draft
 import httpx
 import pytest
 from api_support import FakeModelStore, registration_body
@@ -72,7 +75,7 @@ def published(container: Any, port: int) -> str:
 
 
 def test_ca_1_the_image_starts_with_postgres_minio_and_the_chart_variables(
-    image: str, network: Any, db: Db, minio: Minio, package_dir: Path  # noqa: F811
+    image: str, network: Any, db: Db, minio: Minio, package_dir: Path, tmp_path: Path  # noqa: F811
 ) -> None:
     client = docker.from_env()
     network.connect(db.pg.get_wrapped_container(), aliases=["governance-db"])
@@ -83,16 +86,37 @@ def test_ca_1_the_image_starts_with_postgres_minio_and_the_chart_variables(
     assert registration_body(package_dir, FakeModelStore(), model_id)["manifest_uri"].startswith("s3://model-store/")
 
     jwks = json.dumps(u0_auth.jwks_document())
-    serve_jwks = (
-        "import http.server\n"
+    # Un solo contenedor hace de Keycloak (JWKS y `/token`) y de registro (U3: `POST /v1/entries`, con un ack por llamada).
+    serve_peers = (
+        "import http.server, json, datetime\n"
+        "seq = []\n"
         "class H(http.server.BaseHTTPRequestHandler):\n"
+        "    def reply(self, body):\n"
+        "        data = json.dumps(body).encode()\n"
+        "        self.send_response(200); self.send_header('content-type', 'application/json'); self.send_header('content-length', str(len(data))); self.end_headers(); self.wfile.write(data)\n"
         "    def do_GET(self):\n"
-        "        body = " + repr(jwks) + ".encode()\n"
-        "        self.send_response(200); self.send_header('content-type', 'application/json'); self.end_headers(); self.wfile.write(body)\n"
+        "        self.reply(json.loads(" + repr(jwks) + "))\n"
+        "    def do_POST(self):\n"
+        "        raw = self.rfile.read(int(self.headers['content-length']))\n"
+        "        if self.path == '/token':\n"
+        "            return self.reply({'access_token': 'tok-real', 'expires_in': 300})\n"
+        "        assert self.headers['authorization'] == 'Bearer tok-real'\n"
+        "        seq.append(json.loads(raw))\n"
+        "        self.reply({'registry_entry_id': str(len(seq) - 1), 'seq': len(seq) - 1, 'recorded_at': datetime.datetime.now(datetime.UTC).isoformat()})\n"
         "http.server.HTTPServer(('0.0.0.0', 8000), H).serve_forever()\n"
     )
+    key_dir = tmp_path / "client"
+    key_dir.mkdir()
+    key_dir.chmod(0o755)
+    key_file = key_dir / "private-key"
+    key_file.write_bytes(
+        ec.generate_private_key(ec.SECP256R1()).private_bytes(
+            serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+        )
+    )
+    key_file.chmod(0o444)  # el Deployment monta el Secret con defaultMode 0444
     keycloak = client.containers.run(
-        image, entrypoint=["python", "-c", serve_jwks], detach=True, network=network.name, name=f"{network.name}-jwks"
+        image, entrypoint=["python", "-c", serve_peers], detach=True, network=network.name, name=f"{network.name}-jwks"
     )
     # Las variables del Deployment (`service.yaml`); el DSN y los hosts apuntan a los contenedores de la red.
     env = {
@@ -107,6 +131,11 @@ def test_ca_1_the_image_starts_with_postgres_minio_and_the_chart_variables(
         "GOVERNANCE_CALLBACK_URL": "http://governance-service.vectra-app.svc.cluster.local:8080",
         "GOVERNANCE_JOB_S3_ENDPOINT": "http://minio.vectra-data.svc.cluster.local:9000",
         "GOVERNANCE_JOB_TOKEN_URL": "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token",
+        "GOVERNANCE_REGISTRY_URL": f"http://{keycloak.name}:8000",
+        "GOVERNANCE_BIAS_URL": f"http://{keycloak.name}:8000",
+        "VECTRA_CLIENT_ID": "governance-service",
+        "VECTRA_CLIENT_KEY_PATH": "/var/run/vectra/client/private-key",
+        "VECTRA_TOKEN_URL": f"http://{keycloak.name}:8000/token",
         "VECTRA_OIDC_ISSUER": u0_auth.ISSUER,
         "VECTRA_JWKS_URL": f"http://{keycloak.name}:8000/certs",
         "VECTRA_CA_BUNDLE": "/etc/vectra/ca/ca.crt",
@@ -120,6 +149,7 @@ def test_ca_1_the_image_starts_with_postgres_minio_and_the_chart_variables(
         read_only=True,
         cap_drop=["ALL"],
         security_opt=["no-new-privileges"],
+        volumes={str(key_dir): {"bind": "/var/run/vectra/client", "mode": "ro"}},
         ports={"8080/tcp": None, "8081/tcp": None},
     )
     try:
@@ -133,6 +163,11 @@ def test_ca_1_the_image_starts_with_postgres_minio_and_the_chart_variables(
         config = httpx.get(f"{api}/v1/serving-config", headers=token, timeout=5)
         assert config.status_code == 503 and config.json()["code"] == "dependency_unavailable", config.text
         assert httpx.get(f"{api}/v1/serving-config", timeout=5).status_code == 401
+        # F24: con la llave montada, proponer una politica llega a `confirmada` (token `private_key_jwt` -> registro).
+        cro = u0_auth.bearer(sub="cro-1", roles=["cro"], acr="mfa", auth_time=int(time.time()) - 60, aud="governance-service")
+        proposed = httpx.post(f"{api}/v1/policies", headers=cro, json=policy_draft().model_dump(mode="json"), timeout=15)
+        assert proposed.status_code == 200, proposed.text
+        assert db.query("SELECT status FROM transitions WHERE entity_id = %s", proposed.json()["policy_version_id"]) == [("confirmada",)]
         logs = service.logs().decode()
         assert "Traceback" not in logs and "No module named" not in logs, logs
     finally:

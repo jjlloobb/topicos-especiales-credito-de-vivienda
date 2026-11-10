@@ -22,10 +22,11 @@ def test_the_required_names_are_exactly_the_variables_of_the_rendered_deployment
     assert set(names) - set(REQUIRED) == set(), "el chart pone variables que el codigo no lee"
 
 
-def test_the_optional_variables_are_the_ones_the_chart_does_not_deliver_yet() -> None:
-    """Hallazgo de U04-T08: el chart no entrega la URL del registro (F24), la de bias (F25) ni la llave del cliente `private_key_jwt`."""
+def test_the_optional_variables_are_not_in_the_chart_and_the_peer_and_identity_ones_are_required() -> None:
     assert set(OPTIONAL) & set(chart_env()) == set()
     assert not set(OPTIONAL) & set(REQUIRED)
+    peers = {"GOVERNANCE_REGISTRY_URL", "GOVERNANCE_BIAS_URL", "VECTRA_CLIENT_ID", "VECTRA_CLIENT_KEY_PATH", "VECTRA_TOKEN_URL"}
+    assert peers <= set(REQUIRED) and peers <= set(chart_env())
 
 
 @pytest.mark.parametrize("name", REQUIRED)
@@ -69,22 +70,19 @@ def test_every_variable_reaches_its_field_and_no_secret_leaks_into_the_message()
     assert FULL["PGPASSWORD"] not in str(error.value) and FULL["GOVERNANCE_S3_SECRET_KEY"] not in str(error.value)
 
 
-def test_the_optional_ones_have_defaults_and_can_be_overridden() -> None:
+def test_the_identity_and_peers_come_from_the_environment_without_defaults() -> None:
     config = config_from_env(FULL)
-    assert config.registry_url.startswith("http://decision-registry-service.vectra-app")
-    assert config.bias_url.startswith("http://bias-monitoring-service.vectra-app")
-    assert (config.client_id, config.client_key_path, config.client_key_id) == (
-        "governance-service",
-        "/var/run/vectra/client/private-key",
-        None,
+    assert (config.registry_url, config.bias_url, config.client_id, config.client_key_path, config.token_url) == (
+        FULL["GOVERNANCE_REGISTRY_URL"],
+        FULL["GOVERNANCE_BIAS_URL"],
+        FULL["VECTRA_CLIENT_ID"],
+        FULL["VECTRA_CLIENT_KEY_PATH"],
+        FULL["VECTRA_TOKEN_URL"],  # F-03: el token propio no usa GOVERNANCE_JOB_TOKEN_URL
     )
-    over = config_from_env(
-        {**FULL, "GOVERNANCE_REGISTRY_URL": "http://r:1", "GOVERNANCE_BIAS_URL": "http://b:2", "VECTRA_CLIENT_ID": "x",
-         "VECTRA_CLIENT_KEY_PATH": "/k", "VECTRA_CLIENT_KEY_ID": "kid", "GOVERNANCE_REPLICA": "pod-7"}
-    )
-    assert (over.registry_url, over.bias_url, over.client_id, over.client_key_path, over.client_key_id, over.replica) == (
-        "http://r:1", "http://b:2", "x", "/k", "kid", "pod-7",
-    )
+    assert config.token_url != FULL["GOVERNANCE_JOB_TOKEN_URL"] == config.api.job_token_url
+    assert (config.client_key_id, config.replica) == (None, config.replica)
+    over = config_from_env({**FULL, "VECTRA_CLIENT_KEY_ID": "kid", "GOVERNANCE_REPLICA": "pod-7"})
+    assert (over.client_key_id, over.replica) == ("kid", "pod-7")
 
 
 # --- Tokens de servicio y cliente de Kubernetes del arranque ------------------------------------------------------------------
@@ -125,7 +123,7 @@ def test_the_service_token_is_a_private_key_jwt_for_the_audience_and_scope(
     token = service_tokens(config)("bias-monitoring-service", (Scope.BIAS_COMPARE,))
     assert token() == "tok-1" and token() == "tok-1"  # el segundo sale de la cache del proveedor
     assert len(posts) == 1
-    assert posts[0]["url"] == FULL["GOVERNANCE_JOB_TOKEN_URL"]
+    assert posts[0]["url"] == FULL["VECTRA_TOKEN_URL"]
     assert (posts[0]["audience"], posts[0]["scope"]) == ("bias-monitoring-service", "bias:compare")
 
 

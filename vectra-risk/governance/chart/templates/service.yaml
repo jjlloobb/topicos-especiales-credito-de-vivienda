@@ -71,6 +71,12 @@ spec:
             - { name: GOVERNANCE_CALLBACK_URL, value: {{ .Values.validation.callbackUrl | quote }} }
             - { name: GOVERNANCE_JOB_S3_ENDPOINT, value: {{ .Values.validation.s3Endpoint | quote }} }
             - { name: GOVERNANCE_JOB_TOKEN_URL, value: {{ .Values.keycloak.tokenUrl | quote }} }
+            # Identidad propia y pares (F24, F25, F50): el token de servicio se firma con la llave montada y se pide a `VECTRA_TOKEN_URL`.
+            - { name: VECTRA_CLIENT_ID, value: {{ .Values.serviceIdentity.clientId | quote }} }
+            - { name: VECTRA_CLIENT_KEY_PATH, value: {{ printf "%s/private-key" .Values.serviceIdentity.mountPath | quote }} }
+            - { name: VECTRA_TOKEN_URL, value: {{ .Values.keycloak.tokenUrl | quote }} }
+            - { name: GOVERNANCE_REGISTRY_URL, value: {{ .Values.peers.registryUrl | quote }} }
+            - { name: GOVERNANCE_BIAS_URL, value: {{ .Values.peers.biasUrl | quote }} }
             # Variables de U0 (F50): sin ellas `create_app` no arranca. La CA de Keycloak se monta del ConfigMap de U1 (Bundle de trust-manager).
             - { name: VECTRA_OIDC_ISSUER, value: {{ .Values.keycloak.issuer | quote }} }
             - { name: VECTRA_JWKS_URL, value: {{ .Values.keycloak.jwksUrl | quote }} }
@@ -91,9 +97,13 @@ spec:
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
           volumeMounts:
             - { name: keycloak-ca, mountPath: /etc/vectra/ca, readOnly: true }
+            - { name: service-identity, mountPath: {{ .Values.serviceIdentity.mountPath | quote }}, readOnly: true }
           resources:
             {{- toYaml $svc.resources | nindent 12 }}
       volumes:
+        # 0444: el contenedor corre como 65532 y el archivo del Secret es de root; el volumen es de solo lectura y solo de este pod.
+        - name: service-identity
+          secret: { secretName: {{ .Values.serviceIdentity.secretName | quote }}, defaultMode: 292 }
         - name: keycloak-ca
           configMap: { name: {{ .Values.keycloak.caConfigMap | quote }}, items: [{ key: ca.crt, path: ca.crt }] }
 ---

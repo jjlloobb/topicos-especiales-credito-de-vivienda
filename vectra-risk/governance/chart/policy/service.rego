@@ -245,6 +245,49 @@ deny contains msg if {
 	msg := "service-oidc: la URL de las llaves de Keycloak va por https (F50)"
 }
 
+# regla: service-identity
+# U04-T08: la identidad `private_key_jwt` del propio servicio (F24, F25, F50) y las URLs de sus pares vienen del chart; la llave se monta de solo lectura desde el
+# Secret que materializa el ExternalSecret `governance-service-client`.
+deny contains msg if {
+	is_deployment
+	names := {e.name | some e in service_container.env}
+	missing := {"VECTRA_CLIENT_ID", "VECTRA_CLIENT_KEY_PATH", "VECTRA_TOKEN_URL", "GOVERNANCE_REGISTRY_URL", "GOVERNANCE_BIAS_URL"} - names
+	count(missing) > 0
+	msg := sprintf("service-identity: faltan %v", [missing])
+}
+
+deny contains msg if {
+	is_deployment
+	some mount in service_container.volumeMounts
+	mount.name == "service-identity"
+	not mount.readOnly == true
+	msg := "service-identity: la llave del cliente se monta de solo lectura"
+}
+
+deny contains msg if {
+	is_deployment
+	mounts := {m.name | some m in service_container.volumeMounts}
+	not "service-identity" in mounts
+	msg := "service-identity: falta el montaje de la llave del cliente (service-identity)"
+}
+
+deny contains msg if {
+	is_deployment
+	e := env_of(service_container, "VECTRA_CLIENT_KEY_PATH")
+	some mount in service_container.volumeMounts
+	mount.name == "service-identity"
+	not startswith(e.value, concat("", [mount.mountPath, "/"]))
+	msg := "service-identity: VECTRA_CLIENT_KEY_PATH no esta bajo el montaje de la llave"
+}
+
+deny contains msg if {
+	is_deployment
+	some volume in service_pod.volumes
+	volume.name == "service-identity"
+	not volume.secret.secretName == "governance-service-client"
+	msg := "service-identity: el volumen sale del Secret governance-service-client"
+}
+
 # regla: workload-image
 # El Deployment y el Job de migracion usan la imagen de governance, por digest.
 deny contains msg if {
@@ -308,7 +351,14 @@ deny contains msg if {
 	some v in object.get(input.spec.template.spec, "volumes", [])
 	not v.emptyDir
 	not keycloak_ca(v)
-	msg := sprintf("workload-hardening: el volumen %s no es un emptyDir (sin hostPath ni Secret montado; solo el ConfigMap de la CA de Keycloak)", [v.name])
+	not service_identity(v)
+	msg := sprintf("workload-hardening: el volumen %s no es un emptyDir (sin hostPath ni Secret montado; solo el ConfigMap de la CA de Keycloak y la llave del cliente)", [v.name])
+}
+
+# U04-T08: la unica excepcion Secret es la llave `private_key_jwt` del propio servicio.
+service_identity(v) if {
+	v.name == "service-identity"
+	v.secret.secretName == "governance-service-client"
 }
 
 keycloak_ca(v) if {
