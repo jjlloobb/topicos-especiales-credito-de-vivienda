@@ -3,10 +3,11 @@
 import math
 from datetime import datetime
 from decimal import Decimal, localcontext
-from typing import Annotated, Any, Literal, Self
+from types import UnionType
+from typing import Annotated, Any, Literal, Self, Union, get_args, get_origin
 from uuid import UUID
 
-from pydantic import Field, RootModel, ValidationInfo, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, RootModel, ValidationInfo, model_validator
 
 from vectra_contracts.catalog import (
     ExplainerError,
@@ -28,17 +29,33 @@ from vectra_contracts.models.explanation import (
     RegistryAck,
 )
 from vectra_contracts.models.features import FeatureDictionary
-from vectra_contracts.outcome._internal import CONSTRUCTION_TOKEN
+from vectra_contracts.outcome import _internal
 
+# `_internal` se importa como modulo, no el simbolo: `outcome` no debe dejar `CONSTRUCTION_TOKEN` como atributo publico (R2-01).
 _QUANT = Decimal("0.0001")
 
 
+def _has_token(info: ValidationInfo) -> bool:
+    return isinstance(info.context, dict) and info.context.get("token") is _internal.CONSTRUCTION_TOKEN
+
+
+def _context() -> dict[str, Any]:
+    return {"token": _internal.CONSTRUCTION_TOKEN}
+
+
 class _Guarded(StrictModel):
-    """Exige el token privado: construir directamente lanza `ContractViolation`."""
+    """Exige el token privado para construir desde datos; una instancia ya construida se anida sin token (U00-T03)."""
+
+    # La instancia recuerda que nacio con el token (fabricas o `read_wire`): al anidarla en otro modelo no se vuelve a exigir. Se usa
+    # un atributo privado y un validador `after` porque un validador `before` o `wrap` hace que pydantic valide el JSON en modo python
+    # y rompe `StrictModel` (fechas y UUID como cadena). `model_construct` esta prohibido, asi que no hay otra forma de tener el sello.
+    _born_with_token: bool = PrivateAttr(default=False)
 
     @model_validator(mode="after")
     def _require_token(self, info: ValidationInfo) -> Self:
-        if not (isinstance(info.context, dict) and info.context.get("token") is CONSTRUCTION_TOKEN):
+        if _has_token(info):
+            self._born_with_token = True
+        elif not self._born_with_token:
             raise ContractViolation(f"{type(self).__name__} solo se construye con las fabricas de outcome")
         return self
 
@@ -85,8 +102,31 @@ class RecommendResult(RootModel[_RecommendResultRoot]):
 
     @classmethod
     def from_wire(cls, data: str | bytes) -> Recommendation | FailClosed:
-        """Aplica la capa estructural; es la unica forma de leer una `Recommendation` de la red."""
-        return cls.model_validate_json(data, context={"token": CONSTRUCTION_TOKEN}).root
+        """Aplica la capa estructural al leer una `Recommendation` o un `FailClosed` de la red (BR-U0-06)."""
+        return read_wire(cls, data).root
+
+
+def _contains(tp: Any, target: type, seen: set[Any]) -> bool:
+    if tp in seen:
+        return False
+    seen.add(tp)
+    if isinstance(tp, type) and issubclass(tp, target):
+        return True
+    if isinstance(tp, type) and issubclass(tp, BaseModel):
+        return any(_contains(f.annotation, target, seen) for f in tp.model_fields.values())
+    if get_origin(tp) in (Union, UnionType, Annotated) or get_args(tp):
+        return any(_contains(a, target, seen) for a in get_args(tp))
+    return False
+
+
+def read_wire[M: BaseModel](model: type[M], data: str | bytes) -> M:
+    """Lectura publica de JSON de un modelo que contiene `Recommendation` (p. ej. `CaseDetail`); aplica la capa estructural.
+
+    Rechaza `Ready` y todo modelo que lo contenga con `ContractViolation`: `Ready` solo sale de `check_preconditions`.
+    """
+    if _contains(model, Ready, set()):
+        raise ContractViolation(f"{model.__name__} contiene Ready: solo se construye con las fabricas de outcome")
+    return model.model_validate_json(data, context=_context())
 
 
 class InvalidModelOutput(StrictModel):
@@ -210,7 +250,7 @@ def check_preconditions(
             "feature_vector_hash": feature_vector_hash,
             "evaluated_at": now,
         },
-        context={"token": CONSTRUCTION_TOKEN},
+        context=_context(),
     )
 
 
@@ -234,7 +274,7 @@ def build_outcome(
             "evaluated_at": ready.evaluated_at,
             "feature_vector_hash": ready.feature_vector_hash,
         },
-        context={"token": CONSTRUCTION_TOKEN},
+        context=_context(),
     )
 
 
@@ -247,4 +287,5 @@ __all__ = [
     "check_preconditions",
     "quantize_prediction",
     "quantize_probability",
+    "read_wire",
 ]

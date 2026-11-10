@@ -45,6 +45,10 @@ plan de tareas.
 
 - **Verificación**: PBT-U0-01; pruebas que construyen directamente → error; `from_wire` con versiones distintas → error; contrato de import-linter en CI.
 - **Satisface**: AUTONOMIA-06; NFR-U0-02, 22, 40, 41.
+- **Ajuste (U00-T03)**:
+  - **Anidar sin token.** Anidar una instancia ya construida en otro modelo (`CaseDetail.recommendation`) no exige el token. La instancia lleva un sello privado que solo se pone cuando nace con el token; construir desde dict o JSON lo sigue exigiendo.
+  - **Lectura pública de contenedores.** `outcome.read_wire(model, json)` aplica la capa 1 a la recomendación anidada y rechaza `Ready` y cualquier modelo que lo contenga. `RecommendResult.from_wire` lo reutiliza.
+  - **Capa 3 en todo el workspace.** `outcome` ya no reexporta `CONSTRUCTION_TOKEN` (R2-01 de U08-T02). `contracts/tests/unit/test_token_privado_workspace.py` recorre con `ast` todo el Python del workspace y falla ante cualquier import o nombre del token fuera de `outcome/`, que import-linter no ve (prohíbe módulos, no nombres).
 
 ### P-U0-04 — Allowlist de logs con conteo de descartes (Q5)
 - `structlog` termina en un procesador `allowlist_filter` que conserva solo las claves de `LogRecord`.
