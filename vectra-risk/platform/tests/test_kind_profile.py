@@ -15,7 +15,9 @@ PLATFORM = Path(__file__).resolve().parents[1]
 # Subido a 8,5 (decisión del usuario, 2026-11-09, opción (c) de DECISIONES-LOOP.md §7, U06-T03): U1 + U2 + U3 + U6 piden 8,4375 GiB en el peor
 # momento que kind declara para U6 (la promoción: M1 y M2 en `prod` y el predictor de staging, a 256 MiB por pod; con 512 MiB serían ≈ 10,4).
 # Se vuelve a revisar con cada unidad nueva.
-BUDGET_GIB = 8.5
+# Subido a 9,0 en U04-T06 (misma regla de DECISIONES-LOOP.md §7, «se vuelve a revisar con cada unidad nueva»): `governance-service` suma 2 replicas
+# x (256 Mi + 20 Mi de proxy) = 0,5391 GiB y el total pasa a 8,9766 GiB, redondeado hacia arriba a 0,1 GiB. El tope de parada era 9,2 GiB.
+BUDGET_GIB = 9.0
 PROXY_GIB = 20 / 1024
 MESHED = {
     "vectra-edge", "vectra-app", "vectra-serving", "vectra-staging", "vectra-data", "vectra-identity", "vectra-mock",
