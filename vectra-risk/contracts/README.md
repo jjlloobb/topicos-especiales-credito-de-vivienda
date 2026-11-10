@@ -58,7 +58,7 @@ llama `process.init("batch")` antes de crear clientes, y solo ese proceso puede 
 - **Anidar** una `Recommendation` ya construida en otro modelo (por ejemplo `CaseDetail(recommendation=rec)`) no exige el
   token: la instancia nacio con el. Construir desde un dict o JSON sin el token sigue lanzando `ContractViolation`.
 - **Leer un contenedor** de JSON (por ejemplo `CaseDetail` en el BFF): `outcome.read_wire(CaseDetail, json)`. Aplica la
-  capa estructural a la recomendacion anidada, igual que `from_wire`, y rechaza `Ready` y todo modelo que lo contenga.
+  capa estructural a la recomendacion anidada, igual que `from_wire`, y rechaza `Ready` y todo modelo que lo contenga. Solo acepta contenedores de `vectra_contracts`. `model_copy` esta prohibido en `Ready` y `Recommendation`.
 - `outcome` no expone el token (`CONSTRUCTION_TOKEN` no es atributo publico). La prueba
   `contracts/tests/unit/test_token_privado_workspace.py` verifica con `ast`, en todo el workspace, que nadie fuera de
   `outcome/` lo importa ni lo nombra.

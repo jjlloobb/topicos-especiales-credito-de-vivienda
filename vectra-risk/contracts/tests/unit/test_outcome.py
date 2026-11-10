@@ -4,7 +4,7 @@ import json
 import math
 
 import pytest
-from pydantic import ValidationError
+from pydantic import ValidationError, ValidationInfo, field_validator
 from strategies.domain import CASE, NOW, SHA, case_detail_data, dictionary, explanation
 
 from vectra_contracts.catalog import ExplainerError, FailClosedCause, Outcome, RegistryError, ServingState
@@ -237,3 +237,62 @@ def test_construction_token_is_not_a_public_attribute_of_outcome():
     assert "CONSTRUCTION_TOKEN" not in outcome.__all__
     with pytest.raises(ImportError):
         exec("from vectra_contracts.outcome import CONSTRUCTION_TOKEN", {})
+
+
+class _Spy(StrictModel):
+    """F-01 (ronda 1 de U00-T03): un modelo ajeno intenta quedarse con el token que `read_wire` pasaba por `info.context`."""
+
+    x: int
+
+    @field_validator("x")
+    @classmethod
+    def grab(cls, value: int, info: ValidationInfo) -> int:
+        _STOLEN.update(info.context or {})
+        return value
+
+
+_STOLEN: dict = {}
+
+
+def test_read_wire_does_not_hand_the_token_to_a_foreign_model():
+    _STOLEN.clear()
+    with pytest.raises(ContractViolation):
+        read_wire(_Spy, '{"x": 1}')
+    assert "token" not in _STOLEN
+
+
+def test_read_wire_does_not_leak_the_token_through_the_context_of_a_contract_model():
+    seen: list = []
+    original = CaseDetail.model_validate_json.__func__
+
+    def spy(cls, data, *args, **kwargs):
+        seen.append(kwargs.get("context"))
+        return original(cls, data, *args, **kwargs)
+
+    detail = CaseDetail.model_validate(case_detail_data(_rec()))
+    CaseDetail.model_validate_json = classmethod(spy)  # type: ignore[method-assign]
+    try:
+        read_wire(CaseDetail, detail.model_dump_json())
+    finally:
+        del CaseDetail.model_validate_json
+    assert all(not (isinstance(c, dict) and "token" in c) for c in seen)
+
+
+def test_model_copy_cannot_forge_a_recommendation():
+    """F-02: `model_copy(update=...)` heredaba el sello y saltaba la capa 1 al anidar."""
+    rec = _rec()
+    with pytest.raises(ContractViolation):
+        rec.model_copy(update={"registry_entry_id": ""})
+    with pytest.raises(ContractViolation):
+        rec.model_copy(deep=True)
+    with pytest.raises(ContractViolation):
+        ready().model_copy()
+
+
+def test_contains_ready_detects_nested_containers():
+    """`read_wire` ya rechaza modelos ajenos; este es el detector de `Ready` anidado, probado directamente."""
+    from vectra_contracts.outcome import _contains
+
+    assert _contains(_WithReady, Ready, set())
+    assert _contains(list[Ready] | None, Ready, set())
+    assert not _contains(CaseDetail, Ready, set())
