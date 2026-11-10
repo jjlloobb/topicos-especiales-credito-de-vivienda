@@ -2,7 +2,7 @@
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 UV := cd $(ROOT) && uv run
 
-.PHONY: lint test rules image image-validation check render-chart policy-chart policy-chart-u1 coverage
+.PHONY: lint test rules image image-validation check render-chart policy-chart policy-chart-u1 policy-runbook shellcheck coverage
 
 lint:
 	$(UV) ruff check governance
@@ -64,6 +64,26 @@ policy-chart-u1:
 		$(TOOLS)/conftest test --combine --namespace hpa --policy $(ROOT)/platform/policies/rego $(U1)/$$env/resources || exit 1; \
 	done
 
+# CA-7 de U04-T07: lo que crea el runbook de la politica en kind (el pod efimero de `llamar.sh` y la ServiceAccount `console-bff`) pasa las
+# politicas de kind de U1 (las mismas de arriba, sin `verify-images`, que Kyverno solo aplica al clúster). `llamar.sh --dry-run` rinde el Pod
+# con `kubectl run --dry-run=client` (sin servidor). Sin `kubectl` en el PATH se omite (lo corre el CI).
+RB := $(ROOT)/platform/.tools/integration/u4-runbook
+
+policy-runbook:
+	@if ! command -v kubectl >/dev/null; then echo "kubectl no disponible: se omite policy-runbook (lo corre el CI)"; else \
+	  cd $(ROOT) && rm -rf $(RB) && mkdir -p $(RB)/policies $(RB)/resources && \
+	  cd $(ROOT)/platform/policies/kyverno && cp $(STATIC_POLICIES) $(RB)/policies/ && \
+	  cd $(ROOT) && governance/docs/kind/llamar.sh --dry-run politica-lee GET /v1/policies > $(RB)/resources/pod.yaml && \
+	  printf 'apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: console-bff\n  namespace: vectra-app\n' > $(RB)/resources/serviceaccount.yaml && \
+	  { $(TOOLS)/kyverno apply $(RB)/policies --resource $(RB)/resources > $(RB)/report.txt 2>&1 || true; } && \
+	  { grep -E '$(KYVERNO_OK)' $(RB)/report.txt || { grep -E 'fail:|FAIL|error|panic' $(RB)/report.txt | head -40; exit 1; }; }; fi
+
+# `shellcheck` de los scripts del operador (`docs/kind/*.sh`): el del PATH o `uvx --from shellcheck-py shellcheck`.
+shellcheck:
+	@cd $(ROOT) && if command -v shellcheck >/dev/null; then shellcheck governance/docs/kind/*.sh; \
+	  elif command -v uvx >/dev/null; then uvx --from shellcheck-py shellcheck governance/docs/kind/*.sh; \
+	  else echo "shellcheck no disponible: se omite (lo corre el CI)"; fi
+
 # Cobertura de ramas (NFR-U4-41): >= 95 % en `vectra_governance` y 100 % en `model_fsm`, `policy` y `evidence`. El `--cov` sin argumento mide el
 # `source` de la raiz (solo U0), por eso se nombra el paquete. `mutmut` en `model_fsm` esta diferido (T3; cierre-demo.md).
 coverage:
@@ -72,5 +92,5 @@ coverage:
 
 # Verificaciones estaticas (AUTONOMIA-01). `coverage` corre las pruebas de `test` con la medicion (NFR-U4-41); la trazabilidad usa la lista
 # «Diferido por la demo» de evidence/cierre-demo.md (P-4).
-check: lint rules coverage policy-chart policy-chart-u1
+check: lint rules shellcheck coverage policy-chart policy-chart-u1 policy-runbook
 	cd $(ROOT) && uv run python platform/tests/test_traceability.py --unit governance --all
