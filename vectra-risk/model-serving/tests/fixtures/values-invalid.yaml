@@ -1,0 +1,6 @@
+# Viola el esquema: un perfil que no existe, una version que no es `mv-...` y un campo inventado.
+inferenceServices:
+  - modelVersionId: "26300247"
+    storageUri: s3://model-store/mv-2026-01-01-26300247/
+    profile: canary
+    replicas: 1

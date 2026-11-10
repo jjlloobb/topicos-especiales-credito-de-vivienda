@@ -1,0 +1,5 @@
+# Fixture del perfil staging: solo predictor, 1 replica, vectra-staging (INF-U4-05; F30 y F46).
+inferenceServices:
+  - modelVersionId: mv-2026-01-01-26300247
+    storageUri: s3://model-store/mv-2026-01-01-26300247/
+    profile: staging

@@ -283,6 +283,7 @@ EXPECTED_WAVES = {
     3: {"grafana-secrets", "keycloak", "gateway", "ratelimit"},
     4: {"observability-monitors", "kube-prometheus-stack", "loki", "tempo", "alloy", "pushgateway", "otel-collector", "observability-rules", "grafana-config", "grafana-dashboards", "identity-jobs", "identity-rules", "identity-monitors"},
     5: {"restore-drill", "decision-registry"},
+    6: {"model-serving"},
 }
 WAVES = {name: wave for wave, names in EXPECTED_WAVES.items() for name in names}
 

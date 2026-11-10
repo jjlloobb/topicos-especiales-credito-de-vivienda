@@ -1,0 +1,9 @@
+apiVersion: v2
+name: model-serving
+description: >-
+  Chart de U6: un InferenceService por version del modelo (isvc-<8 hex>, azul/verde) con predictor y explicador de
+  los perfiles prod, inactive y staging, sus PodDisruptionBudget, y la ServiceAccount kserve-model con la credencial
+  minio-kserve. Lo que se despliega lo declara values/<env>/model-serving.yaml (esquema: values.schema.json, docs/values.md).
+  Diferido por la demo: PrometheusRule, runbooks y ServiceMonitor (Paso 9).
+type: application
+version: 0.1.0

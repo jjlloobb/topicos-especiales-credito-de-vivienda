@@ -84,7 +84,7 @@ vectra-risk/model-serving/
 
 ### Bloque C — Plantilla y políticas
 
-- [ ] **Paso 6 — Plantilla del `InferenceService`**
+- [x] (U06-T02) **Paso 6 — Plantilla del `InferenceService`**
   - `isvc-<8 hex>`: predictor y explicador con el mismo `storageUri` y la misma anotación, y etiquetas `vectra.io/component` (`predictor` o `explainer`; en staging, `predictor`, que es lo que seleccionan F30 y F46) y la `ServiceAccount` `kserve-model`, como `flows.yaml` (revisión de consistencia entre unidades, 2026-11-01).
   - Values `prod` (HPA por CPU al 60 %, predictor 2–4, explicador 2–6, spread, PDB, `vectra-high`), `inactive` (1 réplica fija, `vectra-normal`) y `staging` (1 réplica, recursos reducidos, `vectra-low`), con la plantilla del predictor de la versión activa para `source_comparison`, solo predictor (INF-U4-05; seguimiento de la cuarta revisión de coherencia, 2026-10-31).
   - Probes de INF-U6-01; `emptyDir` de 1 GiB.
@@ -95,25 +95,25 @@ vectra-risk/model-serving/
     - prod sin rutas `adversarial/`;
     - el activo con mínimo 2 réplicas.
 
-- [ ] **Paso 7 — Integración con `promotion-tool`**
+- [x] (U06-T02) **Paso 7 — Integración con `promotion-tool`**
   - La credencial de solo lectura del model-store para el storage initializer (F46) es `minio-kserve`, usuario `kserve-readonly` (`platform/data/minio/values.yaml`), que U1 entrega en `vectra-serving` y `vectra-staging`; este chart la monta, sin `ExternalSecret` propio (quinta revisión de coherencia entre unidades, 2026-10-31; revisión de consistencia entre unidades, 2026-11-01).
   - Esquema de values que consume `promotion-tool` (U4, Paso 12) para los cuatro PR: promoción, post-activación, rollback y retiro.
   - Diseño: INF-U6-02; P-U6-02. Historia: US-204.
   - **Aceptación**: `uv run pytest model-serving/tests/unit/test_promotion_renders.py`. Para cada uno de los cuatro tipos de PR, el render con `promotion-tool` produce el cambio esperado y nunca deja el activo con menos de 2 réplicas.
 
-- [ ] **Paso 8 — Flujos por etiqueta**
+- [x] (U06-T02) **Paso 8 — Flujos por etiqueta**
   - Verificar en `platform/network/flows.yaml` de U1 los destinos de F19, F22, F30 y F46 por etiqueta (`vectra.io/component=predictor|explainer`), que ya están; X08 sin cambios (revisión de consistencia entre unidades, 2026-11-01).
   - Diseño: NFR-U6-21, 31.
   - **Aceptación**: `uv run python platform/network/generate.py --check && uv run pytest platform/network/tests` (los selectores por etiqueta están presentes y X08 sigue bloqueado).
 
 ### Bloque D — Operación
 
-- [ ] **Paso 9 — Alertas y runbooks**
+- [ ] (diferido por la demo (T2)) **Paso 9 — Alertas y runbooks**
   - `PrometheusRule` con las alertas de P-U6-06 (`InferenceServiceNotReady` con severidad según sea el activo; `ServingLatencyHigh` sobre `vectra_serving_request_duration_seconds{component}`, que emiten las imágenes (revisión de consistencia entre unidades, 2026-11-01)) y sus runbooks; `ServiceMonitor` en 8081 con `honorLabels: true`.
   - Diseño: P-U6-06; NFR-U6-03.
   - **Aceptación**: `promtool test rules model-serving/observability/rules/tests/*.yaml`; `uv run python platform/tests/test_runbooks.py --root model-serving`.
 
-- [ ] **Paso 10 — Applications, cobertura y trazabilidad**
+- [x] (U06-T02) **Paso 10 — Applications, cobertura y trazabilidad**
   - Entrada `model-serving` en `vectra-risk-gitops/components.yaml` con `wave: 6` (InferenceServices); `generate.py` escribe una Application por entorno, y los PR de `promotion-tool` editan `vectra-risk-gitops/values/<env>/model-serving.yaml` (revisión de consistencia entre unidades, 2026-11-01).
   - Cobertura de ramas ≥ 90 % y 100 % en `package_loader`; resumen en `aidlc-docs/construction/model-serving/code/README.md`.
   - Diseño: P-U1-12.

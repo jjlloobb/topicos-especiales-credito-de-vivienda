@@ -1,0 +1,136 @@
+{{- /* Un InferenceService por entrada de .Values.inferenceServices (P-U6-02): predictor y explicador del mismo storageUri y de la
+misma anotacion de version (NFR-U6-02); el perfil (prod, inactive, staging) fija replicas, recursos y prioridad (INF-U6-01, INF-U6-02).
+prod: 2 a 4 y 2 a 6 replicas, HPA por CPU, spread y PDB (NFR-U6-11, P-U6-04); staging: 1 replica, sin HPA, solo predictor (NFR-U6-20).
+command explicito: KServe agrega args (--model_name, --predictor_host, --http_port) al explicador y, sin command, reemplazarian el CMD de la imagen;
+el programa ignora sys.argv. El paquete llega por STORAGE_URI (el storage initializer lo deja en /mnt/models, MODEL_DIR).
+Pods con runAsNonRoot, readOnlyRootFilesystem y automountServiceAccountToken: false (NFR-U6-32). */ -}}
+{{- $seen := dict -}}
+{{- range $item := .Values.inferenceServices }}
+{{- $name := include "model-serving.name" $item -}}
+{{- $profile := index $.Values.profiles $item.profile -}}
+{{- $ns := include "model-serving.namespace" (dict "root" $ "item" $item) -}}
+{{- $key := printf "%s/%s" $ns $name -}}
+{{- if hasKey $seen $key }}{{ fail (printf "inferenceServices: %s repetido en %s (un InferenceService por version y namespace)" $name $ns) }}{{ end -}}
+{{- $_ := set $seen $key true -}}
+{{- $components := list "predictor" -}}
+{{- if hasKey $profile "explainer" }}{{ $components = list "predictor" "explainer" }}{{ end }}
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    app.kubernetes.io/part-of: vectra-risk
+    vectra.io/criticality: high
+    {{- if eq $item.profile "inactive" }}
+    vectra.io/serving-state: inactivo
+    {{- end }}
+  annotations:
+    vectra.io/model-version-id: {{ $item.modelVersionId | quote }}
+    vectra.io/profile: {{ $item.profile }}
+    {{- if ne $item.profile "prod" }}
+    serving.kserve.io/autoscalerClass: none
+    {{- end }}
+    {{- if eq $item.profile "inactive" }}
+    vectra.io/hpa-exempt: "true"
+    {{- end }}
+spec:
+  {{- range $component := $components }}
+  {{- $c := index $profile $component }}
+  {{- $labels := include "model-serving.podLabels" (dict "name" $name "component" $component) }}
+  {{ $component }}:
+    {{- if eq $item.profile "prod" }}
+    minReplicas: {{ $c.minReplicas }}
+    maxReplicas: {{ $c.maxReplicas }}
+    autoScaling:
+      metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target: { type: Utilization, averageUtilization: {{ $profile.cpuUtilization }} }
+      behavior:
+        scaleUp: { stabilizationWindowSeconds: {{ $profile.scaleUpStabilizationSeconds }} }
+        scaleDown: { stabilizationWindowSeconds: {{ $profile.scaleDownStabilizationSeconds }} }
+    {{- else }}
+    minReplicas: {{ $c.replicas }}
+    maxReplicas: {{ $c.replicas }}
+    {{- end }}
+    labels:
+      {{- $labels | nindent 6 }}
+      {{- if eq $item.profile "inactive" }}
+      vectra.io/serving-state: inactivo
+      {{- end }}
+    annotations:
+      vectra.io/model-version-id: {{ $item.modelVersionId | quote }}
+      {{- if eq $item.profile "inactive" }}
+      vectra.io/hpa-exempt: "true"
+      {{- end }}
+    serviceAccountName: {{ $.Values.serviceAccountName }}
+    automountServiceAccountToken: false
+    priorityClassName: {{ $profile.priorityClassName }}
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      seccompProfile: { type: RuntimeDefault }
+    {{- if eq $item.profile "prod" }}
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: {{ $name }}-{{ $component }}
+    {{- end }}
+    volumes:
+      - name: {{ $.Values.packageVolume.name }}
+        emptyDir: { sizeLimit: {{ $.Values.packageVolume.sizeLimit }} }
+    containers:
+      - name: kserve-container
+        image: {{ include "model-serving.image" (dict "root" $ "component" $component) }}
+        command: ["python", "-m", "vectra_{{ $component }}"]
+        ports:
+          - { name: http, containerPort: {{ $.Values.ports.http }}, protocol: TCP }
+          - { name: metrics, containerPort: {{ $.Values.ports.metrics }}, protocol: TCP }
+        env:
+          - name: MODEL_VERSION_ID
+            valueFrom: { fieldRef: { fieldPath: "metadata.annotations['vectra.io/model-version-id']" } }
+          - { name: MODEL_DIR, value: {{ $.Values.packageVolume.mountPath }} }
+          - { name: STORAGE_URI, value: {{ $item.storageUri | quote }} }
+        resources:
+          {{- toYaml $c.resources | nindent 10 }}
+        securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, runAsNonRoot: true, capabilities: { drop: [ALL] } }
+        volumeMounts:
+          - { name: {{ $.Values.packageVolume.name }}, mountPath: {{ $.Values.packageVolume.mountPath }}, readOnly: true }
+        startupProbe:
+          httpGet: { path: /readyz, port: metrics }
+          periodSeconds: 5
+          failureThreshold: 30
+        readinessProbe:
+          httpGet: { path: /readyz, port: metrics }
+          periodSeconds: 5
+        livenessProbe:
+          httpGet: { path: /healthz, port: metrics }
+          periodSeconds: 10
+  {{- end }}
+{{- if eq $item.profile "prod" }}
+{{- range $component := $components }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}-{{ $component }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}-{{ $component }}
+    app.kubernetes.io/part-of: vectra-risk
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}-{{ $component }}
+{{- end }}
+{{- end }}
+{{- end }}

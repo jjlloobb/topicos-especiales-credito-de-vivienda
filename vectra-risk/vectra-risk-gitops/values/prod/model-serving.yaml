@@ -1,0 +1,4 @@
+# Values de model-serving en prod (U6). Los edita `promotion-tool` por PR y solo la clave `inferenceServices`: contrato en
+# model-serving/docs/values.md, esquema en model-serving/chart/values.schema.json. U06-T02 no declara ningun InferenceService.
+# El digest real de las imagenes (`images.predictor.digest` y `images.explainer.digest`) lo fija el operador en el Paso 11 de U6.
+inferenceServices: []
