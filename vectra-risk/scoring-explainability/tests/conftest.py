@@ -1,4 +1,4 @@
-"""Perfiles de Hypothesis de U7 (`HYPOTHESIS_PROFILE`: dev, ci, nightly)."""
+"""Perfiles de Hypothesis de U7 (`HYPOTHESIS_PROFILE`: dev, ci, nightly). `ci` = 500 ejemplos, semilla impresa (NFR-U7-42)."""
 
 import os
 import sys

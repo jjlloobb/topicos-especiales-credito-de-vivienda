@@ -17,7 +17,7 @@ lint:
 test:
 	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest scoring-explainability/tests -q -p no:cacheprovider --import-mode=importlib
 
-# Cobertura de ramas de la logica pura (NFR-U7-40): 100 % en `policy`, `narrative` y `factuality`. Los modulos viven en los paquetes
+# Cobertura de ramas de la logica pura (NFR-U7-40) con las PBT-U7-01..06 en el perfil `ci`, 500 ejemplos (NFR-U7-42): 100 % en `policy`, `narrative` y `factuality`. Los modulos viven en los paquetes
 # `scoring` y `explainability`, asi que se miden los paquetes y el 100 % se fija por modulo. Corre las mismas pruebas que `test`.
 # `mutmut` sobre `policy` y `factuality` (NFR-U7-41) se difiere (T3, enmienda §2.3).
 coverage:
