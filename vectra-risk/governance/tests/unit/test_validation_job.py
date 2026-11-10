@@ -135,7 +135,7 @@ def test_with_a_model_trained_with_the_u5_encoding_the_job_auc_is_the_one_u5_mea
 def test_with_the_real_u5_base_model_the_job_auc_matches_the_one_u5_computes_within_1e_3() -> None:
     import xgboost as xgb
     from validation_support import u5_base_release, u5_package_store
-    from vectra_reference.features import categorical_vocabulary, read_rows as u5_read_rows, row_values
+    from vectra_reference.features import read_rows as u5_read_rows, row_values
     from vectra_reference.train import encode
 
     out = u5_base_release()
