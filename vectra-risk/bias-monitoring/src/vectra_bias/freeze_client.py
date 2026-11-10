@@ -18,6 +18,7 @@ from vectra_common.errors import DependencyTimeout, DependencyUnavailable
 from vectra_contracts.models.monitoring import FreezeContext
 
 from vectra_bias import config
+from vectra_bias.registry_client import route_path
 
 FROZEN: Final = "congelado"
 CONFLICT: Final = "409"
@@ -25,6 +26,9 @@ FAILED: Final = "fallido"
 HTTP_OK_MAX: Final = 299
 HTTP_CONFLICT: Final = 409
 HTTP_SERVER_ERROR: Final = 500
+FREEZE_PATH: Final = route_path(
+    "governance-service", "POST", "/freeze"
+)  # `/v1/models/{id}/freeze` del contrato de U0
 Sleep = Callable[[float], Awaitable[None]]
 
 
@@ -43,7 +47,7 @@ async def freeze(
     client: deps.DependencyClient, model_version_id: str, context: FreezeContext, sleep: Sleep = asyncio.sleep
 ) -> FreezeOutcome:
     content = context.model_dump_json().encode()
-    path = f"/v1/models/{model_version_id}/freeze"
+    path = FREEZE_PATH.replace("{id}", model_version_id)
     delays = (*config.FREEZE_RETRY_DELAYS_S, None)
     reason = "unknown"
     for attempt, delay in enumerate(delays, start=1):

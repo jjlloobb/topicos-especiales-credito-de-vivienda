@@ -37,3 +37,11 @@ def pytest_configure(config: pytest.Config) -> None:
 
 def pytest_report_header() -> str:
     return f"hypothesis profile: {_profile}, hypothesis seed: {_seed[0] if _seed else 'n/a'}"
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """El tipo de proceso (`service` o `batch`) es global: cada prueba parte limpia (las del servicio crean apps; las del CronJob,
+    clientes sin breaker)."""
+    from vectra_common import process
+
+    process.reset_for_tests()

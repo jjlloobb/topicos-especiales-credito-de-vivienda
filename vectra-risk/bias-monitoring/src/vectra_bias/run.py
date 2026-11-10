@@ -37,6 +37,7 @@ from vectra_common.errors import DependencyTimeout, DependencyUnavailable
 from vectra_common.logging import configure as configure_logging
 from vectra_common.logging import log_access
 from vectra_common.service_token import provider_from_env
+from vectra_contracts.catalog import Scope
 from vectra_contracts.models.monitoring import (
     AffectedVolume,
     DayRange,
@@ -58,8 +59,8 @@ from vectra_bias.window import Span, VersionRanges, evaluated_versions, last_rea
 SERVICE: Final = "bias-monitoring-job"
 REGISTRY_AUDIENCE: Final = "decision-registry-service"
 GOVERNANCE_AUDIENCE: Final = "governance-service"
-REGISTRY_SCOPE: Final = "registry:read:monitoring"
-FREEZE_SCOPE: Final = "governance:freeze"
+REGISTRY_SCOPE: Final = Scope.REGISTRY_READ_MONITORING.value
+FREEZE_SCOPE: Final = Scope.GOVERNANCE_FREEZE.value
 DISCOVERY_ID: Final = "discovery"
 EXIT_OK, EXIT_FAILED, EXIT_PUSH = 0, 1, 2
 
