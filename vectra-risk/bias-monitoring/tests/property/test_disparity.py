@@ -134,6 +134,7 @@ def test_pbt_u9_02_scaling_never_lowers_the_freeze_limit(table, k):
 
 
 @given(count_tables(), st.integers(0, 29), st.integers(0, 29))
+# BR-U9-04: los pesos de la agregada cuentan solo las celdas suficientes (el valor y el intervalo usan los mismos pesos).
 def test_pbt_u9_02_weights_only_count_sufficient_cells(table, total, favorable):
     tiny = CountCell("tiny", BANDS[0], min(favorable, total), total)
     extended = CountTable(table.attribute, (*table.cells, tiny))

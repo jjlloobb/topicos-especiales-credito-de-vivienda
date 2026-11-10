@@ -1,0 +1,70 @@
+# Valores comunes del chart de U9 (Paso 12 acotado a la demo). Se renderiza con `make -C bias-monitoring render-chart`.
+# Los cinco parametros de cumplimiento (threshold_pp, n_min, window_days, schedule, stale_after) NO estan aqui: viven solo en
+# `values-monitoring-policy.yaml` (INF-U9-03, CODEOWNERS): las plantillas lo leen del archivo del chart (`.Files`) o de los values que Argo CD le pasa con él, y los exigen con `required`.
+# Diferido por la demo: el Job `x04-probe-<runId>` (T5). El perfil de recursos de kind es este mismo (DD-3 b): sin 1 replica.
+namespace: vectra-app
+# `imageRegistry` lo pasa Argo CD desde `vectra-risk-gitops/envs/<env>/values.yaml` (kind-registry:5000 en kind, registro.banco.internal/vectra en
+# staging y prod) y arma el repositorio; `image.repository` vale en un render local sin ese valor.
+image:
+  repository: kind-registry:5000/vectra/bias-monitoring
+  # Digest de ejemplo mientras el operador no publique la imagen (bias-monitoring/docs/imagenes.md); cada entorno fija el suyo.
+  # Sin digest no se renderiza (`required`): una imagen por etiqueta la rechaza Kyverno (`disallow-latest`).
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000004
+# Validacion y obtencion de tokens (F50; variables de U0). Mismos valores que `governance`; el realm y el nombre publico los fija U2.
+# La CA sale del ConfigMap `vectra-internal-ca` (Bundle de trust-manager de U1). El chart no crea ningun Secret.
+keycloak:
+  issuer: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra
+  jwksUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/certs
+  tokenUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token
+  caConfigMap: vectra-internal-ca
+  caMountPath: /etc/vectra/ca
+# Los pares: `decision-registry-service` (U3, F26), `governance-service` (U4, F27; solo el CronJob) y el Pushgateway (F106; solo el CronJob).
+peers:
+  registryUrl: http://decision-registry-service.vectra-app.svc.cluster.local:8080
+  governanceUrl: http://governance-service.vectra-app.svc.cluster.local:8080
+  pushgatewayUrl: http://pushgateway.vectra-observability.svc:9091
+# La llave `private_key_jwt` de cada proceso (INF-U9-04, F50): un ExternalSecret por cliente de U2 (`identity/clients/<clientId>`, propiedad
+# `private-key`), montado de solo lectura. Dos identidades: el servicio nunca tiene la del CronJob (`governance:freeze`).
+identity:
+  mountPath: /var/run/vectra/client
+  vaultProperty: private-key
+  secretStore: { name: vectra-store, kind: ClusterSecretStore }
+  refreshInterval: 1h
+  service: { clientId: bias-monitoring-service, secretName: bias-monitoring-service-client, vaultKey: identity/clients/bias-monitoring-service }
+  job: { clientId: bias-monitoring-job, secretName: bias-monitoring-job-client, vaultKey: identity/clients/bias-monitoring-job }
+# `values-monitoring-policy.yaml` como ConfigMap, montado en la ruta de `VECTRA_POLICY_PATH` (por omision de `config.POLICY_PATH`).
+policy:
+  configMapName: bias-monitoring-policy
+  mountPath: /etc/vectra/monitoring-policy
+  fileName: values-monitoring-policy.yaml
+# Deployment `bias-monitoring-service` (INF-U9-01; NFR-U9-11): 8080 con el contrato y 8081 con /metrics, /healthz y /readyz. 2 replicas fijas, sin HPA.
+service:
+  priorityClassName: vectra-normal
+  criticality: medium
+  replicas: 2
+  port: 8080
+  metricsPort: 8081
+  hpaExempt: "carga baja y cache de 15 min (INF-U9-01): 2 replicas fijas"
+  preStopSeconds: 5
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+  pdb: { minAvailable: 1 }
+# CronJob `bias-monitoring-job` (INF-U9-02). El `schedule` sale de `values-monitoring-policy.yaml`, no de aqui.
+# `activeDeadlineSeconds` vale `vectra_bias.config.ACTIVE_DEADLINE_SECONDS` (lo compara `tests/unit/test_chart.py`) y no pasa del intervalo del `schedule`.
+cronjob:
+  priorityClassName: vectra-high
+  criticality: high
+  timeZone: Etc/UTC
+  startingDeadlineSeconds: 300
+  activeDeadlineSeconds: 600
+  backoffLimit: 0
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+# Una ServiceAccount por identidad (los nombres son los `sa:` de `platform/network/flows.yaml`).
+serviceAccounts:
+  - { name: bias-monitoring-service }
+  - { name: bias-monitoring-job }

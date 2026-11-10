@@ -1,0 +1,8 @@
+apiVersion: v2
+name: bias-monitoring
+description: >-
+  Chart de U9 (Paso 12, acotado a la demo): el Deployment bias-monitoring-service (2 replicas fijas) con su Service, PDB y ServiceMonitor, el CronJob
+  bias-monitoring-job (el unico que congela), las ServiceAccounts, el ExternalSecret de la llave private_key_jwt de cada proceso y el ConfigMap de
+  values-monitoring-policy.yaml. Diferido por la demo: el Job x04-probe (T5), las alertas y el dashboard (T2).
+type: application
+version: 0.1.0

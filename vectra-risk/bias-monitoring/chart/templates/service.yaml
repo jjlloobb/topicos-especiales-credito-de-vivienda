@@ -1,0 +1,129 @@
+{{- /* Deployment bias-monitoring-service, Service y PDB (Paso 12; INF-U9-01; NFR-U9-10 a 13; F14, F25, F26, F50, F60). 2 replicas fijas, sin HPA
+(`vectra.io/hpa-exempt`, la exencion de U1). Sin digest no se renderiza. */ -}}
+{{- $digest := required "image.digest es obligatorio: sin digest no se renderiza" .Values.image.digest -}}
+{{- $repository := include "bias-monitoring.repository" . -}}
+{{- $svc := .Values.service -}}
+{{- $id := .Values.identity.service -}}
+{{- $keyPath := printf "%s/private-key" .Values.identity.mountPath -}}
+{{- $policyPath := printf "%s/%s" .Values.policy.mountPath .Values.policy.fileName -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bias-monitoring-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: bias-monitoring-service
+    app.kubernetes.io/part-of: bias-monitoring
+    vectra.io/criticality: {{ $svc.criticality }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    vectra.io/hpa-exempt: {{ $svc.hpaExempt | quote }}
+spec:
+  replicas: {{ $svc.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bias-monitoring-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bias-monitoring-service
+        app.kubernetes.io/part-of: bias-monitoring
+    spec:
+      serviceAccountName: bias-monitoring-service
+      priorityClassName: {{ $svc.priorityClassName }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: bias-monitoring-service
+      containers:
+        - name: bias-monitoring-service
+          image: {{ printf "%s@%s" $repository $digest | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [python, -m, vectra_bias.app]
+          ports:
+            - { name: http, containerPort: {{ $svc.port }} }
+            - { name: metrics, containerPort: {{ $svc.metricsPort }} }
+          # Exactamente `vectra_bias.app.REQUIRED` mas las opcionales que se usan (`tests/unit/test_chart.py` lo compara con el codigo). Nada de
+          # constantes del codigo (timeouts, reintentos, cache, razon de invalidas): son del codigo y no del entorno (INF-U9-03).
+          env:
+            - { name: VECTRA_REGISTRY_URL, value: {{ required "peers.registryUrl es obligatorio" .Values.peers.registryUrl | quote }} }
+            - { name: VECTRA_TOKEN_URL, value: {{ required "keycloak.tokenUrl es obligatorio" .Values.keycloak.tokenUrl | quote }} }
+            - { name: VECTRA_CLIENT_ID, value: {{ required "identity.service.clientId es obligatorio" $id.clientId | quote }} }
+            - { name: VECTRA_CLIENT_KEY_PATH, value: {{ $keyPath | quote }} }
+            - { name: VECTRA_OIDC_ISSUER, value: {{ required "keycloak.issuer es obligatorio" .Values.keycloak.issuer | quote }} }
+            - { name: VECTRA_JWKS_URL, value: {{ required "keycloak.jwksUrl es obligatorio" .Values.keycloak.jwksUrl | quote }} }
+            - { name: VECTRA_CA_BUNDLE, value: {{ printf "%s/ca.crt" .Values.keycloak.caMountPath | quote }} }
+            - { name: VECTRA_POLICY_PATH, value: {{ $policyPath | quote }} }
+          # El arranque, la vida y la disponibilidad del proceso (NFR-U9-12): la readiness NO depende del registro.
+          startupProbe:
+            httpGet: { path: /healthz, port: metrics }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /healthz, port: metrics }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /readyz, port: metrics }
+            periodSeconds: 5
+            failureThreshold: 2
+          # Deja que el Service saque al pod de sus endpoints antes de que reciba SIGTERM (U09-T03: el `preStop` es un campo del Deployment).
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: {{ $svc.preStopSeconds }}
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: keycloak-ca, mountPath: {{ .Values.keycloak.caMountPath | quote }}, readOnly: true }
+            - { name: service-identity, mountPath: {{ .Values.identity.mountPath | quote }}, readOnly: true }
+            - { name: monitoring-policy, mountPath: {{ .Values.policy.mountPath | quote }}, readOnly: true }
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+      volumes:
+        # 0444: el contenedor corre como 65532 y el archivo del Secret es de root; el volumen es de solo lectura y solo de este pod.
+        - name: service-identity
+          secret: { secretName: {{ $id.secretName | quote }}, defaultMode: 292 }
+        - name: keycloak-ca
+          configMap: { name: {{ .Values.keycloak.caConfigMap | quote }}, items: [{ key: ca.crt, path: ca.crt }] }
+        - name: monitoring-policy
+          configMap: { name: {{ .Values.policy.configMapName | quote }} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bias-monitoring-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: bias-monitoring-service
+    app.kubernetes.io/part-of: bias-monitoring
+spec:
+  selector:
+    app.kubernetes.io/name: bias-monitoring-service
+  ports:
+    - { name: http, port: {{ $svc.port }}, targetPort: http }
+    - { name: metrics, port: {{ $svc.metricsPort }}, targetPort: metrics }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bias-monitoring-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: bias-monitoring-service
+    app.kubernetes.io/part-of: bias-monitoring
+spec:
+  minAvailable: {{ $svc.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bias-monitoring-service
