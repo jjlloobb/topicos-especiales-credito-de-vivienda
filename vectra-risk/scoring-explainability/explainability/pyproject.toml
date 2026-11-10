@@ -15,3 +15,7 @@ packages = ["src/explainability"]
 [tool.uv.sources]
 vectra-contracts = { workspace = true }
 vectra-common = { workspace = true }
+
+# Las plantillas versionadas viven junto a `src/` (plan §1); la rueda las lleva dentro del paquete.
+[tool.hatch.build.targets.wheel.force-include]
+"templates" = "explainability/templates"
