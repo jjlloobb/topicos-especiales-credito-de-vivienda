@@ -8,6 +8,9 @@ import os
 import re
 import stat
 import subprocess
+import threading
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import pytest
@@ -176,3 +179,57 @@ def test_medir_freeze_sondea_las_dos_replicas_y_calcula_el_maximo(world: dict[st
     assert "governance-service-aaa cambio_en=0.50" in done.stdout and "governance-service-bbb cambio_en=0.50" in done.stdout
     assert "maximo=0.5" in done.stdout
     assert TOKEN not in log(world)
+
+
+# --- El Python incrustado se ejecuta de verdad (U04-T07, ronda 1, F-01) ----------------------------------------------------------------
+
+
+class _Recorder(BaseHTTPRequestHandler):
+    seen: list[dict[str, object]] = []
+
+    def _answer(self) -> None:
+        length = int(self.headers.get("Content-Length") or 0)
+        _Recorder.seen.append({"method": self.command, "path": self.path, "auth": self.headers.get("Authorization"), "body": self.rfile.read(length)})
+        self.send_response(204 if self.command == "POST" else 200)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    do_GET = do_POST = _answer  # noqa: N815
+
+    def log_message(self, format: str, *args: object) -> None:  # noqa: A002
+        return
+
+
+def embedded(script: str) -> str:
+    """El cliente Python del `<<'PY' ... PY` de un script."""
+    match = re.search(r"<<'PY'[^\n]*\n(.*?)\nPY\n", (KIND / script).read_text(encoding="utf-8"), re.S)
+    assert match, script
+    return match.group(1)
+
+
+@pytest.fixture
+def server() -> Iterator[int]:
+    _Recorder.seen = []
+    httpd = HTTPServer(("127.0.0.1", 0), _Recorder)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    yield httpd.server_address[1]
+    httpd.shutdown()
+
+
+@pytest.mark.parametrize(
+    ("script", "host", "args"),
+    [
+        ("llamar.sh", "http://governance-service.vectra-app.svc.cluster.local:8080", ["POST", "/v1/policies"]),
+        ("medir-freeze.sh", "http://127.0.0.1:8080", ["freeze", "mv-x"]),
+    ],
+)
+def test_el_cliente_incrustado_entrega_el_cuerpo_aunque_token_y_cuerpo_lleguen_juntos(script: str, host: str, args: list[str], server: int) -> None:
+    code = embedded(script).replace(host, f"http://127.0.0.1:{server}")
+    assert f"127.0.0.1:{server}" in code
+    body = b'{"cutoff":"0.5000"}\n'
+    done = subprocess.run(["python3", "-I", "-c", code, *args], input=b"tok-abc\n" + body, capture_output=True, check=False, timeout=30)  # noqa: S603, S607
+    assert done.returncode == 0, done.stderr
+    assert len(_Recorder.seen) == 1
+    seen = _Recorder.seen[0]
+    assert seen["auth"] == "Bearer tok-abc" and seen["body"] == body

@@ -21,7 +21,8 @@ aqui="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 read -r -d '' sonda <<'PY' || true
 import json, sys, time, urllib.request, urllib.error
 accion = sys.argv[1]
-token = sys.stdin.readline().strip()
+token, _, resto = sys.stdin.buffer.read().partition(b"\n")  # una sola lectura: readline() + buffer.read() pierde el cuerpo
+token = token.decode().strip()
 base = "http://127.0.0.1:8080"
 def pedir(metodo, ruta, cuerpo=None, etag=None):
     req = urllib.request.Request(base + ruta, data=cuerpo, method=metodo)
@@ -47,7 +48,7 @@ if accion == "sondear":
     print("sin_cambio", flush=True)
     sys.exit(1)
 instante = time.time()
-estado, _, cuerpo = pedir("POST", "/v1/models/" + sys.argv[2] + "/freeze", sys.stdin.buffer.read())
+estado, _, cuerpo = pedir("POST", "/v1/models/" + sys.argv[2] + "/freeze", resto)
 print("freeze", instante, estado, cuerpo, flush=True)
 sys.exit(0 if estado == 204 else 1)
 PY

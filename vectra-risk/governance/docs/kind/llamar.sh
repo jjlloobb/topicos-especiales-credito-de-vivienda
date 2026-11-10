@@ -33,8 +33,8 @@ imagen="kind-registry:5000/vectra/governance@$digest"
 read -r -d '' cliente <<'PY' || true
 import sys, urllib.request, urllib.error
 metodo, ruta = sys.argv[1], sys.argv[2]
-token = sys.stdin.readline().strip()
-cuerpo = sys.stdin.buffer.read()
+token, _, cuerpo = sys.stdin.buffer.read().partition(b"\n")  # una sola lectura: readline() + buffer.read() pierde el cuerpo
+token = token.decode().strip()
 req = urllib.request.Request("http://governance-service.vectra-app.svc.cluster.local:8080" + ruta, data=None if metodo == "GET" else cuerpo, method=metodo)
 req.add_header("Authorization", "Bearer " + token)
 req.add_header("Content-Type", "application/json")
