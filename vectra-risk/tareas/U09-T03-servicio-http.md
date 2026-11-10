@@ -28,6 +28,11 @@ Rige RL-1 a RL-5 (`demo-kind-alcance.md` §6): máximo 2 rondas, y solo un ROJO 
 
 ---
 
+
+**Decisiones del usuario (2026-11-10), antes del despacho:**
+1. **NFR-U9-52 enmendado:** las PBT stateful se escalan con su número nombrado (PBT-U9-05 a 120 × 80, como quedó en U09-T02), conservando comandos e invariantes. La tarea lo documenta en `code/services.md` y en la prueba; ya no es una desviación.
+2. **Literales del Bloque C:** la corrección de rutas y scopes de `freeze_client.py` y `run.py` (F-02 de U09-T02) **entra** en esta tarea, además de `registry_client.py`.
+
 ## Alcance
 
 **Dentro:** los Pasos 9 y 10 del plan, con su texto y su aceptación. Léelos allí. Precisiones:
