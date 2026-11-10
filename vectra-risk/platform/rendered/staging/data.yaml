@@ -952,6 +952,8 @@ spec:
   secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
   target: { name: minio-kserve }
   data:
+    - { secretKey: AWS_ACCESS_KEY_ID, remoteRef: { key: minio/kserve, property: accessKey } }
+    - { secretKey: AWS_SECRET_ACCESS_KEY, remoteRef: { key: minio/kserve, property: secretKey } }
     - { secretKey: accessKey, remoteRef: { key: minio/kserve, property: accessKey } }
     - { secretKey: secretKey, remoteRef: { key: minio/kserve, property: secretKey } }
 
@@ -966,6 +968,8 @@ spec:
   secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
   target: { name: minio-kserve }
   data:
+    - { secretKey: AWS_ACCESS_KEY_ID, remoteRef: { key: minio/kserve, property: accessKey } }
+    - { secretKey: AWS_SECRET_ACCESS_KEY, remoteRef: { key: minio/kserve, property: secretKey } }
     - { secretKey: accessKey, remoteRef: { key: minio/kserve, property: accessKey } }
     - { secretKey: secretKey, remoteRef: { key: minio/kserve, property: secretKey } }
 
@@ -980,6 +984,8 @@ spec:
   secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
   target: { name: minio-kserve }
   data:
+    - { secretKey: AWS_ACCESS_KEY_ID, remoteRef: { key: minio/kserve, property: accessKey } }
+    - { secretKey: AWS_SECRET_ACCESS_KEY, remoteRef: { key: minio/kserve, property: secretKey } }
     - { secretKey: accessKey, remoteRef: { key: minio/kserve, property: accessKey } }
     - { secretKey: secretKey, remoteRef: { key: minio/kserve, property: secretKey } }
 

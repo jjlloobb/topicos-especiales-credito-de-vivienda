@@ -105,7 +105,7 @@ roleConsumers:
 # en su namespace. Los usuarios exclusivos de kind estan en values-kind.yaml.
 extraSecrets:
   minio-root: { path: minio/root, namespaces: [vectra-data], keys: { rootUser: user, rootPassword: password } }
-  minio-kserve: { path: minio/kserve, namespaces: [vectra-data, vectra-serving, vectra-staging], keys: { secretKey: secretKey, accessKey: accessKey } }
+  minio-kserve: { path: minio/kserve, namespaces: [vectra-data, vectra-serving, vectra-staging], keys: { secretKey: secretKey, accessKey: accessKey, AWS_ACCESS_KEY_ID: accessKey, AWS_SECRET_ACCESS_KEY: secretKey } } # F46; AWS_* para el storage initializer de KServe (U01-T08), accessKey/secretKey para el Job de usuarios de MinIO
   minio-validation: { path: minio/validation, namespaces: [vectra-data, vectra-staging], keys: { secretKey: secretKey, accessKey: accessKey } }
   minio-loki: { path: minio/loki, namespaces: [vectra-data], keys: { secretKey: secretKey, accessKey: accessKey } }
   minio-tempo: { path: minio/tempo, namespaces: [vectra-data], keys: { secretKey: secretKey, accessKey: accessKey } }
