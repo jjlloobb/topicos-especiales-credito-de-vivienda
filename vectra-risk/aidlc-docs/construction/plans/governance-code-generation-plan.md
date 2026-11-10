@@ -162,7 +162,7 @@ vectra-risk/governance/
 
 ### Bloque E — Herramientas y Jobs
 
-- [ ] **Paso 12 — `promotion-tool`** (pasa a U04-T05b: esquema de values de U6 Paso 7; decisión del usuario, 2026-11-09)
+- [x] **Paso 12 — `promotion-tool`** (U04-T05b, acotado a la demo)
   - `list_promotable`, `create_promotion_pr` (un solo commit que **agrega** el `InferenceService` `isvc-<8 hex>` de la versión, con predictor y explicador del mismo `model_version_id`, más la evidencia `helm template` y `kubectl diff` contra kind), `post_activation_pr` (baja la versión anterior a 1 réplica por componente), `rollback_pr` (restaura los mínimos de producción de la versión `inactivo` antes de su `mark_active`), `retire_inference_service` (PR que retira el de una versión `inactivo` > 7 días) y `mark_active` (que también fija `inference_service` en `serving-config`).
   - Login PKCE con loopback (token solo en memoria), `gh` con la sesión del ingeniero y commit firmado. Nunca sincroniza ni aplica.
   - Diseño: BR-U4-08, 09; NFR-U4-20, 21. Historias: US-204, US-208.

@@ -6,7 +6,7 @@ UV := cd $(ROOT) && uv run
 
 lint:
 	$(UV) ruff check governance
-	cd $(ROOT) && MYPYPATH=governance/src:governance/validation_job:bias-monitoring/disparity/src uv run mypy --strict governance/src governance/validation_job
+	cd $(ROOT) && MYPYPATH=governance/src:governance/validation_job:governance/promotion_tool:bias-monitoring/disparity/src uv run mypy --strict governance/src governance/validation_job governance/promotion_tool
 	$(UV) lint-imports --config governance/.importlinter
 
 # Las pruebas de integracion levantan PostgreSQL con Testcontainers (Docker local, sin cluster; AUTONOMIA-01).
