@@ -1,5 +1,72 @@
-# Valores del chart de U4 `governance` (por ahora, solo lo del `model-validation-job`; el resto lo agrega U04-T06).
-# El Job lo crea el servicio por K01 (`job_manifest`, `k8s_jobs.py`) en este namespace y usa estos dos objetos por nombre.
+# Valores del chart de U4 `governance` (Pasos 13 y 16 acotados a la demo). Se renderiza con `make -C governance render-chart`.
+# Diferido por la demo (enmienda §3 U4, Paso 16): CronJob `model-archive`, `pg-role-gov-archiver`, `minio-model-archive`, F100 y los values de
+# staging de INF-U4-05. El perfil de recursos de kind es este mismo (DD-3 b): sin 1 replica.
+namespace: vectra-app
+# `imageRegistry` lo pasa Argo CD desde `vectra-risk-gitops/envs/<env>/values.yaml` (kind-registry:5000 en kind, registro.banco.internal/vectra en
+# staging y prod) y arma el repositorio; `image.repository` vale en un render local sin ese valor.
+image:
+  repository: kind-registry:5000/vectra/governance
+  # Digest de ejemplo mientras el operador no publique la imagen (U04-T07: `make -C governance image` + push); cada entorno fija el suyo.
+  # Sin digest no se renderiza (`required`): una imagen por etiqueta la rechaza Kyverno (`disallow-latest`).
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000002
+# `governance-db-rw` es el servicio de CloudNativePG (U1): F41 (servicio) y F44 (migracion).
+database:
+  host: governance-db-rw.vectra-data.svc.cluster.local
+  name: governance
+  # El diseno pide `verify-full`: falta la CA de `governance-db` en `vectra-app` (misma candidata que `registry-db`, U03-T04).
+  sslmode: require
+  # Secrets de U1 (`pg-role-*`, claves `username` y `password`). El chart no crea ningun Secret ni ExternalSecret en `vectra-app`.
+  secrets:
+    app: pg-role-gov-app
+    migrator: pg-role-gov-migrator
+# Validacion de tokens del servicio (F50; variables de U0). Mismos valores que `decision-registry`; el realm y el nombre publico los fija U2.
+# La CA sale del ConfigMap `vectra-internal-ca` (Bundle de trust-manager de U1). El chart no crea ningun Secret.
+keycloak:
+  issuer: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra
+  jwksUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/certs
+  tokenUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token
+  caConfigMap: vectra-internal-ca
+# Model-store (F47): lectura con `minio-governance` (`governance-readonly`), Secret de U1 en `vectra-app`.
+modelStore:
+  endpoint: http://minio.vectra-data.svc.cluster.local:9000
+  secretName: minio-governance
+# Lo que el servicio entrega al `model-validation-job` (candidatas de U04-T04 y U04-T05, cerradas en el chart): imagen, dataset, a donde
+# devolver el informe (`callback_url`), el endpoint S3 y la URL del token del Job. El servicio lo lee de estas variables de entorno.
+validation:
+  image:
+    repository: kind-registry:5000/vectra/model-validation-job
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000003
+  datasetRef: s3://validation-datasets
+  callbackUrl: http://governance-service.vectra-app.svc.cluster.local:8080
+  s3Endpoint: http://minio.vectra-data.svc.cluster.local:9000
+# Deployment `governance-service` (INF-U4-01; NFR-U4-03): 8080 con el contrato y 8081 con /metrics, /healthz y /readyz.
+service:
+  priorityClassName: vectra-high
+  criticality: high
+  replicas: 2
+  port: 8080
+  metricsPort: 8081
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { cpu: "1", memory: 512Mi }
+  hpa: { minReplicas: 2, maxReplicas: 6, cpuUtilization: 70 }
+  pdb: { minAvailable: 1 }
+# Job de migracion: hook de sync de Argo CD, `alembic upgrade head` con `gov_migrator` (F44; INF-U4-01).
+migration:
+  priorityClassName: vectra-normal
+  activeDeadlineSeconds: 600
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+# Una ServiceAccount por identidad (los nombres son los `sa:` de `platform/network/flows.yaml`). Las de `model-archive` estan diferidas.
+serviceAccounts:
+  - { name: governance-service }
+  - { name: migration-governance }
+# K01: el servicio crea y lee los Jobs de validacion en `vectra-staging`. Nada mas (`inferenceservices` es una candidata de U04-T04).
+rbac:
+  namespace: vectra-staging
+  serviceAccount: governance-service
+# El `model-validation-job` en `vectra-staging` (U04-T05): su ServiceAccount y el ExternalSecret con la llave `private_key_jwt`.
 validationJob:
   namespace: vectra-staging
   serviceAccount: model-validation-job

@@ -4,6 +4,7 @@
 **Historias que verifica:** US-201, US-202, US-204, US-206 y US-208, en kind. Ninguna nueva.
 **Depende de:**
 - U04-T06 fusionado (chart, Application e imágenes);
+- **U04-T08 fusionado** (punto de entrada `vectra_governance.service`): sin él el pod de governance no arranca (`revisiones/U04-T06/ronda-1.md`, F-01);
 - U1, U2 y U3 instalados en kind;
 - para los escenarios 2 y 3: U5 (paquete de referencia, ya cerrado) y **U6 C+D** fusionado (plantilla del `InferenceService` y esquema de values de `promotion-tool`);
 - para el escenario 7 completo: U7 y U9. Hasta entonces queda **pendiente**, como manda el plan.
@@ -42,6 +43,18 @@ Rige RL-1 a RL-5 (`demo-kind-alcance.md` §6). **AUTONOMIA-01:** el codificador 
 6. **Escenario 4**: rollback a la versión `inactivo` (US-208), con `rollback_pr` y `mark_active`. Requiere una segunda versión: usa uno de los paquetes de U5 que pase el registro.
 7. **Escenario 7**: propagación del `freeze` en ≤ 6 s. Con U7 y U9 ausentes, se mide solo hasta `serving-config` (el `etag` y el estado cambian en ≤ 6 s en las 2 réplicas) y el escenario queda **pendiente** hasta U7 Paso 18.
 8. **Memoria**: `kubectl top` de `vectra-app` antes y después de governance (DD-3 b).
+
+### Runbook de la política en kind (decisión del usuario, 2026-11-10)
+
+El runbook `governance/runbooks/kind-politica-de-referencia.md` llega de U04-T06 marcado «no ejecutar todavía». Esta tarea lo deja **ejecutable tal cual** y quita esa marca. Hallazgos que corrige (`revisiones/U04-T06/ronda-2.md` y `decision-ronda-2.md`):
+
+1. **F-01 (ROJO):** no crear Secrets a mano en `vectra-app`: `disallow-plain-secrets` (Enforce en kind) los rechaza. Pasar el token por **stdin** a un pod interactivo (`kubectl run -i` con overrides y el cliente leyendo `sys.stdin`), de modo que el token no quede en etcd. Si hace falta material temporal de otra forma, que pase `kyverno apply` de las políticas de kind, y regístralo.
+2. **F-02 (ROJO):** la verificación (`GET /v1/policies` con la política `activa`) va **antes** de la limpieza, y la limpieza borra todo lo que el runbook creó, incluido `/tmp/llamar.py` (F-05).
+3. **F-04:** sin marcadores `REEMPLAZA_POR_…`: el digest sale de `docker inspect`, los tokens de un comando (`e2e_support.py` u otro del repo) sin pasar por `export` ni por el historial del shell ni por argumentos de proceso, y el `POLICY_ID` de la respuesta del paso de propuesta. Cada token se pide justo antes de usarlo (`accessTokenLifespan: 300`).
+4. **F-03:** `governance/tests/unit/test_kind_runbook.py` distingue lo que corre en el pod de lo que corre en la máquina del operador y detecta: un cliente ejecutado en local con hosts internos, `bash <<EOF … EOF` con hosts internos, nombres cortos (`governance-service.vectra-app`), cercos `sh`, «…» y marcadores `REEMPLAZA_POR_…`. Todas las pruebas leen `RUNBOOK`. Rojo primero con el runbook actual y con cada una de esas variantes.
+5. La guía `governance/docs/paso-20-kind.md` usa este runbook en su sección de arranque (P-7).
+
+Criterio adicional: **CA-7** — `kyverno apply` de las políticas de kind (sin `verify-images`) sobre todo recurso que el runbook crea termina con `fail: 0`, y `uv run pytest governance/tests/unit/test_kind_runbook.py -v` pasa, con su rojo en la bitácora.
 
 ### Scripts
 

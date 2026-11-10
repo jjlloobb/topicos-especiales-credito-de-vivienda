@@ -422,7 +422,7 @@ def _insert(conn: Connection, nt: NewTransition, now: datetime, correlation_id: 
                 now,
             ),
         ).fetchone()
-    except pg_errors.UniqueViolation as error:
+    except pg_errors.UniqueViolation as error:  # pragma: no cover - la guarda es el lock global + `_ensure_free`; defensa ante una carrera entre procesos
         raise ConflictState(REASON_TRANSITION_PENDING) from error
     assert row is not None
     return row
@@ -765,7 +765,7 @@ class Evidence:
                 )
                 return "acked"
         self._recover(conflict_row, pool)  # `conflict`: siempre termina en `ConflictState`
-        raise AssertionError("unreachable")
+        raise AssertionError("unreachable")  # pragma: no cover - `_recover` siempre lanza
 
     def finish(self, transition_id: uuid.UUID, pool: PoolFactory) -> str:
         """TX2 (BR-U4-17, paso 3): revalida, confirma y aplica la transicion (o su unidad completa), o la descarta."""
@@ -914,7 +914,7 @@ class Evidence:
                 for m in group
             )
             if blocked:
-                self._discard(conn, mine, "abandono", now)
+                self._discard(conn, mine, "abandono", now)  # pragma: no cover - exige otra transicion sobre una `n` de la unidad abandonada: solo una carrera entre procesos
             else:
                 conn.execute(
                     "UPDATE transitions SET status = 'abandonada' WHERE transition_id = ANY(%s)", (mine_ids,)

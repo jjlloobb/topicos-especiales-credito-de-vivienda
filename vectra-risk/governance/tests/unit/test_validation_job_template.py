@@ -91,8 +91,9 @@ def test_the_chart_renders_the_service_account_and_the_external_secret_in_vectra
     out = subprocess.run(
         ["helm", "template", "governance", str(CHART), "--namespace", "vectra-staging"], check=True, capture_output=True, text=True
     ).stdout
-    docs = {d["kind"]: d for d in yaml.safe_load_all(out) if d}
-    account, secret = docs["ServiceAccount"], docs["ExternalSecret"]
+    docs = {(d["kind"], d["metadata"]["name"]): d for d in yaml.safe_load_all(out) if d}
+    # El chart ya trae el resto de U4 (U04-T06: Deployment, migracion, RBAC...); aqui solo los dos objetos de `vectra-staging` de U04-T05.
+    account, secret = docs[("ServiceAccount", "model-validation-job")], docs[("ExternalSecret", CLIENT_SECRET)]
     assert (account["metadata"]["name"], account["metadata"]["namespace"]) == ("model-validation-job", "vectra-staging")
     assert account["automountServiceAccountToken"] is False
     assert secret["metadata"]["namespace"] == "vectra-staging"
@@ -100,7 +101,7 @@ def test_the_chart_renders_the_service_account_and_the_external_secret_in_vectra
     assert secret["spec"]["data"] == [
         {"secretKey": "private-key", "remoteRef": {"key": "identity/clients/model-validation-job", "property": "private-key"}}
     ]
-    assert set(docs) == {"ServiceAccount", "ExternalSecret"}  # el resto de U4 es de U04-T06
+    assert [d for (kind, _), d in docs.items() if kind == "ExternalSecret"] == [secret]  # el unico ExternalSecret del chart
 
 
 # --- F-03 (ronda 2): la CA interna para pedir el token por https (VECTRA_CA_BUNDLE, deps._verify_context) -----------------------
