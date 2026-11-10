@@ -104,7 +104,26 @@ El comentario de `test_run_machine.py` y el del objetivo `property` del `Makefil
 
 Ramas, con `pytest-cov --cov-branch` (`make -C bias-monitoring coverage-bias`: los dos comandos de CA-5). Exigido: 100 % en `freeze_rule`, `context` y `window`, y ≥ 95 % en el resto de `vectra_bias`.
 
-@@COBERTURA@@
+| Módulo | Sentencias | Ramas | Cobertura de partida (`main`, perfil `dev`) | Cobertura final (perfil `ci`) |
+|---|---|---|---|---|
+| `app` | 91 | 4 | sin código | 100 % |
+| `cache` | 61 | 14 | sin código | 100 % |
+| `compare` | 58 | 20 | sin código | 100 % |
+| `dashboard` | 59 | 6 | sin código | 100 % |
+| `freezes` | 22 | 4 | sin código | 100 % |
+| `config` | 106 | 26 | 98 % | 100 % |
+| `context` | 54 | 14 | 93 % | **100 %** |
+| `freeze_client` | 49 | 10 | 98 % | 100 % |
+| `freeze_rule` | 32 | 6 | 100 % | **100 %** |
+| `publish` | 165 | 52 | 98 % | 100 % |
+| `registry_client` | 45 | 4 | 90 % | 100 % |
+| `run` | 233 | 54 | 88 % | 99 % (queda la rama `141->138`: el bucle de reintentos del token siempre sale por `break` o `raise`) |
+| `window` | 43 | 10 | 98 % | **100 %** |
+| **Total `vectra_bias`** | 1 018 | 224 | 94 % | **99,92 %** (exigido ≥ 95 %) |
+
+Las ramas que faltaban en los módulos del Bloque C (`context`, `window`, `config`, `registry_client`, `freeze_client`, `publish`, `run`) se cubren con pruebas nuevas
+(`tests/unit/test_pure_gaps.py`, `tests/integration/test_gaps.py`); ningún módulo cambió de comportamiento por ellas. El `if __name__ == "__main__":` de los dos puntos de entrada se
+excluye de la medición en `coveragerc` (lo recorren las pruebas de subproceso, que `pytest-cov` no mide).
 
 `coverage-bias` repite las pruebas de `test` y `property` (la cobertura de ramas se mide sobre una sola corrida de todas ellas) y excluye la simulación, que tiene su objetivo.
 La librería `vectra_disparity` se mide aparte (`coverage`, 100 %).
