@@ -275,6 +275,14 @@ def test_un_freeze_o_una_compensacion_con_409_del_registro_siguen_pendientes(
     assert rows_of(world.a, "mv-1")[-1]["status"] == "pendiente_registro"  # nunca se abandona ni se rechaza
 
 
+def test_send_de_una_transicion_que_no_esta_pendiente_se_salta(world: World) -> None:  # noqa: F811
+    """Sin esta prueba, la rama dependia de que una carrera de hilos (`SKIP LOCKED`) la recorriera: no es determinista."""
+    assert world.a.send(uuid.uuid4(), world.a.pools.tx) == "skipped"
+    world.a.register(ING, new_model("mv-1"))
+    confirmed = rows_of(world.a, "mv-1")[0]["transition_id"]
+    assert world.a.send(confirmed, world.a.pools.tx) == "skipped"  # ya `confirmada`
+
+
 def test_finish_de_una_transicion_desconocida(world: World) -> None:  # noqa: F811
     assert world.a.finish(uuid.uuid4(), world.a.pools.tx) == "desconocida"
 
