@@ -1,4 +1,8 @@
-"""Una corrida del CronJob (BR-U9-08..14, 20; P-U9-01, 07; NFR-U9-01, 20, 21). `python -m vectra_bias.run`.
+"""Una corrida del CronJob (BR-U9-08..14, 20; P-U9-01, P-U9-07; NFR-U9-01, NFR-U9-20 y NFR-U9-21). `python -m vectra_bias.run`.
+
+Trazabilidad: P-U9-01 (corrida todo o nada con todas las versiones), P-U9-07 (escenarios E1, E3, E4, E5 y E7, en
+`tests/integration/test_run.py`), NFR-U9-01 (duracion de una corrida), NFR-U9-20 (escenarios de resiliencia) y NFR-U9-21
+(nunca congela con datos parciales ni con conteos atrasados; `tests/property/test_run_machine.py`).
 
 Orden de P-U9-01: token -> lectura (atraso del agregador e invalidas) -> calculo de **todas** las versiones evaluadas ->
 `freeze` en **todas** las que cumplan la regla (R4 sobre todos los atributos, BR-U9-11), aunque falle una -> publicacion.
@@ -346,7 +350,7 @@ def log_outcome(outcome: Outcome, duration_ms: int) -> None:
                 fields["error_code"] = version.freeze.reason
             log_access(**fields)
     for error in () if outcome.published is None else outcome.published.errors:
-        log_access(error_code="pushgateway", status=error.split(":", 1)[0])
+        log_access(error_code="pushgateway", http_method=error.split(":", 1)[0])
     fields = {"status": "completa" if outcome.report.complete else "fallida", "duration_ms": duration_ms}
     if outcome.report.failure_reason:
         fields["error_code"] = outcome.report.failure_reason

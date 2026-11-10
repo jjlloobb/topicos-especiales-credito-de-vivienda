@@ -90,7 +90,7 @@ def dstar(reps: int, rule_name: str, ts: list[float]) -> None:
     for t in ts or [round(0.05 * k, 2) for k in range(6, 33)]:
         truth = sim.synthetic_variant(t)
         rate = sim.freeze_rate(truth, sim._stratified_cell, reps, np.random.default_rng(sim.SEED + 3))
-        print(f"{t:5.2f} {100 * sim.true_model_disparity(truth):12.2f} {100 * library_aggregate(truth):18.2f} {rate:9.4f}", flush=True)
+        print(f"{t:5.3f} {100 * sim.true_model_disparity(truth):12.2f} {100 * library_aggregate(truth):18.2f} {rate:9.4f}", flush=True)
 
 
 if __name__ == "__main__":

@@ -32,7 +32,8 @@ GROUPS = {"sexo": 2, "rango_edad": 6, "region": 6, "estrato": 6}
 CELL_SIZES = (30, 100, 500, 2000)
 BASE_CELL_SIZES = (30, 50, 100)
 U5_COUNTS = Path(__file__).parents[1] / "doubles" / "u5_counts.json"
-DSTAR_T = None  # se fija con `revisiones/U09-T02/busqueda-dstar.py`
+DSTAR_T = 0.69  # D* (18,1 pp de agregada de la libreria, 95,58 %); el cruce del 95 % esta en t = 0,685 (`busqueda-dstar.py`)
+PROXY_T = 1.0  # la variante proxy actual de U5 (25,41 pp por `region`)
 STRATIFIED_BATCH = (
     1500  # ~1 500 casos `stratified` (BR-U12-06), repartidos en partes iguales por atributo, grupo y banda
 )
@@ -151,8 +152,17 @@ def test_the_base_model_freezes_at_most_6_percent_with_30_cases_per_cell(base_fr
     assert base_freeze_rates[30] <= 0.06  # el margen documentado en `library.md`
 
 
+def test_the_current_u5_proxy_variant_freezes_at_least_95_percent_with_the_stratified_batch():
+    truth = synthetic_variant(PROXY_T)
+    rate = freeze_rate(truth, _stratified_cell, REPETITIONS, np.random.default_rng(SEED + 3))
+    print(
+        f"proxy_actual_t={PROXY_T} real={true_model_disparity(truth):.4f} freeze_rate_stratified={rate:.4f}"
+    )
+    assert rate >= 0.95
+
+
 def test_a_proxy_variant_with_the_minimum_disparity_freezes_at_least_95_percent_with_the_stratified_batch():
     truth = synthetic_variant(DSTAR_T)
     rate = freeze_rate(truth, _stratified_cell, REPETITIONS, np.random.default_rng(SEED + 3))
-    print(f"dstar={true_model_disparity(truth):.4f} freeze_rate_stratified={rate:.4f}")
+    print(f"dstar_t={DSTAR_T} dstar={true_model_disparity(truth):.4f} freeze_rate_stratified={rate:.4f}")
     assert rate >= 0.95

@@ -353,3 +353,19 @@ def test_a_run_with_3_versions_and_dense_cells_takes_under_2_minutes_and_reports
     assert elapsed < 120
     assert world.governance.frozen == {"v1", "v3"}
     assert peak / 2**20 < 0.7 * 256  # NFR-U9-04: 70 % de 256 MiB
+
+
+def test_python_dash_m_vectra_bias_run_starts_and_a_missing_configuration_is_a_failed_run():
+    import subprocess
+    import sys
+
+    result = subprocess.run(  # noqa: S603 - el interprete de las pruebas, sin entrada externa
+        [sys.executable, "-m", "vectra_bias.run"],
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin"},
+        check=False,
+    )
+    assert result.returncode == EXIT_FAILED
+    line = json.loads(result.stdout.strip().splitlines()[-1])
+    assert line["error_code"] == "configuracion" and set(line) <= LOG_RECORD_FIELDS
