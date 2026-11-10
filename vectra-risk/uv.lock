@@ -14,11 +14,13 @@ members = [
     "vectra-contracts",
     "vectra-decision-registry",
     "vectra-disparity",
+    "vectra-explainability",
     "vectra-governance",
     "vectra-identity-edge",
     "vectra-model-serving",
     "vectra-reference",
     "vectra-risk",
+    "vectra-scoring",
 ]
 
 [[package]]
@@ -1753,6 +1755,21 @@ version = "1.0.0"
 source = { editable = "bias-monitoring/disparity" }
 
 [[package]]
+name = "vectra-explainability"
+version = "0.1.0"
+source = { editable = "scoring-explainability/explainability" }
+dependencies = [
+    { name = "vectra-common" },
+    { name = "vectra-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "vectra-common", editable = "contracts/python/vectra_common" },
+    { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
+]
+
+[[package]]
 name = "vectra-governance"
 version = "0.1.0"
 source = { editable = "governance" }
@@ -1893,9 +1910,11 @@ dev = [
     { name = "types-pyyaml" },
     { name = "vectra-bias" },
     { name = "vectra-disparity" },
+    { name = "vectra-explainability" },
     { name = "vectra-governance", extra = ["validation"] },
     { name = "vectra-model-serving" },
     { name = "vectra-reference" },
+    { name = "vectra-scoring" },
 ]
 
 [package.metadata]
@@ -1931,9 +1950,26 @@ dev = [
     { name = "types-pyyaml" },
     { name = "vectra-bias", editable = "bias-monitoring" },
     { name = "vectra-disparity", editable = "bias-monitoring/disparity" },
+    { name = "vectra-explainability", editable = "scoring-explainability/explainability" },
     { name = "vectra-governance", extras = ["validation"], editable = "governance" },
     { name = "vectra-model-serving", editable = "model-serving" },
     { name = "vectra-reference", editable = "reference-model" },
+    { name = "vectra-scoring", editable = "scoring-explainability/scoring" },
+]
+
+[[package]]
+name = "vectra-scoring"
+version = "0.1.0"
+source = { editable = "scoring-explainability/scoring" }
+dependencies = [
+    { name = "vectra-common" },
+    { name = "vectra-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "vectra-common", editable = "contracts/python/vectra_common" },
+    { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
 ]
 
 [[package]]
