@@ -17,7 +17,7 @@ from vectra_contracts.catalog import (
 from vectra_contracts.models.api import ClientErrorReport, ConsoleDossier, DecisionIn, ExplainRequest, Page, Problem, ScoringRequest
 from vectra_contracts.models.application import ApplicationIn, CaseFilter, CaseIdentifiers, CaseSummary
 from vectra_contracts.models.features import FeatureVector
-from vectra_contracts.models.governance import ModelRegistration, ModelVersion, PolicyDraft, ValidationRun
+from vectra_contracts.models.governance import ModelRegistration, ModelVersion, PolicyDraft, ServingConfig, ValidationRun
 from vectra_contracts.models.monitoring import CellResult, CompareSourceRequest, CountCell, FreezeRecord, MonitoringQuery
 from vectra_contracts.models.registry import (
     DataSourceEventPayload,
@@ -130,6 +130,42 @@ def test_br_u0_33_policy_draft():
     with pytest.raises(ValidationError):
         j(PolicyDraft, {**base, "normative": [{**item, "effective_to": "2026-06-01"}, {**item, "effective_from": "2026-05-01"}]})
     j(PolicyDraft, {**base, "normative": [{**item, "effective_to": "2026-06-01"}, {**item, "effective_from": "2026-06-01"}]})
+
+
+def _serving_config(**over):
+    base = {
+        "model_version_id": "mv-1",
+        "state": "activo",
+        "policy_version_id": "p1",
+        "cutoff": "0.5000",
+        "low_confidence_threshold": "0.2000",
+        "channel_rules": [{"channel": "web", "cutoff": "0.7000"}],
+        "feature_dictionary_version": "fd-1",
+        "effective_from": "2026-11-10T00:00:00Z",
+        "inference_service": "isvc-abc12345",
+        "etag": "e",
+    }
+    return {**base, **over}
+
+
+def test_serving_config_carries_the_active_policy_parameters():
+    item = j(ServingConfig, _serving_config())
+    assert item.cutoff == "0.5000" and item.channel_rules[0].channel == "web"
+
+
+@pytest.mark.parametrize("missing", ["cutoff", "low_confidence_threshold", "channel_rules"])
+def test_serving_config_requires_the_policy_parameters(missing):
+    data = _serving_config()
+    del data[missing]
+    with pytest.raises(ValidationError):
+        j(ServingConfig, data)
+
+
+@pytest.mark.parametrize("field", ["cutoff", "low_confidence_threshold"])
+@pytest.mark.parametrize("bad", ["1.5000", "-0.1000", "0.12345", "0.5"])
+def test_serving_config_rejects_out_of_range_or_wrong_scale(field, bad):
+    with pytest.raises(ValidationError):
+        j(ServingConfig, _serving_config(**{field: bad}))
 
 
 def test_br_u0_34_feature_value_and_forbidden_keys():
