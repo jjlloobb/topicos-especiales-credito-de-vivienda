@@ -76,9 +76,11 @@ debe quedar por encima. Si no, la entrega falla.
 
 ## 5. Variante proxy (Q6; US-303, RT-2)
 
-**BR-U5-14 — Disparidad esperada.** La variante proxy debe producir una disparidad agregada
-**≥ 10 pp** (el doble del umbral de U9) sobre `validation`, medida con la librería de U9.
-Si no la produce, la entrega de la variante falla.
+**BR-U5-14 — Disparidad esperada.** *(Enmendada en U05-T05, 2026-11-09; decisión del usuario en el arbitraje de la ronda 2 de U09-T01, `revisiones/U09-T01/arbitraje-ronda-2.md`: «una variante proxy más fuerte», en vez de un lote mayor o de aceptar la tasa de congelamiento; margen de la ronda 3, F-05.)* La variante proxy debe cumplir las dos condiciones:
+1. producir una disparidad agregada por `region` **≥ 18 pp** sobre `validation`, medida con `disparity_by_band` de la librería de U9 (D\* = 17,5 pp de `library.md` más el margen que pide el revisor); **y**
+2. que la regla R4 (BR-U9-11: `aggregate_lower_limit` con `Z_FREEZE`, del atributo disparador) la congele en **≥ 95 %** de las muestras `stratified` de BR-U12-06 (~1 500 casos de `test`, ≥ 30 por celda de U9), sacadas del dataset real de U5 y no del reparto idealizado de la simulación.
+
+Si no se cumplen, la entrega de la variante falla. El modelo base conserva **< 5 pp** (BR-U5-06) y R4 no lo congela en más del 5 % de esas mismas muestras. (Antes: **≥ 10 pp**, el doble del umbral de U9.)
 
 **BR-U5-15 — Uso restringido.** La variante proxy se registra como 5 versiones distintas, una por corrida de RT-2 (cuarta revisión de coherencia entre unidades, 2026-10-31),
 con la etiqueta `purpose = rt2-demo` en el manifiesto, y solo se usa en kind y staging para

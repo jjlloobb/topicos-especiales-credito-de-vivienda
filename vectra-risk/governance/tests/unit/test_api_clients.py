@@ -5,6 +5,7 @@ import json
 import httpx
 import pytest
 from vectra_common.errors import DependencyUnavailable
+from vectra_contracts.models.governance import PolicyDraft
 from vectra_contracts.models.monitoring import CompareSourceRequest
 from vectra_governance.clients import HttpSourceComparer
 from vectra_governance.k8s_jobs import JobSpec, KubernetesJobs, job_manifest
@@ -17,6 +18,7 @@ def spec(**over: object) -> JobSpec:
     base = {
         "job_name": "validation-1", "mode": "validacion", "run_id": "r1", "model_version_id": "mv-1", "image": "reg/job:1.0.0",
         "manifest_uri": "s3://m", "artifact_uri": "s3://a", "explainer_uri": "s3://e", "dataset_ref": "s3://d", "callback_url": "http://g",
+        "policy": PolicyDraft(cutoff="0.0800", low_confidence_threshold="0.0300", channel_rules=[], normative=[]),
     }
     return JobSpec(**{**base, **over})  # type: ignore[arg-type]
 
