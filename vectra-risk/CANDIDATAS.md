@@ -380,3 +380,4 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
 
 - U1, `platform/tests/test_kserve_credentials.py:47` (revisor, U01-T08, AMARILLO): no comprueba `s3VerifySSL`, y la prueba del puerto compara una constante propia con F46 en vez de `kserve.yaml`.
 - U1, `minio-kserve` (revisor, U01-T08, AMARILLO): la plantilla de `extraSecrets` define las claves por Secret, así que las `AWS_*` también llegan a `vectra-data`, donde nadie las usa. Inofensivo.
+- U4, `governance/tests/unit/test_promotion_tool.py:357-364` (revisor, U04-T05b, ronda 2, AMARILLO): el doble del endpoint de token no compara `redirect_uri` con el de la autorización, como hace Keycloak. Agregar el candado contra una regresión.
