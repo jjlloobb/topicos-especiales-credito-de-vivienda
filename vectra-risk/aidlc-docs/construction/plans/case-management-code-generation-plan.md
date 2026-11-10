@@ -69,7 +69,7 @@ vectra-risk/case-management/
 
 ### Bloque A — Estructura y configuración
 
-- [ ] **Paso 1 — Esqueleto de `case-management/`**
+- [x] **Paso 1 — Esqueleto de `case-management/`** (U08-T01)
   - Directorios de §1; `pyproject.toml` (dos miembros del workspace: `vectra_case` y `core_banking_mock`) que dependen de `vectra_contracts` y `vectra_common`.
   - Contratos de import-linter:
     - `case_fsm`, `backoff`, `decision` y `views` no importan `db`, `httpx` ni `vectra_common.deps` (funciones puras);
@@ -79,7 +79,7 @@ vectra-risk/case-management/
   - Diseño: BR-U8-06, 22; NFR-U8-34, 43; P-U8-02. Historia: US-603.
   - **Aceptación**: `uv sync --frozen && uv run lint-imports --config case-management/.importlinter && make -C case-management check` sobre el esqueleto; `uv run pytest case-management/tests/unit/test_core_client_readonly.py`.
 
-- [ ] **Paso 2 — Constantes tipadas**
+- [x] **Paso 2 — Constantes tipadas** (U08-T01)
   - `vectra_case/config.py`:
     - timeouts de NFR-U8-30 (`serving-config` 500 ms, `feature_spec` 1 s, scoring 7 s, registro 2,5 s, core 500 ms);
     - pools de P-U8-02 (scoring 16, governance 4 y 2, registro 10, core 10), `RECONCILER_CONCURRENCY = 4` y pool de `case-db` ≤ 5;
@@ -96,7 +96,7 @@ vectra-risk/case-management/
 
 ### Bloque B — Base de datos
 
-- [ ] **Paso 3 — Migraciones de `case-db`**
+- [x] **Paso 3 — Migraciones de `case-db`** (U08-T01)
   - Tablas de domain-entities §1–§3, con:
     - el índice único parcial «un trabajo vivo por caso» en `evaluation_jobs` y `CHECK (attempt BETWEEN 0 AND 6)`;
     - la clave única (`case_id`, `user_id`) en `explanation_views`;
@@ -124,25 +124,25 @@ vectra-risk/case-management/
 
 ### Bloque C — Lógica pura
 
-- [ ] **Paso 4 — `case_fsm`**
+- [x] **Paso 4 — `case_fsm`** (U08-T02)
   - `transition(state, event) -> state | Rechazo` con la tabla de BR-U8-12 (la misma que `case_transitions`, sin el rol).
   - `decidido` y `vencido` terminales; `listo` nunca vuelve a evaluarse.
   - Diseño: BR-U8-12. Historias: US-107, US-112.
   - **Aceptación**: `uv run pytest case-management/tests/unit/test_case_fsm.py`: cada fila de BR-U8-12 aceptada, cada par fuera de la tabla rechazado, y una prueba que compara la tabla de `case_fsm` con las filas de `case_transitions` de la migración (sin el rol).
 
-- [ ] **Paso 5 — `backoff`**
+- [x] **Paso 5 — `backoff`** (U08-T02)
   - `schedule(attempt, rng) -> delay`: `30 s · 2^(n−1)` con jitter de ±20 %, máximo 6 intentos.
   - Diseño: BR-U8-07. Historia: US-112.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest case-management/tests/property/test_backoff.py`: PBT-U8-02.
 
-- [ ] **Paso 6 — `decision`**
+- [x] **Paso 6 — `decision`** (U08-T02)
   - `validate_decision(DecisionIn, recommendation)`: BR-U0-35 contra `recommendation.outcome`, `used_factors` subconjunto de los `feature_id` del `shap_vector` o exactamente `["ninguno"]`, reglas de `se_aparta`, `sigue` y `resuelve_revision`, justificación de 20 a 2000 caracteres tras recortar los bordes (BR-U0-36).
   - Diseño: BR-U8-16. Historias: US-108, US-502.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest case-management/tests/property/test_decision.py tests/unit/test_decision_examples.py`:
     - PBT-U8-03;
     - `se_aparta` sin factores ni `ninguno` → 422; `sigue` con `["ninguno"]` → aceptada (US-502).
 
-- [ ] **Paso 7 — `views`**
+- [x] **Paso 7 — `views`** (U08-T02)
   - Proyección a `CaseSummary`, `CaseDetail` y `PersistentFailure`:
     - sin `score`, `outcome`, `recommendation` ni `explanation` fuera de `listo` y `decidido`; `attempts` y `last_cause` en `en_sincronizacion` y `no_disponible`;
     - `applicant_display` (nombre + los últimos 4 dígitos del documento) como única identificación en la bandeja;
@@ -151,9 +151,10 @@ vectra-risk/case-management/
   - Diseño: BR-U8-13, 13b. Historia: US-107.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest case-management/tests/property/test_views.py`: PBT-U8-04.
 
-- [ ] **Paso 8 — Resumen de la lógica pura**
+- [x] **Paso 8 — Resumen de la lógica pura** (U08-T02)
   - Cobertura de ramas **100 %** en `case_fsm`, `backoff`, `decision` y `views`.
   - `mutmut` en `case_fsm`, `validate_decision`, `views` y `backoff`, con 0 sobrevivientes sin justificar.
+    - **Nota:** `mutmut` diferido por la demo (T3).
   - Resumen en `aidlc-docs/construction/case-management/code/logic.md`.
   - Diseño: NFR-U8-50, 51, 52.
   - **Aceptación**: `uv run pytest case-management/tests/unit case-management/tests/property --cov=vectra_case.case_fsm --cov=vectra_case.backoff --cov=vectra_case.decision --cov=vectra_case.views --cov-branch --cov-fail-under=100` y `uv run mutmut run --paths-to-mutate case-management/src/vectra_case/case_fsm.py,case-management/src/vectra_case/decision.py,case-management/src/vectra_case/views.py,case-management/src/vectra_case/backoff.py` sin sobrevivientes fuera de la allowlist.

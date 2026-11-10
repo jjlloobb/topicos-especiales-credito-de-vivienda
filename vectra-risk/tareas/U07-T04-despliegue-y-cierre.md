@@ -4,10 +4,11 @@
 **Historias que implementa:** ninguna nueva. Empaqueta, despliega por GitOps y mide lo que implementan los Pasos 1 a 13.
 **Depende de:**
 - U07-T03 (servicios), fusionado en `main`;
-- **U04-T09** (la política activa en `serving-config`, decisión del usuario del 2026-11-10), fusionado en `main`. Sin esa tarea, `scoring.app.main` termina con `policy_source_undefined` y el contenedor de scoring no arranca;
-- U06-T03 (presupuesto de kind con U6, `BUDGET_GIB` = 8,5) y U04-T06 (chart de governance, que vuelve a subir `BUDGET_GIB`), fusionados en `main`: la cifra de partida del presupuesto es la que dejen.
+- **U04-T09** (la política activa en `serving-config`, decisión del usuario del 2026-11-10), fusionado en `main` (PR #129). `ServingConfig` trae `cutoff`, `low_confidence_threshold` y `channel_rules`, y `scoring.app.main` arranca con `REQUIRED_ENV`;
+- U06-T03 (PR #108) y U04-T06 (PR #113), fusionados en `main`: `BUDGET_GIB` = 9,0 en `1bb39b5`;
+- **U09-T04** (chart de bias-monitoring): su rama sube `BUDGET_GIB` a 9,3 y toca `components.yaml` y `test_kind_profile.py`. Para no integrar dos cambios del mismo número, esta tarea se despacha **después** de fusionar U09-T04 y parte de la cifra que deje.
 
-**Se despacha** cuando U07-T03, U04-T09, U06-T03 y U04-T06 estén fusionados en `main`.
+**Se despacha** cuando U09-T04 esté fusionado en `main` (las demás dependencias ya lo están; actualizado el 2026-11-10).
 **Rama:** `tarea/U07-T04`, desde `origin/main`.
 
 Bloque E del plan de U7 (`aidlc-docs/construction/plans/scoring-explainability-code-generation-plan.md`) más el cierre, tarea «E+cierre (14, 15, 17, 19, 20)» de `demo-recorte-funcional.md` §8. La verificación en kind (Paso 18) se consolida en U12 (enmienda §8). La enmienda rige donde difiera del alcance (`demo-kind-alcance.md`):
@@ -76,6 +77,30 @@ Rige RL-1 a RL-5 (`demo-kind-alcance.md` §6): máximo 2 rondas, y solo un ROJO 
 - `test_traceability.py` no ve las BR-U7 (están en párrafos en negrita; candidata de U03-T02). Por eso hay un `git grep` por BR (CA-6), como en U3.
 - Diseño: P-U1-12; NFR-U7-01, 02, 03. La medición de carga de los tres se difiere con k6 (T3); NFR-U7-03 queda trazado por el Paso 9.
 
+### Candidatas que se cierran aquí (`CANDIDATAS.md`, actualizado el 2026-11-10)
+
+Cuatro entradas de `CANDIDATAS.md` piden decidirse en U07-T04. El codificador tacha en `CANDIDATAS.md` las que cierra («~~…~~ **cerrada en U07-T04**: …»), como hizo U04-T09, y deja las otras con su destino.
+
+- **C-1 · NFR-U7-41, `mutmut` (revisor de U07-T02, F-02, NARANJA).** Se difiere (T3), según P-2. Hoy el comentario de `coverage` del `Makefile` (línea 23) cita `NFR-U7-41`. `test_traceability.py` rechaza una fila de «Diferido por la demo» cuyo identificador tiene código o prueba («está en Diferido por la demo pero ya tiene código o prueba»). Por eso:
+  - se quita el identificador del comentario: el texto «`mutmut` sobre `policy` y `factuality` se difiere (T3)» puede quedar, sin el identificador;
+  - NFR-U7-41 entra en la lista de diferidos, con el Paso 7 y la cita T3.
+- **C-2 · Hosts de KServe (codificador de U07-T03).** El chart de U7 fija `SCORING_PREDICTOR_URL_TEMPLATE` y `EXPLAINABILITY_EXPLAINER_URL_TEMPLATE` en los values de los tres entornos.
+  - KServe corre en RawDeployment (`platform/operators/kserve.yaml`). Su controlador crea un `Service` `<isvc>-predictor` y otro `<isvc>-explainer` en el namespace del `InferenceService`, que es `vectra-serving` (`components.yaml`, Application `model-serving`).
+  - Valores: `http://{inference_service}-predictor.vectra-serving.svc.cluster.local` y `http://{inference_service}-explainer.vectra-serving.svc.cluster.local`.
+  - El puerto del `Service` lo comprueba el codificador en la fuente de KServe v0.21 (`pkg/controller/.../raw`, o la documentación del modo Standard/Raw) y cita el archivo en la bitácora. Si el puerto no es 80, va explícito en la URL.
+  - `test_chart.py` afirma, en el render de cada entorno, que las dos plantillas tienen `{inference_service}`, terminan en `-predictor` o `-explainer` y apuntan al namespace de la Application `model-serving` leído de `components.yaml`, no a un literal.
+  - El chart de U6 no se toca. La resolución real del nombre en kind queda «Pendiente en U12» (enmienda §8).
+- **C-3 · Desplegar governance y sus consumidores juntos (revisor de U04-T09).** `ServingConfig` es `StrictModel` con `additionalProperties: false`: un consumidor con el tipo viejo rechaza la respuesta nueva y falla cerrado, y `oasdiff` no lo marca.
+  - `governance` y `scoring-explainability` ya van en la misma wave 5.
+  - `scoring-explainability/docs/imagenes.md` exige construir las imágenes de `governance-service`, `scoring-service` y `explainability-service` **del mismo commit**, y subir sus digests a los values de kind en **un solo PR**.
+  - `cierre-demo.md` lo lleva en «Pendiente en U12».
+  - Para U8, la entrada queda abierta en `CANDIDATAS.md`, con la nota de que la parte de U7 se cerró aquí.
+- **C-4 · Scope `governance:read-serving` de `explainability-service` (codificador de U07-T03).** Se difiere, según P-1.
+  - La precarga del diccionario activo (NFR-U7-21, P-U7-05) recibe 403 y se omite; la primera explicación lo pide.
+  - No rompe ninguna de las cuatro demos: solo suma latencia a la primera explicación.
+  - Va en «Diferido por la demo» o en «Comprobado / no comprobado» de `cierre-demo.md`, con destino U2 (realm) o el diseño de U7, y la entrada de `CANDIDATAS.md` queda abierta.
+  - El realm de U2 no se toca.
+
 ### Paso 18 — Consolidado en U12
 
 - Queda `[ ]` en el plan con la nota «consolidado en U12 Paso 18 (enmienda §8)». Ninguna guía de kind en esta tarea.
@@ -108,6 +133,7 @@ Rige RL-1 a RL-5 (`demo-kind-alcance.md` §6): máximo 2 rondas, y solo un ROJO 
 - Push de imágenes, digest real y cualquier `kubectl`, `helm install`, `argocd` o sync (AUTONOMIA-01).
 - `values-kind-demo.yaml` o 1 réplica (DD-3 eligió la b).
 - Cambios en U0, y en U1 salvo `BUDGET_GIB` (y su comentario) en `platform/tests/test_kind_profile.py`, `test_traceability.py` si P-4 lo necesita para U7 y lo que `generate.py` genera.
+- El realm de U2 (`identity-edge/keycloak/realm/`), incluido el scope `governance:read-serving` de `explainability-service` (C-4), y el chart de U6 (C-2).
 
 ---
 
@@ -182,6 +208,7 @@ Desde `vectra-risk/`, con las herramientas de `platform/install-tools.sh`. Ningu
   grep -n "Diferido por la demo" -A40 aidlc-docs/construction/scoring-explainability/evidence/cierre-demo.md
   ```
   Esperado: código 0 y ninguna línea «sin prueba». `--all` cumple la regla de `DECISIONES-LOOP.md` §6 con su enmienda. La lista no contiene identificadores de los Pasos 1 a 15 que entran.
+  Rojo en `main` (`1bb39b5`, comprobado al preparar la tarea): código 1, con 13 «sin trazabilidad». Son INF-U7-02, INF-U7-05, NFR-U7-01, NFR-U7-02, NFR-U7-03, NFR-U7-04, NFR-U7-12, NFR-U7-13, NFR-U7-20, NFR-U7-22, NFR-U7-31, P-U7-06 y P-U7-09. Cada uno se traza en el chart o en una prueba, o entra en la lista con su justificación (los Pasos 1 a 15 que entran no pueden ir en la lista).
 
 - [ ] **CA-7** — Presupuesto de kind.
   ```bash
@@ -206,9 +233,32 @@ Desde `vectra-risk/`, con las herramientas de `platform/install-tools.sh`. Ningu
 
 - [ ] **CA-10** — RL-4: el `make check` de todas las unidades, una vez al cerrar U7.
   ```bash
-  for u in contracts platform identity-edge decision-registry governance reference-model model-serving bias-monitoring scoring-explainability; do make -C $u check || echo "FALLA $u"; done
+  for u in contracts platform identity-edge decision-registry governance reference-model model-serving bias-monitoring scoring-explainability case-management; do make -C $u check || echo "FALLA $u"; done
   ```
   Esperado: ninguna línea «FALLA». Si una unidad ajena falla y el fallo también ocurre en `origin/main`, regístralo con la salida: no es de esta tarea.
+  Las unidades corren **en serie**, con `uptime` antes y después de cada una: con la máquina cargada, las pruebas con límite de tiempo fallan (`test_f04_300_mil…` de U3, el bench de contracts). Si `identity-edge` falla solo en `test_t1_supply_chain_skips_exactly_the_three_realm_configmaps` y U02-T20 no se ha fusionado, es ese defecto conocido y no de esta tarea.
+
+- [ ] **CA-12** — Candidatas C-1 a C-4.
+  ```bash
+  ! grep -n "NFR-U7-41" scoring-explainability/Makefile
+  grep -n "NFR-U7-41" aidlc-docs/construction/scoring-explainability/evidence/cierre-demo.md
+  for env in kind staging prod; do grep -hE "(SCORING_PREDICTOR|EXPLAINABILITY_EXPLAINER)_URL_TEMPLATE" -A1 /tmp/u7-$env/*.yaml | grep -cE "\{inference_service\}-(predictor|explainer)\.vectra-serving\.svc\.cluster\.local"; done
+  uv run pytest scoring-explainability/tests/unit/test_chart.py -v -k "kserve or inference_service"
+  grep -niE "mismo commit|un solo PR" scoring-explainability/docs/imagenes.md
+  grep -nE "read-serving" aidlc-docs/construction/scoring-explainability/evidence/cierre-demo.md
+  git diff origin/main -- CANDIDATAS.md | grep -c "cerrada en U07-T04"
+  git diff --exit-code origin/main -- identity-edge/keycloak/realm model-serving/chart
+  ```
+  Esperado:
+  - la primera orden no imprime nada;
+  - la segunda encuentra la fila;
+  - `2` en cada entorno de la tercera (los valores salen de los values, sin literales repetidos en las plantillas);
+  - la prueba pasa;
+  - las dos órdenes `grep` siguientes encuentran línea;
+  - al menos `2` en el conteo de `CANDIDATAS.md` (C-1 y C-2);
+  - el `diff` final vacío.
+
+  En `main`, la primera orden falla (la línea 23 cita NFR-U7-41) y la tercera no tiene render: es el rojo esperado.
 
 - [ ] **CA-11** — Estado del plan.
   ```bash
@@ -235,6 +285,18 @@ Desde `vectra-risk/`, con las herramientas de `platform/install-tools.sh`. Ningu
 - `FROM python:3.12-slim` sin digest (la orden de CA-1 falla).
 
 ---
+
+## Preguntas
+
+Si nadie las responde antes del despacho, rige la recomendación.
+
+- **P-1 · Scope `governance:read-serving` de `explainability-service` (C-4).**
+  - (a) **Se difiere** (recomendada): la demo funciona sin la precarga, el realm es de U2 y esta tarea no lo toca, y el costo es solo la latencia de la primera explicación.
+  - (b) Una tarea U2 corta que otorgue el scope en los tres realms, antes de U12.
+  - (c) Quitar la precarga del diseño de U7 (NFR-U7-21, P-U7-05).
+- **P-2 · NFR-U7-41 (`mutmut`) (C-1).**
+  - (a) **Se difiere** (T3) y se quita la cita del `Makefile` (recomendada): `mutmut` no corre, así que dejarlo trazado afirmaría algo que nadie comprobó.
+  - (b) Dejarlo trazado en el comentario y fuera de la lista.
 
 ## Notas
 

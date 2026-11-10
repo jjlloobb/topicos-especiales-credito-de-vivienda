@@ -17,13 +17,18 @@ lint:
 test:
 	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest scoring-explainability/tests -q -p no:cacheprovider --import-mode=importlib
 
-# Cobertura de ramas de la logica pura (NFR-U7-40) con las PBT-U7-01..06 en el perfil `ci`, 500 ejemplos (NFR-U7-42): 100 % en `policy`, `narrative` y `factuality`. Los modulos viven en los paquetes
-# `scoring` y `explainability`, asi que se miden los paquetes y el 100 % se fija por modulo. Corre las mismas pruebas que `test`.
+# Cobertura de ramas (NFR-U7-40, 42): toda la suite (logica pura, ejemplos, integracion con dobles, PBT-U7-01..08 en el perfil `ci`, 500
+# ejemplos) con >= 95 % en los dos servicios; despues el 100 % por modulo: `policy`, `narrative` y `factuality` (logica pura, Paso 7)
+# y `orchestrator` (Paso 13). `--cov` sin argumento mediria el `source` de la raiz (U0), por eso se nombran los paquetes.
 # `mutmut` sobre `policy` y `factuality` (NFR-U7-41) se difiere (T3, enmienda §2.3).
 coverage:
-	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest scoring-explainability/tests/unit scoring-explainability/tests/property -q -p no:cacheprovider --import-mode=importlib --cov=scoring --cov=explainability --cov-branch
+	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest scoring-explainability/tests -q -p no:cacheprovider --import-mode=importlib --cov=scoring --cov=explainability --cov-branch --cov-fail-under=95
+	cd $(ROOT) && uv run coverage report --include="*/scoring/*" --fail-under=95
+	cd $(ROOT) && uv run coverage report --include="*/explainability/*" --fail-under=95
 	cd $(ROOT) && uv run coverage report --include="*/scoring/policy.py,*/explainability/narrative.py,*/explainability/factuality.py" --fail-under=100
+	cd $(ROOT) && uv run coverage report --include="*/scoring/orchestrator.py" --fail-under=100
 	test -s $(ROOT)/aidlc-docs/construction/scoring-explainability/code/logic.md
+	test -s $(ROOT)/aidlc-docs/construction/scoring-explainability/code/services.md
 
 # Verificaciones estaticas y pruebas (AUTONOMIA-01). `coverage` corre las pruebas de `test` con la medicion. Crece con los pasos del plan.
 check: lint coverage
