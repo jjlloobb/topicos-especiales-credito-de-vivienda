@@ -1760,6 +1760,7 @@ dependencies = [
     { name = "alembic" },
     { name = "httpx" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "pyyaml" },
     { name = "vectra-common" },
     { name = "vectra-contracts" },
 ]
@@ -1783,6 +1784,7 @@ requires-dist = [
     { name = "onnxruntime", marker = "extra == 'validation'", specifier = "==1.31.1" },
     { name = "psycopg", extras = ["binary"], specifier = "==3.3.8" },
     { name = "pyarrow", marker = "extra == 'validation'", specifier = "==26.0.1" },
+    { name = "pyyaml", specifier = "==6.0.3" },
     { name = "vectra-common", editable = "contracts/python/vectra_common" },
     { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
     { name = "vectra-disparity", marker = "extra == 'validation'", editable = "bias-monitoring/disparity" },

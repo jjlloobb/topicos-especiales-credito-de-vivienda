@@ -7,6 +7,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
   "psycopg[binary]==3.3.8",
   "httpx==0.28.1",
+  "pyyaml==6.0.3",  # lo importa `vectra_promotion` (edicion de values); version del lock
   "alembic==1.20.1",
   "vectra-contracts",
   "vectra-common",
@@ -24,12 +25,15 @@ validation = [
   "vectra-disparity",
 ]
 
+[project.scripts]
+promotion-tool = "vectra_promotion.cli:main"
+
 [build-system]
 requires = ["hatchling==1.27.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/vectra_governance", "validation_job/vectra_validation"]
+packages = ["src/vectra_governance", "validation_job/vectra_validation", "promotion_tool/vectra_promotion"]
 
 [tool.uv.sources]
 vectra-contracts = { workspace = true }

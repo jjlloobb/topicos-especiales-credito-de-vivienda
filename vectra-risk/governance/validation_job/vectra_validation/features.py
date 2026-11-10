@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 from pydantic import ValidationError
 from vectra_contracts.labels import derive, derive_monitoring_labels
 from vectra_contracts.models.application import ApplicationIn
-from vectra_contracts.models.features import CategoryFeature, FeatureSpec
+from vectra_contracts.models.features import FeatureSpec
 
 from vectra_validation.errors import ValidationJobError
 
@@ -51,7 +51,7 @@ def build_dataset(
     encoding: Mapping[str, Sequence[str]],
     evaluated_on: date,
 ) -> Dataset:
-    """Matriz `(n, k)` en el orden del explicador (categoricas por su posicion, -1 si no estan), `default` y etiquetas.
+    """Matriz `(n, k)` en el orden del explicador (una feature con vocabulario en `encoding` va por su posicion, -1 si no esta; el resto, numerica), `default` y etiquetas.
 
     Es la misma derivacion que usa scoring (BR-U0-30..43): la AUC y la disparidad se miden sobre lo que el modelo veria.
     """
@@ -71,11 +71,14 @@ def build_dataset(
             item = features.get(name)
             if item is None:
                 raise ValidationJobError(f"feature_missing:{name}")
-            if isinstance(item, CategoryFeature):
-                values_of = list(encoding.get(name, ()))
-                matrix[i, j] = values_of.index(item.value) if item.value in values_of else -1
-                row_values[name] = item.value
+            if name in encoding:
+                # Por nombre, como el predictor de U6 y `vectra_reference.train.encode`: el vocabulario del paquete manda.
+                level = str(item.value)
+                levels = list(encoding[name])
+                matrix[i, j] = levels.index(level) if level in levels else -1
+                row_values[name] = level
             else:
+                # Numerica aunque U0 la tipe como cadena (`proposed_rate_ea` es `Decimal4 = str`): U5 la entrena asi.
                 matrix[i, j] = float(item.value)
                 row_values[name] = float(item.value)
         labels = derive_monitoring_labels(application, evaluated_on)

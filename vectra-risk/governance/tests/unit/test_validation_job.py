@@ -96,6 +96,68 @@ def test_contributions_that_do_not_add_up_to_the_margin_fail_the_sync_check() ->
     assert (result.passed, result.failure_reason) == (False, "margin_mismatch")
 
 
+# --- codificacion por nombre (F-01 de la ronda 2 de U04-T05) ------------------------------------------------------------------
+
+
+def test_the_job_matrix_is_the_one_u5_trains_with_and_proposed_rate_is_numeric() -> None:
+    """`proposed_rate_ea` llega como `CategoryFeature("0.1500")` desde U0, pero U5 la entrena numerica: el Job decide por nombre."""
+    from vectra_reference.features import BASE_FEATURES, categorical_vocabulary, row_values
+    from vectra_reference.train import encode
+    from validation_support import CONFIG
+
+    matrix = dataset(DATA).matrix
+    column = BASE_FEATURES.index("proposed_rate_ea")
+    assert (matrix[:, column] > 0).all()  # nunca -1
+    expected = encode([row_values(r) for r in DATA], BASE_FEATURES, categorical_vocabulary(CONFIG))
+    assert np.allclose(matrix, expected, atol=1e-9)
+
+
+def test_with_a_model_trained_with_the_u5_encoding_the_job_auc_is_the_one_u5_measures() -> None:
+    """Medicion de la ronda 2 de U04-T05: 6 000 filas de entrenamiento y 2 000 de validacion; U5 da 0,863 y el Job con -1 daba 0,848."""
+    import xgboost as xgb
+    from validation_support import CONFIG, parquet
+    from vectra_reference.features import BASE_FEATURES, categorical_vocabulary, row_values
+    from vectra_reference.train import encode
+
+    data = rows(8000)
+    train, validation = data[:6000], data[6000:]
+    uri, store = package("predictor.json", xgboost_bytes(train), validation)
+    store.objects[DATASET] = parquet(validation)
+    report = validate(job_config(uri), store, CapturingSender(), EVALUATED_ON)
+    booster = xgb.Booster()
+    booster.load_model(bytearray(store.read(uri)))
+    matrix = encode([row_values(r) for r in validation], BASE_FEATURES, categorical_vocabulary(CONFIG))
+    u5_auc = auc_roc([int(r["default"]) for r in validation], booster.predict(xgb.DMatrix(matrix, feature_names=list(BASE_FEATURES))))
+    print(f"AUC U5={u5_auc:.6f} Job={report.auc_roc}")  # noqa: T201
+    assert abs(float(report.auc_roc) - u5_auc) < 1e-3
+
+
+def test_with_the_real_u5_base_model_the_job_auc_matches_the_one_u5_computes_within_1e_3() -> None:
+    import xgboost as xgb
+    from validation_support import u5_base_release, u5_package_store
+    from vectra_reference.features import read_rows as u5_read_rows, row_values
+    from vectra_reference.train import encode
+
+    out = u5_base_release()
+    artifact, store, version = u5_package_store(out)
+    sender = CapturingSender()
+    report = validate(
+        job_config(artifact, model_version_id=version, manifest_uri="s3://model-store/u5/manifest.json",
+                   explainer_uri="s3://model-store/u5/explainer.json"),
+        store, sender, EVALUATED_ON,
+    )
+    explainer = json.loads(store.read("s3://model-store/u5/explainer.json"))
+    validation = u5_read_rows(out / "datasets" / "validation.parquet")
+    booster = xgb.Booster()
+    booster.load_model(bytearray(store.read(artifact)))
+    order = explainer["feature_order"]
+    matrix = encode([row_values(r) for r in validation], order, explainer["categorical_encoding"])
+    u5_scores = booster.predict(xgb.DMatrix(matrix, feature_names=order))
+    u5_auc = auc_roc([int(r["default"]) for r in validation], u5_scores)
+    print(f"AUC U5={u5_auc:.6f} Job={report.auc_roc}")  # noqa: T201
+    assert abs(float(report.auc_roc) - u5_auc) < 1e-3
+
+
 # --- AUC -------------------------------------------------------------------------------------------------------------------
 
 
@@ -254,6 +316,41 @@ def test_the_job_gives_each_row_the_outcome_of_the_policy_and_not_the_score_belo
         _, _, report = xgboost_run(policy=pol)
         rates = {c.rate for a in report.initial_disparity.attributes for c in a.cells if c.status == "suficiente"}
         assert rates == {"0.0000"}, why
+
+
+def test_validate_passes_the_real_confidence_rate_and_channel_of_each_row_to_the_outcome(monkeypatch: pytest.MonkeyPatch) -> None:
+    """NARANJA F-02 (ronda 2 de U04-T05): el cableado de `confidence`, tasa y canal en `validate` se comprueba fila a fila."""
+    from vectra_validation import run as run_module
+
+    seen: list[tuple[float, str, str, str]] = []
+    real = run_module.outcome_of
+
+    def spy(probability: float, conf: str, rate: str, channel: str, pol: PolicyDraft, on: Any) -> str:
+        seen.append((probability, conf, rate, channel))
+        return real(probability, conf, rate, channel, pol, on)
+
+    monkeypatch.setattr(run_module, "outcome_of", spy)
+    xgboost_run()
+    envelope = parse_envelope(envelope_bytes(DATA))
+    expected = [confidence(envelope, v) for v in dataset(DATA).values]
+    assert len(seen) == len(DATA)
+    assert [s[1] for s in seen] == expected
+    assert len(set(expected)) > 1
+    assert [s[2] for s in seen] == [str(r["proposed_rate_ea"]) for r in DATA]
+    assert [s[3] for s in seen] == [r["channel"] for r in DATA]
+
+
+def test_a_high_confidence_floor_changes_the_disparity_through_validate() -> None:
+    """Punta a punta: un umbral de confianza alto manda a revision a las filas de confianza menor, y la tabla cambia."""
+    _, _, base = xgboost_run()
+    _, _, strict = xgboost_run(policy=policy(low_confidence_threshold="0.9999"))
+    assert base.initial_disparity != strict.initial_disparity
+
+
+def test_a_channel_cutoff_rule_changes_the_outcome_of_that_channel_only() -> None:
+    _, _, base = xgboost_run()
+    _, _, strict = xgboost_run(policy=policy(channel_rules=[{"channel": "digital", "cutoff": "0.0001"}]))
+    assert base.initial_disparity != strict.initial_disparity
 
 
 def test_the_job_uses_the_real_library_and_not_a_double() -> None:
