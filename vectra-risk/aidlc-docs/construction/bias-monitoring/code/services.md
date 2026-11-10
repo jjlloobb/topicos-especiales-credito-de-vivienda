@@ -79,26 +79,22 @@ espera ≤ 10 s (`GRACEFUL_SHUTDOWN`). El `preStop` de 5 s es un campo del `Depl
 
 ## PBT-U9-05 frente a NFR-U9-52
 
-NFR-U9-52 pide PBT-U9-01..08 con el perfil `ci` (500 ejemplos, semilla impresa) y dice que las PBT stateful se escalan con su número de ejemplos y de pasos,
-**nombrado en la prueba y aquí**, conservando todos sus comandos e invariantes, como U3 y U4 (enmienda del 2026-11-10, decisión del usuario tras U09-T02).
-Este es ese nombre: **PBT-U9-05 corre con `max_examples = 120` y `stateful_step_count = 80`** (`tests/property/test_run_machine.py`), no con 500 × 80.
+NFR-U9-52 pide PBT-U9-01..08 con el perfil `ci` (500 ejemplos, semilla impresa). U09-T02 había aceptado **120 × 80** para PBT-U9-05 porque estimaba ≈ 0,15 s por corrida
+y más de 6 min para 500 × 80. **Decisión del usuario (2026-11-10, U09-T04, P-2 = a): PBT-U9-05 vuelve a 500 × 80, la letra de NFR-U9-52**
+(`max_examples = 500` y `stateful_step_count = 80` en `tests/property/test_run_machine.py`). Las PBT no se recortan (alcance §2.1): la razón del ajuste no se sostenía con la medición.
 
-- **Razón.** Cada paso de la máquina es una corrida completa del CronJob contra los dobles de U3, U4, Keycloak y el Pushgateway. U09-T02 estimó ≈ 0,15 s por
-  corrida y más de 6 min para 500 × 80; con 120 × 80 el objetivo `property` cabe en el presupuesto de `check` y explora más que U3 (50 × 15) y U4 (25 × 40).
-  **Medición de U09-T03 (perfil `ci`, esta máquina, una sola corrida de la máquina de estados): las cifras de U09-T02 no se reproducen** (ver abajo): 500 × 80 tarda ≈ 2 min 17 s, no más de 6 min.
-- **Qué se conserva.** Todos los comandos (nivel de disparidad, retirar versión, avanzar el día, reactivar, correr con sus fallas) y todos los invariantes de la BLM §3.
-- **Cifras de exploración medidas** (`HYPOTHESIS_PROFILE=ci`, `test_run_machine.py`, semillas 3842221579 y 1896289245):
+- **Qué se conserva.** Todos los comandos (nivel de disparidad, retirar versión, avanzar el día, reactivar, correr con sus fallas) y todos los invariantes de la BLM §3. El cambio es solo de configuración de la prueba.
+- **Cifras medidas** (`HYPOTHESIS_PROFILE=ci`, `test_run_machine.py`, una sola corrida de la máquina de estados, esta máquina):
 
   | Ajuste | Ejemplos explorados | Corridas del CronJob | Máx. corridas en una secuencia | Tiempo |
   |---|---|---|---|---|
-  | **120 × 80 (el de la prueba)** | 135 | 1 829 | 40 | 29 s |
-  | 500 × 80 (lo que dice la letra de NFR-U9-52) | 555 | 7 154 | 40 | 2 min 17 s |
+  | 120 × 80 (el de U09-T02, **retirado**) | 135 | 1 829 | 40 | 29 s (U09-T03); 44 s con las dos pruebas del archivo (U09-T04) |
+  | **500 × 80 (el de hoy, NFR-U9-52)** | 555 | 7 154 | 40 | 2 min 17 s (U09-T03); **1 min 52 s con las dos pruebas del archivo (U09-T04)** |
 
-  Cada corrida del CronJob cuesta ≈ 16 a 19 ms en esta máquina (no 0,15 s). La decisión del usuario (120 × 80 nombrado) sigue en pie; si quiere el 500 × 80 literal, cuesta
-  ≈ 1 min 50 s más por `make property` y `make check`. Se anota aquí para que decida con la cifra medida.
-- **Origen.** Candidata F-01 de `revisiones/U09-T02/ronda-1.md` («U9, PBT-U9-05 (revisor, U09-T02, F-01, NARANJA)» en `CANDIDATAS.md`). El texto de NFR-U9-52 es del usuario; esta sección no lo cambia.
+  Cada corrida del CronJob cuesta ≈ 16 a 19 ms en esta máquina (no 0,15 s, la cifra de U09-T02). El costo de la decisión: ≈ 1 min 10 s más en `make property` y otro tanto en `coverage-bias`, que repite las pruebas con la medición de ramas.
+- **Origen.** Candidata F-01 de `revisiones/U09-T02/ronda-1.md` y F-01 de `revisiones/U09-T03/ronda-1.md` (`CANDIDATAS.md`). El texto de NFR-U9-52 es del usuario y no cambia.
 
-El comentario de `test_run_machine.py` y el del objetivo `property` del `Makefile` citan NFR-U9-52.
+El comentario de `test_run_machine.py` y el del objetivo `property` del `Makefile` citan NFR-U9-52 con la cifra de hoy.
 
 ## Cobertura (NFR-U9-50)
 

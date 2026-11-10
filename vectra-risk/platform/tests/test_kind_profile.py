@@ -17,7 +17,9 @@ PLATFORM = Path(__file__).resolve().parents[1]
 # Se vuelve a revisar con cada unidad nueva.
 # Subido a 9,0 en U04-T06 (misma regla de DECISIONES-LOOP.md §7, «se vuelve a revisar con cada unidad nueva»): `governance-service` suma 2 replicas
 # x (256 Mi + 20 Mi de proxy) = 0,5391 GiB y el total pasa a 8,9766 GiB, redondeado hacia arriba a 0,1 GiB. El tope de parada era 9,2 GiB.
-BUDGET_GIB = 9.0
+# Subido a 9,3 en U09-T04 (misma regla de DECISIONES-LOOP.md §7): `bias-monitoring-service` suma 2 replicas x (128 Mi + 20 Mi de proxy) = 0,2891 GiB y el
+# total pasa a 9,2656 GiB, redondeado hacia arriba a 0,1 GiB. El CronJob no cuenta (`requested_gib()` suma Deployment y StatefulSet). El tope de parada era 9,49 GiB.
+BUDGET_GIB = 9.3
 PROXY_GIB = 20 / 1024
 MESHED = {
     "vectra-edge", "vectra-app", "vectra-serving", "vectra-staging", "vectra-data", "vectra-identity", "vectra-mock",

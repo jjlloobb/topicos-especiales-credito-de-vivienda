@@ -64,6 +64,7 @@ def test_rt2_the_base_model_does_not_freeze():
     assert gauge(world, "run", "vectra_bias_rule_met", model_version_id="v1", population="modelo") == "0"
 
 
+# BR-U9-14: la poblacion humana nunca congela, pero la regla se evalua igual para `vectra_bias_rule_met{population="humana"}`.
 def test_high_human_and_low_model_sets_rule_met_for_humana_and_never_calls_freeze():
     world = World()
     seed(world, "v1", TODAY, model="low", human="high")
@@ -169,6 +170,7 @@ def test_an_unattributable_decision_counts_once_on_both_sides_even_with_two_rang
     assert gauge(world, "run", "vectra_bias_total_entries") == str(sum(entries) + 1)
 
 
+# BR-U9-10: todo o nada: un agregador atrasado hace fallar la corrida, sin congelar con datos parciales.
 def test_an_aggregator_lagging_45_minutes_fails_the_run():
     world = World()
     seed(world, "v1", TODAY, model="high")
@@ -183,6 +185,7 @@ def test_an_aggregator_lagging_45_minutes_fails_the_run():
 # --- escenarios P-U9-07 ---------------------------------------------------------------------------------------------------
 
 
+# BR-U9-10: todo o nada: si falla la lectura del registro la corrida falla y no congela.
 def test_e1_registry_down_fails_the_run_with_lectura_and_the_model_keeps_serving():
     world = World()
     seed(world, "v1", TODAY, model="high")

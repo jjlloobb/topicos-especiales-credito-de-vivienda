@@ -1,0 +1,12 @@
+{{- /* values-monitoring-policy.yaml como ConfigMap (INF-U9-03; BR-U9-13). Lo leen el CronJob y el servicio con `VECTRA_POLICY_PATH`. */ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.policy.configMapName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: bias-monitoring-policy
+    app.kubernetes.io/part-of: bias-monitoring
+data:
+  {{ .Values.policy.fileName }}: |
+    {{- include "bias-monitoring.policy" . | nindent 4 }}

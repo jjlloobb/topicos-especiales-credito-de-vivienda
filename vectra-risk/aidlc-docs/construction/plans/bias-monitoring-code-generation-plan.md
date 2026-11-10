@@ -215,13 +215,13 @@ vectra-risk/bias-monitoring/
 
 ### Bloque E — Despliegue y operación
 
-- [ ] **Paso 11 — Dockerfile y cadena de suministro**
+- [x] **Paso 11 — Dockerfile y cadena de suministro** (U09-T04, acotado a la demo)
   - Una imagen con los dos puntos de entrada (`python -m vectra_bias.run` y `python -m vectra_bias.app`; revisión de consistencia entre unidades, 2026-11-01); base Python oficial pinneada por digest, `runAsNonRoot` y `readOnlyRootFilesystem`; sin numpy, scipy, pandas ni Fairlearn en la imagen.
   - Construida, escaneada, con SBOM y firmada con `sign-image.yml` de U1; el escaneo y el SBOM son de `supply-chain.yml`.
   - Diseño: P-U9-05; NFR-U9-54.
   - **Aceptación**: `hadolint bias-monitoring/Dockerfile`; prueba sobre el SBOM: ni las tres dependencias de desarrollo directas (Fairlearn, pandas, numpy) ni sus transitivas scipy y scikit-learn en la imagen (revisión del FD de U10, 2026-10-10, B9).
 
-- [ ] **Paso 12 — Chart, parámetros, cuota y flujos**
+- [x] **Paso 12 — Chart, parámetros, cuota y flujos** (U09-T04, acotado a la demo)
   - **Servicio**:
     - `Deployment` de 2 réplicas fijas con `vectra.io/hpa-exempt`, `Service`, `PodDisruptionBudget`, spread por zona y `vectra-normal`;
     - `ServiceAccount` `bias-monitoring-service`, su `ExternalSecret` y `ServiceMonitor`.
@@ -239,7 +239,7 @@ vectra-risk/bias-monitoring/
   - Diseño: INF-U9-01..04; NFR-U9-10, 11, 13, 30, 34; BR-U9-13.
   - **Aceptación**: `helm template` con cada values + `kubeconform` + `conftest test bias-monitoring/policies/conftest/` (`x04-probe` solo con los values de kind y `probes.runId`, sin TTL y con la etiqueta de F27, pendientes posteriores al cierre, 2026-10-10; fixtures con `probes.runId` en los values de staging y en los de producción → fallan, pendientes consolidados, segunda tanda, 2026-10-10; réplicas, exención, PDB, spread, PriorityClass, horario, plazos, `backoffLimit`, anotación del sidecar, rangos de los parámetros dentro y fuera); `kyverno test` de U1 con la exención; `conftest test platform/policies/quotas/`; `uv run python platform/network/generate.py --check`; `CODEOWNERS` del monorepo contiene la línea del archivo; fixtures de `conftest` con intervalos de 6 y 12 min → fallan, y con 5 min y `activeDeadlineSeconds: 600` → falla.
 
-- [ ] **Paso 13 — Alertas, runbooks y dashboard**
+- [ ] **Paso 13 — Alertas, runbooks y dashboard** (diferido por la demo (T2))
   - `PrometheusRule` como plantilla del chart con las alertas de P-U9-06; los umbrales de `MonitoreoSesgoDetenido` salen de `stale_after` (W y 2W).
   - Runbooks de las cuatro alertas. El de `BiasInvalidEntries` explica cómo silenciar una entrada conocida hasta que salga de la ventana; el de `BiasFreezeFailed` explica cuándo se cierra solo el grupo por versión (BR-U9-20); el de `MonitoreoSesgoDetenido` dice que durante una reconstrucción del agregador de U3 (runbook `monitoring-rebuild`) la alerta es **esperada** y viene silenciada por ese runbook con vencimiento (revisión del plan de tareas de U9, 2026-10-10).
   - Dashboard `observability/dashboards/bias.json` con la leyenda fija «mide y alerta, no certifica» (INF-U9-05), como `ConfigMap` con la etiqueta `vectra.io/dashboard` y la anotación `grafana_folder` (revisión de consistencia entre unidades, 2026-11-01).
@@ -249,14 +249,14 @@ vectra-risk/bias-monitoring/
     - `uv run python platform/tests/test_runbooks.py --root bias-monitoring`;
     - prueba sobre `bias.json`: leyenda presente, sin frases prohibidas (`contracts/tools/forbidden_phrases.py`, BR-U0-94; precisado el 2026-10-10 por U10 FD, Q8) y sin consultas que muestren tasas de celdas insuficientes.
 
-- [ ] **Paso 14 — Applications, especificación de carga y trazabilidad**
+- [x] **Paso 14 — Applications, especificación de carga y trazabilidad** (U09-T04, acotado a la demo)
   - Entrada `bias-monitoring` en `vectra-risk-gitops/components.yaml` con `wave: 5` (servicio y CronJob) y `values: [bias-monitoring/chart/values-monitoring-policy.yaml]`; `generate.py` escribe una Application por entorno, sin auto-sync. `probes.runId` y lo demás por entorno van en `vectra-risk-gitops/values/<env>/bias-monitoring.yaml` (revisión de consistencia entre unidades, 2026-11-01).
   - Script k6: 10 usuarios de consola con los umbrales de NFR-U9-02.
   - Trazabilidad de cada BR-U9 a una prueba.
   - Diseño: P-U1-12; NFR-U9-02.
   - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`; `uv run python platform/tests/test_waves.py`; `kyverno test` de `disallow-argocd-auto-sync`; `k6 inspect bias-monitoring/tests/load/dashboard.js`; `uv run python platform/tests/test_traceability.py --unit bias-monitoring --all`.
 
-- [ ] **Paso 15 — Workflow de CI de U9** (revisión del plan de tareas de U9, 2026-10-10)
+- [ ] **Paso 15 — Workflow de CI de U9** (revisión del plan de tareas de U9, 2026-10-10) (diferido por la demo (T4))
   - `.github/workflows/bias-monitoring.yml`, en cada PR que toca `bias-monitoring/`:
     - `uv sync --frozen`, ruff, mypy e import-linter;
     - pruebas con el perfil `ci` y la semilla impresa, guardando `.hypothesis/` como artefacto;
@@ -272,7 +272,7 @@ vectra-risk/bias-monitoring/
 
 ### Bloque F — Verificación en kind (con aprobación humana)
 
-- [ ] **Paso 16 — Puerta de aprobación y escenarios en kind**
+- [ ] **Paso 16 — Puerta de aprobación y escenarios en kind** (consolidado en U12 Paso 18 (enmienda §8))
   - **Requisito previo**: un PR con los Pasos 1–15 aprobado por un humano, con U1–U4 instalados en kind y un modelo activo.
   - El operador ejecuta, con evidencia:
     1. suite de conectividad de U1: servicio → `freeze` → denegado por Linkerd; CronJob → `freeze` → permitido; servicio → Pushgateway → denegado;
@@ -285,11 +285,11 @@ vectra-risk/bias-monitoring/
 
 ### Bloque G — Cierre
 
-- [ ] **Paso 17 — Repositorio, migraciones y frontend: N/A**
+- [x] **Paso 17 — Repositorio, migraciones y frontend: N/A** (U09-T04)
   - U9 no tiene base de datos, migraciones ni interfaz; la consola y el embebido del dashboard son de U10.
   - **Aceptación**: `test ! -d bias-monitoring/migrations && test ! -d bias-monitoring/frontend`.
 
-- [ ] **Paso 18 — Cierre de la unidad**
+- [x] **Paso 18 — Cierre de la unidad** (U09-T04, acotado a la demo)
   - **Aceptación**: `make -C bias-monitoring check`, que corre en orden las verificaciones estáticas, las propiedades, la simulación (con la marca `simulation`, opcional en el PR salvo que cambien `stats` o `freeze_rule`) y las pruebas de integración de los Pasos 1–15 y termina en 0. Las de kind (Paso 16) se revisan como evidencia en el PR.
 
 ---

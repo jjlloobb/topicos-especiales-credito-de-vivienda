@@ -2,7 +2,18 @@
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 UV := cd $(ROOT) && uv run
 
-.PHONY: lint imports test property coverage coverage-bias simulation check
+# Las politicas de U1 que se evaluan sin firmas ni consultas a la API (las mismas que `STATIC_POLICIES` de platform/Makefile).
+STATIC_POLICIES := disallow-latest.yaml require-run-as-non-root.yaml disallow-privileged.yaml disallow-host-path.yaml require-ro-rootfs.yaml require-resources.yaml require-priority-class.yaml require-criticality-label.yaml disallow-plain-secrets.yaml disallow-rbac-wildcards.yaml restrict-loadbalancer.yaml restrict-registries.yaml
+# `pass: 0` no aprueba: ninguna regla vio un recurso.
+KYVERNO_OK := pass: [1-9][0-9]*, fail: 0, warn: 0, error: 0
+TOOLS := $(ROOT)/platform/.tools/bin
+CHART := $(ROOT)/bias-monitoring/chart
+CRDS := $(ROOT)/bias-monitoring/tests/fixtures/crds
+POLICIES := $(ROOT)/bias-monitoring/policies/conftest
+ENVS := kind staging prod
+U1 := $(ROOT)/platform/.tools/integration/u9
+
+.PHONY: lint imports test property coverage coverage-bias simulation image render-chart policy-chart policy-chart-u1 traceability check
 
 lint:
 	$(UV) ruff check bias-monitoring
@@ -20,8 +31,8 @@ test:
 		--ignore=bias-monitoring/tests/property --ignore=bias-monitoring/tests/simulation
 
 # Pasos 6 a 9: PBT-U9-03 (publish), 04, 05, 07 (compare) y 08 con el perfil `ci` y la semilla impresa (sin `-q`, que oculta la cabecera con la semilla). `test_run_machine.py` fija sus
-# propios ejemplos (NFR-U9-52): PBT-U9-05 va con 120 secuencias de hasta 80 pasos, no 500 x 80 (una corrida completa contra los dobles
-# cuesta ~0,15 s y 500 x 80 pasaba de 6 min); conserva todos los comandos e invariantes. La decision esta en `code/services.md`.
+# propios ejemplos: PBT-U9-05 va con 500 secuencias de hasta 80 pasos, la letra de NFR-U9-52 (decision del usuario, U09-T04 P-2 = a). Cada paso
+# es una corrida completa contra los dobles (~16 ms): la maquina tarda ~2 min en el perfil `ci`. La cifra medida esta en `code/services.md`.
 property:
 	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest bias-monitoring/tests/property/test_freeze_rule.py \
 		bias-monitoring/tests/property/test_context.py bias-monitoring/tests/property/test_publish.py \
@@ -41,9 +52,48 @@ coverage-bias:
 		--cov=vectra_bias --cov-branch --cov-fail-under=95
 	cd $(ROOT) && uv run coverage report --include='*/freeze_rule.py,*/context.py,*/window.py' --fail-under=100
 
+# Paso 11: imagen local, con el contexto en la raiz de vectra-risk/. El `docker push` a `kind-registry` y el digest real los hace el operador
+# en la verificacion consolidada de U12 Paso 18: `bias-monitoring/docs/imagenes.md`.
+image:
+	cd $(ROOT) && docker build -t localhost:5001/vectra/bias-monitoring:dev -f bias-monitoring/Dockerfile .
+
+# Paso 12: el render de cada entorno con los values que usa Argo CD (`components.yaml`: los del entorno y `values-monitoring-policy.yaml`),
+# `kubeconform -strict` con los CRD de `ExternalSecret` y `ServiceMonitor` (tests/fixtures/crds/) y `conftest` de `policies/conftest/` (por
+# documento y con todo el render junto). `test_chart.py` tiene un caso que falla por cada regla. Necesita platform/install-tools.sh y **falla**
+# si falta una herramienta: no se salta con rc 0.
+render-chart:
+	cd $(ROOT) && $(TOOLS)/helm template bias-monitoring $(CHART) -f vectra-risk-gitops/envs/kind/values.yaml -f $(CHART)/values-monitoring-policy.yaml
+
+policy-chart:
+	cd $(ROOT) && rm -rf $(U1)/render && mkdir -p $(U1)/render
+	for env in $(ENVS); do \
+		cd $(ROOT) && uv run python platform/tests/integration.py --chart bias-monitoring/chart --namespace vectra-app --env $$env --out $(U1)/render/$$env && \
+		$(TOOLS)/kubeconform -strict -summary -schema-location default -schema-location '$(CRDS)/{{.ResourceKind}}.json' $(U1)/render/$$env/*.yaml && \
+		$(TOOLS)/conftest test --policy $(POLICIES) $(U1)/render/$$env/*.yaml && \
+		$(TOOLS)/conftest test --combine --namespace chart_set --policy $(POLICIES) $(U1)/render/$$env/*.yaml || exit 1; \
+	done
+
+# Las politicas de U1 (Kyverno y rego) sobre el render de cada entorno. `platform check-chart` rinde los tres entornos en un mismo directorio y
+# Kyverno aborta con recursos repetidos (`panic`; candidata de U03-T04 y U04-T05): aqui se rinde un entorno por directorio.
+policy-chart-u1:
+	cd $(ROOT) && rm -rf $(U1)/u1 && mkdir -p $(U1)/u1
+	for env in $(ENVS); do \
+		mkdir -p $(U1)/u1/$$env/policies && \
+		cd $(ROOT) && uv run python platform/tests/integration.py --chart bias-monitoring/chart --namespace vectra-app --env $$env --out $(U1)/u1/$$env/resources && \
+		cd $(ROOT)/platform/policies/kyverno && cp $(STATIC_POLICIES) $(U1)/u1/$$env/policies/ && \
+		{ $(TOOLS)/kyverno apply $(U1)/u1/$$env/policies --resource $(U1)/u1/$$env/resources > $(U1)/u1/$$env/report.txt 2>&1 || true; } && \
+		{ grep -E '$(KYVERNO_OK)' $(U1)/u1/$$env/report.txt || { grep -E 'fail:|FAIL|error|panic' $(U1)/u1/$$env/report.txt | head -40; exit 1; }; } && \
+		$(TOOLS)/conftest test --policy $(ROOT)/platform/policies/rego $(U1)/u1/$$env/resources && \
+		$(TOOLS)/conftest test --combine --namespace hpa --policy $(ROOT)/platform/policies/rego $(U1)/u1/$$env/resources || exit 1; \
+	done
+
+# La trazabilidad usa la lista «Diferido por la demo» de `evidence/cierre-demo.md` (P-4).
+traceability:
+	cd $(ROOT) && uv run python platform/tests/test_traceability.py --unit bias-monitoring --all
+
 # Paso 5 (NFR-U9-53): simulacion estadistica, 10 000 repeticiones. El workflow nocturno esta diferido (T4).
 simulation:
 	cd $(ROOT) && uv run pytest bias-monitoring/tests/simulation -m simulation -q -p no:cacheprovider -s
 
 # `mutmut` en stats y disparity esta diferido por la demo (T3).
-check: lint imports test property coverage coverage-bias simulation
+check: lint imports test property coverage coverage-bias simulation policy-chart policy-chart-u1 traceability

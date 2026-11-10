@@ -147,6 +147,7 @@ def test_the_freezes_come_back_as_u0_records():
     assert records[0].resolutions[0].action == "reactivar"
 
 
+# BR-U9-07: lee del registro conteos marginales agregados (`daily:query`), nunca filas.
 def test_four_versions_make_two_requests_of_12_and_4_and_the_unattributable_is_taken_once():
     world = World()
     for i in range(4):
@@ -199,6 +200,7 @@ def test_the_registry_double_sums_the_days_of_a_range_and_reports_the_versions()
 # --- freeze_client -------------------------------------------------------------------------------------------------------
 
 
+# BR-U9-12: la llamada a `freeze` la hace el CronJob con su propio cliente (`governance:freeze`).
 def test_freeze_succeeds_at_the_first_attempt_with_the_job_token():
     world = World()
     outcome = run(freeze(governance_client(world), "v1", context_for("v1"), world.clock.sleep))
@@ -232,6 +234,7 @@ def test_freeze_retries_a_timeout():
     assert (outcome.outcome, outcome.attempts) == (FROZEN, 2)
 
 
+# BR-U9-12: un 409 (ya congelada) se registra y la corrida sigue; no es un error.
 def test_freeze_with_a_409_is_one_attempt_and_a_success():
     world = World()
     world.governance.script["v1"] = ["409"]

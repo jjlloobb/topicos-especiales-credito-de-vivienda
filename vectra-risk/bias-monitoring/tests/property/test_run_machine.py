@@ -225,10 +225,10 @@ class RunMachine(RuleBasedStateMachine):
                 assert c.path.startswith("/metrics/job/bias-monitoring/group/freeze-")
 
 
-# NFR-U9-52: las PBT stateful se escalan con su numero de ejemplos y de pasos, nombrado aqui y en `code/services.md` («PBT-U9-05 frente a
-# NFR-U9-52»): 120 ejemplos x 80 pasos, no 500 x 80. Conserva todos los comandos e invariantes; una corrida completa contra los dobles
-# cuesta ~0,15 s y 500 x 80 pasaba de 6 min. Es el mismo ajuste de escala de U3 (50 x 15) y U4 (25 x 40).
-RunMachine.TestCase.settings = settings(max_examples=120, stateful_step_count=80, deadline=None)
+# NFR-U9-52: PBT-U9-05 corre con 500 ejemplos x 80 pasos, la letra del requisito (decision del usuario en U09-T04, P-2 = a: las PBT no se recortan).
+# Cada paso es una corrida completa del CronJob contra los dobles (~16 ms medidos; 500 x 80 tarda ~2 min en el perfil `ci`). `code/services.md`
+# («PBT-U9-05 frente a NFR-U9-52») guarda la cifra medida; el ajuste a 120 x 80 de U09-T02 queda retirado.
+RunMachine.TestCase.settings = settings(max_examples=500, stateful_step_count=80, deadline=None)
 TestRunMachine = RunMachine.TestCase
 
 
