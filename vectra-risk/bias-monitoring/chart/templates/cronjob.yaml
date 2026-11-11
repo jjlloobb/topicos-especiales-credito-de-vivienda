@@ -1,0 +1,78 @@
+{{- /* CronJob bias-monitoring-job (INF-U9-02; BR-U9-13; F26, F27, F50, F106): el unico que congela. El `schedule` sale de
+`values-monitoring-policy.yaml` (`required`), nunca de la plantilla. Sin digest no se renderiza. */ -}}
+{{- $digest := required "image.digest es obligatorio: sin digest no se renderiza" .Values.image.digest -}}
+{{- $repository := include "bias-monitoring.repository" . -}}
+{{- $policy := include "bias-monitoring.policy" . | fromYaml -}}
+{{- $cj := .Values.cronjob -}}
+{{- $id := .Values.identity.job -}}
+{{- $keyPath := printf "%s/private-key" .Values.identity.mountPath -}}
+{{- $policyPath := printf "%s/%s" .Values.policy.mountPath .Values.policy.fileName -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bias-monitoring-job
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: bias-monitoring-job
+    app.kubernetes.io/part-of: bias-monitoring
+    vectra.io/criticality: {{ $cj.criticality }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  schedule: {{ $policy.schedule | quote }}
+  timeZone: {{ $cj.timeZone }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ $cj.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ $cj.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $cj.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ $cj.backoffLimit }}
+      activeDeadlineSeconds: {{ $cj.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: bias-monitoring-job
+            app.kubernetes.io/part-of: bias-monitoring
+            # La etiqueta con la que `flows.yaml` selecciona al CronJob (F27, F50, F106; la misma de `x04-probe`).
+            vectra.io/workload: bias-monitoring-job
+          annotations:
+            config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+        spec:
+          serviceAccountName: bias-monitoring-job
+          priorityClassName: {{ $cj.priorityClassName }}
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: bias-monitoring-job
+              image: {{ printf "%s@%s" $repository $digest | quote }}
+              imagePullPolicy: IfNotPresent
+              command: [python, -m, vectra_bias.run]
+              # Las que lee `vectra_bias.run.build_deps` y el proveedor de token de U0. Ninguna constante del codigo (INF-U9-03).
+              env:
+                - { name: VECTRA_REGISTRY_URL, value: {{ required "peers.registryUrl es obligatorio" .Values.peers.registryUrl | quote }} }
+                - { name: VECTRA_GOVERNANCE_URL, value: {{ required "peers.governanceUrl es obligatorio" .Values.peers.governanceUrl | quote }} }
+                - { name: VECTRA_PUSHGATEWAY_URL, value: {{ required "peers.pushgatewayUrl es obligatorio" .Values.peers.pushgatewayUrl | quote }} }
+                - { name: VECTRA_POLICY_PATH, value: {{ $policyPath | quote }} }
+                - { name: VECTRA_TOKEN_URL, value: {{ required "keycloak.tokenUrl es obligatorio" .Values.keycloak.tokenUrl | quote }} }
+                - { name: VECTRA_CLIENT_ID, value: {{ required "identity.job.clientId es obligatorio" $id.clientId | quote }} }
+                - { name: VECTRA_CLIENT_KEY_PATH, value: {{ $keyPath | quote }} }
+                - { name: VECTRA_CA_BUNDLE, value: {{ printf "%s/ca.crt" .Values.keycloak.caMountPath | quote }} }
+              securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+              volumeMounts:
+                - { name: keycloak-ca, mountPath: {{ .Values.keycloak.caMountPath | quote }}, readOnly: true }
+                - { name: job-identity, mountPath: {{ .Values.identity.mountPath | quote }}, readOnly: true }
+                - { name: monitoring-policy, mountPath: {{ .Values.policy.mountPath | quote }}, readOnly: true }
+              resources:
+                {{- toYaml $cj.resources | nindent 16 }}
+          volumes:
+            - name: job-identity
+              secret: { secretName: {{ $id.secretName | quote }}, defaultMode: 292 }
+            - name: keycloak-ca
+              configMap: { name: {{ .Values.keycloak.caConfigMap | quote }}, items: [{ key: ca.crt, path: ca.crt }] }
+            - name: monitoring-policy
+              configMap: { name: {{ .Values.policy.configMapName | quote }} }

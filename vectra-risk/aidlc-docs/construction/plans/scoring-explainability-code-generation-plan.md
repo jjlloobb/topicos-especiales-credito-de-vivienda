@@ -132,7 +132,7 @@ vectra-risk/scoring-explainability/
 
 ### Bloque C — `explainability-service`
 
-- [ ] **Paso 8 — `POST /v1/explanations`**
+- [x] **Paso 8 — `POST /v1/explanations`** (U07-T03)
   - `dictionary_cache`:
     - LRU de 4 versiones, sin expiración;
     - precarga de la versión activa al arrancar, si governance responde.
@@ -153,7 +153,7 @@ vectra-risk/scoring-explainability/
     - generador alterado en la prueba → 422 `factuality_failed`;
     - 5 versiones → se descarta la menos usada.
 
-- [ ] **Paso 9 — `POST /v1/applicant-summaries`**
+- [x] **Paso 9 — `POST /v1/applicant-summaries`** (U07-T03)
   - Recibe `ApplicantSummaryRequest` (`case_id`, `recommendation_entry_id`).
   - Lee la entrada por `seq` en la proyección `explanation` (F23; tipo `ExplanationProjection` dentro de `Page[EntryProjection]`; revisión de consistencia entre unidades, 2026-11-01) y comprueba que pertenece al `case_id`. Si no existe o es de otro caso → 409, sin datos parciales.
   - Llama a `applicant.generate` y emite el log `applicant_summary.generated` (solo con `case_id`).
@@ -166,7 +166,8 @@ vectra-risk/scoring-explainability/
 
 ### Bloque D — `scoring-service`
 
-- [ ] **Paso 10 — Clientes y caché de `serving-config`**
+- [x] **Paso 10 — Clientes y caché de `serving-config`** (U07-T03)
+  - Nota (U04-T09): ampliado en U04-T09 (política en `serving-config`): se quitan `PolicySource` y `PolicyParameters`; `scoring.app.main` arranca con `REQUIRED_ENV` y los tokens de servicio.
   - Un `httpx.AsyncClient` por dependencia con `deps.call` (P-U7-04): `:predict` 20, explainability 20, registro 10, `serving-config` 5. Cada uno con su circuit breaker y la causa que le corresponde. NFR-U7-11 se escribe `BreakerConfig(open_for=10, window_size=20, failure_ratio=0.5, window_seconds=30)`, y el token de servicio es `service_token.provider_from_env(audience, scopes)`, pasado como `token_source` a `DependencyClient`; ante un 401, `deps.call` reintenta una vez (revisión de consistencia entre unidades, 2026-11-01).
   - `serving_config_client`:
     - caché ≤ 5 s con `If-None-Match`;
@@ -179,7 +180,8 @@ vectra-risk/scoring-explainability/
     - caché vencida + governance caído → `serving_config_unavailable`;
     - con explainability caído, tras 20 llamadas → `FailClosed` en < 50 ms.
 
-- [ ] **Paso 11 — `orchestrator`**
+- [x] **Paso 11 — `orchestrator`** (U07-T03)
+  - Nota (U04-T09): ampliado en U04-T09 (política en `serving-config`): `cutoff`, `low_confidence_threshold` y `channel_rules` salen del mismo `ServingConfig`, sin segunda llamada.
   - Secuencia de BR-U0-08 con `check_preconditions` y `build_outcome` de U0:
     - presupuesto previo al registro de 700 ms, con `deadline=` en cada llamada y `x-vectra-deadline` hacia explainability;
     - append de la `recommendation` con `idempotency_key` = UUID v4 generado al recibir cada `POST /v1/recommendations`, **nunca** derivado de `case_id` ni de `attempt`, y reutilizado solo por el reintento de ese append: 2 intentos, solo ante 503, timeout o error de conexión, sin reintento con el circuito abierto (BR-U7-15; precisado el 2026-10-06, revisión del FD de U8);
@@ -209,7 +211,7 @@ vectra-risk/scoring-explainability/
       - registro que confirma a los 2,6 s en los dos intentos → `FailClosed`, la entrada existe y `abandoned` = 1;
       - un 4xx → un solo intento.
 
-- [ ] **Paso 12 — Endpoints, arranque y apagado de los dos servicios**
+- [x] **Paso 12 — Endpoints, arranque y apagado de los dos servicios** (U07-T03)
   - `create_app` de U0 con `POST /v1/recommendations` (F15) y `POST /v1/explanations` / `POST /v1/applicant-summaries` (F20, F12). Scopes y audiencias de U2.
   - Readiness y liveness solo del proceso (8081).
   - Arranque con `vectra_common.ops_server.run_service(app)`, con la espera de ≤ 10 s en el apagado (revisión de consistencia entre unidades, 2026-11-01).
@@ -220,7 +222,7 @@ vectra-risk/scoring-explainability/
     - las etiquetas de las métricas están dentro de la allowlist de P-U7-07;
     - una ruta sin scope → 403.
 
-- [ ] **Paso 13 — Resumen de los servicios**
+- [x] **Paso 13 — Resumen de los servicios** (U07-T03)
   - Cobertura de ramas ≥ 95 % en los dos servicios y **100 %** en `orchestrator`.
   - Resumen en `aidlc-docs/construction/scoring-explainability/code/services.md`.
   - Diseño: NFR-U7-40, 42.

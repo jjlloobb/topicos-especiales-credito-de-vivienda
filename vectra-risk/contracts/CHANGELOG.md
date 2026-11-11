@@ -15,3 +15,10 @@ Sin etiqueta `contracts-v*` todavía: estos cambios forman parte de la línea ba
 - `AffectedVolume`, `PrePostDelta`, `PolicyDecisionIn`; `CaseDetail.recommendation` tipado; `Principal.client_id`; `registry.idempotency_conflict`; `verification-reader` en el catálogo.
 - `vectra_common`: `ops_server.run_service` (8080 y 8081), `service_token` (`private_key_jwt`), `token_source` y reintento por 401 en `deps.call`, `window_seconds` en el breaker, timeout de dependencia = 504, muestreo real, ids de span únicos y métricas de proceso.
 - El cliente TypeScript exporta todos los enumerados del catálogo.
+
+## Sin publicar — la política activa viaja en `serving-config` (2026-11-10, U04-T09)
+
+Decisión del usuario del 2026-11-10. Sin subir la versión mayor: añadir propiedades obligatorias a una respuesta no es un cambio incompatible para `oasdiff` (BR-U0-91 y 92).
+
+- `ServingConfig` gana `cutoff`, `low_confidence_threshold` y `channel_rules` (`list[ChannelRule]`), obligatorios, con los tipos de `PolicyDraft`. Los copia governance de la política `activa`; scoring los usa para `PolicyEvaluationInput` sin otra llamada.
+- Regenerados `contracts/openapi/governance-service.yaml` y el cliente TypeScript.

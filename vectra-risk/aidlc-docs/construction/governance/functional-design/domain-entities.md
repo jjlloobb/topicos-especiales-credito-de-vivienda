@@ -95,6 +95,9 @@ Sus transiciones se guardan en `transitions` con `entity_type = data_source` (§
 |---|---|
 | `model_version_id`, `state` | La versión en `activo` o `congelado` |
 | `policy_version_id` | La política `activa` |
+| `cutoff` | `PolicyVersion.cutoff` de la política `activa` (copiado tal cual; inmutable para un `policy_version_id`, porque `gov_app` no puede actualizar esa columna) (precisado el 2026-11-10, U04-T09: decisión del usuario) |
+| `low_confidence_threshold` | `PolicyVersion.low_confidence_threshold` de la política `activa` (precisado el 2026-11-10, U04-T09: decisión del usuario) |
+| `channel_rules` | `PolicyVersion.channel_rules` de la política `activa` (`list[ChannelRule]`, el mismo tipo de U0) (precisado el 2026-11-10, U04-T09: decisión del usuario) |
 | `feature_dictionary_version` | De la versión de modelo |
 | `inference_service` | `ModelVersion.inference_service` de la versión en `activo` o `congelado` (`isvc-<8 hex>`); es lo que scoring y explainability usan para saber a qué `InferenceService` llamar (azul/verde, P-U6-02; agregado aquí el 2026-10-03, faltaba en esta tabla aunque ya estaba en el contrato de U0) |
 | `normative_current` | `normative_at(policy, hoy)`; nulo → la política de scoring da `revision_requerida` con `parametro_normativo_no_vigente` (precisado el 2026-10-03 por U7 FD Q1: alinea con US-207) |
@@ -102,6 +105,8 @@ Sus transiciones se guardan en `transitions` con `entity_type = data_source` (§
 | `etag` | SHA-256 del contenido canónico (JCS) de todos los campos anteriores (incluido `inference_service`; `bias_monitoring_age_s` se quitó, precisado el 2026-10-08 por U9 FD); cambia si y solo si cambia el contenido, así que un cambio de `InferenceService` en `mark_active` dispara la convergencia de P-U4-01 y el límite de ≤ 6 s de BR-U4-14 |
 
 `GET /v1/serving-config` admite `If-None-Match` (304 si no cambió).
+
+Sin política `activa` (aunque haya una versión de modelo `activo`), `compose` devuelve `None`, la fila `serving_config` queda nula y `GET /v1/serving-config` responde 503 con `no_serving_config`, como antes de esta ampliación (precisado el 2026-11-10, U04-T09: decisión del usuario). La fila solo guarda `policy_version_id` y `etag`: la caché recompone los tres campos desde la fila de `policies`, sin migración.
 
 ## 6. Parámetros
 

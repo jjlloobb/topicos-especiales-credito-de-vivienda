@@ -197,6 +197,29 @@ def test_sin_version_servible_la_replica_esta_lista_pero_responde_503(db: Db) ->
         svc.pools.close()
 
 
+def test_con_modelo_activo_y_sin_politica_activa_responde_503_no_serving_config_y_la_fila_queda_nula(db: Db) -> None:
+    """U04-T09: `serving-config` necesita version servible Y politica `activa`; falta la politica -> como hoy (domain-entities §5)."""
+    clock = SimClock()
+    svc = make_service(db, FakeRegistry(clock), clock, "p")
+    to_activo(svc, "mv-1")  # modelo `activo`, ninguna politica
+    cache = ServingConfigCache(svc.pools, clock=clock)
+    cache.start()
+    try:
+        assert cache.wait_ready(10)
+        with pytest.raises(ServingConfigUnavailable) as error:
+            cache.current()
+        assert error.value.detail == "no_serving_config"
+        with svc.pools.read() as conn:
+            row = conn.execute("SELECT * FROM serving_config").fetchone()
+            policies = conn.execute("SELECT count(*) AS n FROM policies WHERE state = 'activa'").fetchone()
+            conn.rollback()
+        assert policies is not None and policies["n"] == 0
+        assert row is None or all(value is None for key, value in row.items() if key != "id"), row
+    finally:
+        cache.stop()
+        svc.pools.close()
+
+
 # --- medianoche de Bogota (P-U4-05), con reloj simulado ---------------------------------------------------------------------------
 
 

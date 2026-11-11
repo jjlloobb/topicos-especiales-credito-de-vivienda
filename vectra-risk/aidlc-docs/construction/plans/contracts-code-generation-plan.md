@@ -102,6 +102,7 @@ vectra-risk/
   - `outcome/`: `check_preconditions` (causas 1–9), `build_outcome` (causa 10), `Ready` y `Recommendation` con un token privado en `_internal`, `model_validator` estructural y `RecommendResult.from_wire()`.
   - Reglas: BR-U0-01..08. Patrón: P-U0-03. Historia: US-111. Extensión: AUTONOMIA-06.
   - **Aceptación**: `uv run pytest contracts/tests/unit/test_outcome.py` (incluye la construcción directa de `Recommendation(...)` y `Ready(...)` → `ContractViolation`, y `from_wire` con versiones distintas → error).
+  - **(U00-T03)** `outcome.read_wire(model, json)` (lectura pública de contenedores, rechaza `Ready`), anidar una instancia ya construida sin token, y token cerrado en el workspace. **Aceptación**: `uv run pytest contracts/tests/unit/test_outcome.py contracts/tests/unit/test_token_privado_workspace.py` (`CaseDetail` con `recommendation` anidada; dict o JSON sin token → `ContractViolation`; `read_wire` aplica la capa 1; ningún archivo fuera de `outcome/` importa ni nombra el token).
 
 - [x] **Paso 5 — Finanzas, etiquetas, diccionario, JCS y datos DANE**
   - `decimal_ctx` (P-U0-10), `finance.py` (BR-U0-10..14), `labels.py` (BR-U0-40..43), `dictionary.py` (BR-U0-80..81), `canonical.py` (JCS para `feature_vector_hash`), `validation.py` (validaciones cruzadas de BR-U0-22..28, 32..35).

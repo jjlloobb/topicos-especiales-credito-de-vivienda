@@ -1,0 +1,75 @@
+[importlinter]
+root_packages =
+    vectra_case
+    core_banking_mock
+    vectra_common
+    vectra_contracts
+# `vectra_contracts` entra al grafo para poder nombrar `outcome._internal` en el contrato `private-token`.
+# `vectra_common` (U0) entra al grafo solo para poder nombrar `vectra_common.deps`: un subpaquete de un paquete externo no es valido.
+include_external_packages = True
+
+# BR-U8-06, NFR-U8-34 (Paso 1): las funciones puras no hacen E/S ni importan la base, httpx ni `vectra_common.deps`.
+[importlinter:contract:pure-no-io]
+name = case_fsm, backoff, decision y views no importan db, httpx ni vectra_common.deps (sin E/S)
+type = forbidden
+source_modules =
+    vectra_case.case_fsm
+    vectra_case.backoff
+    vectra_case.decision
+    vectra_case.views
+forbidden_modules =
+    vectra_case.db
+    vectra_common.deps
+    psycopg
+    alembic
+    sqlalchemy
+    httpx
+    requests
+    kubernetes
+    socket
+    urllib
+    http
+    subprocess
+    sqlite3
+    os
+    pathlib
+    shutil
+    tempfile
+    asyncio
+allow_indirect_imports = True
+
+# P-U0-07: el unico cliente HTTP es el de `vectra_common.deps` (U0, fuera de este contrato).
+[importlinter:contract:no-httpx]
+name = ningun modulo de U8 importa httpx fuera de vectra_common.deps
+type = forbidden
+source_modules =
+    vectra_case
+    core_banking_mock
+forbidden_modules =
+    httpx
+allow_indirect_imports = True
+
+# NFR-U8-34: el circuit breaker es el de `vectra_common.deps`; U8 no importa librerias de circuit breaking.
+[importlinter:contract:no-circuit-breaking-libs]
+name = ningun modulo de U8 importa librerias de circuit breaking
+type = forbidden
+source_modules =
+    vectra_case
+    core_banking_mock
+forbidden_modules =
+    pybreaker
+    circuitbreaker
+    aiobreaker
+    purgatory
+allow_indirect_imports = True
+
+# P-U0-03, capa 3 (F-01 de la ronda 1 de U08-T02; cerrado por U00-T03): el token de construccion de `Recommendation` es de `outcome`.
+# Ningun modulo de `vectra_case`, `views` incluido, lo importa: `CaseDetail` anida la instancia ya construida sin token.
+[importlinter:contract:private-token]
+name = ningun modulo de vectra_case importa el token privado de outcome
+type = forbidden
+source_modules =
+    vectra_case
+forbidden_modules =
+    vectra_contracts.outcome._internal
+allow_indirect_imports = True

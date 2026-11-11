@@ -4,11 +4,13 @@ import json
 import math
 
 import pytest
-from pydantic import ValidationError
-from strategies.domain import CASE, NOW, SHA, dictionary, explanation
+from pydantic import ValidationError, ValidationInfo, create_model, field_validator
+from strategies.domain import CASE, NOW, SHA, case_detail_data, dictionary, explanation
 
 from vectra_contracts.catalog import ExplainerError, FailClosedCause, Outcome, RegistryError, ServingState
 from vectra_contracts.errors import ContractViolation
+from vectra_contracts.models.api import CaseDetail
+from vectra_contracts.models.base import StrictModel
 from vectra_contracts.models.explanation import FailClosed, PolicyResult, Prediction, RegistryAck
 from vectra_contracts.outcome import (
     Ready,
@@ -18,6 +20,7 @@ from vectra_contracts.outcome import (
     check_preconditions,
     quantize_prediction,
     quantize_probability,
+    read_wire,
 )
 
 PRED = Prediction(model_version_id="mv-1", score="0.5000", confidence="0.9000")
@@ -146,3 +149,179 @@ def test_p_u0_03_violation_messages():
     with pytest.raises(ContractViolation) as error:
         Recommendation.model_construct()
     assert str(error.value) == "Recommendation no admite model_construct"
+
+
+class _Wrapper(StrictModel):
+    r: Recommendation | None = None
+
+
+class _WithReady(StrictModel):
+    ready: Ready
+
+
+def _rec():
+    rec = build_outcome(ready(), ACK, NOW)
+    assert isinstance(rec, Recommendation)
+    return rec
+
+
+def test_nest_instance_in_case_detail_without_token():
+    """P-U0-03 capa 2: una instancia ya construida se anida sin el token."""
+    rec = _rec()
+    detail = CaseDetail.model_validate(case_detail_data(rec))
+    assert detail.recommendation == rec
+
+
+def test_nest_instance_in_wrapper_three_forms():
+    rec = _rec()
+    assert _Wrapper(r=rec).r == rec
+    assert _Wrapper.model_validate({"r": rec}).r == rec
+    assert _Wrapper(r=None).r is None
+
+
+def test_nest_does_not_accept_dict_without_token():
+    data = _rec().model_dump()
+    with pytest.raises(ContractViolation):
+        Recommendation.model_validate(data)
+    with pytest.raises(ContractViolation):
+        CaseDetail.model_validate(case_detail_data(data))
+    with pytest.raises(ContractViolation):
+        _Wrapper.model_validate({"r": data})
+
+
+def test_nest_does_not_accept_json_without_token():
+    payload = CaseDetail.model_validate(case_detail_data(_rec())).model_dump_json()
+    with pytest.raises(ContractViolation):
+        CaseDetail.model_validate_json(payload)
+    with pytest.raises(ContractViolation):
+        _Wrapper.model_validate_json(json.dumps({"r": json.loads(_rec().model_dump_json())}))
+
+
+def test_read_wire_roundtrip_case_detail():
+    detail = CaseDetail.model_validate(case_detail_data(_rec()))
+    assert read_wire(CaseDetail, detail.model_dump_json()) == detail
+    empty = CaseDetail.model_validate(case_detail_data(None))
+    assert read_wire(CaseDetail, empty.model_dump_json()) == empty
+
+
+def test_read_wire_applies_layer_1():
+    base = json.loads(CaseDetail.model_validate(case_detail_data(_rec())).model_dump_json())
+    mismatch = json.loads(json.dumps(base))
+    mismatch["recommendation"]["explanation"]["model_version_id"] = "otra"
+    with pytest.raises(ValidationError):
+        read_wire(CaseDetail, json.dumps(mismatch))
+    blank = json.loads(json.dumps(base))
+    blank["recommendation"]["registry_entry_id"] = ""
+    with pytest.raises(ValidationError):
+        read_wire(CaseDetail, json.dumps(blank))
+
+
+def test_read_wire_rejects_ready_and_containers_of_ready():
+    payload = ready().model_dump_json()
+    with pytest.raises(ContractViolation):
+        read_wire(Ready, payload)
+    with pytest.raises(ContractViolation):
+        read_wire(_WithReady, json.dumps({"ready": json.loads(payload)}))
+
+
+def test_read_wire_accepts_str_bytes_and_bare_recommendation():
+    rec = _rec()
+    assert read_wire(Recommendation, rec.model_dump_json().encode()) == rec
+
+
+def test_construction_token_is_not_a_public_attribute_of_outcome():
+    """R2-01 (ronda 2 de U08-T02): `outcome` no reexporta el token."""
+    import vectra_contracts.outcome as outcome
+
+    assert not hasattr(outcome, "CONSTRUCTION_TOKEN")
+    assert "CONSTRUCTION_TOKEN" not in outcome.__all__
+    with pytest.raises(ImportError):
+        exec("from vectra_contracts.outcome import CONSTRUCTION_TOKEN", {})
+
+
+class _Spy(StrictModel):
+    """F-01 (ronda 1 de U00-T03): un modelo ajeno intenta quedarse con el token que `read_wire` pasaba por `info.context`."""
+
+    x: int
+
+    @field_validator("x")
+    @classmethod
+    def grab(cls, value: int, info: ValidationInfo) -> int:
+        _STOLEN.update(info.context or {})
+        return value
+
+
+_STOLEN: dict = {}
+
+
+def test_read_wire_does_not_hand_the_token_to_a_foreign_model():
+    _STOLEN.clear()
+    with pytest.raises(ContractViolation):
+        read_wire(_Spy, '{"x": 1}')
+    assert "token" not in _STOLEN
+
+
+def test_read_wire_does_not_leak_the_token_through_the_context_of_a_contract_model():
+    seen: list = []
+    original = CaseDetail.model_validate_json.__func__
+
+    def spy(cls, data, *args, **kwargs):
+        seen.append(kwargs.get("context"))
+        return original(cls, data, *args, **kwargs)
+
+    detail = CaseDetail.model_validate(case_detail_data(_rec()))
+    CaseDetail.model_validate_json = classmethod(spy)  # type: ignore[method-assign]
+    try:
+        read_wire(CaseDetail, detail.model_dump_json())
+    finally:
+        del CaseDetail.model_validate_json
+    assert all(not (isinstance(c, dict) and "token" in c) for c in seen)
+
+
+def test_model_copy_cannot_forge_a_recommendation():
+    """F-02: `model_copy(update=...)` heredaba el sello y saltaba la capa 1 al anidar."""
+    rec = _rec()
+    with pytest.raises(ContractViolation):
+        rec.model_copy(update={"registry_entry_id": ""})
+    with pytest.raises(ContractViolation):
+        rec.model_copy(deep=True)
+    with pytest.raises(ContractViolation):
+        ready().model_copy()
+
+
+def test_contains_ready_detects_nested_containers():
+    """`read_wire` ya rechaza modelos ajenos; este es el detector de `Ready` anidado, probado directamente."""
+    from vectra_contracts.outcome import _contains
+
+    assert _contains(_WithReady, Ready, set())
+    assert _contains(list[Ready] | None, Ready, set())
+    assert not _contains(CaseDetail, Ready, set())
+
+
+class _Node(StrictModel):
+    """Modelo recursivo: `_contains` debe terminar (el conjunto `seen` corta el ciclo)."""
+
+    child: "_Node | None" = None
+    label: str = ""
+
+
+def test_contains_terminates_on_a_recursive_model():
+    from vectra_contracts.outcome import _contains
+
+    assert not _contains(_Node, Ready, set())
+
+
+def test_violation_messages_of_model_copy_and_read_wire():
+    with pytest.raises(ContractViolation) as error:
+        _rec().model_copy()
+    assert str(error.value) == "Recommendation no admite model_copy"
+    with pytest.raises(ContractViolation) as error:
+        ready().model_copy(update={}, deep=False)
+    assert str(error.value) == "Ready no admite model_copy"
+    with pytest.raises(ContractViolation) as error:
+        read_wire(_Wrapper, "{}")
+    assert str(error.value) == "_Wrapper no es un contenedor de vectra_contracts"
+    holder = create_model("_ReadyHolder", __base__=StrictModel, __module__="vectra_contracts.probe", ready=(Ready, ...))
+    with pytest.raises(ContractViolation) as error:
+        read_wire(holder, "{}")
+    assert str(error.value) == "_ReadyHolder contiene Ready: solo se construye con las fabricas de outcome"

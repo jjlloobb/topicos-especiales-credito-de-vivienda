@@ -70,6 +70,7 @@ def test_the_four_routes_of_the_contract_are_served_with_the_handlers_keyed_by_t
 # --- el dashboard: disclaimer, version, ventana, atributo ---------------------------------------------------------------------
 
 
+# BR-U9-18: `get_disparity`: la agregada del modelo y la de las decisiones humanas van separadas.
 def test_the_dashboard_separates_model_and_human_and_carries_the_disclaimer():
     world = disparity_world()
     response = run(Service(world).get("/v1/disparity?version=v1", role="cro"))
@@ -232,6 +233,7 @@ def test_investigar_followed_by_reactivar_shows_the_reactivation_and_restarts_th
     assert view.window.to_day == TODAY
 
 
+# BR-U9-19: `list_freezes` lee las entradas `freeze` del registro: id, version, fecha, atributo disparador y la agregada del paquete.
 def test_the_list_of_freezes_is_a_list_of_summaries_with_the_trigger_and_the_aggregate_of_the_package():
     world = World()
     world.registry.freezes = [freeze_record("v1", NOW - timedelta(days=1))]
@@ -243,6 +245,7 @@ def test_the_list_of_freezes_is_a_list_of_summaries_with_the_trigger_and_the_agg
     )  # fmt: skip
 
 
+# BR-U9-16 y BR-U9-19: el paquete que devuelve es el que dejo governance (con `initial_disparity`); un `freeze_id` inexistente es 404.
 def test_a_freeze_by_id_is_the_freeze_record_of_u0_and_an_unknown_id_is_404():
     world = World()
     world.registry.freezes = [freeze_record("v1", NOW - timedelta(days=1)), freeze_record("v2", NOW)]

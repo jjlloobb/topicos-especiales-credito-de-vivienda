@@ -7,9 +7,9 @@ from uuid import UUID
 
 from hypothesis import strategies as st
 
-from vectra_contracts.catalog import ExplainerError, Role, Scope, ServingState
+from vectra_contracts.catalog import CaseState, ExplainerError, Role, Scope, ServingState
 from vectra_contracts.dane import MUNICIPALITY_DEPARTMENT
-from vectra_contracts.models.application import ApplicationIn
+from vectra_contracts.models.application import ApplicationIn, ApplicationView
 from vectra_contracts.models.explanation import Explanation
 from vectra_contracts.models.features import (
     CategoryFeature,
@@ -85,6 +85,28 @@ def application_dicts(draw: st.DrawFn) -> dict[str, Any]:
         sex=draw(st.sampled_from(["F", "M", "no_informado"])),
         socioeconomic_stratum=draw(st.sampled_from(["1", "2", "3", "4", "5", "6", "no_informado"])),
     )
+
+
+def case_detail_data(recommendation: Any, **over: Any) -> dict[str, Any]:
+    """Campos de un `CaseDetail` con la `recommendation` dada (instancia, dict o `None`), para validarlos."""
+    import json
+
+    raw = {k: v for k, v in _application().items() if k in ApplicationView.model_fields}
+    view = ApplicationView.model_validate_json(json.dumps(raw, default=str))
+    base: dict[str, Any] = {
+        "case_id": CASE,
+        "state": CaseState.LISTO,
+        "channel": "web",
+        "created_at": NOW,
+        "applicant_display": "",
+        "application": view,
+        "recommendation": recommendation,
+        "recommendation_entry_id": "7",
+        "model_frozen_after_recommendation": False,
+        "anonymized": False,
+        "attempts": 0,
+    }
+    return base | over
 
 
 def application_from(data: dict[str, Any]) -> ApplicationIn:

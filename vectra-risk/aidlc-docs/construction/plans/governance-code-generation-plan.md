@@ -93,6 +93,7 @@ vectra-risk/governance/
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest governance/tests/property/test_policy.py`, y la prueba con reloj simulado: el cambio de vigencia ocurre a las 00:00 de Bogotá y no a las 19:00 de Bogotá.
 
 - [x] **Paso 5 — `serving_config`** (U04-T02)
+  - Nota (U04-T09): ampliado en U04-T09 (política en `serving-config`): `compose` copia `cutoff`, `low_confidence_threshold` y `channel_rules` de la política `activa`; el `etag` los cubre.
   - Composición de domain-entities §5 (incluido `inference_service`) y `etag` (JCS de todos los campos; sin `bias_monitoring_age_s`, precisado el 2026-10-08 por U9 FD); prueba de ejemplo: cambiar solo `inference_service` cambia el `etag`.
   - Propiedad PBT-U4-05.
   - Diseño: BR-U4-11, 14; P-U4-07.
@@ -129,6 +130,7 @@ vectra-risk/governance/
     - `pg_stat_activity` cuenta 5 conexiones por réplica.
 
 - [x] **Paso 10 — Endpoints** (U04-T04, acotado a la demo; arranque completado en U04-T08)
+  - Nota (U04-T09): ampliado en U04-T09 (política en `serving-config`): `GET /v1/serving-config` sirve los tres campos de la política `activa`.
   - Nota (U04-T08): arranque completado en U04-T08. `vectra_governance.service` (`config_from_env`, `build_app`, `main`) arma `ApiDeps` desde las variables del chart, con el cliente S3 de F47 (`s3_store.py`, SigV4 contra MinIO) y `Background` en el ciclo de vida; `test_container_start.py` arranca la imagen de verdad.
   - Modelos: registrar, lanzar validación (Job en `vectra-staging` por K01, con TTL, `activeDeadlineSeconds` y `backoffLimit: 0`), recibir el informe (F32), aprobar o rechazar, `mark_active`, retirar.
   - Registro: los paquetes RT-3 (a), (c) y (d) de U5 → 422 sin crear la versión; (b) → aceptado (BR-U4-06; doble de los paquetes hasta que exista U5; quinta revisión de coherencia entre unidades, 2026-10-31).

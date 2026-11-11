@@ -28,6 +28,7 @@ def table(attribute, *cells):
     return {attribute: CountTable(attribute, tuple(CountCell(*c) for c in cells))}
 
 
+# BR-U9-02: una celda con menos de n_min casos es insuficiente y no entra en ningun calculo.
 def test_insular_band_with_12_cases_is_insufficient_and_outside_the_aggregate():
     # US-301: la banda lt_20 de `insular` tiene 12 casos.
     counts = table(

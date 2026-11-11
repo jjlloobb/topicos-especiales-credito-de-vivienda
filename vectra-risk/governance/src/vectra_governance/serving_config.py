@@ -5,6 +5,8 @@ momento de la ultima transicion confirmada y el instante de hoy (parametro: el m
 SHA-256 en hex del JSON canonico (JCS, `vectra_contracts.canonical`) de **todos** los campos salvo el propio `etag`,
 incluido `inference_service` (`bias_monitoring_age_s` se quito, U9 FD 2026-10-08).
 
+U04-T09: copia `cutoff`, `low_confidence_threshold` y `channel_rules` de la politica `activa`.
+
 P-U4-07: la salida tiene solo los campos del tipo de U0 (`ServingConfig`); este modulo no agrega ninguno.
 
 Eleccion: el tipo de U0 exige una version servible (`activo` o `congelado`) y una politica `activa`. Si falta alguna,
@@ -36,6 +38,9 @@ def compose(
         model_version_id=model.model_version_id,
         state=model.state,  # type: ignore[arg-type]
         policy_version_id=policy.policy_version_id,
+        cutoff=policy.cutoff,
+        low_confidence_threshold=policy.low_confidence_threshold,
+        channel_rules=policy.channel_rules,
         feature_dictionary_version=model.feature_dictionary_version,
         effective_from=effective_from,
         inference_service=model.inference_service,

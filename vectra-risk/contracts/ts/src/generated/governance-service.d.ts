@@ -1051,6 +1051,10 @@ export interface components {
         RootModel_list_PolicyVersion__: components["schemas"]["PolicyVersion"][];
         /** ServingConfig */
         ServingConfig: {
+            /** Channel Rules */
+            channel_rules: components["schemas"]["ChannelRule"][];
+            /** Cutoff */
+            cutoff: string;
             /**
              * Effective From
              * Format: date-time
@@ -1062,6 +1066,8 @@ export interface components {
             feature_dictionary_version: string;
             /** Inference Service */
             inference_service: string;
+            /** Low Confidence Threshold */
+            low_confidence_threshold: string;
             /** Model Version Id */
             model_version_id: string;
             /** @default null */

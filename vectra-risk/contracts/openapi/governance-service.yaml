@@ -1370,6 +1370,15 @@ components:
     ServingConfig:
       additionalProperties: false
       properties:
+        channel_rules:
+          items:
+            $ref: '#/components/schemas/ChannelRule'
+          title: Channel Rules
+          type: array
+        cutoff:
+          pattern: ^-?\d+\.\d{4}$
+          title: Cutoff
+          type: string
         effective_from:
           format: date-time
           title: Effective From
@@ -1383,6 +1392,10 @@ components:
         inference_service:
           pattern: ^isvc-[0-9a-f]{8}$
           title: Inference Service
+          type: string
+        low_confidence_threshold:
+          pattern: ^-?\d+\.\d{4}$
+          title: Low Confidence Threshold
           type: string
         model_version_id:
           title: Model Version Id
@@ -1405,6 +1418,9 @@ components:
       - model_version_id
       - state
       - policy_version_id
+      - cutoff
+      - low_confidence_threshold
+      - channel_rules
       - feature_dictionary_version
       - effective_from
       - inference_service

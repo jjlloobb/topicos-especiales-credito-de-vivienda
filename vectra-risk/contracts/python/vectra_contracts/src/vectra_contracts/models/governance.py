@@ -39,20 +39,23 @@ class NormativeParams(StrictModel):
     source_ref: Annotated[str, Field(max_length=300)]
 
 
+class ChannelRule(StrictModel):
+    channel: str
+    cutoff: UnitDecimal4 | None = None
+
+
 class ServingConfig(StrictModel):
     model_version_id: str
     state: Literal["activo", "congelado"]
     policy_version_id: str
+    cutoff: UnitDecimal4
+    low_confidence_threshold: UnitDecimal4
+    channel_rules: list[ChannelRule]
     feature_dictionary_version: str
     effective_from: Timestamp
     inference_service: InferenceServiceName
     etag: str
     normative_current: NormativeParams | None = None
-
-
-class ChannelRule(StrictModel):
-    channel: str
-    cutoff: UnitDecimal4 | None = None
 
 
 class PolicyDraft(StrictModel):
