@@ -4,7 +4,7 @@ import json
 import math
 
 import pytest
-from pydantic import ValidationError, ValidationInfo, field_validator
+from pydantic import ValidationError, ValidationInfo, create_model, field_validator
 from strategies.domain import CASE, NOW, SHA, case_detail_data, dictionary, explanation
 
 from vectra_contracts.catalog import ExplainerError, FailClosedCause, Outcome, RegistryError, ServingState
@@ -296,3 +296,32 @@ def test_contains_ready_detects_nested_containers():
     assert _contains(_WithReady, Ready, set())
     assert _contains(list[Ready] | None, Ready, set())
     assert not _contains(CaseDetail, Ready, set())
+
+
+class _Node(StrictModel):
+    """Modelo recursivo: `_contains` debe terminar (el conjunto `seen` corta el ciclo)."""
+
+    child: "_Node | None" = None
+    label: str = ""
+
+
+def test_contains_terminates_on_a_recursive_model():
+    from vectra_contracts.outcome import _contains
+
+    assert not _contains(_Node, Ready, set())
+
+
+def test_violation_messages_of_model_copy_and_read_wire():
+    with pytest.raises(ContractViolation) as error:
+        _rec().model_copy()
+    assert str(error.value) == "Recommendation no admite model_copy"
+    with pytest.raises(ContractViolation) as error:
+        ready().model_copy(update={}, deep=False)
+    assert str(error.value) == "Ready no admite model_copy"
+    with pytest.raises(ContractViolation) as error:
+        read_wire(_Wrapper, "{}")
+    assert str(error.value) == "_Wrapper no es un contenedor de vectra_contracts"
+    holder = create_model("_ReadyHolder", __base__=StrictModel, __module__="vectra_contracts.probe", ready=(Ready, ...))
+    with pytest.raises(ContractViolation) as error:
+        read_wire(holder, "{}")
+    assert str(error.value) == "_ReadyHolder contiene Ready: solo se construye con las fabricas de outcome"

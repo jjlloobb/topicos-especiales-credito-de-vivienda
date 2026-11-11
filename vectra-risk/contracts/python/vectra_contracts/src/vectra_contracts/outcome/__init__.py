@@ -6,8 +6,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime
 from decimal import Decimal, localcontext
-from types import UnionType
-from typing import Annotated, Any, Literal, Self, Union, get_args, get_origin
+from typing import Annotated, Any, Literal, Self, get_args
 from uuid import UUID
 
 from pydantic import BaseModel, Field, PrivateAttr, RootModel, ValidationInfo, model_validator
@@ -131,7 +130,7 @@ def _contains(tp: Any, target: type, seen: set[Any]) -> bool:
         return True
     if isinstance(tp, type) and issubclass(tp, BaseModel):
         return any(_contains(f.annotation, target, seen) for f in tp.model_fields.values())
-    if get_origin(tp) in (Union, UnionType, Annotated) or get_args(tp):
+    if get_args(tp):  # Union, Optional, Annotated, list[...], dict[...]
         return any(_contains(a, target, seen) for a in get_args(tp))
     return False
 
