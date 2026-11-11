@@ -6,3 +6,4 @@ vectra_common.service_token.xǁServiceTokenProviderǁ__init____mutmut_15  # equi
 vectra_common.service_token.xǁServiceTokenProviderǁ__init____mutmut_16  # equivalente: igual
 vectra_common.service_token.x_provider_from_env__mutmut_17  # equivalente: una llave PEM es ASCII en cualquier codificacion
 vectra_common.service_token.x_provider_from_env__mutmut_22  # equivalente: `UTF-8` y `utf-8` son la misma codificacion
+vectra_contracts.outcome.xǁ_Guardedǁmodel_copy__mutmut_1  # equivalente: `deep=True` por defecto; `model_copy` lanza `ContractViolation` sin leer `update` ni `deep`

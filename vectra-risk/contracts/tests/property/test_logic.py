@@ -14,12 +14,12 @@ from vectra_contracts.dane import DEPARTMENTS
 from vectra_contracts.dictionary import covers
 from vectra_contracts.finance import installment, quantize4
 from vectra_contracts.labels import age_range, payment_band, region_of
-from vectra_contracts.models.api import DecisionIn
+from vectra_contracts.models.api import CaseDetail, DecisionIn
 from vectra_contracts.models.application import ApplicationIn
 from vectra_contracts.models.explanation import FailClosed, PolicyResult, Prediction, RegistryAck
 from vectra_contracts.models.features import FeatureVector
 from vectra_contracts.models.registry import FailClosedPayload, RegistryEntryIn
-from vectra_contracts.outcome import InvalidModelOutput, Ready, Recommendation, RecommendResult, build_outcome, check_preconditions, quantize_prediction, quantize_probability
+from vectra_contracts.outcome import InvalidModelOutput, Ready, Recommendation, RecommendResult, build_outcome, check_preconditions, quantize_prediction, quantize_probability, read_wire
 from vectra_contracts.validation import check_business_time
 
 PRED = Prediction(model_version_id="mv-1", score="0.5000", confidence="0.9000")
@@ -62,6 +62,8 @@ def test_pbt_u0_01_oracle(state, requested, serving, pred, pol, expl, dic, reg):
         assert isinstance(result, Recommendation)
         assert (result.score, result.confidence) == (PRED.score, PRED.confidence)
         assert result.explanation == expl and result.policy_version_id == POL.policy_version_id
+        detail = CaseDetail.model_validate(d.case_detail_data(result))  # anidar la instancia: sin token (U00-T03)
+        assert read_wire(CaseDetail, detail.model_dump_json()) == detail  # ida y vuelta por la lectura publica
     else:
         assert isinstance(result, FailClosed) and result.cause is expected
         frozen = expected is FailClosedCause.MODEL_FROZEN
