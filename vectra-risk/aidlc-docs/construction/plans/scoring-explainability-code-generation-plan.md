@@ -230,13 +230,13 @@ vectra-risk/scoring-explainability/
 
 ### Bloque E — Despliegue y operación
 
-- [ ] **Paso 14 — Dockerfiles y cadena de suministro**
+- [x] **Paso 14 — Dockerfiles y cadena de suministro** (U07-T04, acotado a la demo)
   - Una imagen por servicio sobre una base Python oficial pinneada por digest, `runAsNonRoot` y `readOnlyRootFilesystem`. Las plantillas van dentro de la imagen de explainability.
   - Construidas, escaneadas, con SBOM y firmadas con `sign-image.yml` de U1; el escaneo y el SBOM son de `supply-chain.yml`.
   - Diseño: NFR-U7-32; P-U7-07.
   - **Aceptación**: `hadolint scoring-explainability/*/Dockerfile`; prueba sobre el SBOM: ningún cliente de LLM y ninguna librería de circuit breaking.
 
-- [ ] **Paso 15 — Chart, cuota y flujos**
+- [x] **Paso 15 — Chart, cuota y flujos** (U07-T04, acotado a la demo)
   - Por servicio: `Deployment`, `Service`, `HorizontalPodAutoscaler`, `PodDisruptionBudget`, `ServiceAccount`, `ExternalSecret`, `ServiceMonitor`.
     - El `ExternalSecret` trae la llave `private_key_jwt` desde la bóveda.
     - Recursos y probes de INF-U7-01; spread por zona; `vectra-high`; sidecar nativo de Linkerd.
@@ -247,14 +247,14 @@ vectra-risk/scoring-explainability/
   - Diseño: INF-U7-01, 02, 03, 04, 05; P-U7-06; NFR-U7-20, 30.
   - **Aceptación**: `helm template` con cada values + `kubeconform` + `conftest test scoring-explainability/policies/conftest/`, que verifica HPA 2–6, PDB, spread, `priorityClassName`, `preStop.sleep`, el período de gracia y la ausencia de variables de presupuesto. Además, `conftest test platform/policies/quotas/` (cuota ≥ suma de aportes) y `uv run python platform/network/generate.py --check`.
 
-- [ ] **Paso 16 — Alertas y runbooks**
+- [ ] **Paso 16 — Alertas y runbooks** (diferido por la demo (T2))
   - `PrometheusRule` con las alertas de P-U7-08: `CircuitOpen`, `RegistryAppendSlow`, `RegistryAppendAbandoned`, `RegistryIdempotencyConflict`, `FactualityFailed`, `ExplainerVersionMismatch` y `RecommendationLatencyHigh`.
   - Cada una con su runbook.
   - `PromotionMismatchPersistent` es de U4: aquí solo se prueba que `vectra_scoring_failclosed_total{cause="version_mismatch"}` existe con ese nombre.
   - Diseño: P-U7-08; BR-U7-03; NFR-U7-31.
   - **Aceptación**: `promtool test rules scoring-explainability/observability/rules/tests/*.yaml`; `uv run python platform/tests/test_runbooks.py --root scoring-explainability`; prueba que compara el nombre de la métrica con la expresión de la regla de U4.
 
-- [ ] **Paso 17 — Applications, especificación de carga y trazabilidad**
+- [x] **Paso 17 — Applications, especificación de carga y trazabilidad** (U07-T04, acotado a la demo)
   - Entrada `scoring-explainability` en `vectra-risk-gitops/components.yaml` con `wave: 5`; `generate.py` escribe una Application por entorno, sin auto-sync, y los values van en `vectra-risk-gitops/values/<env>/scoring-explainability.yaml` (revisión de consistencia entre unidades, 2026-11-01).
   - Script k6 de U7, fuera de `LOAD` de U12 porque F15 no pasa por el gateway (seguimiento de la quinta revisión de coherencia, 2026-10-31): corre en esta unidad contra el servicio, con dobles; 10 solicitudes/s de diseño y 20/s de prueba, con umbrales p95 de 400 ms, 250 ms y 500 ms y p99 de 1 s.
   - Trazabilidad de cada BR-U7 a una prueba.
@@ -263,7 +263,7 @@ vectra-risk/scoring-explainability/
 
 ### Bloque F — Verificación en kind (con aprobación humana)
 
-- [ ] **Paso 18 — Puerta de aprobación y escenarios en kind**
+- [ ] **Paso 18 — Puerta de aprobación y escenarios en kind** (consolidado en U12 Paso 18 (enmienda §8))
   - **Requisito previo**: un PR con los Pasos 1–17 aprobado por un humano, con U1–U6 instalados en kind y un modelo activo.
   - El operador ejecuta, con evidencia, los escenarios de P-U7-09 y además:
     1. explainability escalado a 0 → `FailClosed(explainer_unavailable)`; el circuito se abre y salta `CircuitOpen`;
@@ -280,11 +280,11 @@ vectra-risk/scoring-explainability/
 
 ### Bloque G — Cierre
 
-- [ ] **Paso 19 — Repositorio, migraciones y frontend: N/A**
+- [x] **Paso 19 — Repositorio, migraciones y frontend: N/A** (U07-T04)
   - U7 no tiene base de datos, migraciones ni interfaz; la consola es de U10.
   - **Aceptación**: `test ! -d scoring-explainability/migrations && test ! -d scoring-explainability/frontend`.
 
-- [ ] **Paso 20 — Cierre de la unidad**
+- [x] **Paso 20 — Cierre de la unidad** (U07-T04, acotado a la demo)
   - **Aceptación**: `make -C scoring-explainability check`, que corre en orden las verificaciones estáticas, las propiedades y las pruebas de integración de los Pasos 1–17 y termina en 0. Las de kind (Paso 18) se revisan como evidencia en el PR.
 
 ---

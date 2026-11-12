@@ -4,6 +4,9 @@ Lee la entrada `recommendation_entry_id` en la proyeccion `explanation` del regi
 `case_id`. Si no existe, no tiene explicacion o es de otro caso: 409 `conflict_state`, sin datos parciales. Emite el log
 `applicant_summary.generated` solo con `case_id` y no guarda el resumen. La regla de objeto «decision final desfavorable» es del
 BFF (U10), no de aqui.
+
+NFR-U7-03 (p95 <= 500 ms): el resumen sale de una sola lectura al registro (F23) y del diccionario ya cacheado, sin llamar a KServe ni generar texto
+libre; no se almacena. Su medicion con carga (k6) esta diferida por la demo (T3, `evidence/cierre-demo.md`).
 """
 
 from collections.abc import Callable

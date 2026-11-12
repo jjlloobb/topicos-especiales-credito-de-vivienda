@@ -1,4 +1,7 @@
-"""Paso 8 (CA-1): `POST /v1/explanations` con dobles de KServe y de governance (BR-U7-08 a 11; P-U7-01, 04, 05; US-104, 105, 111)."""
+"""Paso 8 (CA-1): `POST /v1/explanations` con dobles de KServe y de governance (BR-U7-08 a 11; P-U7-01, 04, 05; US-104, 105, 111).
+
+BR-U7-09 (el diccionario de la version, sin usar el de otra ni un parcial): `test_a_dictionary_of_another_version_is_a_409`, `test_an_incomplete_dictionary_is_a_422`.
+"""
 
 import time
 from collections.abc import AsyncIterator

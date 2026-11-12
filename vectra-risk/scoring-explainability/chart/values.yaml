@@ -1,0 +1,72 @@
+# Valores comunes del chart de U7 (Paso 15 acotado a la demo). Se renderiza con `make -C scoring-explainability render-chart`.
+# Diferido por la demo: la PrometheusRule y los runbooks (Paso 16, T2). El perfil de recursos de kind es este mismo (DD-3 b): sin `values-kind-demo.yaml`,
+# con las 2 replicas del HPA (`require-hpa-bounds`).
+# INF-U7-04: el chart solo inyecta URLs, la identidad ante Keycloak y la telemetria. Ningun presupuesto de tiempo es una variable de entorno:
+# son constantes de `scoring/config.py` y `explainability/config.py` (una regla de conftest lo comprueba).
+namespace: vectra-app
+# `imageRegistry` lo pasa Argo CD desde `vectra-risk-gitops/envs/<env>/values.yaml` (kind-registry:5000 en kind, registro.banco.internal/vectra en
+# staging y prod) y arma el repositorio `<registro>/vectra/<imagen>`; `repository` vale en un render local sin ese valor.
+# Digests de ejemplo mientras el operador no publique las imagenes (scoring-explainability/docs/imagenes.md); cada entorno fija los suyos en
+# `vectra-risk-gitops/values/<env>/scoring-explainability.yaml`. Sin digest no se renderiza (`required`): una imagen por etiqueta la rechaza Kyverno.
+images:
+  scoring:
+    repository: kind-registry:5000/vectra/scoring-service
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000005
+  explainability:
+    repository: kind-registry:5000/vectra/explainability-service
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000006
+# Validacion de tokens y obtencion de los de servicio (F50; variables de U0). Mismos valores que `governance` y `bias-monitoring`; el realm y el
+# nombre publico los fija U2. La CA sale del ConfigMap `vectra-internal-ca` (Bundle de trust-manager de U1). El chart no crea ningun Secret.
+keycloak:
+  issuer: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra
+  jwksUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/certs
+  tokenUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token
+  caConfigMap: vectra-internal-ca
+  caMountPath: /etc/vectra/ca
+# Los pares en `vectra-app` (F18, F20, F21, F23, F103). KServe (F19, F22) no autentica con JWT (mTLS de Linkerd): su host es una plantilla.
+peers:
+  governanceUrl: http://governance-service.vectra-app.svc.cluster.local:8080
+  registryUrl: http://decision-registry-service.vectra-app.svc.cluster.local:8080
+  explainabilityUrl: http://explainability-service.vectra-app.svc.cluster.local:8080
+# Plantillas de URL de los Services que KServe crea por InferenceService (`<isvc>-predictor` y `<isvc>-explainer`, puerto 80 del Service, F19 y F22),
+# en el namespace de la Application `model-serving` (`vectra-serving`; `test_chart.py` lo lee de `components.yaml`). C-2 de U07-T04: cada entorno las fija
+# tambien en `vectra-risk-gitops/values/<env>/scoring-explainability.yaml`. El valor de aqui existe porque `platform/tests/integration.py` (`render_env`,
+# que usan `test_kind_profile.py` y `test_integration.py`) renderiza un componente `env_values` solo con los values del entorno, sin los de la unidad.
+# Vacias no se renderiza (`required`).
+kserve:
+  predictorUrlTemplate: http://{inference_service}-predictor.vectra-serving.svc.cluster.local
+  explainerUrlTemplate: http://{inference_service}-explainer.vectra-serving.svc.cluster.local
+# F61: el colector de OpenTelemetry (gRPC 4317). `VECTRA_OTLP_ENDPOINT` lo lee `vectra_common.telemetry`.
+telemetry:
+  otlpEndpoint: http://otel-collector.vectra-observability.svc.cluster.local:4317
+# La llave `private_key_jwt` de cada servicio (F50): un ExternalSecret por cliente de U2 (`identity/clients/<clientId>`, propiedad `private-key`),
+# montado de solo lectura. El formato es el de `governance/chart/templates/service-identity.yaml`.
+identity:
+  mountPath: /var/run/vectra/client
+  vaultProperty: private-key
+  secretStore: { name: vectra-store, kind: ClusterSecretStore }
+  refreshInterval: 1h
+# INF-U7-01 y 03: los dos servicios llevan el mismo perfil (requests 250m / 256 MiB, limits 1 CPU / 512 MiB; HPA de 2 a 6 por CPU al 70 %; PDB
+# `minAvailable: 1`; `vectra-high`). `preStop.sleep` de 5 s y 20 s de gracia (peor caso de una solicitud: ~6,1 s, P-U7-02).
+common:
+  priorityClassName: vectra-high
+  criticality: high
+  replicas: 2
+  port: 8080
+  metricsPort: 8081
+  preStopSeconds: 5
+  terminationGracePeriodSeconds: 20
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { cpu: "1", memory: 512Mi }
+  hpa:
+    minReplicas: 2
+    maxReplicas: 6
+    cpuUtilization: 70
+    scaleUpStabilizationSeconds: 60
+    scaleDownStabilizationSeconds: 300
+  pdb: { minAvailable: 1 }
+# Los dos servicios. `name` es el de la ServiceAccount, el Service y el cliente de Keycloak (los `sa:` de `platform/network/flows.yaml`).
+services:
+  scoring: { name: scoring-service, clientId: scoring-service }
+  explainability: { name: explainability-service, clientId: explainability-service }

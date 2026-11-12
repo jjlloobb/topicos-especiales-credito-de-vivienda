@@ -1,0 +1,25 @@
+{{- /* ServiceMonitor del puerto de metricas de cada servicio (K02; 8081). */ -}}
+{{- range $key, $svc := .Values.services }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $.Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $svc.name }}
+    app.kubernetes.io/part-of: scoring-explainability
+    vectra.io/criticality: {{ $.Values.common.criticality }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $svc.name }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      # La etiqueta `service` que emite U0 no pasa a `exported_service` (shared-infrastructure.md §1).
+      honorLabels: true
+{{- end }}

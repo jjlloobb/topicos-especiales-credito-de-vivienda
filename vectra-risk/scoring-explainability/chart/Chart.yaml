@@ -1,0 +1,7 @@
+apiVersion: v2
+name: scoring-explainability
+description: >-
+  Chart de U7 (Paso 15, acotado a la demo): los Deployments scoring-service y explainability-service, cada uno con su Service, HPA de 2 a 6, PDB,
+  ServiceAccount, ExternalSecret de la llave private_key_jwt y ServiceMonitor. Diferido por la demo: la PrometheusRule y los runbooks (Paso 16, T2).
+type: application
+version: 0.1.0

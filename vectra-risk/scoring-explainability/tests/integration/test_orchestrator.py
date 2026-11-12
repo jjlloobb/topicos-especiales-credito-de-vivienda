@@ -1,4 +1,13 @@
-"""Paso 11 (CA-4): ejemplos del `orchestrator` con dobles de U3, U4 y U6 y explainability (BR-U7-01, 02, 03, 12, 15, 16; US-103, 111, 113)."""
+"""Paso 11 (CA-4): ejemplos del `orchestrator` con dobles de U3, U4 y U6 y explainability (BR-U7-01, 02, 03, 12, 15, 16; US-103, 111, 113).
+
+BR-U7-03 (cada `FailClosed(version_mismatch)` sube `vectra_scoring_failclosed_total{cause="version_mismatch"}`):
+`test_us111_rt3_an_explainer_of_another_version_is_version_mismatch_and_the_metric_rises`. BR-U7-15 (sin persistencia no hay recomendacion: un append
+reintentado una vez con la misma llave y, si falla, `FailClosed`): `test_a_registry_failing_once_is_two_calls_with_the_same_key_and_one_entry`,
+`test_us113_a_registry_without_replica_is_registry_unavailable_and_nothing_is_delivered`.
+
+NFR-U7-12 (sin reintentos salvo el del append con la misma `idempotency_key`) lo comprueban `test_a_registry_failing_once_is_two_calls_with_the_same_key_and_one_entry`
+y `test_a_4xx_registry_answer_is_one_attempt_only`.
+"""
 
 import time
 from collections.abc import AsyncIterator
