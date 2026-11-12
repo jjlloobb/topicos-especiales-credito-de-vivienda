@@ -3,7 +3,7 @@ ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 UV := cd $(ROOT) && uv run
 NPM := cd $(ROOT) && npm run -w console/spa
 
-.PHONY: lint-bff lint-spa lint test-bff test-spa test check
+.PHONY: lint-bff lint-spa lint test-bff test-spa e2e-spa test check
 
 lint-bff:
 	$(UV) ruff check console
@@ -28,9 +28,17 @@ test-bff:
 	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest console/bff/tests/unit console/bff/tests/property -q -p no:cacheprovider --rootdir=console/bff $(COV_PURE)
 	cd $(ROOT) && uv run python console/bff/tools/role_matrix.py --check
 
+# U10-T03 (CA-6): vitest con cobertura de ramas. Umbrales en `console/spa/vite.config.ts`: 100 % en `src/stepup/**` (NFR-U10-61) y >= 80 %
+# en todo `src/` (P-5 (a)). Imprime la semilla de las PBT (NFR-U10-62); `VECTRA_PBT_PROFILE=nightly` elige el perfil nocturno.
 test-spa:
-	$(NPM) test
+	$(NPM) test -- --coverage
 
-test: test-bff test-spa
+# U10-T03 (CA-1, la puerta del Paso 10): Playwright en Chromium y Firefox contra el emisor OIDC de prueba y el BFF con dobles. Los navegadores
+# no vienen con `npm ci`: si faltan, falla diciendo como instalarlos. U10-T04 amplia `tests/` con el recorrido completo. En serie.
+e2e-spa:
+	cd $(ROOT) && node console/spa/scripts/check-browsers.mjs
+	cd $(ROOT) && npx playwright test -c console/spa/playwright.config.ts tests/poc
+
+test: test-bff test-spa e2e-spa
 
 check: lint test

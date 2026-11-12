@@ -80,6 +80,8 @@ export class StepUpFlow<B> {
   private current: StepUpState<B> = IDLE;
   private popup: PopupLike | null = null;
   private stateId: string | null = null;
+  /** Numero del intento en curso: una solicitud que llega tarde de un intento anterior no se mezcla con el actual. */
+  private attempt = 0;
   private timeout: unknown = null;
   private poll: unknown = null;
   private readonly listeners = new Set<(state: StepUpState<B>) => void>();
@@ -125,7 +127,8 @@ export class StepUpFlow<B> {
     switch (effect.type) {
       case "create_request":
         this.deps.announce("opened");
-        void this.createRequest();
+        this.attempt += 1;
+        void this.createRequest(this.attempt);
         return;
       case "watch":
         this.watch();
@@ -155,7 +158,7 @@ export class StepUpFlow<B> {
     }, CLOSE_POLL_MS);
   }
 
-  private async createRequest(): Promise<void> {
+  private async createRequest(attempt: number): Promise<void> {
     let request: SigninRequestRef;
     try {
       request = await this.deps.backend.createRequest();
@@ -163,8 +166,8 @@ export class StepUpFlow<B> {
       this.dispatch({ type: "request_failed" });
       return;
     }
-    if (this.current.phase !== "opening") {
-      await this.deps.backend.removeState(request.id); // el intento termino mientras tanto: no queda nada en memoria
+    if (this.attempt !== attempt || this.current.phase !== "opening") {
+      await this.deps.backend.removeState(request.id); // el intento termino (o ya hay otro): no queda nada en memoria
       return;
     }
     this.stateId = request.id;

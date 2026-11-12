@@ -4,6 +4,8 @@ import jsxA11y from "eslint-plugin-jsx-a11y";
 import react from "eslint-plugin-react";
 
 const restrictedStorage = ["localStorage", "sessionStorage"];
+// Atributos cuyo valor lo ve o lo lee una persona (o un lector de pantalla): no pueden ser literales (NFR-U10-53).
+const VISIBLE_ATTRIBUTES = ["aria-label", "aria-description", "aria-placeholder", "aria-roledescription", "aria-valuetext", "title", "alt", "placeholder", "label"];
 
 export default [
   {
@@ -20,7 +22,9 @@ export default [
       // BR-U10-11: nada de HTML sin sanear.
       "react/no-danger": "error",
       // NFR-U10-53: todo texto visible viene del catalogo i18n, no de un literal en JSX.
-      "react/jsx-no-literals": ["error", { noStrings: true }],
+      // `ignoreProps` deja pasar los atributos que no son texto (`role`, `id`, `htmlFor`, `href`): candidata U10-T01 F-01. Los atributos que
+      // SI son texto visible o leido (`aria-label`, `title`, `alt`, `placeholder`) los cubre `no-restricted-syntax`, mas abajo.
+      "react/jsx-no-literals": ["error", { noStrings: true, ignoreProps: true }],
       // BR-U10-05: los tokens solo viven en memoria.
       "no-restricted-globals": [
         "error",
@@ -41,6 +45,10 @@ export default [
       "no-restricted-syntax": [
         "error",
         { selector: "CallExpression[callee.name='Number']", message: "Prohibido Number() sobre tipos Decimal*." },
+        {
+          selector: `JSXAttribute[name.name=/^(${VISIBLE_ATTRIBUTES.join("|")})$/] > Literal`,
+          message: "NFR-U10-53: un atributo que se lee o se ve (aria-label, title, alt, placeholder...) sale del catalogo i18n.",
+        },
         {
           selector: "MemberExpression[object.name='Number'][property.name='parseFloat']",
           message: "Usa decimal.js con Decimal4.",
