@@ -1,0 +1,20 @@
+[project]
+name = "vectra-console-bff"
+version = "0.1.0"
+description = "U10 console-bff: API unica de la SPA (C03), sin estado"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "vectra-contracts",
+  "vectra-common",
+]
+
+[tool.uv.sources]
+vectra-contracts = { workspace = true }
+vectra-common = { workspace = true }
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/console_bff"]

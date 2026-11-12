@@ -49,7 +49,7 @@ vectra-risk/console/
 |   |   |-- routes.py  compose.py  clients.py  client_errors.py  metrics.py  app.py
 |   `-- tests/  unit/ property/ integration/ doubles/ load/
 |-- spa/
-|   |-- package.json  package-lock.json  vite.config.ts  tsconfig.json  .eslintrc.cjs  .size-limit.json
+|   |-- package.json  vite.config.ts  tsconfig.json  eslint.config.mjs  .size-limit.json
 |   |-- index.html  nginx.conf  Dockerfile
 |   |-- src/
 |   |   |-- config/constants.ts  config/load.ts       # constantes y config.json por entorno
@@ -62,20 +62,26 @@ vectra-risk/console/
 `-- observability/  rules/  rules/tests/  runbooks/  dashboards/console.json
 ```
 
+> **Notas de U10-T01 a la estructura de destino:**
+> - **P-1:** la configuración de ESLint es `spa/eslint.config.mjs` (configuración plana), no `.eslintrc.cjs`: el repositorio fija ESLint 10, que no admite `.eslintrc` (igual que `contracts/ts`).
+> - **P-2:** `console/spa` es un workspace de npm del `package.json` raíz; el lockfile es el `package-lock.json` raíz y no hay `spa/package-lock.json`.
+> - **P-3:** `object_rules.py` expone `OBJECT_RULES`, un mapa `operation_id` → regla o `None`; el Paso 5 exige al arrancar que las 30 rutas estén en él.
+> - `bff/pytest.ini` y `bff/coveragerc` apuntan la cobertura a `console_bff`, como en U8 y U9.
+
 ---
 
 ## 2. Pasos
 
 ### Bloque A — Estructura y constantes
 
-- [ ] **Paso 1 — Esqueleto de `console/`**
+- [x] **Paso 1 — Esqueleto de `console/`** (U10-T01)
   - Directorios de §1; `bff/pyproject.toml` como miembro del workspace de `uv` (depende de `vectra_contracts` y `vectra_common`); `spa/package.json` como workspace de npm que depende de `contracts/ts`.
   - import-linter del BFF: `object_rules` y `errors` sin E/S; ningún módulo importa `httpx` fuera de `vectra_common.deps`.
   - ESLint de la SPA: `react/no-danger` (prohíbe `dangerouslySetInnerHTML`), `jsx-a11y`, prohibición de literales de texto en JSX, de `localStorage`, de `sessionStorage` y de `Number(`/`parseFloat` sobre `Decimal*`; TypeScript con `strict` y `noUncheckedIndexedAccess`.
   - Diseño: NFR-U10-43, 53, 64; BR-U10-05, 11.
   - **Aceptación**: `uv sync --frozen && uv run lint-imports --config console/bff/.importlinter`; `npm ci --ignore-scripts -w console/spa && npm run -w console/spa lint && npm run -w console/spa typecheck` sobre el esqueleto; un fixture con `dangerouslySetInnerHTML` y otro con `localStorage.setItem` → ESLint falla.
 
-- [ ] **Paso 2 — Constantes y configuración**
+- [x] **Paso 2 — Constantes y configuración** (U10-T01)
   - BFF `config.py`: timeouts, conexiones por destino y presupuesto de P-U10-04 (incluidos los 4 s de escritura en case y governance).
   - SPA `config/constants.ts`: las constantes de domain-entities §4 (step-up, inactividad, difusión de actividad, consulta de versión, `reporter`, timeout de la API, refrescos).
   - SPA `config/load.ts`: carga `config.json` (solo OIDC y el `uid` de `bias.json`) con `fetch`; falla si falta un campo o aparece uno desconocido.
@@ -84,13 +90,13 @@ vectra-risk/console/
 
 ### Bloque B — Lógica pura del BFF
 
-- [ ] **Paso 3 — `object_rules` y `errors`**
+- [x] **Paso 3 — `object_rules` y `errors`** (U10-T01)
   - `object_rules`: una función pura por endpoint con regla de objeto de C03 (`record_decision` ⇔ `listo`; `retry_case` ⇔ `no_disponible` y no anonimizado; `approve_model` ⇔ `lista_para_aprobacion`; `resolve_frozen` ⇔ `congelado`; `decide_data_source` ⇔ `en_evaluacion` con informe; `start_validation` ⇔ `registrado` o `validacion_fallida`; `create_applicant_summary` ⇔ `decidido` con `final_outcome = desfavorable` (seguimiento de la quinta revisión de coherencia, 2026-10-31); `retire_model` ⇔ `inactivo`, `rechazado` o `validacion_fallida` (cuarta revisión de coherencia entre unidades, 2026-10-31); `approve_policy` ⇔ `propuesta`; etc.).
   - `errors`: traducción de cualquier respuesta de error de un destino al `Problem` de U0 (mismo `code`, o `internal_error`), sin `detail`; un 403 o 404 de un destino se propaga como tal.
   - Diseño: BR-U10-01, 03, 04; P-U10-01, 03. Historias: US-602, US-611.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest console/bff/tests/property/test_object_rules.py tests/property/test_errors.py`: PBT-U10-02 y PBT-U10-03.
 
-- [ ] **Paso 4 — Resumen de la lógica pura**
+- [x] **Paso 4 — Resumen de la lógica pura** (U10-T01; `mutmut` diferido por la demo (T3))
   - Cobertura de ramas **100 %** en `object_rules` y `errors`; `mutmut` en `object_rules` con 0 sobrevivientes sin justificar.
   - Resumen en `aidlc-docs/construction/console/code/bff-logic.md`.
   - Diseño: NFR-U10-60.
