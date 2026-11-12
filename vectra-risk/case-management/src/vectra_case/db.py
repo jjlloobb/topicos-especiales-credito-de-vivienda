@@ -14,10 +14,8 @@ from psycopg import errors
 from psycopg.rows import dict_row
 from vectra_common.errors import DependencyUnavailable
 
-from vectra_case.config import CASE_DB_POOL_MAX
+from vectra_case.config import CASE_DB_POOL_MAX, DB_ACQUIRE_TIMEOUT, DB_CONNECT_TIMEOUT
 
-ACQUIRE_TIMEOUT: Final[float] = 2.0
-CONNECT_TIMEOUT: Final[int] = 2
 Conn = psycopg.AsyncConnection[dict[str, Any]]
 _UNAVAILABLE: Final = (psycopg.OperationalError, errors.ReadOnlySqlTransaction, TimeoutError)
 
@@ -33,7 +31,7 @@ class Database:
 
     async def _connect(self) -> Conn:
         return await psycopg.AsyncConnection.connect(
-            self._dsn, row_factory=dict_row, connect_timeout=CONNECT_TIMEOUT
+            self._dsn, row_factory=dict_row, connect_timeout=DB_CONNECT_TIMEOUT
         )
 
     async def _acquire(self) -> Conn:
@@ -51,7 +49,7 @@ class Database:
                         except BaseException:
                             self._open -= 1
                             raise
-                conn = await asyncio.wait_for(self._idle.get(), ACQUIRE_TIMEOUT)
+                conn = await asyncio.wait_for(self._idle.get(), DB_ACQUIRE_TIMEOUT)
             if conn.closed or conn.broken:
                 self._open -= 1
                 continue

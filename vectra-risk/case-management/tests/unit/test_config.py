@@ -107,3 +107,23 @@ def test_every_named_value_of_step_2_matches_the_plan() -> None:
 
 def _constants(module: object = config) -> dict[str, object]:
     return {k: v for k, v in vars(module).items() if k.isupper()}
+
+
+def test_reconciler_lease_covers_the_worst_batch_and_is_not_the_workers() -> None:
+    """F-01 y F-05 (ronda 1 de U08-T03): el arrendamiento del reconciliador cubre un lote entero (con el reintento por 401)."""
+    worst_batch = (config.BATCH_SIZE / config.RECONCILER_CONCURRENCY) * config.REGISTRY_TIMEOUT * 2
+    assert config.RECONCILER_LEASE >= worst_batch and config.RECONCILER_LEASE == 125.0
+    assert (
+        config.RECONCILER_LEASE != config.LEASE and config.RECONCILER_BACKOFF_JITTER == config.BACKOFF_JITTER
+    )
+
+
+def test_case_service_modules_define_no_constant_of_their_own() -> None:
+    """F-05: los tiempos y plazos de `case-service` viven en `config.py`, sin nombres repetidos."""
+    src = Path(config.__file__).parent
+    for name in ("evidence", "sweeps", "db_gauges", "governance_client", "db"):
+        assert not re.search(
+            r"^[A-Z_]+: Final\[(?:float|int)\] =\s*[\d.]+\s*$", (src / f"{name}.py").read_text(), re.M
+        ), name
+    names = re.findall(r"^([A-Z][A-Z0-9_]+)\b", SOURCE, re.M)
+    assert len(names) == len(set(names))

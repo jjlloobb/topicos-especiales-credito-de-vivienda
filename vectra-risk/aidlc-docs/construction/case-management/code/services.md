@@ -33,7 +33,7 @@ Este archivo lo completa el Paso 18 (U08-T04) con los Bloques E y F. Aquí está
 ## Reconciliador (P-U8-04)
 
 - Cada 1 s, lotes de 100 con `FOR UPDATE SKIP LOCKED`, como máximo 4 envíos en vuelo (`RECONCILER_CONCURRENCY`).
-- **Arrendamiento**: al reclamar, `next_attempt_at` pasa a `ahora + 30 s`. Así dos réplicas no reintentan la misma evidencia en un ciclo y una réplica que muere devuelve el turno sola.
+- **Arrendamiento** (`config.RECONCILER_LEASE`, 125 s): al reclamar, `next_attempt_at` pasa a `ahora + 125 s`. No es el del worker (`config.LEASE`, 30 s): cubre el peor lote (100 filas / 4 en vuelo × 2,5 s × 2 por el reintento por 401), no un envío. Así dos réplicas no reintentan la misma evidencia en un ciclo, aunque la segunda arranque a mitad del lote; si una réplica muere, sus filas vuelven a ser elegibles a los 125 s. El envío inmediato de la decisión y de la consulta inserta ya con `next_attempt_at = ahora + 125 s`, para que el reconciliador no lo envíe en paralelo. Las demás constantes de `case-service` (`RECONCILER_*`, `SWEEP_INTERVAL`, `GAUGE_INTERVAL`, `JOBS_OVERDUE_AFTER`, `SERVING_CONFIG_CACHE_TTL`, `DB_*`) viven en `config.py`.
 - Backoff de 1 s a 5 min con jitter de ±20 %, a partir de `attempts`; a las 24 h (`created_at`) la evidencia y su decisión pasan a `abandonada` y suben `vectra_case_evidence_abandoned_total{entry_type}`.
 - Una `explanation_view` abandonada que el analista abre de nuevo vuelve a `pendiente_registro` con `created_at = ahora` (plazo de 24 h nuevo), el mismo payload y la misma llave.
 - Todos los tiempos salen del reloj inyectado (`Evidence.clock`), no de `now()` de la base, para que las pruebas simulen horas y días.

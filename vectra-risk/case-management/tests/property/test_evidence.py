@@ -10,6 +10,7 @@ con la consulta confirmada.
 
 import asyncio
 import uuid
+from datetime import datetime
 from typing import Any
 
 import pytest
@@ -22,12 +23,28 @@ from u8_support import auth, decision_body, harness, seed_case
 pytestmark = pytest.mark.integration
 BODIES = [decision_body(), decision_body(justification="una justificacion distinta")]
 TERMINAL = {"confirmada", "abandonada", "descartada"}
+#: Cuantas veces la maquina recorrio `lose_ack` -> decision -> mas de 24 h -> decision nueva (409 `decision_already_recorded`).
+STATS = {"abandon_then_new": 0}
+
+
+def norm(value: Any) -> Any:
+    """Compara cargas del outbox y del registro: fechas como instantes (`Z` o `+00:00`) y sin campos nulos."""
+    if isinstance(value, dict):
+        return {k: norm(v) for k, v in value.items() if v is not None}
+    if isinstance(value, list):
+        return [norm(v) for v in value]
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return value
+    return value
 
 
 def make_machine(runner: asyncio.Runner, h: Any, db: Db) -> type[RuleBasedStateMachine]:
     class EvidenceMachine(RuleBasedStateMachine):
-        @initialize()
-        def start(self) -> None:
+        @initialize(forced=st.booleans())
+        def start(self, forced: bool) -> None:
             h.registry.entries.clear()
             h.registry.requests.clear()
             h.registry.by_key.clear()
@@ -37,15 +54,30 @@ def make_machine(runner: asyncio.Runner, h: Any, db: Db) -> type[RuleBasedStateM
                 "DELETE FROM decisions; DELETE FROM explanation_views; DELETE FROM evidence_outbox"
             )  # cada ejemplo parte limpio
             self.case_id = seed_case(db, state="listo")
-            self.moments: dict[str, set[str]] = {}
+            if forced:  # recorrido forzado en la mitad de los ejemplos (F-02 de la ronda 1)
+                self._abandon_then_new_decision()
 
-        def _post(self, path: str, who: str, body: dict[str, Any] | None) -> int:
-            r = runner.run(
+        def _abandon_then_new_decision(self) -> None:
+            """`lose_ack` -> decision -> mas de 24 h -> decision nueva: el registro si escribio la abandonada (BR-U8-18)."""
+            path = f"/v1/cases/{self.case_id}/decision"
+            h.registry.lose_ack_next = 1
+            assert self._post(path, "analista", BODIES[0]).status_code == 503
+            h.registry.lose_ack_next = 0
+            h.clock.advance(hours=25)
+            runner.run(h.reconciler.run_once())  # abandona la pendiente
+            second = self._post(path, "analista2", BODIES[1])
+            assert second.status_code == 409 and second.json()["reason"] == "decision_already_recorded"
+            assert db.query("SELECT decided_by->>'id' FROM decisions WHERE state = 'confirmada'") == [
+                ("analista-1",)
+            ]
+            STATS["abandon_then_new"] += 1
+
+        def _post(self, path: str, who: str, body: dict[str, Any] | None) -> Any:
+            return runner.run(
                 h.client.post(path, json=body, headers=auth(who))
                 if body is not None
                 else h.client.post(path, headers=auth(who))
             )
-            return r.status_code
 
         @rule(mode=st.sampled_from(["ok", "down", "lose_ack"]))
         def registry(self, mode: str) -> None:
@@ -54,11 +86,18 @@ def make_machine(runner: asyncio.Runner, h: Any, db: Db) -> type[RuleBasedStateM
 
         @rule(who=st.sampled_from(["analista", "analista2"]), body=st.integers(0, 1))
         def decide(self, who: str, body: int) -> None:
-            assert self._post(f"/v1/cases/{self.case_id}/decision", who, BODIES[body]) in (200, 409, 503)
+            assert self._post(f"/v1/cases/{self.case_id}/decision", who, BODIES[body]).status_code in (
+                200,
+                409,
+                503,
+            )
 
         @rule(who=st.sampled_from(["analista", "analista2"]))
         def view(self, who: str) -> None:
-            assert self._post(f"/v1/cases/{self.case_id}/explanation-views", who, None) in (204, 409)
+            assert self._post(f"/v1/cases/{self.case_id}/explanation-views", who, None).status_code in (
+                204,
+                409,
+            )
 
         @rule(seconds=st.sampled_from([1, 400, 7200, 30 * 3600, 8 * 86400]))
         def tick(self, seconds: int) -> None:
@@ -76,19 +115,18 @@ def make_machine(runner: asyncio.Runner, h: Any, db: Db) -> type[RuleBasedStateM
             assert len(decisions) <= 1  # nunca mas de una `human_decision` por caso
             keys = [str(r["entry"].idempotency_key) for r in h.registry.entries]
             assert len(keys) == len(set(keys))  # una sola entrada por evidencia
-            # El momento de negocio (`decided_at`, `viewed_at`) de cada envio es el que se guardo en el outbox al crear la evidencia: el
-            # reconciliador nunca lo cambia entre intentos (`occurred_at` si). Una decision nueva con la misma llave tras un abandono
-            # es otra evidencia y trae su propio momento.
-            stored: dict[str, set[object]] = {}
-            for key, payload in db.query(
+            # Por evidencia (`evidence_id`), no por llave: cada envio es la carga de **una** fila del outbox con esa llave, tal como se
+            # guardo (momento de negocio incluido); el reconciliador no la cambia entre intentos (`occurred_at` si). Una decision nueva con
+            # la misma llave tras un abandono es otra evidencia con su propia carga.
+            stored = db.query(
                 "SELECT idempotency_key, payload->'payload' FROM evidence_outbox WHERE case_id = %s",
                 self.case_id,
-            ):
-                moment = payload.get("decided_at") or payload.get("viewed_at")  # type: ignore[union-attr]
-                stored.setdefault(str(key), set()).add(moment)
+            )
+            candidates: dict[str, list[Any]] = {}
+            for key, payload in stored:
+                candidates.setdefault(str(key), []).append(norm(payload))
             for req in h.registry.requests:
-                sent = req["payload"].get("decided_at") or req["payload"].get("viewed_at")
-                assert sent in stored[req["idempotency_key"]]
+                assert norm(req["payload"]) in candidates[req["idempotency_key"]]
             rows = db.query(
                 "SELECT idempotency_key, state, registry_entry_id, entry_type FROM evidence_outbox WHERE case_id = %s",
                 self.case_id,
@@ -97,6 +135,13 @@ def make_machine(runner: asyncio.Runner, h: Any, db: Db) -> type[RuleBasedStateM
             assert len(confirmed_keys) == len(set(confirmed_keys))
             for key in confirmed_keys:
                 assert key in keys  # `confirmada` implica entrada en el registro
+            by_id = {r["registry_entry_id"]: r["entry"] for r in h.registry.entries}
+            for payload, entry_id in db.query(
+                "SELECT payload->'payload', registry_entry_id FROM evidence_outbox WHERE case_id = %s AND state = 'confirmada'",
+                self.case_id,
+            ):
+                # lo que el registro tiene bajo ese `registry_entry_id` es la carga de la fila `confirmada`, no la de otra decision
+                assert norm(by_id[entry_id].payload.model_dump(mode="json")) == norm(payload)
             for r in rows:
                 assert r[1] in TERMINAL | {"pendiente_registro"}
                 if r[1] == "descartada":
@@ -127,6 +172,7 @@ def make_machine(runner: asyncio.Runner, h: Any, db: Db) -> type[RuleBasedStateM
 
 
 def test_pbt_u8_07_evidence_converges_exactly_once(db: Db) -> None:
+    STATS["abandon_then_new"] = 0
     with asyncio.Runner() as runner:
         cm = harness(db)
         h = runner.run(cm.__aenter__())
@@ -137,3 +183,5 @@ def test_pbt_u8_07_evidence_converges_exactly_once(db: Db) -> None:
             )
         finally:
             runner.run(cm.__aexit__(None, None, None))
+    print(f"\nPBT-U8-07 recorridos abandono -> decision nueva: {STATS['abandon_then_new']}")
+    assert STATS["abandon_then_new"] > 0

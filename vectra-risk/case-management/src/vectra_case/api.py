@@ -6,7 +6,6 @@
 
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Any
 
 from psycopg import errors
@@ -123,7 +122,7 @@ async def _decision_view(conn: Conn, case_id: uuid.UUID) -> DecisionView | None:
     )
 
 
-def handlers(clock: Any = lambda: datetime.now(UTC)) -> dict[HandlerKey, Handler]:  # noqa: ARG001
+def handlers() -> dict[HandlerKey, Handler]:
     async def submit_application(ctx: RequestContext) -> BaseModel:
         return await _submit(ctx, manual=False)
 

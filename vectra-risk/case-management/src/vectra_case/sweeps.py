@@ -10,16 +10,14 @@ import asyncio
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime
-from typing import Final, Literal
+from typing import Literal
 
 from psycopg import errors
 from vectra_common.errors import VectraError
 
-from vectra_case.config import BATCH_SIZE
+from vectra_case.config import BATCH_SIZE, SWEEP_INTERVAL
 from vectra_case.db import Database
 from vectra_case.governance_client import ServingConfigClient, ServingConfigInvalid
-
-SWEEP_INTERVAL: Final[float] = 300.0
 
 
 class Sweeper:

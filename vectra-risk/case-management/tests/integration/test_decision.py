@@ -1,14 +1,16 @@
 """Paso 10: decision, evidencia en dos fases y reconciliador (BR-U8-15..18; P-U8-02, 04, 09; US-108, US-502)."""
 
 import asyncio
+from collections import Counter
 import uuid
 
 import pytest
 from case_pg import Db
 from prometheus_client import REGISTRY as PROM
-from u8_support import auth, decision_body, harness, insert_fail_closed, scalar, seed_case
+from u8_support import PRINCIPALS, auth, decision_body, harness, insert_fail_closed, scalar, seed_case
 from vectra_common.metrics import REGISTRY
 from vectra_contracts.catalog import Outcome
+from vectra_contracts.models.api import Principal
 
 pytestmark = pytest.mark.integration
 
@@ -275,3 +277,83 @@ async def test_decided_case_outcome_param_is_used(db: Db) -> None:
             decide(case_id), json=decision_body(final_outcome="desfavorable"), headers=auth("analista")
         )
     assert ok.status_code == 200
+
+
+async def test_a_second_replica_starting_mid_batch_with_a_slow_registry_sends_no_key_twice(db: Db) -> None:
+    """F-01 (ronda 1): el arrendamiento cubre el peor lote. Registro de 2 s; la replica B arranca a mitad del lote de A,
+    cuando ya paso mas que el arrendamiento viejo de 30 s (el reloj simulado avanza 40 s)."""
+    case_id = seed_case(db, state="no_disponible")
+    insert_fail_closed(db, case_id, 20)
+    async with harness(db) as a, harness(db, registry=a.registry, clock=a.clock) as b:
+        a.registry.delay = 2.0
+        cycle_a = asyncio.create_task(a.reconciler.run_once())
+        await asyncio.sleep(2.5)  # A ya envio sus primeros 4 y tiene el resto en vuelo o en cola
+        a.clock.advance(seconds=40)
+        claimed_b = await b.reconciler.run_once()
+        claimed_a = await cycle_a
+    keys = Counter(r["idempotency_key"] for r in a.registry.requests)
+    assert claimed_a == 20 and claimed_b == 0
+    assert len(keys) == 20 and max(keys.values()) == 1
+    assert db.query("SELECT state, count(*) FROM evidence_outbox GROUP BY 1") == [("confirmada", 20)]
+
+
+@pytest.mark.parametrize("kind", ["decision", "view"])
+async def test_the_immediate_send_of_a_decision_or_view_is_leased_so_the_reconciler_does_not_resend_it(
+    db: Db, kind: str
+) -> None:
+    case_id = seed_case(db, state="listo")
+    async with harness(db) as h:
+        h.registry.delay = 2.0
+        path = (
+            f"/v1/cases/{case_id}/decision"
+            if kind == "decision"
+            else f"/v1/cases/{case_id}/explanation-views"
+        )
+        body = decision_body() if kind == "decision" else None
+        request = asyncio.create_task(h.client.post(path, json=body, headers=auth("analista")))
+        await asyncio.sleep(0.5)  # el envio inmediato esta en vuelo
+        claimed = await h.reconciler.run_once()
+        response = await request
+    assert claimed == 0 and response.status_code in (200, 204)
+    assert len(h.registry.requests) == 1
+
+
+@pytest.mark.parametrize("missing", ["acr", "auth_time"])
+async def test_a_user_token_without_acr_or_auth_time_is_401_for_decision_and_view_without_outbox_or_send(
+    db: Db, missing: str
+) -> None:
+    """F-03 (ronda 1): `Actor(kind=user)` exige las dos evidencias de autenticacion (US-108); sin ellas, 401 y nada se escribe."""
+    base = PRINCIPALS["analista"]
+    PRINCIPALS["sin-evidencia"] = Principal(**{**base.model_dump(), missing: None})
+    case_id = seed_case(db, state="listo")
+
+    def denied() -> float:
+        return (
+            REGISTRY.get_sample_value(
+                "vectra_authz_denied_total",
+                {"code": "unauthenticated", "route_template": "/v1/cases/{id}/decision"},
+            )
+            or 0.0
+        ) + (
+            REGISTRY.get_sample_value(
+                "vectra_authz_denied_total",
+                {"code": "unauthenticated", "route_template": "/v1/cases/{id}/explanation-views"},
+            )
+            or 0.0
+        )
+
+    before = denied()
+    try:
+        async with harness(db) as h:
+            d = await h.client.post(decide(case_id), json=decision_body(), headers=auth("sin-evidencia"))
+            v = await h.client.post(f"/v1/cases/{case_id}/explanation-views", headers=auth("sin-evidencia"))
+    finally:
+        PRINCIPALS.pop("sin-evidencia")
+    assert d.status_code == 401 and v.status_code == 401
+    assert d.json()["code"] == "unauthenticated"
+    assert (
+        scalar(db, "SELECT count(*) FROM evidence_outbox") == 0
+        and scalar(db, "SELECT count(*) FROM decisions") == 0
+    )
+    assert scalar(db, "SELECT count(*) FROM explanation_views") == 0 and len(h.registry.requests) == 0
+    assert denied() == before + 2

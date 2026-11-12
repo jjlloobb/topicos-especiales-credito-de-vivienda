@@ -20,10 +20,10 @@ from vectra_case.config import (
     BREAKER_WINDOW_CALLS,
     BREAKER_WINDOW_SECONDS,
     GOVERNANCE_SERVICE_POOL,
+    SERVING_CONFIG_CACHE_TTL,
     SERVING_CONFIG_TIMEOUT,
 )
 
-CACHE_TTL = 5.0
 NOT_MODIFIED = 304
 OK = 200
 
@@ -62,7 +62,7 @@ class ServingConfigClient:
         await self._client.aclose()
 
     async def get(self) -> ServingConfig:
-        if self._cached is not None and self._clock() - self._fetched_at <= CACHE_TTL:
+        if self._cached is not None and self._clock() - self._fetched_at <= SERVING_CONFIG_CACHE_TTL:
             return self._cached
         headers = {"If-None-Match": f'"{self._cached.etag}"'} if self._cached is not None else None
         response = await deps.call(

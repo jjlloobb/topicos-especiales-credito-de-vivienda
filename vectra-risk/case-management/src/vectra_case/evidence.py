@@ -7,7 +7,7 @@
   los indices unicos parciales admiten una sola fila viva) y se responde 409 `decision_already_recorded`.
 - Consulta (BR-U8-19): primera vez por (caso, usuario) con llave `UUIDv5(case_id, user_id)`; siguientes -> sin entrada nueva.
 - Reconciliador (P-U8-04): cada 1 s, lotes de 100 con `SKIP LOCKED`, <= 4 envios en vuelo. Reclama con un arrendamiento
-  (`next_attempt_at`), asi dos replicas no reintentan la misma evidencia en un ciclo. Reenvia con la misma llave, el mismo payload y
+  (`next_attempt_at`, `RECONCILER_LEASE`: cubre el peor lote, no un envio; la decision y la consulta insertan ya arrendadas), asi dos replicas no reintentan la misma evidencia en un ciclo. Reenvia con la misma llave, el mismo payload y
   el mismo `correlation_id`, y un `occurred_at` nuevo.
 - `outbox.payload` es la entrada completa del registro (`RegistryEntryIn` en JSON); `case-worker` (U08-T04) inserta `fail_closed` igual.
 - Todos los tiempos salen del reloj inyectado, no de `now()` de la base, para poder simular horas y dias.
@@ -50,9 +50,12 @@ from vectra_case.config import (
     BREAKER_WINDOW_CALLS,
     BREAKER_WINDOW_SECONDS,
     EVIDENCE_ABANDON_AFTER,
+    RECONCILER_BACKOFF_JITTER,
     RECONCILER_BACKOFF_MAX,
     RECONCILER_BACKOFF_MIN,
     RECONCILER_CONCURRENCY,
+    RECONCILER_INTERVAL,
+    RECONCILER_LEASE,
     REGISTRY_POOL,
     REGISTRY_TIMEOUT,
 )
@@ -61,9 +64,7 @@ from vectra_case.decision import validate_decision
 
 Clock = Callable[[], datetime]
 Row = dict[str, Any]
-LEASE: Final = timedelta(seconds=30)
-RECONCILER_INTERVAL: Final[float] = 1.0
-BACKOFF_JITTER: Final[float] = 0.2
+_LEASE: Final = timedelta(seconds=RECONCILER_LEASE)  # el de `config.RECONCILER_LEASE` como `timedelta`
 
 
 def _utc_now() -> datetime:
@@ -73,7 +74,10 @@ def _utc_now() -> datetime:
 def backoff_seconds(attempts: int, rng: Random) -> float:
     """1 s * 2^(n-1) hasta 5 min, con jitter de +-20 % (sin pasar de 5 min)."""
     nominal = min(RECONCILER_BACKOFF_MAX, RECONCILER_BACKOFF_MIN * 2.0 ** max(attempts - 1, 0))
-    return min(RECONCILER_BACKOFF_MAX, nominal * rng.uniform(1 - BACKOFF_JITTER, 1 + BACKOFF_JITTER))
+    return min(
+        RECONCILER_BACKOFF_MAX,
+        nominal * rng.uniform(1 - RECONCILER_BACKOFF_JITTER, 1 + RECONCILER_BACKOFF_JITTER),
+    )
 
 
 @dataclass(frozen=True)
@@ -354,7 +358,14 @@ class Evidence:
                 cur = await conn.execute(
                     "INSERT INTO evidence_outbox (evidence_id, case_id, entry_type, idempotency_key, payload, "
                     "created_at, next_attempt_at) VALUES (%s, %s, 'human_decision', %s, %s, %s, %s) RETURNING *",
-                    (evidence_id, case_id, key, Jsonb(entry), now, now),
+                    (
+                        evidence_id,
+                        case_id,
+                        key,
+                        Jsonb(entry),
+                        now,
+                        now + _LEASE,
+                    ),  # arrendada: el envio inmediato es nuestro
                 )
                 row = await cur.fetchone()
                 await conn.execute(
@@ -422,7 +433,7 @@ class Evidence:
                 cur = await conn.execute(
                     "UPDATE evidence_outbox SET state = 'pendiente_registro', attempts = 0, created_at = %s, "
                     "next_attempt_at = %s WHERE evidence_id = %s RETURNING *",
-                    (now, now, existing["evidence_id"]),
+                    (now, now + _LEASE, existing["evidence_id"]),
                 )
                 to_send = await cur.fetchone()
             else:
@@ -445,7 +456,14 @@ class Evidence:
                 cur = await conn.execute(
                     "INSERT INTO evidence_outbox (evidence_id, case_id, entry_type, idempotency_key, payload, "
                     "created_at, next_attempt_at) VALUES (%s, %s, 'explanation_view', %s, %s, %s, %s) RETURNING *",
-                    (evidence_id, case_id, key, Jsonb(entry), now, now),
+                    (
+                        evidence_id,
+                        case_id,
+                        key,
+                        Jsonb(entry),
+                        now,
+                        now + _LEASE,
+                    ),  # arrendada: el envio inmediato es nuestro
                 )
                 to_send = await cur.fetchone()
                 await conn.execute(
@@ -502,7 +520,7 @@ class Reconciler:
                 return []
             cur = await conn.execute(
                 "UPDATE evidence_outbox SET next_attempt_at = %s WHERE evidence_id = ANY(%s) RETURNING *",
-                (now + LEASE, ids),
+                (now + _LEASE, ids),
             )
             return await cur.fetchall()
 

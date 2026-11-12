@@ -7,13 +7,10 @@ import asyncio
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime
-from typing import Final
 
 from vectra_case import metrics
+from vectra_case.config import GAUGE_INTERVAL, JOBS_OVERDUE_AFTER
 from vectra_case.db import Database
-
-GAUGE_INTERVAL: Final[float] = 30.0
-OVERDUE_AFTER_SECONDS: Final[int] = 30
 
 
 class DbGauges:
@@ -31,7 +28,7 @@ class DbGauges:
             cur = await conn.execute(
                 "SELECT count(*) AS n FROM evaluation_jobs WHERE run_at < %s - make_interval(secs => %s) "
                 "AND (locked_until IS NULL OR locked_until < %s)",
-                (now, OVERDUE_AFTER_SECONDS, now),
+                (now, JOBS_OVERDUE_AFTER, now),
             )
             overdue = (await cur.fetchone() or {"n": 0})["n"]
             cur = await conn.execute("SELECT count(*) AS n FROM cases WHERE state = 'no_disponible'")
