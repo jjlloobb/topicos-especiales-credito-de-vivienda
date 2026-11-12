@@ -18,7 +18,7 @@ ROWS = [
     ([None], E.ALTA, S.EN_EVALUACION),
     ([S.EN_EVALUACION, S.EN_SINCRONIZACION], E.RECOMMENDATION, S.LISTO),
     ([S.EN_EVALUACION, S.EN_SINCRONIZACION], E.RETRYABLE_FAILURE, S.EN_SINCRONIZACION),
-    ([S.EN_SINCRONIZACION], E.ATTEMPT_6_FAILED, S.NO_DISPONIBLE),
+    ([S.EN_EVALUACION, S.EN_SINCRONIZACION], E.ATTEMPT_6_FAILED, S.NO_DISPONIBLE),  # P-1 (a) de U08-T04
     ([S.EN_EVALUACION, S.EN_SINCRONIZACION], E.SCORING_REJECTED, S.NO_DISPONIBLE),
     ([S.EN_EVALUACION, S.EN_SINCRONIZACION], E.MODEL_FROZEN, S.MODELO_CONGELADO),
     ([S.MODELO_CONGELADO], E.SWEEP_ACTIVE, S.EN_EVALUACION),
@@ -60,7 +60,7 @@ def test_every_pair_outside_the_table_is_rejected():
         else:
             assert result == Rechazo(state, event)
             rejected += 1
-    assert rejected == 80 - len(ACCEPTED) == 80 - 18
+    assert rejected == 80 - len(ACCEPTED) == 80 - 19
 
 
 def test_rechazo_is_a_value_not_an_exception():

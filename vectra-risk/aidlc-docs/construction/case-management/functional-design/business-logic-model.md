@@ -30,6 +30,7 @@ stateDiagram-v2
     en_sincronizacion --> listo: Recommendation
     en_evaluacion --> en_sincronizacion: fail-closed reintentable
     en_sincronizacion --> en_sincronizacion: fail-closed con intentos restantes
+    en_evaluacion --> no_disponible: falla el intento 6
     en_sincronizacion --> no_disponible: falla el intento 6
     en_evaluacion --> no_disponible: scoring_rejected
     en_sincronizacion --> no_disponible: scoring_rejected
@@ -53,7 +54,7 @@ stateDiagram-v2
 (nuevo) -> en_evaluacion                      ingesta o alta manual (trabajo en la misma transacción)
 en_evaluacion | en_sincronizacion -> listo     Recommendation (guarda registry_entry_id)
 en_evaluacion | en_sincronizacion -> en_sincronizacion   fail-closed reintentable o scoring sin respuesta
-en_sincronizacion -> no_disponible             falla el intento 6 (alerta + entrada fail_closed única)
+en_evaluacion | en_sincronizacion -> no_disponible   falla el intento 6 (alerta + entrada fail_closed única)
 en_evaluacion | en_sincronizacion -> no_disponible   scoring_rejected (4xx no reintentable; escala de inmediato)
 en_evaluacion | en_sincronizacion -> modelo_congelado    FailClosed(model_frozen)
 modelo_congelado -> en_evaluacion              barrido cada 5 min: serving-config activo

@@ -110,7 +110,7 @@ Las entradas de cada intento las escribe scoring (BR-U7-16), solo cuando scoring
 | — | Ingesta o alta manual válida | `en_evaluacion` |
 | `en_evaluacion`, `en_sincronizacion` | `Recommendation` | `listo` |
 | `en_evaluacion`, `en_sincronizacion` | Fail-closed reintentable o scoring sin respuesta, con intentos restantes | `en_sincronizacion` |
-| `en_sincronizacion` | Fallo del intento 6 | `no_disponible` |
+| `en_evaluacion`, `en_sincronizacion` | Fallo del intento 6 | `no_disponible` (precisado el 2026-11-12 por U08-T04, P-1 (a): un caso cuyo worker se pierde en los seis intentos sin aplicar ningún resultado sigue en `en_evaluacion`) |
 | `en_evaluacion`, `en_sincronizacion` | `scoring_rejected` (4xx no reintentable, BR-U8-08) | `no_disponible` (precisado el 2026-10-06, revisión del FD de U8) |
 | `en_evaluacion`, `en_sincronizacion` | `FailClosed(model_frozen)` | `modelo_congelado` |
 | `modelo_congelado` | Barrido: `serving-config` activo | `en_evaluacion` |

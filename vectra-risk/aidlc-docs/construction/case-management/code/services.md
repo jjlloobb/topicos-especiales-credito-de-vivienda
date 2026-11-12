@@ -1,6 +1,6 @@
-# U8 `case-management`: resumen de los servicios (Bloque D, U08-T03)
+# U8 `case-management`: resumen de los servicios (Bloques D, E y F)
 
-Este archivo lo completa el Paso 18 (U08-T04) con los Bloques E y F. Aquí está la sección del **Bloque D** (`case-service`: Pasos 9 a 13).
+El Paso 18 (U08-T04) completa este archivo con los Bloques E y F: la sección «Bloques E y F (U08-T04)» está al final. Primero va la sección del **Bloque D** (`case-service`: Pasos 9 a 13, U08-T03). El resumen de la base está en `database.md`.
 
 ## Módulos
 
@@ -11,7 +11,7 @@ Este archivo lo completa el Paso 18 (U08-T04) con los Bloques E y F. Aquí está
 | `evidence` | 10 | `Evidence` (decisión, consulta), `Reconciler`, `RegistryClient`. |
 | `sweeps` | 11 | `Sweeper`: `modelo_congelado` y la marca `model_frozen_after_recommendation`. |
 | `db_gauges` | 11 | `DbGauges`: `vectra_case_jobs_overdue`, `vectra_cases_failclosed_persistent`, evidencia pendiente. |
-| `governance_client` | 11 | `ServingConfigClient` (solo `serving-config`). |
+| `governance_client` | 11, 14 | `ServingConfigClient`: `serving-config` (Paso 11) y `feature_spec` (Paso 14). |
 | `credit` | 12 | `CreditReader` (solo `GET`). |
 | `api`, `app`, `db`, `metrics` | 13 | Las 9 rutas, arranque (`python -m vectra_case.app`), pool de `case-db`, métricas. |
 
@@ -56,3 +56,91 @@ La base se traduce a `503 dependency_unavailable`: conexión perdida, pool agota
 - La alerta `CaseEvidenceDiscarded` y su prueba de `promtool` (Paso 21, U08-T05). La métrica `vectra_case_evidence_discarded_total` sí existe, creada en 0 y con su prueba.
 - Las métricas de retención `vectra_case_retention_overdue_identifiers`, `vectra_case_retention_last_success_timestamp` y `vectra_case_retention_consecutive_overdue_runs` y NFR-U8-46.
 - La CLI `case-retention` y PBT-U8-08 (Paso 16).
+
+---
+
+# Bloques E y F (U08-T04)
+
+`case-worker` (Pasos 14 y 15) y `core-banking-mock` (Paso 17). El Paso 16 (CLI `case-retention`) está diferido por la demo.
+
+## Módulos
+
+| Módulo | Paso | Qué hace |
+|---|---|---|
+| `governance_client` | 14 | `ServingConfigClient` gana `feature_spec(model_version_id)`: `GET /v1/models/{id}/feature-spec`, 1 s, validado con `FeatureSpec` de U0, caché sin expiración por versión y LRU de 4 (`FEATURE_SPEC_CACHE_SIZE`, `OrderedDict`). Un solo `DependencyClient` por proceso (un pool y un breaker, P-U8-02); el pool es un parámetro: 2 en `case-service`, 4 en `case-worker` (`GOVERNANCE_WORKER_POOL`). Cada llamada lleva un tope duro con `asyncio.timeout` además del `httpx.Timeout` de `deps`. |
+| `evaluation` | 14, 15 | `ScoringClient` (F15: 16 conexiones, 7 s, `POST /v1/recommendations`, validado con `RecommendResult`; vive aquí y no en `governance_client` porque solo lo usa la evaluación, así que no se crea un módulo que §1 no nombra), `build_request` (sin E/S, PBT-U8-05), `Evaluator` (el intento y la aplicación del resultado, BR-U8-08), `escalate` (BR-U8-09) y `Taken`. |
+| `job_queue` | 15 | `JobQueue.take`: `FOR UPDATE SKIP LOCKED`, arrendamiento de 30 s, `attempt` leído (no `attempt + 1` en SQL), escalamiento en la toma con `attempt = 6`. |
+| `worker` | 15 | `Worker` (semáforo de 16, sondeo de 400 ms ± 100 ms, drenaje de 20 s), `WorkerSettings.from_env` y `python -m vectra_case.worker` (sondas en 8081; no expone 8080). |
+| `metrics` | 15 | Se añade `vectra_case_time_to_ready_seconds` (sin etiquetas; buckets 0,5, 1, 2, 3, 5, 10, 30 y 60 s; solo casos `listo` al primer intento y `ever_degraded = false`). |
+| `case_fsm` | 15 | P-1 (a): la fila (`en_evaluacion`, `attempt_6_failed`) → `no_disponible`. |
+| `core_banking_mock` | 17 | `app.py` (`build_app`, 2 rutas, `credits.json`), `auth.py` (autenticador perezoso del entorno y `WriteAttemptMiddleware`), `metrics.py` (`vectra_core_write_attempts_total`). No importa `vectra_case` ni `httpx`. |
+
+## Decisiones tomadas (el usuario fusionó la tarea sin cambiar ninguna: rige la recomendación (a) en las cinco)
+
+- **U08-T04 P-1 (a). Escalar desde `en_evaluacion`.** `case_fsm.TRANSITIONS` admite (`en_evaluacion`, `attempt_6_failed`) → `no_disponible`; la prueba unitaria y BR-U8-12 (y el diagrama de `business-logic-model.md`) lo dicen. La prueba que compara `case_fsm` con `case_transitions` sigue en verde (el par de estados ya existía en la migración). PBT-U8-01 lo recorre con seis `worker_lost` seguidos.
+- **U08-T04 P-2 (a). El `SIGTERM` con un scoring «que responde a los 10 s».** `SCORING_TIMEOUT` es de 7 s, así que una respuesta a los 10 s nunca llega. `test_worker_shutdown.py` prueba la línea del plan con un doble que responde a los 5 s (el intento termina y el caso queda `listo`) y añade un caso con 10 s: el intento termina a los 7 s como `scoring_unreachable`, el trabajo queda reprogramado y sin arrendamiento y el proceso sale antes de los 20 s. **Propuesta:** corregir INF-U8-06 («responde a los 10 s») en el diseño; queda como candidata.
+- **U08-T04 P-3 (a). `vectra_case_first_attempt_failure_ratio`.** La prueba la calcula desde los contadores del proceso con la definición de NFR-U8-03 (intentos 1 que no terminaron en `recommendation` / intentos 1), sobre 300 casos y con semilla fija. La regla de grabación es del Paso 21 (U08-T05); la expresión PromQL equivalente para copiar y probar con `promtool`:
+
+  ```promql
+  sum(rate(vectra_case_attempts_total{attempt="1", result!="recommendation"}[5m]))
+  /
+  sum(rate(vectra_case_attempts_total{attempt="1"}[5m]))
+  ```
+
+  El doble falla con `FailClosed` (200) y no con 5xx: una racha de 5xx abriría el breaker de scoring (≥ 50 % en 20 llamadas) y el doble ya no decidiría la razón.
+- **U08-T04 P-4 (a). El `WriteAttempt` del mock.** Es el registro `authz.denied` que U0 ya emite en el 403 de `POST /v1/credits/{id}/status` (`route_template`, `error_code`, `principal_subject`) más el incremento de `vectra_core_write_attempts_total`, que cuelga de la denegación de esa ruta (`WriteAttemptMiddleware`, el más externo: un `POST` a esa ruta que termina en 403) y no del handler. El handler, si llegara a ejecutarse (un token que traiga `core:write-credit`), también responde 403 y se cuenta igual. Un 401 (sin token o con firma inválida) no cuenta. No cambia U0. **Diferencia con el texto de P-4:** el registro `authz.denied` de U0 no lleva `http_method` (`ProblemHandlerMiddleware._record_denied` solo emite `route_template`, `error_code` y `principal_subject`); la ruta identifica el método porque solo hay un `POST` con esa plantilla. Si se quiere `http_method = POST` en el registro, es un cambio de U0 (candidata).
+- **U08-T04 P-5 (a). Vencimiento en PBT-U8-01.** `tests/doubles/worker_support.expire_case` aplica el vencimiento con el rol `case_retention` real: envejece `created_at` con el superusuario (`guard_vencido` lee la fecha), pasa el caso a `vencido` y borra su trabajo. `guard_transition` y `guard_vencido` siguen activos. No hay código de producción nuevo en `retention.py`. **Dependencia de PBT-U8-01 sobre el Paso 16:** cuando exista la corrida de `case-retention`, el apoyo debería llamarla.
+
+## `evaluation` y `job_queue`: lo que fija el código
+
+- **Toma** (`JobQueue.take`, una transacción corta): elige el trabajo debido (`run_at <= ahora` y sin arrendamiento vigente), lee `attempt`, fija `locked_until = ahora + 30 s`, escribe `attempt = leído + 1` en `evaluation_jobs` y lo copia a `cases.attempts` (con `updated_at`). Con `attempt = 6` escala en esa transacción (`local_cause = scoring_unreachable`, sin incrementar y sin llamar). Si el caso ya salió del bucle (`listo`, `decidido`, `vencido`…) el trabajo se borra y no se evalúa. La conexión vuelve al pool antes de la llamada a scoring.
+- **Intento** (BR-U8-05): `serving-config` → `feature_spec` → `derive` → `ScoringRequest` → scoring. Una falla al leer `serving-config` o `feature_spec`, una respuesta inválida (la forma vieja de U04-T09) o un `FeatureSpec` que `derive` no puede usar termina el intento como `serving_config_unavailable`, sin llamar a scoring (falla cerrado).
+- **Resultado** (BR-U8-08): `Recommendation` → `listo` y borra el trabajo; `FailClosed(model_frozen)` → `modelo_congelado` con `attempts = 0`, `last_cause = model_frozen` y sin trabajo; los demás `FailClosed` y los fallos de transporte, 5xx, circuito abierto y respuestas que no son un `RecommendResult` → `en_sincronizacion` y reprogramación (`run_at` por el backoff y `locked_until = NULL` en `evaluation_jobs`; `last_cause` en `cases`); un 4xx (el 401 ya se reintentó dentro de `deps.call`) → `scoring_rejected`, escala de inmediato. Los tres estados degradados ponen `ever_degraded = true` en la misma transacción.
+- **Guarda** (BR-U8-08): cada `UPDATE` lleva `WHERE state IN (en_evaluacion, en_sincronizacion) AND attempts = :attempt`. Sin fila cambiada, el resultado se descarta con `evaluation.result_discarded` (con `case_id` y `attempt`) y no se tocan el trabajo, la métrica ni el caso. `vectra_case_attempts_total` solo cuenta los resultados aplicados.
+- **Escalamiento** (BR-U8-09): `no_disponible`, `escalation_count + 1` y la entrada `fail_closed` con la forma del contrato de arriba (`payload` = `RegistryEntryIn` con un `FailClosedPayload`, `actor` = `case-worker`), llave `uuid5(case_id, "fail_closed:<ciclo>")`, `INSERT` simple en un `SAVEPOINT`, `unique_violation` = éxito. `retryable = false` solo con `scoring_rejected` (o `model_frozen`, que no escala).
+- **Reloj inyectado**: `run_at`, `locked_until`, `escalated_at` y el backoff salen del reloj del `Evaluator`/`JobQueue`, no de `now()` de la base.
+- **`ever_degraded` y `first_evaluation`**: `first_evaluation = not cases.ever_degraded and attempt = 1`, `received_at = cases.created_at` en todos los intentos. `retry` del CRO y el barrido de `case-service` dejan `ever_degraded` como está.
+
+## Variables de entorno
+
+Todas obligatorias, sin valores por omisión: si falta una, el proceso no arranca (`KeyError`).
+
+| Proceso | Variables |
+|---|---|
+| `case-worker` (`python -m vectra_case.worker`) | `CASE_DB_DSN` (con el rol `case_worker`), `CASE_GOVERNANCE_URL`, `CASE_SCORING_URL`; las de U0 para el token de servicio: `VECTRA_CLIENT_ID`, `VECTRA_TOKEN_URL`, `VECTRA_CLIENT_KEY_PATH` (y `VECTRA_CLIENT_KEY_ID` opcional) y `VECTRA_CA_BUNDLE` si las URL son `https`. Un `provider_from_env` por audiencia: `scoring-service` (`case:recommend`) y `governance-service` (`governance:read-serving`, `governance:read-feature-spec`). |
+| `core-banking-mock` (`python -m core_banking_mock.app`) | `VECTRA_OIDC_ISSUER` y `VECTRA_JWKS_URL` (y `VECTRA_CA_BUNDLE` con `https`) para validar los tokens. Los créditos salen de `/app/fixtures/credits.json` (INF-U8-02); copiarlo a la imagen es del Paso 19. |
+
+Ninguna constante de `config.py` se lee del entorno.
+
+## Arranque y apagado del worker
+
+`python -m vectra_case.worker`: sirve las sondas y `/metrics` en 8081 con `ops_server.create_ops_app` (readiness: solo `case-db`) y corre el bucle; no expone 8080. `ops_server.serve` exige una app en 8080, así que el worker levanta `uvicorn` solo para la app de sondas y maneja `SIGTERM` y `SIGINT` él mismo (se anula `capture_signals`, que vuelve a emitir la señal al salir y mataría el drenaje). Con la señal: deja de sondear, espera las llamadas en vuelo hasta 20 s y cierra clientes y base; sale con 0. Lo que no termine en 20 s queda arrendado y otro worker lo retoma a los 30 s (BR-U8-07). **Candidata de U0:** un `ops_server.serve_ops_only(readiness)` y una opción para no capturar señales.
+
+## `core-banking-mock`
+
+`create_app("core-banking-mock", handlers=…)` con las 2 rutas de `REGISTRY` y `authenticator_from_env`; arranque con `ops_server.run_service` (8080 y 8081). `GET /v1/credits/{id}` (`core:read-credit`, `aud = core-banking-mock`) responde un `CreditStatusView` o 404; el fixture trae un crédito por cada estado del core. `POST /v1/credits/{id}/status` exige `core:write-credit`, que nadie tiene: la autorización de U0 lo deniega antes del cuerpo (403, no 422). `vectra_core_write_attempts_total` no lleva etiquetas y nace en 0 al importar `core_banking_mock.metrics`.
+
+## Cobertura (Paso 18)
+
+- `make -C case-management check` exige 95 % de ramas en `vectra_case` y 100 % en los ocho módulos de NFR-U8-50 que entran: `case_fsm`, `backoff`, `decision`, `views`, `intake`, `evidence`, `evaluation` y `sweeps`. `retention` sigue sin umbral propio (diferido por la demo).
+- `worker.py` y `app.py` corren su `main()` en un subproceso: la cobertura de subprocesos se mide con `patch = subprocess` en `coveragerc` y `COVERAGE_PROCESS_START`. No se usa `omit` ni se excluyen archivos de `source`.
+- Ramas inalcanzables: se quitó la de `Evidence.record_view` (`if to_send is not None`, siempre verdadera: toda salida del `async with` que no es `return` deja una fila que enviar) y la de `worker.run` que esperaba a las sondas (si `uvicorn` no puede abrir 8081 sale del proceso con 1). El comportamiento no cambia. Las pruebas nuevas de `evidence`, `sweeps` e `intake` están en `tests/integration/test_evidence_edges.py`.
+- `case-management/conftest.py` importa `core_banking_mock` primero: con `--import-mode=importlib`, `core_banking_mock/tests/test_x.py` se llamaría `core_banking_mock.tests.test_x` y pytest crearía un `core_banking_mock` vacío que tapa el paquete.
+- La semilla de Hypothesis se fija y se imprime en el encabezado de pytest también en verde (`tests/conftest.py`, NFR-U8-52).
+
+## Notas que pidió el revisor de U08-T03 (solo texto: `evidence.py` no cambia por ellas)
+
+- **Qué cubre la cifra de `RECONCILER_LEASE`** (125 s, F-01 de la ronda 2): `BATCH_SIZE // RECONCILER_CONCURRENCY * REGISTRY_TIMEOUT * 2`, es decir, 25 turnos de hasta 2,5 s con el reintento por 401. No cuenta el tiempo del token (`TOKEN_TIMEOUT`, 2 s), las transacciones de `_confirm` y `_fail`, ni los envíos extra de `_resolve_conflict`; y `httpx.Timeout` limita cada fase, no la llamada entera, así que el peor caso real de un lote es de ≈ 225 s. Si un lote lo excede, el efecto es un reenvío idempotente (misma llave, mismo contenido), no una pérdida. U08-T05 alinea `terminationGracePeriodSeconds` con esta cifra.
+- **Envío inmediato interrumpido** (F-02 de la ronda 2): `decision` y `explanation-views` insertan la evidencia ya arrendada (`next_attempt_at = ahora + 125 s`) y la envían. Si el proceso muere después del `INSERT`, o `settle` lanza algo que no es `VectraError`, la fila queda arrendada 125 s y el reconciliador no la reclama hasta que venza: igual que el caso de una réplica muerta. Es aceptable: la alerta `CaseEvidencePending` salta a 1800 s y el abandono es a las 24 h.
+
+## Pragmas
+
+Ninguno: ni `# pragma: no cover` ni `omit`. El 100 % de los ocho módulos y el 95 % de `vectra_case` se miden con las pruebas (la cifra está en `bitacoras/U08-T04.md`).
+
+## Diferidos por la demo (E*F)
+
+- **Paso 16**: la CLI `case-retention`, PBT-U8-08, la corrida de P-U8-07 y las tres métricas de retención (ya listadas arriba). `retention.py` sigue con la purga de `intake_keys` de U08-T03.
+- El umbral de cobertura de `retention`.
+- `mutmut` (NFR-U8-51; T3).
+- Bloque G (U08-T05): Dockerfiles y copia del fixture a la imagen, chart, reglas (`ScoringRequestRejected`, `CaseFirstAttemptFailureHigh` con su regla de grabación, `CaseJobsOverdue`, `CoreWriteAttempt`), runbooks, `docs/api.md`, `tools/check_openapi.py`, Applications y k6.
+- El Paso 24 (kind) está consolidado en U12 Paso 18.
