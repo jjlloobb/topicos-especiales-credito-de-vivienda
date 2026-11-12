@@ -15,13 +15,17 @@ types:
 imports:
 	$(UV) lint-imports --config product-metrics/.importlinter
 
-# Pasos 1 a 4: todas las pruebas con el perfil `ci` (500 ejemplos, semilla impresa en la cabecera, sin `-q`). No corre `-m volume` (Paso 7).
+# Pasos 1 a 7: todas las pruebas con el perfil `ci` (500 ejemplos, semilla impresa en la cabecera, sin `-q`). No corre `-m volume` (Paso 7).
 test:
 	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest product-metrics/tests -p no:cacheprovider -m "not volume"
 
 # Paso 5 (NFR-U11-30): cobertura de ramas del 100 % en `compute` y `noise`. `mutmut` esta diferido por la demo (T3).
+# Paso 8 (NFR-U11-30): cobertura de ramas >= 90 % en el resto (`vectra_product` entero); corre todas las pruebas, tambien las del
+# proceso real, con el perfil por omision (la de `ci` ya la corre `test`). No corre `-m volume` (diferida, T3).
 coverage:
 	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest product-metrics/tests/unit product-metrics/tests/property -p no:cacheprovider \
 		--cov=vectra_product.compute --cov=vectra_product.noise --cov-branch --cov-fail-under=100
+	cd $(ROOT) && uv run pytest product-metrics/tests -p no:cacheprovider -m "not volume" \
+		--cov=vectra_product --cov-branch --cov-fail-under=90 --cov-report=term-missing
 
 check: lint types imports test coverage

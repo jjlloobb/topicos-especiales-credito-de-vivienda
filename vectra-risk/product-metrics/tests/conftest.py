@@ -1,9 +1,11 @@
 """Perfiles de Hypothesis de U11 (`HYPOTHESIS_PROFILE`: dev, ci, nightly). `ci` = 500 ejemplos; la semilla queda fija e impresa en el
 encabezado de pytest tambien en las corridas verdes (NFR-U11-31)."""
 
+import logging
 import os
 import secrets
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -41,3 +43,13 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
     from vectra_common import process
 
     process.reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _restore_logging() -> Iterator[None]:
+    """`vectra_common.logging.configure` reemplaza los manejadores del logger raiz: cada prueba deja el logging como lo encontro."""
+    root = logging.getLogger()
+    handlers, level = list(root.handlers), root.level
+    yield
+    root.handlers[:] = handlers
+    root.setLevel(level)
