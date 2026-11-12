@@ -80,3 +80,60 @@ AMARILLO|cierre-demo.md Pasos 1 y 15|Comandos de aceptación citados parcialment
 AMARILLO|cierre-demo.md:34|Línea en blanco doble
 INFORME: revisiones/U03-T06/ronda-1.md
 ```
+
+---
+
+No he terminado, y no voy a poder cerrar CA-2 ni CA-4 en este turno. Mi corrida de `make -C decision-registry check` estuvo 25 horas abierta y solo pasó 353 de 669 pruebas, con 3 min 54 s de CPU en total. Por eso la detuve yo mismo (el código 143 es mi propio SIGTERM). Las otras cuatro unidades no llegaron a empezar. El veredicto sigue en NO-VERDE: el diff no tiene ningún ROJO, pero tampoco tengo una corrida propia de CA-2 y CA-4 que lo respalde.
+
+## Anexo de cierre — U03-T06
+
+VEREDICTO: NO-VERDE
+
+HEAD `b4b0ab2`, merge de `origin/main` `5cf2ebb`. La tarea es el blob `70e003a5…` y coincide. El worktree quedó limpio (`git status --short` vacío) y el diff contra `5cf2ebb` toca solo 4 documentos.
+
+## Corridas
+| Unidad | rc | Segundos | Carga antes → después | Causa |
+|---|---|---|---|---|
+| decision-registry | **sin rc** (la detuve yo) | ≈ 90 000 (25 h) y llegó a 353/669 | 7,44 → 13,67 | Se quedó en la prueba 354, `test_append_stateful.py::test_pbt_u3_01…`, con 3:54 de CPU en 25 h. Hasta ahí, una sola F en la #353, `test_queries.py::test_f04_300_mil_filas_diarias_con_12_rangos_responden_en_menos_de_2_s`: es la candidata conocida (`CANDIDATAS.md:254`), que corrige U03-T07, y no viene del diff, que es solo documentación |
+| identity-edge | no corrió | — | — | No empezó porque decision-registry seguía en curso |
+| contracts | no corrió | — | — | Igual |
+| reference-model | no corrió | — | — | Igual |
+| model-serving | no corrió | — | — | Igual |
+
+Contexto de la máquina. El reloj saltó de 11:29 a "1 day 12:33" de uptime, lo que apunta a una suspensión o a que el proceso estuvo parado. Además, en `docker ps` hay más de 15 contenedores de Testcontainers vivos desde hace 25 a 32 h (postgres, minio, vault) y un `make -C bias-monitoring check` corriendo en paralelo. No aislé `test_f04` contra `5cf2ebb`: la máquina no lo permitía. La ronda 1 ya la midió aislada, con 2,776 s contra un límite de 2 s, y el fallo es el mismo de la base.
+
+## Criterios de aceptación
+| # | Criterio | Resultado |
+|---|---|---|
+| 1 | Paso 19 N/A | pasa (ronda 1) |
+| 2 | decision-registry y platform check | platform da rc 0 (ronda 1). decision-registry **sin confirmar**, con la misma F de `test_f04` |
+| 3 | Trazabilidad y las 5 secciones | pasa (ronda 1) |
+| 4 | RL-4, todas las unidades | **sin confirmar**: governance y platform dan 0; las otras 5 no terminaron |
+| 5 | Estado del plan | pasa (ronda 1) |
+
+## Hallazgos (nuevos por el merge; siguen en pie F-02 a F-05 de la ronda 1, todos AMARILLO)
+### F-06 · AMARILLO · `aidlc-docs/construction/decision-registry/evidence/cierre-demo.md:31` · cita como pendiente un fallo de identity-edge que ya está resuelto
+La línea dice que identity-edge falla en `test_t1_supply_chain_skips_exactly_the_three_realm_configmaps`. U02-T20 (`eaa81a8`, PR #131) ya está en `5cf2ebb`: renombró la prueba y la alineó con las cinco entradas actuales. `CANDIDATAS.md:507` la marca como resuelta. Lo mismo pasa en `bitacoras/U03-T06.md:70-80`, que puede quedarse como histórico si se aclara así. Ninguno de los dos lo comprobé corriendo identity-edge.
+### F-07 · AMARILLO · `cierre-demo.md:7`, `:31` y `:91` · la base citada es `fe0c9f3`, pero la rama ahora está sobre `5cf2ebb`
+Los resultados de «Comprobado» y de «Quién ejecutó» se midieron sobre `fe0c9f3`. Si se dejan así, hay que decir que no se volvieron a correr después del merge.
+### F-08 · AMARILLO · `cierre-demo.md:82` · P-1 aparece como decisión pendiente, pero ya está decidida
+El texto dice «abrir… `U03-T07`… la decisión de abrirla es del usuario». `tareas/U03-T07-tope-de-daily-query.md` ya existe en `main` y registra «Decisión del usuario: 2026-11-10, abrir esta tarea». Además, el cierre debería apuntar a esa tarea.
+
+## Para cerrar
+Hace falta correr esto con la máquina descargada: sin la suspensión, sin los contenedores huérfanos de 25 a 32 h y sin otras suites en paralelo. Primero `make -C decision-registry check` y después `make -C {identity-edge,contracts,reference-model,model-serving} check`. Si vas a lanzarlo de nuevo, conviene limpiar antes esos contenedores, pero son de otros procesos y yo no los toqué. Usa el script `/tmp/claude-1000/-home-jjlloobb-IT-PUJ-MINSC-GitHub-topicos-especiales-credito-de-vivienda/39ddc0f6-774f-4959-a13e-16729575788a/scratchpad/rev-u03-t06-cierre/run.sh`: anota rc, segundos y `uptime` de cada unidad.
+
+## Tareas candidatas
+- Loop: los contenedores de Testcontainers quedan huérfanos durante días y degradan las corridas siguientes. Hace falta limpiarlos entre rondas.
+
+## Rutas
+- `/tmp/claude-1000/-home-jjlloobb-IT-PUJ-MINSC-GitHub-topicos-especiales-credito-de-vivienda/39ddc0f6-774f-4959-a13e-16729575788a/scratchpad/rev-u03-t06-cierre/check-decision-registry.log` (corrida parcial)
+- `/tmp/claude-1000/-home-jjlloobb-IT-PUJ-MINSC-GitHub-topicos-especiales-credito-de-vivienda/39ddc0f6-774f-4959-a13e-16729575788a/scratchpad/rev-u03-t06-cierre/collect.txt` (orden de las 669 pruebas, con el que identifiqué la #353)
+
+```
+VEREDICTO: NO-VERDE
+INFO|CA-2/CA-4|decision-registry check sin rc: detenida a 353/669 tras 25 h; la única F es test_f04_300_mil (candidata conocida, U03-T07); las otras 4 unidades no corrieron
+AMARILLO|cierre-demo.md:31|Cita como pendiente el fallo de identity-edge que U02-T20 ya resolvió
+AMARILLO|cierre-demo.md:7,31,91|Cita la base fe0c9f3; la rama ahora está sobre 5cf2ebb
+AMARILLO|cierre-demo.md:82|P-1 figura como decisión pendiente; U03-T07 ya está abierta por el usuario
+INFORME: revisiones/U03-T06/ronda-1.md
+```
