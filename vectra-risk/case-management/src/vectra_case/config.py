@@ -63,3 +63,20 @@ RETENTION_BATCH_SIZE: Final[int] = 500  # `case-retention`
 EVIDENCE_ABANDON_AFTER: Final[float] = 24 * 60 * 60.0  # 24 h sin confirmar -> `abandonada`
 RECONCILER_BACKOFF_MIN: Final[float] = 1.0  # reintentos del reconciliador: de 1 s ...
 RECONCILER_BACKOFF_MAX: Final[float] = 300.0  # ... a 5 min
+
+# --- case-service (U08-T03): reconciliador, barridos, gauges, cliente de governance y pool de `case-db` ---
+# Los del reconciliador llevan el prefijo `RECONCILER_`: no son los del worker (`LEASE`, `BACKOFF_*` de arriba).
+RECONCILER_INTERVAL: Final[float] = 1.0  # un ciclo cada 1 s (P-U8-04)
+RECONCILER_BACKOFF_JITTER: Final[float] = 0.2  # +-20 % sobre el backoff de 1 s a 5 min
+# Arrendamiento de una evidencia reclamada: cubre el peor lote, no un envio. Un lote son BATCH_SIZE / RECONCILER_CONCURRENCY
+# turnos de hasta REGISTRY_TIMEOUT, el doble con el reintento por 401: 25 * 2,5 s * 2 = 125 s. Si una replica muere, sus filas
+# vuelven a ser elegibles al vencer. Tambien es el `next_attempt_at` inicial del envio inmediato de la decision y de la consulta.
+RECONCILER_LEASE: Final[float] = float(BATCH_SIZE // RECONCILER_CONCURRENCY) * REGISTRY_TIMEOUT * 2
+SWEEP_INTERVAL: Final[float] = 300.0  # barrido de `modelo_congelado` cada 5 min (BR-U8-10)
+GAUGE_INTERVAL: Final[float] = 30.0  # `db_gauges` cada 30 s (P-U8-04, 08)
+JOBS_OVERDUE_AFTER: Final[int] = (
+    30  # un trabajo sin tomar con `run_at` mas viejo que esto esta vencido (segundos)
+)
+SERVING_CONFIG_CACHE_TTL: Final[float] = 5.0  # cache de `serving-config` <= 5 s (NFR-U8-15)
+DB_ACQUIRE_TIMEOUT: Final[float] = 2.0  # esperar una conexion libre del pool de `case-db`
+DB_CONNECT_TIMEOUT: Final[int] = 2  # conexion nueva a `case-db`
