@@ -18,7 +18,9 @@ from entries import CASE, NOW, iso, payload_for
 from seed import seed, spec
 from service_harness import READ_EXPLANATION, READ_METRICS, READ_MONITORING, service_token
 from vectra_contracts.models.monitoring import MonitoringWindow
+from vectra_registry import queries
 from vectra_registry.health import MONITORING_LAG, Gauges
+from vectra_registry.pools import POOL_SIZES
 
 pytestmark = pytest.mark.integration
 
@@ -567,8 +569,19 @@ async def test_f04_la_suma_en_sql_da_la_misma_ventana_que_el_oraculo_en_python(e
     assert window.unattributable_invalid == 3 and window.invalid_seqs == [5, 7]
 
 
-async def test_f04_300_mil_filas_diarias_con_12_rangos_responden_en_menos_de_2_s(env: Env) -> None:
-    """3 versiones x 594 celdas x 180 dias = 320 760 filas en `monitoring_daily` (NFR-U3-35); 12 rangos de 90 dias."""
+#: Lo que la solicitud puede pasarse del tope: la ultima sentencia corta en `statement_timeout`, mas el rollback y la respuesta HTTP
+#: (U03-T07, P-5). Si una maquina cargada lo vuelve intermitente se sube aqui y se registra (candidata de U03-T05, F-02).
+TOPE_MARGEN_S = 0.5
+#: La `explanation` llega un poco despues de que la consulta pesada tomo la conexion. El tope (2 s) y la espera del pool (2 s) son el mismo
+#: numero: una `explanation` que llega en el mismo instante agota su espera justo antes de que la conexion vuelva (cortar la ultima
+#: sentencia y el rollback toman ~0,1 s) y recibe 503. Medido y reportado como hallazgo de la tarea (bitacora, ronda 1).
+EXPLANATION_LLEGA_DESPUES_S = 0.25
+SOLICITUDES = 10
+HUMAN = "humana"
+
+
+async def seed_full_volume(env: Env) -> None:
+    """3 versiones x 594 celdas x 180 dias = 320 760 filas en `monitoring_daily` (NFR-U3-35)."""
     rows = full_volume_rows(("mv-1", "mv-2", "mv-3"), 180)
     assert len(rows) == 3 * 594 * 180
     with env.cdb.db.connect() as conn, conn.cursor() as cursor:
@@ -579,29 +592,118 @@ async def test_f04_300_mil_filas_diarias_con_12_rangos_responden_en_menos_de_2_s
                 copy.write_row(row)
         conn.execute("ANALYZE monitoring_daily")
     env.cdb.sync()
-    def span(i: int) -> tuple[str, str]:
-        start = date(2026, 5, 1) + timedelta(days=i)
-        return start.isoformat(), (start + timedelta(days=89)).isoformat()  # 90 dias exactos
 
-    ranges = [day_range(f"r{i}", *span(i), model_version_id=f"mv-{1 + i % 3}") for i in range(12)]
-    body = query(ranges)
-    async def best_of(request: dict[str, Any], tries: int = 3) -> tuple[float, Any]:
-        """El mejor de `tries` (la primera abre la conexion y calienta): una maquina compartida añade ruido, no resta tiempo."""
-        timings, last = [], None
-        for _ in range(tries):
-            started = time.monotonic()
-            last = await daily(env, request)
-            if last.status_code == 200:  # un 504 por ruido de la maquina compartida no cuenta como medida
-                timings.append(time.monotonic() - started)
-        assert timings, "ninguna de las solicitudes respondio 200"
-        return min(timings), last
 
-    elapsed, response = await best_of(body)
-    assert elapsed <= 2.0, elapsed
-    window = MonitoringWindow.model_validate_json(response.text)
-    assert len(window.counts) == 198 * 12 and {c.count for c in window.counts} == {90}  # poblacion `modelo`: 198 celdas por rango
-    assert len(window.versions) == 6  # 3 versiones x 2 poblaciones
-    # El peor caso: 12 rangos de 90 dias de las 3 versiones y las dos poblaciones (3 x 594 x 90 filas por rango).
-    worst = query([{**day_range(f"w{i}", *span(i)), "population": "humana" if i % 2 else "modelo"} for i in range(12)])
-    heavy_elapsed, _ = await best_of(worst)
-    assert heavy_elapsed <= 2.0, heavy_elapsed
+def span(i: int, days: int = 90) -> tuple[str, str]:
+    start = date(2026, 5, 1) + timedelta(days=i)
+    return start.isoformat(), (start + timedelta(days=days - 1)).isoformat()
+
+
+def cron_shape() -> dict[str, Any]:
+    """El paso 1 del CronJob de U9 (`run.py`): 3 versiones x 4 rangos (antes, despues y 7 d de `modelo`, `humana`), con version,
+    y `unattributable_range` en la primera solicitud (BR-U9-09)."""
+    ranges: list[dict[str, Any]] = []
+    for n, version in enumerate(("mv-1", "mv-2", "mv-3")):
+        after, before = span(90 - n), span(83 - n)
+        last7 = span(172 - n, 7)
+        for kind, population, (first, last) in (
+            ("antes", "modelo", before),
+            ("despues", "modelo", after),
+            ("7d", "modelo", last7),
+            ("humana", HUMAN, after),
+        ):
+            ranges.append({**day_range(f"{version}:{kind}", first, last, model_version_id=version), "population": population})
+    assert len(ranges) == 12
+    return query(ranges, include_versions=False, unattributable_range={"from_day": "2026-07-01", "to_day": "2026-07-30"})
+
+
+def discovery_shape() -> dict[str, Any]:
+    """El descubrimiento del dashboard de U9 (`dashboard.py`): un rango de 90 dias de `modelo` **sin version**, con `include_versions`."""
+    return query([day_range("discovery", *span(90))], include_versions=True)
+
+
+def worst_shape() -> dict[str, Any]:
+    """El peor caso: 12 rangos de 90 dias **sin version** (3 versiones por rango), de las dos poblaciones."""
+    return query([{**day_range(f"w{i}", *span(i)), "population": HUMAN if i % 2 else "modelo"} for i in range(12)])
+
+
+async def timed(env: Env, body: dict[str, Any]) -> tuple[Any, float]:
+    started = time.monotonic()
+    response = await daily(env, body)
+    return response, time.monotonic() - started
+
+
+async def forma_de_u9(env: Env, body: dict[str, Any]) -> list[float]:
+    """10 solicitudes seguidas: **cada una** 200 y dentro del tope. Ni se descartan los 504 ni se toma el minimo de varias medidas."""
+    await seed_full_volume(env)
+    timings: list[float] = []
+    for _ in range(SOLICITUDES):
+        response, elapsed = await timed(env, body)
+        timings.append(elapsed)
+        assert response.status_code == 200, (response.status_code, response.text, timings)
+        MonitoringWindow.model_validate_json(response.text)
+    print("tiempos (s):", " ".join(f"{t:.3f}" for t in timings))
+    assert all(t <= queries.QUERY_BUDGET_S for t in timings), timings
+    return timings
+
+
+async def test_f04_forma_de_u9_cron_12_rangos_con_version_200_en_cada_solicitud(env: Env) -> None:
+    timings = await forma_de_u9(env, cron_shape())
+    assert timings[-1] <= 2 * timings[0], timings  # las sentencias preparadas no se degradan al repetirse (U03-T07, P-6)
+
+
+async def test_f04_forma_de_u9_descubrimiento_sin_version_200_en_cada_solicitud(env: Env) -> None:
+    timings = await forma_de_u9(env, discovery_shape())
+    assert timings[-1] <= 2 * timings[0], timings
+
+
+async def test_f04_peor_caso_sin_version_respeta_el_presupuesto_y_libera_la_conexion(env: Env) -> None:
+    """12 rangos sin version: ya no promete 200 en 2 s, prueba el tope. Cada solicitud es 200 o 504 `deadline_exceeded`, dentro del tope
+    mas el margen, y las consultas `explanation` concurrentes (BR-U3-17) responden 200 dentro del limite del pool `projections`."""
+    await seed_full_volume(env)
+    (seq,) = seed(env.cdb, [recommendation(NOW)])
+    body = worst_shape()
+
+    async def explanation() -> tuple[int, float]:
+        await asyncio.sleep(EXPLANATION_LLEGA_DESPUES_S)
+        started = time.monotonic()
+        response = await get(env, READ_EXPLANATION, case_id=str(CASE), seq=seq)
+        return response.status_code, time.monotonic() - started
+
+    seen: list[tuple[int, float]] = []
+    for _ in range(SOLICITUDES):
+        heavy, first, second = await asyncio.gather(timed(env, body), explanation(), explanation())
+        response, elapsed = heavy
+        seen.append((response.status_code, round(elapsed, 3)))
+        assert response.status_code in (200, 504), (response.status_code, response.text)
+        if response.status_code == 504:
+            assert response.json()["code"] == "deadline_exceeded", response.text
+        assert elapsed <= queries.QUERY_BUDGET_S + TOPE_MARGEN_S, (elapsed, seen)
+        for status, waited in (first, second):
+            # 200 y no 503: la espera por el pool (2 s) no se agoto. El tiempo total suma, a esa espera, la propia consulta.
+            assert status == 200 and waited < POOL_SIZES["projections"][1] + TOPE_MARGEN_S, (status, waited, seen)
+    print("peor caso (codigo, s):", seen)
+    # La conexion quedo utilizable: la forma de U9 responde 200 despues del ultimo 504.
+    response, _ = await timed(env, discovery_shape())
+    assert response.status_code == 200, response.text
+
+
+async def test_f04_el_tope_corta_la_solicitud_y_libera_la_conexion(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Con el presupuesto por debajo de lo que tarda la forma del CronJob la solicitud es 504 `deadline_exceeded`, y la siguiente,
+    con el presupuesto real, es 200: la conexion unica del pool `projections` quedo utilizable."""
+    await seed_full_volume(env)
+    body = cron_shape()
+    ok, _ = await timed(env, body)
+    assert ok.status_code == 200, ok.text
+    with monkeypatch.context() as patched:
+        patched.setattr(queries, "QUERY_BUDGET_S", 0.01)
+        cut, elapsed = await timed(env, body)
+    assert cut.status_code == 504 and cut.json()["code"] == "deadline_exceeded", (cut.status_code, cut.text, elapsed)
+    assert elapsed <= 0.01 + TOPE_MARGEN_S, elapsed
+    with monkeypatch.context() as patched:
+        patched.setattr(queries, "QUERY_BUDGET_S", 0.0)  # presupuesto agotado: ni siquiera se lanza la primera sentencia
+        spent, _ = await timed(env, body)
+    assert spent.status_code == 504 and spent.json()["code"] == "deadline_exceeded", spent.text
+    again, _ = await timed(env, body)
+    assert again.status_code == 200, again.text
+    assert len(MonitoringWindow.model_validate_json(again.text).totals) == 12

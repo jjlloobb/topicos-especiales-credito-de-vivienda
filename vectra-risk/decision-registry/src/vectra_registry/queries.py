@@ -5,9 +5,10 @@ servidor**), `GET /v1/monitoring/freezes` y el atraso del agregador. Todo sale d
 `registry_verifier`, 2 s). Una proyeccion o un campo no permitidos es 403 sin datos parciales (`projections.Forbidden`).
 """
 
+import time
 from collections.abc import Collection
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Any, Final
 from uuid import UUID
 
 import psycopg
@@ -19,7 +20,7 @@ from vectra_contracts.models.registry import EntryFilter
 
 from vectra_registry import projections
 from vectra_registry.chain import Row, decode
-from vectra_registry.pools import Connection, Pools
+from vectra_registry.pools import POOL_SIZES, Connection, Pools
 from vectra_registry.projections import (
     Consumer,
     delivery_status,
@@ -29,6 +30,10 @@ from vectra_registry.projections import (
 )
 
 STATEMENT_TIMEOUT_MS = 2000
+#: Tope por solicitud de `POST /v1/monitoring/daily:query`, en segundos: el tiempo limite del pool `projections` (Paso 8 del plan;
+#: nfr-design, tabla de pools). Cuenta desde que la solicitud obtiene la conexion (U03-T07, P-2): lo que se acota es cuanto tiempo se
+#: retiene la unica conexion del pool, no la espera por ella.
+QUERY_BUDGET_S: Final = POOL_SIZES["projections"][1]
 ROW_COLUMNS = (
     "seq, idempotency_key, entry_type, case_id, model_version_id, policy_version_id, actor_kind, actor_id, actor_role, "
     "occurred_at, recorded_at, correlation_id, contract_version, canonical, prev_hash, hash"
@@ -82,6 +87,24 @@ async def fetch_rows(conn: Connection, where: str, params: tuple[Any, ...] | dic
 async def start_read(conn: Connection) -> None:
     """Una lectura corta con tope de tiempo: nunca frena el *replay* del standby sincrono (BR-U3-13b)."""
     await conn.execute(f"SET LOCAL statement_timeout = {STATEMENT_TIMEOUT_MS}")  # noqa: S608
+
+
+class ReadBudget:
+    """El presupuesto de una solicitud de lectura: `statement_timeout` es por sentencia y no acota la suma (U03-T07).
+
+    Arranca al crearse (con la conexion ya en la mano). Antes de cada sentencia, `arm` fija `statement_timeout` al minimo entre
+    `STATEMENT_TIMEOUT_MS` y lo que queda del presupuesto, o levanta `DependencyTimeout` (504 `deadline_exceeded`) si ya se agoto.
+    El mismo patron que `append._commit`, que descuenta lo transcurrido.
+    """
+
+    def __init__(self) -> None:
+        self._deadline = time.monotonic() + QUERY_BUDGET_S
+
+    async def arm(self, conn: Connection) -> None:
+        remaining_ms = int((self._deadline - time.monotonic()) * 1000)
+        if remaining_ms < 1:  # `statement_timeout = 0` lo desactivaria
+            raise DependencyTimeout()
+        await conn.execute(f"SET LOCAL statement_timeout = {min(STATEMENT_TIMEOUT_MS, remaining_ms)}")  # noqa: S608
 
 
 def timed_out(error: psycopg.Error) -> DependencyTimeout:
@@ -223,6 +246,9 @@ async def monitoring_daily(pools: Pools, scopes: Collection[Scope], query: Monit
 
     El servicio nunca trae las filas diarias (hasta ~300 000 por solicitud con 3 versiones y 180 dias): PostgreSQL devuelve una
     fila por celda y rango (BR-U3-17).
+
+    Toda la solicitud tiene un tope, `QUERY_BUDGET_S`, desde que obtiene la conexion: pasarse es 504 `deadline_exceeded` y la
+    conexion vuelve al pool utilizable (U03-T07).
     """
     if Scope.REGISTRY_READ_MONITORING not in scopes:
         raise Forbidden()
@@ -245,22 +271,27 @@ async def monitoring_daily(pools: Pools, scopes: Collection[Scope], query: Monit
     )
     try:
         async with pools.projections.connection() as conn, conn.transaction():
-            await start_read(conn)
+            budget = ReadBudget()
             counts: dict[str, dict[tuple[str, str, str, str, str, str, str], int]] = {}
             # Un `GROUP BY` por rango, con los predicados en el orden de la llave primaria (poblacion, version, dia): el indice
             # acota las filas de cada rango; unir contra los 12 rangos a la vez hacia que PostgreSQL leyera la tabla entera.
             for request in query.ranges:
                 version_filter = "model_version_id = %(version)s" if request.model_version_id else "model_version_id <> '-'"
+                await budget.arm(conn)
                 cursor = await conn.execute(
                     'SELECT population, model_version_id, attribute, "group", band, result, decision, sum(count)::bigint '  # noqa: S608
                     f"FROM monitoring_daily WHERE population = %(pop)s AND {version_filter} AND day BETWEEN %(from)s AND %(to)s "
                     'GROUP BY population, model_version_id, attribute, "group", band, result, decision',
                     {"pop": request.population, "version": request.model_version_id, "from": request.from_day, "to": request.to_day},
+                    # Sin preparar: tras 5 usos psycopg pasa al plan generico, que no ve el rango de dias (estima 332 filas y lee
+                    # 35 640) y cambia a Sort + GroupAggregate con desborde a disco: sin version, 421 ms -> 760-930 ms (U03-T07, P-6).
+                    prepare=False,
                 )
                 counts[request.range_id] = {
                     (str(a), str(b), str(c), str(d), str(e), str(f), str(g)): int(str(n))
                     for a, b, c, d, e, f, g, n in await cursor.fetchall()
                 }
+            await budget.arm(conn)
             cursor = await conn.execute(
                 f"SELECT r.range_id, sum(t.total)::bigint, sum(t.invalid)::bigint FROM {_RANGES} "  # noqa: S608
                 f"JOIN monitoring_entry_totals t ON {match} GROUP BY r.range_id",
@@ -269,18 +300,21 @@ async def monitoring_daily(pools: Pools, scopes: Collection[Scope], query: Monit
             range_totals = {str(i): (int(a), int(b)) for i, a, b in await cursor.fetchall()}  # type: ignore[call-overload]
             versions: dict[tuple[str, str], tuple[date, date]] = {}
             if query.include_versions:
+                await budget.arm(conn)
                 cursor = await conn.execute(
                     "SELECT model_version_id, population, min(day), max(day) FROM monitoring_daily "
                     "WHERE day BETWEEN %(first)s AND %(last)s GROUP BY model_version_id, population",
                     params,
                 )
                 versions = {(str(v), str(p)): (lo, hi) for v, p, lo, hi in await cursor.fetchall()}  # type: ignore[misc]
+            await budget.arm(conn)
             cursor = await conn.execute(
                 "SELECT coalesce(sum(invalid), 0)::bigint FROM monitoring_entry_totals "
                 "WHERE model_version_id = '-' AND day BETWEEN %(u_from)s AND %(u_to)s",
                 params,
             )
             unattributable = int((await cursor.fetchone() or (0,))[0]) if window else 0  # type: ignore[call-overload]
+            await budget.arm(conn)
             cursor = await conn.execute(
                 f"SELECT DISTINCT t.seq FROM monitoring_invalid t, {_RANGES} WHERE ({match}) "  # noqa: S608
                 "OR (%(u_from)s::date IS NOT NULL AND t.model_version_id = '-' AND t.day BETWEEN %(u_from)s AND %(u_to)s) "
@@ -288,6 +322,7 @@ async def monitoring_daily(pools: Pools, scopes: Collection[Scope], query: Monit
                 params,
             )
             invalid_seqs = [int(row[0]) for row in await cursor.fetchall()]  # type: ignore[call-overload]
+            await budget.arm(conn)
             watermark, lag = await monitoring_lag(conn, now)
     except psycopg.errors.QueryCanceled as error:
         raise timed_out(error) from error

@@ -4,9 +4,9 @@
 
 ## Comprobado
 
-Cada paso que entra (1 a 13, 15 y 16), con la tarea que lo hizo, su comando de aceptación y el resultado de esta corrida sobre `fe0c9f3` (2026-11-10). La rama se fusionó después con `origin/main` `5cf2ebb` (incluye U02-T20 y la tarea U03-T07); lo de «Comprobado» **no se volvió a correr** sobre `5cf2ebb`. El diff posterior al `fe0c9f3` es solo documentación de `vectra-risk/`, sin cambios en `decision-registry/`. El detalle y las salidas están en `bitacoras/U03-T06.md`. Los comandos se corren desde `vectra-risk/` con `HYPOTHESIS_PROFILE=ci`.
+Cada paso que entra (1 a 13, 15 y 16), con la tarea que lo hizo, su comando de aceptación y el resultado de esta corrida sobre `fe0c9f3` (2026-11-10). La rama se fusionó después con `origin/main` `5cf2ebb` (incluye U02-T20 y, de U03-T07, solo el archivo de la tarea); lo de «Comprobado» **no se volvió a correr** sobre `5cf2ebb`. Lo que es solo documentación es el diff **propio** de U03-T06 (la rama frente a `5cf2ebb`); el merge con `5cf2ebb` trajo código de otras unidades (U0, U1, U8, U9 y U7), así que el diff posterior al `fe0c9f3` **no** es solo documentación. Las cifras de los Pasos 9, 13, 15 y 20 son de `fe0c9f3`. El detalle y las salidas están en `bitacoras/U03-T06.md`. Los comandos se corren desde `vectra-risk/` con `HYPOTHESIS_PROFILE=ci`.
 
-| Paso | Tarea | Comando de aceptación | Resultado ahora |
+| Paso | Tarea | Comando de aceptación | Resultado en `fe0c9f3` |
 |---|---|---|---|
 | 1 Esqueleto | U03-T01 | `uv sync --frozen && uv run lint-imports --config decision-registry/.importlinter` | `Contracts: 2 kept, 0 broken`; `uv sync --frozen` es el primer tramo del comando y lo cubre el `make check` en 0 (sin salida propia aparte); el `make check` completo termina en 0 |
 | 2 Migraciones | U03-T01 | `uv run pytest decision-registry/tests/integration/test_migrations.py` (Testcontainers) | 98 pruebas, en verde |
@@ -78,7 +78,7 @@ Del Paso 18 solo el escenario que queda dentro del alcance va a U12; los escenar
 
 De `CANDIDATAS.md`, las que afectan a la demo:
 
-- **Prioritaria (antes de la verificación en kind), U03-T03 ronda 2, F-01 (`CANDIDATAS.md:254`):** `test_queries.py` da por buena la aserción del peor caso de `daily:query` tomando el mínimo de 3 medidas y la consulta no tiene tope por solicitud: una consulta sin versión puede retener la única conexión del pool `projections` y dejar sin conexión a `explanation`. La forma de U9, con versión, tarda 0,14 a 0,21 s. **P-1: rige la opción (a)**, dejarla nombrada aquí y la tarea corta de código es `U03-T07`, antes de U12, ya abierta por decisión del usuario el 2026-11-10: `vectra-risk/tareas/U03-T07-tope-de-daily-query.md`.
+- ~~**Prioritaria (antes de la verificación en kind), U03-T03 ronda 2, F-01 (`CANDIDATAS.md:254`):** `test_queries.py` daba por buena la aserción del peor caso de `daily:query` tomando el mínimo de 3 medidas y la consulta no tenía tope por solicitud.~~ **Implementada en U03-T07** (`vectra-risk/tareas/U03-T07-tope-de-daily-query.md`, bitácora `bitacoras/U03-T07.md`): `queries.QUERY_BUDGET_S` (2 s, derivado del pool `projections`) acota la solicitud y pasarse es 504 `deadline_exceeded`; `test_queries.py` mide cada solicitud sin `best_of`. Quedan dos candidatas de esa tarea en `CANDIDATAS.md`: la holgura entre el tope y la espera del pool, y el recorrido de tabla entera de la consulta sin versión.
 - La firma de `checkpoint` cubre `recorded_at` de la propia entrada, que el append asigna dentro del lock (`CANDIDATAS.md:192`; U03-T03 y U03-T04; decidido el 2026-11-09: se difiere al cierre completo).
 - `fail_closed` con `local_cause` desde `registry:append:scoring`: el plan pide 403 y U0 lo rechaza con 422 antes del handler (`CANDIDATAS.md:199`; U03-T03, F-03).
 - Los resultados `inconsistente` de `incremental` y `nightly` no quedan en `integrity_checks`, así que no dejan el expediente en `not_verified` (`CANDIDATAS.md:200`; U03-T03).

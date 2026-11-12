@@ -144,6 +144,7 @@ vectra-risk/decision-registry/
     - un rango o un `unattributable_range` con `from_day > to_day` → 422 (séptima revisión del FD de U9, 2026-10-10);
     - paginación de `GET /v1/entries` (pendientes posteriores al cierre, 2026-10-10): `limit = 1001` → 422; 2 500 entradas con `limit = 1000` → tres páginas sin huecos ni repetidos, con `next_seq_after` en las dos primeras y `null` en la última; `seq_after` igual a la cabeza → página vacía con `next_seq_after: null`;
     - proyección `metrics`: `first_evaluation` sale tal como lo guardó U8 (`true` en el intento 1 de un caso nunca degradado, `false` en un reintento) y `received_at` es igual en todos los intentos del caso (pendientes posteriores al cierre, 2026-10-10).
+  - (tope por solicitud de `daily:query` y medición por solicitud: U03-T07)
 
 - [x] **Paso 9 — Readiness y contratos de rutas** (U03-T03)
   - Readiness con `registry_health` (standby síncrono, cache de 5 s).
