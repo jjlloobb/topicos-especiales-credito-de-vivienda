@@ -30,6 +30,17 @@ Cada paso que entra (1 a 13, 15 y 16), con la tarea que lo hizo, su comando de a
 
 `make check` de las demás unidades (RL-4, CA-4) sobre el mismo `fe0c9f3`: `contracts`, `platform`, `governance`, `reference-model` y `model-serving` terminan en 0. `identity-edge` falló en la base `fe0c9f3` en `test_t1_supply_chain_skips_exactly_the_three_realm_configmaps` (el workflow `supply-chain.yml` ya omitía también `config-cli-realm.yaml` de kind). Eso ya no está pendiente: U02-T20 (`eaa81a8`, PR #131), incluida en `5cf2ebb`, renombró y alineó la prueba (`CANDIDATAS.md:507`). No se volvió a correr `identity-edge` sobre `5cf2ebb`.
 
+### Re-corrido en U03-T07
+
+U03-T07 cambió `decision-registry/` (el tope de `daily:query`, `queries.py` y `test_queries.py`) y volvió a correr lo que este cierre cita. Las filas de arriba siguen siendo las de `fe0c9f3`; estas son las de la rama `tarea/U03-T07`, sobre `origin/main` `a10b930` (2026-11-11). El detalle y las salidas están en `bitacoras/U03-T07.md`.
+
+| Paso | Comando | Resultado en la rama de U03-T07 |
+|---|---|---|
+| 8 | `uv run pytest decision-registry/tests/integration/test_dossier.py test_queries.py test_integrity_api.py` | 95 pruebas, en verde (eran 92: cuatro pruebas nuevas de `test_queries.py` reemplazan a `test_f04_300_mil_…`) |
+| 15 | `uv run python platform/tests/test_waves.py` | kind 52, staging 51 y prod 49 Applications en orden (código de otras unidades fusionado después de `fe0c9f3`; no son los 51, 50 y 48 del Paso 15 de arriba) |
+| 16 | `make -C decision-registry coverage` (dentro del `check`) | 672 pruebas; cobertura de ramas 96,08 % (mínimo 95 %); 100 % en `chain`, `verify` y `append`; trazabilidad con 41 identificadores, código 0 |
+| 20 | `make -C decision-registry check` | Código 0, 672 pruebas; `make -C platform check` en 0 con 802 pruebas |
+
 ## Diferido por la demo
 
 Lista que acepta `platform/tests/test_traceability.py --unit decision-registry --all` (P-4, `demo-recorte-funcional.md` §2.4 y §6). Cada fila lleva el identificador, el paso del plan que lo implementaría y la cita del recorte. Un identificador de esta lista **no** puede tener código ni prueba: si los tiene, la prueba falla y se quita de aquí. Los pasos 13, 15 y 16 no aparecen: son de U03-T05 y se trazan en el chart, las pruebas y el `Makefile`.
