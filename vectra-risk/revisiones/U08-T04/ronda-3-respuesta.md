@@ -1,0 +1,7 @@
+# U08-T04 — respuesta a la ronda 2 (ronda 3 acotada)
+
+- F-01: Corregido en el commit de esta ronda: `test_a_freshly_started_process_reports_vectra_core_write_attempts_total_at_0` (`core_banking_mock/tests/test_core_mock.py`) lanza un subproceso nuevo (`sys.executable -I -c`), construye la app, lee `GET /metrics` del puerto de sondas con `ASGITransport` (sin puerto) y exige la línea `vectra_core_write_attempts_total 0.0`. Rojo con M22 (`WRITE_ATTEMPTS.inc(3)` al importar `metrics.py`): `1 failed, 14 passed`, solo esa prueba. Verde sin la mutación: `15 passed`.
+- F-02: Corregido en el commit de esta ronda: `test_the_late_non_recommendation_result_of_a_take_of_a_previous_cycle_changes_nothing` en `test_worker.py`, parametrizada en `model_frozen`, `retryable_503` y `scoring_403` (toma A tardía tras congelar/descongelar; misma cifra de intento, otra toma; caso, trabajo y outbox sin cambio). Rojo con M21b (guarda anulada en `_FROZEN`, `_RETRY` y `_ESCALATE`): `3 failed, 38 deselected`, sin la PBT. Verde: `3 passed`.
+- F-03: Corregido en el commit de esta ronda: BR-U8-08 (`business-rules.md`) dice que la garantía supone un reloj coherente entre los pods que toman y los que recrean el trabajo.
+- F-04: Corregido en el commit de esta ronda: `services.md` dice que el caso normal termina cuando terminan las llamadas en vuelo (segundos con scoring sano; 20 s es un tope) y conserva ≈ 34 s de peor caso.
+- Candidata (puerto fijo 8081 de `test_worker_shutdown.py`): añadida a `CANDIDATAS.md`.

@@ -667,6 +667,36 @@ async def test_the_late_result_of_a_take_of_a_previous_cycle_is_discarded_after_
     assert case_row(db, case_id)["state"] == "listo"
 
 
+@pytest.mark.parametrize(
+    "late",
+    [("fail", FailClosedCause.MODEL_FROZEN), ("status", 503), ("status", 403)],
+    ids=["model_frozen", "retryable_503", "scoring_403"],
+)
+async def test_the_late_non_recommendation_result_of_a_take_of_a_previous_cycle_changes_nothing(
+    db: Db, late: tuple[str, Any]
+) -> None:
+    """F-02 (ronda 2): la guarda por toma tambien cubre `_FROZEN`, `_RETRY` y `_ESCALATE`, no solo `_READY`. El resultado tardio de A
+    (congelamiento, 503 reintentable o 403) llega con el caso otra vez en `en_evaluacion`, intento 1 de la toma C: no mueve ni caso ni trabajo."""
+    case_id = new_case(db)
+    async with worker_world(db) as w:
+        a = await w.queue.take()
+        assert a is not None and a.attempt == 1
+        w.clock.advance(seconds=LEASE + 1)
+        b = await w.queue.take()
+        assert b is not None and b.attempt == 2
+        w.scoring.by_case[case_id].append(("fail", FailClosedCause.MODEL_FROZEN))
+        await w.evaluator.run(b)  # modelo_congelado, attempts = 0
+        await w.h.sweeper.run_once()  # descongela: en_evaluacion, trabajo nuevo
+        c = await w.queue.take()
+        assert c is not None and c.attempt == a.attempt == 1  # mismo numero de intento, otra toma
+        before = (case_row(db, case_id), job_row(db, case_id))
+        assert before[0]["state"] == "en_evaluacion"
+        w.scoring.by_case[case_id].append(late)
+        assert await w.evaluator.run(a) is False
+        assert (case_row(db, case_id), job_row(db, case_id)) == before
+        assert outbox(db, case_id) == []
+
+
 async def test_a_job_row_locked_by_another_transaction_is_skipped_and_the_take_never_waits_for_it(
     db: Db,
 ) -> None:

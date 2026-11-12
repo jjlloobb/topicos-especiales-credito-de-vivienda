@@ -4,6 +4,8 @@ Sin Keycloak, sin proxy de Linkerd, sin base. La alerta `CoreWriteAttempt` (INF-
 """
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -58,6 +60,29 @@ def test_the_app_has_exactly_the_two_routes_of_the_contract() -> None:
 
 def test_the_fixture_has_one_credit_per_core_status() -> None:
     assert set(CREDITS.values()) == {"en_estudio", "aprobado", "desembolsado", "rechazado", "cancelado"}
+
+
+_FRESH_PROCESS = """
+import asyncio, httpx
+from core_banking_mock.app import build_app
+
+async def main():
+    app = build_app()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app.state.ops_app), base_url="http://ops") as c:
+        print(next(l for l in (await c.get("/metrics")).text.splitlines() if l.startswith("vectra_core_write_attempts_total")))
+
+asyncio.run(main())
+"""
+
+
+def test_a_freshly_started_process_reports_vectra_core_write_attempts_total_at_0() -> None:
+    """F-01 (ronda 2), Paso 17: `GET /metrics` de un proceso nuevo dice 0. Se lee de `/metrics` en un subproceso, no de la variable del
+    modulo, y no depende del orden de las pruebas (el contador es global al proceso de pytest, el subproceso nace limpio)."""
+    out = subprocess.run(  # noqa: S603  (el programa es el propio intérprete y el código es la constante de arriba)
+        [sys.executable, "-I", "-c", _FRESH_PROCESS], capture_output=True, text=True, timeout=60, check=True
+    )
+    lines = [line for line in out.stdout.splitlines() if line.startswith("vectra_core_write_attempts_total")]
+    assert lines == ["vectra_core_write_attempts_total 0.0"]
 
 
 async def test_the_write_attempts_series_exists_without_labels_and_only_moves_with_a_write() -> None:
