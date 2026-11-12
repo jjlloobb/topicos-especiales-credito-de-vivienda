@@ -88,3 +88,13 @@ Descartadas: (a) solo subir `BUDGET_GIB` (con U7–U12 el pico ≈ 13 GiB no cab
 ## 8. Verificación en kind consolidada en U12 (2026-11-10)
 
 El usuario preguntó por cuarta vez si se podía trabajar solo en lo necesario para la demo. Aceptó la recomendación: quitar los bloques de verificación en kind de U3, U7, U8, U9, U10 y U11, pasar su cierre a la última tarea de código y hacer la verificación una sola vez en U12 Paso 18, con los ensayos de las cuatro demos. U4 y U6 conservan sus guías de kind (arranque de la política y del modelo, P-7). Pasa de ≈ 33 a ≈ 27 tareas pendientes. Las revisiones por tarea se mantienen. Detalle en `aidlc-docs/construction/plans/demo-recorte-funcional.md` §8.
+
+## 9. Decisiones del 2026-11-12
+
+**U03-T07 aparcada.** Con el tope por solicitud en 1,5 s (espera del pool `projections` menos un margen de 0,5 s), las formas reales de U9 reciben 504 cuando la máquina está cargada: el revisor midió 3 fallos en 17 corridas y `make -C decision-registry check` en exit 2, igual que el codificador. Ningún margen cumple a la vez «la `explanation` concurrente obtiene su conexión» y «la consulta de U9 nunca recibe 504». El usuario decidió aparcar la tarea: no hay ronda 3 ni pull request, y `main` queda sin el tope. Un 504 de U3 al cron de U9 impide el congelamiento (BR-U9-10), que es el centro de la demo D2. La rama `tarea/U03-T07` se conserva en el remoto con sus dos rondas (`revisiones/U03-T07/` en esa rama). La candidata sigue abierta para después de la demo.
+
+**U10, Bloque E partido en dos.** El usuario aprobó partir la SPA en U10-T03 (Pasos 10–12) y U10-T04 (Pasos 13–16); el despliegue y el cierre pasan a U10-T05. U10 queda en 5 tareas (`demo-recorte-funcional.md` §8).
+
+**U10, mecanismo del login.** El diseño se contradecía: P-U10-07 y tech-stack §2 piden `InMemoryWebStorage` para el login, y el Paso 11 pide redirección, que borra la memoria. El usuario decidió: login por redirección, con solo el estado transitorio del flujo (`state`, `code_verifier`, `nonce`) en `sessionStorage`; los tokens y el usuario siguen en memoria (BR-U10-05); la recarga se resuelve con una redirección `prompt=none`, sin iframe; no se usa `signinPopup` ni `signinSilent`. El step-up del Paso 10 no cambia. No se toca U2. Detalle en `revisiones/U10-T03/arbitraje-ronda-1.md`.
+
+**U08-T04, ronda 3 acotada.** Excepción a RL-2 autorizada por el usuario: la ronda 2 cerró el defecto real (el resultado tardío de otro ciclo se aplicaba al caso) y dejó un ROJO de una sola prueba, «`GET /metrics` recién iniciado → `vectra_core_write_attempts_total` = 0», que es la base de la demo D3. La ronda 3 cubre esa prueba y tres AMARILLO, y nada más (`revisiones/U08-T04/arbitraje-ronda-2.md`).
