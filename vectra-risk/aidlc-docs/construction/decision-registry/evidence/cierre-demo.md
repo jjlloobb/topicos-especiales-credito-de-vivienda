@@ -39,7 +39,7 @@ U03-T07 cambió `decision-registry/` (el tope de `daily:query`, `queries.py` y `
 | 8 | `uv run pytest decision-registry/tests/integration/test_dossier.py test_queries.py test_integrity_api.py` | 95 pruebas, en verde (eran 92: cuatro pruebas nuevas de `test_queries.py` reemplazan a `test_f04_300_mil_…`) |
 | 15 | `uv run python platform/tests/test_waves.py` | kind 52, staging 51 y prod 49 Applications en orden (código de otras unidades fusionado después de `fe0c9f3`; no son los 51, 50 y 48 del Paso 15 de arriba) |
 | 16 | `make -C decision-registry coverage` (dentro del `check`) | 672 pruebas; cobertura de ramas 96,08 % (mínimo 95 %); 100 % en `chain`, `verify` y `append`; trazabilidad con 41 identificadores, código 0 |
-| 20 | `make -C decision-registry check` | Código 0, 672 pruebas; `make -C platform check` en 0 con 802 pruebas |
+| 20 | `make -C decision-registry check` | Ronda 2, dos corridas (con la máquina compartida, carga 5 a 13): antes del cambio de la sentencia `versions`, código 0, 672 pruebas y 96,10 % de cobertura; después, **código 2** (1 fallo en `test_f04_forma_de_u9_cron_12_rangos…`: un 200 a 1,528 s sobre un tope de 1,5 s, con la carga subiendo). La cifra no es estable bajo carga: ver `bitacoras/U03-T07.md`, ronda 2. `make -C platform check` en 0 con 802 pruebas |
 
 ## Diferido por la demo
 
