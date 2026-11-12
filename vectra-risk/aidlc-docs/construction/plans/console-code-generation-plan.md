@@ -67,6 +67,7 @@ vectra-risk/console/
 > - **P-2:** `console/spa` es un workspace de npm del `package.json` raíz; el lockfile es el `package-lock.json` raíz y no hay `spa/package-lock.json`.
 > - **P-3:** `object_rules.py` expone `OBJECT_RULES`, un mapa `operation_id` → regla o `None`; el Paso 5 exige al arrancar que las 30 rutas estén en él.
 > - `bff/pytest.ini` y `bff/coveragerc` apuntan la cobertura a `console_bff`, como en U8 y U9.
+> - **U10-T02:** se agrega `bff/tools/role_matrix.py` (Paso 7; `--check` compara la matriz generada de `REGISTRY`, C03 y `contracts/openapi/role-endpoint-matrix.md`, P-4 (a)); `pytest.ini` suma `tests/doubles`, `../../contracts/tests` y `tools` a `pythonpath`; `bff/tests/doubles/` lleva los cinco dobles de los destinos y el soporte de tokens (`bff_*.py`).
 
 ---
 
@@ -104,7 +105,7 @@ vectra-risk/console/
 
 ### Bloque C — Capa de API del BFF
 
-- [ ] **Paso 5 — Rutas, clientes y composición**
+- [x] **Paso 5 — Rutas, clientes y composición** (U10-T02)
   - `routes.py`: los **30** `RouteContract` de C03 con `required_roles`, `mfa` (900 s) y `object_rule` explícita (una ruta sin ella no arranca); `max_body_bytes` por omisión.
   - `clients.py`: un cliente de `deps.call` por destino (case, governance, registry, explainability, bias) con timeout, presupuesto (`x-vectra-deadline` = entrada + 9 s), límite de conexiones y circuit breaker con los umbrales de U7; sin reintentos.
   - `compose.py`: `get_dossier` con `asyncio.TaskGroup` (registry `get_case_dossier` + case `get_case_identifiers`; registro caído → 503 y se cancela la otra; case caído → `identifiers_unavailable`; 403 o 404 de case → ese error); `get_disparity` (governance `list_models(state=activo,congelado)` y después bias, sin caché).
@@ -118,27 +119,27 @@ vectra-risk/console/
     - con bias caído, `list_cases` y `record_decision` responden 2xx;
     - una ruta sin `object_rule` → `create_app` falla al arrancar.
 
-- [ ] **Paso 6 — `client_errors` y métricas**
+- [x] **Paso 6 — `client_errors` y métricas** (U10-T02)
   - `POST /api/console/client-errors`: `ClientErrorReport` (U0 §9.5, `extra = "forbid"`), evento `console.client_error`, métrica `vectra_console_client_errors_total{error_code}` con las **seis** series creadas en 0 al arrancar; 204.
   - Histogramas por ruta y `vectra_bff_dependency_duration_seconds{dependency, route}`.
   - Diseño: BR-U10-22; P-U10-09, 11; NFR-U10-34.
   - **Aceptación**: `uv run pytest console/bff/tests/integration/test_client_errors.py tests/integration/test_metrics.py`: un cuerpo con un campo extra o con un mensaje libre → 422; `GET /metrics` recién iniciado muestra las seis series en 0; PBT-U0-07 en modo strict sobre `console.client_error`.
 
-- [ ] **Paso 7 — Matriz rol × endpoint y pruebas de ejemplo de la API**
+- [x] **Paso 7 — Matriz rol × endpoint y pruebas de ejemplo de la API** (U10-T02)
   - Matriz generada desde el registro de rutas (BR-U10-19): 30 endpoints × (4 roles, sin rol de negocio, expirado, otra audiencia, `acr = pwd`, `auth_time` vencido), comparando status y `code`; un caso negativo por regla de objeto; `authz.denied` con `principal_subject` en cada 401/403. Se publica como `role-endpoint-matrix.md` y se compara con C03.
   - Pruebas de ejemplo del FD (business-logic-model §3): analista → aprobación de modelo → 403; JWT expirado, de otra audiencia o mal firmado → 401; aprobador sin MFA reciente → 403 `mfa_required`; `decision_already_recorded` → 409 con el `reason`; expediente de `cumplimiento`.
   - Diseño: BR-U10-19; PBT-U10-01; NFR-U10-46. Historias: US-602, US-611.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest console/bff/tests/property/test_role_matrix.py tests/integration/test_api_examples.py`; `uv run python console/bff/tools/role_matrix.py --check` (la matriz generada coincide con C03 y con `role-endpoint-matrix.md` versionado).
 
-- [ ] **Paso 8 — Arranque, apagado y resumen de la API**
-  - Readiness y liveness solo del proceso (8081); `preStop` de 5 s; arranque con `vectra_common.ops_server.run_service(app)` y espera de ≤ 10 s en el apagado (revisión de consistencia entre unidades, 2026-11-01).
+- [x] **Paso 8 — Arranque, apagado y resumen de la API** (U10-T02)
+  - Readiness y liveness solo del proceso (8081); `preStop` de 5 s (el `preStop` y `terminationGracePeriodSeconds: 20` los pone el chart, Paso 18, P-5 (a) de U10-T02: `preStop` en el chart (Paso 18)); arranque con `vectra_common.ops_server.run_service(app)` y espera de ≤ 10 s en el apagado (revisión de consistencia entre unidades, 2026-11-01).
   - Cobertura ≥ 90 % en el resto del BFF; resumen en `aidlc-docs/construction/console/code/bff-api.md`.
   - Diseño: INF-U10-01; NFR-U10-60.
   - **Aceptación**: `uv run pytest console/bff/tests --cov=console_bff --cov-branch --cov-fail-under=90`; prueba de que `/readyz` responde 200 con todos los destinos caídos.
 
 ### Bloque D — Repositorio
 
-- [ ] **Paso 9 — Repositorio y migraciones: N/A**
+- [x] **Paso 9 — Repositorio y migraciones: N/A** (U10-T02)
   - U10 no tiene base de datos.
   - **Aceptación**: `test ! -d console/bff/migrations`.
 
