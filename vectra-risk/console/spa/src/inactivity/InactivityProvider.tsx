@@ -21,6 +21,14 @@ export const browserInactivityEnv: InactivityEnv = {
   target: document,
 };
 
+/**
+ * El aviso mueve el foco a si mismo al abrirse (`focusin` dentro del `alertdialog`): no es actividad de la persona. Sin esto, abrir el aviso
+ * lo cerraba al instante y reiniciaba el contador (el aviso nunca se quedaba y la sesion no cerraba).
+ */
+export function isWarningFocus(event: Event): boolean {
+  return event.type === "focusin" && event.target instanceof Element && event.target.closest('[role="alertdialog"]') !== null;
+}
+
 interface Props {
   readonly env: InactivityEnv;
   readonly onLogout: () => void;
@@ -52,7 +60,7 @@ export function InactivityProvider({ env, onLogout, children }: Props) {
       },
     });
     monitor.current = created;
-    const detach = attachActivity(env.target, created);
+    const detach = attachActivity(env.target, created, isWarningFocus);
     return () => {
       detach();
       created.dispose();

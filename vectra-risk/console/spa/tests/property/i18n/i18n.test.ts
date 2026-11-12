@@ -27,14 +27,13 @@ describe("PBT-U10-06: i18n", () => {
   });
 
   it("para todo valor de todo arreglo de U0 existe un texto no vacio", () => {
-    fc.assert(
-      fc.property(fc.constantFrom(...pairs), ([name, value]) => {
-        const text = catalogOf(name)?.[value];
-        expect(text, `${name}: ${value} no tiene texto`).toBeTypeOf("string");
-        expect((text as string).trim().length, `${name}: ${value} tiene el texto vacio`).toBeGreaterThan(0);
-      }),
-      { ...pbtOptions("PBT-U10-06 (cobertura)"), numRuns: Math.max(pairs.length * 3, 300) },
-    );
+    const hasText = ([name, value]: [string, string]): void => {
+      const text = catalogOf(name)?.[value];
+      expect(text, `${name}: ${value} no tiene texto`).toBeTypeOf("string");
+      expect((text as string).trim().length, `${name}: ${value} tiene el texto vacio`).toBeGreaterThan(0);
+    };
+    pairs.forEach(hasText); // todos, uno por uno: el muestreo con reemplazo de abajo podria saltarse alguno
+    fc.assert(fc.property(fc.constantFrom(...pairs), hasText), pbtOptions("PBT-U10-06 (cobertura)", process.env, pairs.length));
   });
 
   it("y los catalogos no tienen textos de mas: cada clave de un arreglo de U0 es un valor de ese arreglo", () => {
@@ -52,12 +51,11 @@ describe("PBT-U10-06: i18n", () => {
     const patterns = forbiddenPatterns();
     const texts = [...allStrings(messages), ...allStrings(labels)];
     expect(texts.length).toBeGreaterThan(100);
-    fc.assert(
-      fc.property(fc.constantFrom(...texts), ([path, text]) => {
-        expect(violations(text, patterns), `${path} contiene una frase prohibida`).toEqual([]);
-      }),
-      { ...pbtOptions("PBT-U10-06 (frases prohibidas)"), numRuns: Math.max(texts.length * 2, 300) },
-    );
+    const clean = ([path, text]: [string, string]): void => {
+      expect(violations(text, patterns), `${path} contiene una frase prohibida`).toEqual([]);
+    };
+    texts.forEach(clean); // todos, uno por uno: el muestreo con reemplazo de abajo podria saltarse alguno
+    fc.assert(fc.property(fc.constantFrom(...texts), clean), pbtOptions("PBT-U10-06 (frases prohibidas)", process.env, texts.length));
   });
 
   it("el detector de frases funciona: una frase de la lista, con tildes o mayusculas, se encuentra", () => {

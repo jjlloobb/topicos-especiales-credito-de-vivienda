@@ -237,4 +237,20 @@ describe("una solicitud tardia de un intento anterior", () => {
     expect(flow.state).toMatchObject({ phase: "waiting", expected: own });
     expect(world.popups[1]?.navigated).toEqual([`${OWN}/auth?state=${own}`]);
   });
+
+  // Hallado por el modelo independiente de PBT-U10-05 (ronda 2): el fallo tardio de la solicitud del intento 1 mataba al intento 2.
+  it("el FALLO tardio de la solicitud de un intento anterior tampoco toca al intento nuevo", async () => {
+    const { world, flow } = setup();
+    flow.start(BODY); // intento 1: su solicitud queda pendiente
+    world.popups[0]!.closed = true;
+    world.timers.fireInterval(); // intento 1 termina (`closed`)
+    flow.start(BODY); // intento 2
+    world.backend.rejectRequest(); // falla la solicitud del intento 1
+    await flush();
+    expect(flow.state.phase).toBe("opening"); // el intento 2 sigue vivo
+    expect(world.failuresReported).toBe(1); // solo el `closed` del intento 1
+    const own = world.backend.resolveRequest();
+    await flush();
+    expect(flow.state).toMatchObject({ phase: "waiting", expected: own });
+  });
 });

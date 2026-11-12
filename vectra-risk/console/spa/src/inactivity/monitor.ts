@@ -102,13 +102,17 @@ export class InactivityMonitor {
   }
 }
 
-/** Engancha los cinco eventos de actividad (en captura: `scroll` no burbujea). Devuelve la funcion que los suelta. */
+/**
+ * Engancha los cinco eventos de actividad (en captura: `scroll` no burbujea). Devuelve la funcion que los suelta.
+ * `ignore` descarta un evento que no es de la persona (p. ej. el foco que el propio aviso se da al abrirse).
+ */
 export function attachActivity(
   target: Pick<EventTarget, "addEventListener" | "removeEventListener">,
   monitor: Pick<InactivityMonitor, "activity">,
+  ignore: (event: Event) => boolean = () => false,
 ): () => void {
-  const handler = (): void => {
-    monitor.activity();
+  const handler = (event: Event): void => {
+    if (!ignore(event)) monitor.activity();
   };
   for (const type of ACTIVITY_EVENTS) target.addEventListener(type, handler, { capture: true, passive: true });
   return () => {

@@ -8,9 +8,18 @@ export function profile(env: NodeJS.ProcessEnv = process.env): Profile {
   return env["VECTRA_PBT_PROFILE"] === "nightly" ? "nightly" : "ci";
 }
 
-export function pbtOptions(name: string, env: NodeJS.ProcessEnv = process.env): { seed: number; numRuns: number; verbose: 1 } {
+/**
+ * Opciones de `fc.assert`. `atLeast` es un PISO (p. ej. el tamano de lo que se muestrea), no un techo: el perfil `nightly` nunca corre menos
+ * casos que `ci`, y la linea impresa dice los casos que de verdad se corren.
+ */
+export function pbtOptions(
+  name: string,
+  env: NodeJS.ProcessEnv = process.env,
+  atLeast = 0,
+): { seed: number; numRuns: number; verbose: 1 } {
   const seed = env["VECTRA_PBT_SEED"] === undefined ? Date.now() % 2147483647 : Number(env["VECTRA_PBT_SEED"]);
   const chosen = profile(env);
-  console.log(`fast-check ${name}: perfil=${chosen} numRuns=${PROFILES[chosen]} seed=${seed}`);
-  return { seed, numRuns: PROFILES[chosen], verbose: 1 };
+  const numRuns = Math.max(PROFILES[chosen], atLeast);
+  console.log(`fast-check ${name}: perfil=${chosen} numRuns=${numRuns} seed=${seed}`);
+  return { seed, numRuns, verbose: 1 };
 }

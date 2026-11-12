@@ -11,12 +11,12 @@ decisiones de esta mitad y lo que el recorte difiere.
 | `config/` | `config.json` (`load.ts`) y constantes del código (`constants.ts`, con `MFA_MAX_AGE_SECONDS` = `MFA_MAX_AGE` de U0, atada por una prueba) | INF-U10-03; BR-U10-06 |
 | `stepup/` | `machine.ts` (núcleo **puro**: máquina de estados del intento), `flow.ts` (la ventana, los temporizadores y el cliente OIDC inyectados), `oidc.ts` (`OidcClient` de bajo nivel con su propio `stateStore` en memoria), `mfa.ts` («MFA reciente»), `StepUpProvider`, `StepUpButton` («Verificar y confirmar») y `StepUpDialog` («Verificar identidad») | BR-U10-06; P-U10-07; NFR-U10-52, 61, 62; PBT-U10-05 |
 | `stepup-callback.ts` | `postMessage({code, state}, location.origin)` al opener y se cierra; no canjea, no guarda nada y no pide `config.json` | BR-U10-06 |
-| `auth/` | `UserManager` con `InMemoryWebStorage` (`manager.ts`), `AuthProvider`/`TokenStore` (login silencioso al montar, `get_me` tras cada token nuevo) y `callback.ts` (`/callback`) | BR-U10-05; NFR-U10-40 |
+| `auth/` | `manager.ts` (`UserManager` con login por redirección: `userStore` en `InMemoryWebStorage`, `stateStore` en `loginStateStorage`, sin `popup_redirect_uri` ni `silent_redirect_uri`), `loginStateStorage.ts` (**el único** módulo que nombra `sessionStorage`: solo `state`, `code_verifier` y `nonce` del flujo en curso) y `AuthProvider`/`TokenStore` (canjea `/callback` en la misma página, una redirección `prompt=none` al cargar sin sesión, `get_me` tras cada token nuevo) | BR-U10-05; NFR-U10-40 |
 | `inactivity/` | `monitor.ts` (contador de la sesión, cinco eventos, `BroadcastChannel("vectra-console")`), `InactivityProvider` e `InactivityDialog` | BR-U10-20; NFR-U10-40, 41 |
 | `api/` | `client.ts` (`createClient<paths>` de `@vectra/contracts`, token, timeout de 10 s, sin reintentos, `ApiError`/`MfaRequiredError`/`TransportError`), `queryClient.ts` (TanStack Query sin reintentos ni refresco por foco), `endpoints.ts` (`get_me`) | P-U10-04; NFR-U10-33 |
 | `i18n/` | `messages.es.json` (códigos, motivos, avisos, interfaz), `labels.es.json` (enumerados) y `index.ts` (`ui`, `notice`, `label`, `problemText`, `formatDate`, `formatDecimal` con `Intl` es-CO) | BR-U10-17, 18; NFR-U10-53; PBT-U10-06 |
 | `reporter/` | `reporter.ts` (catálogo cerrado de `error_code`, ≤ 10 por minuto, `keepalive`, sin mensajes ni URL), `ErrorBoundary`, `version.ts` (`app_version`) | BR-U10-22; P-U10-09; NFR-U10-34 |
-| `entry.ts`, `main.tsx`, `wiring.ts`, `App.tsx` | La entrada detecta `/stepup-callback` y `/callback` **antes** de montar React y de crear el `UserManager`; `wiring.ts` arma todo desde `config.json`; `App` pone los proveedores alrededor de un contenido mínimo | BR-U10-05, 06 |
+| `entry.ts`, `main.tsx`, `wiring.ts`, `App.tsx` | La entrada detecta `/stepup-callback` **antes** de montar React y de crear el `UserManager` (`/callback` es la propia SPA: `AuthProvider` canjea el código en memoria); `wiring.ts` arma todo desde `config.json`; `App` pone los proveedores alrededor de un contenido mínimo | BR-U10-05, 06 |
 
 `views/`, `version/` siguen vacíos (T04 y el recorte).
 
@@ -85,12 +85,21 @@ npx playwright test -c console/spa/playwright.config.ts tests/poc --project=chro
 - **`oidc-client-ts` v3 y `acr`/`auth_time`:** la librería los quita de `profile` por omisión (`filterProtocolClaims`); `FILTER_PROTOCOL_CLAIMS` (`stepup/oidc.ts`) los deja pasar y lo usan
   el `OidcClient` del step-up y el `UserManager`. Tampoco genera `nonce` en el flujo de código: `createRequest` le pasa uno (`crypto.randomUUID()`) y la librería lo valida en el ID token.
   `UserManager.storeUser` solo guarda: el step-up usa `acceptStepUp` (`wiring.ts`), que además llama a `events.load` (rearma los temporizadores y avisa `userLoaded` para pedir `get_me`).
-- **Login interactivo en ventana emergente (no redirección):** BR-U10-05 manda `stateStore` y `userStore` en memoria; una redirección completa recarga la página y borra el `state` y el
-  `code_verifier`, así que el login por redirección **no puede terminar**. El login interactivo usa `signinPopup` (abierta de forma síncrona en el clic de «Iniciar sesión»; callback
-  `/callback` abierta por la ventana emergente) y el login silencioso usa `signinSilent` (iframe con `prompt=none`; `/callback` dentro de un iframe). La ventana principal nunca cambia de URL.
-  Es una desviación de la letra de «login con PKCE… `redirect_uri` `/callback`» que el plan no preveía: se registra como candidata de diseño.
+- **Login por redirección (decisión del usuario, 2026-11-12, tras la ronda 1):** la ronda 1 había hecho el login con `signinPopup` y `signinSilent` (iframe) porque BR-U10-05 y P-U10-07
+  pedían todo en memoria y una redirección completa borra el `state` y el `code_verifier`. Eso contradecía tech-stack §2 y la tarea, y el iframe no puede cargar `/callback` bajo la CSP de U2
+  (`frame-ancestors 'none'`). El usuario decidió: **`signinRedirect`**, con **solo el estado transitorio del flujo** (`state`, `code_verifier`, `nonce`; una clave `oidc.<state>` por flujo,
+  que la librería borra al leer el callback, con éxito o con error) en `sessionStorage`, y los **tokens y el usuario en memoria**. La recarga es otra redirección con `prompt=none`; si el emisor
+  responde `login_required` (o cualquier error) se muestra el login y no se vuelve a redirigir. `/callback` es la propia SPA (el canje ocurre en memoria y la URL se limpia con `replaceState`).
+  `popup_redirect_uri` y `silent_redirect_uri` van vacíos (`""`): `oidc-client-ts` los iguala a `redirect_uri` si faltan; con `""` falla en vez de abrir una ventana o un iframe. El refresco
+  automático usa el refresh token (la librería lo llama `signinSilent`, pero con refresh token no abre nada). **El step-up no cambia** (ventana emergente y `stateStore` en memoria).
+  Diseño precisado: P-U10-07, tech-stack §2, BR-U10-05 y el Paso 11 del plan. **ESLint:** la prohibición de `sessionStorage` sigue, con **una** excepción por archivo
+  (`src/auth/loginStateStorage.ts`, nombrado en `eslint.config.mjs`; `localStorage` sigue prohibido incluso ahí); el `grep` de CA-7 exige que `sessionStorage` aparezca solo en ese archivo.
+  Pruebas: `session.test.tsx` (el `UserManager` real, con el almacenamiento leído en cada paso), `auth-provider.test.tsx` y, en navegador real (Chromium y Firefox), `tests/e2e/auth.spec.ts`
+  (login → sesión; recarga → `prompt=none` → sesión sin interacción; sesión del emisor cerrada → login sin bucle; logout), con `localStorage` vacío, sin cookies de la SPA, sin IndexedDB y
+  `sessionStorage` con a lo sumo la clave del flujo, sin tokens. Se sirve el bundle de producción (`vite preview`) en un segundo par servidor + dobles (47174 y 47181).
+  Lo que **no** se probó: la CSP real de U2 (el Vite no la aplica; la prueba con el gateway es de U10-T04 y U12 Paso 18) ni Keycloak real.
 - **React 19 y las dependencias:** `tech-stack-decisions.md` §2 dice «React 18»; se sigue con 19.3.1 (como en `main`). `react-aria-components` 1.22.1 declara `react ^19` y
-  `@testing-library/react` 16.3.3 `^18 || ^19`. `jsdom` quedó en **28.1.0** (la 31.0.0 pide Node ≥ 22.22.2 y la máquina tiene 22.17.1). `@playwright/test` 1.64.0 = el `playwright` del `pyproject.toml`.
+  `@testing-library/react` 16.3.3 `^18 || ^19`. `jsdom` quedó en **31.0.0**, anclado en el `package.json` raíz (las 28.1.0 y 29.1.1 sirven en Node 22.17.1 pero no traen `CSS.escape`, que usa el `Modal` de `react-aria-components`; la 31.0.0 declara Node ≥ 22.22.2 y en 22.17.1 solo avisa `EBADENGINE`, y la suite corre tras un `npm ci --ignore-scripts` limpio; el CI usa `node-version: "22"`). `@playwright/test` 1.64.0 = el `playwright` del `pyproject.toml`.
 - **Cobertura sin exclusiones:** `vite.config.ts` no tiene `exclude`; todo archivo de `src/` cuenta (incluido `main.tsx`, de 0 ramas).
 
 ## 7. Cobertura y pruebas

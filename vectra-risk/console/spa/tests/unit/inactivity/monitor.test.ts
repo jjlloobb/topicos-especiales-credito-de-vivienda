@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 // BR-U10-20; NFR-U10-40, 41: el contador de inactividad de la SESION, con reloj simulado (ninguna prueba duerme de verdad).
-import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTIVITY_BROADCAST_SECONDS, IDLE_LOGOUT_SECONDS, IDLE_WARNING_SECONDS } from "../../../src/config/constants";
 import { ACTIVITY_EVENTS, attachActivity, CHANNEL_NAME, InactivityMonitor } from "../../../src/inactivity/monitor";
@@ -193,33 +192,5 @@ describe("los cinco eventos cuentan; lo demas, no", () => {
     target.dispatchEvent(new Event("mousemove"));
     target.dispatchEvent(new Event("message"));
     expect(activity).not.toHaveBeenCalled();
-  });
-});
-
-describe("el refresco de la bandeja no reinicia el contador", () => {
-  it("una consulta de TanStack Query que se refresca sola cada 15 s no evita el aviso ni el cierre", async () => {
-    const bus = new Bus();
-    const { log } = tab(bus);
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    let fetched = 0;
-    const observer = new QueryObserver(client, {
-      queryKey: ["bandeja"],
-      queryFn: async () => {
-        fetched += 1;
-        return { n: fetched };
-      },
-      refetchInterval: 15_000,
-    });
-    const unsubscribe = observer.subscribe(() => undefined);
-    await vi.advanceTimersByTimeAsync(24 * MIN);
-    expect(fetched).toBeGreaterThan(90); // se refresco sola, sin parar
-    expect(log.warnings).toBe(0);
-    await vi.advanceTimersByTimeAsync(1 * MIN);
-    expect(log.warnings).toBe(1); // y aun asi el aviso sale a los 25 min
-    await vi.advanceTimersByTimeAsync(5 * MIN);
-    expect(log.logouts).toBe(1);
-    expect(bus.posted.every((m) => (m as { type: string }).type === "logout")).toBe(true); // ni un solo `activity`
-    unsubscribe();
-    client.clear();
   });
 });

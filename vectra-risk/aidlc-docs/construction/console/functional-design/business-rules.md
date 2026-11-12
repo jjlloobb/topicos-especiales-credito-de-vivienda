@@ -40,7 +40,8 @@ se traduce a su `code`; un error inesperado → 500 `internal_error`.
 **BR-U10-05 — Tokens solo en memoria.**
 - El access token y el refresh token viven solo en la memoria de la SPA. Nunca en `localStorage`, `sessionStorage`, cookies legibles por JavaScript ni la URL.
 - El refresh rota en cada uso y se revoca si se reusa (BR-U2-06).
-- Recargar la página o abrir otra pestaña hace un login silencioso (`prompt=none`) contra la sesión de Keycloak. Si no hay sesión, se muestra el login.
+- Recargar la página o abrir otra pestaña hace **una** redirección con `prompt=none` contra la sesión de Keycloak (sin iframe). Si no hay sesión (`login_required` o cualquier error), se muestra el login y no se vuelve a redirigir.
+- El login interactivo es por redirección. Solo el estado transitorio del flujo (`state`, `code_verifier`, `nonce`) puede ir en `sessionStorage`, con una clave por flujo que se borra al terminar el callback; los tokens y el usuario, nunca (decisión del usuario, 2026-11-12).
 - Logout: borra la memoria y llama al `end_session_endpoint` de Keycloak.
 
 **BR-U10-06 — Step-up a mitad de una acción** (Q2; BR-U2-04). Se hace en una **ventana

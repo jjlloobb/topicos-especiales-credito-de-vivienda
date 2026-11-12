@@ -163,7 +163,8 @@ export class StepUpFlow<B> {
     try {
       request = await this.deps.backend.createRequest();
     } catch {
-      this.dispatch({ type: "request_failed" });
+      // Un fallo tardio de un intento anterior no es del intento en curso: solo el del intento vigente lo termina.
+      if (this.attempt === attempt) this.dispatch({ type: "request_failed" });
       return;
     }
     if (this.attempt !== attempt || this.current.phase !== "opening") {

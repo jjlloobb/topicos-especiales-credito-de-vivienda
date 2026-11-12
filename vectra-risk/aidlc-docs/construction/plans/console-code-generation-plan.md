@@ -152,7 +152,7 @@ vectra-risk/console/
   - **Aceptación**: `npx playwright test console/spa/tests/poc` en Chromium y Firefox contra Keycloak de kind (operador) y contra un emisor OIDC de prueba en CI: el token nuevo trae `acr = mfa`; `sessionStorage` y `localStorage` vacíos; un `window.open` llamado fuera del clic queda bloqueado; un `postMessage` de otro origen se ignora. Si la prueba falla, se detiene el bloque y se revisa P-U10-07 antes de seguir.
 
 - [x] **Paso 11 — `auth`, `stepup` e `inactivity`** (U10-T03)
-  - `auth`: `UserManager` con `InMemoryWebStorage`, login con PKCE, refresco rotativo, login silencioso (`prompt=none`), logout con `end_session_endpoint`.
+  - `auth`: `UserManager` con `userStore` en `InMemoryWebStorage` y login por **redirección** (`signinRedirect`) con PKCE; solo el estado transitorio del flujo (`state`, `code_verifier`, `nonce`) en `sessionStorage` (un solo módulo, excepción acotada de ESLint); recarga con una redirección `prompt=none` (sin bucle), refresco rotativo con el refresh token, logout con `end_session_endpoint` (decisión del usuario, 2026-11-12, ronda 1 de U10-T03; precisa P-U10-07).
   - `stepup`: el flujo del Paso 10 con el botón «Verificar y confirmar» (token sin MFA reciente) y `StepUpDialog` (403 `mfa_required` inesperado); reintento único con el mismo cuerpo; vencimiento de 5 min; anuncio `aria-live` y devolución del foco en < 1 s.
   - `inactivity`: contador de la sesión (`keydown`, `pointerdown`, `focusin`, `wheel`, `scroll`), difusión `activity` y `logout` por `BroadcastChannel`, aviso a los 25 min y logout a los 30.
   - Diseño: BR-U10-05, 06, 20; P-U10-07; NFR-U10-40, 41, 52.
