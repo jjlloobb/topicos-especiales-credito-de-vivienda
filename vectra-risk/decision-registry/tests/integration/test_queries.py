@@ -653,9 +653,10 @@ async def test_f04_forma_de_u9_descubrimiento_sin_version_200_en_cada_solicitud(
     # 12 ejecuciones o mas de la misma sentencia en la misma conexion: la 6.a la prepara psycopg y la 11.a trae el plan generico.
     timings = await forma_de_u9(env, discovery_shape(), solicitudes=EJECUCIONES_PARA_PLAN_GENERICO)
     assert timings[-1] <= 2 * timings[0], timings
-    # La guarda determinista de `prepare=False`: la conexion unica del pool sigue viva y no tiene la sentencia sin version preparada.
+    # La guarda determinista de `prepare=False`: la conexion unica del pool sigue viva y ninguna sentencia sobre `monitoring_daily`
+    # (la de rango y la de `versions`) quedo preparada.
     async with env.pools.projections.connection() as conn:
-        cursor = await conn.execute("SELECT count(*) FROM pg_prepared_statements WHERE statement LIKE %s", ("%FROM monitoring_daily WHERE population%",))
+        cursor = await conn.execute("SELECT count(*) FROM pg_prepared_statements WHERE statement LIKE %s", ("%FROM monitoring_daily%",))
         assert (await cursor.fetchone()) == (0,)
 
 

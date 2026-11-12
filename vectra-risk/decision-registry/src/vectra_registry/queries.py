@@ -316,6 +316,9 @@ async def monitoring_daily(pools: Pools, scopes: Collection[Scope], query: Monit
                     "SELECT model_version_id, population, min(day), max(day) FROM monitoring_daily "
                     "WHERE day BETWEEN %(first)s AND %(last)s GROUP BY model_version_id, population",
                     params,
+                    # Sin preparar, como la de rango: a partir de la 6.a ejecucion el servidor pasa esta sentencia al plan generico
+                    # (`pg_prepared_statements.generic_plans` = 6 tras 11 ejecuciones) y el descubrimiento se vuelve 2 a 3 veces mas lento.
+                    prepare=False,
                 )
                 versions = {(str(v), str(p)): (lo, hi) for v, p, lo, hi in await cursor.fetchall()}  # type: ignore[misc]
             await budget.arm(conn)
