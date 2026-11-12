@@ -1,0 +1,51 @@
+[importlinter]
+root_packages =
+    console_bff
+    vectra_common
+    vectra_contracts
+# `vectra_common` (U0) entra al grafo solo para poder nombrar `vectra_common.deps`: un subpaquete de un paquete externo no es valido.
+include_external_packages = True
+
+# BR-U10-04, NFR-U10-64 (Paso 1): las funciones puras no hacen E/S ni importan httpx ni `vectra_common.deps`.
+[importlinter:contract:pure-no-io]
+name = object_rules y errors no importan httpx ni vectra_common.deps (sin E/S)
+type = forbidden
+source_modules =
+    console_bff.object_rules
+    console_bff.errors
+forbidden_modules =
+    vectra_common.deps
+    httpx
+    requests
+    kubernetes
+    socket
+    urllib
+    http
+    subprocess
+    sqlite3
+    os
+    pathlib
+    shutil
+    tempfile
+    asyncio
+allow_indirect_imports = True
+
+# P-U10-04: las constantes del BFF no se leen del entorno.
+[importlinter:contract:config-no-env]
+name = config no importa os (nada se lee del entorno)
+type = forbidden
+source_modules =
+    console_bff.config
+forbidden_modules =
+    os
+allow_indirect_imports = True
+
+# P-U0-07: el unico cliente HTTP es el de `vectra_common.deps` (U0, fuera de este contrato).
+[importlinter:contract:no-httpx]
+name = ningun modulo de U10 importa httpx fuera de vectra_common.deps
+type = forbidden
+source_modules =
+    console_bff
+forbidden_modules =
+    httpx
+allow_indirect_imports = True

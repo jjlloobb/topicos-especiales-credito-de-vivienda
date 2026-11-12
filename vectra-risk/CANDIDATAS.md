@@ -519,3 +519,9 @@ Lo que aparece y no se hace ahora. Viene de `aidlc-docs/construction/platform-fo
   - Las cifras de los Pasos 9, 13, 15 y 20 son de `fe0c9f3`.
   - Arreglo: corregir esa frase, renombrar la columna «Resultado ahora» a «Resultado en `fe0c9f3`» (F-10) y aclarar que de U03-T07 solo está el archivo de la tarea (F-11). U03-T07 puede hacerlo al actualizar este cierre.
 - Bitácoras (revisor, U03-T06, ronda 2, F-12, AMARILLO): `bitacoras/U03-T06.md`, en la ronda 2, cita la evidencia con una ruta relativa (`scratchpad/cod-u03-t06-r2/r2.log`). Las bitácoras deben usar rutas absolutas.
+- **U10, `console/spa/eslint.config.mjs:23` (revisor, U10-T01, ronda 1, F-01, AMARILLO).** `jsx-no-literals` con `noStrings` también prohíbe atributos (`role`, `id`, `htmlFor`, `href`). NFR-U10-53 habla de texto visible. Usar `ignoreProps: true` o `allowedStrings` antes de los Bloques D-E (U10-T03).
+- U10, `object_rules.py:20-22` (revisor, U10-T01, ronda 1, F-02, AMARILLO): `DataSourceState`, `PolicyState` y `PolicyDecision` copian los `Literal` de `models/governance.py` de U0 sin una prueba que compare `get_args`.
+- U10, fixtures de ESLint (revisor, U10-T01, ronda 1, F-03, AMARILLO): faltan casos para `parseFloat`, `Number.parseFloat`, `sessionStorage` global y `globalThis.localStorage`. Las reglas los bloquean, pero ninguna prueba lo fija.
+- Bitácora de U10-T01 (revisor, U10-T01, ronda 1, F-04, AMARILLO): el rojo de `detail` de CA-6 se tomó de una versión anterior de `test_errors.py`. El revisor lo reprodujo sobre la versión actual.
+- U10, `SPA_API_TIMEOUT_SECONDS` (revisor, U10-T01, ronda 1, F-05, AMARILLO): está excluido por nombre de la regla «ningún timeout ≥ 9 s» y duplica `API_TIMEOUT_SECONDS` de `constants.ts` sin una prueba que los ate.
+- **U10, diseño P-U10-04 (codificador y revisor, U10-T01): no fija timeout ni presupuesto de conexiones para case `get_case_identifiers`**, que `get_dossier` usa en paralelo (Bloque C). Hay que fijarlos antes del Paso 5.
