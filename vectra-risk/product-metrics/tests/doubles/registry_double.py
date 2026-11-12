@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -34,13 +34,31 @@ class FakeToken:
 
 
 class RegistryDouble:
-    def __init__(self, entries: list[dict[str, Any]] | None = None) -> None:
+    def __init__(
+        self,
+        entries: list[dict[str, Any]] | None = None,
+        *,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    ) -> None:
         self.entries: list[dict[str, Any]] = sorted(entries or [], key=lambda item: item["seq"])
+        self._sleep = (
+            sleep  # la latencia usa la espera inyectada: con un reloj simulado no se duerme de verdad
+        )
         self.requests: list[dict[str, str]] = []  # los parametros de cada solicitud, en orden
         self.fail_requests: set[int] = set()  # numeros de solicitud (desde 1) que responden 503
         self.fail_all = False
         self.timeout_requests: set[int] = set()
         self.latency = 0.0
+        self.status_all: int | None = (
+            None  # responde siempre este estado (p. ej. 404: no es un fallo del breaker, pero la pagina no sirve)
+        )
+        self.max_page: int | None = (
+            None  # tope de items por pagina, por debajo de `limit` (pasadas de varias paginas con pocos datos)
+        )
+        self.on_request: Callable[[int], None] | None = (
+            None  # se llama con el numero de solicitud, tras la latencia y antes de responder
+        )
+        self.completed: list[int] = []  # numeros de solicitud cuya respuesta se entrego entera
         self.active = 0
         self.max_active = 0
         self.calls = 0
@@ -51,9 +69,9 @@ class RegistryDouble:
 
     # -- el transporte --
     def transport(self) -> httpx.MockTransport:
-        return httpx.MockTransport(self._handle)
+        return httpx.MockTransport(self.handle)
 
-    async def _handle(self, request: httpx.Request) -> httpx.Response:
+    async def handle(self, request: httpx.Request) -> httpx.Response:
         self.active += 1
         self.max_active = max(self.max_active, self.active)
         try:
@@ -64,14 +82,20 @@ class RegistryDouble:
             params = dict(request.url.params)
             self.requests.append(params)
             if self.latency:
-                await asyncio.sleep(self.latency)
+                await self._sleep(self.latency)
+            if self.on_request is not None:
+                self.on_request(number)
             if request.headers.get("authorization") != f"Bearer {TOKEN}":
                 return httpx.Response(401, json={"title": "unauthorized"})
             if number in self.timeout_requests:
                 raise httpx.ReadTimeout("timeout inyectado", request=request)
             if self.fail_all or number in self.fail_requests:
                 return httpx.Response(503, json={"title": "dependency_unavailable"})
-            return self._page(request.url.path, params)
+            if self.status_all is not None:
+                return httpx.Response(self.status_all, json={"title": "injected"})
+            response = self._page(request.url.path, params)
+            self.completed.append(number)
+            return response
         finally:
             self.active -= 1
 
@@ -81,6 +105,8 @@ class RegistryDouble:
         limit = int(params.get("limit", "1000"))
         if not 1 <= limit <= 1000:
             return httpx.Response(422, json={"title": "limit_out_of_range"})
+        if self.max_page is not None:
+            limit = min(limit, self.max_page)
         after = int(params["seq_after"]) if "seq_after" in params else -1
         recorded_from = (
             datetime.fromisoformat(params["recorded_from"]).astimezone(UTC)

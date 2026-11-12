@@ -8,6 +8,7 @@ dias; la lectura incremental con el candado tomado se omite sin leer; lo que sir
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -17,6 +18,7 @@ import pytest
 from entries import NOW, Spec, day_at, render, specs_on
 from registry_double import FakeToken, RegistryDouble, SimultaneousConnections
 from vectra_common import deps, process
+from vectra_common.logging import configure
 from vectra_contracts.models.registry import MetricsProjection
 from vectra_product import config
 from vectra_product.compute import month_index
@@ -312,10 +314,15 @@ async def test_the_full_pass_applies_recorded_from_and_invalid_entries_advance_l
     assert double.requests[0]["seq_after"] == "3"
 
 
-async def test_the_seq_of_an_excluded_entry_goes_to_the_log(caplog: pytest.LogCaptureFixture) -> None:
-    """El `seq` de una excluida va al log y a ninguna etiqueta (BR-U11-10)."""
+async def test_the_seq_of_an_excluded_entry_goes_to_the_log() -> None:
+    """El `seq` de una excluida va al log (por el logger de U0, con el campo `seq`) y a ninguna etiqueta (BR-U11-10).
+
+    U11-T02: antes se comprobaba con `caplog` sobre el `logging` estandar; el filtro de U0 descarta ese texto, asi que el `seq` se
+    perdia en cuanto `main` llamaba a `vectra_common.logging.configure`. Ahora se lee la salida JSON del logger configurado."""
     double = RegistryDouble([render(Spec(seq=7, decided=day_at(2), flaw="role"))])
     state, _reader, _clock = make(double)
-    with caplog.at_level("WARNING", logger="vectra_product.state"):
-        await state.full_pass()
-    assert any("seq=7" in record.getMessage() for record in caplog.records)
+    stream = io.StringIO()
+    configure("product-metrics", stream)
+    await state.full_pass()
+    lines = [json.loads(line) for line in stream.getvalue().splitlines()]
+    assert [line["seq"] for line in lines if "seq" in line] == [7]

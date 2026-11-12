@@ -95,7 +95,7 @@ vectra-risk/product-metrics/
 
 ### Bloque C — Proceso y publicación
 
-- [ ] **Paso 6 — `scheduler`, `collector` y `main`**
+- [x] **Paso 6 — `scheduler`, `collector` y `main`** (U11-T02)
   - `scheduler`: pasada completa al arrancar y diaria; ciclo incremental cada 5 min, omitido (y contado) si el candado está tomado; plazo y reintentos de la pasada.
   - `collector`: `Collector` de `prometheus-client` sobre la instantánea inmutable; sin instantánea, sin series de producto; series de operación siempre.
   - `main`: `vectra_common.process.init(kind="service")`, `ops_server.create_ops_app(readiness)`, servida sin `run_service` porque no hay API (revisión de consistencia entre unidades, 2026-11-01), con el **predicado de readiness** (instantánea o breaker abierto o semiabierto), apagado con `SIGTERM` (no toma ciclos nuevos, termina la página en curso).
@@ -113,19 +113,19 @@ vectra-risk/product-metrics/
     - `/metrics` sin ninguna serie ni etiqueta fuera de la allowlist (PBT-U11-05);
     - PBT-U0-07 en modo strict sobre los logs.
 
-- [ ] **Paso 7 — Pruebas de ejemplo del proceso y prueba de volumen**
+- [x] **Paso 7 — Pruebas de ejemplo del proceso y prueba de volumen** (U11-T02) — prueba de volumen diferida por la demo (T3)
   - Las pruebas de ejemplo de business-logic-model §3 que dependen de E/S (reinicio a mitad, registro caído 31 min, decisión sobre una recomendación de hace 60 días).
   - **Prueba de volumen** (INF-U11-06): el doble de U3 sirve 10 veces el volumen de NFR-U3-30 durante 7 meses, con la latencia de página del p95 de U3; se miden la duración de la pasada, el pico de memoria (`tracemalloc` y RSS) y la ausencia de lecturas simultáneas.
   - Diseño: NFR-U11-02, 03, 12, 13; P-U11-04.
   - **Aceptación**: `uv run pytest product-metrics/tests/integration/test_examples.py`; `uv run pytest product-metrics/tests/volume -m volume` (pasada ≤ 60 min; pico ≤ 70 % de 512 MiB; si se supera, se ajusta INF-U11-01 y el aporte a la cuota antes de seguir).
 
-- [ ] **Paso 8 — Resumen del proceso**
+- [x] **Paso 8 — Resumen del proceso** (U11-T02)
   - Cobertura ≥ 90 % en el resto; resumen en `aidlc-docs/construction/product-metrics/code/process.md`.
   - **Aceptación**: `uv run pytest product-metrics/tests --cov=vectra_product --cov-branch --cov-fail-under=90`.
 
 ### Bloque D — Repositorio y frontend
 
-- [ ] **Paso 9 — Repositorio, migraciones y frontend: N/A**
+- [x] **Paso 9 — Repositorio, migraciones y frontend: N/A** (U11-T02)
   - U11 no tiene base de datos ni interfaz propia; los dashboards son código de Grafana (Paso 13).
   - **Aceptación**: `test ! -d product-metrics/migrations && test ! -d product-metrics/frontend`.
 
