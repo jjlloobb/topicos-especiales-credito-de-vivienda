@@ -100,6 +100,28 @@ def specs_on(
     return [replace(base, seq=first_seq + index, **changes) for index in range(count)]
 
 
+def us503_specs(first_seq: int = 1, offset_days: int = 1, *, now: datetime = NOW) -> list[Spec]:
+    """El ejemplo de US-503 de business-logic-model §3: 10 decisiones, 4 con explicacion vista y factores (2 `sigue`, 1 `se_aparta`,
+    1 `resuelve_revision`), 3 vistas con `["ninguno"]` y 3 sin vista: North Star 0,4 con el desglose 2, 1, 1."""
+    return [
+        *specs_on(offset_days, 2, first_seq, now=now, decision="sigue", viewed=True, factors=("ingreso",)),
+        *specs_on(
+            offset_days, 1, first_seq + 2, now=now, decision="se_aparta", viewed=True, factors=("deuda",)
+        ),
+        *specs_on(
+            offset_days,
+            1,
+            first_seq + 3,
+            now=now,
+            decision="resuelve_revision",
+            viewed=True,
+            factors=("ingreso", "deuda"),
+        ),
+        *specs_on(offset_days, 3, first_seq + 4, now=now, viewed=True, factors=("ninguno",)),
+        *specs_on(offset_days, 3, first_seq + 7, now=now, viewed=False),
+    ]
+
+
 # --- generadores --------------------------------------------------------------------------------------------------------
 
 moments = st.datetimes(

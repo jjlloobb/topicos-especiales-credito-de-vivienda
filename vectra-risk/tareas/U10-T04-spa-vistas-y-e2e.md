@@ -193,7 +193,7 @@ Todos se corren desde `vectra-risk/`, **en serie**, anotando `uptime` antes y de
 
 Estado al redactar (2026-11-12, `origin/main` en `7d05454`, con U10-T02 fusionada y **sin** U10-T03):
 - **CA-8 se corrió** con `python3 -B platform/tests/test_traceability.py --unit console --all`: 30 líneas «sin trazabilidad», que incluyen las 6 de esta tarea y las 9 de U10-T03.
-- **Comprobado con comandos de solo lectura:** `src/views/` solo tiene `.gitkeep`; `tests/e2e`, `tests/csp` y `tests/a11y` están vacíos; React Router, `@axe-core/playwright` y `size-limit` no están en `package-lock.json`; `.size-limit.json` es `[]`; no existe `playwright.config.ts` ni `spa.md`.
+- **Comprobado con comandos de solo lectura:** `src/views/` solo tiene `.gitkeep`; `tests/csp` y `tests/a11y` están vacíos; **`tests/e2e` ya no lo está:** U10-T03 dejó ahí `auth.spec.ts` (login por redirección, recarga con `prompt=none` y logout, exigido por el arbitraje de su ronda 1), `vite.e2e.config.ts` y un segundo par de servidor y dobles en `playwright.config.ts`; esta tarea los conserva, los amplía y borra el `.gitkeep`; React Router, `@axe-core/playwright` y `size-limit` no están en `package-lock.json`; `.size-limit.json` es `[]`; no existe `playwright.config.ts` ni `spa.md`.
 - **No se corrieron** los demás (el worktree de redacción no tiene `node_modules`). Por lo anterior, hoy fallan porque el código no existe: CA-1 a CA-5 y CA-7. La mitad de ellos seguirá fallando con U10-T03 fusionada, que es el rojo esperado al despachar.
 - CA-6 y CA-9 pasarán al despachar con lo de U10-T03 y deben seguir pasando.
 
