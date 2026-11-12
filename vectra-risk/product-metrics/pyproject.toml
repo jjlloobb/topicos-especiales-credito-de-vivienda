@@ -1,0 +1,18 @@
+[project]
+name = "vectra-product"
+version = "0.1.0"
+description = "U11 product-metrics: metricas de producto (North Star, ruido, operativas) calculadas en memoria desde la proyeccion `metrics` del registro"
+requires-python = ">=3.12,<3.13"
+# `prometheus-client` llega por `vectra-common` (que lo pinnea); no se declara aparte.
+dependencies = ["vectra-contracts", "vectra-common", "pyyaml==6.0.3"]
+
+[tool.uv.sources]
+vectra-contracts = { workspace = true }
+vectra-common = { workspace = true }
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vectra_product"]
