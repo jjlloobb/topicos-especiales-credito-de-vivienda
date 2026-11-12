@@ -1,5 +1,6 @@
 """Clientes de los cinco destinos del BFF y la llamada de una solicitud (BR-U10-02, 03; P-U10-03, 04; NFR-U10-11, 30..33).
 
+- **Aislamiento por vista** (NFR-U10-32): un destino caido o con el circuito abierto solo tumba las vistas de ese destino (503); los demas siguen.
 - Un `DependencyClient` de U0 por destino (`case`, `governance`, `registry`, `explainability`, `bias`), cada uno con su
   circuit breaker (los umbrales de U7, `config`) y su tope de conexiones. El nombre es la etiqueta `dependency` de
   `vectra_circuit_state` y de las metricas del BFF.

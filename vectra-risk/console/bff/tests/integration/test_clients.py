@@ -319,7 +319,7 @@ async def test_a_timeout_on_a_post_is_503_dependency_unavailable_with_one_call(b
     assert time.monotonic() - started < 6.0  # el timeout de una transicion es de 4 s
 
 
-# --- aislamiento por vista: E1, E2 y E3 de P-U10-05 §5 ----------------------------------------------------------------
+# --- aislamiento por vista (NFR-U10-32): E1, E2 y E3 de P-U10-05 §5 ----------------------------------------------------------------
 
 # Destinos que usa cada endpoint (tabla «Endpoints de paso» de la tarea). El expediente solo **necesita** al registro.
 NEEDS: dict[str, set[str]] = {
