@@ -1,5 +1,5 @@
-// `UserManager` con todo en memoria (BR-U10-05): `userStore` y `stateStore` son `InMemoryWebStorage`; nada en `localStorage`,
-// `sessionStorage`, cookies ni IndexedDB. Login con PKCE (S256, por omision en `oidc-client-ts` v3), refresco rotativo con el refresh
+// `UserManager` con todo en memoria (BR-U10-05): `userStore` y `stateStore` son `InMemoryWebStorage`; nada en el almacenamiento
+// del navegador (local ni de sesion), cookies ni IndexedDB. Login con PKCE (S256, por omision en `oidc-client-ts` v3), refresco rotativo con el refresh
 // token (`automaticSilentRenew`), login silencioso con `prompt=none` y logout por el `end_session_endpoint`.
 //
 // Por que el login interactivo es una ventana emergente y no una redireccion: `state` y `code_verifier` viven en memoria y una
