@@ -3,9 +3,23 @@
   "private": true,
   "version": "0.1.0",
   "workspaces": [
-    "contracts/ts"
+    "contracts/ts",
+    "console/spa"
   ],
   "overrides": {
-    "minimatch": "11.0.3"
+    "minimatch": "11.0.3",
+    "eslint-plugin-react": {
+      ".": "$eslint-plugin-react",
+      "eslint": "$eslint"
+    },
+    "eslint-plugin-jsx-a11y": {
+      ".": "$eslint-plugin-jsx-a11y",
+      "eslint": "$eslint"
+    }
+  },
+  "devDependencies": {
+    "eslint": "10.14.0",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-jsx-a11y": "6.10.2"
   }
 }

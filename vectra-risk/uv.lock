@@ -13,6 +13,7 @@ members = [
     "vectra-bias",
     "vectra-case",
     "vectra-common",
+    "vectra-console-bff",
     "vectra-contracts",
     "vectra-decision-registry",
     "vectra-disparity",
@@ -1748,6 +1749,21 @@ requires-dist = [
 ]
 
 [[package]]
+name = "vectra-console-bff"
+version = "0.1.0"
+source = { editable = "console/bff" }
+dependencies = [
+    { name = "vectra-common" },
+    { name = "vectra-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "vectra-common", editable = "contracts/python/vectra_common" },
+    { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
+]
+
+[[package]]
 name = "vectra-contracts"
 version = "0.1.0"
 source = { editable = "contracts/python/vectra_contracts" }
@@ -1945,6 +1961,7 @@ dev = [
     { name = "types-pyyaml" },
     { name = "vectra-bias" },
     { name = "vectra-case" },
+    { name = "vectra-console-bff" },
     { name = "vectra-disparity" },
     { name = "vectra-explainability" },
     { name = "vectra-governance", extra = ["validation"] },
@@ -1987,6 +2004,7 @@ dev = [
     { name = "types-pyyaml" },
     { name = "vectra-bias", editable = "bias-monitoring" },
     { name = "vectra-case", editable = "case-management" },
+    { name = "vectra-console-bff", editable = "console/bff" },
     { name = "vectra-disparity", editable = "bias-monitoring/disparity" },
     { name = "vectra-explainability", editable = "scoring-explainability/explainability" },
     { name = "vectra-governance", extras = ["validation"], editable = "governance" },
