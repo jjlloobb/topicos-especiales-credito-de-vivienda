@@ -30,10 +30,14 @@ from vectra_registry.projections import (
 )
 
 STATEMENT_TIMEOUT_MS = 2000
-#: Tope por solicitud de `POST /v1/monitoring/daily:query`, en segundos: el tiempo limite del pool `projections` (Paso 8 del plan;
-#: nfr-design, tabla de pools). Cuenta desde que la solicitud obtiene la conexion (U03-T07, P-2): lo que se acota es cuanto tiempo se
-#: retiene la unica conexion del pool, no la espera por ella.
-QUERY_BUDGET_S: Final = POOL_SIZES["projections"][1]
+#: Lo que una solicitud retiene la conexion despues de su plazo: la sentencia en curso hasta su `statement_timeout`, cada
+#: `monitoring_lag` (dos sentencias) y el commit o el rollback. Medido en U03-T07: con el tope igual a la espera del pool, una
+#: respuesta 200 devolvia la conexion hasta 2,33 s despues de tomarla y una `explanation` concurrente agotaba su espera (503).
+QUERY_RELEASE_MARGIN_S: Final = 0.5
+#: Tope por solicitud de `POST /v1/monitoring/daily:query`, en segundos: la espera del pool `projections` (Paso 8 del plan; nfr-design,
+#: tabla de pools) menos `QUERY_RELEASE_MARGIN_S`. Cuenta desde que la solicitud obtiene la conexion (U03-T07, P-2): lo que se acota es
+#: cuanto tiempo se retiene la unica conexion del pool, y el margen garantiza que una `explanation` concurrente la obtenga a tiempo.
+QUERY_BUDGET_S: Final = POOL_SIZES["projections"][1] - QUERY_RELEASE_MARGIN_S
 ROW_COLUMNS = (
     "seq, idempotency_key, entry_type, case_id, model_version_id, policy_version_id, actor_kind, actor_id, actor_role, "
     "occurred_at, recorded_at, correlation_id, contract_version, canonical, prev_hash, hash"
@@ -214,11 +218,17 @@ async def list_entries(pools: Pools, scopes: Collection[Scope], flt: EntryFilter
 # --- Monitoreo (BR-U3-17) -----------------------------------------------------------------------------------------------------
 
 
-async def monitoring_lag(conn: Connection, now: datetime) -> tuple[int, int]:
-    """`(watermark_seq, lag_seconds)`: 0 si la marca es la cabeza; si no, `now - recorded_at` de la entrada `last_seq + 1` (BR-U3-17)."""
+async def monitoring_lag(conn: Connection, now: datetime, budget: ReadBudget | None = None) -> tuple[int, int]:
+    """`(watermark_seq, lag_seconds)`: 0 si la marca es la cabeza; si no, `now - recorded_at` de la entrada `last_seq + 1` (BR-U3-17).
+
+    Con `budget` (daily:query) arma el tope antes de **cada** sentencia: son dos y heredarian el mismo `statement_timeout`."""
+    if budget:
+        await budget.arm(conn)
     cursor = await conn.execute("SELECT last_seq FROM monitoring_watermark WHERE id = 1")
     row = await cursor.fetchone()
     last_seq = int(row[0]) if row else 0  # type: ignore[call-overload]
+    if budget:
+        await budget.arm(conn)
     cursor = await conn.execute("SELECT recorded_at FROM registry_entries WHERE seq = %s", (last_seq + 1,))
     pending = await cursor.fetchone()
     if pending is None:
@@ -283,8 +293,9 @@ async def monitoring_daily(pools: Pools, scopes: Collection[Scope], query: Monit
                     f"FROM monitoring_daily WHERE population = %(pop)s AND {version_filter} AND day BETWEEN %(from)s AND %(to)s "
                     'GROUP BY population, model_version_id, attribute, "group", band, result, decision',
                     {"pop": request.population, "version": request.model_version_id, "from": request.from_day, "to": request.to_day},
-                    # Sin preparar: tras 5 usos psycopg pasa al plan generico, que no ve el rango de dias (estima 332 filas y lee
-                    # 35 640) y cambia a Sort + GroupAggregate con desborde a disco: sin version, 421 ms -> 760-930 ms (U03-T07, P-6).
+                    # Sin preparar: psycopg prepara la sentencia en la 6.a ejecucion y el servidor pasa al plan generico hacia la 11.a;
+                    # ese plan no ve el rango de dias (estima 332 filas y lee 35 640) y cambia a Sort + GroupAggregate con desborde
+                    # a disco: sin version, 421 ms -> 760-930 ms (U03-T07, P-6; ronda 2: medido con 15 ejecuciones seguidas).
                     prepare=False,
                 )
                 counts[request.range_id] = {
@@ -322,8 +333,7 @@ async def monitoring_daily(pools: Pools, scopes: Collection[Scope], query: Monit
                 params,
             )
             invalid_seqs = [int(row[0]) for row in await cursor.fetchall()]  # type: ignore[call-overload]
-            await budget.arm(conn)
-            watermark, lag = await monitoring_lag(conn, now)
+            watermark, lag = await monitoring_lag(conn, now, budget)
     except psycopg.errors.QueryCanceled as error:
         raise timed_out(error) from error
     return monitoring_window(

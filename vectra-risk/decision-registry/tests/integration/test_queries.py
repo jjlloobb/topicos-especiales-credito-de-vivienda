@@ -572,11 +572,8 @@ async def test_f04_la_suma_en_sql_da_la_misma_ventana_que_el_oraculo_en_python(e
 #: Lo que la solicitud puede pasarse del tope: la ultima sentencia corta en `statement_timeout`, mas el rollback y la respuesta HTTP
 #: (U03-T07, P-5). Si una maquina cargada lo vuelve intermitente se sube aqui y se registra (candidata de U03-T05, F-02).
 TOPE_MARGEN_S = 0.5
-#: La `explanation` llega un poco despues de que la consulta pesada tomo la conexion. El tope (2 s) y la espera del pool (2 s) son el mismo
-#: numero: una `explanation` que llega en el mismo instante agota su espera justo antes de que la conexion vuelva (cortar la ultima
-#: sentencia y el rollback toman ~0,1 s) y recibe 503. Medido y reportado como hallazgo de la tarea (bitacora, ronda 1).
-EXPLANATION_LLEGA_DESPUES_S = 0.25
 SOLICITUDES = 10
+EJECUCIONES_PARA_PLAN_GENERICO = 12
 HUMAN = "humana"
 
 
@@ -633,11 +630,11 @@ async def timed(env: Env, body: dict[str, Any]) -> tuple[Any, float]:
     return response, time.monotonic() - started
 
 
-async def forma_de_u9(env: Env, body: dict[str, Any]) -> list[float]:
+async def forma_de_u9(env: Env, body: dict[str, Any], solicitudes: int = SOLICITUDES) -> list[float]:
     """10 solicitudes seguidas: **cada una** 200 y dentro del tope. Ni se descartan los 504 ni se toma el minimo de varias medidas."""
     await seed_full_volume(env)
     timings: list[float] = []
-    for _ in range(SOLICITUDES):
+    for _ in range(solicitudes):
         response, elapsed = await timed(env, body)
         timings.append(elapsed)
         assert response.status_code == 200, (response.status_code, response.text, timings)
@@ -653,8 +650,13 @@ async def test_f04_forma_de_u9_cron_12_rangos_con_version_200_en_cada_solicitud(
 
 
 async def test_f04_forma_de_u9_descubrimiento_sin_version_200_en_cada_solicitud(env: Env) -> None:
-    timings = await forma_de_u9(env, discovery_shape())
+    # 12 ejecuciones o mas de la misma sentencia en la misma conexion: la 6.a la prepara psycopg y la 11.a trae el plan generico.
+    timings = await forma_de_u9(env, discovery_shape(), solicitudes=EJECUCIONES_PARA_PLAN_GENERICO)
     assert timings[-1] <= 2 * timings[0], timings
+    # La guarda determinista de `prepare=False`: la conexion unica del pool sigue viva y no tiene la sentencia sin version preparada.
+    async with env.pools.projections.connection() as conn:
+        cursor = await conn.execute("SELECT count(*) FROM pg_prepared_statements WHERE statement LIKE %s", ("%FROM monitoring_daily WHERE population%",))
+        assert (await cursor.fetchone()) == (0,)
 
 
 async def test_f04_peor_caso_sin_version_respeta_el_presupuesto_y_libera_la_conexion(env: Env) -> None:
@@ -665,7 +667,6 @@ async def test_f04_peor_caso_sin_version_respeta_el_presupuesto_y_libera_la_cone
     body = worst_shape()
 
     async def explanation() -> tuple[int, float]:
-        await asyncio.sleep(EXPLANATION_LLEGA_DESPUES_S)
         started = time.monotonic()
         response = await get(env, READ_EXPLANATION, case_id=str(CASE), seq=seq)
         return response.status_code, time.monotonic() - started
@@ -680,8 +681,8 @@ async def test_f04_peor_caso_sin_version_respeta_el_presupuesto_y_libera_la_cone
             assert response.json()["code"] == "deadline_exceeded", response.text
         assert elapsed <= queries.QUERY_BUDGET_S + TOPE_MARGEN_S, (elapsed, seen)
         for status, waited in (first, second):
-            # 200 y no 503: la espera por el pool (2 s) no se agoto. El tiempo total suma, a esa espera, la propia consulta.
-            assert status == 200 and waited < POOL_SIZES["projections"][1] + TOPE_MARGEN_S, (status, waited, seen)
+            # 200 y no 503, y la espera por el pool no se agoto: la `explanation` llega a la vez que la consulta pesada (sin retraso).
+            assert status == 200 and waited < POOL_SIZES["projections"][1], (status, waited, seen)
     print("peor caso (codigo, s):", seen)
     # La conexion quedo utilizable: la forma de U9 responde 200 despues del ultimo 504.
     response, _ = await timed(env, discovery_shape())
