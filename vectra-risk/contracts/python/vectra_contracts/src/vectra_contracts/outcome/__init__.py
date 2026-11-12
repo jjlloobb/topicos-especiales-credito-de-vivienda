@@ -1,12 +1,15 @@
 """Invariante en dos fases (BR-U0-01..08, P-U0-03, AUTONOMIA-06)."""
 
 import math
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from decimal import Decimal, localcontext
-from typing import Annotated, Any, Literal, Self
+from typing import Annotated, Any, Literal, Self, get_args
 from uuid import UUID
 
-from pydantic import Field, RootModel, ValidationInfo, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, RootModel, ValidationInfo, model_validator
 
 from vectra_contracts.catalog import (
     ExplainerError,
@@ -28,19 +31,49 @@ from vectra_contracts.models.explanation import (
     RegistryAck,
 )
 from vectra_contracts.models.features import FeatureDictionary
-from vectra_contracts.outcome._internal import CONSTRUCTION_TOKEN
+from vectra_contracts.outcome import _internal
 
+# `_internal` se importa como modulo, no el simbolo: `outcome` no debe dejar `CONSTRUCTION_TOKEN` como atributo publico (R2-01).
 _QUANT = Decimal("0.0001")
 
 
+# El token nunca viaja en `info.context` (F-01 de la ronda 1 de U00-T03): un validador ajeno lo leeria. Lo guarda una `ContextVar` privada
+# que solo activan las fabricas de este modulo y solo lee `_has_token`.
+_MINTING: ContextVar[object | None] = ContextVar("vectra_outcome_minting", default=None)
+
+
+@contextmanager
+def _minting() -> Iterator[None]:
+    reset = _MINTING.set(_internal.CONSTRUCTION_TOKEN)
+    try:
+        yield
+    finally:
+        _MINTING.reset(reset)
+
+
+def _has_token(info: ValidationInfo) -> bool:
+    return _MINTING.get() is _internal.CONSTRUCTION_TOKEN
+
+
 class _Guarded(StrictModel):
-    """Exige el token privado: construir directamente lanza `ContractViolation`."""
+    """Exige el token privado para construir desde datos; una instancia ya construida se anida sin token (U00-T03)."""
+
+    # La instancia recuerda que nacio con el token (fabricas o `read_wire`): al anidarla en otro modelo no se vuelve a exigir. Se usa
+    # un atributo privado y un validador `after` porque un validador `before` o `wrap` hace que pydantic valide el JSON en modo python
+    # y rompe `StrictModel` (fechas y UUID como cadena). `model_construct` esta prohibido, asi que no hay otra forma de tener el sello.
+    _born_with_token: bool = PrivateAttr(default=False)
 
     @model_validator(mode="after")
     def _require_token(self, info: ValidationInfo) -> Self:
-        if not (isinstance(info.context, dict) and info.context.get("token") is CONSTRUCTION_TOKEN):
+        if _has_token(info):
+            self._born_with_token = True
+        elif not self._born_with_token:
             raise ContractViolation(f"{type(self).__name__} solo se construye con las fabricas de outcome")
         return self
+
+    def model_copy(self, *, update: Mapping[str, Any] | None = None, deep: bool = False) -> Self:
+        # F-02: la copia heredaria el sello sin pasar por la capa 1 (`update={"registry_entry_id": ""}`).
+        raise ContractViolation(f"{type(self).__name__} no admite model_copy")
 
     @classmethod
     def model_construct(cls, _fields_set: set[str] | None = None, **values: Any) -> Self:  # type: ignore[override]
@@ -85,8 +118,35 @@ class RecommendResult(RootModel[_RecommendResultRoot]):
 
     @classmethod
     def from_wire(cls, data: str | bytes) -> Recommendation | FailClosed:
-        """Aplica la capa estructural; es la unica forma de leer una `Recommendation` de la red."""
-        return cls.model_validate_json(data, context={"token": CONSTRUCTION_TOKEN}).root
+        """Aplica la capa estructural al leer una `Recommendation` o un `FailClosed` de la red (BR-U0-06)."""
+        return read_wire(cls, data).root
+
+
+def _contains(tp: Any, target: type, seen: set[Any]) -> bool:
+    if tp in seen:
+        return False
+    seen.add(tp)
+    if isinstance(tp, type) and issubclass(tp, target):
+        return True
+    if isinstance(tp, type) and issubclass(tp, BaseModel):
+        return any(_contains(f.annotation, target, seen) for f in tp.model_fields.values())
+    if get_args(tp):  # Union, Optional, Annotated, list[...], dict[...]
+        return any(_contains(a, target, seen) for a in get_args(tp))
+    return False
+
+
+def read_wire[M: BaseModel](model: type[M], data: str | bytes) -> M:
+    """Lectura publica de JSON de un modelo que contiene `Recommendation` (p. ej. `CaseDetail`); aplica la capa estructural.
+
+    Rechaza `Ready` y todo modelo que lo contenga con `ContractViolation`: `Ready` solo sale de `check_preconditions`.
+    """
+    if not model.__module__.startswith("vectra_contracts."):
+        # Lista cerrada: solo los contenedores de U0; un modelo ajeno podria correr sus validadores mientras la `ContextVar` esta activa.
+        raise ContractViolation(f"{model.__name__} no es un contenedor de vectra_contracts")
+    if _contains(model, Ready, set()):
+        raise ContractViolation(f"{model.__name__} contiene Ready: solo se construye con las fabricas de outcome")
+    with _minting():
+        return model.model_validate_json(data)
 
 
 class InvalidModelOutput(StrictModel):
@@ -201,17 +261,16 @@ def check_preconditions(
     )
     if cause is not None:
         return _fail(case_id, cause, now)
-    return Ready.model_validate(
-        {
-            "case_id": case_id,
-            "prediction": prediction,
-            "policy_result": policy_result,
-            "explanation": explainer,
-            "feature_vector_hash": feature_vector_hash,
-            "evaluated_at": now,
-        },
-        context={"token": CONSTRUCTION_TOKEN},
-    )
+    data = {
+        "case_id": case_id,
+        "prediction": prediction,
+        "policy_result": policy_result,
+        "explanation": explainer,
+        "feature_vector_hash": feature_vector_hash,
+        "evaluated_at": now,
+    }
+    with _minting():
+        return Ready.model_validate(data)
 
 
 def build_outcome(
@@ -220,22 +279,21 @@ def build_outcome(
     """Causa 10 de BR-U0-02. Es la unica que construye `Recommendation`."""
     if not isinstance(registry, RegistryAck):
         return _fail(ready.case_id, FailClosedCause.REGISTRY_UNAVAILABLE, now)
-    return Recommendation.model_validate(
-        {
-            "case_id": ready.case_id,
-            "score": ready.prediction.score,
-            "confidence": ready.prediction.confidence,
-            "outcome": ready.policy_result.outcome,
-            "reasons": list(ready.policy_result.reasons),
-            "model_version_id": ready.prediction.model_version_id,
-            "policy_version_id": ready.policy_result.policy_version_id,
-            "explanation": ready.explanation,
-            "registry_entry_id": registry.registry_entry_id,
-            "evaluated_at": ready.evaluated_at,
-            "feature_vector_hash": ready.feature_vector_hash,
-        },
-        context={"token": CONSTRUCTION_TOKEN},
-    )
+    data = {
+        "case_id": ready.case_id,
+        "score": ready.prediction.score,
+        "confidence": ready.prediction.confidence,
+        "outcome": ready.policy_result.outcome,
+        "reasons": list(ready.policy_result.reasons),
+        "model_version_id": ready.prediction.model_version_id,
+        "policy_version_id": ready.policy_result.policy_version_id,
+        "explanation": ready.explanation,
+        "registry_entry_id": registry.registry_entry_id,
+        "evaluated_at": ready.evaluated_at,
+        "feature_vector_hash": ready.feature_vector_hash,
+    }
+    with _minting():
+        return Recommendation.model_validate(data)
 
 
 __all__ = [
@@ -247,4 +305,5 @@ __all__ = [
     "check_preconditions",
     "quantize_prediction",
     "quantize_probability",
+    "read_wire",
 ]

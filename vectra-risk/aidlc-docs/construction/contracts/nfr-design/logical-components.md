@@ -116,6 +116,8 @@ CI
 ### Reglas de dependencia (import-linter)
 - `vectra_contracts` **no** importa `vectra_common`, `fastapi`, `httpx` ni módulos de E/S (NFR-U0-22).
 - Solo `outcome` importa `vectra_contracts.outcome._internal` (P-U0-03).
+  - **U00-T03:** anidar una `Recommendation` ya construida no exige el token; `read_wire` es la lectura pública de contenedores y rechaza `Ready`.
+  - **U00-T03:** import-linter solo ve módulos de U0. La capa 3 se verifica en todo el workspace con la prueba de AST `contracts/tests/unit/test_token_privado_workspace.py`, que también cubre importaciones por nombre (`from vectra_contracts.outcome import ...`) y por cadena (`importlib`).
 - Los servicios importan `vectra_common.create_app` y nunca `fastapi.FastAPI` (P-U0-01).
 - Solo `vectra_common.deps` importa `httpx` para llamadas salientes (P-U0-07).
 

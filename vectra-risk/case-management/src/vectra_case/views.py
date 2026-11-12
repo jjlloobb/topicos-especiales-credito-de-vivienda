@@ -99,13 +99,8 @@ def case_detail(row: CaseRow) -> CaseDetail:
         "attempts": row.attempts,
         "last_cause": row.last_cause if row.state in SHOWS_FAILURE else None,
     }
-    # RODEO TEMPORAL (hallazgo F-01 de la ronda 1; U0 no se toca aqui): `CaseDetail.recommendation` es una `Recommendation`, cuyo
-    # validador exige el token privado de `outcome` aun con una instancia ya valida. El token se importa DENTRO de la funcion y
-    # solo vive en esta llamada: ningun nombre del modulo lo contiene. `.importlinter` prohibe `vectra_contracts.outcome._internal`
-    # a todo `vectra_case` salvo a este modulo. Una tarea de U0 publicara una via publica de lectura y retirara esta excepcion.
-    from vectra_contracts.outcome._internal import CONSTRUCTION_TOKEN
-
-    return CaseDetail.model_validate(fields, context={"token": CONSTRUCTION_TOKEN})
+    # La recomendacion ya construida se anida tal cual: no hace falta el token privado de `outcome` (U00-T03, P-U0-03).
+    return CaseDetail.model_validate(fields)
 
 
 def persistent_failure(row: CaseRow) -> PersistentFailure:
