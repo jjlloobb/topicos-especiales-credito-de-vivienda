@@ -7,7 +7,7 @@ const restrictedStorage = ["localStorage", "sessionStorage"];
 
 export default [
   {
-    files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}", "vite.config.ts"],
+    files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}", "vite.config.ts", "playwright.config.ts"],
     languageOptions: { parser, parserOptions: { ecmaFeatures: { jsx: true } } },
   },
   {
