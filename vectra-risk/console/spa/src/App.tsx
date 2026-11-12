@@ -52,7 +52,7 @@ export function App({ wiring }: { readonly wiring: Wiring }) {
       }}
     >
       <QueryClientProvider client={wiring.queryClient}>
-        <AuthProvider manager={wiring.manager} loadSession={wiring.loadSession} tokens={wiring.tokens}>
+        <AuthProvider manager={wiring.manager} loadSession={wiring.loadSession} tokens={wiring.tokens} page={wiring.authPage}>
           <Authed wiring={wiring}>
             <Content />
           </Authed>

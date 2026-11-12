@@ -20,10 +20,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("entryKind: /stepup-callback y /callback se detectan antes de montar React", () => {
+describe("entryKind: /stepup-callback se detecta antes de montar React; /callback es la propia SPA", () => {
   it.each([
     ["/stepup-callback", "stepup-callback"],
-    ["/callback", "callback"],
+    ["/callback", "app"],
     ["/", "app"],
     ["/casos", "app"],
     ["/callback/otra", "app"],
@@ -41,7 +41,7 @@ const CONFIG: AppConfig = {
 
 describe("createWiring", () => {
   it("arma el UserManager, la API, el reporter y los entornos de stepup e inactivity con el origen y las rutas de config.json", () => {
-    const win = { location: { origin: OWN, pathname: "/casos/123" }, open: vi.fn(() => null) } as unknown as Window;
+    const win = { location: { origin: OWN, pathname: "/casos/123" }, sessionStorage: window.sessionStorage, open: vi.fn(() => null) } as unknown as Window;
     const wiring = createWiring(CONFIG, win);
     expect(wiring.stepUpEnv.ownOrigin).toBe(OWN);
     expect(wiring.stepUpEnv.stepupRedirectUri).toBe(CALLBACK);
@@ -55,7 +55,7 @@ describe("createWiring", () => {
   });
 
   it("loadSession pide get_me con el token dado; el reporter reporta con la plantilla de la ruta, no con la URL", async () => {
-    const win = { location: { origin: OWN, pathname: "/casos/123" }, open: vi.fn() } as unknown as Window;
+    const win = { location: { origin: OWN, pathname: "/casos/123" }, sessionStorage: window.sessionStorage, open: vi.fn() } as unknown as Window;
     const calls: { url: string; init?: RequestInit | undefined }[] = [];
     vi.stubGlobal("fetch", async (input: string | Request, init?: RequestInit) => {
       const url = input instanceof Request ? input.url : input;
@@ -79,7 +79,7 @@ describe("createWiring", () => {
   });
 
   it("los tokens del step-up se guardan en el UserManager y se avisa `userLoaded` (para pedir get_me otra vez)", async () => {
-    const win = { location: { origin: OWN, pathname: "/" }, open: vi.fn() } as unknown as Window;
+    const win = { location: { origin: OWN, pathname: "/" }, sessionStorage: window.sessionStorage, open: vi.fn() } as unknown as Window;
     const wiring = createWiring(CONFIG, win);
     const loaded: string[] = [];
     wiring.manager.events.addUserLoaded((user) => loaded.push(user.access_token));
@@ -97,14 +97,23 @@ describe("createWiring", () => {
   });
 });
 
-function fakeWiring(over: { silent?: User | null; popup?: () => Promise<User> } = {}): Wiring & { signedOut: number; reports: string[] } {
+/** Lo que el emisor devuelve a `/callback` tras un `prompt=none` sin sesion (la forma de `ErrorResponse` de `oidc-client-ts`). */
+const LOGIN_REQUIRED = Object.assign(new Error("login_required"), { error: "login_required", state: { mode: "silent" } });
+
+function fakeWiring(
+  over: { user?: User | null; redirect?: () => Promise<void> } = {},
+): Wiring & { signedOut: number; reports: string[]; redirects: { prompt?: string; mode: string }[] } {
+  const redirects: { prompt?: string; mode: string }[] = [];
   const events = new Set<(user: User) => void>();
   const tokens = createTokenStore();
   const reports: string[] = [];
   const manager: AuthManager = {
-    getUser: async () => null,
-    signinSilent: async () => over.silent ?? null,
-    signinPopup: over.popup ?? (async () => ({ access_token: "p" }) as User),
+    getUser: async () => over.user ?? null,
+    signinRedirect: async (args) => {
+      redirects.push({ ...(args.prompt === undefined ? {} : { prompt: args.prompt }), mode: args.state.mode });
+      await over.redirect?.();
+    },
+    signinCallback: async () => Promise.reject(LOGIN_REQUIRED),
     signoutRedirect: async () => undefined,
     events: { addUserLoaded: (cb) => events.add(cb), removeUserLoaded: (cb) => events.delete(cb) },
   };
@@ -122,6 +131,8 @@ function fakeWiring(over: { silent?: User | null; popup?: () => Promise<User> } 
   const backend = new FakeBackend();
   const wiring = {
     manager,
+    // La recarga ya volvio de `prompt=none` sin sesion: el callback trae `login_required` y se muestra el login interactivo.
+    authPage: { callbackUrl: () => (over.user ? null : `${OWN}/callback?error=login_required&state=s`), clean: () => undefined },
     tokens,
     queryClient: new QueryClient(),
     loadSession: async () => ({ role: "analista" as const, mfa: false, auth_time: "2026-11-12T15:00:00Z", locale: "es-CO" as const }),
@@ -147,27 +158,29 @@ function fakeWiring(over: { silent?: User | null; popup?: () => Promise<User> } 
     },
     signedOut: 0,
     reports,
+    redirects,
   };
   return wiring;
 }
 
 describe("App", () => {
-  it("sin sesion muestra el login; el clic llama a signinPopup", async () => {
-    const popup = vi.fn(async () => ({ access_token: "p" }) as User);
-    render(<App wiring={fakeWiring({ popup })} />);
+  it("sin sesion muestra el login; el clic redirige con signinRedirect en modo interactivo", async () => {
+    const wiring = fakeWiring();
+    render(<App wiring={wiring} />);
     expect(screen.getByText(ui("loading_session"))).toBeTruthy();
     fireEvent.click(await screen.findByRole("button", { name: ui("login_button") }));
-    expect(popup).toHaveBeenCalledOnce();
+    expect(wiring.redirects).toEqual([{ mode: "interactive" }]);
+    expect(screen.queryByRole("alert")).toBeNull(); // el login_required del prompt=none no es un fallo
   });
 
   it("un login fallido muestra el aviso del catalogo", async () => {
-    render(<App wiring={fakeWiring({ popup: async () => Promise.reject(new Error("bloqueada")) })} />);
+    render(<App wiring={fakeWiring({ redirect: async () => Promise.reject(new Error("emisor caido")) })} />);
     fireEvent.click(await screen.findByRole("button", { name: ui("login_button") }));
     expect((await screen.findByRole("alert")).textContent).toBe(ui("login_failed"));
   });
 
   it("con sesion muestra el rol; cerrar sesion vuelve al login", async () => {
-    render(<App wiring={fakeWiring({ silent: { access_token: "t" } as User })} />);
+    render(<App wiring={fakeWiring({ user: { access_token: "t" } as User })} />);
     expect(await screen.findByText(ui("session_role", { role: "Analista" }))).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: ui("logout_button") }));
     expect(await screen.findByRole("button", { name: ui("login_button") })).toBeTruthy();
@@ -184,7 +197,7 @@ describe("App", () => {
   });
 
   it("engancha los reportes del navegador mientras esta montada", async () => {
-    const wiring = fakeWiring({ silent: { access_token: "t" } as User });
+    const wiring = fakeWiring({ user: { access_token: "t" } as User });
     const { unmount } = render(<App wiring={wiring} />);
     await screen.findByRole("button", { name: ui("logout_button") });
     window.dispatchEvent(new Event("securitypolicyviolation"));

@@ -5,7 +5,8 @@ import { InMemoryWebStorage, OidcClient, type SigninResponse, User, type UserMan
 import { createApi } from "./api/client";
 import { createQueryClient } from "./api/queryClient";
 import { type SessionInfo, getMe } from "./api/endpoints";
-import { type AuthManager, createTokenStore, type TokenStore } from "./auth/AuthProvider";
+import { type AuthManager, type AuthPage, browserPage, createTokenStore, type TokenStore } from "./auth/AuthProvider";
+import { createLoginStateStorage } from "./auth/loginStateStorage";
 import { createUserManager, SCOPE } from "./auth/manager";
 import type { AppConfig } from "./config/load";
 import { browserInactivityEnv, type InactivityEnv } from "./inactivity/InactivityProvider";
@@ -17,6 +18,7 @@ import type { StepUpEnv } from "./stepup/StepUpProvider";
 
 export interface Wiring {
   readonly manager: AuthManager;
+  readonly authPage: AuthPage;
   readonly tokens: TokenStore;
   readonly queryClient: QueryClient;
   readonly loadSession: (token: string) => Promise<SessionInfo>;
@@ -40,7 +42,7 @@ export async function acceptStepUp(manager: UserManager, response: SigninRespons
 export function createWiring(config: AppConfig, win: Window = window): Wiring {
   const origin = win.location.origin;
   const tokens = createTokenStore();
-  const manager = createUserManager(config, origin);
+  const manager = createUserManager(config, origin, createLoginStateStorage(win));
   const reporter = new Reporter({
     endpoint: "/api/console/client-errors",
     getToken: () => tokens.get(),
@@ -62,6 +64,7 @@ export function createWiring(config: AppConfig, win: Window = window): Wiring {
   });
   return {
     manager,
+    authPage: browserPage(win),
     tokens,
     queryClient: createQueryClient(),
     loadSession: (token) => getMe(apiFor(token), () => reporter.report("api_contract_mismatch")),

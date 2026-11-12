@@ -3,6 +3,7 @@
 // `sessionStorage` global, `globalThis.localStorage`) y el caso lento de U10-T02 (ESLint en frio pasaba de los 5 s de vitest).
 // NFR-U10-43 (sin `dangerouslySetInnerHTML`), NFR-U10-53 (todo texto visible sale del catalogo i18n) y NFR-U10-64 (sin `Number(` ni
 // `parseFloat` sobre decimales): las tres reglas de `eslint.config.mjs`, que los `.mjs` no dejan trazar.
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,6 +46,39 @@ describe("ESLint de la SPA", { timeout: 30_000 }, () => {
 
   it("role, id, htmlFor y href literales pasan limpios (candidata F-01 de U10-T01)", async () => {
     expect(await ruleIdsOf("literal-attributes.tsx")).toEqual([]);
+  });
+
+  // Excepcion acotada del login por redireccion (decision del usuario, 2026-11-12): un solo archivo nombrado en la configuracion.
+  describe("sessionStorage: prohibido salvo en el modulo del estado transitorio del login", () => {
+    const lint = async (code: string, file: string): Promise<string[]> => {
+      const [result] = await ESLINT.lintText(code, { filePath: resolve(SPA_ROOT, file) });
+      return (result?.messages ?? []).map((message) => message.ruleId ?? "parse-error");
+    };
+
+    it("en loginStateStorage.ts sessionStorage pasa; window.sessionStorage tambien", async () => {
+      expect(await lint("export const a = () => sessionStorage;", "src/auth/loginStateStorage.ts")).toEqual([]);
+      expect(await lint("export const a = () => window.sessionStorage;", "src/auth/loginStateStorage.ts")).toEqual([]);
+    });
+
+    it("en ese mismo archivo localStorage sigue prohibido", async () => {
+      expect(await lint("export const a = () => localStorage;", "src/auth/loginStateStorage.ts")).toContain("no-restricted-globals");
+      expect(await lint("export const a = () => window.localStorage;", "src/auth/loginStateStorage.ts")).toContain("no-restricted-properties");
+    });
+
+    it.each(["src/auth/manager.ts", "src/auth/AuthProvider.tsx", "src/stepup/oidc.ts", "src/auth/otro.ts", "src/loginStateStorage.ts"])(
+      "en %s sigue prohibido, global o con window/globalThis/self",
+      async (file) => {
+        expect(await lint("export const a = () => sessionStorage;", file)).toContain("no-restricted-globals");
+        for (const object of ["window", "globalThis", "self"]) {
+          expect(await lint(`export const a = () => ${object}.sessionStorage;`, file)).toContain("no-restricted-properties");
+        }
+      },
+    );
+
+    it("sessionStorage aparece en un solo archivo de src (el mismo grep de CA-7)", () => {
+      const found = execFileSync("grep", ["-rlE", "sessionStorage", "src"], { cwd: SPA_ROOT, encoding: "utf-8" }).trim().split("\n");
+      expect(found).toEqual(["src/auth/loginStateStorage.ts"]);
+    });
   });
 
   it("jsx-a11y esta activo: una imagen sin alt falla", async () => {

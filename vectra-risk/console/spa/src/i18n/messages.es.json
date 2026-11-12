@@ -38,7 +38,7 @@
     "loading_session": "Verificando tu sesión…",
     "login_title": "Inicia sesión para continuar",
     "login_button": "Iniciar sesión",
-    "login_failed": "No se pudo iniciar la sesión. Permite las ventanas emergentes e inténtalo de nuevo.",
+    "login_failed": "No se pudo iniciar la sesión. Inténtalo de nuevo.",
     "logout_button": "Cerrar sesión",
     "session_role": "Rol: {role}",
     "session_without_mfa": "Sin verificación en dos pasos reciente",
