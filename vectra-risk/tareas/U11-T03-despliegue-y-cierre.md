@@ -541,7 +541,7 @@ Desde `vectra-risk/`, con las herramientas de `platform/install-tools.sh`. Ningu
     && for n in $(seq -w 1 14); do git grep -qiE "BR-U11-$n([^0-9]|$)" -- product-metrics/tests product-metrics/observability/rules/tests || echo "BR-U11-$n sin prueba"; done
   uv run python platform/tests/test_traceability.py --all | grep -c "U11-"
   grep -n "^## Diferido por la demo" -A8 aidlc-docs/construction/product-metrics/evidence/cierre-demo.md
-  grep -rnE "NFR-U11-0[23]([^0-9]|$)" product-metrics/; echo "rc=$?"
+  grep -rnE "NFR-U11-0(2|3)([^0-9]|$)" product-metrics/; echo "rc=$?"
   ```
   Esperado: código 0 y ninguna línea «sin prueba»; `0` en el conteo de `--all` (y `--all`, sin `--unit`, cumple la regla «sin fallos nuevos» de `DECISIONES-LOOP.md` §6 frente a la base); la lista tiene exactamente las filas de NFR-U11-02 y NFR-U11-03; la última orden no imprime nada y da `rc=1`.
   **Hoy falla:** rc 1 con 16 identificadores (INF-U11-02 a 05; NFR-U11-02, 03, 05, 06, 13, 14, 32, 33, 41 y 42; P-U11-05 y 06), y 7 BR sin prueba (BR-U11-02, 04, 06, 08, 12, 13 y 14). No existe `evidence/cierre-demo.md`.
