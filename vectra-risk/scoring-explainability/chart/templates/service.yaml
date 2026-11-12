@@ -1,0 +1,162 @@
+{{- /* Deployment, Service, HPA y PDB de los dos servicios de U7 (Paso 15; INF-U7-01, 03, 04; P-U7-06; NFR-U7-20, 30; F12, F15, F18 a F23, F103).
+Las variables de entorno son las de `REQUIRED_ENV` de cada `app.py` mas las de U0 (F50, telemetria): ningun presupuesto de tiempo (INF-U7-04).
+Sin digest no se renderiza. */ -}}
+{{- $common := .Values.common -}}
+{{- range $key := list "scoring" "explainability" }}
+{{- $svc := index $.Values.services $key -}}
+{{- $digest := required (printf "images.%s.digest es obligatorio: sin digest no se renderiza" $key) (index $.Values.images $key).digest -}}
+{{- $repository := include "scoring-explainability.repository" (list $ $key) -}}
+{{- $keyPath := printf "%s/private-key" $.Values.identity.mountPath }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $.Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $svc.name }}
+    app.kubernetes.io/part-of: scoring-explainability
+    vectra.io/criticality: {{ $common.criticality }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: {{ $common.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $svc.name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $svc.name }}
+        app.kubernetes.io/part-of: scoring-explainability
+      annotations:
+        # Sidecar nativo de Linkerd (P-U1-05, P-U7-06): el proxy termina despues del contenedor de la app (INF-U7-03). El namespace ya lo declara.
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+    spec:
+      serviceAccountName: {{ $svc.name }}
+      priorityClassName: {{ $common.priorityClassName }}
+      terminationGracePeriodSeconds: {{ $common.terminationGracePeriodSeconds }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $svc.name }}
+      containers:
+        - name: {{ $svc.name }}
+          image: {{ printf "%s@%s" $repository $digest | quote }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: {{ $common.port }} }
+            - { name: metrics, containerPort: {{ $common.metricsPort }} }
+          env:
+            {{- if eq $key "scoring" }}
+            - { name: SCORING_GOVERNANCE_URL, value: {{ required "peers.governanceUrl es obligatorio" $.Values.peers.governanceUrl | quote }} }
+            - { name: SCORING_EXPLAINABILITY_URL, value: {{ required "peers.explainabilityUrl es obligatorio" $.Values.peers.explainabilityUrl | quote }} }
+            - { name: SCORING_REGISTRY_URL, value: {{ required "peers.registryUrl es obligatorio" $.Values.peers.registryUrl | quote }} }
+            - { name: SCORING_PREDICTOR_URL_TEMPLATE, value: {{ required "kserve.predictorUrlTemplate es obligatorio (vectra-risk-gitops/values/<env>/scoring-explainability.yaml)" $.Values.kserve.predictorUrlTemplate | quote }} }
+            {{- else }}
+            - { name: EXPLAINABILITY_GOVERNANCE_URL, value: {{ required "peers.governanceUrl es obligatorio" $.Values.peers.governanceUrl | quote }} }
+            - { name: EXPLAINABILITY_REGISTRY_URL, value: {{ required "peers.registryUrl es obligatorio" $.Values.peers.registryUrl | quote }} }
+            - { name: EXPLAINABILITY_EXPLAINER_URL_TEMPLATE, value: {{ required "kserve.explainerUrlTemplate es obligatorio (vectra-risk-gitops/values/<env>/scoring-explainability.yaml)" $.Values.kserve.explainerUrlTemplate | quote }} }
+            {{- end }}
+            # Identidad ante Keycloak (F50): el token de servicio se firma con la llave montada y se pide a `VECTRA_TOKEN_URL`.
+            - { name: VECTRA_CLIENT_ID, value: {{ $svc.clientId | quote }} }
+            - { name: VECTRA_CLIENT_KEY_PATH, value: {{ $keyPath | quote }} }
+            - { name: VECTRA_TOKEN_URL, value: {{ required "keycloak.tokenUrl es obligatorio" $.Values.keycloak.tokenUrl | quote }} }
+            # Variables de U0 (F50): sin ellas `create_app` no arranca. La CA de Keycloak se monta del ConfigMap de U1 (Bundle de trust-manager).
+            - { name: VECTRA_OIDC_ISSUER, value: {{ required "keycloak.issuer es obligatorio" $.Values.keycloak.issuer | quote }} }
+            - { name: VECTRA_JWKS_URL, value: {{ required "keycloak.jwksUrl es obligatorio" $.Values.keycloak.jwksUrl | quote }} }
+            - { name: VECTRA_CA_BUNDLE, value: {{ printf "%s/ca.crt" $.Values.keycloak.caMountPath | quote }} }
+            # Telemetria (F61).
+            - { name: VECTRA_OTLP_ENDPOINT, value: {{ required "telemetry.otlpEndpoint es obligatorio" $.Values.telemetry.otlpEndpoint | quote }} }
+          # Sin `startupProbe` (INF-U7-01): la precarga del diccionario no bloquea el arranque (NFR-U7-21). Las dos solo miran el proceso (P-U1-04).
+          # La liveness es `/healthz`: INF-U7-01 la llama `/livez`, pero `vectra_common.ops_server` (U0) sirve `/metrics`, `/healthz` y `/readyz`; `/livez` daria 404.
+          readinessProbe:
+            httpGet: { path: /readyz, port: metrics }
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet: { path: /healthz, port: metrics }
+            periodSeconds: 10
+            failureThreshold: 3
+          # INF-U7-03: deja que Linkerd y los Endpoints dejen de enviar trafico antes del SIGTERM (accion `sleep` nativa, sin binario en la imagen).
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: {{ $common.preStopSeconds }}
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: keycloak-ca, mountPath: {{ $.Values.keycloak.caMountPath | quote }}, readOnly: true }
+            - { name: service-identity, mountPath: {{ $.Values.identity.mountPath | quote }}, readOnly: true }
+          resources:
+            {{- toYaml $common.resources | nindent 12 }}
+      volumes:
+        # 0444: el contenedor corre como 65532 y el archivo del Secret es de root; el volumen es de solo lectura y solo de este pod.
+        - name: service-identity
+          secret: { secretName: {{ printf "%s-client" $svc.name | quote }}, defaultMode: 292 }
+        - name: keycloak-ca
+          configMap: { name: {{ $.Values.keycloak.caConfigMap | quote }}, items: [{ key: ca.crt, path: ca.crt }] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $.Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $svc.name }}
+    app.kubernetes.io/part-of: scoring-explainability
+spec:
+  selector:
+    app.kubernetes.io/name: {{ $svc.name }}
+  ports:
+    - { name: http, port: {{ $common.port }}, targetPort: http }
+    - { name: metrics, port: {{ $common.metricsPort }}, targetPort: metrics }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $.Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $svc.name }}
+    app.kubernetes.io/part-of: scoring-explainability
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: {{ $svc.name }} }
+  minReplicas: {{ $common.hpa.minReplicas }}
+  maxReplicas: {{ $common.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: {{ $common.hpa.cpuUtilization }} }
+  # INF-U7-01: estabilizacion de 60 s hacia arriba y de 300 s hacia abajo.
+  behavior:
+    scaleUp: { stabilizationWindowSeconds: {{ $common.hpa.scaleUpStabilizationSeconds }} }
+    scaleDown: { stabilizationWindowSeconds: {{ $common.hpa.scaleDownStabilizationSeconds }} }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $.Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $svc.name }}
+    app.kubernetes.io/part-of: scoring-explainability
+spec:
+  minAvailable: {{ $common.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $svc.name }}
+{{- end }}

@@ -161,7 +161,7 @@ vectra-risk/case-management/
 
 ### Bloque D — `case-service`
 
-- [ ] **Paso 9 — `intake`: ingesta y alta manual**
+- [x] **Paso 9 — `intake`: ingesta y alta manual** (U08-T03)
   - `POST /v1/intake/applications` (F04/F07, scope `intake:submit`) y `POST /v1/cases` (F10, solo `analista`):
     - validación de U0 (4xx genérico sin caso, BR-U0-30); `free_text` tal cual, siempre con consultas parametrizadas;
     - `Idempotency-Key` obligatoria, con alcance `client_id` (ingesta; `Principal.client_id`, el `azp`; revisión de consistencia entre unidades, 2026-11-01) o `user_id` (alta manual); misma llave y mismo `body_sha256` → el mismo `case_id`; otro cuerpo → 409;
@@ -177,7 +177,7 @@ vectra-risk/case-management/
     - alta manual repetida con la misma `Idempotency-Key` → el mismo caso;
     - `X-Test-Scenario` con `allow_test_scenarios = false` → 422.
 
-- [ ] **Paso 10 — `evidence`: decisión, consulta de la explicación y reconciliador**
+- [x] **Paso 10 — `evidence`: decisión, consulta de la explicación y reconciliador** (U08-T03; alerta `CaseEvidenceDiscarded` diferida por la demo; la línea de `first_evaluation` pasa a U08-T04, ver `code/services.md`)
   - Decisión (`POST /v1/cases/{id}/decision`, solo `analista`): BR-U8-15 (caso `listo` y sin otra decisión), `validate_decision`, `explanation_viewed_before` solo con evidencia `confirmada` (BR-U8-17), evidencia en dos fases con `UUIDv5(case_id, "human_decision")` y el payload de BR-U8-18; 503 sin ack; conflicto tras un abandono → reenvío de la abandonada y `409 conflict_state` con `reason = decision_already_recorded`.
   - Consulta (`POST /v1/cases/{id}/explanation-views`, solo `analista`): primera vez por (`case_id`, `user_id`) con `UUIDv5(case_id, user_id)` y `viewed_at`; las siguientes → 204; recuperación de una abandonada con el payload original (BR-U8-19).
   - Reconciliador (P-U8-04): cada 1 s, lotes de 100 con `SKIP LOCKED`, como máximo 4 envíos en vuelo, misma llave, payload y `correlation_id`, `occurred_at` nuevo, backoff de 1 s a 5 min, abandono a las 24 h. Envía también las entradas `fail_closed` que inserta `case-worker` (BR-U8-09).
@@ -197,7 +197,7 @@ vectra-risk/case-management/
     - 2 réplicas → cada evidencia pendiente se reintenta una sola vez por ciclo;
     - registro caído durante una decisión → 503 y `pendiente_registro`; al volver, el reconciliador confirma y el caso pasa a `decidido` (E3 de P-U8-09).
 
-- [ ] **Paso 11 — `sweeps`, `retry` y `db_gauges`**
+- [x] **Paso 11 — `sweeps`, `retry` y `db_gauges`** (U08-T03; métricas de retención diferidas por la demo)
   - Barrido cada 5 min (BR-U8-10, 14): con `serving-config` activo, `modelo_congelado` → `en_evaluacion` con `attempts = 0` y trabajo nuevo con `attempt = 0`; marca y desmarca `model_frozen_after_recommendation`; con governance caído, el barrido se salta el ciclo.
   - `POST /v1/cases/{id}/retry` (solo `cro`, solo desde `no_disponible`, sin MFA; 409 en otro estado): `en_evaluacion`, `attempts = 0`, trabajo nuevo con `attempt = 0`, log `case.retry_requested` y `vectra_case_retries_total`.
   - `db_gauges` cada 30–60 s, en todas las réplicas: `vectra_case_jobs_overdue`, `vectra_cases_failclosed_persistent`, métricas de evidencia y de retención (`vectra_case_retention_overdue_identifiers`, `vectra_case_retention_last_success_timestamp` con `retention_settings.created_at` mientras no haya corrida, `vectra_case_retention_consecutive_overdue_runs`).
@@ -208,7 +208,7 @@ vectra-risk/case-management/
     - instalación nueva sin corridas → `vectra_case_retention_last_success_timestamp` vale `retention_settings.created_at`;
     - 2 réplicas → los barridos no procesan dos veces el mismo caso.
 
-- [ ] **Paso 12 — `credit`: lectura del core**
+- [x] **Paso 12 — `credit`: lectura del core** (U08-T03)
   - `GET /v1/credits/{case_id}` (F17) solo para casos `decidido`, timeout 500 ms, sin caché; 404 → `sin_credito`; error o timeout → `no_disponible`.
   - Con `core.enabled = false`: `no_integrado` (precisado el 2026-10-10 por U10 FD, Q3) sin crear el cliente, sin llamar y sin registrar nada en el breaker (INF-U8-02).
   - Diseño: BR-U8-21; INF-U8-02; P-U8-09; NFR-U8-25, 31.
@@ -217,7 +217,7 @@ vectra-risk/case-management/
     - `core.enabled = false` y un doble que registra las llamadas → `no_integrado`, cero llamadas y breaker sin fallos registrados;
     - 404 → `sin_credito`.
 
-- [ ] **Paso 13 — API, arranque y apagado de `case-service`**
+- [x] **Paso 13 — API, arranque y apagado de `case-service`** (U08-T03)
   - `create_app` de U0 con las rutas de F04 y F10 (`list_cases`, `get_case`, `get_case_identifiers` (`cro` y `cumplimiento`; revisión del Infrastructure Design de U10, 2026-10-10), `create_case`, `record_decision`, `record_explanation_view`, `retry_case`, `list_persistent_failures`); scopes y audiencias de U2; `list_cases` excluye `vencido` salvo con `state=vencido`.
   - Logs `case.viewed` y `case.retry_requested` con la allowlist de U0 §8; `authz.denied` y `vectra_authz_denied_total` en cada 401/403.
   - Readiness (`/readyz`, 8081) solo con `case-db`; liveness solo del proceso.

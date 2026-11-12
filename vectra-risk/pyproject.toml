@@ -9,7 +9,7 @@ dependencies = ["vectra-contracts", "vectra-common", "vectra-decision-registry",
 package = false
 
 [tool.uv.workspace]
-members = ["contracts/python/vectra_contracts", "contracts/python/vectra_common", "identity-edge", "decision-registry", "reference-model", "governance", "bias-monitoring", "bias-monitoring/disparity", "model-serving", "scoring-explainability/scoring", "scoring-explainability/explainability", "case-management", "case-management/core_banking_mock", "product-metrics"]
+members = ["contracts/python/vectra_contracts", "contracts/python/vectra_common", "identity-edge", "decision-registry", "reference-model", "governance", "bias-monitoring", "bias-monitoring/disparity", "model-serving", "scoring-explainability/scoring", "scoring-explainability/explainability", "case-management", "case-management/core_banking_mock", "product-metrics", "console/bff"]
 
 [tool.uv.sources]
 vectra-contracts = { workspace = true }
@@ -24,6 +24,7 @@ vectra-scoring = { workspace = true }
 vectra-explainability = { workspace = true }
 vectra-case = { workspace = true }
 core-banking-mock = { workspace = true }
+vectra-console-bff = { workspace = true }
 vectra-product = { workspace = true }
 
 [dependency-groups]
@@ -66,6 +67,8 @@ dev = [
   # U08-T01: U8 (case-management): dos miembros, instalados editables.
   "vectra-case",
   "core-banking-mock",
+  # U10-T01: U10 (console-bff) se instala editable para que `uv run` importe `console_bff`.
+  "vectra-console-bff",
   # U11-T01: U11 (product-metrics) se instala editable para que `uv run` importe `vectra_product`.
   "vectra-product",
 ]
@@ -116,6 +119,7 @@ ignore = ["S101", "E501"]
 "case-management/tests/**" = ["S", "B", "BLE", "T20", "I001"]
 "product-metrics/tests/**" = ["S", "B", "BLE", "T20", "I001"]
 "case-management/migrations/**" = ["S608"]
+"console/bff/tests/**" = ["S", "B", "BLE", "T20", "I001"]
 "contracts/tests/**" = ["S", "B", "E501", "BLE", "T20", "I001"]
 "contracts/tools/**" = ["T20", "S603", "S607", "E501"]
 "contracts/python/vectra_contracts/src/vectra_contracts/routes/__init__.py" = ["E501"]

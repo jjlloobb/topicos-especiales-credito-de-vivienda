@@ -1,4 +1,7 @@
-"""Paso 12 (CA-5): `create_app` de los dos servicios, arranque, readiness, scopes, roles y etiquetas de metricas (P-U7-07; NFR-U7-21)."""
+"""Paso 12 (CA-5): `create_app` de los dos servicios, arranque, readiness, scopes, roles y etiquetas de metricas (P-U7-07; NFR-U7-21).
+
+NFR-U7-31 (logs y metricas sin datos del solicitante, sin `case_id` como etiqueta) lo comprueba `test_metric_labels_are_inside_the_p_u7_07_allowlist_and_never_carry_ids`.
+"""
 
 import asyncio
 import json
