@@ -119,3 +119,10 @@ def test_every_destination_path_of_a_handler_is_in_the_registry_of_its_destinati
         tail = contract.path.removeprefix("/api/console")
         template = re.sub(r"\{id\}", "{id}", f"/v1{tail}")
         assert (contract.method, template) in by_service[destination], operation_id
+
+
+def test_asking_for_the_rule_of_a_route_that_declares_none_is_a_contract_violation() -> None:
+    """`_rule` solo se pide para las 11 rutas con regla; una ruta con `None` declarado no tiene funcion que devolver."""
+    contract = next(r for r in REGISTRY["console-bff"] if r.operation_id == "get_api_console_cases")
+    with pytest.raises(ContractViolation, match="get_api_console_cases"):
+        routes._rule(contract)  # noqa: SLF001

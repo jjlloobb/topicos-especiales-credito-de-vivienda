@@ -104,7 +104,7 @@ def _enforce(verdict: ObjectVerdict) -> None:
 
 def _rule(contract: RouteContract) -> Callable[..., ObjectVerdict]:
     rule = object_rules.OBJECT_RULES[contract.operation_id]
-    if rule is None:  # pragma: no cover - solo se pide para las rutas con regla
+    if rule is None:
         raise ContractViolation(f"{contract.operation_id}: sin regla de objeto")
     return rule
 

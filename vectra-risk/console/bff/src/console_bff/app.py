@@ -118,7 +118,6 @@ def main() -> None:
 
 __all__ = ["REQUIRED", "ConfigError", "build", "build_app", "main", "urls_from_env"]
 
-if (
-    __name__ == "__main__"
-):  # pragma: no cover - el arranque real lo prueba `test_service_shutdown.py` en un proceso aparte
+# El arranque real lo prueba `test_service_shutdown.py` en un proceso aparte (la unica excepcion de `# pragma: no cover`).
+if __name__ == "__main__":  # pragma: no cover
     main()
