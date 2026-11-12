@@ -163,6 +163,7 @@ def sample_taken(
     return Taken(
         case_id or uuid.uuid4(),
         attempt,
+        datetime(2026, 11, 12, 12, 0, 30, tzinfo=UTC),
         CaseState.EN_EVALUACION,
         datetime(2026, 11, 1, 12, 0, tzinfo=UTC),
         ever_degraded,

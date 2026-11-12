@@ -76,7 +76,8 @@ class Worker:
     async def run_forever(self, grace: float = WORKER_SHUTDOWN_GRACE) -> None:
         """Sondea hasta `stop()`; despues espera las llamadas en vuelo hasta `grace` s."""
         while not self._stop.is_set():
-            await self._sem.acquire()
+            if not await self._slot():
+                break  # `SIGTERM` con todos los huecos ocupados: la gracia empieza ya, no cuando termine un trabajo
             taken: Taken | None = None
             if not self._stop.is_set():
                 try:
@@ -91,6 +92,23 @@ class Worker:
             self._tasks.add(task)
             task.add_done_callback(self._tasks.discard)
         await self.drain(grace)
+
+    async def _slot(self) -> bool:
+        """Espera un hueco libre o el `stop()`: `False` si llego el `stop()` primero (sin hueco tomado)."""
+        acquiring = asyncio.ensure_future(self._sem.acquire())
+        stopping = asyncio.ensure_future(self._stop.wait())
+        try:
+            await asyncio.wait({acquiring, stopping}, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            stopping.cancel()
+            if not acquiring.done():
+                acquiring.cancel()
+            await asyncio.gather(acquiring, stopping, return_exceptions=True)
+        if acquiring.cancelled():
+            return False
+        return (
+            True  # el hueco se tomo (aunque `stop()` tambien haya llegado: el bucle lo suelta al ver `stop`)
+        )
 
     async def _idle(self) -> None:
         wait = POLL_INTERVAL + self.rng.uniform(-POLL_JITTER, POLL_JITTER)

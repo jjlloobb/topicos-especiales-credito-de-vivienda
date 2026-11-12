@@ -58,22 +58,34 @@ OK = 200
 CLIENT_ERROR = 400  # 4xx: defecto o configuracion (BR-U8-08); un 401 repetido tambien llega aqui
 SERVER_ERROR = 500
 IN_FLIGHT: Final = ("en_evaluacion", "en_sincronizacion")
-# Cada `UPDATE` sobre `cases` lleva la guarda de BR-U8-08 (`attempts` es el numero de esa toma) y fija `updated_at` (P-4 de U08-T03).
+# Cada `UPDATE` sobre `cases` lleva la guarda de BR-U8-08 y fija `updated_at` (P-4 de U08-T03). La guarda identifica **la toma**: el
+# trabajo vivo del caso lleva el `locked_until` que fijo esa toma (los dos ultimos parametros); `attempts` solo la acompana, porque vuelve a 0
+# al congelar y con el `retry` del CRO y un numero igual no prueba que sea la misma toma. parametro `NULL` = sin comprobar (la propia toma, que ya
+# tiene el trabajo bloqueado).
 _READY: Final = (
     "UPDATE cases SET state = %s, recommendation = %s::jsonb, recommendation_entry_id = %s, updated_at = %s "
-    "WHERE case_id = %s AND state IN ('en_evaluacion', 'en_sincronizacion') AND attempts = %s"
+    "WHERE case_id = %s AND state IN ('en_evaluacion', 'en_sincronizacion') AND attempts = %s "
+    "AND (%s::timestamptz IS NULL OR EXISTS (SELECT 1 FROM evaluation_jobs j WHERE j.case_id = cases.case_id "
+    "AND j.locked_until = %s::timestamptz))"
 )
 _FROZEN: Final = (
     "UPDATE cases SET state = %s, attempts = 0, last_cause = %s, ever_degraded = true, updated_at = %s "
-    "WHERE case_id = %s AND state IN ('en_evaluacion', 'en_sincronizacion') AND attempts = %s"
+    "WHERE case_id = %s AND state IN ('en_evaluacion', 'en_sincronizacion') AND attempts = %s "
+    "AND (%s::timestamptz IS NULL OR EXISTS (SELECT 1 FROM evaluation_jobs j WHERE j.case_id = cases.case_id "
+    "AND j.locked_until = %s::timestamptz))"
 )
 _RETRY: Final = (
     "UPDATE cases SET state = %s, last_cause = %s, ever_degraded = true, updated_at = %s "
-    "WHERE case_id = %s AND state IN ('en_evaluacion', 'en_sincronizacion') AND attempts = %s"
+    "WHERE case_id = %s AND state IN ('en_evaluacion', 'en_sincronizacion') AND attempts = %s "
+    "AND (%s::timestamptz IS NULL OR EXISTS (SELECT 1 FROM evaluation_jobs j WHERE j.case_id = cases.case_id "
+    "AND j.locked_until = %s::timestamptz))"
 )
 _ESCALATE: Final = (
     "UPDATE cases SET state = %s, escalation_count = escalation_count + 1, last_cause = %s, ever_degraded = true, updated_at = %s "
-    "WHERE case_id = %s AND state IN ('en_evaluacion', 'en_sincronizacion') AND attempts = %s RETURNING escalation_count"
+    "WHERE case_id = %s AND state IN ('en_evaluacion', 'en_sincronizacion') AND attempts = %s "
+    "AND (%s::timestamptz IS NULL OR EXISTS (SELECT 1 FROM evaluation_jobs j WHERE j.case_id = cases.case_id "
+    "AND j.locked_until = %s::timestamptz))"
+    " RETURNING escalation_count"
 )
 ACTOR: Final = {"kind": "service", "id": "case-worker"}
 
@@ -91,6 +103,7 @@ class Taken:
 
     case_id: uuid.UUID
     attempt: int
+    leased_until: datetime  # el `locked_until` que fijo esta toma: la identifica (BR-U8-08)
     state: CaseState
     created_at: datetime
     ever_degraded: bool
@@ -253,6 +266,7 @@ async def escalate(
     case_id: uuid.UUID,
     state: CaseState,
     attempt: int,
+    leased_until: datetime | None,
     now: datetime,
     cause: FailClosedCause | None,
     local_cause: LocalCause | None,
@@ -262,7 +276,7 @@ async def escalate(
     last_cause = cause.value if cause is not None else str(local_cause)
     cur = await conn.execute(
         _ESCALATE,
-        (_target(state, event).value, last_cause, now, case_id, attempt),
+        (_target(state, event).value, last_cause, now, case_id, attempt, leased_until, leased_until),
     )
     row = await cur.fetchone()
     if row is None:
@@ -374,6 +388,8 @@ class Evaluator:
                     now,
                     case_id,
                     taken.attempt,
+                    taken.leased_until,
+                    taken.leased_until,
                 ),
             )
         elif isinstance(outcome, Frozen):
@@ -385,6 +401,8 @@ class Evaluator:
                     now,
                     case_id,
                     taken.attempt,
+                    taken.leased_until,
+                    taken.leased_until,
                 ),
             )
         elif outcome.escalate_now or taken.attempt >= MAX_ATTEMPTS:
@@ -394,6 +412,7 @@ class Evaluator:
                 case_id=case_id,
                 state=state,
                 attempt=taken.attempt,
+                leased_until=taken.leased_until,
                 now=now,
                 cause=outcome.cause,
                 local_cause=outcome.local_cause,
@@ -408,6 +427,8 @@ class Evaluator:
                     now,
                     case_id,
                     taken.attempt,
+                    taken.leased_until,
+                    taken.leased_until,
                 ),
             )
             if cur.rowcount != 1:

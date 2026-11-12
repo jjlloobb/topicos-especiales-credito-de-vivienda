@@ -60,8 +60,17 @@ def test_the_fixture_has_one_credit_per_core_status() -> None:
     assert set(CREDITS.values()) == {"en_estudio", "aprobado", "desembolsado", "rechazado", "cancelado"}
 
 
-async def test_a_fresh_start_has_zero_write_attempts_in_metrics() -> None:
-    assert await ops_metric(make_app(), "vectra_core_write_attempts_total") == 0.0
+async def test_the_write_attempts_series_exists_without_labels_and_only_moves_with_a_write() -> None:
+    """F-03 (ronda 1): el contador es global al proceso, asi que no se afirma un valor absoluto (dependeria del orden de las pruebas):
+    la serie existe desde el arranque, su valor es el del contador del proceso y una lectura permitida no lo mueve."""
+    app = make_app()
+    before = float(WRITE_ATTEMPTS._value.get())  # type: ignore[attr-defined]
+    assert await ops_metric(app, "vectra_core_write_attempts_total") == before
+    async with client(app) as c:
+        r = await c.get(f"/v1/credits/{KNOWN}", headers=bearer("core:read-credit"))
+    assert r.status_code == 200
+    assert float(WRITE_ATTEMPTS._value.get()) == before  # type: ignore[attr-defined]
+    assert await ops_metric(app, "vectra_core_write_attempts_total") == before
 
 
 async def test_get_with_core_read_credit_returns_a_valid_credit_status_view_for_every_fixture_credit() -> (

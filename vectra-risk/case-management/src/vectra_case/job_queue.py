@@ -59,6 +59,7 @@ class JobQueue:
                     case_id=case_id,
                     state=state,
                     attempt=read,
+                    leased_until=None,  # la propia toma tiene la fila bloqueada
                     now=now,
                     cause=None,
                     local_cause=LocalCause.SCORING_UNREACHABLE,
@@ -69,10 +70,11 @@ class JobQueue:
                 ):  # el caso ya no esta en el bucle: el trabajo sobra y no debe volver a tomarse
                     await conn.execute("DELETE FROM evaluation_jobs WHERE case_id = %s", (case_id,))
                 return None
+            leased_until = now + timedelta(seconds=LEASE)
             attempt = read + 1  # el valor leido, no `attempt + 1` en SQL: nunca se escribe un 7
             await conn.execute(
                 "UPDATE evaluation_jobs SET attempt = %s, locked_until = %s WHERE case_id = %s",
-                (attempt, now + timedelta(seconds=LEASE), case_id),
+                (attempt, leased_until, case_id),
             )
             cur = await conn.execute(
                 "UPDATE cases SET attempts = %s, updated_at = %s WHERE case_id = %s "
@@ -87,6 +89,7 @@ class JobQueue:
             return Taken(
                 case_id,
                 attempt,
+                leased_until,
                 state,
                 case["created_at"],
                 case["ever_degraded"],

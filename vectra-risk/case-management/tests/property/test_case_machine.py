@@ -11,7 +11,8 @@ de la base con el superusuario despues de cada comando. El vencimiento de la ret
 `case_retention` real (P-5 (a) de U08-T04): `retention.py` no tiene todavia ese codigo (Paso 16 diferido).
 
 Los recorridos raros se fuerzan en la mitad de los ejemplos y se cuentan en `STATS` (F-02 de la ronda 1 de U08-T03): seis `worker_lost`
-seguidos, `late_result` tras un vencimiento, `late_result` tras una retoma y decision tras un abandono.
+seguidos, `late_result` tras un vencimiento, `late_result` tras una retoma, `late_result` tras reiniciarse `attempts` (congelar y descongelar, o
+`retry`) y decision tras un abandono.
 """
 
 import asyncio
@@ -90,6 +91,7 @@ STATS = {
     "abandon_decide": 0,
     "escalations": 0,
     "frozen_then_thawed": 0,
+    "late_after_reset": 0,  # el resultado tardio de una toma anterior llega con `attempts` de nuevo igual a su numero (F-01, ronda 2)
 }
 
 
@@ -108,6 +110,9 @@ class Model:
     pending_decision: bool = False
     lost: int = 0  # `worker_lost` seguidos sobre este caso
     stale: list[Taken] = field(default_factory=list)
+    # La unica toma cuyo resultado puede aplicarse: la ultima que entrego un intento, mientras ni su resultado, ni un barrido que descongela, ni
+    # el `retry`, ni un escalamiento en la toma, ni un vencimiento, ni una decision hayan reemplazado o consumido su trabajo. No mira `attempts`.
+    live: Taken | None = None
 
 
 @dataclass(frozen=True)
@@ -194,6 +199,8 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
                     "late_after_retake",
                     "abandon_decide",
                     "freeze_thaw",
+                    "late_after_thaw",
+                    "late_after_retry",
                 ]
             )
         )
@@ -258,6 +265,28 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             )  # el barrido lo devuelve a `en_evaluacion` con `attempts = 0` y un trabajo nuevo
             self.matches_the_reference_model()
 
+        def _script_late_after_thaw(self) -> None:
+            self._lost()  # A: intento 1, sin resultado
+            old = self.m.stale[-1]
+            self._evaluate(
+                ("fc", FailClosedCause.MODEL_FROZEN)
+            )  # B retoma (intento 2): `modelo_congelado`, `attempts = 0`
+            self.sweep("activo")  # descongela: `en_evaluacion`, `attempts = 0`, trabajo nuevo
+            self._lost()  # C: otra vez el intento 1
+            self._late(
+                old, ("rec", Outcome.FAVORABLE)
+            )  # el de A no es el de C aunque los dos sean el intento 1
+            assert self.m.state == "en_evaluacion" and self.m.live is not old
+
+        def _script_late_after_retry(self) -> None:
+            self._lost()
+            old = self.m.stale[-1]
+            self._evaluate(("http", 403))  # B: `scoring_rejected`, `no_disponible`
+            self.retry()  # `en_evaluacion`, `attempts = 0`, trabajo nuevo
+            self._lost()  # C: otra vez el intento 1
+            self._late(old, ("rec", Outcome.FAVORABLE))
+            assert self.m.state == "en_evaluacion" and self.m.live is not old
+
         def _script_abandon_decide(self) -> None:
             self._evaluate(("rec", Outcome.FAVORABLE))
             h.registry.lose_ack_next = 1  # el registro escribe la decision y se pierde el ack
@@ -271,7 +300,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             second = self._decide("analista2", ack=True)
             assert second == 409  # `decision_already_recorded`
             self.m.state = "decidido"
-            self.m.job = None
+            self.m.job = self.m.live = None
             self.matches_the_reference_model()
             STATS["abandon_decide"] += 1
 
@@ -290,6 +319,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
                 m.job >= MAX_ATTEMPTS
             ):  # la retoma con attempt = 6 escala sin incrementar y sin llamar a scoring
                 assert taken is None and w.scoring.calls == calls
+                m.live = None
                 m.state, m.job, m.last_cause, m.ever_degraded = (
                     "no_disponible",
                     None,
@@ -302,6 +332,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             assert taken is not None and taken.attempt == m.job + 1  # toda toma incrementa
             self.takes += 1
             m.attempts = m.job = taken.attempt
+            m.live = taken
             return taken
 
         def _lost(self) -> None:
@@ -337,6 +368,9 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
 
         def _apply_expect(self, e: Expect, attempt: int) -> None:
             m = self.m
+            m.live = (
+                None  # el resultado aplicado consume el trabajo (se borra o se reprograma sin arrendamiento)
+            )
             m.state, m.attempts, m.last_cause = e.state, e.attempts, e.last_cause
             if e.state != "listo":
                 m.ever_degraded = True
@@ -371,10 +405,12 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             self.matches_the_reference_model()
 
         def _late(self, old: Taken, kind: tuple[Any, ...]) -> None:
-            """Llega el resultado de una toma anterior: solo cuenta si sigue siendo la toma vigente de un caso en vuelo."""
+            """Llega el resultado de una toma anterior: solo cuenta si es la toma vigente (`m.live`), que el modelo sigue por su cuenta."""
             m = self.m
             before = snapshot(self.case_id)
-            current = m.state in IN_FLIGHT and m.job is not None and m.attempts == old.attempt
+            current = m.state in IN_FLIGHT and m.live is old
+            if not current and m.state in IN_FLIGHT and m.job is not None and m.attempts == old.attempt:
+                STATS["late_after_reset"] += 1  # el numero de intento coincide, la toma no
             prev_last = m.last_cause
             self._arm(kind)
             reset_breakers(w)
@@ -412,7 +448,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             runner.run(h.sweeper.run_once())
             if state == "activo":
                 if m.state == "modelo_congelado":
-                    m.state, m.attempts, m.job = "en_evaluacion", 0, 0
+                    m.state, m.attempts, m.job, m.live = "en_evaluacion", 0, 0, None
                     STATS["frozen_then_thawed"] += 1
                 m.mark = False
             elif m.state == "listo":
@@ -424,7 +460,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             m = self.m
             if m.state == "no_disponible":
                 assert r.status_code == 200
-                m.state, m.attempts, m.job = "en_evaluacion", 0, 0
+                m.state, m.attempts, m.job, m.live = "en_evaluacion", 0, 0, None
             else:
                 assert r.status_code == 409
 
@@ -454,7 +490,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
                     status in (409, 422)
                 )  # decision sobre un caso que no esta `listo` (la validacion del cuerpo va antes que el estado)
             elif status == 200:
-                m.state, m.job = "decidido", None
+                m.state, m.job, m.live = "decidido", None, None
             else:
                 assert status in (409, 422, 503)
                 m.pending_decision = m.pending_decision or status == 503
@@ -467,7 +503,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             if (
                 snap["state"] == "decidido" and self.m.state == "listo"
             ):  # el ciclo confirmo una decision pendiente
-                self.m.state, self.m.job = "decidido", None
+                self.m.state, self.m.job, self.m.live = "decidido", None, None
 
         @rule()
         def abandon(self) -> None:
@@ -480,7 +516,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             if self.m.state in TERMINAL:
                 return
             expire_case(db, self.case_id)
-            self.m.state, self.m.job = "vencido", None
+            self.m.state, self.m.job, self.m.live = "vencido", None, None
             self.matches_the_reference_model()
 
         @rule()
@@ -551,3 +587,4 @@ def test_pbt_u8_01_case_fsm_and_evaluation_against_the_reference_model(db: Db) -
     ):  # perfiles `ci` y `nightly`: cada recorrido raro ocurrio (un comando que nunca corre no prueba nada)
         assert STATS["six_lost"] > 0 and STATS["late_after_expire"] > 0 and STATS["late_after_retake"] > 0
         assert STATS["abandon_decide"] > 0 and STATS["escalations"] > 0 and STATS["frozen_then_thawed"] > 0
+        assert STATS["late_after_reset"] > 0

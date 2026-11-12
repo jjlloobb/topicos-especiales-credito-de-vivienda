@@ -63,6 +63,7 @@ def taken_of(data: dict[str, Any], *, attempt: int = 1, ever_degraded: bool = Fa
     return Taken(
         uuid.uuid4(),
         attempt,
+        datetime(2026, 11, 12, 12, 0, 30, tzinfo=UTC),
         CaseState.EN_EVALUACION,
         CREATED,
         ever_degraded,

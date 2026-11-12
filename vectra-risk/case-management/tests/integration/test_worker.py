@@ -618,3 +618,93 @@ async def test_a_new_feature_spec_version_is_read_on_every_attempt_of_the_active
         await w.step()
     assert [r.model_version_id for r in w.scoring.requests] == ["mv-1", "mv-2"]
     assert w.h.governance_handler.spec_calls == ["mv-1", "mv-2"]
+
+
+async def test_the_late_result_of_a_take_of_a_previous_cycle_is_discarded_after_a_freeze_and_thaw(
+    db: Db,
+) -> None:
+    """F-01 (ronda 1), BR-U8-08: `attempts` vuelve a 0 al congelar; la toma siguiente es otra vez el intento 1 y la guarda
+    identifica la toma (su arrendamiento), no el numero."""
+    case_id = new_case(db)
+    async with worker_world(db) as w:
+        first = await w.queue.take()  # A toma el intento 1 y se detiene
+        assert first is not None and first.attempt == 1
+        w.clock.advance(seconds=LEASE + 1)
+        second = await w.queue.take()  # B retoma: intento 2
+        assert second is not None and second.attempt == 2
+        w.scoring.by_case[case_id].append(("fail", FailClosedCause.MODEL_FROZEN))
+        await w.evaluator.run(second)  # modelo_congelado, attempts = 0
+        await w.h.sweeper.run_once()  # descongela: en_evaluacion, attempts = 0, trabajo nuevo
+        third = await w.queue.take()  # C toma: intento 1 otra vez
+        assert third is not None and third.attempt == 1
+        before, job_before = case_row(db, case_id), job_row(db, case_id)
+        assert await w.evaluator.run(first) is False  # el resultado tardio de A
+        assert (case_row(db, case_id), job_row(db, case_id)) == (before, job_before)
+        assert before["state"] == "en_evaluacion"
+        assert await w.evaluator.run(third) is True  # el de C, vigente, si se aplica
+    assert case_row(db, case_id)["state"] == "listo"
+
+
+async def test_the_late_result_of_a_take_of_a_previous_cycle_is_discarded_after_a_cro_retry(db: Db) -> None:
+    case_id = new_case(db)
+    async with worker_world(db) as w:
+        first = await w.queue.take()
+        assert first is not None and first.attempt == 1
+        w.clock.advance(seconds=LEASE + 1)
+        second = await w.queue.take()
+        assert second is not None and second.attempt == 2
+        w.scoring.by_case[case_id].append(("status", 403))
+        await w.evaluator.run(second)  # scoring_rejected -> no_disponible
+        r = await w.h.client.post(f"/v1/cases/{case_id}/retry", headers=auth("cro"))
+        assert r.status_code == 200, r.text
+        third = await w.queue.take()
+        assert third is not None and third.attempt == 1
+        before, job_before = case_row(db, case_id), job_row(db, case_id)
+        assert await w.evaluator.run(first) is False
+        assert (case_row(db, case_id), job_row(db, case_id)) == (before, job_before)
+        assert before["state"] == "en_evaluacion"
+        assert await w.evaluator.run(third) is True
+    assert case_row(db, case_id)["state"] == "listo"
+
+
+async def test_a_job_row_locked_by_another_transaction_is_skipped_and_the_take_never_waits_for_it(
+    db: Db,
+) -> None:
+    """F-02 (ronda 1), P-U8-01: `FOR UPDATE SKIP LOCKED`. Sin `SKIP LOCKED` la toma esperaria el bloqueo de otra transaccion."""
+    locked = new_case(db)
+    free = new_case(db)
+    db.execute(
+        "UPDATE evaluation_jobs SET run_at = run_at - interval '1 hour' WHERE case_id = %s", locked
+    )  # va primero en la cola
+    with db.admin() as holder:
+        holder.execute("BEGIN")
+        holder.execute("SELECT 1 FROM evaluation_jobs WHERE case_id = %s FOR UPDATE", (locked,))
+        async with worker_world(db) as w:
+            started = time.monotonic()
+            taken = await asyncio.wait_for(
+                w.queue.take(), 5
+            )  # sin `SKIP LOCKED` esto expira (el bloqueo no se suelta)
+            assert time.monotonic() - started < 2.5
+            assert taken is not None and taken.case_id == free  # la fila libre, no la bloqueada
+            assert await asyncio.wait_for(w.queue.take(), 5) is None  # nada mas debido: tampoco espera
+        holder.execute("ROLLBACK")
+    assert job_row(db, locked)["attempt"] == 0  # type: ignore[index]  # la fila bloqueada no se toco
+
+
+async def test_the_shutdown_grace_starts_at_sigterm_even_with_every_slot_busy(db: Db) -> None:
+    """F-04 (ronda 1): con todos los huecos ocupados el bucle no espera a que termine un trabajo para empezar la gracia."""
+    ids = [new_case(db), new_case(db)]
+    async with worker_world(db, concurrency=2) as w:
+        w.scoring.delay = 30.0
+        task = asyncio.create_task(w.worker.run_forever(grace=0.3))
+        started = time.monotonic()
+        while w.scoring.in_flight < 2 and time.monotonic() - started < 10:
+            await asyncio.sleep(0.05)
+        assert w.scoring.in_flight == 2  # los dos huecos estan ocupados
+        stopped = time.monotonic()
+        w.worker.stop()
+        await asyncio.wait_for(
+            task, 3
+        )  # el scoring dura hasta 7 s (su timeout): sin el arreglo no vuelve antes
+        assert time.monotonic() - stopped < 2.5
+    assert {case_row(db, i)["state"] for i in ids} == {"en_evaluacion"}
