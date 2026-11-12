@@ -130,6 +130,44 @@ def test_pbt_u11_01_invalid_and_degraded_follow_the_definition(data: st.DataObje
     )
 
 
+@given(data=st.data())
+def test_pbt_u11_01_explanation_view_rate_matches_the_oracle(data: st.DataObject) -> None:
+    """BR-U11-07 por definicion: la tasa de consulta de la ventana de 7 dias, por `decided_at`, total y por canal, y la ventana
+    diaria de cada dia desde el primero con 7 dias completos en el estado (35 dias)."""
+    now = data.draw(moments)
+    specs = data.draw(spec_lists(now))
+    result = build(specs, now)
+    today = now.astimezone(UTC).date()
+    yesterday = today - timedelta(days=1)
+
+    def window(last: date) -> list[Spec]:
+        """Las decisiones atribuibles validas con `decided_at` en los 7 dias UTC completos que terminan en `last`."""
+        first = last - timedelta(days=6)
+        return [s for s in counted(specs, first, last) if s.rec is not None]
+
+    in_week = window(yesterday)
+    expected: dict[str, list[int]] = {}
+    for s in in_week:
+        assert s.rec is not None
+        pair = expected.setdefault(s.rec.channel, [0, 0])
+        pair[1] += 1
+        if s.viewed:  # la vista previa cuenta aunque los factores sean `["ninguno"]` (BR-U11-07)
+            pair[0] += 1
+    view = result.explanation_view
+    assert {k: [r.numerator, r.denominator] for k, r in view.cells.items()} == expected
+    assert view.total.denominator == len(in_week)
+    assert view.total.numerator == sum(1 for s in in_week if s.viewed)
+
+    # Ventanas diarias: del dia `hoy - 35 + 6` (primer dia con la ventana completa en el estado) a ayer.
+    first_end = today - timedelta(days=29)  # 35 dias de estado menos los 6 anteriores de la ventana
+    days = [first_end + timedelta(days=i) for i in range((yesterday - first_end).days + 1)]
+    assert list(result.explanation_view_daily) == days
+    for day in days:
+        members = window(day)
+        got = result.explanation_view_daily[day]
+        assert (got.viewed, got.decisions) == (sum(1 for s in members if s.viewed), len(members))
+
+
 # --- PBT-U11-03 -------------------------------------------------------------------------------------------------------
 
 

@@ -45,7 +45,9 @@ class Spec:
     viewed: bool = True
     factors: tuple[str, ...] = ("ingreso",)
     rec: RecSpec | None = RecSpec()
-    flaw: str | None = None  # `decision` desconocida, `role` distinto de analista, `catalog` canal vacio
+    flaw: str | None = (
+        None  # `decision` desconocida, `role` distinto de analista, `catalog` canal de mas de 40 caracteres (el contrato admite `""`)
+    )
 
     @property
     def valid(self) -> bool:
@@ -64,7 +66,7 @@ def render(spec: Spec) -> dict[str, Any]:
             "model_version_id": rec.model,
             "evaluated_at": stamp(rec.evaluated),
             "received_at": stamp(rec.evaluated - timedelta(seconds=rec.elapsed_s)),
-            "channel": "" if spec.flaw == "catalog" else rec.channel,
+            "channel": "x" * 41 if spec.flaw == "catalog" else rec.channel,
             "attempt": rec.attempt,
             "first_evaluation": rec.first_evaluation,
         }

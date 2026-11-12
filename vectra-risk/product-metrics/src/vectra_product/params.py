@@ -12,6 +12,7 @@ from typing import Any, Final
 
 import yaml
 
+from vectra_product import config
 from vectra_product.model import Params
 
 #: Donde el chart monta el archivo (como U9: sin `subPath`).
@@ -43,8 +44,8 @@ def _integer(raw: dict[str, Any], key: str) -> int:
 
 def _unit_closed(raw: dict[str, Any], key: str) -> float:
     value = _number(raw, key)
-    if not 0 <= value <= 1:
-        raise ParamsError(f"{key}: fuera de 0..1")
+    if not config.TARGET_RATIO_MIN <= value <= config.TARGET_RATIO_MAX:
+        raise ParamsError(f"{key}: fuera de {config.TARGET_RATIO_MIN:g}..{config.TARGET_RATIO_MAX:g}")
     return value
 
 
@@ -53,14 +54,18 @@ def parse(raw: Any) -> Params:
     if not isinstance(raw, dict) or set(raw) != _KEYS:
         raise ParamsError("params_keys_mismatch")
     floor = _number(raw, "noise_floor")
-    if not 0 < floor < 1:
-        raise ParamsError("noise_floor: fuera de 0 < F < 1")
+    if not config.NOISE_FLOOR_MIN_EXCLUSIVE < floor < config.NOISE_FLOOR_MAX_EXCLUSIVE:
+        raise ParamsError(
+            f"noise_floor: fuera de {config.NOISE_FLOOR_MIN_EXCLUSIVE:g} < F < {config.NOISE_FLOOR_MAX_EXCLUSIVE:g}"
+        )
     sustain = _integer(raw, "noise_sustain_days")
-    if not 1 <= sustain <= 14:
-        raise ParamsError("noise_sustain_days: fuera de 1..14")
+    if not config.NOISE_SUSTAIN_DAYS_MIN <= sustain <= config.NOISE_SUSTAIN_DAYS_MAX:
+        raise ParamsError(
+            f"noise_sustain_days: fuera de {config.NOISE_SUSTAIN_DAYS_MIN}..{config.NOISE_SUSTAIN_DAYS_MAX}"
+        )
     minimum = _integer(raw, "noise_min_decisions")
-    if minimum < 30:
-        raise ParamsError("noise_min_decisions: menor que 30")
+    if minimum < config.NOISE_MIN_DECISIONS_MIN:
+        raise ParamsError(f"noise_min_decisions: menor que {config.NOISE_MIN_DECISIONS_MIN}")
     hours = _number(raw, "target_origination_hours")
     if hours <= 0:
         raise ParamsError("target_origination_hours: no es mayor que 0")

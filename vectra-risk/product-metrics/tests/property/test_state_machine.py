@@ -101,26 +101,35 @@ class IncrementalEqualsFull(RuleBasedStateMachine):
         """Una pagina falla a mitad de la lectura: nada avanza mas alla de la ultima pagina confirmada."""
         if kind == "incremental" and not self.baseline:
             return
+        self.heal()  # el breaker de un fallo anterior no debe fallar la lectura por su cuenta
         before_seq = self.state.last_seq
         before = self.state.snapshot()
         before_entries = None if before is None else dict(before.entries)
-        self.double.fail_requests = {self.double.calls + page}
+        target = self.double.calls + page
+        self.double.fail_requests = {target}
+        raised: ReadError | None = None
         try:
             self.run(self.state.full_pass() if kind == "full" else self.state.incremental())
-        except ReadError:
-            if kind == "full":  # la pasada fallida deja intacto el estado vigente
-                after = self.state.snapshot()
-                assert self.state.last_seq == before_seq
-                assert (after is None and before is None) or (
-                    after is not None and before_entries is not None and dict(after.entries) == before_entries
-                )
-            else:
-                assert before_seq is None or (self.state.last_seq or 0) >= before_seq
-        else:
-            if kind == "full":
-                self.baseline = True
+        except ReadError as error:
+            raised = error
         finally:
             self.double.fail_requests = set()
+        # Si la solicitud con el fallo se hizo, la lectura debe terminar en error. Unica excepcion: en una pasada completa, un fallo en
+        # la incremental que le sigue (sus solicitudes no llevan `recorded_from`) se registra y la pasada ya termino.
+        hit = self.double.calls >= target
+        must_fail = hit and (kind == "incremental" or "recorded_from" in self.double.requests[target - 1])
+        assert (raised is not None) == must_fail, (kind, page, hit, raised)
+        if raised is None:
+            if kind == "full":
+                self.baseline = True
+        elif kind == "full":  # la pasada fallida deja intacto el estado vigente
+            after = self.state.snapshot()
+            assert self.state.last_seq == before_seq
+            assert (after is None and before is None) or (
+                after is not None and before_entries is not None and dict(after.entries) == before_entries
+            )
+        else:
+            assert before_seq is None or (self.state.last_seq or 0) >= before_seq
 
     @rule(order=st.sampled_from(["full_first", "incremental_first"]), cycles=st.integers(1, 3))
     def race_full_and_incrementals(self, order: str, cycles: int) -> None:

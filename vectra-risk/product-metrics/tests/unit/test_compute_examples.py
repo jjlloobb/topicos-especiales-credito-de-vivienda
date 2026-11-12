@@ -88,9 +88,9 @@ def test_with_7_day_windows_40_decisions_on_each_of_3_days_reach_n_from_the_seco
 def test_a_healthy_day_stops_the_count() -> None:
     healthy = viewed_burst(5, 60, 60, 1000)  # el 1 de octubre: tasa 1.0
     low = [s for offset, first in ((3, 1), (2, 101)) for s in viewed_burst(offset, 50, 10, first)]
-    assert (
-        run([*healthy, *low]).noise_days_below_floor == 2
-    )  # las ventanas del 5 y 4 (en 4 de octubre ya entran 60 sanas)... ver abajo
+    # Ventanas de 7 dias (hoy = 6 de octubre; ayer = el 5): la del 3 de octubre suma 110 decisiones con 70 vistas (0,64 >= 0,6) y
+    # corta la cuenta; las del 4 y la del 5 suman 160 con 80 vistas (0,5 < 0,6): 2 dias bajo el piso.
+    assert run([*healthy, *low]).noise_days_below_floor == 2
 
 
 @pytest.mark.parametrize(

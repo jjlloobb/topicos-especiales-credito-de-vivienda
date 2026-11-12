@@ -90,11 +90,9 @@ def test_each_exclusion_rule(changes: dict[str, Any]) -> None:
         ("seq", True),
         ("outcome", "otro"),
         ("outcome", 3),
-        ("model_version_id", ""),
         ("model_version_id", None),
         ("evaluated_at", "no"),
         ("received_at", None),
-        ("channel", ""),
         ("channel", "x" * 41),
         ("channel", None),
         ("attempt", 0),
@@ -106,6 +104,19 @@ def test_each_exclusion_rule_of_the_resolved_recommendation(field: str, value: A
     item = entry()
     item["recommendation"] = {**item["recommendation"], field: value}
     assert isinstance(parse_entry(5, item), InvalidEntry), field
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("channel", ""), ("channel", "x" * 40), ("model_version_id", ""), ("model_version_id", "m" * 100_000)],
+)
+def test_values_the_u0_contract_admits_are_not_excluded(field: str, value: str) -> None:
+    """`MetricsRecommendationRef` no exige longitud minima en `channel` ni tope en `model_version_id`: excluirlos cambiaria las cifras."""
+    item = entry()
+    item["recommendation"] = {**item["recommendation"], field: value}
+    parsed = parse_entry(5, item)
+    assert isinstance(parsed, Decision)
+    assert getattr(parsed, "channel" if field == "channel" else "model") == value
 
 
 def test_missing_required_fields_are_excluded() -> None:

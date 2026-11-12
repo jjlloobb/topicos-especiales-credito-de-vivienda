@@ -3,6 +3,9 @@
 `MetricsProjection` de U0 es un `StrictModel`: validar la pagina entera con el haria que una sola entrada con un `decision`
 desconocido tumbara la pagina, y BR-U11-10 exige excluirla y contarla. Por eso el `reader` entrega cada item crudo y aqui cada
 uno se convierte en una `Decision` compacta o en una `InvalidEntry` con su `seq` (que va solo al log, nunca a una etiqueta).
+
+NFR-U11-21: este modulo no abre ningun puerto ni hace E/S; el unico acceso HTTP de U11 es `vectra_common.deps` (lo hace cumplir
+`.importlinter`: ningun modulo importa `httpx`).
 """
 
 from __future__ import annotations
@@ -15,7 +18,7 @@ from datetime import UTC, datetime
 from typing import Any, Final
 
 from vectra_contracts.catalog import Decision as DecisionCatalog
-from vectra_contracts.catalog import Outcome, Role
+from vectra_contracts.catalog import EntryType, Outcome, Role
 from vectra_contracts.validation import check_used_factors
 
 from vectra_product import config
@@ -176,8 +179,9 @@ def _catalog(value: object, codes: Mapping[str, int]) -> int:
     return codes[value]
 
 
-def _text(value: object, maximum: int) -> str:
-    if not isinstance(value, str) or not 1 <= len(value) <= maximum:
+def _text(value: object, maximum: int | None = None) -> str:
+    """Un `str` como el contrato de U0: `channel` admite `""` y hasta 40 caracteres; `model_version_id` no tiene tope."""
+    if not isinstance(value, str) or (maximum is not None and len(value) > maximum):
         raise _Reject
     return sys.intern(value)
 
@@ -194,7 +198,7 @@ def _used_factors(value: object) -> bool:
 
 
 def _decision(seq: int, raw: Mapping[str, Any]) -> Decision:
-    if raw.get("entry_type") != "human_decision":
+    if raw.get("entry_type") != EntryType.HUMAN_DECISION.value:
         raise _Reject
     decision = _catalog(raw.get("decision"), DECISION_CODES)
     no_factors = _used_factors(raw.get("used_factors"))
@@ -216,7 +220,7 @@ def _decision(seq: int, raw: Mapping[str, Any]) -> Decision:
         raise _Reject
     _integer(reference.get("seq"), 0)
     outcome = _catalog(reference.get("outcome"), OUTCOME_CODES)
-    model = _text(reference.get("model_version_id"), 1 << 16)
+    model = _text(reference.get("model_version_id"))
     evaluated_at = _stamp(reference.get("evaluated_at"))
     received_at = _stamp(reference.get("received_at"))
     channel = _text(reference.get("channel"), MAX_CHANNEL_LENGTH)

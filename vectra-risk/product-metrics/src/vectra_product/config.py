@@ -38,7 +38,8 @@ BREAKER_DEPENDENCY: Final = "decision-registry"
 CLIENT_ID: Final = "product-metrics"
 SCOPES: Final = ("registry:read:metrics",)
 
-#: Ventanas (BR-U11-08, 11): decisiones de 35 dias en memoria y 6 meses calendario cerrados en contadores.
+#: Ventanas (BR-U11-08, 11; NFR-U11-10): decisiones de 35 dias en memoria y 6 meses calendario cerrados en contadores,
+#: que se publican con `period="month"` y `month="AAAA-MM"`.
 STATE_WINDOW_DAYS: Final = 35
 CLOSED_MONTHS: Final = 6
 #: Margen de la pasada completa (P-U11-01): empieza un dia antes del dia 1 del sexto mes cerrado.
@@ -51,3 +52,13 @@ VIEW_WINDOW_DAYS: Final = 7
 MAX_DECIDED_AHEAD: Final = timedelta(minutes=5)
 #: BR-U11-10: con mas del 1 % de excluidas en 30 dias, `degraded = 1`.
 DEGRADED_RATIO: Final = 0.01
+
+#: Rangos de los parametros de cumplimiento (BR-U11-09), con nombre para que `params.parse`, sus mensajes y la regla de conftest del
+#: chart (Paso 11) compartan una sola fuente: 0 < F < 1, 1 <= S <= 14, N >= 30, targets en 0..1 (`target_north_star` puede ser null).
+NOISE_FLOOR_MIN_EXCLUSIVE: Final = 0.0
+NOISE_FLOOR_MAX_EXCLUSIVE: Final = 1.0
+NOISE_SUSTAIN_DAYS_MIN: Final = 1
+NOISE_SUSTAIN_DAYS_MAX: Final = 14
+NOISE_MIN_DECISIONS_MIN: Final = 30
+TARGET_RATIO_MIN: Final = 0.0
+TARGET_RATIO_MAX: Final = 1.0
