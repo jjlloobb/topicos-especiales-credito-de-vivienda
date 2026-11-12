@@ -34,10 +34,11 @@ test-spa:
 	$(NPM) test -- --coverage
 
 # U10-T03 (CA-1, la puerta del Paso 10): Playwright en Chromium y Firefox contra el emisor OIDC de prueba y el BFF con dobles. Los navegadores
-# no vienen con `npm ci`: si faltan, falla diciendo como instalarlos. U10-T04 amplia `tests/` con el recorrido completo. En serie.
+# no vienen con `npm ci`: si faltan, falla diciendo como instalarlos. `tests/poc` es la puerta del step-up; `tests/e2e` (ronda 2) es el login por
+# redireccion con la SPA real. U10-T04 amplia `tests/` con el recorrido completo. En serie.
 e2e-spa:
 	cd $(ROOT) && node console/spa/scripts/check-browsers.mjs
-	cd $(ROOT) && npx playwright test -c console/spa/playwright.config.ts tests/poc
+	cd $(ROOT) && npx playwright test -c console/spa/playwright.config.ts tests/poc tests/e2e
 
 test: test-bff test-spa e2e-spa
 

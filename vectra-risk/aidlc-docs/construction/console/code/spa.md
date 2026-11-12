@@ -100,6 +100,11 @@ npx playwright test -c console/spa/playwright.config.ts tests/poc --project=chro
   Lo que **no** se probó: la CSP real de U2 (el Vite no la aplica; la prueba con el gateway es de U10-T04 y U12 Paso 18) ni Keycloak real.
 - **React 19 y las dependencias:** `tech-stack-decisions.md` §2 dice «React 18»; se sigue con 19.3.1 (como en `main`). `react-aria-components` 1.22.1 declara `react ^19` y
   `@testing-library/react` 16.3.3 `^18 || ^19`. `jsdom` quedó en **31.0.0**, anclado en el `package.json` raíz (las 28.1.0 y 29.1.1 sirven en Node 22.17.1 pero no traen `CSS.escape`, que usa el `Modal` de `react-aria-components`; la 31.0.0 declara Node ≥ 22.22.2 y en 22.17.1 solo avisa `EBADENGINE`, y la suite corre tras un `npm ci --ignore-scripts` limpio; el CI usa `node-version: "22"`). `@playwright/test` 1.64.0 = el `playwright` del `pyproject.toml`.
+- **Hallazgos de la ronda 2 que cambiaron el código:** (1) con el `document` de verdad, el `focusin` que el propio aviso de inactividad se da al abrirse contaba como actividad: el aviso se
+  cerraba al instante y reiniciaba el contador (la prueba de la ronda 1 usaba un `EventTarget` falso). `attachActivity` recibe un filtro (`isWarningFocus`) y solo se ignora el `focusin` dentro
+  del `alertdialog`. (2) El fallo tardío de la solicitud de un intento anterior del step-up terminaba el intento nuevo (el guardia por intento solo cubría el camino de éxito); ahora también
+  se descarta. Lo encontró el modelo independiente de PBT-U10-05 (que no lee `flow.state` ni `busy()`; un comando compuesto `GoodStep` y otro `AbandonAndRetry` llegan al camino de éxito y a la
+  solicitud tardía) y tiene su caso unitario en `flow.test.ts`. (3) `pbtOptions` recibe un piso (`atLeast`) en vez de pisar el perfil: `nightly` corre 10 000 casos y la línea impresa dice los que se corren.
 - **Cobertura sin exclusiones:** `vite.config.ts` no tiene `exclude`; todo archivo de `src/` cuenta (incluido `main.tsx`, de 0 ramas).
 
 ## 7. Cobertura y pruebas
