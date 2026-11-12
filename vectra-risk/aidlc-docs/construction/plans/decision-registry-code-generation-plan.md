@@ -230,7 +230,7 @@ vectra-risk/decision-registry/
 
 ### Bloque H — Verificación en kind (con aprobación humana)
 
-- [ ] **Paso 18 — Puerta de aprobación, instalación y escenarios en kind**
+- [ ] **Paso 18 — Puerta de aprobación, instalación y escenarios en kind** (consolidado en U12 Paso 18 (enmienda §8))
   - **Requisito previo**: un PR con los Pasos 1–17 aprobado por un humano, sobre U1 y U2 ya instalados en kind.
   - El operador sincroniza la wave 5 y ejecuta, con evidencia:
     1. la prueba de carga k6 (append p95 ≤ 50 ms y p99 ≤ 200 ms a 50 entradas/s; expediente ≤ 2 s);
@@ -247,11 +247,11 @@ vectra-risk/decision-registry/
 
 ### Bloque I — Cierre
 
-- [ ] **Paso 19 — Frontend: N/A**
+- [x] (U03-T06) **Paso 19 — Frontend: N/A**
   - U3 no tiene interfaz de usuario; el expediente lo muestra la SPA (U10) vía el BFF.
   - **Aceptación**: `test ! -d decision-registry/frontend`.
 
-- [ ] **Paso 20 — Cierre de la unidad**
+- [x] (U03-T06, acotado a la demo) **Paso 20 — Cierre de la unidad**
   - **Aceptación**: `make -C decision-registry check`, que corre en orden las verificaciones estáticas y de integración (Testcontainers) de los Pasos 2–17 y termina en 0. Las de kind (Paso 18) se revisan como evidencia en el PR.
 
 ---
