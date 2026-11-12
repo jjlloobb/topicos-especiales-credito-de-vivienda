@@ -1,0 +1,48 @@
+[importlinter]
+root_packages =
+    vectra_product
+include_external_packages = True
+
+# NFR-U11-21, P-U11-04: la logica pura (`model`, `compute` y `noise`) no hace E/S: ni red, ni asincronia, ni reloj del
+# sistema de procesos, ni metricas, ni los modulos con E/S de la unidad.
+[importlinter:contract:logica-pura-sin-es]
+name = model, compute y noise no hacen E/S
+type = forbidden
+source_modules =
+    vectra_product.model
+    vectra_product.compute
+    vectra_product.noise
+forbidden_modules =
+    httpx
+    requests
+    asyncio
+    socket
+    subprocess
+    yaml
+    prometheus_client
+    vectra_common
+    vectra_product.reader
+    vectra_product.state
+    vectra_product.scheduler
+    vectra_product.collector
+    vectra_product.main
+    vectra_product.params
+
+# NFR-U11-21: el unico acceso HTTP es `vectra_common.deps` (externo a este paquete); ningun modulo de U11 importa `httpx`.
+[importlinter:contract:httpx-solo-en-deps]
+name = ningun modulo importa httpx fuera de vectra_common.deps
+type = forbidden
+source_modules =
+    vectra_product
+forbidden_modules =
+    httpx
+
+# Tech-stack: U11 no tiene API de negocio y no usa FastAPI (llega al SBOM solo como dependencia de `vectra_common`).
+[importlinter:contract:sin-fastapi]
+name = ningun modulo importa FastAPI
+type = forbidden
+source_modules =
+    vectra_product
+forbidden_modules =
+    fastapi
+    starlette

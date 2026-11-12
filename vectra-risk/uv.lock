@@ -20,6 +20,7 @@ members = [
     "vectra-governance",
     "vectra-identity-edge",
     "vectra-model-serving",
+    "vectra-product",
     "vectra-reference",
     "vectra-risk",
     "vectra-scoring",
@@ -1880,6 +1881,23 @@ requires-dist = [
 ]
 
 [[package]]
+name = "vectra-product"
+version = "0.1.0"
+source = { editable = "product-metrics" }
+dependencies = [
+    { name = "pyyaml" },
+    { name = "vectra-common" },
+    { name = "vectra-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pyyaml", specifier = "==6.0.3" },
+    { name = "vectra-common", editable = "contracts/python/vectra_common" },
+    { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
+]
+
+[[package]]
 name = "vectra-reference"
 version = "0.1.0"
 source = { editable = "reference-model" }
@@ -1949,6 +1967,7 @@ dev = [
     { name = "vectra-explainability" },
     { name = "vectra-governance", extra = ["validation"] },
     { name = "vectra-model-serving" },
+    { name = "vectra-product" },
     { name = "vectra-reference" },
     { name = "vectra-scoring" },
 ]
@@ -1991,6 +2010,7 @@ dev = [
     { name = "vectra-explainability", editable = "scoring-explainability/explainability" },
     { name = "vectra-governance", extras = ["validation"], editable = "governance" },
     { name = "vectra-model-serving", editable = "model-serving" },
+    { name = "vectra-product", editable = "product-metrics" },
     { name = "vectra-reference", editable = "reference-model" },
     { name = "vectra-scoring", editable = "scoring-explainability/scoring" },
 ]
