@@ -4,11 +4,11 @@
 
 ## Comprobado
 
-Cada paso que entra (1 a 13, 15 y 16), con la tarea que lo hizo, su comando de aceptación y el resultado de esta corrida sobre `fe0c9f3` (2026-11-10). El detalle y las salidas están en `bitacoras/U03-T06.md`. Los comandos se corren desde `vectra-risk/` con `HYPOTHESIS_PROFILE=ci`.
+Cada paso que entra (1 a 13, 15 y 16), con la tarea que lo hizo, su comando de aceptación y el resultado de esta corrida sobre `fe0c9f3` (2026-11-10). La rama se fusionó después con `origin/main` `5cf2ebb` (incluye U02-T20 y la tarea U03-T07); lo de «Comprobado» **no se volvió a correr** sobre `5cf2ebb`. El diff posterior al `fe0c9f3` es solo documentación de `vectra-risk/`, sin cambios en `decision-registry/`. El detalle y las salidas están en `bitacoras/U03-T06.md`. Los comandos se corren desde `vectra-risk/` con `HYPOTHESIS_PROFILE=ci`.
 
 | Paso | Tarea | Comando de aceptación | Resultado ahora |
 |---|---|---|---|
-| 1 Esqueleto | U03-T01 | `uv sync --frozen && uv run lint-imports --config decision-registry/.importlinter` | `Contracts: 2 kept, 0 broken`; el `make check` completo termina en 0 |
+| 1 Esqueleto | U03-T01 | `uv sync --frozen && uv run lint-imports --config decision-registry/.importlinter` | `Contracts: 2 kept, 0 broken`; `uv sync --frozen` es el primer tramo del comando y lo cubre el `make check` en 0 (sin salida propia aparte); el `make check` completo termina en 0 |
 | 2 Migraciones | U03-T01 | `uv run pytest decision-registry/tests/integration/test_migrations.py` (Testcontainers) | 98 pruebas, en verde |
 | 3 `chain` | U03-T02 | `uv run pytest decision-registry/tests/property/test_chain.py` | 5 pruebas, en verde |
 | 4 `verify` | U03-T02 | `uv run pytest decision-registry/tests/property/test_verify.py decision-registry/tests/unit/test_verify_modes.py` | 36 pruebas, en verde |
@@ -21,17 +21,16 @@ Cada paso que entra (1 a 13, 15 y 16), con la tarea que lo hizo, su comando de a
 | 11 CLI `vectra-registry` (sin `checkpoint`) | U03-T04 | `uv run pytest decision-registry/tests/integration/test_cli.py` (PostgreSQL, MinIO y Vault) | 38 pruebas, en verde |
 | 12 CronJobs, identidades y políticas (acotado) | U03-T04 | `make -C decision-registry policy-chart`; `uv run pytest decision-registry/tests/unit/test_vault_policies.py decision-registry/tests/property/test_aggregator.py decision-registry/tests/integration/test_aggregator.py` | `conftest` en verde; 38 pruebas en verde |
 | 13 Chart, buckets y flujos (acotado) | U03-T05 | `make -C decision-registry policy-chart policy-chart-u1`; `uv run python platform/network/generate.py --check && uv run pytest platform/network/tests` | `conftest` y Kyverno `pass: 26, fail: 0` en kind, staging y prod; 211 pruebas de red en verde |
-| 15 Applications de GitOps (acotado) | U03-T05 | `uv run python platform/tests/test_waves.py` | kind 51, staging 50 y prod 48 Applications en orden |
+| 15 Applications de GitOps (acotado) | U03-T05 | `uv run python platform/tests/test_waves.py`; el `kyverno test` de `disallow-argocd-auto-sync` corre dentro de `make -C platform check` | kind 51, staging 50 y prod 48 Applications en orden; `platform check` en 0 con 802 pruebas, que incluye ese `kyverno test` |
 | 16 Cobertura y trazabilidad (acotado; sin mutación) | U03-T05 | `make -C decision-registry coverage`; `... test_traceability.py --unit decision-registry --all` | 669 pruebas; cobertura de ramas 95,93 % (mínimo 95 %); 100 % en `chain`, `verify` y `append`; trazabilidad con 41 identificadores, código 0 |
 | 19 Frontend (N/A) | U03-T06 | `test ! -d decision-registry/frontend` | Código 0: U3 no tiene interfaz; el expediente lo muestra la SPA de U10 |
 | 20 Cierre (acotado) | U03-T06 | `make -C decision-registry check` | Código 0, 669 pruebas, 7 min 31 s; `platform check` en 0 con 802 pruebas |
 
 `make -C decision-registry check` corre en orden: `ruff`, `mypy --strict`, `lint-imports`, las pruebas con cobertura, la cobertura por módulo, `helm template` con `conftest`, Kyverno y `conftest` de U1 sobre el render de kind, staging y prod, y la trazabilidad. No se tocó el `Makefile`: no falta ningún objetivo de un paso que entra.
 
-`make check` de las demás unidades (RL-4, CA-4) sobre el mismo `fe0c9f3`: `contracts`, `platform`, `governance`, `reference-model` y `model-serving` terminan en 0. `identity-edge` falla en una prueba que no es de esta tarea (`test_t1_supply_chain_skips_exactly_the_three_realm_configmaps`: el workflow `supply-chain.yml` ya omite también `config-cli-realm.yaml` de kind y la prueba espera solo tres archivos); el mismo fallo ocurre en la base y se registra en la bitácora.
+`make check` de las demás unidades (RL-4, CA-4) sobre el mismo `fe0c9f3`: `contracts`, `platform`, `governance`, `reference-model` y `model-serving` terminan en 0. `identity-edge` falló en la base `fe0c9f3` en `test_t1_supply_chain_skips_exactly_the_three_realm_configmaps` (el workflow `supply-chain.yml` ya omitía también `config-cli-realm.yaml` de kind). Eso ya no está pendiente: U02-T20 (`eaa81a8`, PR #131), incluida en `5cf2ebb`, renombró y alineó la prueba (`CANDIDATAS.md:507`). No se volvió a correr `identity-edge` sobre `5cf2ebb`.
 
 ## Diferido por la demo
-
 
 Lista que acepta `platform/tests/test_traceability.py --unit decision-registry --all` (P-4, `demo-recorte-funcional.md` §2.4 y §6). Cada fila lleva el identificador, el paso del plan que lo implementaría y la cita del recorte. Un identificador de esta lista **no** puede tener código ni prueba: si los tiene, la prueba falla y se quita de aquí. Los pasos 13, 15 y 16 no aparecen: son de U03-T05 y se trazan en el chart, las pruebas y el `Makefile`.
 
@@ -61,11 +60,11 @@ Piezas diferidas que **no** tienen un identificador propio sin código en el dis
 | Paso 13: los values de buckets y de Transit | Paso 13 | Enmienda §3 U3, Paso 13; T5 | Values de los buckets WORM y de la URL de Transit | Cierre completo (T5) |
 | Paso 15: `decision-registry-rebuild`, `rebuild-history.yaml`, `rebuild-runid-check.yml` y la wave 6 | Paso 15 | Enmienda §3 U3, Paso 15; T5 | La Application de reconstrucción, su historial y el workflow que valida el `runId` | Cierre completo (T5) |
 | Mutación de `chain` y `verify` | Paso 16 | Enmienda §3 U3, Paso 16; T3 | `uv run mutmut run` sin sobrevivientes fuera de la allowlist | Cierre completo (T3) |
-| Escenarios 1 a 7 y 9 de kind; del 8, la suspensión de 35 min, el reconstruir y los silencios | Paso 18 | Enmienda §3 U3, fila 18, y §8; T1 a T6 | Carga k6, benchmark `nightly`, fallo de zona, bóveda y S3 caídos, manipulación de superusuario, `restore-drill`, verificación bajo demanda desde la consola | Consolidado en U12 Paso 18 (enmienda §8); el resto, cierre completo |
+| Escenarios 1 a 7 y 9 de kind; del 8, la suspensión de 35 min, el reconstruir y los silencios | Paso 18 | Enmienda §3 U3, fila 18, y §8; T1 a T6 | Carga k6, benchmark `nightly`, fallo de zona, bóveda y S3 caídos, manipulación de superusuario, `restore-drill`, verificación bajo demanda desde la consola | Cierre completo (enmienda §3 U3, fila 18, y §8) |
 
 ## Pendiente en U12
 
-Lo que **entra** del Paso 18 lo verifica el operador en kind dentro de **U12 Paso 18** (enmienda §8). Esta tarea no lleva guía de kind ni scripts. Debe verse:
+Del Paso 18 solo el escenario que queda dentro del alcance va a U12; los escenarios diferidos de la tabla anterior van a «cierre completo». Lo que **entra** lo verifica el operador en kind dentro de **U12 Paso 18** (enmienda §8). Esta tarea no lleva guía de kind ni scripts. Debe verse:
 
 | Qué | Resultado esperado |
 |---|---|
@@ -79,13 +78,13 @@ Lo que **entra** del Paso 18 lo verifica el operador en kind dentro de **U12 Pas
 
 De `CANDIDATAS.md`, las que afectan a la demo:
 
-- **Prioritaria (antes de la verificación en kind), U03-T03 ronda 2, F-01:** `test_queries.py` da por buena la aserción del peor caso de `daily:query` tomando el mínimo de 3 medidas y la consulta no tiene tope por solicitud: una consulta sin versión puede retener la única conexión del pool `projections` y dejar sin conexión a `explanation`. La forma de U9, con versión, tarda 0,14 a 0,21 s. **P-1: rige la opción (a)**, dejarla nombrada aquí y abrir una tarea corta de código, `U03-T07`, antes de U12; la decisión de abrirla es del usuario (CANDIDATAS.md, «Prioritaria (U3, antes de la verificación en kind)»).
-- La firma de `checkpoint` cubre `recorded_at` de la propia entrada, que el append asigna dentro del lock (U03-T03 y U03-T04; decidido el 2026-11-09: se difiere al cierre completo).
-- `fail_closed` con `local_cause` desde `registry:append:scoring`: el plan pide 403 y U0 lo rechaza con 422 antes del handler (U03-T03, F-03).
-- Los resultados `inconsistente` de `incremental` y `nightly` no quedan en `integrity_checks`, así que no dejan el expediente en `not_verified` (U03-T03).
-- `pools.py` no revisa conexiones ociosas ni les pone vida máxima: tras una conmutación del primario, el primer uso da 503 (U03-T03).
-- Pruebas con límite de 2 s (`test_dossier.py:148`, `test_queries.py`) dan 503 o fallan por tiempo con la máquina cargada (U03-T05, ronda 2, F-02).
+- **Prioritaria (antes de la verificación en kind), U03-T03 ronda 2, F-01 (`CANDIDATAS.md:254`):** `test_queries.py` da por buena la aserción del peor caso de `daily:query` tomando el mínimo de 3 medidas y la consulta no tiene tope por solicitud: una consulta sin versión puede retener la única conexión del pool `projections` y dejar sin conexión a `explanation`. La forma de U9, con versión, tarda 0,14 a 0,21 s. **P-1: rige la opción (a)**, dejarla nombrada aquí y la tarea corta de código es `U03-T07`, antes de U12, ya abierta por decisión del usuario el 2026-11-10: `vectra-risk/tareas/U03-T07-tope-de-daily-query.md`.
+- La firma de `checkpoint` cubre `recorded_at` de la propia entrada, que el append asigna dentro del lock (`CANDIDATAS.md:192`; U03-T03 y U03-T04; decidido el 2026-11-09: se difiere al cierre completo).
+- `fail_closed` con `local_cause` desde `registry:append:scoring`: el plan pide 403 y U0 lo rechaza con 422 antes del handler (`CANDIDATAS.md:199`; U03-T03, F-03).
+- Los resultados `inconsistente` de `incremental` y `nightly` no quedan en `integrity_checks`, así que no dejan el expediente en `not_verified` (`CANDIDATAS.md:200`; U03-T03).
+- `pools.py` no revisa conexiones ociosas ni les pone vida máxima: tras una conmutación del primario, el primer uso da 503 (`CANDIDATAS.md:201`; U03-T03).
+- Pruebas con límite de 2 s (`test_dossier.py:148`, `test_queries.py`) dan 503 o fallan por tiempo con la máquina cargada (`CANDIDATAS.md:305`; U03-T05, ronda 2, F-02).
 
 ## Quién ejecutó
 
-El codificador de U03-T06 (agente Claude), el 2026-11-10, sobre `fe0c9f3` (`main` de la base de la rama `tarea/U03-T06`). Sin clúster. La bitácora es `bitacoras/U03-T06.md`.
+El codificador de U03-T06 (agente Claude), el 2026-11-10, sobre `fe0c9f3` (base de la rama `tarea/U03-T06`; la rama se fusionó después con `5cf2ebb` sin repetir las corridas). Sin clúster. La bitácora es `bitacoras/U03-T06.md`.
