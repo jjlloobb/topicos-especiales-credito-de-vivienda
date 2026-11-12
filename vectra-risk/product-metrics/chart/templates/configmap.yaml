@@ -1,0 +1,13 @@
+{{- /* values-product-metrics-policy.yaml como ConfigMap (INF-U11-02; BR-U11-09): el archivo entero, montado como directorio en la ruta de
+`vectra_product.params.POLICY_PATH`. `|-` deja el texto sin salto final: `checksum/config` es el sha256 de este `data` tal cual. */ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.policy.configMapName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: product-metrics-policy
+    app.kubernetes.io/part-of: product-metrics
+data:
+  {{ .Values.policy.fileName }}: |-
+    {{- include "product-metrics.policy" . | nindent 4 }}

@@ -1,0 +1,40 @@
+# GENERADO por product-metrics/tools/gen_rules.py: no editar a mano (`gen_rules.py --check` falla si difiere).
+# La regla de desincronia sale de `vectra_contracts.catalog.FAIL_CLOSED_CAUSES_BY_CATEGORY['desincronia']` (BR-U11-06) y las `:dedup`, de
+# `vectra_product.collector.PRODUCT_SERIES` (P-U11-05, NFR-U11-06): una por clave, ninguna para las series de operacion.
+groups:
+- name: vectra-product-desync
+  rules:
+  - record: vectra:product_desync_failclosed:rate1h
+    expr: sum(rate(vectra_scoring_failclosed_total{cause=~"feature_dictionary_incomplete|version_mismatch"}[1h]))
+- name: vectra-product-dedup
+  rules:
+  - record: vectra:product_north_star_decisions:dedup
+    expr: max without (instance, pod) (vectra_product_north_star_decisions)
+  - record: vectra:product_north_star_ratio:dedup
+    expr: max without (instance, pod) (vectra_product_north_star_ratio)
+  - record: vectra:product_north_star_breakdown:dedup
+    expr: max without (instance, pod) (vectra_product_north_star_breakdown)
+  - record: vectra:product_explanation_view_decisions:dedup
+    expr: max without (instance, pod) (vectra_product_explanation_view_decisions)
+  - record: vectra:product_explanation_view_ratio:dedup
+    expr: max without (instance, pod) (vectra_product_explanation_view_ratio)
+  - record: vectra:product_noise_days_below_floor:dedup
+    expr: max without (instance, pod) (vectra_product_noise_days_below_floor)
+  - record: vectra:product_sustained_decisions:dedup
+    expr: max without (instance, pod) (vectra_product_sustained_decisions)
+  - record: vectra:product_recommendation_sustained_ratio:dedup
+    expr: max without (instance, pod) (vectra_product_recommendation_sustained_ratio)
+  - record: vectra:product_origination_seconds:dedup
+    expr: max without (instance, pod) (vectra_product_origination_seconds)
+  - record: vectra:product_origination_standard_under_target_ratio:dedup
+    expr: max without (instance, pod) (vectra_product_origination_standard_under_target_ratio)
+  - record: vectra:product_unattributable_decisions:dedup
+    expr: max without (instance, pod) (vectra_product_unattributable_decisions)
+  - record: vectra:product_invalid_entries:dedup
+    expr: max without (instance, pod) (vectra_product_invalid_entries)
+  - record: vectra:product_metrics_degraded:dedup
+    expr: max without (instance, pod) (vectra_product_metrics_degraded)
+  - record: vectra:product_metrics_last_success_timestamp:dedup
+    expr: max without (instance, pod) (vectra_product_metrics_last_success_timestamp)
+  - record: vectra:product_target:dedup
+    expr: max without (instance, pod) (vectra_product_target)

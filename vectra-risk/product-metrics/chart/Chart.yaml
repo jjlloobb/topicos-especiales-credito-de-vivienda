@@ -1,0 +1,9 @@
+apiVersion: v2
+name: product-metrics
+description: >-
+  Chart de U11 (Pasos 11 a 13, acotado a la demo): el Deployment product-metrics (2 replicas fijas, solo 8081) con su Service, PDB y ServiceMonitor,
+  la ServiceAccount, el ExternalSecret de la llave private_key_jwt, el ConfigMap de values-product-metrics-policy.yaml, la PrometheusRule (reglas
+  generadas, las dos de respuesta completa y las cuatro alertas) y el ConfigMap del dashboard product.json. Sin Server ni AuthorizationPolicy (los
+  genera U1: metrics-8081). Diferido por la demo: el runbook product-metrics-parameter-change (T2).
+type: application
+version: 0.1.0

@@ -87,6 +87,27 @@
         "x": 12,
         "y": 8
       }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Ciclos omitidos de product-metrics",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "increase(vectra_product_cycles_skipped_total[1h])",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      }
     }
   ]
 }

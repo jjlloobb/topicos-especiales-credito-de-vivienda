@@ -63,8 +63,12 @@ class RealProcess:
         policy = tmp_path / "values-product-metrics-policy.yaml"
         policy.write_text(POLICY, encoding="utf-8")
         self.port = free_port()
+        self.log_path = tmp_path / "process.log"
+        self._log = self.log_path.open("w", encoding="utf-8")
         self.process = subprocess.Popen(  # noqa: S603
             [sys.executable, "-c", CODE, str(self.port)],
+            stdout=self._log,
+            stderr=subprocess.STDOUT,
             env={
                 **os.environ,
                 "VECTRA_REGISTRY_URL": self.servers[0].url,
@@ -96,6 +100,7 @@ class RealProcess:
         if self.process.poll() is None:
             self.process.kill()
         self.process.wait()
+        self._log.close()
         for server in self.servers:
             server.stop()
 
@@ -179,11 +184,17 @@ def test_sigterm_while_a_pass_reads_a_slow_page_finishes_the_page_and_exits_0_wi
         process.process.send_signal(signal.SIGTERM)
         code = process.process.wait(timeout=SHUTDOWN_SECONDS)
         elapsed = time.monotonic() - sent
+        # C-2 (F-01 de U11-T02): lo que el doble completo **en el instante en que el proceso sale**, antes de parar los servidores. `process.stop()` apaga el doble
+        # con gracia y deja terminar su manejador: leerlo despues haria pasar a un planificador que cancela la pagina (el manejador del doble sigue solo).
+        completed_at_exit = list(double.completed)
     finally:
         process.stop()
     (tmp_path / "exit-code.txt").write_text(f"{code}\n", encoding="utf-8")
     assert code == 0  # y no -15: uvicorn no vuelve a emitir la señal
     assert elapsed <= SHUTDOWN_SECONDS
+    assert completed_at_exit == [1], (
+        "el proceso salio con la pagina en vuelo sin terminar: se cancelo en lugar de terminar"
+    )
     assert double.completed == [1]  # la pagina en vuelo termino: el doble la vio completa
     assert double.calls == 1  # y no se pidio ninguna mas
     assert (tmp_path / "exit-code.txt").read_text(encoding="utf-8") == "0\n"
@@ -263,3 +274,24 @@ def test_main_in_the_test_process_wires_the_environment_serves_and_returns_0_on_
         for server in servers:
             server.stop()
     assert outcome == ["ready"]
+
+
+def test_no_log_line_of_the_real_process_keeps_only_level_timestamp_and_service(tmp_path: Path) -> None:
+    """C-6 (F-06 de U11-T02): `uvicorn` y `httpx` loggean por `logging` estandar y el filtro de U0 dejaba de ellos solo `level`, `timestamp` y `service`.
+    `main` los sube a WARNING; el proceso real, con una pasada, una lectura y un apagado, no deja ninguna linea sin contenido."""
+    import json
+
+    now = stamp_now()
+    double = RegistryDouble([render(s) for s in us503_specs(now=now)])
+    process = RealProcess(tmp_path, double)
+    try:
+        process.wait_for("/readyz", 200)
+        process.process.send_signal(signal.SIGTERM)
+        assert process.process.wait(timeout=SHUTDOWN_SECONDS) == 0
+    finally:
+        process.stop()
+    lines = [
+        json.loads(line) for line in process.log_path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+    bare = [line for line in lines if set(line) <= {"level", "timestamp", "service"}]
+    assert bare == [], f"lineas de log sin contenido: {bare[:3]}"

@@ -131,11 +131,11 @@ vectra-risk/product-metrics/
 
 ### Bloque E — Despliegue y operación
 
-- [ ] **Paso 10 — Imagen**
+- [x] **Paso 10 — Imagen** (U11-T03) — firma, SBOM y escaneo diferidos por la demo (T1)
   - Python oficial por digest, `runAsNonRoot`, `readOnlyRootFilesystem`; construida, escaneada, con SBOM y firmada con `sign-image.yml` de U1; el escaneo y el SBOM son de `supply-chain.yml`.
   - **Aceptación**: `hadolint product-metrics/Dockerfile`; ningún módulo de `product-metrics` importa FastAPI (import-linter). El SBOM sí lo lista, como dependencia de `vectra_common` (revisión de consistencia entre unidades, 2026-11-01).
 
-- [ ] **Paso 11 — Chart, cuotas y flujos**
+- [x] **Paso 11 — Chart, cuotas y flujos** (U11-T03) — perfil de la demo: 2 réplicas fijas y request de memoria de 128 MiB solo en kind (P-1 = b, decisión del usuario, 2026-11-12); sin `values-kind-demo.yaml` (T6)
   - `Deployment` de 2 réplicas fijas con `vectra.io/hpa-exempt` y su justificación, `RollingUpdate` con `maxSurge: 1` y `maxUnavailable: 0`, `progressDeadlineSeconds: 4800`, PDB, spread por zona, `vectra-normal`, `terminationGracePeriodSeconds: 10`.
   - Sondas del `Deployment` (revisión del plan de tareas de U11, 2026-10-10): `livenessProbe` HTTP sobre `/healthz` y `readinessProbe` HTTP sobre `/readyz`, las dos en 8081; sin `startupProbe` larga (INF-U11-01).
   - `Service` solo con 8081 y `publishNotReadyAddresses: true`; `ServiceMonitor`.
@@ -147,7 +147,7 @@ vectra-risk/product-metrics/
   - Diseño: INF-U11-01..04; NFR-U11-05, 14, 20, 21.
   - **Aceptación**: `helm template` con cada values + `kubeconform` + `conftest test product-metrics/policies/conftest/` (réplicas, exención, estrategia, plazos, `livenessProbe` en `/healthz` y `readinessProbe` en `/readyz` en 8081 presentes, `publishNotReadyAddresses`, sin token montado, sin `subPath`, `checksum/config`, `Server` y `AuthorizationPolicy` de Linkerd en 8081 solo para Prometheus, rangos de los parámetros dentro y fuera; revisión del plan de tareas de U11, 2026-10-10); `kyverno test` de U1 (`require-hpa-bounds`); `conftest test platform/policies/quotas/`; `uv run python platform/network/generate.py --check`; `CODEOWNERS` con la línea del archivo.
 
-- [ ] **Paso 12 — Reglas generadas y alertas**
+- [x] **Paso 12 — Reglas generadas y alertas** (U11-T03)
   - `tools/gen_rules.py` genera, desde `vectra_contracts.catalog.FailClosedCause`, la regla `vectra:product_desync_failclosed:rate1h`, y desde la allowlist, las recording rules `:dedup`.
   - `PrometheusRule` del chart con `vectra:product_complete_response_ratio:1h` y `:1d`, las `:dedup` y las alertas de P-U11-06 (`RuidoExplicacion` con S del archivo; `ProductMetricsStale` y `ProductMetricsFullRecomputeMissing`, cada una en dos reglas: edad con `for: 0` y ausencia con `up … unless on (pod)` y `for` de 30 min y 26 h, las dos sin disparar durante la pasada; pendientes posteriores al cierre, 2026-10-10). `GrafanaFolderPermissionsDrift` no va aquí: es de U1.
   - Diseño: BR-U11-06, 14; P-U11-05, 06; NFR-U11-06, 08, 32.
@@ -161,26 +161,26 @@ vectra-risk/product-metrics/
     - dos réplicas idénticas → una sola `RuidoExplicacion`;
     - `vectra:product_complete_response_ratio:1h` con 98 repartidos entre `favorable`, `desfavorable` y `revision_requerida` y 2 `fail_closed` → 0,98 (cuarta revisión de coherencia entre unidades, 2026-10-31).
 
-- [ ] **Paso 13 — Dashboards y runbooks**
+- [x] **Paso 13 — Dashboards y runbooks** (U11-T03) — runbook `product-metrics-parameter-change` diferido por la demo (T2)
   - `product.json` (carpeta `Vectra / Producto`): North Star con desglose, tasa de consulta con el piso y los días bajo el piso, sostenida con la nota de aproximación, originación con el target, respuesta completa y fail-closed, no atribuibles, excluidas y degradado; solo series `:dedup`; targets como líneas.
   - Sin `operation.json` propio: `platform/observability/dashboards/operacion.json` de U1 (carpeta `Vectra / Operación`) es el dueño de ciclo, entradas leídas, recomputación diaria y breaker (plan de U1, Paso 12). U11 le agrega por PR el panel que falta, ciclos omitidos (`vectra_product_cycles_skipped_total`), y solo `product.json` queda en su chart, como `ConfigMap` con la etiqueta `vectra.io/dashboard` y la anotación `grafana_folder` (revisión de consistencia entre unidades, 2026-11-01).
   - Runbooks `product-noise`, `product-metrics-degraded`, `product-metrics-stale`, `product-metrics-full-recompute-missing` y `product-metrics-parameter-change`.
   - Diseño: BR-U11-12, 13; INF-U11-05; NFR-U11-33, 41.
   - **Aceptación**: `uv run pytest product-metrics/tests/unit/test_dashboards.py` (ninguna referencia a series `vectra_product_*` crudas salvo en las dos alertas por réplica; ninguna razón calculada como promedio de razones; la nota de aproximación y «sin target acordado» presentes); `uv run python contracts/tools/forbidden_phrases.py product-metrics/observability/dashboards/*.json`; `uv run python platform/tests/test_runbooks.py --root product-metrics`.
 
-- [ ] **Paso 14 — Workflow de CI**
+- [ ] **Paso 14 — Workflow de CI** — diferido por la demo (T4)
   - `.github/workflows/product-metrics.yml` en cada PR que toca `product-metrics/` o `contracts/` (por el catálogo de causas): `uv sync --frozen`, ruff, mypy, import-linter, pruebas con perfil `ci` y semilla impresa, cobertura, `gen_rules.py --check`, `promtool`, `helm template`, `conftest`, pruebas de dashboards; la prueba de volumen en el workflow nocturno, con `mutmut` y el perfil `nightly`.
   - **AUTONOMIA-01**: ningún paso `kubectl`, `helm install`/`upgrade` ni `terraform apply`.
   - **Aceptación**: `actionlint .github/workflows/product-metrics.yml`; `! grep -E "kubectl|helm (install|upgrade)|terraform apply" .github/workflows/product-metrics.yml`; una prueba sobre el YAML: el disparador incluye `contracts/**`.
 
-- [ ] **Paso 15 — Application y trazabilidad**
+- [x] **Paso 15 — Application y trazabilidad** (U11-T03)
   - Entrada `product-metrics` en `vectra-risk-gitops/components.yaml` con `wave: 5` y `values: [product-metrics/chart/values-product-metrics-policy.yaml]`; `generate.py` escribe una Application por entorno, sin auto-sync (revisión de consistencia entre unidades, 2026-11-01).
   - Trazabilidad de cada BR-U11 a una prueba.
   - **Aceptación**: `uv run python vectra-risk-gitops/generate.py --check`; `uv run python platform/tests/test_waves.py`; `kyverno test` de `disallow-argocd-auto-sync`; `uv run python platform/tests/test_traceability.py --unit product-metrics --all`.
 
 ### Bloque F — Verificación en kind (con aprobación humana)
 
-- [ ] **Paso 16 — Puerta de aprobación y escenarios en kind**
+- [ ] **Paso 16 — Puerta de aprobación y escenarios en kind** — consolidado en U12 Paso 18 (enmienda §8)
   - **Requisito previo**: un PR con los Pasos 1–15 aprobado por un humano, con U1–U3, U7 y U8 instalados en kind y los datos de demostración de U12: 2 000 casos `normal` decididos (U12 BR-U12-06 y plan, Paso 6; pendientes consolidados, tercera tanda, 2026-10-10).
   - El operador ejecuta, con evidencia:
     1. la suite de conectividad de U1 con los casos de INF-U11-04, incluido `/readyz` del kubelet;
@@ -193,11 +193,11 @@ vectra-risk/product-metrics/
 
 ### Bloque G — Documentación y cierre
 
-- [ ] **Paso 17 — Documentación**
+- [x] **Paso 17 — Documentación** (U11-T03)
   - `product-metrics/README.md`: qué mide cada métrica y qué no (la nota de aproximación de la sostenida), parámetros y targets **[INTERNO]**, ciclo de lectura, deduplicación, readiness y runbooks.
   - **Aceptación**: `test -s product-metrics/README.md`; `platform/tests/test_links.py`.
 
-- [ ] **Paso 18 — Cierre de la unidad**
+- [x] **Paso 18 — Cierre de la unidad** (U11-T03) — cierre acotado a la demo
   - **Aceptación**: `make -C product-metrics check`, que corre en orden las verificaciones estáticas, las propiedades, las pruebas de integración y de reglas de los Pasos 1–15 y termina en 0. La prueba de volumen corre en el workflow nocturno; las de kind (Paso 16) se revisan como evidencia en el PR.
 
 ---

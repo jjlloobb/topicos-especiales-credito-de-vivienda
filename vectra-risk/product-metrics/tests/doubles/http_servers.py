@@ -22,9 +22,10 @@ from starlette.routing import Route
 class Server:
     """Un servidor uvicorn en un hilo, en un puerto que elige el sistema operativo."""
 
-    def __init__(self, app: Any) -> None:
+    def __init__(self, app: Any, host: str = "127.0.0.1") -> None:
+        """`host="0.0.0.0"` solo para `test_image.py`: el contenedor llega al doble por `host.docker.internal`, no por el 127.0.0.1 del host."""
         self._server = uvicorn.Server(
-            uvicorn.Config(app, host="127.0.0.1", port=0, log_level="error", lifespan="off")
+            uvicorn.Config(app, host=host, port=0, log_level="error", lifespan="off")
         )
         self._thread = threading.Thread(target=self._server.run, daemon=True)
 

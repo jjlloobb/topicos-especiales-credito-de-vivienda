@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: product-metrics
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '5'
+spec:
+  project: vectra-staging
+  source:
+    repoURL: https://git.banco.internal/vectra/vectra-risk.git
+    targetRevision: main
+    path: vectra-risk/product-metrics/chart
+    helm:
+      valueFiles:
+      - /vectra-risk/vectra-risk-gitops/envs/staging/values.yaml
+      - /vectra-risk/product-metrics/chart/values-product-metrics-policy.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-app
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

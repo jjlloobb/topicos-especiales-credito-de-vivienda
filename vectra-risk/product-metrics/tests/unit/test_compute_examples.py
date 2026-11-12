@@ -113,6 +113,7 @@ def test_non_standard_cases_stay_out_of_origination(changes: dict[str, object]) 
 
 
 def test_standard_cases_enter_origination_by_the_day_of_evaluated_at() -> None:
+    """BR-U11-02: el tiempo de originacion se asigna al dia UTC de `evaluated_at` de la recomendacion entregada, no al de la decision."""
     specs = [
         *specs_on(1, 2, 1, rec=RecSpec(elapsed_s=600, evaluated=day_at(1, 8))),
         *specs_on(1, 1, 3, rec=RecSpec(elapsed_s=7200, evaluated=day_at(1, 9))),
@@ -124,6 +125,7 @@ def test_standard_cases_enter_origination_by_the_day_of_evaluated_at() -> None:
 
 
 def test_day_at_10_utc_does_not_include_todays_decisions() -> None:
+    """BR-U11-08: los periodos son dias UTC completos y excluyen el dia en curso (BR-U11-02: la decision se asigna al dia UTC de `decided_at`)."""
     today = Spec(seq=1, decided=NOW.replace(hour=8))
     yesterday = Spec(seq=2, decided=day_at(1, 23))
     result = run([today, yesterday])
@@ -184,6 +186,7 @@ def test_2_percent_invalid_entries_degrade_and_1_percent_does_not() -> None:
 
 
 def test_unattributable_decisions_are_counted_apart_and_never_enter_a_ratio() -> None:
+    """BR-U11-04: la sostenida es decisiones que siguieron la recomendacion sobre las atribuibles; las no atribuibles no entran en ninguna razon."""
     result = run([*specs_on(1, 2, 1), *specs_on(1, 3, 10, rec=None)])
     period = result.periods[DAY]
     assert period.unattributable == 3

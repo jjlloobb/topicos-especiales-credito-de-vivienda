@@ -338,6 +338,82 @@ async def test_failed_daily_pass_retries_6_times_every_15_minutes_and_then_waits
     assert len(attempts) == 8
 
 
+# --- C-3 (F-02 de U11-T02): el borde del plazo de 75 min y los reintentos de la segunda pasada diaria ------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("elapsed_before_last_page", "completes"),
+    [(75 * 60 - 1, True), (75 * 60 + 1, False)],
+    ids=["justo-por-debajo-de-75-min-termina", "justo-por-encima-de-75-min-vence"],
+)
+async def test_a_pass_just_under_75_minutes_completes_and_one_just_over_expires(
+    worlds: list[World], elapsed_before_last_page: int, completes: bool
+) -> None:
+    """P-U11-02: el plazo de 75 min se comprueba entre paginas. Los minutos van **literales** (no `config.FULL_PASS_DEADLINE_SECONDS`): si alguien cambia el
+    plazo a 90 min, el caso de «vence» deja de vencer y la prueba falla (con la constante en la prueba, el borde se movia con ella)."""
+    world = make(worlds, items(5))  # dos paginas de 3 y 2
+    spent: list[int] = []
+
+    def slow(number: int) -> None:
+        if number == 1 and not spent:
+            spent.append(number)
+            world.clock.t += elapsed_before_last_page  # lo que tarda la primera pagina; el reloj monotono sigue al de pared
+
+    world.double.on_request = slow
+    await world.start()
+    assert (world.holder.current is not None) is completes
+    assert (world.state.snapshot() is not None) is completes
+    assert value(world.metrics(), "vectra_product_full_pass_in_progress") == 0
+    assert world.reader.locked is False
+    assert ("vectra_product_last_full_recompute_timestamp" in world.metrics()) is completes
+
+
+@pytest.mark.asyncio
+async def test_a_second_daily_pass_that_also_fails_makes_its_own_6_retries(worlds: list[World]) -> None:
+    """NFR-U11-09: cada diaria tiene sus 6 reintentos; sin el reinicio diario de `_retries`, la segunda fallida no reintenta nada."""
+    world = make(worlds, items(5))
+    await world.start()
+    assert world.holder.current is not None
+    attempts: list[float] = []
+    full = world.state.full_pass
+
+    async def counting_full(checkpoint: Any = None) -> None:
+        attempts.append(world.clock.monotonic())
+        await full(checkpoint)
+
+    world.state.full_pass = counting_full  # type: ignore[method-assign]
+    world.double.fail_all = True
+    first_daily = world.scheduler.next_daily
+    await world.advance((first_daily - world.clock.wall()).total_seconds() + 3 * 3600)
+    assert len(attempts) == 1 + config.FULL_PASS_RETRIES  # la diaria y sus 6 reintentos
+    second_daily = world.scheduler.next_daily
+    assert second_daily > first_daily
+    await world.advance((second_daily - world.clock.wall()).total_seconds() + 3 * 3600)
+    assert len(attempts) == 2 * (1 + config.FULL_PASS_RETRIES), "la segunda diaria no hizo sus 6 reintentos"
+
+
+@pytest.mark.asyncio
+async def test_a_failed_incremental_read_right_after_a_complete_full_pass_keeps_the_pass_and_the_next_cycle_resumes(
+    worlds: list[World],
+) -> None:
+    """C-5 (F-04 de U11-T02): la rama `incremental_after_full_failed` de `state.py`, de forma determinista. La pasada completa termina (2 paginas) y la lectura incremental
+    que sigue, con el candado tomado, falla (solicitud 3): la pasada se conserva y el siguiente ciclo sigue desde `last_seq`. La cobertura de `state.py` no depende del azar."""
+    world = make(worlds, items(5))  # dos paginas de 3 y 2: las solicitudes 1 y 2 son la pasada
+    world.double.fail_requests = {3}  # la lectura incremental inmediata
+    await world.state.full_pass()
+    assert world.double.calls == 3
+    assert world.state.snapshot() is not None and world.state.last_seq is not None
+    assert (
+        world.state.last_full_recompute_at is not None
+        and world.state.last_success_at == world.state.last_full_recompute_at
+    )
+    assert world.reader.locked is False
+    last_seq = world.state.last_seq
+    await world.state.incremental()  # el ciclo siguiente: la solicitud 4 no falla y sigue desde `last_seq`
+    assert world.double.calls == 4 and world.state.last_seq == last_seq
+
+
 # --- un ciclo durante la pasada: omitido y contado --------------------------------------------------------------------------
 
 

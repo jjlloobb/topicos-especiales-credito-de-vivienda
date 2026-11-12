@@ -1,0 +1,17 @@
+{{- /* `product.json` como ConfigMap para el sidecar de Grafana de U1 (INF-U11-05; BR-U11-12, 13). La etiqueta y la anotacion de carpeta son las del sidecar
+(`platform/observability/values/kube-prometheus-stack.yaml`: `sidecar.dashboards.label` y `folderAnnotation`); la carpeta `Vectra / Producto` esta en
+`platform/observability/grafana/folder-permissions.yaml`. El archivo canonico es `observability/dashboards/product.json`; `files/product.json` es su copia (P-4). */ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.dashboard.configMapName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: product-metrics-dashboard
+    app.kubernetes.io/part-of: product-metrics
+    {{ .Values.dashboard.label }}: "1"
+  annotations:
+    {{ .Values.dashboard.folderAnnotation }}: {{ .Values.dashboard.folder | quote }}
+data:
+  product.json: |-
+    {{- .Files.Get "files/product.json" | nindent 4 }}

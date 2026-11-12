@@ -1,0 +1,517 @@
+{
+  "uid": "vectra-producto-panel",
+  "title": "Producto",
+  "folderUid": "vectra-producto",
+  "schemaVersion": 39,
+  "timezone": "America/Bogota",
+  "tags": [
+    "vectra",
+    "producto"
+  ],
+  "editable": false,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "North Star: decisiones donde la explicación cambia o sustenta la decisión",
+      "description": "Periodo: 30d (los 30 días completos que terminan ayer, UTC; el día en curso no cuenta). Total, sin cortes. Hora de Colombia en el dashboard; los periodos son días UTC.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_north_star_ratio:dedup{period=\"30d\", channel=\"all\", outcome=\"all\", model_version_id=\"all\"}",
+          "legendFormat": "30d",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "North Star de ayer",
+      "description": "Periodo: day (ayer completo, UTC). Total, sin cortes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_north_star_ratio:dedup{period=\"day\", channel=\"all\", outcome=\"all\", model_version_id=\"all\"}",
+          "legendFormat": "day",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Target de la North Star",
+      "description": "Periodo: no aplica (un valor fijo del archivo de parámetros). Target [INTERNO] de producto y riesgo (values-product-metrics-policy.yaml). Sin target acordado el panel dice «sin target acordado».",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_target:dedup{metric=\"north_star\"}",
+          "legendFormat": "target",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "sin target acordado",
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "barchart",
+      "title": "North Star: desglose (sustentada, cambiada, revisión resuelta)",
+      "description": "Periodo: 30d. Conteos de decisiones por tipo de efecto de la explicación, sumados entre canales y resultados.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (kind) (vectra:product_north_star_breakdown:dedup{period=\"30d\"})",
+          "legendFormat": "{{kind}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "North Star por canal",
+      "description": "Periodo: 30d. Razón publicada por canal (un solo corte a la vez; las razones de varios cortes no se promedian).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_north_star_ratio:dedup{period=\"30d\", outcome=\"all\", model_version_id=\"all\", channel!=\"all\"}",
+          "legendFormat": "{{channel}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Tasa de consulta de la explicación y piso F",
+      "description": "Periodo: 7d (ventana móvil de 7 días completos que terminan ayer, UTC). La línea es el piso F [INTERNO] (noise_floor).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_explanation_view_ratio:dedup{period=\"7d\", channel=\"all\"}",
+          "legendFormat": "tasa de consulta",
+          "refId": "A"
+        },
+        {
+          "expr": "vectra:product_target:dedup{metric=\"noise_floor\"}",
+          "legendFormat": "piso F",
+          "refId": "B"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Días bajo el piso",
+      "description": "Periodo: 7d (ventana móvil de 7 días; días UTC completos seguidos hasta ayer): cuántos días seguidos la tasa de consulta de la ventana estuvo bajo el piso F con al menos N decisiones. Es una señal de producto, no una falla técnica: avisa (RuidoExplicacion) cuando llega a S.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_noise_days_below_floor:dedup",
+          "legendFormat": "días bajo el piso",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Recomendaciones sostenidas (aproximación)",
+      "description": "Periodo: 30d. aproximación: mide si la decisión siguió la recomendación; la revisión del comité no está en el sistema. La línea es el target [INTERNO] del mes 6 (sustained_ratio_month6).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_recommendation_sustained_ratio:dedup{period=\"30d\", channel=\"all\", outcome=\"all\"}",
+          "legendFormat": "sostenida 30d",
+          "refId": "A"
+        },
+        {
+          "expr": "vectra:product_target:dedup{metric=\"sustained_ratio_month6\"}",
+          "legendFormat": "target mes 6",
+          "refId": "B"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Sostenidas desde los conteos (suma de numeradores sobre suma de denominadores)",
+      "description": "Periodo: 30d. aproximación: mide si la decisión siguió la recomendación; la revisión del comité no está en el sistema. Una razón que combina cortes se calcula sumando los conteos, nunca como promedio de razones.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(vectra:product_sustained_decisions:dedup{period=\"30d\", part=\"numerator\"}) / sum(vectra:product_sustained_decisions:dedup{period=\"30d\", part=\"denominator\"})",
+          "legendFormat": "sostenida (conteos)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Tiempo de originación (casos estándar) y target",
+      "description": "Periodo: day (ayer, UTC). Percentiles 0,5, 0,8 y 0,95 en segundos. La línea es el target [INTERNO] en segundos (origination_hours por 3 600).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_origination_seconds:dedup{standard=\"true\"}",
+          "legendFormat": "p{{quantile}}",
+          "refId": "A"
+        },
+        {
+          "expr": "vectra:product_target:dedup{metric=\"origination_hours\"} * 3600",
+          "legendFormat": "target",
+          "refId": "B"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 30
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Originación: casos estándar dentro del target",
+      "description": "Periodo: day (ayer, UTC). La línea es el target [INTERNO] de la razón (origination_ratio).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_origination_standard_under_target_ratio:dedup",
+          "legendFormat": "dentro del target",
+          "refId": "A"
+        },
+        {
+          "expr": "vectra:product_target:dedup{metric=\"origination_ratio\"}",
+          "legendFormat": "target",
+          "refId": "B"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 30
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Respuesta completa (1 h y 1 día)",
+      "description": "Periodo: 1h y 1d móviles. Recomendaciones que no fueron fail_closed sobre todas. La línea es el target [INTERNO] (complete_response).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_complete_response_ratio:1h",
+          "legendFormat": "1 h",
+          "refId": "A"
+        },
+        {
+          "expr": "vectra:product_complete_response_ratio:1d",
+          "legendFormat": "1 d",
+          "refId": "B"
+        },
+        {
+          "expr": "vectra:product_target:dedup{metric=\"complete_response\"}",
+          "legendFormat": "target",
+          "refId": "C"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 38
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Fail-closed por desincronía",
+      "description": "Periodo: 1h móvil. Tasa por segundo de fail-closed por version_mismatch y feature_dictionary_incomplete (BR-U11-06).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_desync_failclosed:rate1h",
+          "legendFormat": "desincronía",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 38
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Decisiones no atribuibles",
+      "description": "Periodo: 30d. Decisiones sin recomendación atribuible; no entran en la razón sostenida.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_unattributable_decisions:dedup{period=\"30d\"}",
+          "legendFormat": "no atribuibles 30d",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 46
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Entradas excluidas",
+      "description": "Periodo: 30d. Entradas del registro que el cálculo excluyó (BR-U11-10).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_invalid_entries:dedup",
+          "legendFormat": "excluidas",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 46
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "Aviso de datos degradados",
+      "description": "Periodo: 30d. Vale 1 si más del 1 % de las entradas de los últimos 30 días se excluyó; con datos degradados, las métricas pueden no ser completas.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "vectra:product_metrics_degraded:dedup",
+          "legendFormat": "degradado",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 46
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "datos completos"
+                },
+                "1": {
+                  "text": "datos degradados"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

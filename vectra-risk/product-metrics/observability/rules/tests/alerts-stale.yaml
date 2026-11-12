@@ -1,0 +1,160 @@
+# `ProductMetricsStale` (P-U11-06; NFR-U11-08, 42; BR-U11-14): dos reglas con el mismo `alertname`, una por rama (`branch`). La de edad no espera un `for`;
+# la de ausencia espera 30 min. Las dos callan mientras la pasada completa avanza en esa replica. Corre contra el `spec` renderizado y versionado.
+rule_files:
+  - ../product-metrics.rules.yaml
+evaluation_interval: 1m
+
+tests:
+  # --- rama de edad: a los dos lados del umbral de 1 800 s y sin esperar un `for`
+  - name: stale-edad-no-dispara-en-el-umbral
+    interval: 1m
+    input_series:
+      - series: 'vectra_product_metrics_last_success_timestamp{job="product-metrics", pod="a"}'
+        values: '0x40'
+      - series: 'up{job="product-metrics", pod="a"}'
+        values: '1x40'
+    alert_rule_test:
+      - eval_time: 29m
+        alertname: ProductMetricsStale
+        exp_alerts: []
+      - eval_time: 30m # 1 800 s no es mayor que 1 800 s
+        alertname: ProductMetricsStale
+        exp_alerts: []
+
+  - name: stale-edad-dispara-al-superar-el-umbral-sin-esperar-un-for
+    interval: 1m
+    input_series:
+      - series: 'vectra_product_metrics_last_success_timestamp{job="product-metrics", pod="a"}'
+        values: '0x40'
+      - series: 'up{job="product-metrics", pod="a"}'
+        values: '1x40'
+    alert_rule_test:
+      - eval_time: 31m # el primer paso en que la edad (1 860 s) supera 1 800 s: ya esta firing, sin un `for` de espera
+        alertname: ProductMetricsStale
+        exp_alerts:
+          - exp_labels: {severity: SEV3, branch: edad, job: product-metrics, pod: a}
+            exp_annotations:
+              summary: Una replica de product-metrics no lee de U3 con exito desde hace mas de 30 min
+              runbook_url: product-metrics/observability/runbooks/product-metrics-stale.md
+
+  # --- rama de ausencia: solo tras su `for` de 30 min
+  - name: stale-ausencia-dispara-solo-tras-su-for
+    interval: 1m
+    input_series:
+      - series: 'up{job="product-metrics", pod="a"}'
+        values: '1x40'
+    alert_rule_test:
+      - eval_time: 29m # la condicion se cumple desde el minuto 0 y aun espera
+        alertname: ProductMetricsStale
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: ProductMetricsStale
+        exp_alerts:
+          - exp_labels: {severity: SEV3, branch: ausencia, job: product-metrics, pod: a}
+            exp_annotations:
+              summary: Una replica de product-metrics esta arriba y no ha publicado ninguna lectura exitosa en 30 min
+              runbook_url: product-metrics/observability/runbooks/product-metrics-stale.md
+
+  # --- NFR-U11-08: una replica sin la serie y la otra con ella (las dos con up = 1): solo la primera
+  - name: stale-una-replica-sin-la-serie-y-la-otra-con-ella
+    interval: 1m
+    input_series:
+      - series: 'up{job="product-metrics", pod="a"}'
+        values: '1x40'
+      - series: 'up{job="product-metrics", pod="b"}'
+        values: '1x40'
+      - series: 'vectra_product_metrics_last_success_timestamp{job="product-metrics", pod="b"}'
+        values: '0+60x40' # la marca avanza con el reloj: lectura exitosa cada minuto
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: ProductMetricsStale
+        exp_alerts:
+          - exp_labels: {severity: SEV3, branch: ausencia, job: product-metrics, pod: a}
+            exp_annotations:
+              summary: Una replica de product-metrics esta arriba y no ha publicado ninguna lectura exitosa en 30 min
+              runbook_url: product-metrics/observability/runbooks/product-metrics-stale.md
+
+  - name: stale-las-dos-replicas-sin-la-serie
+    interval: 1m
+    input_series:
+      - series: 'up{job="product-metrics", pod="a"}'
+        values: '1x40'
+      - series: 'up{job="product-metrics", pod="b"}'
+        values: '1x40'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: ProductMetricsStale
+        exp_alerts:
+          - exp_labels: {severity: SEV3, branch: ausencia, job: product-metrics, pod: a}
+            exp_annotations:
+              summary: Una replica de product-metrics esta arriba y no ha publicado ninguna lectura exitosa en 30 min
+              runbook_url: product-metrics/observability/runbooks/product-metrics-stale.md
+          - exp_labels: {severity: SEV3, branch: ausencia, job: product-metrics, pod: b}
+            exp_annotations:
+              summary: Una replica de product-metrics esta arriba y no ha publicado ninguna lectura exitosa en 30 min
+              runbook_url: product-metrics/observability/runbooks/product-metrics-stale.md
+
+  - name: stale-solo-la-replica-vieja-dispara-la-rama-de-edad
+    interval: 1m
+    input_series:
+      - series: 'vectra_product_metrics_last_success_timestamp{job="product-metrics", pod="a"}'
+        values: '0x40'
+      - series: 'vectra_product_metrics_last_success_timestamp{job="product-metrics", pod="b"}'
+        values: '0+60x40'
+      - series: 'up{job="product-metrics", pod="a"}'
+        values: '1x40'
+      - series: 'up{job="product-metrics", pod="b"}'
+        values: '1x40'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: ProductMetricsStale
+        exp_alerts:
+          - exp_labels: {severity: SEV3, branch: edad, job: product-metrics, pod: a}
+            exp_annotations:
+              summary: Una replica de product-metrics no lee de U3 con exito desde hace mas de 30 min
+              runbook_url: product-metrics/observability/runbooks/product-metrics-stale.md
+
+  # --- la pasada completa en curso no dispara ninguna rama (la pasada tiene plazo de 75 min)
+  - name: stale-la-pasada-en-curso-no-dispara-ninguna-rama
+    interval: 1m
+    input_series:
+      # replica `a`: marca vieja (rama de edad) y pasada en curso
+      - series: 'vectra_product_metrics_last_success_timestamp{job="product-metrics", pod="a"}'
+        values: '0x60'
+      - series: 'up{job="product-metrics", pod="a"}'
+        values: '1x60'
+      - series: 'vectra_product_full_pass_in_progress{job="product-metrics", pod="a"}'
+        values: '1x60'
+      # replica `b`: sin la serie (rama de ausencia) y pasada en curso
+      - series: 'up{job="product-metrics", pod="b"}'
+        values: '1x60'
+      - series: 'vectra_product_full_pass_in_progress{job="product-metrics", pod="b"}'
+        values: '1x60'
+    alert_rule_test:
+      - eval_time: 31m
+        alertname: ProductMetricsStale
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: ProductMetricsStale
+        exp_alerts: []
+
+  - name: stale-al-terminar-la-pasada-la-replica-vieja-dispara
+    interval: 1m
+    input_series:
+      - series: 'vectra_product_metrics_last_success_timestamp{job="product-metrics", pod="a"}'
+        values: '0x60'
+      - series: 'up{job="product-metrics", pod="a"}'
+        values: '1x60'
+      - series: 'vectra_product_full_pass_in_progress{job="product-metrics", pod="a"}'
+        values: '1x39 0x20' # la pasada vence a los 40 min: deja de excluir
+    alert_rule_test:
+      - eval_time: 39m
+        alertname: ProductMetricsStale
+        exp_alerts: []
+      - eval_time: 41m
+        alertname: ProductMetricsStale
+        exp_alerts:
+          - exp_labels: {severity: SEV3, branch: edad, job: product-metrics, pod: a}
+            exp_annotations:
+              summary: Una replica de product-metrics no lee de U3 con exito desde hace mas de 30 min
+              runbook_url: product-metrics/observability/runbooks/product-metrics-stale.md
