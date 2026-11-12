@@ -1,5 +1,9 @@
 """PBT-U7-07 y 08 y la propiedad de P-U7-01 sobre el `orchestrator` con dobles (CA-4; US-103, 109, 111, 113; RT-1).
 
+NFR-U7-13 (ningun modo degradado: nunca una recomendacion sin explicacion sincronizada ni sin registro) es PBT-U7-07. NFR-U7-04 (un `FailClosed`
+por timeout o circuito abierto de KServe, explainability o `serving-config` responde dentro del p99 de 1 s) es la propiedad de P-U7-01, con
+dependencias lentas simuladas.
+
 La semilla de Hypothesis sale en el encabezado de pytest (`conftest.py`).
 """
 

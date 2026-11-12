@@ -69,6 +69,11 @@ components:
   # (el unico que congela), con la identidad (ExternalSecret) de cada proceso. `values-monitoring-policy.yaml` va en `values` (INF-U9-03): el archivo
   # vive en el monorepo y lo cubre CODEOWNERS. El Job `x04-probe` (T5) y las alertas (T2) estan diferidos.
   - { name: bias-monitoring, wave: 5, namespace: vectra-app, path: bias-monitoring/chart, env_values: true, values: [bias-monitoring/chart/values-monitoring-policy.yaml] }
+  # U7 (U07-T04): `scoring-service` y `explainability-service` (2 replicas del HPA de 2 a 6, PDB, ServiceMonitor, ExternalSecret de la llave `private_key_jwt`) en un solo
+  # Application. Los values de cada entorno (`values/<env>/scoring-explainability.yaml`) traen las plantillas de URL de los Services que KServe crea en
+  # `vectra-serving` (C-2) y, tras la verificacion de U12 Paso 18, los digests. Va con `governance` en la wave 5: `ServingConfig` es estricto y las tres
+  # imagenes (governance, scoring, explainability) se construyen del mismo commit (scoring-explainability/docs/imagenes.md). La PrometheusRule (T2) esta diferida.
+  - { name: scoring-explainability, wave: 5, namespace: vectra-app, path: scoring-explainability/chart, env_values: true }
   # U6 (U06-T02): los InferenceService de cada version (azul/verde). Los values por entorno no declaran ninguno: los agrega `promotion-tool` por PR
   # (esquema: model-serving/chart/values.schema.json y model-serving/docs/values.md). El Application es de vectra-serving; el perfil `staging` crea su
   # predictor en vectra-staging con el namespace explicito del recurso.

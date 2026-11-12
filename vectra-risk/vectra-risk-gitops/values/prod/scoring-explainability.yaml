@@ -1,0 +1,10 @@
+# Values de scoring-explainability (U7, U07-T04). Aqui solo lo que cambia de un chart a otro por entorno.
+# C-2: KServe (RawDeployment, `platform/operators/kserve.yaml`) crea un Service `<isvc>-predictor` y otro `<isvc>-explainer` en el namespace del
+# InferenceService, que es `vectra-serving` (Application `model-serving`). Su puerto es el 80 (`constants.CommonDefaultHttpPort`, KServe v0.21.0,
+# `pkg/controller/v1beta1/inferenceservice/reconcilers/service/service_reconciler.go`): el esquema `http` ya lo implica y no va explicito (F19 y F22 de flows.yaml).
+# La resolucion real del nombre en kind queda pendiente en U12 Paso 18 (enmienda §8).
+kserve:
+  predictorUrlTemplate: http://{inference_service}-predictor.vectra-serving.svc.cluster.local
+  explainerUrlTemplate: http://{inference_service}-explainer.vectra-serving.svc.cluster.local
+# Digests: el operador los fija en U12 Paso 18, en UN solo PR con los de governance-service (mismo commit, C-3): scoring-explainability/docs/imagenes.md.
+# Hasta entonces rige el digest de ejemplo del chart y los pods quedarian en `ImagePullBackOff`.
