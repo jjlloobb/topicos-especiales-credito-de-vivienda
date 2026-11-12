@@ -12,6 +12,13 @@ from typing import Final
 DEADLINE_BUDGET_SECONDS: Final = 9.0
 SPA_API_TIMEOUT_SECONDS: Final = 10.0
 
+# Circuit breaker de cada destino (NFR-U10-30, P-U10-03): los umbrales de U7 (las ultimas 20 llamadas dentro de 30 s,
+# abre con la mitad fallida, semiabierto a los 10 s). Fallo = timeout, conexion o 5xx; un 4xx no cuenta.
+BREAKER_WINDOW_SIZE: Final = 20
+BREAKER_FAILURE_RATIO: Final = 0.5
+BREAKER_WINDOW_SECONDS: Final = 30
+BREAKER_OPEN_FOR_SECONDS: Final = 10
+
 # Replicas del BFF con las que se dimensionan las conexiones (P-U10-04, «Conexiones con 6 réplicas»).
 REPLICAS: Final = 6
 
@@ -47,6 +54,8 @@ OPERATION_TIMEOUT_SECONDS: Final = MappingProxyType(
     {
         "case.list_cases": CASE_READ_TIMEOUT_SECONDS,
         "case.get_case": CASE_READ_TIMEOUT_SECONDS,
+        # P-1 (a) de U10-T02: lectura de una fila que `get_dossier` hace en paralelo con los 5 s del registro.
+        "case.get_case_identifiers": CASE_READ_TIMEOUT_SECONDS,
         "case.list_persistent_failures": CASE_READ_TIMEOUT_SECONDS,
         "case.record_decision": CASE_WRITE_TIMEOUT_SECONDS,
         "case.create_manual_application": CASE_WRITE_TIMEOUT_SECONDS,

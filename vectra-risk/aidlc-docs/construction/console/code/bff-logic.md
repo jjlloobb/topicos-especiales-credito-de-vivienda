@@ -59,8 +59,9 @@ de U0, con `to_problem` de `vectra_common.errors` (mismos título y estado que c
 
 Constantes del código (sin variables de entorno): presupuesto de 9 s, timeouts por destino y operación, y conexiones por
 réplica (case 20, governance 10, registry 5, explainability 5, bias 5; 6 réplicas dan 120, 60, 30, 30 y 30). Ningún
-timeout llega a 9 s. La tabla de P-U10-04 no da timeout para `get_case_identifiers` de case, que usará `get_dossier`
-(Bloque C); este módulo no lo inventa.
+timeout llega a 9 s. `case.get_case_identifiers` (la lectura que usa `get_dossier`) tiene 1,5 s y comparte las 20 conexiones
+de case (P-1 (a) de U10-T02, 2026-11-12; nota fechada en P-U10-04). Los umbrales del circuit breaker (20 llamadas, 50 %, 30 s,
+10 s abierto) son constantes `BREAKER_*` de este módulo (NFR-U10-30).
 
 ## 4. Verificación
 

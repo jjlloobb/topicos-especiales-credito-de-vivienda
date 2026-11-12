@@ -17,6 +17,7 @@ from console_bff import config
 TABLE_TIMEOUTS = {
     "case.list_cases": 1.5,  # fila 1: case lecturas
     "case.get_case": 1.5,
+    "case.get_case_identifiers": 1.5,  # P-1 (a) de U10-T02: lectura de una fila, igual que las de la fila 1
     "case.list_persistent_failures": 1.5,
     "case.record_decision": 4.0,  # fila 2: case escrituras (antes 3 s)
     "case.create_manual_application": 4.0,
@@ -40,6 +41,27 @@ TABLE_TOTAL_CONNECTIONS = {"case": 120, "governance": 60, "registry": 30, "expla
 
 def test_operation_timeouts_match_p_u10_04() -> None:
     assert dict(config.OPERATION_TIMEOUT_SECONDS) == TABLE_TIMEOUTS
+
+
+def test_get_case_identifiers_has_the_case_read_timeout_and_shares_its_connections() -> None:
+    """P-1 (a): 1,5 s y las mismas 20 conexiones (no hay un pool aparte, P-1 (c) descartada)."""
+    assert (
+        config.OPERATION_TIMEOUT_SECONDS["case.get_case_identifiers"]
+        == config.CASE_READ_TIMEOUT_SECONDS
+        == 1.5
+    )
+    assert config.CONNECTIONS_PER_REPLICA["case"] == 20
+    assert not any(d.startswith("case.") and d != "case" for d in config.CONNECTIONS_PER_REPLICA)
+
+
+def test_breaker_thresholds_are_the_ones_of_u7() -> None:
+    """NFR-U10-30: 20 llamadas, 50 %, 30 s de ventana y 10 s abierto."""
+    assert (
+        config.BREAKER_WINDOW_SIZE,
+        config.BREAKER_FAILURE_RATIO,
+        config.BREAKER_WINDOW_SECONDS,
+        config.BREAKER_OPEN_FOR_SECONDS,
+    ) == (20, 0.5, 30, 10)
 
 
 def test_case_and_governance_writes_are_four_seconds() -> None:
