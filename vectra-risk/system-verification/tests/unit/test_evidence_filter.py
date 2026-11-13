@@ -72,3 +72,109 @@ def test_empty_secrets_are_ignored() -> None:
 def test_an_unsigned_jwt_is_detected() -> None:
     with pytest.raises(EvidenceError, match="jwt"):
         evidence.ensure_clean("eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.", set())
+
+
+# --- Ronda 2 (F-02): el filtro falla cerrado. Lo que queda de un secreto cargado, o un JWT roto, es un error, no evidencia. ---
+
+import json  # noqa: E402
+
+PEM = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7\nVJTUt9Us8cKjMzEfYyjiWA4R4/M2bS1GB4t7NXp98C3SC6dVMvDu\n-----END PRIVATE KEY-----\n"
+QUOTED_PASSWORD = 'pw"secret-1'
+ENV_SECRETS = {SEED, PASSWORD, QUOTED_PASSWORD, PEM}
+
+
+def assert_does_not_leak(raw: str, leaked: str, secrets: set[str] | None = None) -> None:
+    """Pasa si `prepare` falla, o si lo que devuelve ya no trae `leaked` (ni su valor sin comillas)."""
+    try:
+        out = evidence.prepare(raw, ENV_SECRETS if secrets is None else secrets)
+    except EvidenceError:
+        return
+    assert leaked not in out, out
+
+
+@pytest.mark.parametrize(
+    ("raw", "leaked"),
+    [
+        ('Cookie: KEYCLOAK_SESSION="opaque-sess-123"\n', "opaque-sess-123"),
+        ('Set-Cookie: AUTH_SESSION_ID="opaque-777"; Path=/\n', "opaque-777"),
+        ('Cookie: a="x1"; b="y2"; c=z3\n', "y2"),
+        ('Cookie: a="x1"; b="y2"; c=z3\n', "z3"),
+        ("authorization=Bearer opaque-token-9\n", "opaque-token-9"),
+        ("Authorization: 'Bearer opaque-token-9' extra-9\n", "extra-9"),
+        ("X-Vault-Token: hvs.opaque-vault-5\n", "hvs.opaque-vault-5"),
+        ("x-vault-token=hvs.opaque-vault-5\n", "hvs.opaque-vault-5"),
+        ('{"Cookie": "sid=opaque-1", "n": 1}', "opaque-1"),
+        ('curl -H "Cookie: sid=\\"opaque-2\\"" -H "X-Vault-Token: hvs.o3" https://x', "opaque-2"),
+        ('curl -H "Cookie: sid=\\"opaque-2\\"" -H "X-Vault-Token: hvs.o3" https://x', "hvs.o3"),
+        ("client_secret=opaque-cs-1&grant_type=client_credentials\n", "opaque-cs-1"),
+        ('{"client_secret": "opaque-cs-2"}', "opaque-cs-2"),
+        ('{"password": "pw\\"secret-1"}', "secret-1"),
+        ('{"password": "a\\\\\\"tail-9"}', "tail-9"),
+        ('password=pw"secret-1&x=1', "secret-1"),
+        ("password=pw'secret-1&x=1", "secret-1"),
+        ('{\\"password\\": \\"nested-pw-7\\"}', "nested-pw-7"),
+    ],
+)
+def test_f02_values_in_quotes_and_other_sensitive_forms_are_removed(raw: str, leaked: str) -> None:
+    assert_does_not_leak(raw, leaked, set())
+
+
+def test_f02_a_header_value_is_removed_up_to_the_end_of_the_line_and_the_next_line_stays() -> None:
+    out = evidence.scrub('Cookie: KEYCLOAK_SESSION="opaque-sess-123"; b="q"\nHTTP/1.1 200 OK\n')
+    assert out == "Cookie: [REDACTADO]\nHTTP/1.1 200 OK\n"
+
+
+def test_f02_the_quoted_forms_that_passed_keep_their_shape() -> None:
+    assert evidence.scrub('{"password": "pw\\"secret-1", "ok": 1}') == '{"password": "[REDACTADO]", "ok": 1}'
+    assert (
+        evidence.scrub('{"Authorization": "Bearer x", "ok": 1}')
+        == '{"Authorization": "[REDACTADO]", "ok": 1}'
+    )
+
+
+def test_f02_what_a_redaction_leaves_of_a_loaded_password_is_an_error() -> None:
+    with pytest.raises(EvidenceError, match="evidence_contains_secret") as error:
+        evidence.ensure_clean('"[REDACTADO]"secret-1"', {QUOTED_PASSWORD})
+    assert "secret-1" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        json.dumps({"k": PEM}),
+        json.dumps({"k": PEM}, ensure_ascii=False),
+        PEM.replace("\n", "\\n"),
+        PEM.replace("\n", ""),
+        PEM.replace("\n", " "),
+        "body " + PEM.splitlines()[1] + "\r\n" + PEM.splitlines()[2],
+        SEED.lower(),
+        f"seed {SEED.lower()} fin",
+        f"seed {SEED[:8]} {SEED[8:]} fin",
+        json.dumps({"p": QUOTED_PASSWORD}),
+        QUOTED_PASSWORD.replace('"', "%22"),
+        "x " + 'pw"secret-1'[3:] + " y",
+    ],
+)
+def test_f02_a_loaded_secret_in_any_of_its_forms_is_an_error(text: str) -> None:
+    with pytest.raises(EvidenceError):
+        evidence.ensure_clean(text, ENV_SECRETS)
+
+
+def test_f02_a_jwt_split_by_a_line_break_or_escaped_in_json_is_an_error() -> None:
+    first, rest = JWT[:40], JWT[40:]
+    for text in (
+        f"{first}\n{rest}",
+        f"{first}\r\n  {rest}",
+        json.dumps(f"{first}\n{rest}"),
+        f"{first} {rest}",
+    ):
+        with pytest.raises(EvidenceError, match="jwt"):
+            evidence.ensure_clean(text, set())
+
+
+def test_f02_the_seed_case_rule_does_not_make_clean_text_fail() -> None:
+    assert (
+        evidence.prepare("sin secretos, solo texto normal y corto", ENV_SECRETS)
+        == "sin secretos, solo texto normal y corto"
+    )
+    assert evidence.prepare("pw sin nada mas", ENV_SECRETS) == "pw sin nada mas"

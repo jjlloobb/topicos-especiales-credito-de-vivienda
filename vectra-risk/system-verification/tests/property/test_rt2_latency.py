@@ -1,5 +1,6 @@
 """PBT-U12-04, `rt2_latency` (U12 Paso 3; BR-U12-07; INF-U12-03) y los ejemplos de la latencia."""
 
+import random
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
@@ -13,10 +14,25 @@ BASE = datetime(2026, 11, 12, 10, 0, tzinfo=UTC)
 LIMIT = timedelta(seconds=1800)
 
 # Lotes de 1 a 2 000 `recorded_at` en UTC, desordenados y con empates (microsegundos sobre una ventana de 3 minutos); y un `freeze`
-# alrededor del limite de 1 800 s respecto del inicio del lote.
-BATCHES = st.lists(
-    st.integers(0, 180_000_000).map(lambda us: BASE + timedelta(microseconds=us)), min_size=1, max_size=2000
-)
+# alrededor del limite de 1 800 s respecto del inicio del lote. El tamano se sortea aparte (F-05: `st.lists` casi nunca pasa de unas decenas) y las marcas
+# salen de un generador con semilla: unas veces todas distintas, otras de un conjunto chico de valores (muchos empates, tambien en el minimo).
+WINDOW_US = 180_000_000
+
+
+@st.composite
+def batches(draw):  # type: ignore[no-untyped-def]
+    size = draw(st.one_of(st.integers(1, 5), st.integers(1, 100), st.integers(1, 2000), st.just(2000)))
+    rnd = random.Random(draw(st.integers(0, 2**32)))
+    pool = (
+        [rnd.randrange(WINDOW_US + 1) for _ in range(draw(st.integers(1, 6)))]
+        if draw(st.booleans())
+        else None
+    )
+    values = [rnd.choice(pool) if pool else rnd.randrange(WINDOW_US + 1) for _ in range(size)]
+    return [BASE + timedelta(microseconds=us) for us in values]
+
+
+BATCHES = batches()
 AROUND_LIMIT = st.one_of(
     st.integers(-1_000_000, 4_000_000_000).map(lambda us: timedelta(microseconds=us)),
     st.integers(-5, 5).map(lambda us: LIMIT + timedelta(microseconds=us)),
@@ -111,3 +127,8 @@ def test_times_must_be_utc() -> None:
         measure(1, [BASE], naive)
     with pytest.raises(ValueError, match="not_utc:freeze"):
         measure(1, [BASE], BASE.astimezone(bogota))
+
+
+@given(BATCHES)
+def test_the_batches_cover_the_range_of_1_to_2000_entries_with_ties(batch) -> None:  # type: ignore[no-untyped-def]
+    assert 1 <= len(batch) <= 2000

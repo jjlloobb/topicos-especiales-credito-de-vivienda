@@ -1,54 +1,150 @@
 """Filtro de evidencias (U12 Paso 2; NFR-U12-05). Toda salida que va a una evidencia pasa por `prepare`.
 
-Dos partes: `scrub` quita las cabeceras `Authorization`, `Cookie` y `Set-Cookie` y los campos `access_token`, `refresh_token`, `id_token`,
-`client_assertion` y `password`; `ensure_clean` **falla** si despues queda un JWT (tres segmentos en base64url que empiezan por `eyJ`) o cualquier secreto
-cargado por `credentials` (semillas, contraseñas, llaves, el token de la boveda). El mensaje de error nunca repite lo hallado. La escritura de los archivos de
-evidencia por seccion es del Paso 13: aqui queda la funcion por la que esa escritura tendra que pasar.
+Dos partes y la regla comun de **fallar cerrado**. `scrub` quita el valor de las cabeceras `Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie` y
+`X-Vault-Token` (tambien en la forma `nombre=valor`) hasta el fin de la linea, con comillas o sin ellas, y los campos `access_token`, `refresh_token`,
+`id_token`, `client_assertion`, `client_secret` y `password` (en JSON, con las comillas escapadas bien leidas, y en formularios). `ensure_clean` **falla**
+si despues queda un JWT (tambien partido por saltos de linea o espacios) o cualquier secreto cargado por `credentials` (semillas, contraseñas, llaves, el
+token de la boveda) en alguna de sus formas: literal, escapado en JSON, codificado en URL, sin espacios ni saltos de linea, sin distinguir mayusculas si es
+Base32, o un trozo reconocible (>= 8 caracteres entre comillas, barras o espacios del secreto). El mensaje de error nunca repite lo hallado. La escritura de los
+archivos de evidencia por seccion es del Paso 13: aqui queda la funcion por la que esa escritura tendra que pasar.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Iterable
 from typing import Final
+from urllib.parse import quote, quote_plus
 
 REDACTED: Final = "[REDACTADO]"
+MIN_FRAGMENT: Final = 8
 
+_HEADER_NAMES: Final = r"authorization|proxy-authorization|cookie|set-cookie|x-vault-token"
+_FIELD_NAMES: Final = r"access_token|refresh_token|id_token|client_assertion|client_secret|password"
+# `pre`: comilla (o comilla escapada) que abre la cabecera o la clave; `post`: la que la cierra (clave de JSON).
 _HEADERS: Final = re.compile(
-    r"""(?ix) (["']?(?:authorization|cookie|set-cookie)["']?) (\s*:\s*) ("[^"]*"|'[^']*'|[^\r\n"']*)"""
+    rf"""(?i) (?<![A-Za-z0-9_]) (?P<pre>\\?["']?) (?P<key>{_HEADER_NAMES}) (?P<post>\\?["']?) (?P<sep>[ \t]*[:=][ \t]*)""",
+    re.X,
 )
 _FIELDS: Final = re.compile(
-    r"""(?ix) (["']?(?:access_token|refresh_token|id_token|client_assertion|password)["']?\s*[:=]\s*) ("[^"]*"|'[^']*'|[^\s&,;}"']+)"""
+    rf"""(?i) (?<![A-Za-z0-9_]) (?P<pre>\\?["']?) (?P<key>{_FIELD_NAMES}) (?P<post>\\?["']?) (?P<sep>\s*[:=]\s*)""",
+    re.X,
 )
 _JWT: Final = re.compile(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*")
+_ESCAPED_WHITESPACE: Final = re.compile(r"\\[nrt]")
+_WHITESPACE: Final = re.compile(r"\s+")
+_BASE32: Final = re.compile(r"[A-Z2-7]+=*")
 
 
 class EvidenceError(Exception):
     """La salida contiene un secreto; el mensaje no lo repite."""
 
 
-def _redact(match: re.Match[str]) -> str:
-    key, separator, value = match.group(1), match.group(2), match.group(3)
-    quote = value[0] if value[:1] in ('"', "'") else ""
-    return f"{key}{separator}{quote}{REDACTED}{quote}"
+def _quoted_end(text: str, start: int, quote_char: str, escaped: bool) -> int | None:
+    """El indice de la comilla que cierra la cadena que empieza en `start`, leyendo `\\x` como un caracter; `None` si no cierra en la linea."""
+    closing = "\\" + quote_char if escaped else quote_char
+    i = start
+    while i < len(text) and text[i] not in "\r\n":
+        if text.startswith(closing, i):
+            return i
+        i += 2 if text[i] == "\\" and not escaped else 1
+    return None
 
 
-def _redact_field(match: re.Match[str]) -> str:
-    key, value = match.group(1), match.group(2)
-    quote = value[0] if value[:1] in ('"', "'") else ""
-    return f"{key}{quote}{REDACTED}{quote}"
+def _eol(text: str, start: int) -> int:
+    end = start
+    while end < len(text) and text[end] not in "\r\n":
+        end += 1
+    return end
+
+
+def _consume(text: str, match: re.Match[str], *, header: bool) -> tuple[str, int]:
+    """El texto que reemplaza a `match` y el indice donde sigue el original. El valor que se quita incluye sus comillas si las trae."""
+    start = match.end()
+    pre, post = match.group("pre"), match.group("post")
+    head = text[match.start() : start]
+    escaped = pre.startswith("\\")
+    quote_char = pre[-1] if pre else ""
+    value_quote = ""
+    if text.startswith('\\"', start) or text.startswith("\\'", start):
+        value_quote, value_escaped = text[start + 1], True
+    elif text[start : start + 1] in ('"', "'"):
+        value_quote, value_escaped = text[start], False
+    else:
+        value_escaped = False
+    if value_quote and (post or not header):  # un campo o la clave de un JSON: el valor es la cadena entera
+        offset = start + (2 if value_escaped else 1)
+        end = _quoted_end(text, offset, value_quote, value_escaped)
+        if end is not None:
+            close = 2 if value_escaped else 1
+            opening = text[start:offset]
+            return head + opening + REDACTED + text[end : end + close], end + close
+        return head + REDACTED, _eol(text, start)
+    if quote_char and not post:  # `-H "Cookie: ..."`: hasta la comilla que cierra el argumento
+        end = _quoted_end(text, start, quote_char, escaped)
+        return head + REDACTED, end if end is not None else _eol(text, start)
+    if header:  # sin comillas alrededor: hasta el fin de la linea, con o sin comillas dentro del valor
+        return head + REDACTED, _eol(text, start)
+    stop = re.compile(r"[\s,}\]]" if quote_char else r"[\s&]")
+    found = stop.search(text, start)
+    return head + REDACTED, found.start() if found else len(text)
+
+
+def _scrub_with(pattern: re.Pattern[str], text: str, *, header: bool) -> str:
+    out: list[str] = []
+    position = 0
+    while (match := pattern.search(text, position)) is not None:
+        out.append(text[position : match.start()])
+        replacement, position = _consume(text, match, header=header)
+        out.append(replacement)
+    out.append(text[position:])
+    return "".join(out)
 
 
 def scrub(text: str) -> str:
     """Quita las cabeceras y los campos de credenciales; una salida limpia queda igual."""
-    return _FIELDS.sub(_redact_field, _HEADERS.sub(_redact, text))
+    return _scrub_with(_FIELDS, _scrub_with(_HEADERS, text, header=True), header=False)
+
+
+def _compact(text: str) -> str:
+    """El texto sin espacios, saltos de linea ni `\\n` escapados: asi no se esconde un secreto partiendolo."""
+    return _WHITESPACE.sub("", _ESCAPED_WHITESPACE.sub("", text))
+
+
+def _forms(secret: str) -> set[str]:
+    """Las formas en que un secreto cargado puede aparecer en una salida (ya compactadas)."""
+    raw = {
+        secret,
+        json.dumps(secret)[1:-1],
+        json.dumps(secret, ensure_ascii=False)[1:-1],
+        quote(secret, safe=""),
+        quote_plus(secret),
+    }
+    return {_compact(form) for form in raw if form}
+
+
+def _fragments(secret: str) -> set[str]:
+    """Los trozos del secreto que quedan si un filtro lo parte en una comilla, una barra o un espacio."""
+    return {chunk for chunk in re.split(r"""[\s"'\\]+""", secret) if len(chunk) >= MIN_FRAGMENT}
+
+
+def _contains(text: str, compact_text: str, secret: str) -> bool:
+    folded = _BASE32.fullmatch(secret) is not None  # una semilla Base32 no distingue mayusculas
+    haystack, compact_haystack = (text.upper(), compact_text.upper()) if folded else (text, compact_text)
+    for form in _forms(secret):
+        needle = form.upper() if folded else form
+        if needle in compact_haystack:
+            return True
+    return any((chunk.upper() if folded else chunk) in haystack for chunk in _fragments(secret))
 
 
 def ensure_clean(text: str, secrets: Iterable[str]) -> None:
-    """Falla si `text` contiene un JWT o alguno de los `secrets` cargados por `credentials`."""
-    if _JWT.search(text):
+    """Falla si `text` contiene un JWT o alguno de los `secrets` cargados por `credentials`, en cualquiera de sus formas."""
+    compact_text = _compact(text)
+    if _JWT.search(text) or _JWT.search(compact_text):
         raise EvidenceError("evidence_contains_jwt")
-    if any(secret and secret in text for secret in secrets):
+    if any(secret and _contains(text, compact_text, secret) for secret in secrets):
         raise EvidenceError("evidence_contains_secret")
 
 

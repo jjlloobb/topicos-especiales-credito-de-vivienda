@@ -49,11 +49,33 @@ def counts(population: list[Row], ids: tuple[str, ...] | list[str]) -> tuple[Cou
     return available, taken
 
 
+# Poblaciones grandes y concentradas (F-03): de 30 a 400 filas, con codigos sesgados hacia un valor dominante por atributo, asi que hay celdas con 30 filas o mas
+# y, a la vez, una cola de celdas chicas y vacias. Un `min_per_cell` de 1 a 40 y volumenes de todo el rango: celdas llenas y cortas en el mismo ejemplo.
+SKEWED = st.tuples(
+    st.sampled_from([0, 0, 0, 0, 1, 1, 2, 3]),
+    st.sampled_from([0, 0, 0, 1, 2, 3]),
+    st.sampled_from([0, 0, 0, 1, 2, 3, 4]),
+    st.sampled_from([0, 0, 1, 1, 2, 3, 4, 5]),
+    st.sampled_from([0, 0, 1, 2]),
+)
+BIG_POPULATIONS = st.lists(SKEWED, min_size=30, max_size=400).map(
+    lambda codes: [make_row(i, c) for i, c in enumerate(codes)]
+)
+BIG_MIN_PER_CELL = st.one_of(st.integers(1, 40), st.integers(10, 40))
+
+
 @st.composite
 def stratified_inputs(draw):  # type: ignore[no-untyped-def]
-    population = draw(POPULATIONS)
-    volume = draw(st.integers(0, len(population)))
-    return population, volume, draw(SEEDS), draw(MIN_PER_CELL)
+    if draw(st.booleans()):
+        population = draw(BIG_POPULATIONS)
+        minimum = draw(BIG_MIN_PER_CELL)
+    else:
+        population = draw(POPULATIONS)
+        minimum = draw(MIN_PER_CELL)
+    volume = draw(
+        st.one_of(st.integers(0, len(population)), st.integers(len(population) // 2, len(population)))
+    )
+    return population, volume, draw(SEEDS), minimum
 
 
 @given(stratified_inputs())
@@ -113,9 +135,36 @@ def test_the_whole_population_when_the_volume_is_all_of_it(population, seed) -> 
     assert sample.short == tuple(c for c in sample.cells if c.available < 30)
 
 
+@given(stratified_inputs())
+def test_the_sample_is_exactly_the_cover_or_the_volume_whichever_is_larger(args) -> None:  # type: ignore[no-untyped-def]
+    """El volumen es un piso (como en U5): `max(volumen, filas que cubren las celdas)`. La cobertura no depende del volumen."""
+    population, volume, seed, minimum = args
+    cover = sampler.stratified(population, 0, seed, minimum)
+    sample = sampler.stratified(population, volume, seed, minimum)
+    assert len(sample.ids) == max(volume, len(cover.ids))
+    assert sample.ids[: len(cover.ids)] == cover.ids  # primero lo que cubre las celdas, despues el relleno
+
+
+@given(BIG_POPULATIONS, st.integers(1, 40), st.lists(SEEDS, min_size=3, max_size=3, unique=True))
+def test_the_seed_changes_the_sample_and_the_order(population, minimum, seeds) -> None:  # type: ignore[no-untyped-def]
+    """Semillas distintas, muestras distintas (F-03: una muestra que ignora la semilla no debe pasar)."""
+    volume = len(population) // 2
+    strat = {sampler.stratified(population, volume, seed, minimum).ids for seed in seeds}
+    norm = {sampler.normal(population, volume, seed) for seed in seeds}
+    assert len(strat) > 1 and len(norm) > 1
+
+
+@given(BIG_POPULATIONS, SEEDS)
+def test_normal_is_a_random_draw_and_not_the_front_of_the_population(population, seed) -> None:  # type: ignore[no-untyped-def]
+    volume = len(population) // 2
+    ids = sampler.normal(population, volume, seed)
+    assert list(ids) != [row.id for row in population[:volume]]
+    assert set(ids) != {row.id for row in population[:volume]} or len(population) < 40
+
+
 @st.composite
 def normal_inputs(draw):  # type: ignore[no-untyped-def]
-    population = draw(POPULATIONS)
+    population = draw(st.one_of(POPULATIONS, BIG_POPULATIONS))
     return population, draw(st.integers(0, len(population))), draw(SEEDS)
 
 
