@@ -161,7 +161,10 @@ def test_idempotent_second_import_leaves_the_same_state(stack: rs.Stack) -> None
     configs_after = _config_count(stack)
     skipped = bool(re.search(r"checksum|no changes|unchanged", log, re.IGNORECASE))
     rs.measure(f"idempotencia: ejecuciones {before.summary()} -> {after.summary()}; authenticatorConfig en partial-export {configs_before} -> {configs_after}; config-cli omitio la segunda pasada por suma de control: {skipped}")
-    rs.measure("idempotencia: lineas de la segunda pasada sobre la suma de control: " + " | ".join(ln[:160] for ln in log.splitlines() if re.search(r"checksum|no changes|unchanged", ln, re.IGNORECASE)))
+    interesting = [ln for ln in log.splitlines() if re.search(r"checksum|no changes|unchanged|Import|realm|Updat|Creat", ln, re.IGNORECASE)]
+    rs.measure(f"idempotencia: la segunda pasada de config-cli tiene {len(log.splitlines())} lineas; las que hablan del realm o de la suma de control:")
+    for ln in interesting[:14]:
+        rs.measure("   | " + re.sub(r"^\S+ \S+\s+", "", ln)[:200])
     assert before.ok and after.ok, after.summary()
     assert configs_before == configs_after
     assert sorted(before.linked) == sorted(after.linked)
@@ -175,8 +178,10 @@ def test_migration_from_the_previous_realm_ends_with_every_execution_linked_and_
     stack.import_realm(rs.REALM_FILE)
     new = rs.read_links(stack, rs.REALM_FILE)
     exported = {c["alias"] for c in stack.partial_export().get("authenticatorConfig", [])}
-    orphans = sorted(exported - expected_config_aliases())
-    rs.measure(f"migracion, realm corregido encima: {new.summary()}; configuraciones huerfanas: {len(orphans)} {orphans}; VERIFY_PROFILE: {rs.required_actions(stack).get('VERIFY_PROFILE', {}).get('enabled')}")
+    old_orphans = sorted(exported & OLD_ALIASES)  # los alias compartidos del realm viejo
+    others = sorted(exported - expected_config_aliases() - OLD_ALIASES)  # las de los flujos predefinidos de Keycloak, que estan tambien tras una importacion limpia
+    rs.measure(f"migracion, realm corregido encima: {new.summary()}; huerfanas con alias viejo (loa-mfa, amr-otp, amr-hwk): {len(old_orphans)} {old_orphans}; otras configuraciones que no son del YAML: {len(others)} {others}; VERIFY_PROFILE: {rs.required_actions(stack).get('VERIFY_PROFILE', {}).get('enabled')}")
+    assert not old_orphans, f"quedaron configuraciones con alias del realm viejo: {old_orphans}"
     assert new.ok, new.summary() + "\n  " + "\n  ".join(new.unlinked + new.wrong + new.misaligned)
     access = rs.claims(tokens_of(stack, "ingeniero-2")["access_token"])
     rs.measure(f"migracion: login de ingeniero-2: acr={access.get('acr')}")
