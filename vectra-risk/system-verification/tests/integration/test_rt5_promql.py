@@ -19,11 +19,25 @@ from vectra_verification.scenarios import rt5
 
 pytestmark = pytest.mark.integration
 
-BASE = datetime.now(UTC).replace(microsecond=0)  # los datos son relativos a «ahora»
+BASE = datetime.now(
+    UTC
+).replace(
+    microsecond=0
+)  # los datos son relativos a «ahora»; `fresh_base` lo recalcula al empezar cada prueba (la suite corre minutos despues de la coleccion)
 T0 = BASE - timedelta(hours=6)
 T1 = T0 + timedelta(seconds=20)
 STARTED = T0 - timedelta(minutes=2)
 WINDOW_END = T1 + timedelta(minutes=5)
+
+
+@pytest.fixture(autouse=True)
+def fresh_base() -> None:
+    global BASE, T0, T1, STARTED, WINDOW_END
+    BASE = datetime.now(UTC).replace(microsecond=0)
+    T0 = BASE - timedelta(hours=6)
+    T1 = T0 + timedelta(seconds=20)
+    STARTED = T0 - timedelta(minutes=2)
+    WINDOW_END = T1 + timedelta(minutes=5)
 
 
 def spec(**over: object) -> Rt5Spec:
@@ -49,9 +63,19 @@ def real_lowest(prom: PromClient) -> datetime:
 
 
 def judged(
-    base_url: str, data: Rt5Spec, *, t0: datetime = T0, t1: datetime = T1, started: datetime = STARTED
+    base_url: str,
+    data: Rt5Spec,
+    *,
+    t0: datetime | None = None,
+    t1: datetime | None = None,
+    started: datetime | None = None,
 ) -> tuple[rt5.Outcome, rt5.Outcome]:
     """El mismo caso con el doble y con Prometheus real. `lowest` del doble es el real (la fecha del primer dato depende de como `promtool` parte los bloques)."""
+    t0, t1, started = (
+        t0 or T0,
+        t1 or T1,
+        started or STARTED,
+    )  # los de esta prueba (`fresh_base`), no los de la importacion
     with_real = PromClient(base_url)
     try:
         data.lowest = real_lowest(with_real)
