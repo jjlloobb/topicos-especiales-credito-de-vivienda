@@ -13,9 +13,8 @@ import json
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Final, Protocol, TypeVar
+from typing import Any, Final, Protocol, TypeVar
 
-import httpx
 from vectra_contracts.models.governance import ModelRegistration, ModelVersion
 
 from vectra_verification import guard
@@ -56,7 +55,7 @@ class Sessions:
         clock: Clock,
         tag: RunTag,
         *,
-        transport: httpx.BaseTransport | None = None,
+        transport: Any = None,  # un `httpx.BaseTransport`: `scenarios` no importa `httpx` (contrato de import-linter)
         verify: bool = True,
     ) -> None:
         self._environment, self._oidc, self._clock, self._tag = environment, oidc, clock, tag
