@@ -1,0 +1,99 @@
+# Casos de `promtool` de CoreWriteAttempt (Paso 21; INF-U8-03; US-603). Un caso con nombre por cada afirmacion de la aceptacion de U08-T05 (CA-8); `test_rules.py` comprueba que estan todos.
+# La serie de Linkerd (`inbound_http_authz_deny_total`) NACE en 1: la primera denegacion crea la serie, asi que `increase()` nunca la veria subir (por eso la expresion resta la serie
+# desplazada 5 minutos, con `or vector(0)`). El contador del mock (`vectra_core_write_attempts_total`) nace en 0.
+rule_files:
+- ../case-management.rules.yaml
+evaluation_interval: 1m
+tests:
+- name: linkerd-series-born-at-1-fires
+  interval: 1m
+  input_series:
+  - series: inbound_http_authz_deny_total{namespace="vectra-mock", route_name="core-mock-catch-all"}
+    values: _ _ _ 1 1 1 1
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: CoreWriteAttempt
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: CoreWriteAttempt
+    exp_alerts: &fires
+    - exp_labels:
+        severity: SEV2
+      exp_annotations: &annotations
+        summary: Un intento de escritura al core bancario (RT-5)
+        description: '`vectra_core_write_attempts_total` creció: el mock recibió un `POST /v1/credits/{id}/status` que Linkerd dejó pasar. La serie `inbound_http_authz_deny_total` de la ruta `core-mock-catch-all` es la denegación del proxy, la capa L7 que debe bloquearlo antes de llegar al mock; en la demostración de RT-5 esta es la evidencia esperada.'
+        runbook_url: case-management/observability/runbooks/core-write-attempt.md
+- name: linkerd-denial-with-another-route-name-does-not-fire
+  interval: 1m
+  input_series:
+  - series: inbound_http_authz_deny_total{namespace="vectra-mock", route_name="metrics-8081"}
+    values: _ _ _ 1 2 3 4
+  - series: inbound_http_authz_deny_total{namespace="vectra-app", route_name="core-mock-catch-all"}
+    values: _ _ _ 1 2 3 4
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: CoreWriteAttempt
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: CoreWriteAttempt
+    exp_alerts: []
+- name: mock-counter-from-0-to-1-fires
+  interval: 1m
+  input_series:
+  - series: vectra_core_write_attempts_total{service="core-banking-mock"}
+    values: 0 0 0 0 0 0 1 1 1
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: CoreWriteAttempt
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: CoreWriteAttempt
+    exp_alerts:
+    - exp_labels:
+        severity: SEV2
+        service: core-banking-mock
+      exp_annotations: *annotations
+- name: mock-counter-stays-at-0-and-no-linkerd-series-does-not-fire
+  interval: 1m
+  input_series:
+  - series: vectra_core_write_attempts_total{service="core-banking-mock"}
+    values: 0 0 0 0 0 0 0 0 0 0
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: CoreWriteAttempt
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: CoreWriteAttempt
+    exp_alerts: []
+- name: linkerd-series-at-1-for-more-than-5-minutes-stops-firing
+  interval: 1m
+  input_series:
+  - series: inbound_http_authz_deny_total{namespace="vectra-mock", route_name="core-mock-catch-all"}
+    values: _ _ _ 1 1 1 1 1 1 1 1 1 1 1
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: CoreWriteAttempt
+    exp_alerts: *fires
+  - eval_time: 7m
+    alertname: CoreWriteAttempt
+    exp_alerts: *fires
+  - eval_time: 8m
+    alertname: CoreWriteAttempt
+    exp_alerts: []
+  - eval_time: 12m
+    alertname: CoreWriteAttempt
+    exp_alerts: []
+- name: d3-linkerd-born-at-1-and-mock-counter-still-0-fires
+  interval: 1m
+  input_series:
+  - series: inbound_http_authz_deny_total{namespace="vectra-mock", route_name="core-mock-catch-all"}
+    values: _ _ _ 1 1 1
+  - series: vectra_core_write_attempts_total{service="core-banking-mock"}
+    values: 0 0 0 0 0 0
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: CoreWriteAttempt
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: CoreWriteAttempt
+    exp_alerts: *fires

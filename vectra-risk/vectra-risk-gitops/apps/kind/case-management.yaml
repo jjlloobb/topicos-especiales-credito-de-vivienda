@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: case-management
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '5'
+spec:
+  project: vectra-kind
+  source:
+    repoURL: https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda.git
+    targetRevision: main
+    path: vectra-risk/case-management/chart
+    helm:
+      valueFiles:
+      - /vectra-risk/vectra-risk-gitops/envs/kind/values.yaml
+      - /vectra-risk/case-management/chart/values-kind.yaml
+      - /vectra-risk/vectra-risk-gitops/values/kind/case-management.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vectra-app
+  syncPolicy:
+    syncOptions:
+    - ServerSideApply=true

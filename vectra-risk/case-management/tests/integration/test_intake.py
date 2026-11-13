@@ -48,6 +48,7 @@ async def test_invalid_application_is_4xx_without_a_case(db: Db) -> None:
     assert scalar(db, "SELECT count(*) FROM cases") == 0
 
 
+# BR-U8-03 (escenarios adversariales): el caso adversarial conserva su `test_scenario_id`; las otras pruebas de `X-Test-Scenario` de este archivo son del mismo requisito.
 async def test_adversarial_case_keeps_its_test_scenario_id(db: Db) -> None:
     async with harness(db, allow_test_scenarios=True) as h:
         r = await h.client.post(
@@ -86,6 +87,7 @@ async def test_missing_idempotency_key_is_422(db: Db) -> None:
     assert r.status_code == 422 and scalar(db, "SELECT count(*) FROM cases") == 0
 
 
+# BR-U8-04 (alta manual): solo `analista`, canal `manual` y el usuario; el 403 de `cumplimiento` esta en la prueba siguiente.
 async def test_manual_case_by_an_analyst_has_channel_manual_and_the_user(db: Db) -> None:
     async with harness(db) as h:
         r = await h.client.post(MANUAL, json=application(), headers=headers("analista", "m1"))

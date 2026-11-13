@@ -1,0 +1,126 @@
+# Valores del chart de U8 (Paso 20 acotado a la demo). LOS DEFAULTS SON LOS DE PRODUCCION (P-2 de U08-T05): sin values de entorno, el render es el de
+# produccion (sin core, sin mock, sin escenarios de prueba, sin PrometheusRule). `values-kind.yaml` (por `kind_values` de components.yaml) y
+# `vectra-risk-gitops/values/<env>/case-management.yaml` agregan lo de cada entorno. Se renderiza con `make -C case-management policy-chart`.
+# INF-U8-07: el chart solo inyecta URLs, la identidad ante Keycloak, el DSN y los tres plazos de retencion. Ninguna constante de
+# `vectra_case/config.py` es variable de entorno (una regla de conftest lo comprueba).
+namespace: vectra-app
+mockNamespace: vectra-mock
+# `imageRegistry` lo pasa Argo CD desde `vectra-risk-gitops/envs/<env>/values.yaml` (kind-registry:5000 en kind, registro.banco.internal/vectra en staging y
+# prod) y arma el repositorio `<registro>/vectra/<imagen>`; `repository` vale en un render local sin ese valor.
+# Digests de ejemplo mientras el operador no publique las imagenes (case-management/docs/imagenes.md); cada entorno fija los suyos en
+# `vectra-risk-gitops/values/<env>/case-management.yaml`. Sin digest no se renderiza (`required`): una imagen por etiqueta la rechaza Kyverno.
+images:
+  caseManagement:
+    repository: kind-registry:5000/vectra/case-management
+    digest: sha256:000000000000000000000000000000000000000000000000000000000000000a
+  coreMock:
+    repository: kind-registry:5000/vectra/core-banking-mock
+    digest: sha256:000000000000000000000000000000000000000000000000000000000000000b
+# El core: apagado en produccion (`credit_status = no_integrado`, INF-U8-02). En kind y staging lo enciende el entorno y apunta al mock (F17).
+core:
+  enabled: false
+  url: http://core-banking-mock.vectra-mock.svc.cluster.local:8080
+# El mock del core (`vectra-mock`): solo kind y staging. La regla de conftest de los values de produccion lo fija en false.
+coreMock:
+  enabled: false
+# Escenarios de prueba (`X-Test-Scenario`): solo kind y staging.
+allowTestScenarios: false
+# Job de la demostracion de RT-5 (INF-U8-03): solo lo enciende el entorno kind (`values/kind/case-management.yaml`) y solo cuando U12 (`prepare`) agrega el identificador de la corrida. Ningun values de
+# staging ni de produccion trae ni la corrida ni el interruptor (una regla de conftest sobre los archivos de values lo rechaza). El id del credito es solo el de la ruta: el 403 del
+# proxy llega antes de que el mock lo mire.
+probes:
+  enabled: false
+  creditId: 11111111-1111-4111-8111-111111111111
+# Validacion de tokens y obtencion de los de servicio (F50; variables de U0). Mismos valores que los demas charts; el realm y el nombre publico los fija U2.
+keycloak:
+  # Emisor medido (identity-edge/docs/emisor-de-tokens.md, U02-T21): con KC_HOSTNAME como URL completa todo token lleva `iss` = el hostname publico. Produccion por omision; kind y staging en vectra-risk-gitops/values/<env>/case-management.yaml.
+  issuer: https://vectra.banco.internal/auth/realms/vectra
+  jwksUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/certs
+  tokenUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token
+# La CA interna (Bundle `vectra-internal-ca` de trust-manager, U1): la validan Keycloak (VECTRA_CA_BUNDLE) y `case-db` (`sslmode=verify-full`, P-6).
+internalCA:
+  configMap: vectra-internal-ca
+  mountPath: /etc/vectra/ca
+# Los pares (F15, F16, F104). El core sale de `core.url` (F17).
+peers:
+  governanceUrl: http://governance-service.vectra-app.svc.cluster.local:8080
+  registryUrl: http://decision-registry-service.vectra-app.svc.cluster.local:8080
+  scoringUrl: http://scoring-service.vectra-app.svc.cluster.local:8080
+# `case-db` (INF-U8-01; F40, F44): el DSN va SIN credenciales; `PGUSER` y `PGPASSWORD` salen del Secret de U1 de cada proceso (`pg-role-case-*`). El chart no crea
+# ningun Secret ni ExternalSecret para la base. `verify-full` con la CA interna (P-6 de U08-T05): el chart agrega `sslrootcert`.
+database:
+  host: case-db-rw.vectra-data.svc.cluster.local
+  name: case
+  sslmode: verify-full
+  secrets:
+    app: pg-role-case-app
+    worker: pg-role-case-worker
+    migrator: pg-role-case-migrator
+# La llave `private_key_jwt` de cada cliente (F50): un ExternalSecret por cliente de U2 (`identity/clients/<clientId>`, propiedad `private-key`).
+identity:
+  mountPath: /var/run/vectra/client
+  vaultProperty: private-key
+  secretStore: { name: vectra-store, kind: ClusterSecretStore }
+  refreshInterval: 1h
+# Los tres plazos de `retention_settings` (P-U8-05): los lee el Job de migracion (`RETENTION_*` de migrations/env.py). Sin ellos no se renderiza (`required`).
+retention:
+  decided_years: 10
+  undecided_years: 2
+  intake_keys_days: 30
+# INF-U8-04: los dos Deployment llevan 2 replicas y HPA de 2 a 6 por CPU al 70 % (DD-3 b), PDB `minAvailable: 1`, `vectra-high`, `maxSurge: 1` y `maxUnavailable: 0`.
+common:
+  priorityClassName: vectra-high
+  criticality: high
+  replicas: 2
+  port: 8080
+  metricsPort: 8081
+  hpa:
+    minReplicas: 2
+    maxReplicas: 6
+    cpuUtilization: 70
+    scaleUpStabilizationSeconds: 60
+    scaleDownStabilizationSeconds: 300
+  pdb: { minAvailable: 1 }
+# `name` es el de la ServiceAccount, el Service y el cliente de Keycloak (los `sa:` de `platform/network/flows.yaml`).
+# INF-U8-06: `case-service` con `preStop.sleep` de 5 s y 20 s de gracia (P-4 = a); `case-worker` sin `preStop` y con 40 s: cubre el peor caso real del apagado
+# (~34 s; services.md, «Arranque y apagado del worker»), por encima de `config.WORKER_TERMINATION_GRACE` (30 s, el minimo).
+caseService:
+  name: case-service
+  clientId: case-service
+  preStopSeconds: 5
+  terminationGracePeriodSeconds: 20
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { cpu: "1", memory: 512Mi }
+caseWorker:
+  name: case-worker
+  clientId: case-worker
+  terminationGracePeriodSeconds: 40
+  resources:
+    requests: { cpu: 200m, memory: 256Mi }
+    limits: { cpu: "1", memory: 512Mi }
+# Job de migracion (F44): hook de sync, `case_migrator`, `vectra-low`.
+migration:
+  priorityClassName: vectra-low
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+# core-banking-mock (INF-U8-02): 2 replicas fijas (el HPA no aplica a un doble), exento con justificacion.
+mock:
+  name: core-banking-mock
+  replicas: 2
+  priorityClassName: vectra-low
+  criticality: medium  # Kyverno `require-criticality-label` solo admite critical | high | medium (INF-U8-02 dice `low`)
+  hpaExempt: "Doble del core bancario de solo lectura: 2 replicas fijas, sin carga que escalar (kind y staging)"
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 250m, memory: 128Mi }
+# Job de la demostracion de RT-5: recursos minimos (un solo POST).
+rt5:
+  priorityClassName: vectra-low
+  activeDeadlineSeconds: 300
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 250m, memory: 128Mi }

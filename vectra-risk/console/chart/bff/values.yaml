@@ -1,0 +1,55 @@
+# Valores comunes del chart de `console-bff` (U10, Paso 18, acotado a la demo). Los defaults son los de produccion: un render sin values de entorno es el de produccion (P-3).
+# Perfil demo (DD-3 b): sin `values-kind-demo.yaml`. El unico ajuste de kind (`values-kind.yaml`) es el maximo del HPA (2 y 2, INF-U10-06) y el request de memoria (P-1 = b).
+namespace: vectra-app
+# `imageRegistry` lo pasa Argo CD desde `vectra-risk-gitops/envs/<env>/values.yaml`; `image.repository` vale en un render local sin ese valor.
+image:
+  repository: kind-registry:5000/vectra/console-bff
+  # Digest de ejemplo mientras el operador no publique la imagen (console/README.md, seccion «Imagenes»); cada entorno fija el suyo.
+  # Sin digest no se renderiza (`required`): una imagen por etiqueta la rechaza Kyverno (`disallow-latest`).
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000008
+# P-4: el emisor es el **publico**, el mismo `iss` de los tokens que emite el navegador, el que valida el gateway (`securitypolicies.yaml`) y el `authority` de la SPA:
+# `https://<hostname>` + `jwt.issuer_path` de `identity-edge/gateway/routes.yaml`. El hostname es el del entorno (`vectra-risk-gitops/values/<env>/console-bff.yaml`; el de
+# aqui es el de produccion). El JWKS es `jwt.jwks_uri` de `routes.yaml` (F50), por el host interno de Keycloak, con la CA de `vectra-internal-ca`. Los dos son values
+# separados: si U02-T21 mide que Keycloak publica otro emisor, se cambia solo el de aqui (la SPA y el gateway no se tocan).
+oidc:
+  issuer: https://vectra.banco.internal/auth/realms/vectra
+  jwksUrl: https://keycloak.vectra-identity.svc:8443/auth/realms/vectra/protocol/openid-connect/certs
+# La CA sale del ConfigMap `vectra-internal-ca` (Bundle de trust-manager de U1): sin `VECTRA_CA_BUNDLE` el JWKS por `https` termina el proceso con codigo 2.
+keycloak:
+  caConfigMap: vectra-internal-ca
+  caMountPath: /etc/vectra/ca
+# Los cinco destinos (F10 a F14), todos en `vectra-app` y en el 8080 (`platform/network/flows.yaml`).
+peers:
+  caseUrl: http://case-service.vectra-app.svc.cluster.local:8080
+  governanceUrl: http://governance-service.vectra-app.svc.cluster.local:8080
+  registryUrl: http://decision-registry-service.vectra-app.svc.cluster.local:8080
+  explainabilityUrl: http://explainability-service.vectra-app.svc.cluster.local:8080
+  biasUrl: http://bias-monitoring-service.vectra-app.svc.cluster.local:8080
+# F61: el colector de OpenTelemetry (gRPC 4317). `VECTRA_OTLP_ENDPOINT` lo lee `vectra_common.telemetry`.
+telemetry:
+  otlpEndpoint: http://otel-collector.vectra-observability.svc.cluster.local:4317
+# Las variables van en un ConfigMap (`envFrom`): exactamente `console_bff.app.REQUIRED` mas `VECTRA_CA_BUNDLE` y `VECTRA_OTLP_ENDPOINT`. Ninguna constante de `console_bff/config.py`
+# (plazos, breaker, conexiones, `REPLICAS`) es una variable: son codigo (INF-U10-01; `deployment-architecture.md` §3).
+config:
+  configMapName: console-bff-config
+# Deployment `console-bff` (INF-U10-01; NFR-U10-10, 20, 22): 2 replicas, HPA de 2 a 6 por CPU al 70 %; `preStop` de 5 s y 20 s de gracia (P-5 (a) de U10-T02).
+deployment:
+  priorityClassName: vectra-high
+  criticality: high
+  replicas: 2
+  port: 8080
+  metricsPort: 8081
+  runAsUser: 65532
+  preStopSeconds: 5
+  terminationGracePeriodSeconds: 20
+  # staging y prod: 256 MiB (INF-U10-01). kind pide 128 MiB (`values-kind.yaml`, P-1 = b).
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { cpu: "1", memory: 512Mi }
+  pdb: { minAvailable: 1 }
+hpa:
+  minReplicas: 2
+  maxReplicas: 6
+  cpuUtilization: 70
+  scaleUpStabilizationSeconds: 60
+  scaleDownStabilizationSeconds: 300

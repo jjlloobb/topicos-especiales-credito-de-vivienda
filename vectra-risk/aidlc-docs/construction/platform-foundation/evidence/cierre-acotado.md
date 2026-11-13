@@ -25,6 +25,7 @@
 | Autorización de Linkerd entre ServiceAccounts (20.3) | Sin cargas de negocio con las que probar | U3 y U12 |
 | Failover de zona (20.4, 4b) | **Inconcluso**, ver `simulacro-failover-reducido.txt`. NFR-U1-03 y NFR-U1-08 quedan parcialmente comprobados | Máquina de al menos 32 GiB, u Operations |
 | `Watchdog` recibido (20.7) | Dispara en Prometheus; falta comprobar la recepción | U12 |
+| Métricas del proxy de `vectra-mock` (U01-T09) | Solo estático: `PodMonitor` `linkerd-proxy`, flujo F60 al 4191 y `Server` `metrics-4191` sin rutas, atados por `test_proxy_metrics.py`. En kind falta ver el target `linkerd-proxy` en `up == 1` (no 403), la serie con `namespace="vectra-mock"` y `route_name="core-mock-catch-all"` tras el 403 real, y los pods de `vectra-mock` `Ready` con el `Server` del 4191 | U12 Paso 18 |
 | Regla `ilm` repetida | Se acumula, sin corregir | Corregir antes de staging |
 | `grafana-folder-check` | Falla por tiempo de espera con la máquina cargada y pasó a las 03:30Z con carga menor; causa sin confirmar. Grafana lleva 11 reinicios e intenta instalar plugins de Internet | Revisar antes de staging |
 | Causa del cambio de IP de origen de `kubelet` tras reiniciar un nodo | Sin identificar; se aceptan sondas desde la red de pods | Revisar antes de staging |

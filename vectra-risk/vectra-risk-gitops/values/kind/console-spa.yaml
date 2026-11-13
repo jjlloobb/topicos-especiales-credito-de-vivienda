@@ -1,0 +1,5 @@
+# Values de console-spa (U10, U10-T05). Aqui solo lo que cambia de un chart a otro por entorno: el hostname publico, el mismo de `identity-edge/gateway/values/kind.yaml`
+# y de `vectra.publicHostname` de `identity-edge/keycloak/values/kind.yaml` (`test_chart.py` los ata). De el salen el `authority` y los dos `redirect_uri` de `config.json`.
+# Digest: el operador lo fija en U12 Paso 18, tras publicar la imagen (console/README.md, seccion «Imagenes»). Hasta entonces rige el digest de ejemplo del chart y los pods
+# quedarian en `ImagePullBackOff`.
+hostname: vectra.localtest.me
