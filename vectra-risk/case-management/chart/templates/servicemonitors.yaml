@@ -1,0 +1,29 @@
+{{- /* ServiceMonitor del puerto de metricas (8081) de cada Service (F60). El del mock va en `vectra-mock` y solo con `coreMock.enabled`. */ -}}
+{{- $monitors := list (dict "name" .Values.caseService.name "namespace" .Values.namespace "criticality" .Values.common.criticality) (dict "name" .Values.caseWorker.name "namespace" .Values.namespace "criticality" .Values.common.criticality) }}
+{{- if .Values.coreMock.enabled }}
+{{- $monitors = append $monitors (dict "name" .Values.mock.name "namespace" .Values.mockNamespace "criticality" .Values.mock.criticality) }}
+{{- end }}
+{{- range $m := $monitors }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $m.name }}
+  namespace: {{ $m.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $m.name }}
+    app.kubernetes.io/part-of: case-management
+    vectra.io/criticality: {{ $m.criticality }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $m.name }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      # La etiqueta `service` que emite U0 no pasa a `exported_service` (shared-infrastructure.md §1).
+      honorLabels: true
+{{- end }}

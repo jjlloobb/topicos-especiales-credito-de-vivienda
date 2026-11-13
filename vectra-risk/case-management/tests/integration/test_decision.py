@@ -162,6 +162,7 @@ async def test_vencido_case_rejects_decision_and_view_with_409(db: Db) -> None:
     assert d.status_code == 409 and v.status_code == 409
 
 
+# BR-U8-17 (`explanation_viewed_before`): solo cuenta una vista confirmada del mismo usuario.
 async def test_explanation_viewed_before_counts_only_a_confirmed_view_by_the_same_user(db: Db) -> None:
     pending_case = seed_case(db, state="listo")
     confirmed_case = seed_case(db, state="listo")

@@ -1,0 +1,106 @@
+{{- /* core-banking-mock (Paso 20; INF-U8-02, 03; BR-U8-22): solo con `coreMock.enabled` (kind y staging; la regla de conftest de los values de produccion lo fija en false).
+Namespace `vectra-mock` explicito en cada recurso (P-3 = a: una sola Application). 2 replicas fijas con `vectra.io/hpa-exempt` y su justificacion, PDB, `vectra-low`, `vectra.io/criticality: medium` (la politica `require-criticality-label` de U1 solo admite critical, high y medium; INF-U8-02 decia `low`).
+El chart NO crea el `Server`, las `HTTPRoute` ni la `AuthorizationPolicy` del mock: los genera U1 desde `http_routes.core-banking-mock` de flows.yaml. El fixture esta en la
+imagen (/app/fixtures/credits.json), sin ConfigMap ni volumen. Variables: las de U0 para validar tokens. */ -}}
+{{- if .Values.coreMock.enabled }}
+{{- $m := .Values.mock -}}
+{{- $common := .Values.common -}}
+{{- $ns := .Values.mockNamespace -}}
+{{- $image := include "case-management.image" (list . "coreMock" "core-banking-mock") }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $m.name }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: {{ $m.name }}
+    app.kubernetes.io/part-of: case-management
+    vectra.io/criticality: {{ $m.criticality }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    vectra.io/hpa-exempt: {{ required "mock.hpaExempt (la justificacion) es obligatorio" $m.hpaExempt | quote }}
+spec:
+  replicas: {{ $m.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $m.name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $m.name }}
+        app.kubernetes.io/part-of: case-management
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+    spec:
+      serviceAccountName: {{ $m.name }}
+      priorityClassName: {{ $m.priorityClassName }}
+      securityContext:
+        {{- include "case-management.pod-security" . | nindent 8 }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $m.name }}
+      containers:
+        - name: {{ $m.name }}
+          image: {{ $image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [python, -m, core_banking_mock.app]
+          ports:
+            - { name: http, containerPort: {{ $common.port }} }
+            - { name: metrics, containerPort: {{ $common.metricsPort }} }
+          env:
+            - { name: VECTRA_OIDC_ISSUER, value: {{ required "keycloak.issuer es obligatorio" .Values.keycloak.issuer | quote }} }
+            - { name: VECTRA_JWKS_URL, value: {{ required "keycloak.jwksUrl es obligatorio" .Values.keycloak.jwksUrl | quote }} }
+            - { name: VECTRA_CA_BUNDLE, value: {{ printf "%s/ca.crt" .Values.internalCA.mountPath | quote }} }
+          readinessProbe:
+            httpGet: { path: /readyz, port: metrics }
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet: { path: /healthz, port: metrics }
+            periodSeconds: 10
+            failureThreshold: 3
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            {{- include "case-management.ca-mount" . | nindent 12 }}
+          resources:
+            {{- toYaml $m.resources | nindent 12 }}
+      volumes:
+        {{- include "case-management.ca-volume" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $m.name }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: {{ $m.name }}
+    app.kubernetes.io/part-of: case-management
+spec:
+  selector:
+    app.kubernetes.io/name: {{ $m.name }}
+  ports:
+    - { name: http, port: {{ $common.port }}, targetPort: http }
+    - { name: metrics, port: {{ $common.metricsPort }}, targetPort: metrics }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $m.name }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: {{ $m.name }}
+    app.kubernetes.io/part-of: case-management
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $m.name }}
+{{- end }}

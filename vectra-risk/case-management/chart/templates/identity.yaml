@@ -1,0 +1,28 @@
+{{- /* Un ExternalSecret por cliente de U2 (INF-U8-01; formato de governance/chart/templates/service-identity.yaml): ESO materializa en vectra-app la llave
+`private_key_jwt` (`identity/clients/<clientId>`, propiedad `private-key`). El Deployment la monta de solo lectura. El mock y la migracion no tienen llave:
+el mock solo valida tokens y la migracion usa el Secret de U1 de su rol. */ -}}
+{{- range $svc := list .Values.caseService .Values.caseWorker }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ printf "%s-client" $svc.name }}
+  namespace: {{ $.Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $svc.name }}
+    app.kubernetes.io/part-of: case-management
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  refreshInterval: {{ $.Values.identity.refreshInterval }}
+  secretStoreRef:
+    name: {{ $.Values.identity.secretStore.name }}
+    kind: {{ $.Values.identity.secretStore.kind }}
+  target:
+    name: {{ printf "%s-client" $svc.name }}
+  data:
+    - secretKey: private-key
+      remoteRef:
+        key: {{ printf "identity/clients/%s" $svc.clientId }}
+        property: {{ $.Values.identity.vaultProperty }}
+{{- end }}

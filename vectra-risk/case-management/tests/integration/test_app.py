@@ -129,6 +129,7 @@ async def test_detail_of_a_decided_case_carries_the_decision(db: Db) -> None:
     assert d["credit_status"] == "no_integrado"
 
 
+# BR-U8-13b (que ve cada rol): `cumplimiento` y `cro` leen los identificadores; el detalle anonimizado no los trae (prueba siguiente).
 async def test_get_case_identifiers_for_cumplimiento_returns_only_identifiers_and_anonymized(db: Db) -> None:
     plain = seed_case(db, state="listo")
     anonymized = seed_case(db, state="decidido", anonymized=True)
@@ -197,6 +198,7 @@ async def test_case_viewed_and_retry_requested_pass_the_strict_allowlist(
         assert e["principal_subject"] and e["principal_role"] and e["case_id"]
 
 
+# NFR-U8-42: ninguna metrica lleva identificadores, `free_text` ni `test_scenario_id`; las etiquetas son de cardinalidad acotada (`ALLOWED_LABELS`).
 async def test_metrics_endpoint_shows_every_closed_set_series_at_zero_and_no_label_outside_the_allowlist(
     db: Db,
 ) -> None:

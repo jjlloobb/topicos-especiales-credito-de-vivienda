@@ -1,0 +1,96 @@
+{{- /* case-worker (Paso 20; INF-U8-01, 04, 06; NFR-U8-10, 12, 20; F15, F40, F50, F104). La misma imagen que case-service con otra orden: `python -m vectra_case.worker`.
+Solo sirve las sondas y `/metrics` en 8081 (no abre 8080), asi que su Service expone solo 8081 y no lleva `preStop` (INF-U8-06). Variables: las de `WorkerSettings.from_env`
+mas las de U0 para el token de servicio. `terminationGracePeriodSeconds` cubre el peor caso real del apagado (P-4 = a, 40 s). */ -}}
+{{- $svc := .Values.caseWorker -}}
+{{- $common := .Values.common -}}
+{{- $image := include "case-management.image" (list . "caseManagement" "case-management") -}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $svc.name }}
+    app.kubernetes.io/part-of: case-management
+    vectra.io/criticality: {{ $common.criticality }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: {{ $common.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $svc.name }}
+      vectra.io/workload: {{ $svc.name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $svc.name }}
+        app.kubernetes.io/part-of: case-management
+        vectra.io/workload: {{ $svc.name }}
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+    spec:
+      serviceAccountName: {{ $svc.name }}
+      priorityClassName: {{ $common.priorityClassName }}
+      terminationGracePeriodSeconds: {{ $svc.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- include "case-management.pod-security" . | nindent 8 }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $svc.name }}
+              vectra.io/workload: {{ $svc.name }}
+      containers:
+        - name: {{ $svc.name }}
+          image: {{ $image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [python, -m, vectra_case.worker]
+          ports:
+            - { name: metrics, containerPort: {{ $common.metricsPort }} }
+          env:
+            - { name: CASE_DB_DSN, value: {{ include "case-management.dsn" . | quote }} }
+            {{- include "case-management.pg-env" .Values.database.secrets.worker | nindent 12 }}
+            - { name: CASE_GOVERNANCE_URL, value: {{ required "peers.governanceUrl es obligatorio" .Values.peers.governanceUrl | quote }} }
+            - { name: CASE_SCORING_URL, value: {{ required "peers.scoringUrl es obligatorio" .Values.peers.scoringUrl | quote }} }
+            {{- include "case-management.identity-env" (list . $svc) | nindent 12 }}
+          readinessProbe:
+            httpGet: { path: /readyz, port: metrics }
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet: { path: /healthz, port: metrics }
+            periodSeconds: 10
+            failureThreshold: 3
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: service-identity, mountPath: {{ .Values.identity.mountPath | quote }}, readOnly: true }
+            {{- include "case-management.ca-mount" . | nindent 12 }}
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+      volumes:
+        - name: service-identity
+          secret: { secretName: {{ printf "%s-client" $svc.name | quote }}, defaultMode: 292 }
+        {{- include "case-management.ca-volume" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $svc.name }}
+    app.kubernetes.io/part-of: case-management
+spec:
+  selector:
+    app.kubernetes.io/name: {{ $svc.name }}
+    vectra.io/workload: {{ $svc.name }}
+  ports:
+    - { name: metrics, port: {{ $common.metricsPort }}, targetPort: metrics }
+{{- include "case-management.hpa-pdb" (list . $svc) }}

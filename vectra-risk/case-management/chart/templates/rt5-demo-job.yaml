@@ -1,0 +1,67 @@
+{{- /* Job `rt5-demo-<runId>` (INF-U8-03; US-603; U12 Paso 8): la evidencia de RT-5 (el core es de solo lectura). Solo en kind (`probes.enabled`, que solo trae
+`values/kind/case-management.yaml`) y solo con `probes.runId`, que agrega U12 (`prepare`). Corre como `case-service` (la `ServiceAccount` y `app.kubernetes.io/name`, lo unico que
+admite la NetworkPolicy del mock) pero SIN `vectra.io/workload: case-service`: el Service y el PDB de `case-service` seleccionan las dos etiquetas y no lo ven. Usa la imagen
+`case-management` (stdlib de Python), sin la llave de Keycloak ni variables de la base. Envia `POST /v1/credits/<id>/status` a `CASE_CORE_URL`, sin token, y escribe el codigo de
+respuesta y la cabecera `l5d-proxy-error`. Termina con 0 SOLO si el codigo es 403; con otro (o sin conexion) termina distinto de 0, asi `completionTime` existe cuando la evidencia es la esperada.
+`backoffLimit: 0`, sidecar nativo, SIN `ttlSecondsAfterFinished` (se poda al cambiar el `runId`). */ -}}
+{{- /* El formato se valida siempre que haya `probes.runId`, aunque el interruptor este apagado: un identificador mal escrito no debe pasar desapercibido. */ -}}
+{{- if .Values.probes.runId }}
+{{- if not (regexMatch "^[0-9]{8}-[0-9]{4}$" (toString .Values.probes.runId)) }}{{ fail (printf "probes.runId debe cumplir ^[0-9]{8}-[0-9]{4}$ (AAAAMMDD-HHMM, INF-U12-02); recibido %q" (toString .Values.probes.runId)) }}{{- end }}
+{{- end }}
+{{- if and .Values.probes.enabled .Values.probes.runId }}
+{{- $runId := toString .Values.probes.runId -}}
+{{- $image := include "case-management.image" (list . "caseManagement" "case-management") }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "rt5-demo-%s" $runId }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: rt5-demo
+    app.kubernetes.io/part-of: case-management
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.rt5.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.caseService.name }}
+        app.kubernetes.io/part-of: case-management
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+    spec:
+      serviceAccountName: {{ .Values.caseService.name }}
+      priorityClassName: {{ .Values.rt5.priorityClassName }}
+      restartPolicy: Never
+      securityContext:
+        {{- include "case-management.pod-security" . | nindent 8 }}
+      containers:
+        - name: rt5-demo
+          image: {{ $image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [python, -c]
+          args:
+            - |
+              import os, sys, urllib.error, urllib.request
+              url = os.environ["CASE_CORE_URL"].rstrip("/") + "/v1/credits/" + os.environ["RT5_CREDIT_ID"] + "/status"
+              request = urllib.request.Request(url, data=b'{"status": "desembolsado"}', method="POST", headers={"content-type": "application/json"})
+              try:
+                  response = urllib.request.urlopen(request, timeout=10)
+                  code, proxy_error = response.status, response.headers.get("l5d-proxy-error")
+              except urllib.error.HTTPError as error:
+                  code, proxy_error = error.code, error.headers.get("l5d-proxy-error")
+              except Exception as error:
+                  print("rt5-demo: sin respuesta:", error)
+                  sys.exit(2)
+              print("rt5-demo: POST", url, "->", code, "l5d-proxy-error:", proxy_error)
+              sys.exit(0 if code == 403 else 1)
+          env:
+            - { name: CASE_CORE_URL, value: {{ required "core.url es obligatorio" .Values.core.url | quote }} }
+            - { name: RT5_CREDIT_ID, value: {{ required "probes.creditId es obligatorio" .Values.probes.creditId | quote }} }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          resources:
+            {{- toYaml .Values.rt5.resources | nindent 12 }}
+{{- end }}

@@ -1,0 +1,38 @@
+{{- /* PrometheusRule de U8 acotada a la demo (Paso 21): UNA alerta, `CoreWriteAttempt` (INF-U8-03; US-603), y ninguna regla de grabacion. Solo con `coreMock.enabled`:
+la alerta vigila el mock. Las otras ocho alertas de P-U8 y sus runbooks estan diferidas (T2). `FailClosedPersistente` es de U1.
+La expresion es la de INF-U8-03, literal: sin `increase()` sobre la serie de Linkerd (nace en 1 y `increase` nunca la veria subir) y con `offset 5m` y `or vector(0)`.
+`route_name` es `http_routes.core-banking-mock._catch_all` de flows.yaml (una prueba compara los dos). `case-management/observability/rules/case-management.rules.yaml`
+es el `spec` de este recurso, versionado (`make -C case-management rules`). */ -}}
+{{- if .Values.coreMock.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: case-management
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: case-management
+    app.kubernetes.io/part-of: case-management
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  groups:
+    - name: case-management
+      rules:
+        - alert: CoreWriteAttempt
+          expr: |-
+            increase(vectra_core_write_attempts_total[5m]) > 0
+            or
+            sum(inbound_http_authz_deny_total{namespace="vectra-mock", route_name="core-mock-catch-all"})
+              - (sum(inbound_http_authz_deny_total{namespace="vectra-mock", route_name="core-mock-catch-all"} offset 5m) or vector(0))
+              > 0
+          labels:
+            severity: SEV2
+          annotations:
+            summary: Un intento de escritura al core bancario (RT-5)
+            description: >-
+              `vectra_core_write_attempts_total` creció: el mock recibió un `POST /v1/credits/{id}/status` que Linkerd dejó pasar. La serie
+              `inbound_http_authz_deny_total` de la ruta `core-mock-catch-all` es la denegación del proxy, la capa L7 que debe bloquearlo
+              antes de llegar al mock; en la demostración de RT-5 esta es la evidencia esperada.
+            runbook_url: case-management/observability/runbooks/core-write-attempt.md
+{{- end }}
