@@ -11,6 +11,7 @@ inalcanzables (menos de 30 disponibles) no bloquean: se informan con sus filas d
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -120,8 +121,12 @@ def judge_package(freeze: Mapping[str, Any]) -> tuple[str, ...]:
     if missing:
         return tuple(missing)
     try:
-        FreezeContextPackage.model_validate(package)
-    except ValidationError as error:
+        FreezeContextPackage.model_validate_json(
+            json.dumps(package)
+        )  # los modelos son estrictos: se validan desde JSON, como `RegistryClient`
+    except (ValidationError, ValueError, TypeError) as error:
+        if not isinstance(error, ValidationError):
+            return ("rt2_paquete_invalido:json",)
         first = error.errors()[0]
         return (f"rt2_paquete_invalido:{'.'.join(str(p) for p in first['loc'])}:{first['type']}",)
     return ()

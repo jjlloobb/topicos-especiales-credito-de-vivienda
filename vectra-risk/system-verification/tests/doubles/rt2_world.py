@@ -40,6 +40,15 @@ ROLES = {
     "cumplimiento-1": "cumplimiento",
 }
 SHA = "a" * 64
+ATTRIBUTES = [
+    {
+        "attribute": "sexo",
+        "cells": [{"group": "F", "band": "lt_20", "n": 100, "rate": "0.5000", "status": "suficiente"}],
+        "bands": [{"band": "lt_20", "difference": "0.0100", "n_band": 100}],
+        "aggregate": "0.0100",
+        "population_difference_partial": False,
+    }
+]  # un `AttributeResult` valido (la entrega de U10 trae `attributes` vacio)
 
 
 def iso(moment: datetime) -> str:
@@ -168,14 +177,14 @@ class BiasProm(httpx.BaseTransport):
             while moment <= end + 1e-9:
                 seen = [r for r in runs if r[0] <= moment]
                 if seen:
-                    values.append([moment, f"{seen[-1][index]:g}"])
+                    values.append([moment, repr(seen[-1][index])])
                 moment += step
             result = [{"metric": {}, "values": values}] if values else []
             return httpx.Response(
                 200, json={"status": "success", "data": {"resultType": "matrix", "result": result}}
             )
         if expression == rt2_module.BIAS_OK:
-            result = [{"metric": {}, "value": [0, f"{runs[-1][1]:g}"]}] if runs else []
+            result = [{"metric": {}, "value": [0, repr(runs[-1][1])]}] if runs else []
         else:
             result = (
                 [{"metric": {"reason": self.world.bias_failure_reason}, "value": [0, "1"]}]
@@ -246,6 +255,7 @@ class Rt2World:
         self.validation_outcome = "lista_para_aprobacion"
         self.no_policy = False
         self.empty_disparity = False
+        self.freeze_freezes_model = True
         self.reactivation_status = 204
         self.refreeze_after: float | None = None
         self.probe_listo = False
@@ -303,7 +313,7 @@ class Rt2World:
         )
         step = seconds / max(len(ids), 1)
         for number, case_id in enumerate(ids):
-            at = started + timedelta(seconds=number * step + 1)
+            at = started + timedelta(seconds=number * step)
             self.recommendations.append(
                 {
                     "entry_type": "recommendation",
@@ -323,11 +333,12 @@ class Rt2World:
         item["context_package"]["model_version_id"] = PROXY
         item["freeze_id"] = f"freeze-{PROXY}-{item['seq']}"
         item["frozen_at"] = item["recorded_at"] = iso(self.clock.now())
-        item["context_package"]["initial_disparity"] = {"attributes": b.disparity_result(PROXY)["attributes"]}
+        item["context_package"]["initial_disparity"] = {"attributes": ATTRIBUTES}
         if self.package_variant is not None:
             self.package_variant(item)
         self.freeze_entries.append(item)
-        self.set_state(PROXY, "congelado")
+        if self.freeze_freezes_model:
+            self.set_state(PROXY, "congelado")
 
     def start_bias(self, every: float = 900.0, first: float = 120.0, runs: int = 40) -> None:
         for number in range(runs):
@@ -429,7 +440,7 @@ class Rt2World:
             self.set_state(model_id, self.validation_outcome)
             self.models[model_id]["validation_report"] = {
                 "auc_roc": "0.8250", "auc_target": "0.8500", "auc_meets_target": False,
-                "initial_disparity": {"attributes": [] if self.empty_disparity else b.disparity_result(model_id)["attributes"]},
+                "initial_disparity": {"attributes": [] if self.empty_disparity else ATTRIBUTES},
                 "sync_check": {"passed": self.validation_outcome != "validacion_fallida", "predictor_version": model_id, "explainer_version": model_id, "samples_checked": 100},
                 "dataset_ref": "ref", "disclaimer": "d",
             }  # fmt: skip

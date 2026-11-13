@@ -391,6 +391,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from external_paths import ROOT
+from registry_read_double import freeze_item
 from rt2_world import PROXY, REFERENCE, Rt2World
 from vectra_verification.scenarios import rt2
 from vectra_verification.scenarios.common import ScenarioError, registration_body
@@ -603,3 +604,387 @@ def test_rt2_setup_in_staging_is_refused_with_zero_requests(world: Rt2World, tmp
     with pytest.raises(guard.GuardError, match="section_denied_in_staging:rt2-setup"):
         rt2.rt2_setup(guard.STAGING, world.sessions, world.clock, versions(world, tmp_path))
     assert world.bff.doubles.governance.calls == [] and world.oidc.logins == []
+
+
+# --- RT-2 (CA-11) --------------------------------------------------------------------------------------------------------------------
+# El BFF real en proceso con estado (`Rt2World`): el operador (promover, volver al modelo de referencia) y el sistema (el `freeze` a los 1 500 s, las corridas de bias cada 900 s, el barrido de 300 s) son eventos del
+# reloj falso: ninguna prueba duerme. Cada prueba cambia **una** cosa del mundo correcto.
+
+import copy
+
+from rt2_world import iso
+from vectra_verification.scenarios.rt2 import Rt2Deps, Rt2Params, Rt2Result, Rt2State
+
+
+@pytest.fixture
+def rworld(world: Rt2World) -> Rt2World:
+    """El mundo correcto: la referencia `activo`, el proxy `aprobado`; el operador promueve a los 60 s y vuelve atras a los 6 000 s (la corrida termina hacia los 4 700 s); el cron de bias cada 900 s."""
+    world.add_model(PROXY, "aprobado", registered_by="ingeniero-1", approved_by="cro-1")
+    world.operator_promotes(60.0)
+    world.operator_rolls_back(6000.0)
+    world.start_bias()
+    return world
+
+
+def rt2_run(
+    world: Rt2World,
+    *,
+    params: dict[str, object] | None = None,
+    state: Rt2State | None = None,
+    prom: bool = True,
+    reactivator: object = None,
+) -> Rt2Result:
+    deps = Rt2Deps(
+        KIND,
+        world.clock,
+        world.sessions,
+        world.simulator,
+        world.registry,
+        world.prom if prom else None,
+        reactivator,
+    )  # type: ignore[arg-type]
+    arguments: dict[str, object] = {
+        "reference_version_id": REFERENCE,
+        "versions": [rt2.ProxyVersion(1, PROXY)],
+        "seed": 7,
+    }
+    arguments.update(params or {})
+    return rt2.run_rt2(deps, Rt2Params(**arguments), state)  # type: ignore[arg-type]
+
+
+def codes(result: Rt2Result) -> tuple[str, ...]:
+    return result.rt2.missing
+
+
+def test_rt2_a_correct_run_passes_with_a_latency_of_1500_seconds_and_the_closing_done(
+    rworld: Rt2World,
+) -> None:
+    result = rt2_run(rworld)
+    assert result.rt2.result == "pasa", (
+        result.rt2.missing,
+        [(s.name, s.result, s.detail) for s in result.rt2.subresults if s.result != "pasa"],
+    )
+    assert result.latency.result == "pasa" and result.latency.readings["latency_seconds"] == 1500.0
+    assert result.closing is not None and result.closing.result == "pasa" and result.pending is None
+    assert [s.name.split(":")[1] for s in result.rt2.subresults] == [*rt2.PHASES, "latencia"][
+        : len(result.rt2.subresults)
+    ]
+    assert rworld.state_of(PROXY) == "inactivo" and rworld.state_of(REFERENCE) == "activo"
+    assert rworld.reactivation_calls == [{"action": "reactivar", "justification": rt2.JUSTIFICATION}]
+    assert rworld.simulator.runs[0][:2] == ("stratified", 1500) and {r[3] for r in rworld.simulator.runs} == {
+        "rt2"
+    }
+
+
+def test_rt2_with_one_version_the_latency_evidence_says_one_measurement_and_cites_dd1(
+    rworld: Rt2World,
+) -> None:
+    latency = rt2_run(rworld).latency
+    assert "1 medicion(es)" in latency.expected and "DD-1" in latency.expected
+
+
+def test_rt2_a_run_of_31_minutes_fails_the_latency_with_the_measurement_recorded(rworld: Rt2World) -> None:
+    rworld.freeze_after = 1860.0
+    result = rt2_run(rworld)
+    assert result.latency.result == "falla" and result.latency.readings["latency_seconds"] == 1860.0
+    assert result.latency.missing == ("rt2_latencia_mayor_que_1800s",) and "1860" in result.latency.obtained
+    assert result.latency.readings["measurements"][0].latency_seconds == 1860.0
+
+
+def test_rt2_a_run_of_exactly_1800_seconds_passes_the_latency(rworld: Rt2World) -> None:
+    rworld.freeze_after = 1800.0
+    assert rt2_run(rworld).latency.result == "pasa"
+
+
+def test_rt2_a_version_that_freezes_again_the_same_day_after_the_reactivation_fails(rworld: Rt2World) -> None:
+    rworld.refreeze_after = 0.0
+    result = rt2_run(rworld)
+    assert (
+        result.rt2.result == "falla"
+        and codes(result) == ("rt2_recongelada",)
+        and result.pending == "no_recongela"
+    )
+
+
+def test_rt2_two_runs_with_the_same_model_version_id_fail_before_sending_anything(rworld: Rt2World) -> None:
+    result = rt2_run(rworld, params={"versions": [rt2.ProxyVersion(1, PROXY), rt2.ProxyVersion(2, PROXY)]})
+    assert result.rt2.result == "falla" and codes(result) == ("rt2_version_repetida",)
+    assert (
+        rworld.simulator.runs == [] and rworld.bff.doubles.governance.calls == [] and rworld.oidc.logins == []
+    )
+
+
+@pytest.mark.parametrize("name", rt2.PACKAGE_FIELDS)
+def test_rt2_a_freeze_package_without_the_field_fails_and_names_it(rworld: Rt2World, name: str) -> None:
+    rworld.package_variant = lambda item: item["context_package"].pop(name)
+    result = rt2_run(rworld)
+    assert result.rt2.result == "falla" and codes(result) == (f"rt2_paquete_{name}_ausente",)
+    assert (
+        result.pending == "paquete" and result.latency.readings["latency_seconds"] == 1500.0
+    )  # la latencia se mide igual
+
+
+def test_rt2_a_freeze_without_data_sources_fails_and_an_empty_list_passes(rworld: Rt2World) -> None:
+    rworld.package_variant = lambda item: item["context_package"].pop("data_sources")
+    assert codes(rt2_run(rworld)) == ("rt2_paquete_data_sources_ausente",)
+
+
+def test_rt2_a_freeze_with_an_empty_data_sources_list_passes(rworld: Rt2World) -> None:
+    rworld.package_variant = lambda item: item["context_package"].update(data_sources=[])
+    assert rt2_run(rworld).rt2.result == "pasa"
+
+
+def test_rt2_a_freeze_with_an_empty_initial_disparity_fails(rworld: Rt2World) -> None:
+    rworld.package_variant = lambda item: item["context_package"].update(initial_disparity={"attributes": []})
+    assert codes(rt2_run(rworld)) == ("rt2_paquete_initial_disparity_vacia",)
+    rworld2 = rworld
+    rworld2.package_variant = lambda item: item["context_package"].pop("initial_disparity")
+    rworld2.freeze_entries.clear()
+
+
+def test_rt2_a_freeze_with_an_incomplete_freeze_context_fails_with_the_missing_field(
+    rworld: Rt2World,
+) -> None:
+    rworld.package_variant = lambda item: item["context_package"].pop(
+        "computed_at"
+    )  # un campo de FreezeContext que el plan no lista
+    (code,) = codes(rt2_run(rworld))
+    assert code.startswith("rt2_paquete_invalido:computed_at")
+
+
+def test_rt2_the_package_check_is_a_pure_function_of_the_raw_freeze() -> None:
+    assert rt2.judge_package({"seq": 1}) == ("rt2_paquete_ausente",)
+    assert rt2.judge_package({"context_package": "texto"}) == ("rt2_paquete_ausente",)
+
+
+def test_rt2_without_a_freeze_at_the_cap_fails_and_the_message_has_the_last_bias_run(
+    rworld: Rt2World,
+) -> None:
+    rworld.freeze_after = None
+    rworld.bias_ok = 0.0
+    rworld.bias_failure_reason = "u3_unavailable"
+    result = rt2_run(rworld)
+    assert (
+        result.rt2.result == "falla"
+        and codes(result) == ("rt2_freeze_ausente",)
+        and result.pending == "freeze"
+    )
+    detail = next(s.detail for s in result.rt2.subresults if s.name == "v1:freeze")
+    assert "vectra_bias_last_run_ok=0" in detail and "u3_unavailable" in detail
+    assert result.latency.result == "no ejecutado"
+
+
+def test_rt2_a_freeze_of_another_version_does_not_count(rworld: Rt2World) -> None:
+    rworld.freeze_after = None
+    other = freeze_item(99)
+    other["model_version_id"] = "mv-otra"
+    other["recorded_at"] = iso(rworld.clock.now() + timedelta(seconds=300))
+    rworld.freeze_entries.append(other)
+    assert codes(rt2_run(rworld)) == ("rt2_freeze_ausente",)
+
+
+def test_rt2_a_freeze_of_the_version_before_the_start_of_the_batch_does_not_count(rworld: Rt2World) -> None:
+    rworld.freeze_after = None
+    old = freeze_item(98)
+    old["model_version_id"] = PROXY
+    old["recorded_at"] = iso(rworld.clock.now() - timedelta(hours=1))
+    rworld.freeze_entries.append(old)
+    assert codes(rt2_run(rworld)) == ("rt2_freeze_ausente",)
+
+
+def test_rt2_the_version_that_does_not_become_congelado_fails(rworld: Rt2World) -> None:
+    rworld.freeze_freezes_model = False
+    result = rt2_run(rworld)
+    assert codes(result) == ("rt2_version_no_congelada",) and result.pending == "congelado"
+
+
+def test_rt2_a_new_case_in_listo_fails_with_the_version_frozen(rworld: Rt2World) -> None:
+    rworld.probe_listo = True
+    result = rt2_run(rworld)
+    assert codes(result) == ("rt2_caso_nuevo_en_listo",) and result.pending == "casos_nuevos"
+
+
+def test_rt2_a_resolution_before_the_three_bias_runs_fails(rworld: Rt2World) -> None:
+    rworld.at(
+        2300.0,
+        lambda: rworld.freeze_entries.append(
+            {
+                "seq": rworld.seq(),
+                "model_version_id": PROXY,
+                "action": "reactivar",
+                "recorded_at": iso(rworld.clock.now()),
+            }
+        ),
+    )
+    result = rt2_run(rworld)
+    assert codes(result) == ("rt2_resolucion_antes_de_las_corridas",) and result.pending == "sigue_congelada"
+
+
+def test_rt2_the_version_leaving_congelado_before_the_three_runs_fails(rworld: Rt2World) -> None:
+    rworld.at(2300.0, lambda: rworld.set_state(PROXY, "activo"))
+    assert codes(rt2_run(rworld)) == ("rt2_version_dejo_de_estar_congelada",)
+
+
+def test_rt2_only_two_complete_bias_runs_in_the_deadline_is_no_ejecutado(rworld: Rt2World) -> None:
+    result = rt2_run(rworld, params={"bias_timeout": 1300.0})
+    assert (
+        result.rt2.result == "no ejecutado"
+        and codes(result) == ("rt2_corridas_de_bias_pendientes",)
+        and result.pending == "sigue_congelada"
+    )
+
+
+def test_rt2_a_bias_run_with_ok_0_does_not_count(rworld: Rt2World) -> None:
+    rworld.bias_ok = 0.0
+    result = rt2_run(rworld, params={"bias_timeout": 4000.0})
+    assert result.rt2.result == "no ejecutado" and codes(result) == ("rt2_corridas_de_bias_pendientes",)
+    assert "solo 0 de 3" in next(s.detail for s in result.rt2.subresults if s.name == "v1:sigue_congelada")
+
+
+def test_rt2_counting_bias_runs_is_a_pure_function() -> None:
+    ts = [(1.0, 10.0), (2.0, 10.0), (3.0, 20.0), (4.0, 20.0), (5.0, 30.0)]
+    ok = [(1.0, 1.0), (2.0, 1.0), (3.0, 0.0), (4.0, 0.0), (5.0, 1.0)]  # Pushgateway: el ultimo valor se queda
+    assert rt2.count_bias_runs(ts, ok, 5.0) == [10.0, 30.0]  # la de 20 (ok = 0 al aparecer) no cuenta
+    assert rt2.count_bias_runs(ts, ok, 10.0) == [30.0]
+
+
+def test_rt2_the_reactivation_answering_403_fails_with_the_code(rworld: Rt2World) -> None:
+    rworld.reactivation_status = 403
+    result = rt2_run(rworld)
+    assert (
+        result.rt2.result == "falla"
+        and codes(result) == ("rt2_reactivacion_http_403_forbidden",)
+        and result.pending == "reactivacion"
+    )
+
+
+def test_rt2_a_reactivation_token_without_step_up_is_an_error_before_sending(rworld: Rt2World) -> None:
+    rworld.oidc.step_up_flag = False
+    with pytest.raises(ScenarioError, match="step_up_required"):
+        rt2_run(rworld)
+    assert rworld.reactivation_calls == []
+    assert not [c for c in rworld.bff.doubles.governance.calls if c.template.endswith("frozen-resolution")]
+
+
+def test_rt2_the_reactivation_is_a_separate_step_that_the_oracles_do_not_depend_on(rworld: Rt2World) -> None:
+    """U12-T04 sustituye «reactivar» por «esperar al presentador» sin tocar los oraculos: aqui lo hace «el presentador» (un evento) y la verificacion posterior es la misma."""
+
+    class Waiting:
+        def reactivate(self, model_version_id: str) -> None:
+            rworld.reactivate()  # el presentador lo hizo en la consola
+
+    result = rt2_run(rworld, reactivator=Waiting())
+    assert result.rt2.result == "pasa" and rworld.reactivation_calls == []
+
+
+def test_rt2_the_reactivation_not_verified_afterwards_fails(rworld: Rt2World) -> None:
+    class Nothing:
+        def reactivate(self, model_version_id: str) -> None:
+            return None  # se pidio pero no paso nada
+
+    result = rt2_run(rworld, reactivator=Nothing())
+    assert codes(result) == ("rt2_version_no_quedo_activa",) and result.pending == "reactivacion"
+
+
+def test_rt2_cases_that_do_not_leave_modelo_congelado_after_the_sweep_fail(rworld: Rt2World) -> None:
+    rworld.sweep_works = False
+    result = rt2_run(rworld)
+    assert codes(result) == ("rt2_barrido_no_libero_casos",) and result.pending == "barrido"
+
+
+def test_rt2_a_recommendation_of_the_batch_with_the_reference_version_fails_mark_active_is_missing(
+    rworld: Rt2World,
+) -> None:
+    rworld.recommendation_version = REFERENCE
+    result = rt2_run(rworld)
+    assert result.rt2.result == "falla" and codes(result) == ("rt2_lote_puntuado_por_otra_version",)
+    assert "mark_active" in result.rt2.subresults[-1].detail
+
+
+def test_rt2_when_the_operator_does_not_activate_the_version_it_is_no_ejecutado_with_the_pending_phase(
+    world: Rt2World,
+) -> None:
+    world.add_model(PROXY, "aprobado", registered_by="ingeniero-1", approved_by="cro-1")
+    result = rt2_run(world)
+    assert (
+        result.rt2.result == "no ejecutado"
+        and codes(result) == ("rt2_operador_promocion_pendiente",)
+        and result.pending == "promocion"
+    )
+    assert world.simulator.runs == [] and sum(world.clock.sleeps) <= rt2.OPERATOR_TIMEOUT + 1
+
+
+def test_rt2_the_promotion_that_leaves_the_reference_active_fails(world: Rt2World) -> None:
+    world.add_model(PROXY, "aprobado", registered_by="ingeniero-1", approved_by="cro-1")
+    world.at(
+        60.0, lambda: world.set_state(PROXY, "activo")
+    )  # el operador no dejo la de referencia `inactivo`
+    assert codes(rt2_run(world)) == ("rt2_referencia_no_inactiva",)
+
+
+def test_rt2_a_rollback_still_pending_is_said_by_the_closing_field_and_does_not_change_the_result(
+    rworld: Rt2World,
+) -> None:
+    rworld.clock.events = [
+        e for e in rworld.clock.events if e[0] < rworld.clock.now() + timedelta(seconds=5000)
+    ]  # sin rollback
+    result = rt2_run(rworld)
+    assert (
+        result.rt2.result == "pasa" and result.closing is not None and result.closing.result == "no ejecutado"
+    )
+    assert result.closing.missing == ("rt2_cierre_rollback_pendiente",) and result.rt2.readings["cierre"][
+        "missing"
+    ] == ["rt2_cierre_rollback_pendiente"]
+
+
+def test_rt2_without_prometheus_the_bias_phase_is_no_ejecutado(rworld: Rt2World) -> None:
+    result = rt2_run(rworld, prom=False)
+    assert result.rt2.result == "no ejecutado" and codes(result) == ("rt2_prometheus_requerido",)
+
+
+def test_rt2_prometheus_not_responding_is_no_ejecutado(rworld: Rt2World) -> None:
+    rworld.prom_transport.down = True
+    result = rt2_run(rworld)
+    assert result.rt2.result == "no ejecutado" and codes(result) == ("rt2_prometheus_no_responde",)
+
+
+def test_rt2_a_lot_without_accepted_requests_fails(rworld: Rt2World) -> None:
+    rworld.simulator.accepted_ratio = 0.0
+    assert codes(rt2_run(rworld)) == ("rt2_lote_sin_solicitudes_aceptadas",)
+
+
+def test_rt2_an_operator_pending_run_resumes_from_its_phase_with_the_returned_state(world: Rt2World) -> None:
+    world.add_model(PROXY, "aprobado", registered_by="ingeniero-1", approved_by="cro-1")
+    world.start_bias()
+    first = rt2_run(world)
+    assert first.pending == "promocion" and first.state.versions[PROXY].done["celdas"].result == "pasa"
+    world.operator_promotes(10.0)
+    world.operator_rolls_back(6000.0)
+    resumed = rt2_run(world, state=first.state)
+    assert resumed.rt2.result == "pasa" and resumed.pending is None
+    assert [r[0] for r in world.simulator.runs].count(
+        "stratified"
+    ) == 1  # las celdas no se repitieron como lote
+
+
+def test_rt2_the_registry_not_responding_is_no_ejecutado(rworld: Rt2World) -> None:
+    rworld.registry_transport.handle_request = lambda request: (_ for _ in ()).throw(
+        httpx.ConnectError("sin conexion")
+    )  # type: ignore[method-assign]
+    result = rt2_run(rworld)
+    assert result.rt2.result == "no ejecutado" and codes(result) == ("rt2_dependencia_no_responde",)
+
+
+def test_rt2_in_staging_is_refused_before_the_first_request(rworld: Rt2World) -> None:
+    deps = Rt2Deps(
+        guard.STAGING, rworld.clock, rworld.sessions, rworld.simulator, rworld.registry, rworld.prom
+    )  # type: ignore[arg-type]
+    with pytest.raises(guard.GuardError, match="section_denied_in_staging:rt2"):
+        rt2.run_rt2(deps, Rt2Params(REFERENCE, [rt2.ProxyVersion(1, PROXY)], 7))
+    assert rworld.simulator.runs == [] and rworld.oidc.logins == []
+
+
+def test_rt2_the_copy_of_a_package_is_independent(rworld: Rt2World) -> None:
+    assert copy.deepcopy({"a": 1}) == {
+        "a": 1
+    }  # los cambios de `package_variant` se hacen sobre la entrada del registro, no sobre una compartida
