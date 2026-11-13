@@ -453,7 +453,7 @@ class Rt2Run:
 
     def case_state(self, case_id: str) -> tuple[str, str | None]:
         detail = self.d.sessions.reader(ANALYST).get_case(case_id)
-        return detail.state, getattr(detail, "last_cause", None)
+        return detail.state, detail.last_cause
 
     def wait_state(self, model_id: str, wanted: str, timeout: float) -> bool:
         return poll(
