@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import ssl
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -56,7 +57,8 @@ class Sessions:
         tag: RunTag,
         *,
         transport: Any = None,  # un `httpx.BaseTransport`: `scenarios` no importa `httpx` (contrato de import-linter)
-        verify: bool = True,
+        verify: ssl.SSLContext
+        | bool = True,  # la CA del entorno (`OidcClient.ca_file`) o `False` en las pruebas
     ) -> None:
         self._environment, self._oidc, self._clock, self._tag = environment, oidc, clock, tag
         self._transport, self._verify = transport, verify
