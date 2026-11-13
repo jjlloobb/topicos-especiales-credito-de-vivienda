@@ -9,7 +9,7 @@ YAML. Las `$(env:...)` las genera este modulo (contrasenas, semillas Base32 y un
 
 Diferencias con kind (cada una se anota en `docs/realm-importacion.md`):
 - la imagen es la base con `start` y la base embebida (H2), no la construida con `--db=postgres` y `start --optimized`; sin Postgres, sin Infinispan externo, sin el gateway;
-- el host es `127.0.0.1:<puerto aleatorio>` y el certificado, de una CA desechable, no el de `vectra.localtest.me` con la CA de kind;
+- el host es `127.0.0.1:<puerto aleatorio>` y el certificado, de una CA desechable, no el del host publico de kind con su CA;
 - el administrador de arranque es `bootstrap` con contrasena al azar (en kind, el secreto `keycloak-bootstrap-admin`);
 - config-cli corre con `network_mode=host` y 768 MiB; el Job de kind, en su pod con el truststore armado por un initContainer (aqui, un PKCS12 generado);
 - el tema `vectra` se monta pero el realm no lo activa (como en kind).
@@ -195,7 +195,7 @@ class ForeignHost(AssertionError):
 
 
 class HostGuard(httpx.BaseTransport):
-    """Rechaza toda solicitud cuyo destino no sea `https://127.0.0.1:<puerto>`: el cluster de kind (`vectra.localtest.me:443`) no es alcanzable desde aqui."""
+    """Rechaza toda solicitud cuyo destino no sea `https://127.0.0.1:<puerto>`: el cluster de kind no es alcanzable desde aqui."""
 
     def __init__(self, port: int, context: ssl.SSLContext) -> None:
         self.port = port
