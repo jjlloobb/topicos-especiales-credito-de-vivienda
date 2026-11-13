@@ -18,7 +18,9 @@ def bad(result: str, outcome_id: str = "RT-5") -> o.Outcome:
 
 
 def evidence(outcome: o.Outcome) -> report.Evidence | None:
-    return o.to_evidence(outcome, command="c", output="out.txt", commit="abc", images={}, executed_at=NOW, operator="op")
+    return o.to_evidence(
+        outcome, command="c", output="out.txt", commit="abc", images={}, executed_at=NOW, operator="op"
+    )
 
 
 def test_pasa_with_missing_cannot_be_built() -> None:

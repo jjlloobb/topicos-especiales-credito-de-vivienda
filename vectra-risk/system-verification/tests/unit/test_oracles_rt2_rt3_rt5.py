@@ -66,14 +66,25 @@ def evaluate(
     kubectl = kubectl or JobKubectl(completed_job(T0, T1))
     double = PromDouble(spec, down=prom_down)
     clock = FakeClock(now)
-    outcome = rt5.run(K8sRead(kubectl), PromClient("http://prom", transport=double), clock, run_id, started_at, environment=KIND)
+    outcome = rt5.run(
+        K8sRead(kubectl),
+        PromClient("http://prom", transport=double),
+        clock,
+        run_id,
+        started_at,
+        environment=KIND,
+    )
     return outcome, clock, kubectl, double
 
 
 def test_rt5_correct_job_log_alert_series_and_counter_pass() -> None:
     outcome, _, _, _ = evaluate()
     assert outcome.result == "pasa" and outcome.missing == ()
-    assert outcome.readings["log_proxy_error_present"] is True and outcome.readings["deny_max"] == 1.0 and outcome.readings["counter_max"] == 0.0
+    assert (
+        outcome.readings["log_proxy_error_present"] is True
+        and outcome.readings["deny_max"] == 1.0
+        and outcome.readings["counter_max"] == 0.0
+    )
 
 
 def test_rt5_a_403_from_the_application_without_l5d_proxy_error_fails() -> None:
@@ -140,7 +151,9 @@ def test_rt5_a_denial_series_that_never_reaches_1_fails() -> None:
 
 
 def test_rt5_mock_counter_above_zero_fails() -> None:
-    counter = [(t, 0.0) for t in every(STARTED, T1)] + [(t, 1.0) for t in every(T1 + timedelta(seconds=15), NOW)]
+    counter = [(t, 0.0) for t in every(STARTED, T1)] + [
+        (t, 1.0) for t in every(T1 + timedelta(seconds=15), NOW)
+    ]
     outcome, _, _, _ = evaluate(good_spec(counter=counter))
     assert outcome.result == "falla" and outcome.missing == ("rt5_contador_del_mock_mayor_que_0",)
 
@@ -168,12 +181,16 @@ def test_rt5_nonexistent_job_is_no_ejecutado() -> None:
 
 
 def test_rt5_forbidden_kubectl_is_no_ejecutado() -> None:
-    outcome, _, _, _ = evaluate(kubectl=JobKubectl(Completed(1, "", 'Error from server (Forbidden): jobs.batch "x" is forbidden')))
+    outcome, _, _, _ = evaluate(
+        kubectl=JobKubectl(Completed(1, "", 'Error from server (Forbidden): jobs.batch "x" is forbidden'))
+    )
     assert outcome.result == "no ejecutado" and outcome.missing == ("rt5_k8s_forbidden",)
 
 
 def test_rt5_failed_job_without_completion_time_is_falla_with_the_log_line() -> None:
-    outcome, _, _, _ = evaluate(kubectl=JobKubectl(failed_job(T0), log="rt5-demo: POST http://x -> 200 l5d-proxy-error: None\n"))
+    outcome, _, _, _ = evaluate(
+        kubectl=JobKubectl(failed_job(T0), log="rt5-demo: POST http://x -> 200 l5d-proxy-error: None\n")
+    )
     assert outcome.result == "falla" and outcome.missing == ("rt5_job_fallido",)
     assert "codigo=200" in outcome.obtained
 
@@ -207,15 +224,25 @@ def test_rt5_the_queries_are_the_literal_ones_in_the_plan_with_15_seconds_and_al
     outcome, _, kubectl, double = evaluate()
     literal = {rt5.ALERT, rt5.DENY, rt5.COUNTER, rt5.RETENTION}
     assert rt5.ALERT == 'ALERTS{alertname="CoreWriteAttempt", alertstate="firing"}'
-    assert rt5.DENY == 'sum(inbound_http_authz_deny_total{namespace="vectra-mock", route_name="core-mock-catch-all"})'
-    assert rt5.COUNTER == "sum(vectra_core_write_attempts_total)" and rt5.RETENTION == "prometheus_tsdb_lowest_timestamp_seconds"
+    assert (
+        rt5.DENY
+        == 'sum(inbound_http_authz_deny_total{namespace="vectra-mock", route_name="core-mock-catch-all"})'
+    )
+    assert (
+        rt5.COUNTER == "sum(vectra_core_write_attempts_total)"
+        and rt5.RETENTION == "prometheus_tsdb_lowest_timestamp_seconds"
+    )
     seen = {r.url.params["query"] for r in double.requests}
     assert seen == literal
     assert all("increase(" not in q and "[" not in q for q in seen)
     assert all(r.url.params["step"] == "15.0" for r in double.requests if r.url.path.endswith("query_range"))
     saved = {q.query: q for q in outcome.queries}
     assert set(saved) == literal
-    assert saved[rt5.ALERT].step == 15.0 and saved[rt5.ALERT].start == T0 and saved[rt5.ALERT].end == T1 + timedelta(minutes=15)
+    assert (
+        saved[rt5.ALERT].step == 15.0
+        and saved[rt5.ALERT].start == T0
+        and saved[rt5.ALERT].end == T1 + timedelta(minutes=15)
+    )
     assert saved[rt5.COUNTER].start == STARTED
     assert {c[1] for c in kubectl.calls} == {"get", "logs"}
 
@@ -224,9 +251,17 @@ def test_rt5_a_window_over_11000_points_is_split_and_the_points_joined() -> None
     start = NOW - timedelta(hours=60)  # 60 h a 15 s son 14 400 puntos
     counter = [(t, 0.0) for t in every(start, NOW - timedelta(hours=1))] + [(NOW - timedelta(minutes=5), 1.0)]
     outcome, _, _, double = evaluate(good_spec(counter=counter), started_at=start)
-    assert outcome.result == "falla" and outcome.missing == ("rt5_contador_del_mock_mayor_que_0",)  # el pico esta en el ultimo tramo
-    ranges = [r for r in double.requests if r.url.path.endswith("query_range") and r.url.params["query"] == rt5.COUNTER]
-    assert len(ranges) == 2 and all((float(r.url.params["end"]) - float(r.url.params["start"])) / 15 <= 11_000 for r in ranges)
+    assert outcome.result == "falla" and outcome.missing == (
+        "rt5_contador_del_mock_mayor_que_0",
+    )  # el pico esta en el ultimo tramo
+    ranges = [
+        r
+        for r in double.requests
+        if r.url.path.endswith("query_range") and r.url.params["query"] == rt5.COUNTER
+    ]
+    assert len(ranges) == 2 and all(
+        (float(r.url.params["end"]) - float(r.url.params["start"])) / 15 <= 11_000 for r in ranges
+    )
     saved = next(q for q in outcome.queries if q.query == rt5.COUNTER)
     assert len(saved.result[0]["values"]) > 11_000
 
@@ -241,9 +276,16 @@ def test_rt5_without_splitting_the_double_rejects_the_long_window() -> None:
 
 def test_rt5_right_after_the_job_polls_every_15_seconds_until_the_window_closes() -> None:
     now = T1 + timedelta(minutes=1)
-    outcome, clock, _, _ = evaluate(good_spec(alert=[], deny=[], counter=[(t, 0.0) for t in every(STARTED, now)], lowest=now - timedelta(days=1)), now=now)
+    outcome, clock, _, _ = evaluate(
+        good_spec(
+            alert=[], deny=[], counter=[(t, 0.0) for t in every(STARTED, now)], lowest=now - timedelta(days=1)
+        ),
+        now=now,
+    )
     assert outcome.result == "falla"
-    assert set(clock.sleeps) == {15.0} and abs(sum(clock.sleeps) - 14 * 60) < 1  # hasta t1 + 15 min, sin dormir de verdad
+    assert (
+        set(clock.sleeps) == {15.0} and abs(sum(clock.sleeps) - 14 * 60) < 1
+    )  # hasta t1 + 15 min, sin dormir de verdad
 
 
 def test_rt5_right_after_the_job_with_everything_present_does_not_wait() -> None:
@@ -264,14 +306,22 @@ def test_rt5_run_id_must_have_the_format() -> None:
 def test_rt5_missing_no_denial_series_at_all_says_nobody_scrapes_the_linkerd_proxy() -> None:
     outcome, _, _, _ = evaluate(good_spec(deny=[]))
     assert outcome.result == "falla" and outcome.missing[0] == "rt5_serie_denegaciones_ausente"
-    assert 'namespace="vectra-mock"' in outcome.obtained and 'route_name="core-mock-catch-all"' in outcome.obtained
+    assert (
+        'namespace="vectra-mock"' in outcome.obtained
+        and 'route_name="core-mock-catch-all"' in outcome.obtained
+    )
     assert "nadie raspa el proxy de Linkerd de vectra-mock" in outcome.obtained
 
 
 def test_rt5_missing_series_with_other_labels_lists_the_labels_that_exist() -> None:
-    outcome, _, _, _ = evaluate(good_spec(deny=[], other_family=[("vectra-app", "case-api"), ("vectra-mock", "otra-ruta")]))
+    outcome, _, _, _ = evaluate(
+        good_spec(deny=[], other_family=[("vectra-app", "case-api"), ("vectra-mock", "otra-ruta")])
+    )
     assert outcome.result == "falla" and outcome.missing[0] == "rt5_serie_denegaciones_ausente"
-    assert 'namespace="vectra-app", route_name="case-api"' in outcome.obtained and 'route_name="otra-ruta"' in outcome.obtained
+    assert (
+        'namespace="vectra-app", route_name="case-api"' in outcome.obtained
+        and 'route_name="otra-ruta"' in outcome.obtained
+    )
     assert "nadie raspa" not in outcome.obtained
 
 
@@ -299,15 +349,31 @@ def test_guard_sections_denied_in_staging(section: str) -> None:
 def test_guard_rt5_in_staging_sends_no_request_http_or_kubectl() -> None:
     kubectl, double = JobKubectl(completed_job(T0, T1)), PromDouble(good_spec())
     with pytest.raises(guard.GuardError, match="section_denied_in_staging:rt5"):
-        rt5.run(K8sRead(kubectl), PromClient("http://prom", transport=double), FakeClock(NOW), RUN_ID, STARTED, environment=guard.STAGING)
+        rt5.run(
+            K8sRead(kubectl),
+            PromClient("http://prom", transport=double),
+            FakeClock(NOW),
+            RUN_ID,
+            STARTED,
+            environment=guard.STAGING,
+        )
     assert kubectl.calls == [] and double.requests == []
 
 
 def test_guard_an_environment_of_production_is_not_known() -> None:
-    production = guard.Environment("prod", "vectra.banco.internal", "https://vectra.banco.internal/auth/realms/vectra")
+    production = guard.Environment(
+        "prod", "vectra.banco.internal", "https://vectra.banco.internal/auth/realms/vectra"
+    )
     kubectl, double = JobKubectl(completed_job(T0, T1)), PromDouble(good_spec())
     with pytest.raises(guard.GuardError, match="environment_not_allowed"):
-        rt5.run(K8sRead(kubectl), PromClient("http://prom", transport=double), FakeClock(NOW), RUN_ID, STARTED, environment=production)
+        rt5.run(
+            K8sRead(kubectl),
+            PromClient("http://prom", transport=double),
+            FakeClock(NOW),
+            RUN_ID,
+            STARTED,
+            environment=production,
+        )
     assert kubectl.calls == [] and double.requests == []
 
 

@@ -39,12 +39,23 @@ def job_json(
     failed: int = 0,
     conditions: Sequence[tuple[str, str]] = (),
 ) -> str:
-    status: dict[str, Any] = {"succeeded": succeeded, "failed": failed, "conditions": [{"type": t, "status": s} for t, s in conditions]}
+    status: dict[str, Any] = {
+        "succeeded": succeeded,
+        "failed": failed,
+        "conditions": [{"type": t, "status": s} for t, s in conditions],
+    }
     if start is not None:
         status["startTime"] = iso(start)
     if completion is not None:
         status["completionTime"] = iso(completion)
-    return json.dumps({"apiVersion": "batch/v1", "kind": "Job", "metadata": {"name": name, "namespace": "vectra-app"}, "status": status})
+    return json.dumps(
+        {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {"name": name, "namespace": "vectra-app"},
+            "status": status,
+        }
+    )
 
 
 def completed_job(start: datetime, completion: datetime, name: str = JOB) -> str:
@@ -62,7 +73,13 @@ def active_job(start: datetime, name: str = JOB) -> str:
 class JobKubectl:
     """Un ejecutor de `kubectl` (la interfaz `Runner`): el Job, su pod y su log. `job` puede ser una lista (una respuesta por lectura: el Job que sigue activo y despues termina)."""
 
-    def __init__(self, job: str | list[str] | Completed | None, log: str = PROXY_LOG, pods: int = 1, logs_error: str | None = None) -> None:
+    def __init__(
+        self,
+        job: str | list[str] | Completed | None,
+        log: str = PROXY_LOG,
+        pods: int = 1,
+        logs_error: str | None = None,
+    ) -> None:
         self.jobs = [job] if isinstance(job, (str, Completed)) or job is None else list(job)
         self.log, self.pods, self.logs_error = log, pods, logs_error
         self.calls: list[tuple[str, ...]] = []
@@ -73,7 +90,9 @@ class JobKubectl:
         if verb == "get" and resource.startswith("job/"):
             current = self.jobs[0] if len(self.jobs) == 1 else self.jobs.pop(0)
             if current is None:
-                return Completed(1, "", f'Error from server (NotFound): jobs.batch "{resource[4:]}" not found')
+                return Completed(
+                    1, "", f'Error from server (NotFound): jobs.batch "{resource[4:]}" not found'
+                )
             if isinstance(current, Completed):
                 return current
             return Completed(0, current, "")
@@ -99,7 +118,12 @@ class Rt5Spec:
     deny: list[tuple[datetime, float]] = field(default_factory=list)
     counter: list[tuple[datetime, float]] = field(default_factory=list)
     lowest: datetime | None = None
-    other_family: list[tuple[str, str]] = field(default_factory=list)  # series de `inbound_http_authz_deny_total` con otras etiquetas
+    other_family: list[tuple[str, str]] = field(
+        default_factory=list
+    )  # series de `inbound_http_authz_deny_total` con otras etiquetas
+    other_until: datetime | None = (
+        None  # hasta cuando tienen muestras (cada 15 s, los 10 min previos); `None` = siempre visibles (pruebas unitarias)
+    )
 
 
 def every(start: datetime, end: datetime, step: float = 15.0) -> list[datetime]:
@@ -110,7 +134,9 @@ def every(start: datetime, end: datetime, step: float = 15.0) -> list[datetime]:
     return out
 
 
-def _evaluate(samples: list[tuple[datetime, float]], start: float, end: float, step: float) -> list[list[Any]]:
+def _evaluate(
+    samples: list[tuple[datetime, float]], start: float, end: float, step: float
+) -> list[list[Any]]:
     """El valor de cada paso: la ultima muestra de hasta 5 min antes (el `lookback` de Prometheus)."""
     ordered = sorted(samples)
     stamps = [t.timestamp() for t, _ in ordered]
@@ -145,6 +171,21 @@ class PromDouble(httpx.BaseTransport):
             return None
         return [{"metric": metric, "samples": data}] if data else []
 
+    def _family_pairs(self, at: float) -> list[tuple[str, str]]:
+        """Las series de la familia visibles en `at` (una muestra de hasta 5 min antes)."""
+        s = self.spec
+        others = (
+            list(s.other_family)
+            if s.other_until is None or s.other_until.timestamp() >= at - LOOKBACK
+            else []
+        )
+        mine = (
+            [("vectra-mock", "core-mock-catch-all")]
+            if any(t.timestamp() <= at and at - t.timestamp() <= LOOKBACK for t, _ in s.deny)
+            else []
+        )
+        return others + mine
+
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         if self.down:
@@ -156,23 +197,32 @@ class PromDouble(httpx.BaseTransport):
         if request.url.path.endswith("query_range"):
             start, end, step = float(params["start"]), float(params["end"]), float(params["step"])
             if (end - start) / step > MAX_POINTS:
-                return self._error("exceeded maximum resolution of 11,000 points per timeseries. Try decreasing the query resolution (?step=XX)")
+                return self._error(
+                    "exceeded maximum resolution of 11,000 points per timeseries. Try decreasing the query resolution (?step=XX)"
+                )
             series = self._series(expression)
             if series is None:
                 return self._error(f"expresion fuera de las del oraculo: {expression}")
-            result = [{"metric": item["metric"], "values": _evaluate(item["samples"], start, end, step)} for item in series]
+            result = [
+                {"metric": item["metric"], "values": _evaluate(item["samples"], start, end, step)}
+                for item in series
+            ]
             result = [r for r in result if r["values"]]
-            return httpx.Response(200, json={"status": "success", "data": {"resultType": "matrix", "result": result}})
+            return httpx.Response(
+                200, json={"status": "success", "data": {"resultType": "matrix", "result": result}}
+            )
         at = float(params.get("time", datetime.now(UTC).timestamp()))
         s = self.spec
         if expression == rt5.RETENTION:
             result = [{"metric": {}, "value": [at, f"{s.lowest.timestamp():g}"]}] if s.lowest else []
         elif expression == rt5.FAMILY_COUNT:
-            n = len(s.other_family) + (1 if s.deny else 0)
+            n = len(self._family_pairs(at))
             result = [{"metric": {}, "value": [at, str(n)]}] if n else []
         elif expression == rt5.FAMILY_LABELS:
-            pairs = list(s.other_family) + ([("vectra-mock", "core-mock-catch-all")] if s.deny else [])
+            pairs = self._family_pairs(at)
             result = [{"metric": {"namespace": n, "route_name": r}, "value": [at, "1"]} for n, r in pairs]
         else:
             return self._error(f"expresion fuera de las del oraculo: {expression}")
-        return httpx.Response(200, json={"status": "success", "data": {"resultType": "vector", "result": result}})
+        return httpx.Response(
+            200, json={"status": "success", "data": {"resultType": "vector", "result": result}}
+        )

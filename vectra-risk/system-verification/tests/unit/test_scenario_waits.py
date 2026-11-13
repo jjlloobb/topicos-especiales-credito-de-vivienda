@@ -9,7 +9,13 @@ from vectra_verification.scenarios import waits
 def test_a_condition_true_at_the_first_attempt_waits_nothing() -> None:
     clock = FakeClock()
     waited = waits.poll(clock, lambda: (True, "x"), interval=15, timeout=900)
-    assert waited.met and waited.attempts == 1 and clock.sleeps == [] and waited.elapsed == 0 and waited.value == "x"
+    assert (
+        waited.met
+        and waited.attempts == 1
+        and clock.sleeps == []
+        and waited.elapsed == 0
+        and waited.value == "x"
+    )
 
 
 def test_a_condition_true_at_attempt_n_waits_n_minus_one_intervals() -> None:
@@ -27,7 +33,12 @@ def test_a_condition_true_at_attempt_n_waits_n_minus_one_intervals() -> None:
 def test_an_expired_deadline_returns_vencido_and_never_waits_more_than_the_timeout() -> None:
     clock = FakeClock()
     waited = waits.poll(clock, lambda: (False, None), interval=400, timeout=900)
-    assert not waited.met and waited.elapsed == 900 and sum(clock.sleeps) == 900 and clock.sleeps == [400, 400, 100]
+    assert (
+        not waited.met
+        and waited.elapsed == 900
+        and sum(clock.sleeps) == 900
+        and clock.sleeps == [400, 400, 100]
+    )
 
 
 def test_a_condition_that_becomes_true_exactly_at_the_deadline_is_met() -> None:
