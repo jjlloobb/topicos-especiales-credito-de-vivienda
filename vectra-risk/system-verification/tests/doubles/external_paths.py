@@ -25,3 +25,10 @@ def use_u8_doubles() -> None:
     ):
         if str(path) not in sys.path:
             sys.path.insert(0, str(path))
+
+
+def use_governance_doubles() -> None:
+    """Los dobles de U4 (`api_support`, `evidence_support`, `governance_pg`) y los generadores de U0 que usan (U12-T03, CA-16)."""
+    for path in (ROOT / "governance" / "tests" / "integration", ROOT / "contracts" / "tests"):
+        if str(path) not in sys.path:
+            sys.path.insert(0, str(path))
