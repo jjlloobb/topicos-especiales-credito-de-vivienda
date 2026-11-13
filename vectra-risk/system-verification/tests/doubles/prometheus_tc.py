@@ -143,12 +143,14 @@ def prometheus_with(spec: Rt5Spec) -> Iterator[str]:
         for path in [
             data,
             *data.rglob("*"),
-        ]:  # la imagen corre como `nobody` (65532): debe poder escribir el WAL y los bloques
+        ]:  # lo escribe Prometheus, que corre con el usuario del host (`user=` abajo)
             path.chmod(0o777 if path.is_dir() else 0o666)
         container = (
             DockerContainer(image())
             .with_name(f"u12t03-prom-{token}")
-            .with_kwargs(mem_limit="512m", labels=LABEL)
+            .with_kwargs(
+                mem_limit="512m", labels=LABEL, user=f"{uid}:{gid}"
+            )  # con el usuario del host: lo que crea Prometheus se puede borrar al terminar (la imagen no trae `chmod`)
             .with_bind_ports(9090, ("127.0.0.1", port))
             .with_volume_mapping(str(workdir / "prometheus.yml"), "/etc/prometheus/prometheus.yml", "ro")
             .with_volume_mapping(str(data), "/prometheus", "rw")
@@ -165,25 +167,4 @@ def prometheus_with(spec: Rt5Spec) -> Iterator[str]:
             if container is not None:
                 container.stop(force=True, delete_volume=True)
         finally:
-            # Prometheus (65532) crea carpetas que el usuario del host no puede borrar: se abren con la misma imagen, como root, antes de borrar.
-            subprocess.run(  # noqa: S603
-                [
-                    "docker",
-                    "run",
-                    "--rm",
-                    "--user",
-                    "0",
-                    "--entrypoint",
-                    "chmod",
-                    "-v",
-                    f"{workdir}:/work",
-                    image(),
-                    "-R",
-                    "a+rwX",
-                    "/work",
-                ],
-                capture_output=True,
-                check=False,
-                timeout=60,
-            )
             shutil.rmtree(workdir, ignore_errors=True)
