@@ -1495,3 +1495,225 @@ def test_leak_the_filter_sees_a_jwt_in_a_scenario_result_and_a_loaded_secret() -
         evidence.prepare(text + " eyJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln", SECRETS)
     with pytest.raises(evidence.EvidenceError, match="secret"):
         evidence.prepare(text + " " + SECRET_TOKEN, SECRETS)
+
+
+# --- ramas de error de los escenarios (cobertura de ramas de `scenarios/` >= 90 %) ------------------------------------------------
+
+
+def test_rt2_setup_a_registration_rejected_with_422_fails_with_its_code(
+    world: Rt2World, tmp_path: Path
+) -> None:
+    world.register_overrides[PROXY] = lambda call: (422, problem(422, "validation_error"))
+    outcome = setup(world, versions(world, tmp_path))
+    assert outcome.result == "falla" and outcome.missing == ("rt2_setup_registro_http_422_validation_error",)
+
+
+def test_rt2_setup_a_version_that_does_not_exist_and_has_no_package_folder_fails(world: Rt2World) -> None:
+    outcome = setup(world, [rt2.ProxyVersion(1, PROXY)])
+    assert (
+        outcome.result == "falla"
+        and outcome.missing == ("rt2_setup_sin_paquete",)
+        and world.registrations == []
+    )
+
+
+def test_rt2_setup_a_validation_call_refused_fails_and_a_bff_down_is_no_ejecutado(
+    world: Rt2World, tmp_path: Path
+) -> None:
+    world.bff.doubles.governance.responders[("POST", "/v1/models/{id}/validations")] = lambda call: (
+        403,
+        problem(403, "forbidden"),
+    )
+    assert setup(world, versions(world, tmp_path)).missing == ("rt2_setup_validacion_http_403_forbidden",)
+    world.bff.doubles.governance.fail(503)
+    outcome = setup(world, versions(world, tmp_path, ids=("mv-otra-version",)))
+    assert outcome.result == "no ejecutado" and outcome.missing == ("rt2_setup_dependencia_no_responde",)
+
+
+def test_rt2_setup_an_approval_that_leaves_the_state_unchanged_or_the_same_user_fails(
+    world: Rt2World, tmp_path: Path
+) -> None:
+    world.add_model(PROXY, "lista_para_aprobacion", registered_by="ingeniero-1")
+    world.bff.doubles.governance.responders[("POST", "/v1/models/{id}/approval")] = lambda call: (204, None)
+    outcome = setup(world, versions(world, tmp_path))
+    assert outcome.missing == ("rt2_setup_no_quedo_aprobado",)
+    world.bff.doubles.governance.responders[("POST", "/v1/models/{id}/approval")] = lambda call: (
+        world.set_state(PROXY, "aprobado"),
+        world.models[PROXY].update(approved_by="ingeniero-1"),
+        (204, None),
+    )[2]
+    world.add_model(PROXY, "lista_para_aprobacion", registered_by="ingeniero-1")
+    assert setup(world, versions(world, tmp_path)).missing == ("rt2_setup_aprobador_igual_al_registrante",)
+
+
+def test_rt2_an_unknown_proxy_version_is_an_error_not_a_result(world: Rt2World) -> None:
+    with pytest.raises(ScenarioError, match="rt2_modelo_desconocido"):
+        rt2_run(world)
+
+
+def test_rt2_without_a_freeze_the_message_says_when_there_is_no_prometheus_or_it_does_not_answer(
+    rworld: Rt2World,
+) -> None:
+    rworld.freeze_after = None
+    detail = next(s.detail for s in rt2_run(rworld, prom=False).rt2.subresults if s.name == "v1:freeze")
+    assert "sin Prometheus" in detail
+    fresh = Rt2World(freeze_after=None)
+    try:
+        fresh.add_model(REFERENCE, "activo")
+        fresh.add_model(PROXY, "aprobado", registered_by="ingeniero-1", approved_by="cro-1")
+        fresh.operator_promotes(60.0)
+        original = fresh.prom_transport.handle_request
+
+        def down_for_instant(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/query"):
+                raise httpx.ConnectError("sin conexion")
+            return original(request)
+
+        fresh.prom_transport.handle_request = down_for_instant  # type: ignore[method-assign]
+        detail = next(s.detail for s in rt2_run(fresh).rt2.subresults if s.name == "v1:freeze")
+        assert "Prometheus no responde" in detail
+    finally:
+        fresh.close()
+
+
+def test_rt2_a_package_with_a_value_that_is_not_json_fails_as_invalid() -> None:
+    item = freeze_item(1)
+    item["context_package"]["initial_disparity"] = {"attributes": [{"attribute": "sexo"}]}
+    item["context_package"]["implicated"] = {1}  # un conjunto no se serializa a JSON
+    assert rt2.judge_package(item) == ("rt2_paquete_invalido:json",)
+
+
+def test_rt2_the_bias_phase_is_skipped_for_the_versions_after_the_first(rworld: Rt2World) -> None:
+    deps = Rt2Deps(KIND, rworld.clock, rworld.sessions, rworld.simulator, rworld.registry, rworld.prom)
+    run = rt2.Rt2Run(deps, Rt2Params(REFERENCE, [rt2.ProxyVersion(1, PROXY)], 7), Rt2State())
+    skipped = rt2._sigue_congelada(run, rt2.ProxyVersion(2, "mv-2"), rt2.VersionState(), 1)
+    assert skipped.result == "pasa" and skipped.readings == {"omitida": "solo en la primera version"}
+
+
+def test_rt2_the_registry_not_answering_the_metrics_read_is_no_ejecutado_after_the_freeze_was_seen(
+    rworld: Rt2World,
+) -> None:
+    original = rworld.registry_transport.handle_request
+
+    def metrics_down(request: httpx.Request) -> httpx.Response:
+        if request.url.params.get("projection") == "metrics":
+            raise httpx.ConnectError("sin conexion")
+        return original(request)
+
+    rworld.registry_transport.handle_request = metrics_down  # type: ignore[method-assign]
+    result = rt2_run(rworld)
+    assert result.latency.result == "no ejecutado"
+    assert any(s.missing == ("rt2_registro_no_responde",) for s in result.rt2.subresults)
+
+
+def test_rt3_f22_with_a_state_outside_the_failclosed_or_cases_still_evaluating_fails() -> None:
+    odd = rt3.judge_f22(
+        [
+            rt3.CaseReading("c1", "decidido", None, 1),
+            rt3.CaseReading("c2", "en_sincronizacion", "timeout", 1),
+        ],
+        [],
+    )
+    assert "rt3_f22_estado_inesperado" in odd.missing
+    waiting = rt3.judge_f22(
+        [
+            rt3.CaseReading("c1", "en_evaluacion", None, 2),
+            rt3.CaseReading("c2", "en_sincronizacion", "timeout", 1),
+        ],
+        [],
+    )
+    assert waiting.missing == ("rt3_f22_caso_sin_estado_final",)
+    assert rt3.judge_f22([], []).missing == ("rt3_f22_sin_casos_de_sonda",)
+
+
+def test_rt3b_every_state_of_the_flow_has_its_own_code() -> None:
+    ok = rt3.RegistrationReading(200)
+    assert rt3.judge_rt3b(rt3.RegistrationReading(0, "timeout"), None, [], [], "mv").missing == (
+        "rt3_dependencia_no_responde",
+    )
+    assert rt3.judge_rt3b(rt3.RegistrationReading(422, "validation_error"), None, [], [], "mv").missing == (
+        "rt3b_registro_rechazado",
+    )
+    for state in (None, "registrado", "en_validacion"):
+        assert rt3.judge_rt3b(ok, state, [], [], "mv").missing == ("rt3b_validacion_no_termina",)
+    for state in ("lista_para_aprobacion", "aprobado"):
+        assert rt3.judge_rt3b(ok, state, [], [], "mv").missing == ("rt3b_promocion_pendiente",)
+
+
+def test_rt3_the_deployed_check_without_kubectl_not_found_or_failing_says_why(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    from vectra_verification.clients.k8s_read import K8sRead
+
+    run = rt3.Rt3Run(
+        Rt3Deps(KIND, tworld.clock, tworld.sessions, tworld.simulator, tworld.registry, None, None),
+        rt3_params(tmp_path),
+    )
+    assert run.deployed_ready("isvc-a") == (None, "rt3_k8s_requerido")
+    for message, code in (
+        ('Error from server (NotFound): inferenceservices "x" not found', "rt3_inferenceservice_inexistente"),
+        ("connection refused", "rt3_k8s_no_responde"),
+    ):
+        run.d.k8s = K8sRead(IsvcKubectl(fail=message))  # type: ignore[arg-type]
+        assert run.deployed_ready("isvc-a") == (None, code)
+
+
+def test_rt3_the_informative_reads_without_prometheus_or_with_it_failing_do_not_break(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    run = rt3.Rt3Run(
+        Rt3Deps(KIND, tworld.clock, tworld.sessions, tworld.simulator, tworld.registry, None, None),
+        rt3_params(tmp_path),
+    )
+    assert run.informative() == {"prometheus": "no disponible"}
+    tworld.prom_transport.down = True
+    run.d.prom = tworld.prom
+    assert "prometheus" in run.informative()
+
+
+def test_rt3_a_missing_deployed_name_or_a_missing_rt3b_package_is_no_ejecutado_and_does_not_lower_rt3(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    params = rt3_params(tmp_path, deployed={})
+    without_b = Rt3Params({c: p for c, p in params.packages.items() if c != "RT3-b"}, 5)
+    outcome = rt3_run(tworld, without_b)
+    assert sub(outcome, "RT3-a-desplegado").missing == ("rt3_desplegado_sin_nombre",) and sub(
+        outcome, "RT3-b"
+    ).missing == ("rt3b_sin_paquete",)
+    assert outcome.result == "pasa"
+
+
+def test_rt3b_a_validation_refused_by_the_bff_is_a_failure_with_its_code(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    package = Rt3Package("RT3-b", make_package(tmp_path, RT3B), RT3B)
+    tworld.register_overrides.pop("rt3-b")
+    tworld.bff.doubles.governance.responders[("POST", "/v1/models/{id}/validations")] = lambda call: (
+        403,
+        problem(403, "forbidden"),
+    )
+    from vectra_verification.clients.k8s_read import K8sRead
+
+    deps = Rt3Deps(
+        KIND,
+        tworld.clock,
+        tworld.sessions,
+        tworld.simulator,
+        tworld.registry,
+        K8sRead(IsvcKubectl()),
+        tworld.prom,
+    )  # type: ignore[arg-type]
+    result = rt3._rt3b(rt3.Rt3Run(deps, rt3_params(tmp_path)), package)
+    assert result.result == "falla" and result.missing == ("rt3b_http_403_forbidden",)
+
+
+def test_rt3_the_closing_with_rejected_probes_or_the_bff_down_says_so(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    deps = Rt3Deps(KIND, tworld.clock, tworld.sessions, tworld.simulator, tworld.registry)
+    tworld.simulator.accepted_ratio = 0.0
+    assert rt3.rt3_closing(deps, rt3_params(tmp_path)).missing == ("rt3_cierre_sonda_rechazada",)
+    tworld.simulator.accepted_ratio = 1.0
+    tworld.bff.doubles.case.fail(503)
+    closing = rt3.rt3_closing(deps, rt3_params(tmp_path))
+    assert closing.result == "no ejecutado" and closing.missing == ("rt3_cierre_dependencia_no_responde",)

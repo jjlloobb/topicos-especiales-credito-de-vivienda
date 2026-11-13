@@ -145,7 +145,7 @@ def _evaluate(
     while moment <= end + 1e-9:
         index = bisect.bisect_right(stamps, moment) - 1
         if index >= 0 and moment - stamps[index] <= LOOKBACK:
-            points.append([moment, f"{ordered[index][1]:g}"])
+            points.append([moment, repr(ordered[index][1])])
         moment += step
     return points
 
@@ -214,7 +214,7 @@ class PromDouble(httpx.BaseTransport):
         at = float(params.get("time", datetime.now(UTC).timestamp()))
         s = self.spec
         if expression == rt5.RETENTION:
-            result = [{"metric": {}, "value": [at, f"{s.lowest.timestamp():g}"]}] if s.lowest else []
+            result = [{"metric": {}, "value": [at, repr(s.lowest.timestamp())]}] if s.lowest else []
         elif expression == rt5.FAMILY_COUNT:
             n = len(self._family_pairs(at))
             result = [{"metric": {}, "value": [at, str(n)]}] if n else []

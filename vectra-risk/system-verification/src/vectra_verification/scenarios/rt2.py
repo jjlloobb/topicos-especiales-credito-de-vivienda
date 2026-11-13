@@ -931,8 +931,6 @@ def run_rt2(deps: Rt2Deps, params: Rt2Params, state: Rt2State | None = None) -> 
             stopped, pending = True, phase
         if vs.cells is not None:
             unreachable = vs.cells.unreachable_short
-        if not stopped and vs.batch is not None and vs.freeze is not None:
-            pass
         if stopped:
             break
     measurements: list[rt2_latency.Rt2Measurement] = []
