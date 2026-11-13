@@ -1,0 +1,21 @@
+# Contexto = raiz de vectra-risk/: la imagen de la SPA solo COPIA package.json, package-lock.json, contracts/ts y console/spa, pero el contexto
+# se envia entero. Fuera lo pesado (entornos virtuales, caches, herramientas, documentacion y el resto de las unidades).
+.venv
+**/node_modules
+**/dist
+**/__pycache__
+**/.hypothesis
+.benchmarks
+.git
+platform/.tools
+platform/.charts
+aidlc-docs
+bitacoras
+revisiones
+entradas
+tareas
+loop
+console/spa/coverage
+console/spa/test-results
+console/spa/playwright-report
+console/bff

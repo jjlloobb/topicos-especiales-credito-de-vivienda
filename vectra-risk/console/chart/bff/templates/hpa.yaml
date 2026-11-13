@@ -1,0 +1,24 @@
+{{- /* HPA de 2 a 6 por CPU al 70 %, con estabilizacion de 60 s hacia arriba y 300 s hacia abajo (INF-U10-01; NFR-U10-10). En kind `values-kind.yaml` fija el maximo en 2
+(INF-U10-06): el HPA sigue presente, que es lo que exige `require-hpa-bounds` de U1. */ -}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: console-bff
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: console-bff
+    app.kubernetes.io/part-of: console
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: console-bff }
+  minReplicas: {{ .Values.hpa.minReplicas }}
+  maxReplicas: {{ .Values.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: {{ .Values.hpa.cpuUtilization }} }
+  behavior:
+    scaleUp: { stabilizationWindowSeconds: {{ .Values.hpa.scaleUpStabilizationSeconds }} }
+    scaleDown: { stabilizationWindowSeconds: {{ .Values.hpa.scaleDownStabilizationSeconds }} }

@@ -22,6 +22,7 @@ from bff_support import Bff
 from vectra_common import deps
 from vectra_contracts.routes import REGISTRY
 
+from console_bff import clients as clients_module
 from console_bff import config
 from console_bff.clients import DESTINATIONS, Upstreams
 
@@ -386,11 +387,19 @@ async def test_e3_with_bias_down_the_inbox_and_the_decision_still_answer_2xx(bff
 # --- pool agotado, con sockets reales --------------------------------------------------------------------------------
 
 
+#: Las conexiones de `case` por replica que fija el diseno (P-U10-04). Literal, no `config.CONNECTIONS_PER_REPLICA["case"]`: con el valor leido del codigo, un limite de 21 o de 1000
+#: (M11, M12 de U10-T02) seguiria pasando la prueba, porque ocuparia 21 o 1000 conexiones.
+CASE_CONNECTIONS = 20
+
+
 class _Slow(BaseHTTPRequestHandler):
+    """`/v1/cases` retiene la conexion 3 s; `/instant` responde al instante (C-1 de U10-T05: la llamada 21 va a una ruta que no espera a nadie)."""
+
     hold = 3.0
 
     def do_GET(self) -> None:  # noqa: N802
-        time.sleep(self.hold)
+        if not self.path.startswith("/instant"):
+            time.sleep(self.hold)
         body = json.dumps({"items": []}).encode()
         try:
             self.send_response(200)
@@ -405,34 +414,72 @@ class _Slow(BaseHTTPRequestHandler):
         return
 
 
-async def test_an_exhausted_pool_ends_in_a_timeout_within_the_deadline() -> None:
-    """P-U10-04: con las 20 conexiones de case ocupadas, la llamada 21 espera el pool y termina en su timeout (1,5 s)."""
+async def _with_busy_connections(busy: int, check: Callable[[Any], Any]) -> None:
+    """Ocupa `busy` conexiones de `case` con llamadas lentas y corre `check(client)` con el cliente real de `httpx` (sin transporte propio)."""
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Slow)
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{server.server_address[1]}"
-    doubles = Doubles()
-    urls = {**doubles.urls(), "case": url}
-    upstreams = Upstreams(
-        urls
-    )  # sin transporte propio: el cliente real de `httpx` con su limite de conexiones
+    upstreams = Upstreams({**Doubles().urls(), "case": url})
     client = upstreams.clients["case"]
     try:
         holders = [
             asyncio.create_task(
                 deps.call(client, "GET", "/v1/cases", timeout=config.CASE_WRITE_TIMEOUT_SECONDS)
             )
-            for _ in range(config.CONNECTIONS_PER_REPLICA["case"])
+            for _ in range(busy)
         ]
-        await asyncio.sleep(0.5)  # las 20 ya tienen su conexion
-        started = time.monotonic()
-        with pytest.raises(Exception) as error:  # noqa: PT011 - `DependencyTimeout` de U0: el BFF lo vuelve 503
-            await deps.call(client, "GET", "/v1/cases", timeout=config.CASE_READ_TIMEOUT_SECONDS)
-        elapsed = time.monotonic() - started
-        assert type(error.value).__name__ == "DependencyTimeout"
-        assert 1.3 <= elapsed < 2.5, elapsed  # termina en su timeout, mucho antes del plazo de 9 s
+        await asyncio.sleep(0.5)  # las `busy` ya tienen su conexion
+        await check(client)
         await asyncio.gather(*holders, return_exceptions=True)
     finally:
         await upstreams.aclose()
         server.shutdown()
         server.server_close()
+
+
+async def test_an_exhausted_pool_ends_in_a_timeout_within_the_deadline() -> None:
+    """P-U10-04: con las 20 conexiones de case ocupadas, la llamada 21 (a una ruta que responde al instante) espera el pool y termina en su timeout (1,5 s)."""
+
+    async def check(client: Any) -> None:
+        started = time.monotonic()
+        with pytest.raises(Exception) as error:  # noqa: PT011 - `DependencyTimeout` de U0: el BFF lo vuelve 503
+            await deps.call(client, "GET", "/instant", timeout=config.CASE_READ_TIMEOUT_SECONDS)
+        elapsed = time.monotonic() - started
+        assert type(error.value).__name__ == "DependencyTimeout"
+        assert 1.3 <= elapsed < 2.5, elapsed  # termina en su timeout, mucho antes del plazo de 9 s
+
+    await _with_busy_connections(CASE_CONNECTIONS, check)
+
+
+async def test_with_one_pool_connection_free_the_instant_route_answers() -> None:
+    """La otra mitad de C-1: con 19 de las 20 conexiones ocupadas, la llamada que responde al instante recibe 200 (sin limite de 20 no habria diferencia con la anterior)."""
+
+    async def check(client: Any) -> None:
+        started = time.monotonic()
+        response = await deps.call(client, "GET", "/instant", timeout=config.CASE_READ_TIMEOUT_SECONDS)
+        assert response.status_code == 200
+        assert time.monotonic() - started < 1.0
+
+    await _with_busy_connections(CASE_CONNECTIONS - 1, check)
+
+
+async def test_upstreams_passes_the_connections_per_replica_of_each_destination_to_its_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """C-1: `Upstreams` pasa `CONNECTIONS_PER_REPLICA[name]` a cada `DependencyClient` (con `Upstreams` sin pasar el limite, esta prueba falla)."""
+    seen: dict[str, int] = {}
+    real = clients_module.DependencyClient
+
+    class Spy(real):  # type: ignore[valid-type, misc]
+        def __init__(
+            self, dependency: str, base_url: str, breaker: Any, max_connections: int, **kwargs: Any
+        ) -> None:
+            seen[dependency] = max_connections
+            super().__init__(dependency, base_url, breaker, max_connections, **kwargs)
+
+    monkeypatch.setattr(clients_module, "DependencyClient", Spy)
+    upstreams = Upstreams(Doubles().urls())
+    await upstreams.aclose()
+    assert seen == dict(config.CONNECTIONS_PER_REPLICA)
+    assert set(seen) == set(DESTINATIONS)

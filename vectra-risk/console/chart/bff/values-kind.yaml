@@ -1,0 +1,9 @@
+# Solo kind (P-1 = b, decision del usuario 2026-11-13; `DECISIONES-LOOP.md` §7): request de memoria de 128 MiB por replica en lugar de los 256 MiB de INF-U10-01
+# (la maquina de la demo tiene 14 GiB; se aparta de «kind igual a staging» de `deployment-architecture.md` por esa decision), y el HPA de 2 a 2 (INF-U10-06).
+# Replicas, limits, PDB y estrategia no cambian. La memoria real del pod se comprueba en U12 Paso 18. Entra por `kind_values` de `components.yaml`.
+hpa:
+  maxReplicas: 2
+deployment:
+  resources:
+    requests:
+      memory: 128Mi

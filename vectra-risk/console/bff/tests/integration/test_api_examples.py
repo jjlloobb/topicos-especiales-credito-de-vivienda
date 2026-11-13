@@ -93,6 +93,18 @@ async def test_the_role_check_comes_before_the_mfa_check(bff: Bff) -> None:
     assert response.status_code == 403 and response.json()["code"] == "forbidden"
 
 
+@pytest.mark.parametrize("state", ["acr_pwd", "stale_auth_time"])
+async def test_a_decision_is_recorded_without_recent_mfa_br_u10_09b(bff: Bff, state: str) -> None:
+    """BR-U10-09b: `record_decision` no exige MFA reciente (a diferencia de la aprobacion de un modelo): un analista con `acr = pwd` la registra y la escritura llega al destino."""
+    response = await bff.client.post(
+        f"{P}/cases/{w.CASE_LISTO}/decision",
+        headers=bff_tokens.for_state(state, ["analista"]),
+        json=w.REQUESTS["post_api_console_cases_id_decision"].body,
+    )
+    assert response.status_code == 200, response.text
+    assert bff.doubles.case.count("POST", "/v1/cases/{id}/decision") == 1
+
+
 async def test_decision_already_recorded_is_409_with_the_reason_of_the_destination(bff: Bff) -> None:
     """La carrera de P-U10-01: la lectura dice `listo` y la escritura llega tarde; el destino resuelve con su 409."""
     case = bff.doubles.case

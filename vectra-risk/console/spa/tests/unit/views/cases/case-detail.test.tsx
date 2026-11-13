@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// BR-U10-07, 08, 10, 11; US-102, 104, 106, 109, 110, 501: `CaseDetail` dentro de `App` (proveedores y enrutador reales) con un `fetch` falso.
+// BR-U10-07, BR-U10-08, BR-U10-10, BR-U10-11 (sin etiquetas de monitoreo y `free_text` como texto); US-102, 104, 106, 109, 110, 501: `CaseDetail` dentro de `App` (proveedores y enrutador reales) con un `fetch` falso.
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { label, notice, ui } from "../../../../src/i18n";

@@ -1,0 +1,10 @@
+# Values de case-management en staging (U8, U08-T05): el core apunta al mock, que tambien corre en staging (`vectra-mock`), y los escenarios de prueba estan permitidos.
+# Sin `probes`: el Job de la demostracion de RT-5 es solo de kind (una regla de conftest rechaza aqui el identificador de la corrida).
+core:
+  enabled: true
+coreMock:
+  enabled: true
+allowTestScenarios: true
+# Emisor de los tokens de staging (U02-T21): el hostname publico de Keycloak, que es el `iss` que firma (identity-edge/docs/emisor-de-tokens.md).
+keycloak:
+  issuer: https://vectra.staging.banco.internal/auth/realms/vectra

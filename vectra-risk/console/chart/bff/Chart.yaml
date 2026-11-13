@@ -1,0 +1,8 @@
+apiVersion: v2
+name: console-bff
+description: >-
+  Chart de U10 (Paso 18, acotado a la demo): el Deployment console-bff (HPA de 2 a 6, 2 en kind) con su Service (8080 y 8081), PDB, ServiceAccount, ServiceMonitor y el
+  ConfigMap de variables (las URL de F10 a F14, el emisor y el JWKS). Sin Secret ni ExternalSecret (el BFF usa el token del usuario), sin PrometheusRule (Paso 19, T2),
+  Server, HTTPRoute, AuthorizationPolicy ni NetworkPolicy (son de U1 y de U2).
+type: application
+version: 0.1.0

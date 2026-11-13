@@ -490,7 +490,9 @@ allowed:
   to: vectra-serving
 - flow: F60
   from: prometheus
-  ports: *id012
+  ports:
+  - 8081
+  - 4191
   to: vectra-mock
 - flow: F60
   from: prometheus

@@ -16,6 +16,7 @@ seguidos, `late_result` tras un vencimiento, `late_result` tras una retoma, `lat
 """
 
 import asyncio
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -164,6 +165,11 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
     conn = db.admin()
     h = w.h
     h.sweeper.governance._clock = lambda: h.clock().timestamp()  # type: ignore[attr-defined]  # sin la cache de 5 s del barrido
+    # C-7 (U08-T05): la cache de `serving-config` del worker lee un reloj cuya parte real esta congelada (la hora al crear la maquina mas el desplazamiento
+    # simulado): el modelo y el codigo leen la MISMA edad, sin los milisegundos reales que corren durante el ejemplo. La frontera (5 s exactos) la ejerce
+    # `test_worker_clients.py::test_serving_config_cache_ttl_boundary_...`.
+    frozen_base = time.time()
+    w.governance._clock = lambda: frozen_base + h.clock.offset.total_seconds()  # type: ignore[attr-defined]
 
     def snapshot(case_id: uuid.UUID) -> dict[str, Any]:
         row = conn.execute(
@@ -249,9 +255,10 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             """Lo que el modelo espera de `serving-config` antes de un intento: un `get()` con la cache fresca (edad < TTL) no sale a governance.
 
             Con la cache fresca, `cfg_down` no se nota y scoring decide (`ok`); con la cache vencida, sale a governance y, si esta arriba, la
-            renueva. La edad se mide con el reloj del modelo; el tiempo real que corre en la prueba solo la aumenta, por eso `<` y no `<=`.
+            renueva. La edad se mide con el reloj del modelo, y el cliente lee un reloj con la parte real congelada (C-7): las dos edades son
+            iguales, asi que el modelo usa el mismo operador que `ServingConfigClient` (`<=`: a los 5 s exactos la cache sirve).
             """
-            fresh = self.cache_at is not None and self.now - self.cache_at < SERVING_CONFIG_CACHE_TTL
+            fresh = self.cache_at is not None and self.now - self.cache_at <= SERVING_CONFIG_CACHE_TTL
             if kind == ("cfg_down",):
                 STATS["cfg_down_fresh" if fresh else "cfg_down_stale"] += 1
                 return ("rec", Outcome.FAVORABLE) if fresh else kind

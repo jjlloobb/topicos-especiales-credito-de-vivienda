@@ -1,0 +1,14 @@
+{{- /* PDB por `app.kubernetes.io/name` (require-spread-and-pdb de U1): con 2 replicas fijas, una siempre en pie en un drenaje (NFR-U10-22). */ -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: console-spa
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: console-spa
+    app.kubernetes.io/part-of: console
+spec:
+  minAvailable: {{ .Values.deployment.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: console-spa

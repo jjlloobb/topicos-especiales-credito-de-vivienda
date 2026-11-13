@@ -47,7 +47,7 @@ describe("PBT-U10-06: i18n", () => {
     expect(Object.keys(messages.reason).sort()).toEqual([...contracts.PROBLEM_REASONS].sort());
   });
 
-  it("ningun texto de los catalogos contiene una frase prohibida", () => {
+  it("BR-U10-18: ningun texto de los catalogos contiene una frase prohibida", () => {
     const patterns = forbiddenPatterns();
     const texts = [...allStrings(messages), ...allStrings(labels)];
     expect(texts.length).toBeGreaterThan(100);

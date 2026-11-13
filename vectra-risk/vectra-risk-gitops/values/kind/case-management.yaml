@@ -1,0 +1,11 @@
+# Values de case-management en kind (U8, U08-T05). Aqui solo lo que cambia por entorno y no ve `render_env` de U1 (C-9): lo que si debe ver
+# (`core.enabled`, `coreMock.enabled` y el request de memoria de kind, P-1 = b) esta en `case-management/chart/values-kind.yaml`, que entra por `kind_values`.
+allowTestScenarios: true
+# INF-U8-03: el Job de la demostracion de RT-5 solo existe en kind. U12 (`prepare`) agrega el identificador de la corrida en el PR de los digests (AUTONOMIA-01: nadie lo fija a mano).
+probes:
+  enabled: true
+# Digests: el operador los fija en U12 Paso 18, en UN solo PR con los de governance-service y scoring-explainability (mismo commit): case-management/docs/imagenes.md.
+# Hasta entonces rige el digest de ejemplo del chart y los pods quedarian en `ImagePullBackOff`.
+# Emisor de los tokens de kind (U02-T21): el hostname publico de Keycloak, que es el `iss` que firma (identity-edge/docs/emisor-de-tokens.md).
+keycloak:
+  issuer: https://vectra.localtest.me/auth/realms/vectra

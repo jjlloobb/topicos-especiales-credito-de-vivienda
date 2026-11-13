@@ -1,0 +1,81 @@
+{{- /* Deployment console-bff (Paso 18; INF-U10-01; NFR-U10-10, 20, 22; F03, F10 a F14, F50, F60, F61). 2 replicas con el HPA de 2 a 6, `vectra-high`. Las variables llegan del
+ConfigMap (`envFrom`): sin ellas `python -m console_bff.app` sale con codigo 2. Sin `startupProbe`: las sondas solo miran el proceso (cada destino tiene su circuito). */ -}}
+{{- $digest := required "image.digest es obligatorio: sin digest no se renderiza" .Values.image.digest -}}
+{{- $repository := include "console-bff.repository" . -}}
+{{- $d := .Values.deployment -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: console-bff
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: console-bff
+    app.kubernetes.io/part-of: console
+    vectra.io/criticality: {{ $d.criticality }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: {{ $d.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: console-bff
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: console-bff
+        app.kubernetes.io/part-of: console
+      annotations:
+        # Un cambio de URL, emisor o JWKS reinicia las replicas: sha256 del texto de las variables (el `data` del ConfigMap).
+        checksum/config: {{ include "console-bff.env" . | sha256sum }}
+    spec:
+      serviceAccountName: console-bff
+      automountServiceAccountToken: false
+      priorityClassName: {{ $d.priorityClassName }}
+      terminationGracePeriodSeconds: {{ $d.terminationGracePeriodSeconds }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ $d.runAsUser }}
+        runAsGroup: {{ $d.runAsUser }}
+        seccompProfile: { type: RuntimeDefault }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: console-bff
+      containers:
+        - name: console-bff
+          image: {{ printf "%s@%s" $repository $digest | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [python, -m, console_bff.app]
+          ports:
+            - { name: http, containerPort: {{ $d.port }} }
+            - { name: metrics, containerPort: {{ $d.metricsPort }} }
+          envFrom:
+            - configMapRef: { name: {{ .Values.config.configMapName | quote }} }
+          # `vectra_common.ops_server` sirve `/metrics`, `/healthz` y `/readyz` en 8081 (`/livez` daria 404).
+          readinessProbe:
+            httpGet: { path: /readyz, port: metrics }
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet: { path: /healthz, port: metrics }
+            periodSeconds: 10
+            failureThreshold: 3
+          # Deja que Linkerd y los Endpoints dejen de enviar trafico antes del SIGTERM (accion `sleep` nativa, sin binario en la imagen; P-5 (a) de U10-T02).
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: {{ $d.preStopSeconds }}
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: keycloak-ca, mountPath: {{ .Values.keycloak.caMountPath | quote }}, readOnly: true }
+          resources:
+            {{- toYaml $d.resources | nindent 12 }}
+      volumes:
+        - name: keycloak-ca
+          configMap: { name: {{ .Values.keycloak.caConfigMap | quote }}, items: [{ key: ca.crt, path: ca.crt }] }

@@ -1,0 +1,17 @@
+# Lo que `render_env("kind")` de U1 debe ver (P-1 y P-2 de U08-T05; components.yaml `kind_values`). `render_env` solo pasa los values del entorno y estos, no
+# `vectra-risk-gitops/values/kind/case-management.yaml` (C-9): sin esto `test_kind_profile.py` no contaria el mock ni el request de kind.
+# P-1 = (b), decision del usuario (2026-11-12): request de memoria de 128 MiB SOLO en kind para case-service y case-worker. Se aparta de «kind igual a staging»
+# (INF-U8-04: 256 MiB) por esa decision, como U6 (DECISIONES-LOOP.md §7, opcion c) y U11 (U11-T03, P-1 b). Las replicas, el HPA, el PDB y los limits (512 MiB)
+# no cambian; staging y produccion siguen en el diseno. El mock ya pide 64 MiB.
+core:
+  enabled: true
+coreMock:
+  enabled: true
+caseService:
+  resources:
+    requests:
+      memory: 128Mi
+caseWorker:
+  resources:
+    requests:
+      memory: 128Mi

@@ -1,0 +1,39 @@
+# Valores comunes del chart de `console-spa` (U10, Paso 18, acotado a la demo). Los defaults son los de produccion: un render sin values de entorno es el de produccion (P-3).
+# Perfil demo (DD-3 b): 2 replicas fijas en los tres entornos, sin `values-kind-demo.yaml`. kind no ajusta nada de este chart.
+# `hostname` es el unico valor por entorno: sale de `identity-edge/gateway/values/<env>.yaml` y de `vectra.publicHostname` de `identity-edge/keycloak/values/<env>.yaml`;
+# cada entorno lo fija en `vectra-risk-gitops/values/<env>/console-spa.yaml` (junto al digest). `test_chart.py` los ata a los archivos de U2.
+namespace: vectra-edge
+# `imageRegistry` lo pasa Argo CD desde `vectra-risk-gitops/envs/<env>/values.yaml`; `image.repository` vale en un render local sin ese valor.
+image:
+  repository: kind-registry:5000/vectra/console-spa
+  # Digest de ejemplo mientras el operador no publique la imagen (console/README.md, seccion «Imagenes»); cada entorno fija el suyo.
+  # Sin digest no se renderiza (`required`): una imagen por etiqueta la rechaza Kyverno (`disallow-latest`).
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000009
+hostname: vectra.banco.internal
+# `config.json` (INF-U10-03): solo las claves de `SCHEMA` de `console/spa/src/config/load.ts` y ninguna constante de tiempo (`TIME_CONSTANTS`).
+# `issuerPath` es `jwt.issuer_path` de `identity-edge/gateway/routes.yaml`; el cliente y las dos rutas son los del cliente publico `vectra-console` del realm de U2.
+oidc:
+  issuerPath: /auth/realms/vectra
+  clientId: vectra-console
+  redirectPath: /callback
+  stepupRedirectPath: /stepup-callback
+# P-5: el `uid` del dashboard `bias.json` de U9 (diferido); nadie lo lee mientras `GrafanaEmbed` este diferido.
+grafana:
+  biasDashboardUid: vectra-bias
+# El ConfigMap se monta como directorio completo, sin `subPath`, en un directorio propio: `console/spa/nginx.conf` sirve `config.json` desde `mountPath`.
+config:
+  configMapName: console-spa-config
+  mountPath: /etc/vectra/console-spa
+  fileName: config.json
+# Deployment `console-spa` (INF-U10-01, 03; NFR-U10-12, 20, 22): 2 replicas fijas, sin HPA; usuario 101, el de la imagen `nginx-unprivileged`.
+deployment:
+  priorityClassName: vectra-normal
+  criticality: medium
+  replicas: 2
+  port: 8080
+  runAsUser: 101
+  hpaExempt: "trafico estatico y sin estado (INF-U10-01): 2 replicas fijas, una por zona"
+  resources:
+    requests: { cpu: 50m, memory: 32Mi }
+    limits: { cpu: 200m, memory: 64Mi }
+  pdb: { minAvailable: 1 }

@@ -1,0 +1,53 @@
+{{- /* Job de migracion (hook de sync de Argo CD; F44; INF-U8-01). `alembic -c /app/alembic.ini upgrade head` con `case_migrator` (`pg-role-case-migrator`, de U1).
+La imagen lleva `alembic.ini` y `migrations/` en /app. Los tres plazos de `retention_settings` salen de los values (`required`) y llegan como `RETENTION_*`
+(`migrations/env.py`). Sin credenciales en la URL: libpq lee PGUSER y PGPASSWORD. El CronJob `case-retention` no se rinde (P-12). */ -}}
+{{- $image := include "case-management.image" (list . "caseManagement" "case-management") -}}
+{{- $r := .Values.retention -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: case-migration
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: case-migration
+    app.kubernetes.io/part-of: case-management
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    # Despues de las ServiceAccounts (wave 0) y antes de los Deployment (wave 2).
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: case-migration
+        app.kubernetes.io/part-of: case-management
+        vectra.io/workload: migration-case
+      annotations:
+        config.alpha.linkerd.io/proxy-enable-native-sidecar: "true"
+    spec:
+      serviceAccountName: migration-case
+      priorityClassName: {{ .Values.migration.priorityClassName }}
+      restartPolicy: Never
+      securityContext:
+        {{- include "case-management.pod-security" . | nindent 8 }}
+      containers:
+        - name: case-migration
+          image: {{ $image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [alembic, -c, /app/alembic.ini, upgrade, head]
+          env:
+            - { name: CASE_DATABASE_URL, value: {{ include "case-management.dsn" . | quote }} }
+            {{- include "case-management.pg-env" .Values.database.secrets.migrator | nindent 12 }}
+            - { name: RETENTION_DECIDED_YEARS, value: {{ required "retention.decided_years es obligatorio" $r.decided_years | quote }} }
+            - { name: RETENTION_UNDECIDED_YEARS, value: {{ required "retention.undecided_years es obligatorio" $r.undecided_years | quote }} }
+            - { name: RETENTION_INTAKE_KEYS_DAYS, value: {{ required "retention.intake_keys_days es obligatorio" $r.intake_keys_days | quote }} }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            {{- include "case-management.ca-mount" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+      volumes:
+        {{- include "case-management.ca-volume" . | nindent 8 }}
