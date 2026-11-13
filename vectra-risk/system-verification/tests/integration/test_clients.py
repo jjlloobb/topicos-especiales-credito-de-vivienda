@@ -24,7 +24,7 @@ from vault_double import CountingTransport
 from vectra_contracts.models import api as api_models
 from vectra_contracts.models import application as app_models
 from vectra_contracts.models.api import DecisionIn
-from vectra_contracts.models.governance import FrozenResolutionIn
+from vectra_contracts.models.governance import FrozenResolutionIn, ModelApprovalIn, ModelRegistration
 from vectra_contracts.models.registry import FreezeProjection, MetricsProjection
 
 from vectra_verification import guard
@@ -60,6 +60,9 @@ class Session:
 def _gateway_world(environment: guard.Environment) -> tuple[LightGateway, GatewayClient, BffClient]:
     light = LightGateway(FakeClock())
     light.cases[CASE_ID] = case_detail_json(CASE_ID, "listo", "favorable")
+    import bff_builders
+
+    light.models["mv-9"] = bff_builders.model_version("mv-9", "lista_para_aprobacion")
     return (
         light,
         GatewayClient(environment, lambda: "tok-channel-simulator", TAG, transport=light),
@@ -94,6 +97,24 @@ def test_every_public_method_of_gateway_and_bff_carries_the_header_and_the_prefi
         "resolve_frozen": lambda: bff.resolve_frozen(
             "mv-1", FrozenResolutionIn(action="reactivar", justification="revisado"), "rt2"
         ),
+        # U12-T03: las rutas de modelos del BFF
+        "list_models": bff.list_models,
+        "get_model": lambda: bff.get_model("mv-9"),
+        "register_model": lambda: bff.register_model(
+            ModelRegistration.model_validate(
+                {
+                    "artifact_uri": "s3://model-store/mv-10/predictor.json",
+                    "artifact_format": "xgboost_json",
+                    "artifact_sha256": "a" * 64,
+                    "explainer_uri": "s3://model-store/mv-10/explainer.json",
+                    "explainer_sha256": "b" * 64,
+                    "manifest_uri": "s3://model-store/mv-10/manifest.json",
+                    "manifest_sha256": "c" * 64,
+                }
+            )
+        ),
+        "start_validation": lambda: bff.start_validation("mv-9"),
+        "approve_model": lambda: bff.approve_model("mv-9", ModelApprovalIn(decision="aprobado")),
     }
     # la prueba falla si aparece un metodo nuevo sin cubrir
     assert set(calls) == _public(GatewayClient) | _public(BffClient)
@@ -324,3 +345,47 @@ def test_contract_openapi_every_served_error_is_a_valid_problem_and_every_2xx_bo
     detail = bff.get_case(CASE_ID)
     assert isinstance(detail, api_models.CaseDetail) and bff.me().mfa and bff.list_cases().items
     assert problem(409, "conflict_state", "decision_already_recorded")["status"] == 409
+
+
+def test_the_model_writes_need_a_step_up_session_and_send_nothing_without_it(
+    dynamic_environment: guard.Environment,
+) -> None:
+    """U12-T03: `register_model`, `start_validation` y `approve_model` exigen MFA reciente, como `resolve_frozen`; los tres leen sin ella."""
+    light, _, _ = _gateway_world(dynamic_environment)
+    plain = BffClient(dynamic_environment, Session("ingeniero-1", step_up=False), TAG, transport=light)
+    registration = ModelRegistration.model_validate(
+        {
+            "artifact_uri": "s3://model-store/mv-10/predictor.json",
+            "artifact_format": "xgboost_json",
+            "artifact_sha256": "a" * 64,
+            "explainer_uri": "s3://model-store/mv-10/explainer.json",
+            "explainer_sha256": "b" * 64,
+            "manifest_uri": "s3://model-store/mv-10/manifest.json",
+            "manifest_sha256": "c" * 64,
+        }
+    )
+    for call in (
+        lambda: plain.register_model(registration),
+        lambda: plain.start_validation("mv-9"),
+        lambda: plain.approve_model("mv-9", ModelApprovalIn(decision="aprobado")),
+    ):
+        with pytest.raises(ApiError, match="step_up_required"):
+            call()
+    assert light.requests == []
+    assert (
+        plain.get_model("mv-9").state == "lista_para_aprobacion"
+        and plain.list_models().items[0].model_version_id == "mv-9"
+    )
+
+
+def test_an_api_error_exposes_invalid_params_of_a_422() -> None:
+    from vectra_verification.clients._api import error_of
+
+    body = problem(422, "validation_error")
+    body["invalid_params"] = [
+        {"name": "package", "reason_code": "model_version_id_mismatch_inside:explainer.json"}
+    ]
+    error = error_of(httpx.Response(422, json=body))
+    assert error.status == 422 and error.code == "validation_error"
+    assert error.invalid_params == (("package", "model_version_id_mismatch_inside:explainer.json"),)
+    assert error_of(httpx.Response(409, json=problem(409, "conflict_state"))).invalid_params is None

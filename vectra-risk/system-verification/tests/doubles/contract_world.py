@@ -195,6 +195,9 @@ class LightGateway(httpx.BaseTransport):
         self.auto_ready = True  # un caso aceptado queda `listo` (el servicio real tarda; aqui no importa)
         self.status_override: dict[str, int] = {}
         self.conflict_next = 0  # los proximos N casos aceptados quedan en 409 al decidirse
+        self.models: dict[
+            str, dict[str, Any]
+        ] = {}  # U12-T03: las rutas de modelos del BFF (`ModelVersion`, validado contra el contrato)
 
     # ---- ruteo ---------------------------------------------------------------------------------------------------------------------------------
     def handle_request(self, request: httpx.Request) -> httpx.Response:
@@ -310,6 +313,11 @@ class LightGateway(httpx.BaseTransport):
             (f"{base}/cases/{{id}}/explanation-views", ("POST", self._view)),
             (f"{base}/cases/{{id}}/decision", ("POST", self._decide)),
             (f"{base}/models/{{id}}/frozen-resolution", ("POST", self._frozen)),
+            (f"{base}/models", ("GET", self._models_list)),
+            (f"{base}/models", ("POST", self._models_register)),
+            (f"{base}/models/{{id}}", ("GET", self._model_detail)),
+            (f"{base}/models/{{id}}/validations", ("POST", self._model_validation)),
+            (f"{base}/models/{{id}}/approval", ("POST", self._model_approval)),
         ]
 
     def _me(self, request: httpx.Request, template: str) -> httpx.Response:
@@ -384,4 +392,61 @@ class LightGateway(httpx.BaseTransport):
         return self._reply(BFF_SPEC, "POST", template, 200, body, api_models.DecisionRef)
 
     def _frozen(self, request: httpx.Request, template: str, model_id: str) -> httpx.Response:
+        return self._reply(BFF_SPEC, "POST", template, 204, None, None)
+
+    # ---- rutas de modelos del BFF (U12-T03) ------------------------------------------------------------------------------------------------------
+    def _models_list(self, request: httpx.Request, template: str) -> httpx.Response:
+        from vectra_contracts.models.governance import ModelVersion
+
+        state = request.url.params.get("state")
+        items = [m for m in self.models.values() if state is None or m["state"] == state]
+        return self._reply(
+            BFF_SPEC,
+            "GET",
+            template,
+            200,
+            {"items": items, "next_seq_after": None},
+            api_models.Page[ModelVersion],
+        )
+
+    def _models_register(self, request: httpx.Request, template: str) -> httpx.Response:
+        import bff_builders
+        from vectra_contracts.models.governance import ModelRegistration, ModelVersion
+
+        try:
+            body = ModelRegistration.model_validate_json(request.content)
+        except ValueError:
+            return self._reply(BFF_SPEC, "POST", template, 422, problem(422, "validation_error"), None)
+        model_id = body.artifact_uri.split("/")[-2]
+        if model_id in self.models:
+            return self._reply(BFF_SPEC, "POST", template, 409, problem(409, "conflict_state"), None)
+        self.models[model_id] = bff_builders.model_version(model_id, "registrado")
+        return self._reply(BFF_SPEC, "POST", template, 200, self.models[model_id], ModelVersion)
+
+    def _model_detail(self, request: httpx.Request, template: str, model_id: str) -> httpx.Response:
+        from vectra_contracts.models.governance import ModelVersionDetail
+
+        model = self.models.get(model_id)
+        if model is None:
+            return self._reply(BFF_SPEC, "GET", template, 404, problem(404, "not_found"), None)
+        return self._reply(BFF_SPEC, "GET", template, 200, model, ModelVersionDetail)
+
+    def _model_validation(self, request: httpx.Request, template: str, model_id: str) -> httpx.Response:
+        import bff_builders
+        from vectra_contracts.models.governance import ValidationRun
+
+        if model_id not in self.models:
+            return self._reply(BFF_SPEC, "POST", template, 404, problem(404, "not_found"), None)
+        self.models[model_id]["state"] = "en_validacion"
+        return self._reply(
+            BFF_SPEC, "POST", template, 200, bff_builders.validation_run(model_id), ValidationRun
+        )
+
+    def _model_approval(self, request: httpx.Request, template: str, model_id: str) -> httpx.Response:
+        from vectra_contracts.models.governance import ModelApprovalIn
+
+        if model_id not in self.models:
+            return self._reply(BFF_SPEC, "POST", template, 404, problem(404, "not_found"), None)
+        ModelApprovalIn.model_validate_json(request.content)
+        self.models[model_id]["state"] = "aprobado"
         return self._reply(BFF_SPEC, "POST", template, 204, None, None)

@@ -85,9 +85,15 @@ def error_of(response: httpx.Response) -> ApiError:
         problem = Problem.model_validate_json(response.content)
     except ValidationError:
         return ApiError(response.status_code, retry_after=retry)
-    params = tuple((p.name, p.reason_code) for p in problem.invalid_params) if problem.invalid_params else None
+    params = (
+        tuple((p.name, p.reason_code) for p in problem.invalid_params) if problem.invalid_params else None
+    )
     return ApiError(
-        response.status_code, problem.code.value, problem.reason.value if problem.reason else None, retry, params
+        response.status_code,
+        problem.code.value,
+        problem.reason.value if problem.reason else None,
+        retry,
+        params,
     )
 
 
