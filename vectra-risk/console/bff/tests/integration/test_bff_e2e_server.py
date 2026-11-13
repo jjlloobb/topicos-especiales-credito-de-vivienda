@@ -220,6 +220,97 @@ async def test_stats_count_calls_and_reset(http: httpx.AsyncClient) -> None:
     assert (await http.get("/auth/__e2e/stats")).json()["token"] == 0
 
 
+@pytest.fixture
+async def demo() -> AsyncIterator[httpx.AsyncClient]:
+    """El mismo servidor con el mundo del recorrido (U10-T04) y el control de pruebas."""
+    server = build_server(ORIGIN, demo=True)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server), base_url=ORIGIN) as client:
+        yield client
+
+
+async def bearer_of(client: httpx.AsyncClient, user: str, **over: str) -> dict[str, str]:
+    tokens = (await exchange(client, code_of(await login(client, user, **over)))).json()
+    return {"authorization": f"Bearer {tokens['access_token']}"}
+
+
+async def test_the_demo_world_filters_the_inbox_by_state_and_a_decision_makes_the_case_decided(
+    demo: httpx.AsyncClient,
+) -> None:
+    auth = await bearer_of(demo, "analista")
+    everything = (await demo.get("/api/console/cases", headers=auth)).json()["items"]
+    only_vencido = (await demo.get("/api/console/cases?state=vencido", headers=auth)).json()["items"]
+    default_states = "&".join(f"state={s}" for s in ("listo", "decidido"))
+    listed = (await demo.get(f"/api/console/cases?{default_states}", headers=auth)).json()["items"]
+    assert {c["state"] for c in only_vencido} == {"vencido"} and len(everything) > len(listed)
+    assert {c["state"] for c in listed} == {"listo", "decidido"}
+    case_id = "00000000-0000-0000-0000-000000000001"
+    detail = (await demo.get(f"/api/console/cases/{case_id}", headers=auth)).json()
+    assert detail["application"]["free_text"] == "<script>alert(1)</script>"
+    assert detail["credit_status"] == "no_integrado" and detail["recommendation"]["outcome"] == "favorable"
+    decision = {
+        "decision": "sigue",
+        "final_outcome": "favorable",
+        "used_factors": ["ninguno"],
+        "justification": "",
+    }
+    assert (
+        await demo.post(f"/api/console/cases/{case_id}/decision", json=decision, headers=auth)
+    ).status_code == 200
+    assert (await demo.get(f"/api/console/cases/{case_id}", headers=auth)).json()["state"] == "decidido"
+
+
+async def test_the_demo_world_lists_models_without_the_report_and_get_model_has_it(
+    demo: httpx.AsyncClient,
+) -> None:
+    auth = await bearer_of(demo, "cumplimiento")
+    listed = await demo.get("/api/console/models", headers=auth)
+    assert listed.status_code == 200 and "mv-activo" in {
+        m["model_version_id"] for m in listed.json()["items"]
+    }
+    assert all("validation_report" not in m for m in listed.json()["items"])
+    one = (await demo.get("/api/console/models/mv-activo", headers=auth)).json()
+    assert one["validation_report"]["auc_meets_target"] is True
+    freeze = (await demo.get("/api/console/freezes/freeze-mv-congelado", headers=auth)).json()
+    package = freeze["context_package"]
+    assert package["before"] == "sin_datos" and package["last_7_days"] == "sin_datos"
+    cells = package["after"]["attributes"][0]["cells"]
+    assert [c["status"] for c in cells] == ["suficiente", "muestra_insuficiente"] and cells[1].get(
+        "rate"
+    ) is None  # el BFF omite los nulos
+
+
+async def test_the_control_takes_a_double_down_counts_calls_and_resets(demo: httpx.AsyncClient) -> None:
+    auth = await bearer_of(demo, "cumplimiento")
+    assert (await demo.get("/api/console/freezes", headers=auth)).status_code == 200
+    assert (await demo.get("/__e2e/count?double=bias&method=GET&template=/v1/freezes")).json() == {"count": 1}
+    assert (await demo.post("/__e2e/down", json={"double": "bias"})).status_code == 200
+    down = await demo.get("/api/console/freezes", headers=auth)
+    assert (down.status_code, down.json()["code"]) == (503, "dependency_unavailable")
+    assert (await demo.post("/__e2e/down", json={"double": "bias", "down": False})).status_code == 200
+    assert (await demo.get("/api/console/freezes", headers=auth)).status_code == 200
+    assert (await demo.post("/__e2e/down", json={"double": "nadie"})).status_code == 400
+    assert (await demo.get("/__e2e/count?double=nadie")).status_code == 400
+    await demo.post("/__e2e/down", json={"double": "case"})
+    assert (await demo.post("/__e2e/reset")).status_code == 200
+    assert (await demo.get("/__e2e/count?double=bias")).json() == {"count": 0}
+    assert (
+        await demo.get("/api/console/cases", headers=auth)
+    ).status_code == 403  # `cumplimiento` no ve la bandeja
+
+
+async def test_force_mfa_required_answers_403_to_the_next_resolutions_only(demo: httpx.AsyncClient) -> None:
+    auth = await bearer_of(demo, "cumplimiento", acr_values="mfa")
+    path = "/api/console/models/mv-congelado/frozen-resolution"
+    body = {"action": "reactivar", "justification": "revisado"}
+    assert (await demo.post("/__e2e/force-mfa-required", json={"times": 1})).status_code == 200
+    forced = await demo.post(path, json=body, headers=auth)
+    assert (forced.status_code, forced.json()["code"]) == (403, "mfa_required")
+    count = "/__e2e/count?double=governance&method=POST&template=/v1/models/{id}/frozen-resolution"
+    assert (await demo.get(count)).json() == {"count": 0}  # el 403 forzado no llego al destino
+    assert (await demo.post(path, json=body, headers=auth)).status_code == 204  # y el siguiente envio si
+    assert (await demo.get(count)).json() == {"count": 1}
+
+
 def test_the_realm_of_u2_registers_the_two_callbacks_this_issuer_accepts() -> None:
     """Dato de U2 (solo lectura): el cliente `vectra-console` tiene `/callback` y `/stepup-callback`."""
     realm = yaml.safe_load((ROOT / "identity-edge/keycloak/realm/realm.kind.yaml").read_text())

@@ -1,18 +1,23 @@
-// La raiz de la SPA (frontend-components §1): `AuthProvider` > `StepUpProvider` > `InactivityProvider` > contenido, dentro de
-// `ErrorBoundary` y TanStack Query. Esta tarea (U10-T03) trae un contenido minimo; `Layout`, `RoleMenu`, las rutas y las vistas son de
-// U10-T04, que reemplaza `Content`.
+// La raiz de la SPA (frontend-components §1): `AuthProvider` > `StepUpProvider` > `InactivityProvider` > enrutador, dentro de
+// `ErrorBoundary` y TanStack Query. U10-T04 agrega el enrutador, `Layout`, `RoleMenu` y las rutas por rol (`views/shared`).
 import { QueryClientProvider } from "@tanstack/react-query";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useCallback, useEffect } from "react";
 import { Button } from "react-aria-components";
+import { BrowserRouter } from "react-router";
+import { ApiProvider } from "./api/ApiProvider";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
-import { label, ui } from "./i18n";
+import { ui } from "./i18n";
 import { InactivityProvider } from "./inactivity/InactivityProvider";
 import { ErrorBoundary } from "./reporter/ErrorBoundary";
 import { StepUpProvider } from "./stepup/StepUpProvider";
+import { AppRoutes } from "./views/shared/AppRoutes";
 import type { Wiring } from "./wiring";
 
-function Content() {
+function Content({ wiring }: { readonly wiring: Wiring }) {
   const auth = useAuth();
+  const onChunkFailure = useCallback(() => {
+    wiring.reporter.reportChunkLoadFailure();
+  }, [wiring.reporter]);
   if (auth.status === "loading") return <p>{ui("loading_session")}</p>;
   if (auth.session === null) {
     return (
@@ -23,12 +28,11 @@ function Content() {
       </main>
     );
   }
+  // El enrutador se monta con la sesion: para entonces `AuthProvider` ya limpio `/callback` y la URL es la de la pantalla.
   return (
-    <main>
-      <h1>{ui("app_title")}</h1>
-      <p>{ui("session_role", { role: label("ROLES", auth.session.role) })}</p>
-      <Button onPress={auth.logout}>{ui("logout_button")}</Button>
-    </main>
+    <BrowserRouter>
+      <AppRoutes onChunkFailure={onChunkFailure} />
+    </BrowserRouter>
   );
 }
 
@@ -52,11 +56,13 @@ export function App({ wiring }: { readonly wiring: Wiring }) {
       }}
     >
       <QueryClientProvider client={wiring.queryClient}>
+        <ApiProvider api={wiring.api}>
         <AuthProvider manager={wiring.manager} loadSession={wiring.loadSession} tokens={wiring.tokens} page={wiring.authPage}>
           <Authed wiring={wiring}>
-            <Content />
+            <Content wiring={wiring} />
           </Authed>
         </AuthProvider>
+        </ApiProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );
