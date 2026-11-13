@@ -98,12 +98,15 @@ class ServiceTokenProvider:
 
 def provider_from_env(audience: str, scopes: tuple[str, ...]) -> ServiceTokenProvider:
     """Lee `VECTRA_CLIENT_ID`, `VECTRA_TOKEN_URL`, `VECTRA_ASSERTION_AUDIENCE`, `VECTRA_CLIENT_KEY_PATH` y `VECTRA_CLIENT_KEY_ID`."""
+    assertion_audience = os.environ["VECTRA_ASSERTION_AUDIENCE"]
+    if not assertion_audience:
+        raise ValueError("VECTRA_ASSERTION_AUDIENCE must not be empty")
     return ServiceTokenProvider(
         os.environ["VECTRA_CLIENT_ID"],
         os.environ["VECTRA_TOKEN_URL"],
         Path(os.environ["VECTRA_CLIENT_KEY_PATH"]).read_text(encoding="utf-8"),
         audience,
         scopes,
-        assertion_audience=os.environ["VECTRA_ASSERTION_AUDIENCE"],
+        assertion_audience=assertion_audience,
         key_id=os.environ.get("VECTRA_CLIENT_KEY_ID"),
     )

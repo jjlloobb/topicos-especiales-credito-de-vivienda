@@ -271,13 +271,21 @@ def test_assertion_audience_missing_in_the_environment_fails_when_building(tmp_p
 
 def test_assertion_audience_empty_in_the_environment_fails_when_building(tmp_path, monkeypatch):
     _env(tmp_path, monkeypatch, "")
-    with pytest.raises(ValueError, match="assertion_audience"):
+    with pytest.raises(ValueError, match=r"^VECTRA_ASSERTION_AUDIENCE must not be empty$"):
         provider_from_env("a", ("s",))
 
 
 def test_assertion_audience_empty_is_a_value_error():
-    with pytest.raises(ValueError, match="assertion_audience"):
+    with pytest.raises(ValueError, match=r"^assertion_audience must not be empty$"):
         ServiceTokenProvider("c", URL, pem(EC_KEY), "a", ("s",), assertion_audience="")
+
+
+async def test_assertion_audience_first_token_is_requested_even_with_a_negative_clock():
+    """Sin token todavía no hay nada que servir de caché: el estado inicial no depende del reloj (mata `_token = ""` y `_expires_at = 1.0`)."""
+    poster = Poster(ok("nuevo"))
+    p = provider(poster, {"value": -100.0})
+    assert await p.token() == "nuevo"
+    assert len(poster.calls) == 1
 
 
 def test_assertion_audience_is_required_by_name():
