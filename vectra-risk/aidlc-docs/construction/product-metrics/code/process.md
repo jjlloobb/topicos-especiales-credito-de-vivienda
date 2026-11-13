@@ -22,10 +22,11 @@ comparten el candado del `reader` (P-U11-02):
 `vectra_product_full_pass_in_progress` vale 1 desde que la pasada empieza a esperar el candado hasta que termina, falla, vence o se
 descarta. Los relojes de pared y monótono, la espera y el generador son parámetros del `Scheduler`: ninguna prueba duerme minutos reales.
 
-**El código de salida 0.** `uvicorn.Server.serve()` captura `SIGTERM` con `signal.signal` y, al salir, vuelve a emitir la señal: con el
-manejador por omisión el proceso muere con estado `-15`. `main` sirve la app con un `uvicorn.Server` propio que no captura señales
-(`capture_signals` no hace nada) y trata `SIGTERM` y `SIGINT` con un manejador del bucle que activa `stop`. No se tocó
-`ops_server.serve` de U0 (su estado de salida es la candidata de `CANDIDATAS.md`, línea 437).
+**El código de salida 0.** `main` trata `SIGTERM` y `SIGINT` con `loop.add_signal_handler`, que activa `stop`; ese manejador del bucle es el que da el
+código 0 (C-4, P-6 (a) de U11-T03). `uvicorn.Server.serve()` captura las señales mientras sirve y, al salir, las vuelve a emitir al manejador que tenía el
+bucle, de modo que el proceso no muere con estado `-15`. Esta unidad ya no sobreescribe `capture_signals` (el override era redundante: el revisor de U11-T02
+midió que el manejador del bucle basta y ninguna prueba lo ejercía); las pruebas del proceso real (`test_main_process.py`) y la de la imagen
+(`test_image.py`, `docker stop`) fijan el código 0. No se tocó `ops_server.serve` de U0 (su estado de salida es la candidata de `CANDIDATAS.md`, línea 437).
 
 ## Readiness
 

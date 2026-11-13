@@ -1,0 +1,92 @@
+# `ProductMetricsFullRecomputeMissing` (P-U11-06; NFR-U11-42): la rama de edad (> 93 600 s = 26 h, sin `for`) y la de ausencia (`for: 26h`), las dos
+# sin disparar durante la pasada en curso. Con U3 caido al arrancar el `Collector` **no emite** `vectra_product_last_full_recompute_timestamp`
+# (con la serie en 0 la rama de edad dispararia de inmediato): solo la rama de ausencia cubre ese caso, a las 26 h.
+rule_files:
+  - ../product-metrics.rules.yaml
+evaluation_interval: 1m
+
+tests:
+  - name: full-recompute-edad-a-los-dos-lados-de-las-26-horas
+    interval: 1m
+    input_series:
+      - series: 'vectra_product_last_full_recompute_timestamp{job="product-metrics", pod="a"}'
+        values: '0x1700'
+      - series: 'up{job="product-metrics", pod="a"}'
+        values: '1x1700'
+    alert_rule_test:
+      - eval_time: 1559m # 93 540 s
+        alertname: ProductMetricsFullRecomputeMissing
+        exp_alerts: []
+      - eval_time: 1560m # 93 600 s: no es mayor
+        alertname: ProductMetricsFullRecomputeMissing
+        exp_alerts: []
+      - eval_time: 1561m # la rama de edad dispara sin esperar un `for`
+        alertname: ProductMetricsFullRecomputeMissing
+        exp_alerts:
+          - exp_labels: {severity: SEV3, branch: edad, job: product-metrics, pod: a}
+            exp_annotations:
+              summary: Una replica de product-metrics no hace la recomputacion diaria completa hace mas de 26 h
+              runbook_url: product-metrics/observability/runbooks/product-metrics-full-recompute-missing.md
+
+  - name: full-recompute-replica-recien-arrancada-con-u3-caido
+    interval: 1m
+    input_series:
+      # `up = 1` y ninguna marca de recomputacion completa: nunca hubo una pasada completa exitosa
+      - series: 'up{job="product-metrics", pod="a"}'
+        values: '1x1700'
+    alert_rule_test:
+      - eval_time: 1m # al arrancar no dispara
+        alertname: ProductMetricsFullRecomputeMissing
+        exp_alerts: []
+      - eval_time: 25h
+        alertname: ProductMetricsFullRecomputeMissing
+        exp_alerts: []
+      - eval_time: 1559m
+        alertname: ProductMetricsFullRecomputeMissing
+        exp_alerts: []
+      - eval_time: 26h # la rama de ausencia dispara tras su `for` de 26 h
+        alertname: ProductMetricsFullRecomputeMissing
+        exp_alerts:
+          - exp_labels: {severity: SEV3, branch: ausencia, job: product-metrics, pod: a}
+            exp_annotations:
+              summary: Una replica de product-metrics esta arriba y no ha hecho ninguna recomputacion completa en 26 h
+              runbook_url: product-metrics/observability/runbooks/product-metrics-full-recompute-missing.md
+
+  - name: full-recompute-una-replica-sin-la-serie-y-la-otra-con-ella
+    interval: 1m
+    input_series:
+      - series: 'up{job="product-metrics", pod="a"}'
+        values: '1x1700'
+      - series: 'up{job="product-metrics", pod="b"}'
+        values: '1x1700'
+      - series: 'vectra_product_last_full_recompute_timestamp{job="product-metrics", pod="b"}'
+        values: '0+60x1700' # la marca avanza con el reloj
+    alert_rule_test:
+      - eval_time: 1561m
+        alertname: ProductMetricsFullRecomputeMissing
+        exp_alerts:
+          - exp_labels: {severity: SEV3, branch: ausencia, job: product-metrics, pod: a}
+            exp_annotations:
+              summary: Una replica de product-metrics esta arriba y no ha hecho ninguna recomputacion completa en 26 h
+              runbook_url: product-metrics/observability/runbooks/product-metrics-full-recompute-missing.md
+
+  - name: full-recompute-la-pasada-en-curso-no-dispara-ninguna-rama
+    interval: 1m
+    input_series:
+      - series: 'vectra_product_last_full_recompute_timestamp{job="product-metrics", pod="a"}'
+        values: '0x1700'
+      - series: 'up{job="product-metrics", pod="a"}'
+        values: '1x1700'
+      - series: 'vectra_product_full_pass_in_progress{job="product-metrics", pod="a"}'
+        values: '1x1700'
+      - series: 'up{job="product-metrics", pod="b"}'
+        values: '1x1700'
+      - series: 'vectra_product_full_pass_in_progress{job="product-metrics", pod="b"}'
+        values: '1x1700'
+    alert_rule_test:
+      - eval_time: 1561m
+        alertname: ProductMetricsFullRecomputeMissing
+        exp_alerts: []
+      - eval_time: 1600m
+        alertname: ProductMetricsFullRecomputeMissing
+        exp_alerts: []

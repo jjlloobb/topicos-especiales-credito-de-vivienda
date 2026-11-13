@@ -1,0 +1,22 @@
+{{- /* ServiceMonitor del puerto de metricas (F60; 8081). Sin `jobLabel`: `job` es el nombre del Service (`product-metrics`). */ -}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: product-metrics
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: product-metrics
+    app.kubernetes.io/part-of: product-metrics
+    vectra.io/criticality: {{ .Values.deployment.criticality }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: product-metrics
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      # La etiqueta `service` que emite U0 no pasa a `exported_service` (shared-infrastructure.md §1).
+      honorLabels: true

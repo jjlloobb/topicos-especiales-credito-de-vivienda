@@ -1,0 +1,99 @@
+# GENERADO por `python product-metrics/tools/gen_rules.py --spec`: el `spec` de la PrometheusRule renderizada (S sustituida), identico en
+# kind, staging y prod. `promtool test rules product-metrics/observability/rules/tests/*.yaml` corre contra este archivo. No editar a mano.
+groups:
+- name: vectra-product-desync
+  rules:
+  - expr: sum(rate(vectra_scoring_failclosed_total{cause=~"feature_dictionary_incomplete|version_mismatch"}[1h]))
+    record: vectra:product_desync_failclosed:rate1h
+- name: vectra-product-dedup
+  rules:
+  - expr: max without (instance, pod) (vectra_product_north_star_decisions)
+    record: vectra:product_north_star_decisions:dedup
+  - expr: max without (instance, pod) (vectra_product_north_star_ratio)
+    record: vectra:product_north_star_ratio:dedup
+  - expr: max without (instance, pod) (vectra_product_north_star_breakdown)
+    record: vectra:product_north_star_breakdown:dedup
+  - expr: max without (instance, pod) (vectra_product_explanation_view_decisions)
+    record: vectra:product_explanation_view_decisions:dedup
+  - expr: max without (instance, pod) (vectra_product_explanation_view_ratio)
+    record: vectra:product_explanation_view_ratio:dedup
+  - expr: max without (instance, pod) (vectra_product_noise_days_below_floor)
+    record: vectra:product_noise_days_below_floor:dedup
+  - expr: max without (instance, pod) (vectra_product_sustained_decisions)
+    record: vectra:product_sustained_decisions:dedup
+  - expr: max without (instance, pod) (vectra_product_recommendation_sustained_ratio)
+    record: vectra:product_recommendation_sustained_ratio:dedup
+  - expr: max without (instance, pod) (vectra_product_origination_seconds)
+    record: vectra:product_origination_seconds:dedup
+  - expr: max without (instance, pod) (vectra_product_origination_standard_under_target_ratio)
+    record: vectra:product_origination_standard_under_target_ratio:dedup
+  - expr: max without (instance, pod) (vectra_product_unattributable_decisions)
+    record: vectra:product_unattributable_decisions:dedup
+  - expr: max without (instance, pod) (vectra_product_invalid_entries)
+    record: vectra:product_invalid_entries:dedup
+  - expr: max without (instance, pod) (vectra_product_metrics_degraded)
+    record: vectra:product_metrics_degraded:dedup
+  - expr: max without (instance, pod) (vectra_product_metrics_last_success_timestamp)
+    record: vectra:product_metrics_last_success_timestamp:dedup
+  - expr: max without (instance, pod) (vectra_product_target)
+    record: vectra:product_target:dedup
+- name: vectra-product-ratios
+  rules:
+  - record: vectra:product_complete_response_ratio:1h
+    expr: sum(rate(vectra_recommendations_total{outcome!="fail_closed"}[1h])) / sum(rate(vectra_recommendations_total[1h]))
+  - record: vectra:product_complete_response_ratio:1d
+    expr: sum(rate(vectra_recommendations_total{outcome!="fail_closed"}[1d])) / sum(rate(vectra_recommendations_total[1d]))
+- name: vectra-product-alerts
+  rules:
+  - alert: RuidoExplicacion
+    expr: vectra:product_noise_days_below_floor:dedup >= 3
+    for: 0m
+    labels:
+      severity: SEV3
+    annotations:
+      summary: La explicacion se consulta por debajo del piso F durante S dias seguidos (senal de producto, no una falla tecnica)
+      runbook_url: product-metrics/observability/runbooks/product-noise.md
+  - alert: ProductMetricsDegraded
+    expr: vectra:product_metrics_degraded:dedup == 1
+    for: 1h
+    labels:
+      severity: SEV3
+    annotations:
+      summary: Mas del 1 % de las entradas de los ultimos 30 dias se excluyeron del calculo (BR-U11-10)
+      runbook_url: product-metrics/observability/runbooks/product-metrics-degraded.md
+  - alert: ProductMetricsStale
+    expr: (time() - vectra_product_metrics_last_success_timestamp > 1800) unless on (pod) (vectra_product_full_pass_in_progress == 1)
+    for: 0m
+    labels:
+      severity: SEV3
+      branch: edad
+    annotations:
+      summary: Una replica de product-metrics no lee de U3 con exito desde hace mas de 30 min
+      runbook_url: product-metrics/observability/runbooks/product-metrics-stale.md
+  - alert: ProductMetricsStale
+    expr: (up{job="product-metrics"} == 1 unless on (pod) vectra_product_metrics_last_success_timestamp) unless on (pod) (vectra_product_full_pass_in_progress == 1)
+    for: 30m
+    labels:
+      severity: SEV3
+      branch: ausencia
+    annotations:
+      summary: Una replica de product-metrics esta arriba y no ha publicado ninguna lectura exitosa en 30 min
+      runbook_url: product-metrics/observability/runbooks/product-metrics-stale.md
+  - alert: ProductMetricsFullRecomputeMissing
+    expr: (time() - vectra_product_last_full_recompute_timestamp > 93600) unless on (pod) (vectra_product_full_pass_in_progress == 1)
+    for: 0m
+    labels:
+      severity: SEV3
+      branch: edad
+    annotations:
+      summary: Una replica de product-metrics no hace la recomputacion diaria completa hace mas de 26 h
+      runbook_url: product-metrics/observability/runbooks/product-metrics-full-recompute-missing.md
+  - alert: ProductMetricsFullRecomputeMissing
+    expr: (up{job="product-metrics"} == 1 unless on (pod) vectra_product_last_full_recompute_timestamp) unless on (pod) (vectra_product_full_pass_in_progress == 1)
+    for: 26h
+    labels:
+      severity: SEV3
+      branch: ausencia
+    annotations:
+      summary: Una replica de product-metrics esta arriba y no ha hecho ninguna recomputacion completa en 26 h
+      runbook_url: product-metrics/observability/runbooks/product-metrics-full-recompute-missing.md

@@ -1,0 +1,17 @@
+{{- /* Service solo con 8081 (INF-U11-04; F60). Se llama `product-metrics`: el ServiceMonitor no fija `jobLabel`, asi que `job` es este nombre y las ramas de
+ausencia de las alertas usan `up{job="product-metrics"}`. `publishNotReadyAddresses`: Prometheus raspa tambien las replicas que aun no estan listas
+(el `/readyz` da 503 hasta 30 min con U3 caido y las series de operacion existen desde el arranque). */ -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-metrics
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: product-metrics
+    app.kubernetes.io/part-of: product-metrics
+spec:
+  selector:
+    app.kubernetes.io/name: product-metrics
+  publishNotReadyAddresses: true
+  ports:
+    - { name: metrics, port: {{ .Values.deployment.metricsPort }}, targetPort: metrics }

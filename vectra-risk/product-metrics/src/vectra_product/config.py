@@ -62,3 +62,5 @@ NOISE_SUSTAIN_DAYS_MAX: Final = 14
 NOISE_MIN_DECISIONS_MIN: Final = 30
 TARGET_RATIO_MIN: Final = 0.0
 TARGET_RATIO_MAX: Final = 1.0
+#: `target_origination_hours` debe ser mayor que este valor (BR-U11-09).
+TARGET_ORIGINATION_HOURS_MIN_EXCLUSIVE: Final = 0.0
