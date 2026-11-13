@@ -313,6 +313,12 @@ requiredActions:
   enabled: true
   defaultAction: false
   priority: 57
+- alias: VERIFY_PROFILE
+  name: Verify Profile
+  providerId: VERIFY_PROFILE
+  enabled: false
+  defaultAction: false
+  priority: 100
 authenticationFlows:
 - alias: vectra-browser
   description: 'Login del realm vectra: LoA 1 (pwd) y LoA 2 (mfa) por rol'
@@ -400,13 +406,13 @@ authenticationFlows:
     authenticator: auth-otp-form
     requirement: ALTERNATIVE
     priority: 10
-    authenticatorConfig: amr-otp
+    authenticatorConfig: amr-otp-ingeniero_riesgo
   - userSetupAllowed: false
     authenticatorFlow: false
     authenticator: webauthn-authenticator
     requirement: ALTERNATIVE
     priority: 20
-    authenticatorConfig: amr-hwk
+    authenticatorConfig: amr-hwk-ingeniero_riesgo
 - alias: vectra-mfa-ingeniero_riesgo
   description: Nivel 2 (mfa) obligatorio para ingeniero_riesgo (BR-U2-03)
   providerId: basic-flow
@@ -417,7 +423,7 @@ authenticationFlows:
     authenticatorFlow: false
     authenticator: conditional-level-of-authentication
     requirement: REQUIRED
-    authenticatorConfig: loa-mfa
+    authenticatorConfig: loa-mfa-ingeniero_riesgo
     priority: 10
   - userSetupAllowed: false
     authenticatorFlow: false
@@ -441,13 +447,13 @@ authenticationFlows:
     authenticator: auth-otp-form
     requirement: ALTERNATIVE
     priority: 10
-    authenticatorConfig: amr-otp
+    authenticatorConfig: amr-otp-cro
   - userSetupAllowed: false
     authenticatorFlow: false
     authenticator: webauthn-authenticator
     requirement: ALTERNATIVE
     priority: 20
-    authenticatorConfig: amr-hwk
+    authenticatorConfig: amr-hwk-cro
 - alias: vectra-mfa-cro
   description: Nivel 2 (mfa) obligatorio para cro (BR-U2-03)
   providerId: basic-flow
@@ -458,7 +464,7 @@ authenticationFlows:
     authenticatorFlow: false
     authenticator: conditional-level-of-authentication
     requirement: REQUIRED
-    authenticatorConfig: loa-mfa
+    authenticatorConfig: loa-mfa-cro
     priority: 10
   - userSetupAllowed: false
     authenticatorFlow: false
@@ -482,13 +488,13 @@ authenticationFlows:
     authenticator: auth-otp-form
     requirement: ALTERNATIVE
     priority: 10
-    authenticatorConfig: amr-otp
+    authenticatorConfig: amr-otp-cumplimiento
   - userSetupAllowed: false
     authenticatorFlow: false
     authenticator: webauthn-authenticator
     requirement: ALTERNATIVE
     priority: 20
-    authenticatorConfig: amr-hwk
+    authenticatorConfig: amr-hwk-cumplimiento
 - alias: vectra-mfa-cumplimiento
   description: Nivel 2 (mfa) obligatorio para cumplimiento (BR-U2-03)
   providerId: basic-flow
@@ -499,7 +505,7 @@ authenticationFlows:
     authenticatorFlow: false
     authenticator: conditional-level-of-authentication
     requirement: REQUIRED
-    authenticatorConfig: loa-mfa
+    authenticatorConfig: loa-mfa-cumplimiento
     priority: 10
   - userSetupAllowed: false
     authenticatorFlow: false
@@ -523,13 +529,13 @@ authenticationFlows:
     authenticator: auth-otp-form
     requirement: ALTERNATIVE
     priority: 10
-    authenticatorConfig: amr-otp
+    authenticatorConfig: amr-otp-operacion
   - userSetupAllowed: false
     authenticatorFlow: false
     authenticator: webauthn-authenticator
     requirement: ALTERNATIVE
     priority: 20
-    authenticatorConfig: amr-hwk
+    authenticatorConfig: amr-hwk-operacion
 - alias: vectra-mfa-operacion
   description: Nivel 2 (mfa) obligatorio para operacion (BR-U2-03)
   providerId: basic-flow
@@ -540,7 +546,7 @@ authenticationFlows:
     authenticatorFlow: false
     authenticator: conditional-level-of-authentication
     requirement: REQUIRED
-    authenticatorConfig: loa-mfa
+    authenticatorConfig: loa-mfa-operacion
     priority: 10
   - userSetupAllowed: false
     authenticatorFlow: false
@@ -564,13 +570,13 @@ authenticationFlows:
     authenticator: auth-otp-form
     requirement: ALTERNATIVE
     priority: 10
-    authenticatorConfig: amr-otp
+    authenticatorConfig: amr-otp-break-glass
   - userSetupAllowed: false
     authenticatorFlow: false
     authenticator: webauthn-authenticator
     requirement: ALTERNATIVE
     priority: 20
-    authenticatorConfig: amr-hwk
+    authenticatorConfig: amr-hwk-break-glass
 - alias: vectra-mfa-break-glass
   description: Nivel 2 (mfa) obligatorio para break-glass (BR-U2-03)
   providerId: basic-flow
@@ -581,7 +587,7 @@ authenticationFlows:
     authenticatorFlow: false
     authenticator: conditional-level-of-authentication
     requirement: REQUIRED
-    authenticatorConfig: loa-mfa
+    authenticatorConfig: loa-mfa-break-glass
     priority: 10
   - userSetupAllowed: false
     authenticatorFlow: false
@@ -605,13 +611,13 @@ authenticationFlows:
     authenticator: auth-otp-form
     requirement: ALTERNATIVE
     priority: 10
-    authenticatorConfig: amr-otp
+    authenticatorConfig: amr-otp-analista
   - userSetupAllowed: false
     authenticatorFlow: false
     authenticator: webauthn-authenticator
     requirement: ALTERNATIVE
     priority: 20
-    authenticatorConfig: amr-hwk
+    authenticatorConfig: amr-hwk-analista
 - alias: vectra-mfa-analista
   description: 'Nivel 2 (mfa) opcional: analista con factor configurado'
   providerId: basic-flow
@@ -622,7 +628,7 @@ authenticationFlows:
     authenticatorFlow: false
     authenticator: conditional-level-of-authentication
     requirement: REQUIRED
-    authenticatorConfig: loa-mfa
+    authenticatorConfig: loa-mfa-analista
     priority: 10
   - userSetupAllowed: false
     authenticatorFlow: false
@@ -645,7 +651,27 @@ authenticatorConfig:
   config:
     loa-condition-level: '1'
     loa-max-age: '36000'
-- alias: loa-mfa
+- alias: loa-mfa-ingeniero_riesgo
+  config:
+    loa-condition-level: '2'
+    loa-max-age: '36000'
+- alias: loa-mfa-cro
+  config:
+    loa-condition-level: '2'
+    loa-max-age: '36000'
+- alias: loa-mfa-cumplimiento
+  config:
+    loa-condition-level: '2'
+    loa-max-age: '36000'
+- alias: loa-mfa-operacion
+  config:
+    loa-condition-level: '2'
+    loa-max-age: '36000'
+- alias: loa-mfa-break-glass
+  config:
+    loa-condition-level: '2'
+    loa-max-age: '36000'
+- alias: loa-mfa-analista
   config:
     loa-condition-level: '2'
     loa-max-age: '36000'
@@ -653,11 +679,51 @@ authenticatorConfig:
   config:
     default.reference.value: pwd
     default.reference.maxAge: '36000'
-- alias: amr-otp
+- alias: amr-otp-ingeniero_riesgo
   config:
     default.reference.value: otp
     default.reference.maxAge: '36000'
-- alias: amr-hwk
+- alias: amr-otp-cro
+  config:
+    default.reference.value: otp
+    default.reference.maxAge: '36000'
+- alias: amr-otp-cumplimiento
+  config:
+    default.reference.value: otp
+    default.reference.maxAge: '36000'
+- alias: amr-otp-operacion
+  config:
+    default.reference.value: otp
+    default.reference.maxAge: '36000'
+- alias: amr-otp-break-glass
+  config:
+    default.reference.value: otp
+    default.reference.maxAge: '36000'
+- alias: amr-otp-analista
+  config:
+    default.reference.value: otp
+    default.reference.maxAge: '36000'
+- alias: amr-hwk-ingeniero_riesgo
+  config:
+    default.reference.value: hwk
+    default.reference.maxAge: '36000'
+- alias: amr-hwk-cro
+  config:
+    default.reference.value: hwk
+    default.reference.maxAge: '36000'
+- alias: amr-hwk-cumplimiento
+  config:
+    default.reference.value: hwk
+    default.reference.maxAge: '36000'
+- alias: amr-hwk-operacion
+  config:
+    default.reference.value: hwk
+    default.reference.maxAge: '36000'
+- alias: amr-hwk-break-glass
+  config:
+    default.reference.value: hwk
+    default.reference.maxAge: '36000'
+- alias: amr-hwk-analista
   config:
     default.reference.value: hwk
     default.reference.maxAge: '36000'
