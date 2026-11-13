@@ -7,6 +7,10 @@ render de Keycloak, los proveedores JWT del gateway, los flujos de `flows.yaml` 
 Lo medido con un Keycloak real (`identity-edge/docs/emisor-de-tokens.md`, R2): con `KC_HOSTNAME` como URL completa todo token sale con
 `iss` = `<KC_HOSTNAME>/realms/vectra`, pidan por el host que pidan. Por eso todo `VECTRA_OIDC_ISSUER` debe ser ese emisor. El JWKS y la URL
 de token siguen por un Service de Keycloak que F50/F94 permiten (el gateway no es alcanzable desde `vectra-app`).
+
+U00-T04: la `aud` de la aserción `private_key_jwt` identifica al servidor de autorización, no la URL a la que se envía (Keycloak
+responde 400 `Invalid token audience` a la URL interna). Todo workload que pide token rinde `VECTRA_ASSERTION_AUDIENCE`, y vale
+exactamente el emisor del entorno. Y una variable vigilada que llega sin `value` literal (`valueFrom`) es un fallo: no se puede leer.
 """
 
 import importlib.util
@@ -24,6 +28,7 @@ PLATFORM = ROOT / "platform"
 ENVS = ("kind", "staging", "prod")
 REALM = "/realms/vectra"
 ISSUER_VAR, JWKS_VAR = "VECTRA_OIDC_ISSUER", "VECTRA_JWKS_URL"
+AUDIENCE_VAR = "VECTRA_ASSERTION_AUDIENCE"
 TOKEN_VARS = ("VECTRA_TOKEN_URL", "GOVERNANCE_JOB_TOKEN_URL")
 URL_VARS = {
     JWKS_VAR: "/protocol/openid-connect/certs",
@@ -32,7 +37,9 @@ URL_VARS = {
 }
 #: Quien pide el token de `GOVERNANCE_JOB_TOKEN_URL` no es el pod que lo lleva, sino el Job que `governance-service` lanza.
 URL_ORIGIN = {"GOVERNANCE_JOB_TOKEN_URL": "model-validation-job"}
-WATCHED = (ISSUER_VAR, JWKS_VAR, *TOKEN_VARS)
+WATCHED = (ISSUER_VAR, JWKS_VAR, AUDIENCE_VAR, *TOKEN_VARS)
+#: Marca de una variable vigilada que llega por `valueFrom`: no tiene `value` literal que comparar.
+NO_LITERAL = "<sin value literal>"
 #: Los workloads que CA-5 exige ver en cada entorno: sin ellos la prueba pasaria en vacio.
 VALIDATORS = {
     "decision-registry-service",
@@ -71,7 +78,7 @@ def _env_of(spec: dict[str, Any]) -> dict[str, str]:
     values: dict[str, str] = {}
     for container in [*spec.get("initContainers", []), *spec.get("containers", [])]:
         values.update(
-            {e["name"]: e["value"] for e in container.get("env", []) if e["name"] in WATCHED and "value" in e}
+            {e["name"]: e.get("value", NO_LITERAL) for e in container.get("env", []) if e["name"] in WATCHED}
         )
     return values
 
@@ -186,12 +193,35 @@ def problems(world: World, only: str | None = None) -> list[str]:
         if only and pod["name"] != only:
             continue
         who, values = f"{env}/{pod['name']}", pod["env"]
+        found += [
+            f"{who}: {var} llega sin `value` literal (valueFrom): no se puede comprobar"
+            for var in values
+            if values[var] == NO_LITERAL
+        ]
+        values = {var: value for var, value in values.items() if value != NO_LITERAL}
         if ISSUER_VAR in values and values[ISSUER_VAR] != world["issuer"]:
             found.append(f"{who}: {ISSUER_VAR} = {values[ISSUER_VAR]}, y Keycloak firma {world['issuer']}")
         if ISSUER_VAR in values and JWKS_VAR not in values:
             found.append(f"{who}: tiene {ISSUER_VAR} y no {JWKS_VAR}")
         for var in (v for v in URL_VARS if v in values):
             found += _url_problems(world, pod, var, urlsplit(values[var]), who)
+        found += _audience_problems(world, values, who)
+    return found
+
+
+def _audience_problems(world: World, values: dict[str, str], who: str) -> list[str]:
+    found = []
+    asks = any(v in values for v in TOKEN_VARS)
+    if asks and AUDIENCE_VAR not in values:
+        found.append(
+            f"{who}: pide token (VECTRA_TOKEN_URL) y no rinde {AUDIENCE_VAR}: Keycloak rechazaria la aserción"
+        )
+    if AUDIENCE_VAR in values and not asks:
+        found.append(f"{who}: rinde {AUDIENCE_VAR} sin URL de token")
+    if AUDIENCE_VAR in values and values[AUDIENCE_VAR] != world["issuer"]:
+        found.append(
+            f"{who}: {AUDIENCE_VAR} = {values[AUDIENCE_VAR]}, y la aud que Keycloak acepta (su emisor) es {world['issuer']}"
+        )
     return found
 
 
@@ -238,9 +268,13 @@ def test_the_workloads_are_discovered(env: str) -> None:
     world = build(env)
     validators = {p["name"] for p in world["pods"] if ISSUER_VAR in p["env"]}
     requesters = {p["name"] for p in world["pods"] if any(v in p["env"] for v in TOKEN_VARS)}
+    audience = {p["name"] for p in world["pods"] if AUDIENCE_VAR in p["env"]}
     assert VALIDATORS <= validators, f"{env}: faltan validadores {sorted(VALIDATORS - validators)}"
     assert REQUESTERS <= requesters, (
         f"{env}: faltan workloads que piden token {sorted(REQUESTERS - requesters)}"
+    )
+    assert REQUESTERS <= audience, (
+        f"{env}: faltan workloads sin {AUDIENCE_VAR} {sorted(REQUESTERS - audience)}"
     )
 
 
@@ -354,3 +388,77 @@ def test_mutation_g_host_that_is_not_a_san(env: str) -> None:
 def test_mutation_h_gateway_issuer_differs_from_keycloak(env: str) -> None:
     found = _mutated(env, lambda w: w.update({"gateway_issuers": [w["issuer"] + "x"]}))
     assert any(m.startswith(f"{env}/gateway:") for m in found), found
+
+
+# --- U00-T04: la audiencia de la aserción ---
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_mutation_i_audience_is_the_internal_token_url(env: str) -> None:
+    def change(world: World) -> None:
+        values = _pod(world, "scoring-service")["env"]
+        values[AUDIENCE_VAR] = values["VECTRA_TOKEN_URL"]
+
+    _expect(_mutated(env, change), env, "scoring-service", AUDIENCE_VAR)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_mutation_j_audience_is_the_internal_issuer(env: str) -> None:
+    def change(world: World) -> None:
+        internal = "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth" + REALM
+        _pod(world, "product-metrics")["env"][AUDIENCE_VAR] = internal
+
+    _expect(_mutated(env, change), env, "product-metrics", AUDIENCE_VAR)
+
+
+def test_mutation_k_audience_of_staging_in_kind() -> None:
+    other = build("staging")["issuer"]
+    assert other != build("kind")["issuer"]
+    _expect(
+        _mutated("kind", lambda w: _pod(w, "governance-service")["env"].update({AUDIENCE_VAR: other})),
+        "kind",
+        "governance-service",
+        AUDIENCE_VAR,
+    )
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_mutation_l_token_url_without_audience(env: str) -> None:
+    for name in sorted(REQUESTERS):
+        found = _mutated(env, lambda w, n=name: _pod(w, n)["env"].pop(AUDIENCE_VAR, None))
+        _expect(found, env, name, "no rinde " + AUDIENCE_VAR)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_mutation_m_audience_is_the_public_token_url(env: str) -> None:
+    def change(world: World) -> None:
+        _pod(world, "realm-drift")["env"][AUDIENCE_VAR] = world["issuer"] + URL_VARS["VECTRA_TOKEN_URL"]
+
+    _expect(_mutated(env, change), env, "realm-drift", AUDIENCE_VAR)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_mutation_n_audience_of_another_realm(env: str) -> None:
+    def change(world: World) -> None:
+        _pod(world, "bias-monitoring-job")["env"][AUDIENCE_VAR] = (
+            world["issuer"].removesuffix(REALM) + "/realms/otro"
+        )
+
+    _expect(_mutated(env, change), env, "bias-monitoring-job", AUDIENCE_VAR)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_mutation_o_audience_without_a_token_url(env: str) -> None:
+    def change(world: World) -> None:
+        values = _pod(world, "decision-registry-service")["env"]
+        values[AUDIENCE_VAR] = world["issuer"]
+
+    _expect(_mutated(env, change), env, "decision-registry-service", "sin URL de token")
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_mutation_p_a_watched_variable_without_a_literal_value(env: str) -> None:
+    def change(world: World) -> None:
+        _pod(world, "signing-key-age")["env"][AUDIENCE_VAR] = NO_LITERAL
+
+    _expect(_mutated(env, change), env, "signing-key-age", "sin `value` literal")
