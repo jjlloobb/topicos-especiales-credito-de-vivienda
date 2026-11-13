@@ -88,7 +88,12 @@ export function unwrap<T>(result: Result<T>, onContractMismatch: () => void): T 
     onContractMismatch();
     throw new ApiError({ code: "internal_error" }, response.status);
   }
-  const problem: Problem = { code: error.code, reason: error.reason, correlation_id: error.correlation_id };
+  const problem: Problem = {
+    code: error.code,
+    reason: error.reason,
+    correlation_id: error.correlation_id,
+    ...(error.invalid_params == null ? {} : { invalid_params: error.invalid_params }),
+  };
   if (response.status === 403 && problem.code === "mfa_required") throw new MfaRequiredError(problem, 403);
   throw new ApiError(problem, response.status);
 }

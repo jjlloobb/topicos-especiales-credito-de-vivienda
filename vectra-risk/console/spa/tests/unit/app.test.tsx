@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import type { SigninResponse, User, UserManager } from "oidc-client-ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
+import { createApi } from "../../src/api/client";
 import type { AuthManager } from "../../src/auth/AuthProvider";
 import { createTokenStore } from "../../src/auth/AuthProvider";
 import type { AppConfig } from "../../src/config/load";
@@ -74,7 +75,8 @@ describe("createWiring", () => {
     wiring.stepUpEnv.reportFailure();
     const report = calls.find((c) => c.url.endsWith("/client-errors"));
     expect(report).toBeDefined();
-    expect(JSON.parse(report?.init?.body as string)).toMatchObject({ error_code: "stepup_failed", route_template: "/{ruta}" });
+    // U10-T04 (P-7): la plantilla sale de la tabla de rutas del enrutador, nunca de la URL (`/casos/123` -> `/casos/:caseId`).
+    expect(JSON.parse(report?.init?.body as string)).toMatchObject({ error_code: "stepup_failed", route_template: "/casos/:caseId" });
     vi.unstubAllGlobals();
   });
 
@@ -135,6 +137,13 @@ function fakeWiring(
     authPage: { callbackUrl: () => (over.user ? null : `${OWN}/callback?error=login_required&state=s`), clean: () => undefined },
     tokens,
     queryClient: new QueryClient(),
+    // Las vistas piden a la API: aqui, una bandeja vacia.
+    api: createApi({
+      baseUrl: OWN,
+      getToken: () => tokens.get(),
+      fetchImpl: (async () =>
+        new Response(JSON.stringify({ items: [], page: 1, total: 0 }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch,
+    }),
     loadSession: async () => ({ role: "analista" as const, mfa: false, auth_time: "2026-11-12T15:00:00Z", locale: "es-CO" as const }),
     reporter,
     stepUpEnv: {

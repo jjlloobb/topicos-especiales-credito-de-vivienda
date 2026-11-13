@@ -4,7 +4,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { REPORTER_MAX_PER_MINUTE } from "../../../src/config/constants";
-import { type ErrorCode, Reporter, routeTemplateOf } from "../../../src/reporter/reporter";
+import { type ErrorCode, Reporter } from "../../../src/reporter/reporter";
+import { routeTemplate as routeTemplateOf } from "../../../src/views/shared/routes";
 import { APP_VERSION } from "../../../src/reporter/version";
 
 const SPA = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");

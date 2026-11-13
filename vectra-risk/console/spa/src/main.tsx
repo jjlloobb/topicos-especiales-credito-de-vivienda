@@ -1,6 +1,7 @@
 // Punto de entrada (BR-U10-05, 06). Detecta `/stepup-callback` **antes** de montar React y de crear el `UserManager`.
 // `/stepup-callback` solo corre `runStepUpCallback()`: no canjea, no guarda nada y no pide `config.json`.
 import { entryKind } from "./entry";
+import "./styles.css";
 
 async function boot(): Promise<void> {
   const kind = entryKind(window.location.pathname);

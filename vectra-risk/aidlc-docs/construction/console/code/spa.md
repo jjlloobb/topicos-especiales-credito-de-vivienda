@@ -1,8 +1,8 @@
-# `console-spa` — resumen del código (U10, primera mitad del Bloque E)
+# `console-spa` — resumen del código (U10, Bloque E)
 
-Entrega de **U10-T03** (Pasos 10 a 12 del plan). **U10-T04** completa este archivo con las vistas, la CSP, la accesibilidad, el extremo a
-extremo y lo que cierra como «resumen del frontend» del Paso 16. Aquí: qué módulos hay y qué regla cubre cada uno, cómo se corre todo, las
-decisiones de esta mitad y lo que el recorte difiere.
+Entrega de **U10-T03** (Pasos 10 a 12 del plan: acceso y base) y de **U10-T04** (Pasos 13 a 16: las vistas de la demo, la CSP, la accesibilidad, el
+extremo a extremo con dobles y este resumen, «resumen del frontend» del Paso 16). Aquí: qué módulos hay y qué regla cubre cada uno, la tabla de rutas por
+rol, cómo se corre todo, las decisiones de las dos tareas (con las respuestas a sus preguntas) y lo que el recorte difiere. Resumen de U10-T04 en §9.
 
 ## 1. Módulos (`console/spa/src/`)
 
@@ -13,12 +13,17 @@ decisiones de esta mitad y lo que el recorte difiere.
 | `stepup-callback.ts` | `postMessage({code, state}, location.origin)` al opener y se cierra; no canjea, no guarda nada y no pide `config.json` | BR-U10-06 |
 | `auth/` | `manager.ts` (`UserManager` con login por redirección: `userStore` en `InMemoryWebStorage`, `stateStore` en `loginStateStorage`, sin `popup_redirect_uri` ni `silent_redirect_uri`), `loginStateStorage.ts` (**el único** módulo que nombra `sessionStorage`: solo `state`, `code_verifier` y `nonce` del flujo en curso) y `AuthProvider`/`TokenStore` (canjea `/callback` en la misma página, una redirección `prompt=none` al cargar sin sesión, `get_me` tras cada token nuevo) | BR-U10-05; NFR-U10-40 |
 | `inactivity/` | `monitor.ts` (contador de la sesión, cinco eventos, `BroadcastChannel("vectra-console")`), `InactivityProvider` e `InactivityDialog` | BR-U10-20; NFR-U10-40, 41 |
-| `api/` | `client.ts` (`createClient<paths>` de `@vectra/contracts`, token, timeout de 10 s, sin reintentos, `ApiError`/`MfaRequiredError`/`TransportError`), `queryClient.ts` (TanStack Query sin reintentos ni refresco por foco), `endpoints.ts` (`get_me`) | P-U10-04; NFR-U10-33 |
+| `api/` | `client.ts` (`createClient<paths>` de `@vectra/contracts`, token, timeout de 10 s, sin reintentos, `ApiError`/`MfaRequiredError`/`TransportError`; U10-T04: el `Problem` conserva `invalid_params`), `queryClient.ts` (TanStack Query sin reintentos ni refresco por foco), `endpoints.ts` (`get_me` y, de U10-T04, las funciones de cada endpoint de las vistas que entran), `hooks.ts` (un hook por lectura; los refrescos de 15 s y de 3 s hasta 2 min van con `refetchInterval`) y `ApiProvider.tsx` | P-U10-04; NFR-U10-33; BR-U10-10 |
 | `i18n/` | `messages.es.json` (códigos, motivos, avisos, interfaz), `labels.es.json` (enumerados) y `index.ts` (`ui`, `notice`, `label`, `problemText`, `formatDate`, `formatDecimal` con `Intl` es-CO) | BR-U10-17, 18; NFR-U10-53; PBT-U10-06 |
 | `reporter/` | `reporter.ts` (catálogo cerrado de `error_code`, ≤ 10 por minuto, `keepalive`, sin mensajes ni URL), `ErrorBoundary`, `version.ts` (`app_version`) | BR-U10-22; P-U10-09; NFR-U10-34 |
-| `entry.ts`, `main.tsx`, `wiring.ts`, `App.tsx` | La entrada detecta `/stepup-callback` **antes** de montar React y de crear el `UserManager` (`/callback` es la propia SPA: `AuthProvider` canjea el código en memoria); `wiring.ts` arma todo desde `config.json`; `App` pone los proveedores alrededor de un contenido mínimo | BR-U10-05, 06 |
+| `entry.ts`, `main.tsx`, `wiring.ts`, `App.tsx` | La entrada detecta `/stepup-callback` **antes** de montar React y de crear el `UserManager` (`/callback` es la propia SPA: `AuthProvider` canjea el código en memoria); `wiring.ts` arma todo desde `config.json` (U10-T04: más el cliente de la API de las vistas y la plantilla de ruta del `reporter`, que sale de la tabla de rutas); `App` pone los proveedores alrededor del enrutador (se monta con la sesión: para entonces `/callback` ya se limpió) | BR-U10-05, 06 |
+| `views/shared/` (U10-T04) | `routes.ts` (la **tabla de rutas por rol**, §8), `AppRoutes` (rutas y guarda por rol, cada vista con `React.lazy`), `loaders.ts` (los `import()`), `lazyView.ts` (un fragmento que no carga se reporta como `chunk_load_failed`), `Layout`, `RoleMenu`, `NotAvailable` (el marcador), `NoAccess` y `UnknownRoute`, `ProblemMessage` (el texto del catálogo y el código de soporte; nunca el `detail`) y `Choice` (casilla o radio con su etiqueta por `htmlFor`) | BR-U10-12, 17, 22; NFR-U10-03 |
+| `views/cases/` (U10-T04) | `CasesInbox` (+ `CaseFilters`, `GoToCase`, `filters.ts`: filtros de `CaseFilter` en la URL con lectura estricta), `CaseDetail`, `RecommendationSummary`, `ExplanationPanel`, `ApplicationView`, `CreditStatusBadge`, `CaseStateBadge`, `DecisionForm` y **`decision-validation.ts`** (la validación pura: cuenta como el servidor, 100 % de ramas) | BR-U10-07 a 11; PBT-U10-04 |
+| `views/governance/` (U10-T04) | `Models`, `ModelDetail` (de lectura; con el informe de validación, P-1), `Freezes`, `FreezeContextView` (paquete completo + `disclaimer`) y `ResolveFrozenDialog` (con `StepUpButton`; `resolution.ts` es la regla de la justificación) | BR-U10-12, 13 |
+| `views/bias/` (U10-T04) | `DisparityTables` (la tabla de celdas con «muestra insuficiente»; `BiasDashboard` y `GrafanaEmbed` **no** existen) | BR-U10-15 |
+| `styles.css` (U10-T04) | Una sola hoja, servida como archivo (la CSP de U2 tiene `style-src 'self'`); los estados con color **y** texto; contraste ≥ 4,5:1 | NFR-U10-42, 51 |
 
-`views/`, `version/` siguen vacíos (T04 y el recorte).
+`version/` sigue vacío (la parte diferida: `version` y `VersionBanner`).
 
 ## 2. Cómo correrlo
 
@@ -27,9 +32,10 @@ Desde `vectra-risk/`, **en serie** (máquina compartida):
 ```bash
 npm ci --ignore-scripts
 npx playwright install chromium firefox          # una vez; a ~/.cache, sin sudo
-make -C console check                            # lint + typecheck + BFF + vitest con cobertura + Playwright (PoC)
-npm run -w console/spa test -- auth stepup inactivity   # filtros por ruta: tests/unit/<modulo>/, tests/property/<modulo>/
-npx playwright test -c console/spa/playwright.config.ts tests/poc --project=chromium --project=firefox
+make -C console check                            # lint + typecheck + BFF + vitest con cobertura + build + size-limit + Playwright (PoC, e2e, CSP y axe)
+npm run -w console/spa test -- auth stepup inactivity   # filtros por ruta: tests/unit/<modulo>/, tests/property/<modulo>/ (views/cases, views/governance, views/bias)
+npm run -w console/spa build && npm exec -w console/spa -- size-limit   # el build y el presupuesto del JavaScript inicial
+npx playwright test -c console/spa/playwright.config.ts tests/poc tests/e2e tests/csp tests/a11y --project=chromium --project=firefox
 ```
 
 - **Emisor OIDC de prueba y BFF con dobles** (P-1 (a)): `console/bff/tests/doubles/bff_oidc.py` (emisor bajo `/auth/realms/vectra/`) y
@@ -41,10 +47,18 @@ npx playwright test -c console/spa/playwright.config.ts tests/poc --project=chro
 - **Un solo origen** (BR-U10-06): el servidor de Vite pasa `/auth/**` y `/api/**` al proceso de dobles. `vite.config.ts` lo hace en `server` y en `preview`
   cuando existe `VECTRA_E2E_PORT`; la PoC usa su propio `tests/poc/vite.poc.config.ts` (mismo proxy, y `/stepup-callback` → `tests/poc/stepup-callback.html`).
 - **`playwright.config.ts`** (no está en el plan §1: se agregó): proyectos `chromium` y `firefox`, un `worker` (los contadores del emisor son del proceso), y los
-  dos `webServer` (dobles y Vite). Puertos por omisión 47173 (SPA) y 47180 (dobles); `VECTRA_E2E_SPA_PORT` y `VECTRA_E2E_PORT` los cambian. U10-T04 lo amplía con el
-  recorrido (`vite build` + `vite preview` con la CSP de U2).
+  cuatro `webServer`: dos pares «dobles + servidor». El de la PoC (47173 y 47180: Vite en desarrollo) y el de la SPA real (47174 y 47181: **el build servido con `vite preview`**, con el
+  mundo del recorrido, `VECTRA_E2E_DEMO=1`). Puertos: `VECTRA_E2E_SPA_PORT`, `VECTRA_E2E_PORT`, `VECTRA_E2E_APP_PORT` y `VECTRA_E2E_APP_DOUBLES_PORT` los cambian (nunca 8080 ni 8081).
+- **El servidor de las pruebas con navegador** (`tests/e2e/vite.e2e.config.ts`, U10-T04, P-3 (a)): `vite build` + `vite preview` con **la misma configuración de build de `vite.config.ts`**
+  (objetivos, sin polyfill de `modulepreload`, manifiesto), `/config.json` apuntando al emisor de prueba, `/auth/**` y `/api/**` al proceso de dobles, y **las cabeceras del perfil `spa` de U2
+  leídas de `identity-edge/gateway/routes.yaml`** (`common` + `spa`): la CSP que recibe el navegador es la de U2. El servidor de desarrollo de Vite no sirve para esto: inyecta código en línea
+  (React Refresh y HMR) que la CSP bloquearía sin que sea un defecto de la SPA.
+- **Control solo de pruebas** (`bff_e2e_server.py`, `/__e2e/**`; no pasa por el proxy de la SPA, la prueba le habla al puerto de los dobles; el BFF real no lo tiene): `reset`, `down` (tumba un
+  doble: `case`, `governance`, `registry`, `explainability` o `bias`), `force-mfa-required` (las próximas resoluciones de congelamiento dan 403 `mfa_required`: el 403 inesperado) y `count`
+  (cuántas llamadas recibió un doble: «`record_explanation_view` una sola vez»). El mundo del recorrido está en `bff_e2e_world.py` (casos en cada estado, uno con `<script>` en `free_text`,
+  modelos con informe, un congelamiento con el paquete completo y una celda `muestra_insuficiente`), construido y **validado** con los modelos de U0. Pruebas: `console/bff/tests/integration/test_bff_e2e_server.py`.
 - **`make -C console e2e-spa`** falla con un mensaje que dice cómo instalar los navegadores si faltan (`scripts/check-browsers.mjs`); no se salta en silencio.
-- No hay `config.json` de desarrollo: lo sirve el `ConfigMap` del chart (Paso 18, U10-T05) y el recorrido de U10-T04 trae el suyo.
+- No hay `config.json` de desarrollo: lo sirve el `ConfigMap` del chart (Paso 18, U10-T05) y el servidor de las pruebas con navegador trae el suyo.
 
 ## 3. Perfiles y semilla de las PBT (NFR-U10-62)
 
@@ -53,7 +67,18 @@ npx playwright test -c console/spa/playwright.config.ts tests/poc --project=chro
 (`maxCommands = 40`); PBT-U10-06 (`tests/property/i18n/`) corre `max(3 × pares, 300)` casos sobre todos los valores de los arreglos y de los textos. El perfil
 `nightly` existe; su workflow (`console.yml`) está diferido (§3, fila «19 · 20»). `vite.config.ts` fija `silent: false`: sin eso el reportero por omisión oculta la semilla.
 
-## 4. Diferido en los Pasos 10 a 12 (`demo-recorte-funcional.md`)
+## 4. Diferido en los Pasos 10 a 16 (`demo-recorte-funcional.md`)
+
+De los Pasos 13 a 16 (U10-T04): de cada vista diferida queda **solo su ruta con el marcador** «no disponible» (P-17; §8). Con su cita:
+
+- **Paso 13** (§3, fila «13 Casos»): `ManualApplicationForm`, `PersistentFailures` con `retry` (P-16 sigue pendiente), `ApplicantSummaryButton`, `Dossier` (y su librería de PDF) e `IntegrityCheck`, con US-112, 402 y 403.
+- **Paso 14** (§3, fila «14 Gobierno y sesgo»): `Policies`, `DataSources`, `PrePostReportView`, `DecideDataSourceDialog`, `RegisterModelForm`, `ApproveModelDialog`, el retiro y `GrafanaEmbed`; con US-201, 203, 205, 206, 306 y 307.
+  **`BiasDashboard`** diferido con su ruta y el marcador (decisión del usuario, 2026-11-12, §6 P-14 «Solo el paquete»): el paquete de contexto de un congelamiento ya trae las tablas de disparidad,
+  y las celdas insuficientes **sí** entran (`FreezeContextView`, BR-U10-15).
+- **Paso 16** (§3, fila «4 · 16»): Stryker en `stepup`.
+- **Paso 15:** la lista de chequeo manual por vista y NVDA (NFR-U10-51, segunda mitad) son del Paso 22, consolidado en U12 Paso 18; Lighthouse y la medida «bandeja → detalle p75 ≤ 1 s» (NFR-U10-04), de los Pasos 21 y 22.
+
+De los Pasos 10 a 12 (U10-T03):
 
 - **Paso 10:** la mitad con Keycloak de kind es el escenario 1 del Paso 22, consolidado en U12 Paso 18 (§8). La PoC corre contra el emisor de prueba.
 - **Paso 12:** `version` y `VersionBanner` (BR-U10-21, P-U10-06; §3 fila «12» y §6 P-15). El reporte `chunk_load_failed` **sí** entra; el aviso con botón no.
@@ -113,7 +138,78 @@ npx playwright test -c console/spa/playwright.config.ts tests/poc --project=chro
 Casos de las candidatas de ESLint: `tests/unit/eslint.test.ts` y `eslint-fixtures/` (`jsx-no-literals` con `ignoreProps`; los atributos que se ven o se leen —`aria-label`, `title`, `alt`,
 `placeholder`…— los cubre `no-restricted-syntax`).
 
-## 8. Pendiente de U10-T04
+## 8. Tabla de rutas por rol (U10-T04; BR-U10-12)
 
-Vistas, `Layout`, `RoleMenu`, rutas, `ProblemMessage`, PBT-U10-04, CSP y Trusted Types, accesibilidad, `tests/e2e`, `size-limit`, la medida de «foco < 1 s» y de las dos pestañas en un
-navegador real, el resumen completo y el umbral del conjunto.
+Vive en un solo módulo (`src/views/shared/routes.ts`) y cada ruta nombra la operación de C03 de la que salen sus roles. La prueba `tests/unit/views/governance/routes-by-role.test.ts` la compara,
+ruta por ruta, con la columna «Roles» de `component-methods.md` C03, **leída del archivo** (nunca con `REGISTRY` ni con la propia tabla). Una ruta a la que el rol no llega muestra «sin acceso» **sin montar
+la vista** (ni cargar su fragmento) y sin llamar al BFF; el menú sale de `get_me` y de la tabla; `/` lleva al inicio del rol (`HOME`).
+
+| Vista | Ruta | Operación de C03 | Roles | Estado |
+|---|---|---|---|---|
+| `CasesInbox` | `/casos` | `list_cases` | `analista`, `cro` | entra |
+| `CaseDetail` | `/casos/:caseId` | `get_case` | `analista`, `cro` | entra |
+| `ManualApplicationForm` | `/casos/nuevo` | `create_application` | `analista` | marcador |
+| `PersistentFailures` | `/fallos` | `list_persistent_failures` | `cro` | marcador |
+| `Dossier` | `/expedientes` | `get_dossier` | `cro`, `cumplimiento` | marcador |
+| `IntegrityCheck` | `/integridad` | `run_integrity_check` | `cro` | marcador |
+| `Models` | `/modelos` | `list_models` | `ingeniero_riesgo`, `cro`, `cumplimiento` | entra, de lectura |
+| `ModelDetail` | `/modelos/:modelId` | `get_model` | `ingeniero_riesgo`, `cro`, `cumplimiento` | entra, de lectura |
+| `Policies` | `/politicas` | `list_policies` | `analista`, `cro`, `cumplimiento` | marcador |
+| `DataSources` | `/fuentes` | `list_data_sources` | `ingeniero_riesgo`, `cro`, `cumplimiento` | marcador |
+| `BiasDashboard` | `/sesgo` | `get_disparity` | `cumplimiento`, `cro` | marcador (decidido) |
+| `Freezes` | `/congelamientos` | `list_freezes` | `cumplimiento`, `cro` | entra |
+| `FreezeContextView` | `/congelamientos/:freezeId` | `get_freeze` | `cumplimiento` | entra |
+
+Inicio por rol: `analista` y `cro` → `/casos`; `ingeniero_riesgo` → `/modelos`; `cumplimiento` → `/congelamientos`. `/callback` y `/stepup-callback` son del realm de U2 (las atiende U10-T03).
+`routeTemplate` (la plantilla que ve el `reporter`, P-7 de U10-T03) sale de esta tabla: `/casos/<uuid>` → `/casos/:caseId`; lo demás, `/{ruta}`.
+
+## 9. Resumen de U10-T04 (Pasos 13 a 16)
+
+**Vistas.** Bandeja (filtros de `CaseFilter` en la URL con lectura estricta —solo estados, canales conocidos, fechas y un entero—, «Ir al caso» por UUID, refresco de 15 s con la pestaña visible; **el refresco
+no cuenta como actividad**: una prueba con el `InactivityMonitor` real ve el aviso a los 25 min tras ~96 refrescos), detalle (refresco de 3 s hasta 2 min mientras `en_evaluacion` o `en_sincronizacion`; estados con
+color y texto; `free_text` como texto; `no_integrado`; marcas de baja confianza, `revision_requerida` y modelo congelado), panel de explicación (`record_explanation_view` **una vez por vista y solo con rol `analista`**; el CRO
+abre el panel sin llamada; si la llamada falla el panel se muestra igual y se avisa), formulario de decisión (mismas reglas que el servidor; diálogo de confirmación; dos clics → una solicitud; 422 en su campo, 409 con
+aviso y recarga, 503 con «el registro no responde»), modelos y su detalle con el informe, congelamientos (el CRO ve la lista sin enlace al paquete), paquete de contexto completo con el `disclaimer` siempre, y
+`ResolveFrozenDialog` (tres acciones, justificación de 1 a 2000, aviso de `reactivar`, MFA con `StepUpButton` y `StepUpDialog`).
+
+**La validación de la decisión** (`decision-validation.ts`) cuenta como el servidor: **puntos de código** (`[...texto].length`; un emoji es 1, no 2) y el `strip()` de Python (los 29 caracteres de `str.isspace()`,
+que no son los de `trim()`: U+001C..U+001F y U+0085 los quita Python y no `trim()`; U+FEFF lo quita `trim()` y no Python), y rechaza más de 2000 caracteres **antes** de recortar (también en `sigue`). PBT-U10-04
+(`tests/property/views/cases/decision.test.ts`) la compara con el oráculo de PBT-U8-03 transcrito (**P-2 (a)**: la tabla `COHERENT` y `oracle` en TypeScript, con los mismos generadores más los casos Python-vs-JavaScript; una
+prueba lee `test_decision.py` como texto y exige las mismas 18 filas, y otra compara `pyStrip` con los 29 puntos de código calculados con Python).
+
+**Extremo a extremo (Paso 15).** `tests/e2e/views.spec.ts` (las vistas en un navegador real), `session.spec.ts` (dos pestañas por `BroadcastChannel`, el foco < 1 s, los dobles de bias y de case caídos), `tests/csp/csp.spec.ts`
+(la cabecera de U2 carácter por carácter y **cero** eventos `securitypolicyviolation` en el recorrido de los cuatro roles; el oyente se instala en el contexto antes de cargar nada y se prueba que ve una violación de verdad) y
+`tests/a11y/a11y.spec.ts` (axe: cero `serious` y `critical` en cada parada). `tests/e2e/tour.ts` es el recorrido que comparten CSP y accesibilidad: bandeja, detalle en `listo`, `en_sincronizacion`, `decidido`, `modelo_congelado`,
+`revision_requerida` y baja confianza, panel, formulario y diálogo de confirmación, modelos y su detalle, congelamientos, paquete de contexto, `ResolveFrozenDialog`, `StepUpDialog`, `InactivityDialog`, el marcador, «sin acceso» y
+`ProblemMessage`. `index.html` sin `<script>` ni `<style>` en línea y `build.modulePreload.polyfill = false`; el JavaScript inicial se mide con `size-limit` (**gzip a propósito**: `size-limit` usa brotli por omisión, que da un
+número menor; es gzip lo que sirve nginx) sobre el cierre del `index.html` (`.size-limit.mjs` lee el manifiesto de Vite: el entrada y lo que carga al arrancar, sin los fragmentos de las vistas ni `stepup-callback`).
+
+**Respuestas a las preguntas de U10-T04** (todas como recomendadas): **P-1 (a)** `ModelDetail` muestra el informe que trae `get_model`, en lectura. **P-2 (a)** el oráculo de PBT-U10-04, transcrito (arriba). **P-3 (a)** el Paso 15 corre contra
+el build y `vite preview` con las cabeceras de U2 (§2). **P-4 (a)** el `disclaimer` de `FreezeContextView` es un texto propio del catálogo (`bias_disclaimer`), igual a `DISCLAIMER` de U9 («mide y alerta, no certifica»); una prueba lee
+`bias-monitoring/src/vectra_bias/dashboard.py` y los compara; el campo en el paquete queda como candidata de U0. **P-5 (a)** los defectos de U10-T03 que destapó el recorrido se corrigieron en su archivo, con su prueba y su rojo, sin
+cambiar el flujo del step-up (abajo).
+
+**Defectos de U10-T03 que destapó el recorrido (P-5)**
+1. **El reenvío salía antes de instalar el token nuevo** (`stepup/oidc.ts` + `wiring.ts`). `exchange` devolvía `ok` sin esperar a `acceptStepUp` (`storeUser` + `events.load`, que pone el token en memoria): el reenvío llevaba el token
+   viejo (sin MFA) y el BFF real contestaba 403 `mfa_required` otra vez («la acción no se pudo completar después de verificar tu identidad»). La PoC no lo veía (no llamaba al BFF). Ahora `accept` es asíncrono y el canje espera
+   (`await accept(response)`); si instalar falla, el canje es `failed`. Prueba: `tests/unit/stepup/oidc.test.ts` (dos casos nuevos). El flujo (`machine.ts`, `flow.ts`) no cambió y `stepup` sigue en 100 % de ramas.
+2. **`usePress` de react-aria inyecta un elemento de estilo** (`id="react-aria-pressable-style"`) la primera vez que se monta un botón, y la CSP de U2 (`style-src 'self'`) lo bloquea (`style-src-elem`). La biblioteca no inyecta nada
+   si ya existe un elemento con ese id: `index.html` lo ocupa con un `<meta>` y la regla (`touch-action`) vive en `styles.css`. Prueba: `tests/csp` y `tests/unit/build-config.test.ts`.
+3. (U10-T04, no de U10-T03) el `jsx-a11y/label-has-associated-control` falla con un `TypeError` (`minimatch` 11 por el `override` de la raíz) cuando una etiqueta contiene un elemento: por eso `Choice` asocia por `htmlFor`.
+
+**Tres hechos del cable** que las vistas toleran: el BFF **omite** los campos nulos (`decision`, `recommendation`, `credit_status`, `rate`… no vienen como `null`): las vistas comparan con `== null`; una fecha sin hora (`window_from`)
+se formatea en UTC (`formatDay`) para que no se corra al día anterior por la zona horaria; y los `Decimal4` son cadenas (`safeDecimal` los formatea con `Intl`, y si no son decimales los muestra tal cual).
+
+**Dependencias nuevas, con versión exacta:** `react-router` 7.18.5 (la 8.5.1 pide Node ≥ 22.22 y la máquina tiene 22.17.1; la 7 acepta React ≥ 18), `@axe-core/playwright` 4.14.0, `size-limit` y `@size-limit/file` 12.1.0 (la 13 y la 14 piden Node ≥ 22.18 y 22.19).
+
+## 10. Cobertura y pruebas de U10-T04
+
+`npm run -w console/spa test -- --coverage`: umbrales en `vite.config.ts`: **100 %** de ramas en `src/stepup/**` y en `src/views/cases/decision-validation.ts`, **≥ 80 %** en el conjunto. Sin `exclude`. La tabla por archivo está en
+`bitacoras/U10-T04.md`. `testTimeout` es de 20 s (la primera vista que se monta en cada archivo paga la carga de React Aria bajo la cobertura, y la máquina es compartida). Las pruebas de vistas montan `App` completa
+(`tests/support/views-world.tsx`: los proveedores reales, el enrutador y un `fetch` falso que cuenta las solicitudes) y cargan los fragmentos de las vistas una vez al importar el soporte.
+
+## 11. Lo que queda para U10-T05
+
+La imagen (`Dockerfile` y `nginx.conf` de la SPA, con las etapas `previous`; `dist/` trae `.vite/manifest.json`, que no debe ir a la imagen), el chart y el `ConfigMap` de `config.json` (Paso 18), k6, Lighthouse CI y la
+trazabilidad de cada BR con su lista de diferidos (Paso 21), `console/README.md` (Paso 23), el cierre (Paso 24) y `version`/`VersionBanner` si P-15 lo trae de vuelta. La CSP **real** del gateway (con el realm de Keycloak)
+y la lista manual de accesibilidad con NVDA son de U12 Paso 18.

@@ -16,7 +16,8 @@ export function createOidcBackend(
   client: OidcClient,
   store: StateStore,
   stepupRedirectUri: string,
-  accept: (response: SigninResponse) => void,
+  /** Instala los tokens nuevos (guardar el usuario y avisar `userLoaded`): el canje no es `ok` hasta que termina. */
+  accept: (response: SigninResponse) => void | Promise<void>,
 ): StepUpBackend {
   return {
     async createRequest() {
@@ -34,7 +35,8 @@ export function createOidcBackend(
       try {
         const response = await client.processSigninResponse(callbackUrl);
         if (response.profile["acr"] !== STEPUP_ACR) return "no_mfa";
-        accept(response);
+        // U10-T04 (P-5): se espera a que el token nuevo este en memoria; el reenvio de la accion sale cuando el canje dice `ok`.
+        await accept(response);
         return "ok";
       } catch {
         return "failed";

@@ -4,6 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Vectra Risk</title>
+    <link rel="icon" href="data:," />
+    <!-- CSP (U2: style-src 'self'): `usePress` de react-aria inyecta un elemento de estilo con id "react-aria-pressable-style" salvo que ya
+         exista un elemento con ese id. La regla (touch-action) esta en `src/styles.css`; este meta solo ocupa el id. -->
+    <meta id="react-aria-pressable-style" name="vectra:react-aria-pressable-style" content="en src/styles.css" />
   </head>
   <body>
     <div id="root"></div>

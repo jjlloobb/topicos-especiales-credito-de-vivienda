@@ -156,5 +156,18 @@
     "lt_20": "Menos de 20",
     "20_30": "De 20 a 30",
     "gt_30": "Más de 30"
+  },
+  "CHANNELS": {
+    "web": "Web",
+    "manual": "Manual"
+  },
+  "EMPLOYMENT_TYPES": {
+    "asalariado": "Asalariado",
+    "independiente": "Independiente",
+    "pensionado": "Pensionado"
+  },
+  "PROPERTY_CONDITIONS": {
+    "nueva": "Nueva",
+    "usada": "Usada"
   }
 }
