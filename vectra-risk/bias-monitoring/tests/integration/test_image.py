@@ -28,7 +28,7 @@ from http_bridge import Bridge
 from http_doubles import Keycloak
 from scenario import seed
 from strategies import auth as u0_auth
-from world import PRIVATE_KEY_PEM, World, freeze_record
+from world import ASSERTION_AUDIENCE, PRIVATE_KEY_PEM, World, freeze_record
 
 IMAGE = "localhost:5001/vectra/bias-monitoring:dev"
 APP_URL, OPS_URL = "http://127.0.0.1:8080", "http://127.0.0.1:8081"
@@ -122,6 +122,10 @@ def real_env(pod: Doc, doubles: Doubles, process: str) -> dict[str, str]:
             env[name] = url
     if "VECTRA_OIDC_ISSUER" in env:
         env["VECTRA_OIDC_ISSUER"] = u0_auth.ISSUER
+    if (
+        "VECTRA_ASSERTION_AUDIENCE" in env
+    ):  # el render local trae el emisor de produccion; el doble de Keycloak acepta el de prueba
+        env["VECTRA_ASSERTION_AUDIENCE"] = ASSERTION_AUDIENCE
     return env
 
 
