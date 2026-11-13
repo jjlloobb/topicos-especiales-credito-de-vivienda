@@ -43,7 +43,7 @@ docker inspect --format '{{index .RepoDigests 0}}' localhost:5001/vectra/case-ma
 docker inspect --format '{{index .RepoDigests 0}}' localhost:5001/vectra/core-banking-mock:dev
 ```
 
-El digest sale en el `inspect` (`localhost:5001/vectra/<imagen>@sha256:…`). Un PR lo escribe en `images.caseManagement.digest` y `images.coreMock.digest` de los values de kind (`vectra-risk-gitops/values/kind/case-management.yaml`) y regenera las Applications con `uv run python vectra-risk-gitops/generate.py`. Hasta entonces el chart renderiza con los digests de ejemplo (`sha256:…0007` y `…0008`) y los pods quedarían en `ImagePullBackOff`. U12 (`prepare`) agrega en ese mismo PR el `probes.runId` del Job `rt5-demo-<runId>`.
+El digest sale en el `inspect` (`localhost:5001/vectra/<imagen>@sha256:…`). Un PR lo escribe en `images.caseManagement.digest` y `images.coreMock.digest` de los values de kind (`vectra-risk-gitops/values/kind/case-management.yaml`) y regenera las Applications con `uv run python vectra-risk-gitops/generate.py`. Hasta entonces el chart renderiza con los digests de ejemplo (`sha256:…000a` y `…000b`) y los pods quedarían en `ImagePullBackOff`. U12 (`prepare`) agrega en ese mismo PR el `probes.runId` del Job `rt5-demo-<runId>`.
 
 ## Un solo commit y un solo PR para governance, scoring, explainability y case-management (C-4)
 

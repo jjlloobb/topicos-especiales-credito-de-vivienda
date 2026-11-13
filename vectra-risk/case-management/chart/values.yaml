@@ -12,10 +12,10 @@ mockNamespace: vectra-mock
 images:
   caseManagement:
     repository: kind-registry:5000/vectra/case-management
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000007
+    digest: sha256:000000000000000000000000000000000000000000000000000000000000000a
   coreMock:
     repository: kind-registry:5000/vectra/core-banking-mock
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000008
+    digest: sha256:000000000000000000000000000000000000000000000000000000000000000b
 # El core: apagado en produccion (`credit_status = no_integrado`, INF-U8-02). En kind y staging lo enciende el entorno y apunta al mock (F17).
 core:
   enabled: false

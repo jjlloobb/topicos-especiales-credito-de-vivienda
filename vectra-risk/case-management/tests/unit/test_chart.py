@@ -37,6 +37,12 @@ ENVS = ("kind", "staging", "prod")
 APP = ("case-service", "case-worker")
 MOCK = "core-banking-mock"
 RUN_ID = "20261112-0900"
+# U02-T21: Keycloak publica solo el emisor publico de cada entorno (identity-edge/docs/emisor-de-tokens.md); `jwksUrl` y `tokenUrl` siguen internos.
+PUBLIC_ISSUER = {
+    "kind": "https://vectra.localtest.me/auth/realms/vectra",
+    "staging": "https://vectra.staging.banco.internal/auth/realms/vectra",
+    "prod": "https://vectra.banco.internal/auth/realms/vectra",
+}
 Doc = dict[str, Any]
 
 
@@ -1375,9 +1381,18 @@ def test_values_prod_writes_the_three_switches_and_staging_and_kind_enable_them(
         "allowTestScenarios": False,
     }
     staging = values_file("staging")
-    assert staging == {"core": {"enabled": True}, "coreMock": {"enabled": True}, "allowTestScenarios": True}
+    assert staging == {
+        "core": {"enabled": True},
+        "coreMock": {"enabled": True},
+        "allowTestScenarios": True,
+        "keycloak": {"issuer": PUBLIC_ISSUER["staging"]},
+    }
     kind = values_file("kind")
-    assert kind == {"allowTestScenarios": True, "probes": {"enabled": True}}
+    assert kind == {
+        "allowTestScenarios": True,
+        "probes": {"enabled": True},
+        "keycloak": {"issuer": PUBLIC_ISSUER["kind"]},
+    }
     # P-2 (a): `values-kind.yaml` lleva solo lo que `render_env("kind")` de U1 debe ver (el core, el mock y el request de P-1) y nada mas.
     assert yaml.safe_load((CHART / "values-kind.yaml").read_text(encoding="utf-8")) == {
         "core": {"enabled": True},
@@ -1426,7 +1441,12 @@ def test_kind_values_only_the_memory_request_changes_in_kind_and_staging_and_pro
         for docs in (kind, staging):
             c = copy.deepcopy(container(docs, name))
             c["resources"]["requests"]["memory"] = "x"
-            c["image"] = c["image"].split("@")[1]  # el registro lo pone `imageRegistry` de cada entorno
+            c["image"] = c["image"].split("@")[
+                1
+            ]  # diferencia declarada: el registro lo pone `imageRegistry` de cada entorno
+            for e in c["env"]:
+                if e["name"] == "VECTRA_OIDC_ISSUER":
+                    e["value"] = "emisor"  # diferencia declarada: el emisor publico de cada entorno (U02-T21)
             c["env"] = [
                 e
                 for e in c["env"]
@@ -1484,6 +1504,44 @@ def test_without_a_digest_it_does_not_render() -> None:
         assert f"images.{key}.digest es obligatorio" in helm_fails(
             "--set", f"images.{key}.digest=null", "--set", "coreMock.enabled=true"
         )
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_issuer_case_service_and_the_mock_validate_tokens_against_the_public_issuer_of_the_environment(
+    env: str,
+) -> None:
+    """U02-T21: `VECTRA_OIDC_ISSUER` es el emisor publico del entorno (el `iss` de los tokens), no la URL interna de Keycloak; `jwksUrl` y `tokenUrl` siguen internos."""
+    docs = render(env)
+    names = ["case-service", *([] if env == "prod" else [MOCK])]
+    for name in names:
+        e = env_map(container(docs, name))
+        assert e["VECTRA_OIDC_ISSUER"] == PUBLIC_ISSUER[env], name
+        assert "keycloak-admin" in e["VECTRA_JWKS_URL"]
+    assert "keycloak-admin" in env_map(container(docs, WORKER))["VECTRA_TOKEN_URL"]
+
+
+def test_issuer_the_internal_url_as_issuer_is_found() -> None:
+    internal = "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra"
+    docs = [
+        d
+        for d in yaml.safe_load_all(
+            subprocess.run(
+                [
+                    tool("helm"),
+                    "template",
+                    "case-management",
+                    str(CHART),
+                    "--set",
+                    f"keycloak.issuer={internal}",
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout
+        )
+        if d
+    ]
+    assert env_map(container(docs))["VECTRA_OIDC_ISSUER"] != PUBLIC_ISSUER["prod"]
 
 
 def test_the_example_digests_are_distinct_from_the_ones_of_the_other_charts_and_not_all_zeros() -> None:
