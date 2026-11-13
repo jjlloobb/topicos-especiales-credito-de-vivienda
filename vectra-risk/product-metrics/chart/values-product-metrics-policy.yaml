@@ -1,0 +1,12 @@
+# Parametros de cumplimiento de U11 [INTERNO] (BR-U11-09, domain-entities §4). Cambiarlos exige la aprobacion de producto y riesgo (CODEOWNERS).
+# Rangos: 0 < noise_floor < 1; 1 <= noise_sustain_days <= 14; noise_min_decisions >= 30; targets entre 0 y 1
+# (`target_origination_hours` > 0; `target_north_star` nulo o entre 0 y 1).
+noise_floor: 0.6
+noise_sustain_days: 3
+noise_min_decisions: 50
+target_complete_response: 1.0
+target_origination_hours: 1
+target_origination_ratio: 0.8
+target_sustained_ratio_month6: 0.7
+# Sin target acordado para la North Star: el panel dice «sin target acordado».
+target_north_star: null

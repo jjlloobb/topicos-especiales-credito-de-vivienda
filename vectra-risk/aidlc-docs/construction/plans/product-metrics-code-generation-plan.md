@@ -56,13 +56,13 @@ vectra-risk/product-metrics/
 
 ### Bloque A — Estructura y configuración
 
-- [ ] **Paso 1 — Esqueleto de `product-metrics/`**
+- [x] **Paso 1 — Esqueleto de `product-metrics/`** (U11-T01)
   - Directorios de §1; `pyproject.toml` como miembro del workspace de `uv` (depende de `vectra_contracts` y `vectra_common`).
   - import-linter: `compute`, `noise` y `model` sin E/S; ningún módulo importa `httpx` fuera de `vectra_common.deps`; ningún módulo importa FastAPI.
   - Diseño: NFR-U11-21; tech-stack.
   - **Aceptación**: `uv sync --frozen && uv run lint-imports --config product-metrics/.importlinter && make -C product-metrics check` sobre el esqueleto.
 
-- [ ] **Paso 2 — Constantes y parámetros**
+- [x] **Paso 2 — Constantes y parámetros** (U11-T01)
   - `config.py`: ciclo de 5 min, 02:30 UTC + desfase de 0 a 10 min, plazo de 75 min, reintentos de la completa (15 min, 6 veces), timeout de 5 s, página de 1 000, parámetros del breaker de `deps.call` en modo `consecutive_failures` de U0 (`consecutive_failures=3`, `open_for=60s`, `close_after=1`; pendientes consolidados, 2026-10-10), ventanas de 35 días y 6 meses.
   - `params.py`: lee el `ConfigMap` de `values-product-metrics-policy.yaml` (F, S, N y targets) y falla al arrancar con un valor fuera de rango.
   - Diseño: BR-U11-09, 11; NFR-U11-04, 09; P-U11-01, 02.
@@ -70,14 +70,14 @@ vectra-risk/product-metrics/
 
 ### Bloque B — Lógica pura y estado
 
-- [ ] **Paso 3 — `model`, `compute` y `noise`**
+- [x] **Paso 3 — `model`, `compute` y `noise`** (U11-T01)
   - `model`: decisión con `__slots__`, códigos enteros del catálogo de U0 y cadenas internadas (P-U11-04).
   - `compute(entries, params, now) -> BusinessMetrics`: atribución por la recomendación resuelta, North Star con desglose, sostenida, tasa de consulta, tiempo de originación con `first_evaluation`, no atribuibles, exclusiones (catálogo, `actor_role ≠ analista`, `decided_at > recorded_at + 5 min`) y `degraded`; periodos `day`, `30d`, `month_to_date` y los 6 `month`; conteos con todos los cortes y razones solo totales o por un corte.
   - `noise.days_below_floor`.
   - Diseño: BR-U11-01..10; domain-entities §3. Historias: US-503, US-504, US-505.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest product-metrics/tests/property/test_compute.py tests/property/test_noise.py tests/unit/test_compute_examples.py`: PBT-U11-01, 03, 04, 06 y 07; las pruebas de ejemplo de business-logic-model §3 que no dependen de E/S.
 
-- [ ] **Paso 4 — `state` y `reader`**
+- [x] **Paso 4 — `state` y `reader`** (U11-T01)
   - `reader`: `GET /v1/entries?projection=metrics&entry_type=human_decision&…&seq_after=…&limit=1000` con `deps.call` y su breaker en modo `consecutive_failures` (U0 NFR-U0-23 (i); no hay breaker propio en U11; pendientes consolidados, 2026-10-10); una página a la vez bajo un `asyncio.Lock` único; nunca avanza `last_seq` más allá de la última página confirmada.
   - `state`: pasada completa en una sola lectura desde el día 1 del sexto mes cerrado − 1 día, plegando cada página en los contadores por mes y guardando solo las decisiones de 35 días; estado nuevo construido aparte y reemplazo atómico; después, lectura incremental desde el `last_seq` de la pasada.
   - Diseño: BR-U11-11; P-U11-01, 02, 04; NFR-U11-01, 02, 09..12.
@@ -87,7 +87,7 @@ vectra-risk/product-metrics/
     - una página fallida no avanza `last_seq`; 3 fallos seguidos → breaker abierto; 1 éxito en semiabierto → cerrado;
     - una entrada de 40 días va a su contador de mes y no al estado de 35 días.
 
-- [ ] **Paso 5 — Resumen de la lógica**
+- [x] **Paso 5 — Resumen de la lógica** (U11-T01) — `mutmut` diferido por la demo (T3)
   - Cobertura de ramas **100 %** en `compute` y `noise`; `mutmut` en `compute` y `noise`.
   - Resumen en `aidlc-docs/construction/product-metrics/code/logic.md`.
   - Diseño: NFR-U11-30, 31.
@@ -95,7 +95,7 @@ vectra-risk/product-metrics/
 
 ### Bloque C — Proceso y publicación
 
-- [ ] **Paso 6 — `scheduler`, `collector` y `main`**
+- [x] **Paso 6 — `scheduler`, `collector` y `main`** (U11-T02)
   - `scheduler`: pasada completa al arrancar y diaria; ciclo incremental cada 5 min, omitido (y contado) si el candado está tomado; plazo y reintentos de la pasada.
   - `collector`: `Collector` de `prometheus-client` sobre la instantánea inmutable; sin instantánea, sin series de producto; series de operación siempre.
   - `main`: `vectra_common.process.init(kind="service")`, `ops_server.create_ops_app(readiness)`, servida sin `run_service` porque no hay API (revisión de consistencia entre unidades, 2026-11-01), con el **predicado de readiness** (instantánea o breaker abierto o semiabierto), apagado con `SIGTERM` (no toma ciclos nuevos, termina la página en curso).
@@ -113,19 +113,19 @@ vectra-risk/product-metrics/
     - `/metrics` sin ninguna serie ni etiqueta fuera de la allowlist (PBT-U11-05);
     - PBT-U0-07 en modo strict sobre los logs.
 
-- [ ] **Paso 7 — Pruebas de ejemplo del proceso y prueba de volumen**
+- [x] **Paso 7 — Pruebas de ejemplo del proceso y prueba de volumen** (U11-T02) — prueba de volumen diferida por la demo (T3)
   - Las pruebas de ejemplo de business-logic-model §3 que dependen de E/S (reinicio a mitad, registro caído 31 min, decisión sobre una recomendación de hace 60 días).
   - **Prueba de volumen** (INF-U11-06): el doble de U3 sirve 10 veces el volumen de NFR-U3-30 durante 7 meses, con la latencia de página del p95 de U3; se miden la duración de la pasada, el pico de memoria (`tracemalloc` y RSS) y la ausencia de lecturas simultáneas.
   - Diseño: NFR-U11-02, 03, 12, 13; P-U11-04.
   - **Aceptación**: `uv run pytest product-metrics/tests/integration/test_examples.py`; `uv run pytest product-metrics/tests/volume -m volume` (pasada ≤ 60 min; pico ≤ 70 % de 512 MiB; si se supera, se ajusta INF-U11-01 y el aporte a la cuota antes de seguir).
 
-- [ ] **Paso 8 — Resumen del proceso**
+- [x] **Paso 8 — Resumen del proceso** (U11-T02)
   - Cobertura ≥ 90 % en el resto; resumen en `aidlc-docs/construction/product-metrics/code/process.md`.
   - **Aceptación**: `uv run pytest product-metrics/tests --cov=vectra_product --cov-branch --cov-fail-under=90`.
 
 ### Bloque D — Repositorio y frontend
 
-- [ ] **Paso 9 — Repositorio, migraciones y frontend: N/A**
+- [x] **Paso 9 — Repositorio, migraciones y frontend: N/A** (U11-T02)
   - U11 no tiene base de datos ni interfaz propia; los dashboards son código de Grafana (Paso 13).
   - **Aceptación**: `test ! -d product-metrics/migrations && test ! -d product-metrics/frontend`.
 

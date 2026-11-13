@@ -38,9 +38,11 @@ referencian en el Infrastructure Design y en el plan de tareas.
 
 ### P-U10-04 — Timeouts, presupuesto y conexiones (Q1; NFR-U10-11, 31)
 
+> **Nota de U10-T02 (2026-11-12, P-1 (a)):** `case.get_case_identifiers` (la lectura que `get_dossier` hace en paralelo con los 5 s del registro, P-U10-02) usa el timeout de las lecturas de case, 1,5 s, y las mismas 20 conexiones compartidas: es una lectura de una fila y no suma al p95 del expediente. Constante `case.get_case_identifiers` en `console_bff/config.py`.
+
 | Destino (operaciones) | Objetivo declarado | Timeout del BFF | Conexiones por réplica |
 |---|---|---|---|
-| case: `list_cases`, `get_case`, `list_persistent_failures` | p95 ≤ 300 ms; `get_case` p99 ≤ 800 ms (NFR-U8-01) | 1,5 s | 20 (compartidas) |
+| case: `list_cases`, `get_case`, `list_persistent_failures`, `get_case_identifiers` (U10-T02, 2026-11-12) | p95 ≤ 300 ms; `get_case` p99 ≤ 800 ms (NFR-U8-01) | 1,5 s | 20 (compartidas) |
 | case: `record_decision`, `create_manual_application`, `record_explanation_view`, `retry_case` | p95 ≤ 300 ms, con el append síncrono; peor caso ≈ 2,5 s (timeout de case hacia el registro, P-U8 F16) + la base | **4 s** (antes 3 s, menor que el peor caso de U8; revisión del Infrastructure Design de U10, 2026-10-10) | (las mismas 20) |
 | governance: lecturas | p95 ≤ 300 ms (NFR-U4-13, declarado por U4 en la revisión del Infrastructure Design de U10, 2026-10-10) | 1,5 s | 10 (compartidas) |
 | governance: transiciones con firma | p95 ≤ 500 ms (NFR-U4-11), con el append síncrono al registro (2,5 s de timeout) | **4 s** (revisión del Infrastructure Design de U10, 2026-10-10) | (las mismas 10) |
