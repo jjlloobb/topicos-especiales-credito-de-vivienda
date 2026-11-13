@@ -21,7 +21,12 @@ Poster = Callable[[str, Mapping[str, str], float], Awaitable[Any]]
 
 
 class ServiceTokenProvider:
-    """Guarda el token hasta `RENEW_BEFORE` s antes de vencer; pide uno solo a la vez."""
+    """Guarda el token hasta `RENEW_BEFORE` s antes de vencer; pide uno solo a la vez.
+
+    `assertion_audience` es la `aud` de la aserción: identifica al servidor de autorización (el emisor
+    que Keycloak publica), no la URL a la que se envía la petición (`token_url`); son dos datos distintos.
+    `audience` es otra cosa: la del access token que se pide.
+    """
 
     def __init__(
         self,
@@ -31,15 +36,19 @@ class ServiceTokenProvider:
         audience: str,
         scopes: tuple[str, ...],
         *,
+        assertion_audience: str,
         algorithm: str = "ES256",
         key_id: str | None = None,
         poster: Poster | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
+        if not assertion_audience:
+            raise ValueError("assertion_audience must not be empty")
         self._client_id = client_id
         self._token_url = token_url
         self._private_key = private_key
         self._audience = audience
+        self._assertion_audience = assertion_audience
         self._scopes = scopes
         self._algorithm = algorithm
         self._key_id = key_id
@@ -57,7 +66,7 @@ class ServiceTokenProvider:
         claims = {
             "iss": self._client_id,
             "sub": self._client_id,
-            "aud": self._token_url,
+            "aud": self._assertion_audience,
             "jti": secrets.token_hex(16),
             "iat": now,
             "exp": now + ASSERTION_LIFETIME,
@@ -89,12 +98,13 @@ class ServiceTokenProvider:
 
 
 def provider_from_env(audience: str, scopes: tuple[str, ...]) -> ServiceTokenProvider:
-    """Lee `VECTRA_CLIENT_ID`, `VECTRA_TOKEN_URL`, `VECTRA_CLIENT_KEY_PATH` y `VECTRA_CLIENT_KEY_ID`."""
+    """Lee `VECTRA_CLIENT_ID`, `VECTRA_TOKEN_URL`, `VECTRA_ASSERTION_AUDIENCE`, `VECTRA_CLIENT_KEY_PATH` y `VECTRA_CLIENT_KEY_ID`."""
     return ServiceTokenProvider(
         os.environ["VECTRA_CLIENT_ID"],
         os.environ["VECTRA_TOKEN_URL"],
         Path(os.environ["VECTRA_CLIENT_KEY_PATH"]).read_text(encoding="utf-8"),
         audience,
         scopes,
+        assertion_audience=os.environ["VECTRA_ASSERTION_AUDIENCE"],
         key_id=os.environ.get("VECTRA_CLIENT_KEY_ID"),
     )

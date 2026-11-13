@@ -67,6 +67,7 @@ REQUIRED: Final = (
     "VECTRA_CLIENT_ID",
     "VECTRA_CLIENT_KEY_PATH",
     "VECTRA_TOKEN_URL",
+    "VECTRA_ASSERTION_AUDIENCE",
     "VECTRA_OIDC_ISSUER",
     "VECTRA_JWKS_URL",
     "VECTRA_CA_BUNDLE",
@@ -99,6 +100,7 @@ class ServiceConfig:
     client_key_path: str
     client_key_id: str | None
     token_url: str
+    assertion_audience: str
 
 
 def config_from_env(environ: Mapping[str, str] | None = None) -> ServiceConfig:
@@ -119,6 +121,7 @@ def config_from_env(environ: Mapping[str, str] | None = None) -> ServiceConfig:
             callback_url=env["GOVERNANCE_CALLBACK_URL"],
             job_s3_endpoint=env["GOVERNANCE_JOB_S3_ENDPOINT"],
             job_token_url=env["GOVERNANCE_JOB_TOKEN_URL"],
+            assertion_audience=env["VECTRA_ASSERTION_AUDIENCE"],
         ),
         registry_url=env["GOVERNANCE_REGISTRY_URL"],
         bias_url=env["GOVERNANCE_BIAS_URL"],
@@ -126,6 +129,7 @@ def config_from_env(environ: Mapping[str, str] | None = None) -> ServiceConfig:
         client_key_path=env["VECTRA_CLIENT_KEY_PATH"],
         client_key_id=env.get("VECTRA_CLIENT_KEY_ID") or None,
         token_url=env["VECTRA_TOKEN_URL"],
+        assertion_audience=env["VECTRA_ASSERTION_AUDIENCE"],
     )
 
 
@@ -151,6 +155,7 @@ def service_tokens(config: ServiceConfig) -> TokenFactory:
                         key,
                         audience,
                         tuple(scope.value for scope in scopes),
+                        assertion_audience=config.assertion_audience,
                         key_id=config.client_key_id,
                     )
                 return asyncio.run(provider.token())

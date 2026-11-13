@@ -13,7 +13,7 @@ y la ejercen las pruebas en el mismo proceso. `main()` solo lee el entorno de ca
   captura las señales mientras sirve y, al salir, las vuelve a emitir al manejador que tenia el bucle (C-4 de U11-T03: una subclase que
   desactivaba esa captura era redundante y ninguna prueba la ejercia; las pruebas del proceso real y de la imagen fijan el 0).
 - **Entorno** (solo aqui y solo cableado): `VECTRA_REGISTRY_URL` (obligatoria), `VECTRA_POLICY_PATH` (opcional) y las `VECTRA_CLIENT_ID`,
-  `VECTRA_TOKEN_URL`, `VECTRA_CLIENT_KEY_PATH` y `VECTRA_CLIENT_KEY_ID` que lee `vectra_common.service_token.provider_from_env`.
+  `VECTRA_TOKEN_URL`, `VECTRA_ASSERTION_AUDIENCE`, `VECTRA_CLIENT_KEY_PATH` y `VECTRA_CLIENT_KEY_ID` que lee `vectra_common.service_token.provider_from_env`.
   NFR-U11-21: el unico acceso HTTP saliente es `vectra_common.deps` (ningun modulo importa `httpx`) y no hay rutas de negocio.
 """
 

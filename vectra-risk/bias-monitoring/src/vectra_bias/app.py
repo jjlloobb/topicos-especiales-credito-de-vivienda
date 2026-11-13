@@ -8,6 +8,7 @@ lo detiene (`config.load_policy`).
 |-----------------------------------------|------------------------------------------------------------------------------|
 | `VECTRA_REGISTRY_URL`                   | `decision-registry-service` (U3, F26): `monitoring/freezes` y `daily:query`    |
 | `VECTRA_TOKEN_URL`, `VECTRA_CLIENT_ID`  | token de servicio del cliente `bias-monitoring-service` (`private_key_jwt`)   |
+| `VECTRA_ASSERTION_AUDIENCE`             | `aud` de la aserción: el emisor de Keycloak, no la URL de token (U00-T04)       |
 | `VECTRA_CLIENT_KEY_PATH`                | llave privada del cliente, montada de solo lectura                           |
 | `VECTRA_OIDC_ISSUER`, `VECTRA_JWKS_URL` | validacion de tokens de entrada (U0)                                         |
 | `VECTRA_CA_BUNDLE`                      | CA para cualquiera de las URL anteriores con `https`                         |
@@ -51,6 +52,7 @@ SERVICE: Final = "bias-monitoring-service"
 REQUIRED: Final = (
     "VECTRA_REGISTRY_URL",
     "VECTRA_TOKEN_URL",
+    "VECTRA_ASSERTION_AUDIENCE",
     "VECTRA_CLIENT_ID",
     "VECTRA_CLIENT_KEY_PATH",
     "VECTRA_OIDC_ISSUER",

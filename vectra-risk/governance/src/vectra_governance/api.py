@@ -79,13 +79,14 @@ ISVC_HEX: Final = 8
 @dataclass(frozen=True)
 class ApiConfig:
     """Lo que el Job de validacion necesita saber (BR-U4-05): imagen, dataset, a donde devolver el informe, el endpoint S3 y la URL
-    del token. Sin valores por omision: `service.config_from_env` los lee de las variables que pone el chart."""
+    del token y la audiencia (`aud`) de su aserción. Sin valores por omision: `service.config_from_env` los lee de las variables que pone el chart."""
 
     validation_image: str
     validation_dataset: str
     callback_url: str
     job_s3_endpoint: str
     job_token_url: str
+    assertion_audience: str
 
 
 @dataclass
@@ -354,6 +355,7 @@ def build_handlers(deps: ApiDeps) -> dict[tuple[str, str], Handler]:
             callback_url=deps.config.callback_url,
             s3_endpoint=deps.config.job_s3_endpoint,
             token_url=deps.config.job_token_url,
+            assertion_audience=deps.config.assertion_audience,
             policy=policy,
             source_id=extra.get("source_id"),
             baseline_version_id=extra.get("baseline_version_id"),
