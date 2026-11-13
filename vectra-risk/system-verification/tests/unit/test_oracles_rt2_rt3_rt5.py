@@ -1400,3 +1400,114 @@ def test_guard_a_production_host_or_issuer_sends_zero_requests(tworld: Rt2World)
 
 
 from rt2_world import TAG as TAG_FOR_TESTS  # noqa: E402
+
+
+# --- CA-13: el filtro de evidencias sobre lo que devuelven los escenarios -------------------------------------------------------------
+
+from vectra_contracts.models.application import ApplicationIn
+from vectra_verification import evidence
+from vectra_verification.credentials import Credentials
+from vectra_verification.scenarios import outcome as outcome_module
+
+SECRET_TOKEN = "hvs.CAESIJx-secreto-de-prueba-0001"
+SECRETS = Credentials(KIND, "http://vault.vault.svc:8200", SECRET_TOKEN).secret_values()
+
+
+def scenario_results(world: Rt2World, tworld: Rt2World | None, tmp_path: Path) -> dict[str, str]:
+    """El resultado de cada escenario serializado, tal como lo escribira el Paso 13."""
+    out: dict[str, str] = {}
+    out["RT-5"] = outcome_module.to_text(evaluate()[0])
+    result = rt2_run(world)
+    out["RT-2"], out["RT2-LATENCY"] = (
+        outcome_module.to_text(result.rt2),
+        outcome_module.to_text(result.latency),
+    )
+    return out
+
+
+def test_evidence_rt5_result_the_job_log_and_the_kubectl_json_pass_the_filter_unchanged() -> None:
+    outcome, _, kubectl, _ = evaluate()
+    text = outcome_module.to_text(outcome)
+    assert evidence.prepare(text, SECRETS) == text
+    log, document = PROXY_LOG, completed_job(T0, T1)
+    for raw in (log, document, log + document):
+        assert evidence.prepare(raw, SECRETS) == raw
+    dev = Credentials(
+        KIND, "http://vault.vault.svc:8200", "root"
+    ).secret_values()  # el token de desarrollo de kind no bloquea (F-09)
+    assert evidence.prepare(log + document + "/dev/root", dev) == log + document + "/dev/root"
+
+
+def test_evidence_every_scenario_result_passes_the_filter_unchanged_and_has_no_applicant_field(
+    rworld: Rt2World, tmp_path: Path
+) -> None:
+    results = scenario_results(rworld, None, tmp_path)
+    setup_world = Rt2World()
+    try:
+        setup_world.add_model(REFERENCE, "activo")
+        results["rt2-setup"] = outcome_module.to_text(setup(setup_world, versions(setup_world, tmp_path)))
+        setup_world.state_cases = f22_cases()
+        for case_id, token in (("RT3-a", "rt3-a"), ("RT3-c", "rt3-c"), ("RT3-d", "rt3-d")):
+            setup_world.register_overrides[token] = reject(case_id)
+        setup_world.register_overrides["rt3-b"] = lambda call: (409, problem(409, "conflict_state"))
+        results["RT-3"] = outcome_module.to_text(rt3_run(setup_world, rt3_params(tmp_path)))
+    finally:
+        setup_world.close()
+    assert set(results) == {"RT-5", "RT-2", "RT2-LATENCY", "rt2-setup", "RT-3"}
+    fields = set(ApplicationIn.model_fields) - {
+        "channel",
+        "sex",
+    }  # `channel` es el nombre de un canal, no un dato del solicitante
+    for name, text in results.items():
+        assert evidence.prepare(text, SECRETS) == text, name
+        for field_name in fields:
+            assert f'"{field_name}"' not in text, f"{name} trae el campo {field_name} de ApplicationIn"
+
+
+def test_leak_the_messages_of_every_error_of_the_scenarios_carry_no_token(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    """Una corrida con fallos (401, 403, 409, 422, 500, tiempo agotado): ni el mensaje de `ApiError` ni el resultado traen un token, una contrasena ni un TOTP."""
+    from vectra_verification.clients._api import ApiError, error_of
+
+    bearer = SECRET_TOKEN + "-bearer"
+    hostile = {
+        "title": f"Authorization: Bearer {bearer}",
+        "status": 500,
+        "code": "internal_error",
+        "correlation_id": "0" * 32,
+        "type": "x",
+    }
+    for status, code in (
+        (401, "unauthenticated"),
+        (403, "forbidden"),
+        (409, "conflict_state"),
+        (422, "validation_error"),
+        (500, "internal_error"),
+    ):
+        error = error_of(
+            httpx.Response(status, json=problem(status, code), headers={"x-echo": f"Bearer {bearer}"})
+        )
+        assert bearer not in str(error) and "Bearer" not in str(error)
+    assert bearer not in str(error_of(httpx.Response(500, json=hostile)))
+    assert str(ApiError(0, "timeout")) == "http_0:timeout:-"
+    for status, body in (
+        (401, problem(401, "unauthenticated")),
+        (403, problem(403, "forbidden")),
+        (409, problem(409, "conflict_state")),
+        (422, problem(422, "validation_error")),
+        (500, problem(500, "internal_error")),
+    ):
+        tworld.register_overrides["rt3-a"] = lambda call, s=status, b=body: (s, b)  # type: ignore[misc]
+        text = outcome_module.to_text(rt3_run(tworld, rt3_params(tmp_path)))
+        assert evidence.prepare(text, SECRETS | {bearer}) == text
+        assert "Bearer" not in text and "eyJ" not in text
+
+
+def test_leak_the_filter_sees_a_jwt_in_a_scenario_result_and_a_loaded_secret() -> None:
+    outcome, *_ = evaluate()
+    text = outcome_module.to_text(outcome)
+    with pytest.raises(evidence.EvidenceError, match="jwt"):
+        evidence.prepare(text + " eyJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln", SECRETS)
+    with pytest.raises(evidence.EvidenceError, match="secret"):
+        evidence.prepare(text + " " + SECRET_TOKEN, SECRETS)

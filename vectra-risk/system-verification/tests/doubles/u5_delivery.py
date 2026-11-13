@@ -15,7 +15,9 @@ SCRATCH = ROOT / "platform" / ".tools" / "tmp" / "u12t02"
 
 def make_delivery(directory: Path, n_rows: int | None = 16000) -> dict[str, object]:
     config = load_config()
-    with_rows = config if n_rows is None else with_overrides(config, n_rows=n_rows)  # `None`: la configuracion completa de U5 (U12-T03, CA-9)
+    with_rows = (
+        config if n_rows is None else with_overrides(config, n_rows=n_rows)
+    )  # `None`: la configuracion completa de U5 (U12-T03, CA-9)
     (directory / "datasets").mkdir(parents=True, exist_ok=True)
     (directory / "adversarial").mkdir(parents=True, exist_ok=True)
     paths = generate(directory / "datasets", with_rows)

@@ -49,18 +49,28 @@ def test_rt2_cells_real_u5_test_has_18000_rows_and_65_cells(population: Populati
     assert len(cells) == 65
 
 
-def test_rt2_cells_real_u5_the_cells_with_fewer_than_30_available_are_exactly_the_four_of_u9(population: Population) -> None:
+def test_rt2_cells_real_u5_the_cells_with_fewer_than_30_available_are_exactly_the_four_of_u9(
+    population: Population,
+) -> None:
     cells, _ = sampler.cell_report(population.rows, [], sampler.MIN_PER_CELL)
     short = {(c.attribute, c.group, c.band) for c in cells if c.available < sampler.MIN_PER_CELL}
-    assert short == UNREACHABLE, f"con la fecha {EVALUATED_ON.date()} el conjunto cambio: {sorted(short ^ UNREACHABLE)}"
+    assert short == UNREACHABLE, (
+        f"con la fecha {EVALUATED_ON.date()} el conjunto cambio: {sorted(short ^ UNREACHABLE)}"
+    )
 
 
 @pytest.mark.parametrize("seed", SEEDS)
-def test_rt2_cells_real_u5_the_rule_runs_and_reports_those_four_and_the_other_61_have_30_or_more_taken(population: Population, seed: int) -> None:
+def test_rt2_cells_real_u5_the_rule_runs_and_reports_those_four_and_the_other_61_have_30_or_more_taken(
+    population: Population, seed: int
+) -> None:
     ids, short = simulator(population).select("stratified", 1500, seed)
     check = rt2.check_cells(short)  # no se niega
-    assert {(c.attribute, c.group, c.band) for c in check.unreachable_short} == UNREACHABLE and check.reachable_short == ()
+    assert {
+        (c.attribute, c.group, c.band) for c in check.unreachable_short
+    } == UNREACHABLE and check.reachable_short == ()
     cells, _ = sampler.cell_report(population.rows, [str(i) for i in ids], sampler.MIN_PER_CELL)
     others = [c for c in cells if (c.attribute, c.group, c.band) not in UNREACHABLE]
     assert len(others) == 61 and all(c.taken >= sampler.MIN_PER_CELL for c in others)
-    assert len(ids) >= 1500  # el volumen es un piso (CANDIDATAS.md): se registra el pedido y el enviado, sin tope
+    assert (
+        len(ids) >= 1500
+    )  # el volumen es un piso (CANDIDATAS.md): se registra el pedido y el enviado, sin tope
