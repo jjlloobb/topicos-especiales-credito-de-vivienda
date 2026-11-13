@@ -311,11 +311,9 @@ def test_contract_every_incorrect_response_differs_from_the_correct_one_only_in_
         problem(422, "validation_error"),
         problem(422, "validation_error") | {"invalid_params": [{"name": "package", "reason_code": "x"}]},
     )
-    assert key_paths(with_params) - key_paths(plain) == {
-        "invalid_params",
-        "invalid_params.name",
-        "invalid_params.reason_code",
-    } or "invalid_params" in key_paths(with_params) - key_paths(plain)
+    assert key_paths(with_params) - key_paths(plain) == {"invalid_params"} and key_paths(plain) <= key_paths(
+        with_params
+    )
     import json
     from datetime import UTC, datetime
 
@@ -364,10 +362,7 @@ def test_contract_the_series_and_alert_names_the_oracles_query_appear_as_they_ar
         "vectra_bias_last_run_failure",
     ):
         assert series in publish
-    assert (
-        "ALERTS{" + 'alertname="FailClosedPersistente"' in rt3.ALERT.replace(", ", ",")
-        or 'alertname="FailClosedPersistente"' in rt3.ALERT
-    )
+    assert rt3.ALERT.startswith("ALERTS{") and 'alertname="FailClosedPersistente"' in rt3.ALERT
     assert rt5.ALERT.startswith("ALERTS{") and "CoreWriteAttempt" in rt5.ALERT
     for constant, name in (
         (rt2.BIAS_TS, "vectra_bias_last_run_timestamp"),
@@ -377,9 +372,7 @@ def test_contract_the_series_and_alert_names_the_oracles_query_appear_as_they_ar
         (rt3.GAUGE, "vectra_cases_failclosed_persistent"),
     ):
         assert name in constant
-    assert "retention: 3d" in text("platform/observability/values/kube-prometheus-stack-kind.yaml").replace(
-        ": 3d", ": 3d"
-    )
+    assert "retention: 3d" in text("platform/observability/values/kube-prometheus-stack-kind.yaml")
 
 
 def test_contract_the_template_of_the_job_is_the_one_the_oracle_reads() -> None:
