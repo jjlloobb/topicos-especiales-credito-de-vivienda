@@ -15,7 +15,7 @@ app_deployments := {"case-service", "case-worker"}
 deployments := app_deployments | {"core-banking-mock"}
 
 # Un solo conjunto de variables por contenedor (INF-U8-01, 07): las de `Settings.from_env`, `WorkerSettings.from_env`, `migrations/env.py` y U0.
-u0_env := {"VECTRA_CLIENT_ID", "VECTRA_TOKEN_URL", "VECTRA_CLIENT_KEY_PATH", "VECTRA_CA_BUNDLE"}
+u0_env := {"VECTRA_CLIENT_ID", "VECTRA_TOKEN_URL", "VECTRA_ASSERTION_AUDIENCE", "VECTRA_CLIENT_KEY_PATH", "VECTRA_CA_BUNDLE"}
 
 pg_env := {"PGUSER", "PGPASSWORD"}
 

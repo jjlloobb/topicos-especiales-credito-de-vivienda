@@ -47,7 +47,7 @@ su criterio compare los nombres con `app.REQUIRED`, como el de `governance` (U04
 | Variable | `run` (CronJob) | `app` (servicio) |
 |---|---|---|
 | `VECTRA_REGISTRY_URL` | obligatoria | obligatoria |
-| `VECTRA_TOKEN_URL`, `VECTRA_CLIENT_ID`, `VECTRA_CLIENT_KEY_PATH` | obligatorias (cliente `bias-monitoring-job`) | obligatorias (cliente `bias-monitoring-service`) |
+| `VECTRA_TOKEN_URL`, `VECTRA_ASSERTION_AUDIENCE` (emisor público, `keycloak.issuer`; U00-T04), `VECTRA_CLIENT_ID`, `VECTRA_CLIENT_KEY_PATH` | obligatorias (cliente `bias-monitoring-job`) | obligatorias (cliente `bias-monitoring-service`) |
 | `VECTRA_CLIENT_KEY_ID` | opcional | opcional |
 | `VECTRA_GOVERNANCE_URL`, `VECTRA_PUSHGATEWAY_URL` | obligatorias | no las usa |
 | `VECTRA_OIDC_ISSUER`, `VECTRA_JWKS_URL` | no las usa | obligatorias (validación de tokens de entrada, U0) |

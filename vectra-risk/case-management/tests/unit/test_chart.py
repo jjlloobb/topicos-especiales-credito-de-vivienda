@@ -307,6 +307,12 @@ CASES: list[tuple[str, str, Callable[[list[Doc]], None]]] = [
     ),
     ("variable de mas", "service-env", dep(add_env("FOO", "1"), WORKER)),
     ("sin CASE_SCORING_URL en el worker", "service-env", dep(drop_env("CASE_SCORING_URL"), WORKER)),
+    ("sin VECTRA_ASSERTION_AUDIENCE en case-service", "service-env", dep(drop_env("VECTRA_ASSERTION_AUDIENCE"))),
+    (
+        "sin VECTRA_ASSERTION_AUDIENCE en el worker",
+        "service-env",
+        dep(drop_env("VECTRA_ASSERTION_AUDIENCE"), WORKER),
+    ),
     ("sin CASE_REGISTRY_URL en case-service", "service-env", dep(drop_env("CASE_REGISTRY_URL"))),
     ("core habilitado sin CASE_CORE_URL", "service-env", dep(drop_env("CASE_CORE_URL"))),
     ("CASE_CORE_URL con el core apagado", "service-env", dep(set_env("CASE_CORE_ENABLED", "false"))),
@@ -1025,12 +1031,14 @@ def test_env_each_container_has_what_its_code_reads_and_no_constant(env: str) ->
         "VECTRA_JWKS_URL",
         "VECTRA_CLIENT_ID",
         "VECTRA_TOKEN_URL",
+        "VECTRA_ASSERTION_AUDIENCE",
         "VECTRA_CLIENT_KEY_PATH",
         "VECTRA_CA_BUNDLE",
     }
     assert u0 <= set(service) and {
         "VECTRA_CLIENT_ID",
         "VECTRA_TOKEN_URL",
+        "VECTRA_ASSERTION_AUDIENCE",
         "VECTRA_CLIENT_KEY_PATH",
         "VECTRA_CA_BUNDLE",
     } <= set(worker)
@@ -1445,8 +1453,8 @@ def test_kind_values_only_the_memory_request_changes_in_kind_and_staging_and_pro
                 1
             ]  # diferencia declarada: el registro lo pone `imageRegistry` de cada entorno
             for e in c["env"]:
-                if e["name"] == "VECTRA_OIDC_ISSUER":
-                    e["value"] = "emisor"  # diferencia declarada: el emisor publico de cada entorno (U02-T21)
+                if e["name"] in {"VECTRA_OIDC_ISSUER", "VECTRA_ASSERTION_AUDIENCE"}:
+                    e["value"] = "emisor"  # diferencia declarada: el emisor publico de cada entorno (U02-T21, U00-T04)
             c["env"] = [
                 e
                 for e in c["env"]
@@ -1518,6 +1526,16 @@ def test_issuer_case_service_and_the_mock_validate_tokens_against_the_public_iss
         assert e["VECTRA_OIDC_ISSUER"] == PUBLIC_ISSUER[env], name
         assert "keycloak-admin" in e["VECTRA_JWKS_URL"]
     assert "keycloak-admin" in env_map(container(docs, WORKER))["VECTRA_TOKEN_URL"]
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_assertion_audience_is_the_public_issuer_and_not_the_token_url(env: str) -> None:
+    """U00-T04: `case-service` y `case-worker` firman la aserción con el emisor publico (`keycloak.issuer`); la URL de token sigue siendo interna."""
+    docs = render(env)
+    for name in ("case-service", WORKER):
+        e = env_map(container(docs, name))
+        assert e["VECTRA_ASSERTION_AUDIENCE"] == PUBLIC_ISSUER[env], name
+        assert e["VECTRA_ASSERTION_AUDIENCE"] != e["VECTRA_TOKEN_URL"], name
 
 
 def test_issuer_the_internal_url_as_issuer_is_found() -> None:
