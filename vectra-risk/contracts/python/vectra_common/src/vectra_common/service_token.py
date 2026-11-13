@@ -24,8 +24,7 @@ class ServiceTokenProvider:
     """Guarda el token hasta `RENEW_BEFORE` s antes de vencer; pide uno solo a la vez.
 
     `assertion_audience` es la `aud` de la aserción: identifica al servidor de autorización (el emisor
-    que Keycloak publica), no la URL a la que se envía la petición (`token_url`); son dos datos distintos.
-    `audience` es otra cosa: la del access token que se pide.
+    de Keycloak); `token_url` es solo la URL a la que se envía la petición. `audience`: la del access token.
     """
 
     def __init__(

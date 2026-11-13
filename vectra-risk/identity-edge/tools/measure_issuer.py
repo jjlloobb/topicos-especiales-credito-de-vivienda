@@ -317,34 +317,45 @@ def measure(probe: Probe, admin_pw: str, scratch: Path) -> None:
             else f"error: `{parsed.get('error')}: {parsed.get('error_description')}`",
         )
 
-    # M-c: la asercion la construye ServiceTokenProvider (U0), aud = URL interna.
-    seen: dict[str, Any] = {}
-
-    async def poster(url: str, form: Any, timeout: float) -> Any:
-        resp = probe.http(
-            "POST", urlpath(url), host=f"{probe.internal}:8443", sni=probe.internal, data=dict(form)
-        )
-        seen["status"], seen["body"] = resp.status_code, resp.json()
-        if resp.status_code != 200:
-            raise RuntimeError("rechazada")
-        return resp.json()
-
+    # M-c (U00-T04): la asercion la construye ServiceTokenProvider (U0) con `assertion_audience`; la peticion va a la URL interna de token.
     import asyncio
 
-    provider = ServiceTokenProvider(
-        "probe-svc", internal_url, pem, "probe-audience", ("openid",), key_id="probe-1", poster=poster
-    )
-    try:
-        token = asyncio.run(provider.token())
-        extra = f"claims: `{json.dumps(claims(token))}`"
-    except RuntimeError:
-        extra = f"error: `{seen['body'].get('error')}: {seen['body'].get('error_description')}`"
-    show(
-        "M-c",
-        f"ServiceTokenProvider(client_id=probe-svc, token_url={internal_url}).token() (aud de la aserción = esa URL)",
-        seen["status"],
-        extra,
-    )
+    for label, audience in (
+        ("aud configurada", f"https://{PUBLIC_HOST}/auth/realms/vectra"),  # el emisor publico: lo que el chart rinde
+        ("aud antigua", internal_url),  # la URL de token: lo que firmaba U0 antes de U00-T04
+    ):
+        seen: dict[str, Any] = {}
+
+        async def poster(url: str, form: Any, timeout: float, seen: dict[str, Any] = seen) -> Any:
+            resp = probe.http(
+                "POST", urlpath(url), host=f"{probe.internal}:8443", sni=probe.internal, data=dict(form)
+            )
+            seen["status"], seen["body"] = resp.status_code, resp.json()
+            if resp.status_code != 200:
+                raise RuntimeError("rechazada")
+            return resp.json()
+
+        provider = ServiceTokenProvider(
+            "probe-svc",
+            internal_url,
+            pem,
+            "probe-audience",
+            ("openid",),
+            assertion_audience=audience,
+            key_id="probe-1",
+            poster=poster,
+        )
+        try:
+            token = asyncio.run(provider.token())
+            extra = f"claims: `{json.dumps(claims(token))}`"
+        except RuntimeError:
+            extra = f"error: `{seen['body'].get('error')}: {seen['body'].get('error_description')}`"
+        show(
+            f"M-c ({label})",
+            f"ServiceTokenProvider(client_id=probe-svc, token_url={internal_url}, assertion_audience={audience}).token()",
+            seen["status"],
+            extra,
+        )
 
     # M-d: lo que anuncia Keycloak, de las dos formas.
     for label, kwargs in (

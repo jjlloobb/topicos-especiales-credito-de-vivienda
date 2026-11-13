@@ -293,3 +293,4 @@ La comparación del código con U1–U12 encontró que U0 no entregaba lo que la
 - `GET /v1/models` queda solo por rol y `GET /v1/entries` solo por scope: `authorize` exige ambos si se declaran.
 - `contracts-v0.1.0` sigue sin crearse: se crea cuando el usuario apruebe U0 de nuevo (BR-U0-92 inactiva hasta entonces).
 - Sin comprobar contra un Keycloak real: `service_token` se probó con un `poster` falso; lo cubre el Paso de U2.
+  - (U00-T04) Comprobado contra Keycloak 26.8.1 real (`identity-edge/docs/emisor-de-tokens.md`): la `aud` de la aserción es el emisor, no la URL de token. `ServiceTokenProvider` recibe `assertion_audience` (sin valor por omisión) y `provider_from_env` lee `VECTRA_ASSERTION_AUDIENCE`.
