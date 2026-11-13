@@ -8,3 +8,6 @@ kserve:
   explainerUrlTemplate: http://{inference_service}-explainer.vectra-serving.svc.cluster.local
 # Digests: el operador los fija en U12 Paso 18, en UN solo PR con los de governance-service (mismo commit, C-3): scoring-explainability/docs/imagenes.md.
 # Hasta entonces rige el digest de ejemplo del chart y los pods quedarian en `ImagePullBackOff`.
+# Emisor de los tokens de kind (U02-T21): el hostname publico de Keycloak, que es el `iss` que firma (identity-edge/docs/emisor-de-tokens.md).
+keycloak:
+  issuer: https://vectra.localtest.me/auth/realms/vectra
