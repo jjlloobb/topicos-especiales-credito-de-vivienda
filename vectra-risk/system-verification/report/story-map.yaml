@@ -1,0 +1,19 @@
+# Mapa historia -> evidencias (domain-entities §4.2, revision del FD de U12, 2026-10-10; BR-U12-13).
+# Una historia pasa si pasan todas sus evidencias, falla si alguna falla y queda `no ejecutado` en otro caso.
+# Las cuatro de demos (US-304, 503, 504, 505) no son de U12: el informe las marca `demostrada`, no verificada.
+stories:
+  US-101: { evidence: [SIM-NORMAL] }
+  US-106: { evidence: [RT-4] }
+  US-109: { evidence: [RT-1] }
+  US-111: { evidence: [RT-3, journey-7-3] }
+  US-303: { evidence: [RT-2, RT2-LATENCY, journey-7-4] }
+  US-305: { evidence: [journey-7-4, X03] }
+  US-603: { evidence: [RT-5, X01, rt-5] }
+  US-604: { evidence: [X02, LOGS-NO-PII] }
+  US-609: { evidence: [LOAD] }
+  US-608: { evidence: [RESTORE-DRILL] }
+  US-610: { evidence: [READINESS] }
+  US-304: { evidence: [journey-7-4, RT-2], demonstrated: true }
+  US-503: { evidence: [dashboard], demonstrated: true }
+  US-504: { evidence: [dashboard], demonstrated: true }
+  US-505: { evidence: [dashboard], demonstrated: true }

@@ -102,3 +102,13 @@ El usuario preguntó por cuarta vez si se podía trabajar solo en lo necesario p
 **U11, memoria en kind.** El usuario eligió la opción (b) de la pregunta P-1 de U11-T03: el request de memoria de `product-metrics` es de 128 MiB **solo en kind**; staging y producción conservan el valor del diseño. Es una excepción anotada a «kind igual a staging», para que el perfil completo quepa en la máquina de la demo (§7).
 
 **U8, memoria en kind.** El usuario eligió la opción (b) de la pregunta P-1 de U08-T05: el request de memoria de `case-service` y `case-worker` es de 128 MiB **solo en kind**; staging y producción conservan los 256 MiB del diseño, y réplicas, HPA, PDB y limits no cambian. Misma excepción que la de U11.
+
+## 10. Decisiones del 2026-11-13
+
+**U10, memoria en kind.** El usuario eligió la opción (b) de la pregunta P-1 de U10-T05: el request de memoria del BFF es de 128 MiB **solo en kind**; staging y producción conservan los 256 MiB del diseño. La SPA no cambia. Misma excepción que las de U11 y U8 (§9).
+
+**U12-T02, Keycloak de prueba.** El usuario autorizó descargar las imágenes de Keycloak y de keycloak-config-cli para la prueba del login sin navegador visible, y eligió el **host dinámico** (`127.0.0.1:<puerto>`), no el host real `vectra.localtest.me` desviado: ese nombre también es el kind de la máquina, y un desvío fallido podría bloquear usuarios allí de forma permanente. El emisor y los `redirect_uri` reales se atan con una prueba contra `realm.kind.yaml` y los values del gateway, y se comprueban en U12 Paso 18.
+
+**Emisor de los tokens entre unidades.** Al redactar U10-T05 apareció que Keycloak en kind publica el emisor con el nombre público (`KC_HOSTNAME`) y que los charts de U3, U4, U7 y U9 validan por defecto el emisor interno, en los tres entornos (`keycloak-admin.vectra-identity.svc.cluster.local:8443`). Nunca se probó en un clúster. El usuario pidió una tarea corta que lo compruebe con un Keycloak local y corrija los values (U02-T21).
+
+**U10-T04, sin ronda 2.** El revisor escribió NO-VERDE sin ningún ROJO (un NARANJA: el filtro de fecha de la bandeja da 422 contra el BFF real). Por RL-2 la tarea pasó a pull request con el defecto anotado en `CANDIDATAS.md` (`revisiones/U10-T04/arbitraje-ronda-1.md`, en su rama).
