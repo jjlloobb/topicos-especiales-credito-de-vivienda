@@ -35,3 +35,18 @@ spec:
   selector: { matchLabels: { app: minio } }
   podMetricsEndpoints:
     - { port: http, path: /minio/v2/metrics/cluster, relabelings: [{ targetLabel: job, replacement: minio }] }
+---
+# El proxy de `vectra-mock` (puerto `linkerd-admin`, 4191): la serie `inbound_http_authz_deny_total` de la ruta `core-mock-catch-all` es la rama de
+# Linkerd de `CoreWriteAttempt` (RT-5, demo D3; U01-T09). Solo ese namespace (P-1 = a, 2026-11-13) y solo las familias de rechazos de autorizacion:
+# sin filtro cada proxy emite cientos de series y Prometheus de kind tiene 1 GiB. Sin `namespace` en los relabelings: lo pone el namespace del pod.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: linkerd-proxy, namespace: vectra-observability, labels: { vectra.io/criticality: medium } }
+spec:
+  namespaceSelector: { matchNames: [vectra-mock] }
+  selector: { matchLabels: { linkerd.io/control-plane-ns: linkerd } }
+  podMetricsEndpoints:
+    - port: linkerd-admin
+      relabelings: [{ targetLabel: job, replacement: linkerd-proxy }]
+      metricRelabelings:
+        - { sourceLabels: [__name__], action: keep, regex: "inbound_http_authz_.+|inbound_http_route_not_found_total" }
