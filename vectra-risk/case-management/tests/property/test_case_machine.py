@@ -12,12 +12,13 @@ de la base con el superusuario despues de cada comando. El vencimiento de la ret
 
 Los recorridos raros se fuerzan en la mitad de los ejemplos y se cuentan en `STATS` (F-02 de la ronda 1 de U08-T03): seis `worker_lost`
 seguidos, `late_result` tras un vencimiento, `late_result` tras una retoma, `late_result` tras reiniciarse `attempts` (congelar y descongelar, o
-`retry`) y decision tras un abandono.
+`retry`) y decision tras un abandono, y `serving-config` caido con la cache de 5 s fresca y vencida (el modelo lleva su propio reloj).
 """
 
 import asyncio
 import uuid
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -33,7 +34,7 @@ from hypothesis.stateful import (
     run_state_machine_as_test,
 )
 from u8_support import auth, decision_body
-from vectra_case.config import MAX_ATTEMPTS
+from vectra_case.config import MAX_ATTEMPTS, SERVING_CONFIG_CACHE_TTL
 from vectra_case.evaluation import Taken
 from vectra_common import deps
 from vectra_contracts.catalog import FailClosedCause, Outcome
@@ -91,6 +92,8 @@ STATS = {
     "abandon_decide": 0,
     "escalations": 0,
     "frozen_then_thawed": 0,
+    "cfg_down_fresh": 0,  # `serving-config` caido con la cache de 5 s fresca: el intento sigue con la configuracion en cache
+    "cfg_down_stale": 0,  # `serving-config` caido con la cache vencida: `serving_config_unavailable`
     "late_after_reset": 0,  # el resultado tardio de una toma anterior llega con `attempts` de nuevo igual a su numero (F-01, ronda 2)
 }
 
@@ -201,6 +204,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
                     "freeze_thaw",
                     "late_after_thaw",
                     "late_after_retry",
+                    "late_cfg_fresh",
                 ]
             )
         )
@@ -228,8 +232,32 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             self.seen_terminal: str | None = None
             self.takes = 0  # tomas que entregaron un intento
             self.takes_when_listo: int | None = None
+            # Reloj y cache de `serving-config` del modelo. La cache del cliente sobrevive entre ejemplos: avanzar 10 s al empezar la vence
+            # sin mirar el cliente, asi que el modelo parte sin cache.
+            self.now = 0.0
+            self.cache_at: float | None = None
+            self._advance(seconds=10)
             if script is not None:
                 getattr(self, f"_script_{script}")()
+
+        def _advance(self, **kwargs: float) -> None:
+            """Avanza el reloj de la prueba y el del modelo a la vez (el del modelo no lee nada del cliente)."""
+            h.clock.advance(**kwargs)
+            self.now += timedelta(**kwargs).total_seconds()
+
+        def _through_cache(self, kind: tuple[Any, ...]) -> tuple[Any, ...]:
+            """Lo que el modelo espera de `serving-config` antes de un intento: un `get()` con la cache fresca (edad < TTL) no sale a governance.
+
+            Con la cache fresca, `cfg_down` no se nota y scoring decide (`ok`); con la cache vencida, sale a governance y, si esta arriba, la
+            renueva. La edad se mide con el reloj del modelo; el tiempo real que corre en la prueba solo la aumenta, por eso `<` y no `<=`.
+            """
+            fresh = self.cache_at is not None and self.now - self.cache_at < SERVING_CONFIG_CACHE_TTL
+            if kind == ("cfg_down",):
+                STATS["cfg_down_fresh" if fresh else "cfg_down_stale"] += 1
+                return ("rec", Outcome.FAVORABLE) if fresh else kind
+            if not fresh:
+                self.cache_at = self.now
+            return kind
 
         # --- scripts forzados (recorridos raros) ---
         def _script_six_lost(self) -> None:
@@ -287,6 +315,20 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             self._late(old, ("rec", Outcome.FAVORABLE))
             assert self.m.state == "en_evaluacion" and self.m.live is not old
 
+        def _script_late_cfg_fresh(self) -> None:
+            self._lost()  # A: intento 1, sin resultado
+            old = self.m.stale[-1]
+            self._lost()  # B: la retoma (intento 2), la toma vigente
+            live = self.m.live
+            assert live is not None and live is not old
+            self._late(
+                old, ("rec", Outcome.FAVORABLE)
+            )  # no es la vigente, pero el intento pidio `serving-config` y renovo la cache
+            self._late(
+                live, ("cfg_down",)
+            )  # governance caido con la cache fresca: scoring decide y el caso queda `listo`
+            assert self.m.state == "listo"
+
         def _script_abandon_decide(self) -> None:
             self._evaluate(("rec", Outcome.FAVORABLE))
             h.registry.lose_ack_next = 1  # el registro escribe la decision y se pierde el ack
@@ -294,7 +336,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             assert first == 503
             self.matches_the_reference_model()
             h.registry.lose_ack_next = 0
-            h.clock.advance(hours=25)
+            self._advance(hours=25)
             runner.run(h.reconciler.run_once())  # abandona la pendiente (el registro si la habia escrito)
             self.matches_the_reference_model()
             second = self._decide("analista2", ack=True)
@@ -307,7 +349,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
         # --- comandos del worker ---
         def _take(self) -> Taken | None:
             """Una toma con el reloj pasado el backoff y el arrendamiento; verifica `toda toma incrementa` y `attempt = 6 escala`."""
-            h.clock.advance(minutes=20)
+            self._advance(minutes=20)
             reset_breakers(w)
             calls = w.scoring.calls
             taken = runner.run(w.queue.take())
@@ -387,12 +429,13 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
                 self.matches_the_reference_model()
                 return
             prev_ever, prev_last = self.m.ever_degraded, self.m.last_cause
+            effective = self._through_cache(kind)
             self._arm(kind)
             calls = w.scoring.calls
             reset_breakers(w)
             applied = runner.run(w.evaluator.run(taken))
             self._disarm()
-            e = expected(kind, taken.attempt, prev_last)
+            e = expected(effective, taken.attempt, prev_last)
             assert applied is True
             assert (
                 w.scoring.calls - calls == e.calls
@@ -412,6 +455,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             if not current and m.state in IN_FLIGHT and m.job is not None and m.attempts == old.attempt:
                 STATS["late_after_reset"] += 1  # el numero de intento coincide, la toma no
             prev_last = m.last_cause
+            effective = self._through_cache(kind)
             self._arm(kind)
             reset_breakers(w)
             applied = runner.run(w.evaluator.run(old))
@@ -420,7 +464,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
             if not current:
                 assert snapshot(self.case_id) == before  # un resultado tardio nunca modifica el caso
                 return
-            self._apply_expect(expected(kind, old.attempt, prev_last), old.attempt)
+            self._apply_expect(expected(effective, old.attempt, prev_last), old.attempt)
             self.matches_the_reference_model()
 
         @rule(kind=st.sampled_from(KINDS))
@@ -443,7 +487,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
         def sweep(self, state: str) -> None:
             """Congelar y descongelar: el barrido de `case-service` (U08-T03) mueve `modelo_congelado` y la marca de congelamiento."""
             h.governance_handler.state = state
-            h.clock.advance(seconds=10)
+            self._advance(seconds=10)
             m = self.m
             runner.run(h.sweeper.run_once())
             if state == "activo":
@@ -497,7 +541,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
 
         @rule()
         def reconcile(self) -> None:
-            h.clock.advance(minutes=6)
+            self._advance(minutes=6)
             runner.run(h.reconciler.run_once())
             snap = snapshot(self.case_id)
             if (
@@ -508,7 +552,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
         @rule()
         def abandon(self) -> None:
             h.registry.down = True
-            h.clock.advance(hours=25)
+            self._advance(hours=25)
             runner.run(h.reconciler.run_once())  # a las 24 h la evidencia pendiente pasa a `abandonada`
             h.registry.down = False
 
@@ -525,7 +569,7 @@ def make_machine(runner: asyncio.Runner, w: World, db: Db) -> type[RuleBasedStat
 
         @rule(seconds=st.sampled_from([1, 45, 700, 7200]))
         def tick(self, seconds: int) -> None:
-            h.clock.advance(seconds=seconds)
+            self._advance(seconds=seconds)
 
         @invariant()
         def matches_the_reference_model(self) -> None:
@@ -588,3 +632,36 @@ def test_pbt_u8_01_case_fsm_and_evaluation_against_the_reference_model(db: Db) -
         assert STATS["six_lost"] > 0 and STATS["late_after_expire"] > 0 and STATS["late_after_retake"] > 0
         assert STATS["abandon_decide"] > 0 and STATS["escalations"] > 0 and STATS["frozen_then_thawed"] > 0
         assert STATS["late_after_reset"] > 0
+        assert STATS["cfg_down_fresh"] > 0 and STATS["cfg_down_stale"] > 0
+
+
+@pytest.mark.parametrize("script", ["late_after_thaw", "late_after_retake", "late_after_retry"])
+def test_cfg_down_after_a_script_that_ends_in_a_late_result_follows_the_fresh_cache(
+    db: Db, script: str
+) -> None:
+    """F-01 de la ronda 3: la secuencia que fallaba con el modelo viejo, fija. Los tres guiones terminan en `_late` sin avanzar el reloj,
+    asi que la cache de `serving-config` queda fresca y `cfg_down` no se nota: el modelo espera `listo` (un `late_result` con la toma
+    vigente) y la base lo confirma. El blob de reproduccion del revisor no sirve con estrategias cambiadas: esta es su secuencia."""
+
+    class Last:  # el `data` de `late_result`: elige la ultima toma vieja sin pasar por Hypothesis
+        def __init__(self, machine: Any) -> None:
+            self.machine = machine
+
+        def draw(self, _strategy: object) -> Taken:
+            return self.machine.m.stale[-1]
+
+    with asyncio.Runner() as runner:
+        cm = worker_world(db)
+        w = runner.run(cm.__aenter__())
+        try:
+            machine = make_machine(runner, w, db)()
+            before = (STATS["cfg_down_fresh"], STATS["cfg_down_stale"])
+            machine.start(script=script)
+            fresh_before = STATS["cfg_down_fresh"]
+            machine.late_result(Last(machine), ("cfg_down",))
+            # la cache esta fresca (el guion termino sin avanzar el reloj): el contador de la rama fresca sube y el de la vencida no
+            assert STATS["cfg_down_fresh"] == fresh_before + 1
+            assert STATS["cfg_down_stale"] == before[1]
+            machine.matches_the_reference_model()
+        finally:
+            runner.run(cm.__aexit__(None, None, None))
