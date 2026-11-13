@@ -218,7 +218,10 @@ flows:
   - { id: F130, from: [prometheus], to: [grafana], port: 3000 }
   - { id: F102, from: [model-archive], to: [governance-db], port: 5432 }
   - { id: F50, from: [api-gateway, console-bff, case-service, case-worker, scoring-service, explainability-service, governance-service, bias-monitoring-service, bias-monitoring-job, decision-registry-service, product-metrics, model-validation-job, grafana, keycloak-config-cli, core-banking-mock], to: [keycloak], port: 8443 }
-  - { id: F60, from: [prometheus], to: ["ns:vectra-app", "ns:vectra-edge", "ns:vectra-serving", "ns:vectra-mock"], port: 8081 }
+  - { id: F60, from: [prometheus], to: ["ns:vectra-app", "ns:vectra-edge", "ns:vectra-serving"], port: 8081 }
+  # U01-T09: `vectra-mock` aparte de los otros tres, porque el generador nombra la NetworkPolicy por flujo y destino y descarta la repetida: un segundo F60 a
+  # `ns:vectra-mock` perderia el 4191. El 4191 es `linkerd-admin` del proxy (`inbound_http_authz_deny_total` de CoreWriteAttempt) y se abre solo aqui.
+  - { id: F60, from: [prometheus], to: ["ns:vectra-mock"], ports: [8081, 4191] }
   - { id: F60, from: [prometheus], to: [case-db, governance-db, registry-db, keycloak-db], port: 9187 } # exporter de CloudNativePG
   - { id: F60, from: [prometheus], to: [keycloak], port: 9000 } # puerto de administracion
   - { id: F60, from: [prometheus], to: [api-gateway], port: 19001 } # T3: estadisticas del data plane (EnvoyStatsPort)

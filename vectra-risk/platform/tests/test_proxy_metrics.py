@@ -317,6 +317,7 @@ def _scrape_problems(world: World, who: str, metric: str, ns: str) -> tuple[list
 
 def _flow_problems(world: World, who: str, metric: str, ns: str, port: int) -> list[str]:
     env, found = world["env"], []
+    who = f"{who}: {metric} ({ns}, {env})"
     flows = [
         f
         for f in world["flows"]

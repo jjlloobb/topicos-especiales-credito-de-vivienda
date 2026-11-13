@@ -1438,6 +1438,8 @@ spec:
   - ports:
     - port: 8081
       protocol: TCP
+    - port: 4191
+      protocol: TCP
     to:
     - namespaceSelector:
         matchLabels:
