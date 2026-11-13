@@ -380,3 +380,226 @@ def test_rt5_json_helpers_are_valid() -> None:
     assert json.loads(completed_job(T0, T1))["status"]["completionTime"] == iso(T1)
     assert httpx.Request("GET", "http://x").method == "GET"
     assert PROXY_LOG.startswith("rt5-demo: POST")
+
+
+# --- rt2-setup (CA-10) -------------------------------------------------------------------------------------------------------------
+# El BFF **real** en proceso (con los dobles de U10 para governance y case-service, con estado): cada escritura sale con un token de step-up y con el `sub` del usuario.
+
+import hashlib
+import subprocess
+from collections.abc import Iterator
+from pathlib import Path
+
+from external_paths import ROOT
+from rt2_world import PROXY, REFERENCE, Rt2World
+from vectra_verification.scenarios import rt2
+from vectra_verification.scenarios.common import ScenarioError, registration_body
+
+
+@pytest.fixture
+def world() -> Iterator[Rt2World]:
+    built = Rt2World()
+    built.add_model(REFERENCE, "activo", registered_by="otro-ingeniero", approved_by="otro-cro")
+    yield built
+    built.close()
+
+
+def make_package(base: Path, model_id: str) -> Path:
+    """Un paquete de U5 chico (los 5 archivos de `manifest.json`): lo que `registro-cuerpo.sh` y `registration_body` leen."""
+    directory = base / model_id
+    directory.mkdir(parents=True, exist_ok=True)
+    files = []
+    for name in ("predictor.json", "explainer.json", "feature_dictionary.json", "feature_spec.json"):
+        data = json.dumps({"model_version_id": model_id, "name": name}).encode()
+        (directory / name).write_bytes(data)
+        files.append({"name": name, "sha256": hashlib.sha256(data).hexdigest(), "model_version_id": model_id})
+    (directory / "manifest.json").write_text(
+        json.dumps({"model_version_id": model_id, "files": files}), encoding="utf-8"
+    )
+    return directory
+
+
+def versions(
+    world: Rt2World, tmp_path: Path, count: int = 1, ids: tuple[str, ...] = ()
+) -> list[rt2.ProxyVersion]:
+    names = ids or tuple(f"{PROXY}-{n}" if n else PROXY for n in range(count))
+    return [rt2.ProxyVersion(n + 1, name, make_package(tmp_path, name)) for n, name in enumerate(names)]
+
+
+def setup(world: Rt2World, items: list[rt2.ProxyVersion], **kw: float) -> rt2.Outcome:
+    return rt2.rt2_setup(KIND, world.sessions, world.clock, items, **kw)
+
+
+def test_rt2_setup_one_version_is_registered_validated_and_approved_by_another_user_with_step_up(
+    world: Rt2World, tmp_path: Path
+) -> None:
+    outcome = setup(world, versions(world, tmp_path))
+    assert outcome.result == "pasa", outcome
+    assert (
+        world.state_of(PROXY) == "aprobado"
+        and world.models[PROXY]["approved_by"] == "cro-1"
+        and world.models[PROXY]["registered_by"] == "ingeniero-1"
+    )
+    assert world.registrations == [(PROXY, "ingeniero-1")] and world.approvals == [(PROXY, "cro-1")]
+    assert (
+        world.oidc.step_ups.count("ingeniero-1") >= 1 and world.oidc.step_ups.count("cro-1") == 1
+    )  # cada escritura salio con un token de step-up
+    assert outcome.subresults[0].readings["approved_by_differs"] is True
+
+
+def test_rt2_setup_three_versions_all_end_approved(world: Rt2World, tmp_path: Path) -> None:
+    items = versions(world, tmp_path, 3)
+    outcome = setup(world, items)
+    assert outcome.result == "pasa" and len(outcome.subresults) == 3
+    assert {world.state_of(v.model_version_id) for v in items} == {"aprobado"} and len(world.approvals) == 3
+    assert world.oidc.step_ups.count("ingeniero-1") == 1, (
+        "la segunda escritura de ingeniero-1 dentro de 800 s no hace otro step-up"
+    )
+
+
+def test_rt2_setup_a_version_in_validacion_fallida_refuses_to_go_on_with_zero_approvals(
+    world: Rt2World, tmp_path: Path
+) -> None:
+    world.validation_outcome = "validacion_fallida"
+    outcome = setup(world, versions(world, tmp_path, 2))
+    assert outcome.result == "falla" and "rt2_setup_validacion_fallida" in outcome.missing
+    assert world.approvals == [] and outcome.readings["approvals_sent"] == 0
+
+
+def test_rt2_setup_two_versions_with_the_same_model_version_id_is_an_error_with_zero_requests(
+    world: Rt2World, tmp_path: Path
+) -> None:
+    items = versions(world, tmp_path, ids=(PROXY, PROXY))
+    with pytest.raises(ScenarioError, match="rt2_version_repetida"):
+        setup(world, items)
+    assert world.bff.doubles.governance.calls == [] and world.oidc.logins == [] and world.oidc.step_ups == []
+
+
+def test_rt2_setup_zero_or_six_versions_are_out_of_range(world: Rt2World, tmp_path: Path) -> None:
+    for count in (0, 6):
+        with pytest.raises(ScenarioError, match="rt2_versiones_fuera_de_rango"):
+            setup(world, [rt2.ProxyVersion(n + 1, f"mv-{n}") for n in range(count)])
+
+
+def test_rt2_setup_approver_equal_to_registrant_fails_with_the_409(world: Rt2World, tmp_path: Path) -> None:
+    world.add_model(
+        PROXY, "lista_para_aprobacion", registered_by="cro-1"
+    )  # quien la registro es el mismo `sub` que aprueba: U4 responde 409
+    outcome = setup(world, versions(world, tmp_path))
+    assert outcome.result == "falla" and outcome.missing == ("rt2_setup_aprobacion_http_409_conflict_state",)
+
+
+def test_rt2_setup_registration_body_is_the_one_of_registro_cuerpo_sh(tmp_path: Path) -> None:
+    package = make_package(tmp_path, "mv-20261113-abcd1234")
+    script = ROOT / "governance" / "docs" / "kind" / "registro-cuerpo.sh"
+    done = subprocess.run(["bash", str(script), str(package)], capture_output=True, text=True, check=True)  # noqa: S603, S607
+    assert registration_body(package).model_dump(
+        exclude={"data_sources", "source_candidate_for"}
+    ) == json.loads(done.stdout)
+    assert (
+        registration_body(package, "adversarial/rt3-a").manifest_uri
+        == "s3://model-store/adversarial/rt3-a/manifest.json"
+    )
+
+
+def test_rt2_setup_resumes_a_version_already_lista_para_aprobacion_without_registering_or_validating(
+    world: Rt2World, tmp_path: Path
+) -> None:
+    world.add_model(PROXY, "lista_para_aprobacion", registered_by="ingeniero-1")
+    outcome = setup(world, versions(world, tmp_path))
+    assert outcome.result == "pasa" and world.registrations == [] and world.validation_calls == []
+    assert world.approvals == [(PROXY, "cro-1")]
+
+
+def test_rt2_setup_a_version_already_approved_is_not_touched(world: Rt2World, tmp_path: Path) -> None:
+    world.add_model(PROXY, "aprobado", registered_by="ingeniero-1", approved_by="cro-1")
+    outcome = setup(world, versions(world, tmp_path))
+    assert (
+        outcome.result == "pasa"
+        and world.registrations == []
+        and world.approvals == []
+        and world.oidc.step_ups == []
+    )
+
+
+def test_rt2_setup_validating_without_an_active_policy_is_no_ejecutado_with_its_reason(
+    world: Rt2World, tmp_path: Path
+) -> None:
+    world.no_policy = True
+    outcome = setup(world, versions(world, tmp_path))
+    assert outcome.result == "no ejecutado" and outcome.missing == ("rt2_setup_sin_politica_activa",)
+    assert world.approvals == []
+
+
+def test_rt2_setup_a_validation_that_does_not_end_is_no_ejecutado_after_the_deadline_with_the_fake_clock(
+    world: Rt2World, tmp_path: Path
+) -> None:
+    world.validation_seconds = 10_000.0
+    outcome = setup(world, versions(world, tmp_path), validation_timeout=1800.0)
+    assert outcome.result == "no ejecutado" and outcome.missing == ("rt2_setup_validacion_no_termina",)
+    assert "InferenceService" in outcome.subresults[0].detail and sum(world.clock.sleeps) <= 1800.0 + 1
+
+
+def test_rt2_setup_an_auth_time_of_801_seconds_ago_makes_a_new_step_up_and_800_does_not(
+    world: Rt2World,
+) -> None:
+    sessions = world.sessions
+    sessions.writer("cro-1")
+    world.clock.advance(800.0)
+    sessions.writer("cro-1")
+    assert world.oidc.step_ups.count("cro-1") == 1
+    world.clock.advance(1.0)
+    sessions.writer("cro-1")
+    assert world.oidc.step_ups.count("cro-1") == 2
+
+
+def test_rt2_setup_a_session_without_step_up_is_refused_before_sending(
+    world: Rt2World, tmp_path: Path
+) -> None:
+    world.oidc.step_up_flag = False
+    with pytest.raises(ScenarioError, match="step_up_required"):
+        setup(world, versions(world, tmp_path))
+    assert world.registrations == []
+
+
+def test_rt2_setup_an_expired_mfa_is_retried_once_after_a_step_up(world: Rt2World) -> None:
+    calls: list[int] = []
+
+    def write(client: object) -> str:
+        calls.append(1)
+        if len(calls) == 1:
+            from vectra_verification.clients._api import ApiError
+
+            raise ApiError(403, "mfa_required")
+        return "ok"
+
+    assert (
+        world.sessions.write("cro-1", write) == "ok"
+        and len(calls) == 2
+        and world.oidc.step_ups.count("cro-1") == 2
+    )
+
+
+def test_rt2_setup_a_non_mfa_403_is_not_retried(world: Rt2World) -> None:
+    from vectra_verification.clients._api import ApiError
+
+    def write(client: object) -> str:
+        raise ApiError(403, "forbidden")
+
+    with pytest.raises(ApiError):
+        world.sessions.write("cro-1", write)
+    assert world.oidc.step_ups.count("cro-1") == 1
+
+
+def test_rt2_setup_the_empty_initial_disparity_warning_stays_in_the_result(
+    world: Rt2World, tmp_path: Path
+) -> None:
+    world.empty_disparity = True
+    outcome = setup(world, versions(world, tmp_path))
+    assert outcome.result == "pasa" and outcome.readings["initial_disparity_vacia"] == [PROXY]
+
+
+def test_rt2_setup_in_staging_is_refused_with_zero_requests(world: Rt2World, tmp_path: Path) -> None:
+    with pytest.raises(guard.GuardError, match="section_denied_in_staging:rt2-setup"):
+        rt2.rt2_setup(guard.STAGING, world.sessions, world.clock, versions(world, tmp_path))
+    assert world.bff.doubles.governance.calls == [] and world.oidc.logins == []
