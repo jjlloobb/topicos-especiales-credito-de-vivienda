@@ -53,7 +53,9 @@ Una sola fila (`CHECK (id = 1)`): `decided_years`, `undecided_years`, `intake_ke
 | `case_id` | Un solo trabajo vivo por caso (índice único parcial) |
 | `attempt` | 0..6: 0 en un trabajo recién creado; **cada toma** lo incrementa y lo copia a `cases.attempts`, incluida la retoma tras un arrendamiento vencido. `CHECK (attempt BETWEEN 0 AND 6)`: la toma lee el valor antes de escribir y, si ya vale 6, escala **sin incrementar** (BR-U8-07; precisado el 2026-10-08, revisión del plan de tareas de U8; precisado el 2026-10-08, segunda revisión del plan de tareas de U8) |
 | `run_at` | Siguiente ejecución (BR-U8-07) |
-| `locked_until` | Lo fija el worker que lo toma (`FOR UPDATE SKIP LOCKED`) |
+| `locked_until` | Lo fija el worker que lo toma (`FOR UPDATE SKIP LOCKED`); `NULL` tras una reprogramación |
+
+La fila se borra al salir de `en_evaluacion`/`en_sincronizacion`: el worker la borra, en la misma transacción que el cambio de estado, al pasar a `listo`, `modelo_congelado` o `no_disponible`, y `case-retention` al pasar a `vencido`. Así el `INSERT` simple de `retry` y del barrido no choca con el índice único (precisado el 2026-11-12 por U08-T04; cierra la candidata F-02 de U08-T01). Una reprogramación tras un fallo solo fija `run_at` y `locked_until = NULL` en esta fila; `last_cause` vive en `cases`.
 
 ### 2.2 Lectura de gobierno (Q1)
 - **`serving-config`**: se usan `model_version_id` y `state`. Caché ≤ 5 s con `If-None-Match`, como en scoring (BR-U7-01).

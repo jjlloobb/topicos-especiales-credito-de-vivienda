@@ -237,7 +237,7 @@ vectra-risk/case-management/
 
 ### Bloque E — `case-worker`
 
-- [ ] **Paso 14 — Clientes y caché de gobierno**
+- [x] **Paso 14 — Clientes y caché de gobierno** (U08-T04)
   - Un `httpx.AsyncClient` por dependencia con `deps.call` (P-U8-02): scoring 16 conexiones y 7 s; governance 4 conexiones, 500 ms (`serving-config`) y 1 s (`feature_spec`).
   - `governance_client`: `serving-config` con caché ≤ 5 s e `If-None-Match`; `feature_spec` por versión, sin expiración, LRU de 4.
   - Fallo del breaker = timeout, conexión o 5xx; un 4xx no cuenta (NFR-U8-32). NFR-U8-31 se escribe `BreakerConfig(open_for=10, window_size=20, failure_ratio=0.5, window_seconds=30)`, y el token de servicio es `service_token.provider_from_env(audience, scopes)`, pasado como `token_source` (revisión de consistencia entre unidades, 2026-11-01).
@@ -248,7 +248,7 @@ vectra-risk/case-management/
     - scoring caído → tras 20 llamadas, los intentos terminan en < 50 ms (E1 de P-U8-09);
     - 5 versiones de `feature_spec` → se descarta la menos usada.
 
-- [ ] **Paso 15 — `job_queue`, `evaluation` y `worker`**
+- [x] **Paso 15 — `job_queue`, `evaluation` y `worker`** (U08-T04; P-1 (a): `case_fsm` admite `en_evaluacion` + `attempt_6_failed`; P-2 (a): el doble de la prueba del `SIGTERM` responde a los 5 s, más un caso a los 10 s)
   - `job_queue` (P-U8-01): semáforo de 16; sondeo 400 ms ± 100 ms; toma en una transacción corta con `FOR UPDATE SKIP LOCKED`, `locked_until = now() + 30 s` y **`attempt = attempt + 1` copiado a `cases.attempts`**, también en la retoma tras un arrendamiento vencido; la decisión se toma con el `attempt` **leído**: si ya vale 6, escala en esa transacción con `local_cause = scoring_unreachable`, sin incrementar (nunca se escribe 7, que el `CHECK` rechaza) y sin llamar a scoring (BR-U8-07); la conexión vuelve al pool antes de las llamadas.
   - `evaluation` (BR-U8-05..09): `serving-config` → `feature_spec` → `derive` → `ScoringRequest` (sin identificadores, `free_text` ni `test_scenario_id`; con `received_at = cases.created_at` y `first_evaluation = not cases.ever_degraded and attempt = 1`, BR-U8-06; pendientes posteriores al cierre, 2026-10-10) → scoring; al entrar en `en_sincronizacion`, `no_disponible` o `modelo_congelado`, la misma transacción pone `cases.ever_degraded = true`; tabla de resultados de BR-U8-08, con el reintento por 401 dentro del mismo intento; aplicación del resultado con `UPDATE … WHERE state IN (…) AND attempts = :attempt`, con el número que devolvió esa toma, o `evaluation.result_discarded`; la reprogramación solo fija `run_at`, `last_cause` y `locked_until = NULL`.
   - Escalamiento: `no_disponible`, `escalation_count + 1` y la entrada `fail_closed` en `evidence_outbox` con `UUIDv5(case_id, "fail_closed", ciclo)`, exactamente uno de `cause` o `local_cause`, `retryable`, `attempt` y `escalated_at`, con un `INSERT` simple en un `SAVEPOINT` (sin `RETURNING` ni `ON CONFLICT`; `unique_violation` de la llave = éxito) en la misma transacción que el cambio de estado (BR-U8-09); la envía el reconciliador del Paso 10.
@@ -285,7 +285,7 @@ vectra-risk/case-management/
     - caso `listo` con la retención vencida → `vencido` sin identificadores; una decisión, una consulta o un `retry` sobre él → 409;
     - `--plazo` o cualquier argumento de plazos → error de uso.
 
-- [ ] **Paso 17 — `core-banking-mock`**
+- [x] **Paso 17 — `core-banking-mock`** (U08-T04)
   - FastAPI sin base, con los fixtures dentro de la imagen (`/app/fixtures/credits.json`).
   - `GET /v1/credits/{id}` con validación de firma por JWKS (F50), `aud = core-banking-mock` y scope `core:read-credit` con `vectra_common`.
   - `POST /v1/credits/{id}/status`: exige `core:write-credit`, que nadie tiene → 403, `WriteAttempt` en el log y `vectra_core_write_attempts_total` (creada en 0 al arrancar).
@@ -296,7 +296,7 @@ vectra-risk/case-management/
     - prueba **del mock aislado, sin proxy de Linkerd**: `POST` con cualquier token válido → 403, un `WriteAttempt` y la métrica en 1 (US-603);
     - `GET /metrics` recién iniciado → `vectra_core_write_attempts_total` = 0.
 
-- [ ] **Paso 18 — Resumen de los servicios**
+- [x] **Paso 18 — Resumen de los servicios** (U08-T04; umbral de `retention` y PBT-U8-08 diferidos por la demo)
   - Cobertura de ramas ≥ 95 % en `vectra_case` y **100 %** en `case_fsm`, `backoff`, `decision`, `views`, `intake`, `evidence`, `evaluation`, `sweeps` y `retention`.
   - PBT-U8-01..08 con el perfil `ci` (500 ejemplos, semilla impresa).
   - Resúmenes en `aidlc-docs/construction/case-management/code/services.md` y `code/database.md`.
