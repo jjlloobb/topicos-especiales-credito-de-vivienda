@@ -1,0 +1,15 @@
+{{- /* Service solo con 8080 (F02; INF-U10-01). La SPA no expone metricas: sin 8081 y sin ServiceMonitor. La afinidad `vectra-spa-route` es una cookie del
+gateway de U2 (ruta `spa`), no del Service. */ -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: console-spa
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: console-spa
+    app.kubernetes.io/part-of: console
+spec:
+  selector:
+    app.kubernetes.io/name: console-spa
+  ports:
+    - { name: http, port: {{ .Values.deployment.port }}, targetPort: http }

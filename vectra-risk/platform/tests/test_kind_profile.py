@@ -24,7 +24,10 @@ PLATFORM = Path(__file__).resolve().parents[1]
 # Subido a 10,7 en U11-T03 (misma regla de DECISIONES-LOOP.md §7; P-1 = (b), decision del usuario 2026-11-12): `product-metrics` suma 2 replicas x (128 Mi + 20 Mi de
 # proxy) = 0,2891 GiB y el total pasa a 10,6328 GiB (medido antes y despues de agregar la Application), redondeado hacia arriba a 0,1 GiB. El request de kind es de
 # 128 MiB y no de los 256 MiB de INF-U11-01: se aparta de «kind igual a staging» (deployment-architecture.md) solo en este request. Con U8 y U10 la proyeccion es ≈ 12,5 GiB.
-BUDGET_GIB = 10.7
+# Subido a 11,1 en U10-T05 (misma regla de DECISIONES-LOOP.md §7; P-1 = (b), decision del usuario 2026-11-13): `console-bff` y `console-spa` suman 2 replicas x (128 Mi + 20 Mi de proxy)
+# + 2 replicas x (32 Mi + 20 Mi de proxy) = 0,3906 GiB y el total pasa a 11,0234 GiB (medido antes y despues de agregar las dos Applications: 10,6328 y 11,0234), redondeado hacia arriba
+# a 0,1 GiB. El request del BFF en kind es de 128 MiB y no de los 256 MiB de INF-U10-01: se aparta de «kind igual a staging» (deployment-architecture.md) solo en ese request. Con U8 la proyeccion es ≈ 11,77 GiB.
+BUDGET_GIB = 11.1
 PROXY_GIB = 20 / 1024
 MESHED = {
     "vectra-edge", "vectra-app", "vectra-serving", "vectra-staging", "vectra-data", "vectra-identity", "vectra-mock",
