@@ -307,7 +307,11 @@ CASES: list[tuple[str, str, Callable[[list[Doc]], None]]] = [
     ),
     ("variable de mas", "service-env", dep(add_env("FOO", "1"), WORKER)),
     ("sin CASE_SCORING_URL en el worker", "service-env", dep(drop_env("CASE_SCORING_URL"), WORKER)),
-    ("sin VECTRA_ASSERTION_AUDIENCE en case-service", "service-env", dep(drop_env("VECTRA_ASSERTION_AUDIENCE"))),
+    (
+        "sin VECTRA_ASSERTION_AUDIENCE en case-service",
+        "service-env",
+        dep(drop_env("VECTRA_ASSERTION_AUDIENCE")),
+    ),
     (
         "sin VECTRA_ASSERTION_AUDIENCE en el worker",
         "service-env",
@@ -1454,7 +1458,9 @@ def test_kind_values_only_the_memory_request_changes_in_kind_and_staging_and_pro
             ]  # diferencia declarada: el registro lo pone `imageRegistry` de cada entorno
             for e in c["env"]:
                 if e["name"] in {"VECTRA_OIDC_ISSUER", "VECTRA_ASSERTION_AUDIENCE"}:
-                    e["value"] = "emisor"  # diferencia declarada: el emisor publico de cada entorno (U02-T21, U00-T04)
+                    e["value"] = (
+                        "emisor"  # diferencia declarada: el emisor publico de cada entorno (U02-T21, U00-T04)
+                    )
             c["env"] = [
                 e
                 for e in c["env"]

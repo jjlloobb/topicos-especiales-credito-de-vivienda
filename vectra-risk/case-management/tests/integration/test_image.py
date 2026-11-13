@@ -230,7 +230,9 @@ class Run:
     ) -> list[str]:
         env = chart_env(c)
         env.update({k: v for k, v in overrides.items() if k in env})
-        if "VECTRA_ASSERTION_AUDIENCE" in env:  # el render local trae el emisor de produccion; el doble de Keycloak acepta el de prueba
+        if (
+            "VECTRA_ASSERTION_AUDIENCE" in env
+        ):  # el render local trae el emisor de produccion; el doble de Keycloak acepta el de prueba
             env["VECTRA_ASSERTION_AUDIENCE"] = ASSERTION_AUDIENCE
         if role:
             env["PGUSER"], env["PGPASSWORD"] = role, ROLE_PASSWORD[role]
