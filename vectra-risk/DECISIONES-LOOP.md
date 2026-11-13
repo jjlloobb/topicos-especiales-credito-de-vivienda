@@ -100,3 +100,5 @@ El usuario preguntó por cuarta vez si se podía trabajar solo en lo necesario p
 **U08-T04, ronda 3 acotada.** Excepción a RL-2 autorizada por el usuario: la ronda 2 cerró el defecto real (el resultado tardío de otro ciclo se aplicaba al caso) y dejó un ROJO de una sola prueba, «`GET /metrics` recién iniciado → `vectra_core_write_attempts_total` = 0», que es la base de la demo D3. La ronda 3 cubre esa prueba y tres AMARILLO, y nada más (`revisiones/U08-T04/arbitraje-ronda-2.md`).
 
 **U11, memoria en kind.** El usuario eligió la opción (b) de la pregunta P-1 de U11-T03: el request de memoria de `product-metrics` es de 128 MiB **solo en kind**; staging y producción conservan el valor del diseño. Es una excepción anotada a «kind igual a staging», para que el perfil completo quepa en la máquina de la demo (§7).
+
+**U8, memoria en kind.** El usuario eligió la opción (b) de la pregunta P-1 de U08-T05: el request de memoria de `case-service` y `case-worker` es de 128 MiB **solo en kind**; staging y producción conservan los 256 MiB del diseño, y réplicas, HPA, PDB y limits no cambian. Misma excepción que la de U11.
