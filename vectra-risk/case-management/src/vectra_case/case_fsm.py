@@ -45,7 +45,8 @@ TRANSITIONS: Final[dict[tuple[CaseState | None, CaseEvent], CaseState]] = {
     (None, _E.ALTA): _S.EN_EVALUACION,
     **{(s, _E.RECOMMENDATION): _S.LISTO for s in _IN_FLIGHT},
     **{(s, _E.RETRYABLE_FAILURE): _S.EN_SINCRONIZACION for s in _IN_FLIGHT},
-    (_S.EN_SINCRONIZACION, _E.ATTEMPT_6_FAILED): _S.NO_DISPONIBLE,
+    # P-1 (a) de U08-T04: tambien desde `en_evaluacion` (worker perdido en los seis intentos, sin ningun resultado aplicado).
+    **{(s, _E.ATTEMPT_6_FAILED): _S.NO_DISPONIBLE for s in _IN_FLIGHT},
     **{(s, _E.SCORING_REJECTED): _S.NO_DISPONIBLE for s in _IN_FLIGHT},
     **{(s, _E.MODEL_FROZEN): _S.MODELO_CONGELADO for s in _IN_FLIGHT},
     (_S.MODELO_CONGELADO, _E.SWEEP_ACTIVE): _S.EN_EVALUACION,

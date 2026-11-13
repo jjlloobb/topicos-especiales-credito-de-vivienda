@@ -73,3 +73,14 @@ source_modules =
 forbidden_modules =
     vectra_contracts.outcome._internal
 allow_indirect_imports = True
+
+# INF-U8-02 (U08-T04, Paso 17): el mock no depende de `case-service`; solo comparte U0. Un mock que importara `vectra_case` ya no seria un
+# core independiente (y la imagen del mock no lleva `vectra_case`).
+[importlinter:contract:mock-isolated]
+name = core_banking_mock no importa vectra_case
+type = forbidden
+source_modules =
+    core_banking_mock
+forbidden_modules =
+    vectra_case
+allow_indirect_imports = True

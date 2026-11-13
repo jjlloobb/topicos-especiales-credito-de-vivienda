@@ -471,9 +471,9 @@ class Evidence:
                     "VALUES (%s, %s, %s, %s)",
                     (case_id, principal.subject, now, evidence_id),
                 )
-        if to_send is not None:
-            # Un intento inmediato; si falla queda pendiente y sigue el reconciliador (siempre 204).
-            await self.settle(to_send)
+        assert to_send is not None  # noqa: S101 - toda salida del `async with` que no es `return` deja una fila que enviar
+        # Un intento inmediato; si falla queda pendiente y sigue el reconciliador (siempre 204).
+        await self.settle(to_send)
 
 
 class Reconciler:

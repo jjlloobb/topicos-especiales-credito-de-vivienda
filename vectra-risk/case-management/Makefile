@@ -11,10 +11,11 @@ lint:
 	$(UV) lint-imports --config case-management/.importlinter
 
 # Las pruebas de migraciones levantan PostgreSQL con Testcontainers (Docker local, sin cluster; AUTONOMIA-01).
-# CA-6 (U08-T02): cobertura de ramas del 100 % en los cuatro modulos de logica pura (NFR-U8-50); `mutmut` diferido por la demo (T3).
-COV_PURE := --cov=vectra_case.case_fsm --cov=vectra_case.backoff --cov=vectra_case.decision --cov=vectra_case.views --cov-branch --cov-fail-under=100
-# `case-management/pytest.ini` apunta la cobertura a `vectra_case` y no a la de U0 de la raiz.
+# Paso 18 (U08-T04, NFR-U8-50): ramas >= 95 % en `vectra_case` y 100 % en los ocho modulos que entran (`retention` sin umbral: diferido por la
+# demo; `mutmut` diferido, T3). `case-management/pytest.ini` apunta la cobertura a `vectra_case` y no a la de U0.
+COV_100 := --include='*/vectra_case/case_fsm.py,*/vectra_case/backoff.py,*/vectra_case/decision.py,*/vectra_case/views.py,*/vectra_case/intake.py,*/vectra_case/evidence.py,*/vectra_case/evaluation.py,*/vectra_case/sweeps.py'
 test:
-	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest case-management/tests case-management/core_banking_mock/tests -q -p no:cacheprovider --rootdir=case-management $(COV_PURE)
+	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest case-management/tests case-management/core_banking_mock/tests -q -p no:cacheprovider --rootdir=case-management --cov=vectra_case --cov-branch --cov-fail-under=95
+	cd $(ROOT) && uv run coverage report --rcfile=case-management/coveragerc --fail-under=100 $(COV_100)
 
 check: lint test
