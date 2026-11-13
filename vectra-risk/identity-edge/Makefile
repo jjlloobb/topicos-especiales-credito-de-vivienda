@@ -21,19 +21,28 @@ JOBS := $(ROOT)/identity-edge/jobs
 # Destino del render de los jobs. Por defecto, el versionado; `check-jobs-rendered` lo cambia por un directorio temporal.
 JOBS_OUT ?= $(JOBS)/rendered
 
-.PHONY: rules runbooks load-inspect load collect-e2e e2e policy-ratelimit render-valkey check-valkey-rendered policy-valkey policy-valkey-u1 lint test check route-gen check-route-gen schemas-gateway kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
+.PHONY: rules runbooks load-inspect load collect-e2e e2e collect-integration integration policy-ratelimit render-valkey check-valkey-rendered policy-valkey policy-valkey-u1 lint test check route-gen check-route-gen schemas-gateway kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway render-keycloak policy-keycloak policy-keycloak-u1 check-keycloak-rendered render-jobs policy-jobs policy-jobs-u1 check-jobs-rendered
 
 lint:
 	$(UV) ruff check identity-edge
 
-# Sin las e2e: necesitan un clúster (U02-T14, H3). Se ejecutan con `e2e` en el Paso 16.
+# Sin las e2e (necesitan un clúster, U02-T14, H3) ni las de integración (arrancan Docker, U02-T22). Se ejecutan con `e2e` en el Paso 16.
 # NFR-U2-40: pytest + Hypothesis con el perfil `ci` (500 ejemplos, semilla impresa) sobre `realm-lint`, `route-gen` y sus modelos.
 test:
-	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest identity-edge/tests --ignore=identity-edge/tests/e2e -q
+	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest identity-edge/tests --ignore=identity-edge/tests/e2e --ignore=identity-edge/tests/integration -q
 
 # La suite e2e solo se colecta: lista todos los casos sin ninguna variable de entorno del clúster (U02-T14, H3).
 collect-e2e:
 	cd $(ROOT) && uv run pytest identity-edge/tests/e2e --collect-only -q
+
+# La prueba de integración del realm (U02-T22) solo se colecta en `check`: no arranca Docker.
+collect-integration:
+	cd $(ROOT) && uv run pytest identity-edge/tests/integration --collect-only -q
+
+# Importa el realm de Git en un Keycloak y un keycloak-config-cli reales (Docker, imágenes por digest ya descargadas) y hace un login por rol.
+# NO entra en `check` (AUTONOMIA-01): córrela cuando cambie un realm, con un solo Keycloak a la vez en la máquina. Ver docs/realm-importacion.md.
+integration:
+	cd $(ROOT) && uv run pytest identity-edge/tests/integration -v -p no:cacheprovider
 
 # La especificacion de la prueba de carga (U02-T15, Paso 14): k6 ejecuta el init context sin variables de entorno y muestra los
 # umbrales; luego `load_checks.py` lo compara con el diseno (umbrales, escenarios, perfil). No corre la carga.
@@ -169,7 +178,7 @@ policy-gateway:
 	done
 
 # Verificaciones estaticas (AUTONOMIA-01). Crece con los pasos del plan.
-check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 check-route-gen kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway policy-ratelimit check-valkey-rendered policy-valkey policy-valkey-u1 rules runbooks collect-e2e load-inspect test
+check: lint check-keycloak-rendered policy-keycloak policy-keycloak-u1 check-jobs-rendered policy-jobs policy-jobs-u1 check-route-gen kubeconform-gateway policy-gateway xds-gateway render-envoy-gateway policy-ratelimit check-valkey-rendered policy-valkey policy-valkey-u1 rules runbooks collect-e2e collect-integration load-inspect test
 
 # `helm template` del chart gateway-helm v1.9.3 con los values del controlador (U02-T10, Paso 8). Lo renderizado no se versiona.
 EG_RENDER := $(ROOT)/identity-edge/.tools/envoy-gateway/render.yaml
