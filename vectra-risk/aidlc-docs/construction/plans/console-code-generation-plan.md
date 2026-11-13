@@ -166,24 +166,24 @@ vectra-risk/console/
   - Diseño: BR-U10-17, 18, 21, 22; P-U10-06, 09; NFR-U10-53.
   - **Aceptación**: `npm run -w console/spa test -- api i18n reporter version`: PBT-U10-06; `uv run python contracts/tools/forbidden_phrases.py console/spa/src/i18n/*.json` en 0; 20 errores en un minuto → 10 envíos; `version.json` distinto → aviso sin recarga.
 
-- [ ] **Paso 13 — Vistas de casos**
+- [x] **Paso 13 — Vistas de casos** (U10-T04; parcial: ver `tareas/U10-T04-spa-vistas-y-e2e.md`)
   - `CasesInbox` (filtros de `CaseFilter` en la URL, «Ir al caso» por `case_id`, refresco de 15 s), `CaseDetail` (refresco de 3 s hasta 2 min), `RecommendationSummary`, `ExplanationPanel` (`record_explanation_view` una vez por vista, solo con rol `analista`, y una prueba de que `cro` no la llama; seguimiento de la quinta revisión de coherencia, 2026-10-31), `ApplicationView` (`free_text` como texto), `CreditStatusBadge` (incluido `no_integrado`), `DecisionForm` (validación igual que el servidor, diálogo de confirmación, botón deshabilitado en curso), `ManualApplicationForm` (`Idempotency-Key` por envío), `PersistentFailures` con `retry`, `ApplicantSummaryButton`, `Dossier` (PDF en el navegador) e `IntegrityCheck` (inicio con MFA, `already_active`, estado cada 30 s).
   - Diseño: BR-U10-07..11, 03; frontend-components. Historias: US-102, 104, 106, 107, 108, 109, 110, 112, 402, 403, 501, 502.
   - **Aceptación**: `npm run -w console/spa test -- views/cases`: PBT-U10-04 (mismo oráculo que PBT-U8-03); las pruebas de ejemplo del FD de casos (bandeja sin `vencido` por omisión, `free_text` con `<script>`, `no_integrado`, baja confianza y `revision_requerida`, `decision_already_recorded`, expediente sin identificadores, `retry` del CRO, panel de explicación con una sola llamada y ninguna sin abrirlo); la URL de la bandeja nunca contiene datos del solicitante.
 
-- [ ] **Paso 14 — Vistas de gobierno y sesgo**
+- [x] **Paso 14 — Vistas de gobierno y sesgo** (U10-T04; parcial: ver `tareas/U10-T04-spa-vistas-y-e2e.md`)
   - `RoleMenu` desde `get_me` con las rutas por rol de BR-U10-12; modelos, políticas y fuentes con sus diálogos con MFA; `PrePostReportView` + `DecideDataSourceDialog` (sin informe, sin botones); `BiasDashboard` (`DisparityTables` con celdas insuficientes y `GrafanaEmbed` con la leyenda propia encima); `Freezes` y `FreezeContextView` + `ResolveFrozenDialog` (aviso de `reactivar`).
   - Diseño: BR-U10-12..16. Historias: US-201, 203, 205, 206, 304, 305, 306, 307.
   - **Aceptación**: `npm run -w console/spa test -- views/governance views/bias`: las rutas por rol coinciden con la columna «Roles» de C03 (`cro` no ve el paquete de contexto; `cumplimiento` no ve la bandeja); celdas insuficientes nunca muestran 0 ni una tasa; el `disclaimer` y la leyenda siempre presentes.
 
-- [ ] **Paso 15 — CSP, accesibilidad y extremo a extremo con dobles**
+- [x] **Paso 15 — CSP, accesibilidad y extremo a extremo con dobles** (U10-T04; parcial: ver `tareas/U10-T04-spa-vistas-y-e2e.md`)
   - Playwright contra la SPA de Vite y el BFF con dobles: recorrido de todas las vistas y diálogos con un listener de `securitypolicyviolation` (0 violaciones con la CSP de U2, Trusted Types incluido) y `@axe-core/playwright` (0 `serious` y `critical`).
   - `index.html` sin `<script>` ni `<style>` en línea; `build.modulePreload.polyfill = false`.
   - `size-limit` ≤ 250 KiB comprimido inicial.
   - Diseño: NFR-U10-03, 42, 50, 51; P-U10-08. Historias: US-611.
   - **Aceptación**: `npx playwright test console/spa/tests/e2e console/spa/tests/csp console/spa/tests/a11y --project=chromium --project=firefox`; `npx size-limit` en 0.
 
-- [ ] **Paso 16 — Resumen del frontend**
+- [x] **Paso 16 — Resumen del frontend** (U10-T04; parcial: ver `tareas/U10-T04-spa-vistas-y-e2e.md`)
   - Cobertura de ramas **100 %** en `stepup` y en la validación de la decisión, ≥ 80 % en el resto; Stryker en `stepup`.
   - Resumen en `aidlc-docs/construction/console/code/spa.md`.
   - Diseño: NFR-U10-61, 62.

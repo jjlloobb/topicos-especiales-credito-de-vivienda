@@ -1,0 +1,40 @@
+/* Estilos de la SPA (una sola hoja, servida como archivo: la CSP de U2 tiene `style-src 'self'`, sin estilos en linea).
+   Los estados llevan color Y texto (NFR-U10-51); los pares de colores cumplen contraste >= 4.5:1 (WCAG 2.1 AA). */
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+  color: #1a1a1a;
+  background: #ffffff;
+}
+body { margin: 0 auto; max-width: 72rem; padding: 1rem; line-height: 1.5; }
+a { color: #0b4f9c; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #0b4f9c; outline-offset: 2px; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+th, td { border: 1px solid #5c5c5c; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+caption { text-align: left; font-weight: bold; padding: 0.4rem 0; }
+button { font: inherit; padding: 0.4rem 0.9rem; border: 1px solid #0b4f9c; background: #0b4f9c; color: #ffffff; border-radius: 4px; cursor: pointer; }
+button[disabled], button[data-disabled] { background: #e0e0e0; color: #4a4a4a; border-color: #5c5c5c; cursor: not-allowed; }
+fieldset { margin: 0.8rem 0; }
+textarea { width: 100%; max-width: 40rem; font: inherit; }
+.choice { display: flex; align-items: center; gap: 0.4rem; }
+nav ul { display: flex; flex-wrap: wrap; gap: 1rem; list-style: none; padding: 0; }
+nav a[aria-current="page"] { font-weight: bold; text-decoration: none; border-bottom: 3px solid #0b4f9c; }
+.badge { display: inline-block; padding: 0.1rem 0.6rem; border-radius: 1rem; border: 1px solid #1a1a1a; font-weight: 600; background: #e8e8e8; color: #1a1a1a; }
+.badge-listo, .badge-credit-aprobado, .badge-credit-desembolsado, .badge-model-activo { background: #c9ecd0; }
+.badge-en_evaluacion, .badge-en_sincronizacion, .badge-credit-en_estudio, .badge-model-en_validacion { background: #ffe9a8; }
+.badge-no_disponible, .badge-modelo_congelado, .badge-credit-no_disponible, .badge-model-congelado { background: #f8c9c4; }
+.badge-decidido, .badge-credit-no_integrado { background: #d4e3f8; }
+.badge-vencido, .badge-credit-rechazado, .badge-credit-cancelado { background: #dddddd; }
+.mark { border-left: 6px solid #8a5a00; background: #fff3d6; padding: 0.3rem 0.6rem; }
+.mark-frozen { border-left-color: #8b1a10; background: #fbe0dc; }
+.free-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.disclaimer { font-weight: 600; border: 1px solid #1a1a1a; padding: 0.4rem 0.6rem; background: #f0f0f0; }
+.cell-insufficient { font-style: italic; background: #eeeeee; }
+[role="alert"] { color: #8b1a10; font-weight: 600; }
+[role="dialog"], [role="alertdialog"] { background: #ffffff; border: 2px solid #1a1a1a; padding: 1rem; max-width: 36rem; }
+.react-aria-ModalOverlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; }
+
+/* Lo que `usePress` de react-aria inyectaria como <style> en linea (la CSP de U2 no lo permite; ver `index.html`): evita la demora del doble toque. */
+@layer {
+  [data-react-aria-pressable] { touch-action: pan-x pan-y pinch-zoom; }
+}

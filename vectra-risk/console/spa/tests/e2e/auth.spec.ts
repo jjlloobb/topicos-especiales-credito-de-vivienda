@@ -103,7 +103,8 @@ test("login por redireccion, recarga con prompt=none y recarga con la sesion del
   // 3. de vuelta: la SPA canjea en memoria, pide get_me y muestra el rol; la URL queda limpia y la clave del flujo desaparece
   await expect(logoutButton).toBeVisible();
   expect(await page.getByText(ui("session_role", { role: "Analista" })).count()).toBe(1);
-  expect(await expectStorage(page, context, 0)).toMatchObject({ url: "/" });
+  // U10-T04: con sesion, `/` lleva a la pantalla de inicio del rol (la bandeja del analista); `code` y `state` ya no estan en la URL.
+  expect(await expectStorage(page, context, 0)).toMatchObject({ url: "/casos" });
   expect((await stats(page)).token).toBe(1);
 
   // 4. recarga: los tokens estaban en memoria y se perdieron; prompt=none con la sesion del emisor entra sin interaccion
@@ -111,7 +112,7 @@ test("login por redireccion, recarga con prompt=none y recarga con la sesion del
   await page.reload();
   await expect(logoutButton).toBeVisible();
   expect(authorizeRequests.slice(before).map((url) => url.searchParams.get("prompt"))).toEqual(["none"]);
-  expect(await expectStorage(page, context, 0)).toMatchObject({ url: "/" });
+  expect(await expectStorage(page, context, 0)).toMatchObject({ url: "/casos" });
   expect((await stats(page)).token).toBe(2);
 
   // 5. se cierra la sesion del emisor y se recarga: login_required -> login interactivo, UNA sola redireccion, sin bucle

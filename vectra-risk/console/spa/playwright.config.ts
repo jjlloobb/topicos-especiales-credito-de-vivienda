@@ -2,7 +2,8 @@
 // Se corre desde `vectra-risk/`: `npx playwright test -c console/spa/playwright.config.ts <filtro>`. Los navegadores se instalan
 // con `npx playwright install chromium firefox` (a `~/.cache`, sin `sudo`).
 //
-// Dos pares servidor + dobles, porque el emisor fija su origen: la PoC del step-up (`tests/poc`) y la SPA real (`tests/e2e`).
+// Dos pares servidor + dobles, porque el emisor fija su origen: la PoC del step-up (`tests/poc`) y la SPA real (`tests/e2e`, `tests/csp` y
+// `tests/a11y`: el BUILD servido con `vite preview` y las cabeceras del perfil `spa` de U2, P-3 (a) de U10-T04).
 // Puertos: nunca 8080 ni 8081 (son de `run_service` y chocan con otros agentes). Por omision 47173 (SPA) y 47180 (dobles);
 // `VECTRA_E2E_SPA_PORT` y `VECTRA_E2E_PORT` los cambian; la SPA real usa 47174 y 47181 (`VECTRA_E2E_APP_PORT`, `VECTRA_E2E_APP_DOUBLES_PORT`). Un solo `worker`: los contadores del emisor son de todo el proceso.
 import { dirname, resolve } from "node:path";
@@ -19,7 +20,9 @@ const APP_DOUBLES_PORT = process.env["VECTRA_E2E_APP_DOUBLES_PORT"] ?? "47181";
 const APP_ORIGIN = `http://127.0.0.1:${APP_PORT}`;
 // El emisor de la SPA real recibe su origen en `VECTRA_E2E_ORIGIN`; el Vite real, sus puertos. `tests/e2e` lee `VECTRA_E2E_APP_ORIGIN`.
 process.env["VECTRA_E2E_APP_ORIGIN"] = APP_ORIGIN;
+// `VECTRA_E2E_DEMO=1`: el mundo del recorrido de U10-T04 (casos en cada estado, congelamiento con paquete, modelos con informe).
 const appEnv = {
+  VECTRA_E2E_DEMO: "1",
   VECTRA_E2E_PORT: APP_DOUBLES_PORT,
   VECTRA_E2E_ORIGIN: APP_ORIGIN,
   VECTRA_E2E_APP_PORT: APP_PORT,

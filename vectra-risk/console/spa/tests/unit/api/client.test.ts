@@ -103,6 +103,16 @@ describe("los errores llegan como Problem", () => {
     }
   });
 
+  it("un 422 conserva `invalid_params` (BR-U10-09: el error va en su campo); un nulo se omite", async () => {
+    const invalid = [{ name: "justification", reason_code: "justification_length" }];
+    const { client } = api(async () => problem(422, { code: "validation_error", correlation_id: "e".repeat(32), invalid_params: invalid }));
+    const error = (await getMe(client).catch((e: unknown) => e)) as ApiError;
+    expect(error.problem.invalid_params).toEqual(invalid);
+    const { client: other } = api(async () => problem(422, { code: "validation_error", correlation_id: "e".repeat(32), invalid_params: null }));
+    const second = (await getMe(other).catch((e: unknown) => e)) as ApiError;
+    expect("invalid_params" in second.problem).toBe(false);
+  });
+
   it("un error que no es un Problem es `internal_error` y avisa api_contract_mismatch", async () => {
     const { client, mismatch } = api(async () => new Response("<html>502</html>", { status: 502, headers: { "content-type": "text/html" } }));
     const error = (await getMe(client, mismatch).catch((e: unknown) => e)) as ApiError;

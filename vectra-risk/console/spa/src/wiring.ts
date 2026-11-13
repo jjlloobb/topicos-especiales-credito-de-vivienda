@@ -2,7 +2,7 @@
 // `inactivity`. `App` recibe este objeto: las pruebas le pasan uno con dobles.
 import type { QueryClient } from "@tanstack/react-query";
 import { InMemoryWebStorage, OidcClient, type SigninResponse, User, type UserManager, WebStorageStateStore } from "oidc-client-ts";
-import { createApi } from "./api/client";
+import { type ApiClient, createApi } from "./api/client";
 import { createQueryClient } from "./api/queryClient";
 import { type SessionInfo, getMe } from "./api/endpoints";
 import { type AuthManager, type AuthPage, browserPage, createTokenStore, type TokenStore } from "./auth/AuthProvider";
@@ -11,16 +11,19 @@ import { createUserManager, SCOPE } from "./auth/manager";
 import type { AppConfig } from "./config/load";
 import { browserInactivityEnv, type InactivityEnv } from "./inactivity/InactivityProvider";
 import { APP_VERSION } from "./reporter/version";
-import { Reporter, routeTemplateOf } from "./reporter/reporter";
+import { Reporter } from "./reporter/reporter";
 import { browserTimers } from "./stepup/flow";
 import { createOidcBackend, FILTER_PROTOCOL_CLAIMS } from "./stepup/oidc";
 import type { StepUpEnv } from "./stepup/StepUpProvider";
+import { routeTemplate } from "./views/shared/routes";
 
 export interface Wiring {
   readonly manager: AuthManager;
   readonly authPage: AuthPage;
   readonly tokens: TokenStore;
   readonly queryClient: QueryClient;
+  /** El cliente de la API de las vistas: toma el token de la memoria en cada solicitud. */
+  readonly api: ApiClient;
   readonly loadSession: (token: string) => Promise<SessionInfo>;
   readonly reporter: Reporter;
   readonly stepUpEnv: StepUpEnv;
@@ -46,7 +49,7 @@ export function createWiring(config: AppConfig, win: Window = window): Wiring {
   const reporter = new Reporter({
     endpoint: "/api/console/client-errors",
     getToken: () => tokens.get(),
-    routeTemplate: () => routeTemplateOf(win.location.pathname),
+    routeTemplate: () => routeTemplate(win.location.pathname),
     appVersion: APP_VERSION,
   });
   const apiFor = (token: string | null) =>
@@ -64,6 +67,7 @@ export function createWiring(config: AppConfig, win: Window = window): Wiring {
   });
   return {
     manager,
+    api: createApi({ baseUrl: origin, getToken: () => tokens.get(), onContractMismatch: () => reporter.report("api_contract_mismatch") }),
     authPage: browserPage(win),
     tokens,
     queryClient: createQueryClient(),
@@ -72,9 +76,7 @@ export function createWiring(config: AppConfig, win: Window = window): Wiring {
     stepUpEnv: {
       ownOrigin: origin,
       stepupRedirectUri: config.stepup_redirect_uri,
-      backend: createOidcBackend(stepUpClient, stepUpStore, config.stepup_redirect_uri, (response) => {
-        void acceptStepUp(manager, response);
-      }),
+      backend: createOidcBackend(stepUpClient, stepUpStore, config.stepup_redirect_uri, (response) => acceptStepUp(manager, response)),
       openWindow: () => win.open("", STEPUP_WINDOW),
       timers: browserTimers,
       reportFailure: () => reporter.report("stepup_failed"),

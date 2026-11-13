@@ -14,6 +14,8 @@ export interface Problem {
   readonly code: string;
   readonly reason?: string | null | undefined;
   readonly correlation_id?: string | null | undefined;
+  /** Los campos que el servidor rechazo (un 422): la vista los muestra en su campo (BR-U10-09). */
+  readonly invalid_params?: readonly { readonly name: string; readonly reason_code: string }[] | null | undefined;
 }
 
 export function fill(text: string, params: Readonly<Record<string, string>> = {}): string {
@@ -57,4 +59,29 @@ export function formatDecimal(value: string, digits = 4): string {
   if (!DECIMAL.test(value)) throw new RangeError(`no es un decimal: ${value}`);
   const format = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: digits, maximumFractionDigits: digits });
   return format.format(value as `${number}`);
+}
+
+/** Pesos colombianos sin decimales, con `Intl` (los montos de la solicitud son enteros). */
+export function formatMoney(value: number): string {
+  return new Intl.NumberFormat(LOCALE, { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
+}
+
+/** El texto de un canal: el catalogo lo conoce para los filtrables; cualquier otro se muestra tal cual (es un codigo, no un dato personal). */
+export function channelText(channel: string): string {
+  return (labels.CHANNELS as Record<string, string>)[channel] ?? channel;
+}
+
+/** `formatDecimal` para un valor que llega del servidor: si no es un decimal se muestra tal cual (texto), en vez de romper la pantalla. */
+export function safeDecimal(value: string, digits = 4): string {
+  return DECIMAL.test(value) ? formatDecimal(value, digits) : value;
+}
+
+/** Un dia `AAAA-MM-DD` del servidor (sin hora): se formatea en UTC para que no se corra al dia anterior por la zona horaria. */
+export function formatDay(day: string): string {
+  return new Intl.DateTimeFormat(LOCALE, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(day));
+}
+
+/** Como `label`, pero un valor que el catalogo no conoce se muestra tal cual (llega dentro de un `JsonValue`, sin tipo). */
+export function labelOrRaw(group: LabelGroup, value: string): string {
+  return (labels[group] as Record<string, string>)[value] ?? value;
 }

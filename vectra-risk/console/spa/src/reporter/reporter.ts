@@ -79,11 +79,3 @@ export class Reporter {
     };
   }
 }
-
-/**
- * La plantilla de la ruta de la SPA (P-7 (a)): conoce `/`, `/callback` y `/stepup-callback` y devuelve una plantilla fija para lo demas.
- * Nunca es `location.pathname` tal cual. U10-T04 la sustituye por la del enrutador.
- */
-export function routeTemplateOf(pathname: string): string {
-  return ["/", "/callback", "/stepup-callback"].includes(pathname) ? pathname : "/{ruta}";
-}
