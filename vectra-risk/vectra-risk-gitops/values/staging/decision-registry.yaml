@@ -1,0 +1,4 @@
+# Values de decision-registry en staging. Aqui solo lo que cambia de un chart a otro por entorno.
+# Emisor de los tokens de staging (U02-T21): el hostname publico de Keycloak, que es el `iss` que firma (identity-edge/docs/emisor-de-tokens.md).
+keycloak:
+  issuer: https://vectra.staging.banco.internal/auth/realms/vectra
