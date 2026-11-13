@@ -132,6 +132,7 @@ def seed_case(
     last_cause: str | None = None,
     attempts: int = 0,
     channel: str = "web",
+    ever_degraded: bool = False,
 ) -> uuid.UUID:
     """Un caso real: nace como `case_app` (`guard_transition`), lo demas lo deja el superusuario sin triggers."""
     case_id = uuid.uuid4()
@@ -170,7 +171,8 @@ def seed_case(
         entry_id = "7"
     db.execute(
         "UPDATE cases SET state = %s, recommendation = %s::jsonb, recommendation_entry_id = %s, attempts = %s, last_cause = %s, "
-        "model_frozen_after_recommendation = %s, anonymized_at = %s, created_at = COALESCE(%s, created_at), updated_at = COALESCE(%s, updated_at) "
+        "model_frozen_after_recommendation = %s, anonymized_at = %s, created_at = COALESCE(%s, created_at), updated_at = COALESCE(%s, updated_at), "
+        "ever_degraded = %s "
         "WHERE case_id = %s",
         state,
         rec,
@@ -181,6 +183,7 @@ def seed_case(
         datetime.now(UTC) if anonymized else None,
         created_at,
         created_at,
+        ever_degraded,
         case_id,
     )
     if not anonymized:
@@ -216,7 +219,7 @@ class Harness:
 
 
 class GovernanceDouble:
-    """`GET /v1/serving-config` con la forma nueva de U04-T09 y ETag; `body` permite servir la forma vieja o fallar."""
+    """`GET /v1/serving-config` con la forma nueva de U04-T09 y ETag, y `GET /v1/models/{id}/feature-spec`; `down` y `old_shape` fallan."""
 
     def __init__(self) -> None:
         self.state = "activo"
@@ -224,6 +227,11 @@ class GovernanceDouble:
         self.down = False
         self.old_shape = False
         self.calls = 0
+        self.spec_calls: list[str] = []  # una entrada por `feature-spec` pedido (la version)
+        self.spec_status = 200
+        self.spec_override: dict[str, Any] | None = (
+            None  # sirve este cuerpo en lugar del `FeatureSpec` por omision
+        )
 
     def config(self) -> dict[str, Any]:
         data: dict[str, Any] = {
@@ -243,10 +251,36 @@ class GovernanceDouble:
                 del data[k]
         return data
 
+    @staticmethod
+    def spec(model_version_id: str) -> dict[str, Any]:
+        """El `feature_spec` de U5: tres derivadas, un campo permitido y una busqueda."""
+        return {
+            "model_version_id": model_version_id,
+            "features": [
+                {"feature_id": "installment_to_income", "origin": "derived"},
+                {"feature_id": "loan_to_value", "origin": "derived"},
+                {"feature_id": "age_years", "origin": "derived"},
+                {"feature_id": "employment_type", "origin": "field", "source_fields": ["employment_type"]},
+                {
+                    "feature_id": "channel_group",
+                    "origin": "lookup",
+                    "source_fields": ["channel"],
+                    "table": {"web": "digital", "manual": "asistido"},
+                    "default": "otro",
+                },
+            ],
+        }
+
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.calls += 1
         if self.down:
             return httpx.Response(503, json={})
+        if request.url.path.endswith("/feature-spec"):
+            version = request.url.path.split("/")[-2]
+            self.spec_calls.append(version)
+            if self.spec_status != 200:
+                return httpx.Response(self.spec_status, json={})
+            return httpx.Response(200, json=self.spec_override or self.spec(version))
         cfg = self.config()
         if request.headers.get("if-none-match") == f'"{cfg["etag"]}"':
             return httpx.Response(304, headers={"ETag": f'"{cfg["etag"]}"'})
@@ -359,3 +393,13 @@ def insert_fail_closed(db: Db, case_id: uuid.UUID, n: int = 1, *, start: int = 1
             )
             keys.append(key)
     return keys
+
+
+def seed_job(db: Db, case_id: uuid.UUID, *, attempt: int = 0, run_at: datetime | None = None) -> None:
+    """El trabajo vivo de un caso (lo crean la ingesta, `retry` y el barrido en `case-service`)."""
+    db.execute(
+        "INSERT INTO evaluation_jobs (case_id, attempt, run_at) VALUES (%s, %s, COALESCE(%s, now() - interval '1 second'))",
+        case_id,
+        attempt,
+        run_at,
+    )

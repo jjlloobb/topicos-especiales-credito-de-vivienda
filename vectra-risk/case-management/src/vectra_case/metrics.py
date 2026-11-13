@@ -1,4 +1,4 @@
-"""Metricas de U8 (Paso 11 y 13; P-U8-04, 06, 08; NFR-U8-13, 45).
+"""Metricas de U8 (Paso 11, 13 y 15; P-U8-04, 06, 08; NFR-U8-13, 45).
 
 Etiquetas permitidas (P-U8-06): `result`, `cause`, `state`, `entry_type`, `dependency`, `code`, `route_template`, `attempt`.
 Los contadores de conjunto cerrado crean todas sus combinaciones en 0 al importar el modulo (`increase()` no pierde el primer evento).
@@ -6,7 +6,7 @@ Los contadores de conjunto cerrado crean todas sus combinaciones en 0 al importa
 
 from typing import Final
 
-from prometheus_client import Counter, Gauge
+from prometheus_client import Counter, Gauge, Histogram
 from vectra_common.metrics import REGISTRY
 
 ENTRY_TYPES: Final = ("human_decision", "explanation_view", "fail_closed")
@@ -41,6 +41,14 @@ EVIDENCE_DISCARDED: Final = Counter(
 CASE_RETRIES: Final = Counter("vectra_case_retries_total", "retry del CRO", registry=REGISTRY)
 CASE_ATTEMPTS: Final = Counter(
     "vectra_case_attempts_total", "Intentos de evaluacion", ["result", "attempt"], registry=REGISTRY
+)
+# Solo los casos `listo` al primer intento (U11 BR-U11-05; quinta revision de coherencia, 2026-10-31). Sin etiquetas.
+TIME_TO_READY_BUCKETS: Final = (0.5, 1.0, 2.0, 3.0, 5.0, 10.0, 30.0, 60.0)
+TIME_TO_READY: Final = Histogram(
+    "vectra_case_time_to_ready_seconds",
+    "Segundos de la creacion del caso a listo, solo al primer intento",
+    registry=REGISTRY,
+    buckets=TIME_TO_READY_BUCKETS,
 )
 JOBS_OVERDUE: Final = Gauge("vectra_case_jobs_overdue", "Trabajos vencidos sin tomar", registry=REGISTRY)
 FAILCLOSED_PERSISTENT: Final = Gauge(

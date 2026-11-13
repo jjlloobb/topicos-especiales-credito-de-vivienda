@@ -1,3 +1,7 @@
 [run]
 branch = True
 source = vectra_case
+# `python -m vectra_case.app` y `python -m vectra_case.worker` corren en un subproceso (pruebas de arranque real): se miden tambien.
+patch = subprocess
+# `python -m vectra_case.app` termina con `-SIGTERM` (uvicorn vuelve a emitir la senal): sin esto no se escribiria su archivo de datos.
+sigterm = true
