@@ -303,11 +303,15 @@ def test_no_log_line_of_the_real_process_keeps_only_level_timestamp_and_service(
     assert bare == [], f"lineas de log sin contenido: {bare[:3]}"
 
 
-def test_assertion_audience_the_real_process_signs_with_the_issuer_and_not_with_the_token_url(tmp_path: Path) -> None:
+def test_assertion_audience_the_real_process_signs_with_the_issuer_and_not_with_the_token_url(
+    tmp_path: Path,
+) -> None:
     double = RegistryDouble([render(s) for s in us503_specs(now=stamp_now())])
     process = RealProcess(tmp_path, double)
     try:
-        process.wait_for("/readyz", 200)  # leer U3 exige el token: con otra `aud` el doble responde 400 y nunca queda listo
+        process.wait_for(
+            "/readyz", 200
+        )  # leer U3 exige el token: con otra `aud` el doble responde 400 y nunca queda listo
         assert process.assertion_audiences
         assert set(process.assertion_audiences) == {ASSERTION_AUDIENCE} != {process.servers[1].url + "/token"}
     finally:

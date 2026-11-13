@@ -72,7 +72,9 @@ def token_app(audiences: list[str] | None = None) -> Starlette:
         audience = jwt.decode(form["client_assertion"][0], options={"verify_signature": False})["aud"]
         seen.append(audience)
         if audience != ASSERTION_AUDIENCE:
-            return JSONResponse({"error": "invalid_client", "error_description": "Invalid token audience"}, status_code=400)
+            return JSONResponse(
+                {"error": "invalid_client", "error_description": "Invalid token audience"}, status_code=400
+            )
         return JSONResponse({"access_token": TOKEN, "expires_in": 300})
 
     return Starlette(routes=[Route("/token", token, methods=["POST"])])

@@ -71,8 +71,12 @@ class Stub:
                 raw = self.rfile.read(int(self.headers.get("content-length", 0)))
                 if self.path == "/token":
                     form = parse_qs(raw.decode())
-                    audience = jwt.decode(form["client_assertion"][0], options={"verify_signature": False})["aud"]
-                    if audience != ASSERTION_AUDIENCE:  # Keycloak: 400 `invalid_client`, `Invalid token audience`
+                    audience = jwt.decode(form["client_assertion"][0], options={"verify_signature": False})[
+                        "aud"
+                    ]
+                    if (
+                        audience != ASSERTION_AUDIENCE
+                    ):  # Keycloak: 400 `invalid_client`, `Invalid token audience`
                         return self._send(400, json.dumps({"error": "invalid_client"}).encode())
                     return self._send(200, json.dumps({"access_token": "t", "expires_in": 300}).encode())
                 request = ScoringRequest.model_validate_json(raw)

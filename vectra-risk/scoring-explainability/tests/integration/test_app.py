@@ -373,7 +373,9 @@ async def test_assertion_audience_the_real_process_signs_with_the_configured_one
     process = _RealProcess(tmp_path, gov, kserve)
     try:
         await process.ready()
-        await process.recommend()  # con la `aud` equivocada el doble responde 400 y esta llamada no llega a 200
+        await (
+            process.recommend()
+        )  # con la `aud` equivocada el doble responde 400 y esta llamada no llega a 200
         assert process.assertion_audiences
         assert set(process.assertion_audiences) == {ASSERTION_AUDIENCE} != {process.env["VECTRA_TOKEN_URL"]}
     finally:

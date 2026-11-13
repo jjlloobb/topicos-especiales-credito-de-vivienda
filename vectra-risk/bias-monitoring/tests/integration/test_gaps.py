@@ -112,7 +112,12 @@ def _job_env(tmp_path, **over):
 
 def test_main_with_every_dependency_down_is_a_failed_run_and_a_push_failure(tmp_path, monkeypatch):
     env = _job_env(tmp_path)
-    for name in ("VECTRA_CLIENT_ID", "VECTRA_TOKEN_URL", "VECTRA_ASSERTION_AUDIENCE", "VECTRA_CLIENT_KEY_PATH"):
+    for name in (
+        "VECTRA_CLIENT_ID",
+        "VECTRA_TOKEN_URL",
+        "VECTRA_ASSERTION_AUDIENCE",
+        "VECTRA_CLIENT_KEY_PATH",
+    ):
         monkeypatch.setenv(name, env[name])  # `provider_from_env` lee el entorno del proceso
     assert (
         main(env) == EXIT_PUSH

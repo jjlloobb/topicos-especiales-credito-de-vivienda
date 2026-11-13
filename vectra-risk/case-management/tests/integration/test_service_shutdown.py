@@ -59,9 +59,13 @@ class Stub:
                 raw = self.rfile.read(int(self.headers.get("content-length", 0)))
                 if self.path == "/token":
                     form = parse_qs(raw.decode())
-                    audience = jwt.decode(form["client_assertion"][0], options={"verify_signature": False})["aud"]
+                    audience = jwt.decode(form["client_assertion"][0], options={"verify_signature": False})[
+                        "aud"
+                    ]
                     stub.assertion_audiences.append(audience)
-                    if audience != ASSERTION_AUDIENCE:  # Keycloak: 400 `invalid_client`, `Invalid token audience`
+                    if (
+                        audience != ASSERTION_AUDIENCE
+                    ):  # Keycloak: 400 `invalid_client`, `Invalid token audience`
                         return self._send(400, {"error": "invalid_client"})
                     return self._send(200, {"access_token": "t", "expires_in": 300})
                 entry = json.loads(raw)
@@ -202,7 +206,9 @@ def test_assertion_audience_the_real_process_signs_with_the_issuer_and_not_with_
         while not stub.entries and time.monotonic() < deadline:
             assert proc.poll() is None
             time.sleep(0.1)
-        assert stub.entries, "el reconciliador no envio nada: con otra `aud` el doble responde 400 y no hay token"
+        assert stub.entries, (
+            "el reconciliador no envio nada: con otra `aud` el doble responde 400 y no hay token"
+        )
         assert set(stub.assertion_audiences) == {ASSERTION_AUDIENCE}
         assert ASSERTION_AUDIENCE != f"http://127.0.0.1:{stub.port}/token"
     finally:
