@@ -987,3 +987,416 @@ def test_rt2_the_copy_of_a_package_is_independent(rworld: Rt2World) -> None:
     assert copy.deepcopy({"a": 1}) == {
         "a": 1
     }  # los cambios de `package_variant` se hacen sobre la entrada del registro, no sobre una compartida
+
+
+# --- RT-3 (CA-12) --------------------------------------------------------------------------------------------------------------------
+# El registro por el BFF real (con el 422 de U4 en el doble de governance con la forma de `Problem`); los casos de sonda con el estado que da `case_state`; el `InferenceService` de staging con un `kubectl` guionizado.
+
+from collections.abc import Callable
+from typing import Any
+
+from contract_world import problem
+from rt2_world import ATTRIBUTES  # noqa: F401
+from vectra_verification.scenarios import rt3
+from vectra_verification.scenarios.rt3 import Rt3Deps, Rt3Package, Rt3Params
+
+RT3B = "mv-rt3b"
+
+
+def reject(case_id: str) -> Callable[[Any], tuple[int, Any]]:
+    def respond(call: Any) -> tuple[int, Any]:
+        body = problem(422, "validation_error")
+        body["invalid_params"] = [{"name": "package", "reason_code": rt3.EXPECTED_REASON[case_id]}]
+        return 422, body
+
+    return respond
+
+
+class IsvcKubectl:
+    """`kubectl get inferenceservice/<n> -n vectra-staging`: `Ready` por nombre, o el error que diga `fail`."""
+
+    def __init__(self, ready: dict[str, str] | None = None, fail: str | None = None) -> None:
+        self.ready, self.fail, self.calls = ready or {}, fail, []  # type: ignore[var-annotated]
+
+    def run(self, args: Any) -> Completed:
+        self.calls.append(tuple(args))
+        if self.fail:
+            return Completed(1, "", self.fail)
+        name = args[2].split("/")[1]
+        status = self.ready.get(name, "False")
+        return Completed(0, json.dumps({"status": {"conditions": [{"type": "Ready", "status": status}]}}), "")
+
+    def start(self, args: Any) -> Any:  # pragma: no cover
+        raise AssertionError("sin port-forward")
+
+
+def f22_cases(
+    cause: str | None = "timeout", state: str = "en_sincronizacion", attempts: int = 1
+) -> Callable[[str, Any], tuple[str, str | None, int]]:
+    return lambda case_id, record: (state, cause, attempts)
+
+
+@pytest.fixture
+def tworld(world: Rt2World, tmp_path: Path) -> Rt2World:
+    """El mundo correcto de D1: U4 rechaza RT3-a, c y d; RT3-b comparte la version de la de referencia (409); F22 apagado deja los casos `en_sincronizacion` con `timeout`."""
+    for case_id, token in (("RT3-a", "rt3-a"), ("RT3-c", "rt3-c"), ("RT3-d", "rt3-d")):
+        world.register_overrides[token] = reject(case_id)
+    world.register_overrides["rt3-b"] = lambda call: (409, problem(409, "conflict_state"))
+    world.state_cases = f22_cases()
+    return world
+
+
+def rt3_params(tmp_path: Path, **over: Any) -> Rt3Params:
+    packages = {
+        c: Rt3Package(c, make_package(tmp_path, f"base-{c}"), t)
+        for c, t in (("RT3-a", "rt3-a"), ("RT3-c", "rt3-c"), ("RT3-d", "rt3-d"), ("RT3-b", "rt3-b"))
+    }
+    arguments: dict[str, Any] = {
+        "packages": packages,
+        "seed": 5,
+        "deployed": {"RT3-a": "isvc-a", "RT3-d": "isvc-d"},
+    }
+    arguments.update(over)
+    return Rt3Params(**arguments)
+
+
+def rt3_run(world: Rt2World, params: Rt3Params, k8s: IsvcKubectl | None = None) -> rt3.Outcome:
+    from vectra_verification.clients.k8s_read import K8sRead
+
+    deps = Rt3Deps(
+        KIND,
+        world.clock,
+        world.sessions,
+        world.simulator,
+        world.registry,
+        K8sRead(k8s or IsvcKubectl()),
+        world.prom,
+    )  # type: ignore[arg-type]
+    return rt3.rt3(deps, params)
+
+
+def sub(outcome: rt3.Outcome, name: str) -> Any:
+    return next(s for s in outcome.subresults if s.name == name)
+
+
+def test_rt3_a_c_and_d_rejected_with_the_models_unchanged_and_f22_with_timeout_and_no_recommendation_pass(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    assert outcome.result == "pasa", [
+        (s.name, s.result, s.missing) for s in outcome.subresults if s.result != "pasa"
+    ]
+    assert [s.name for s in outcome.subresults] == [
+        "RT3-a",
+        "RT3-c",
+        "RT3-d",
+        "sin_cambio_en_modelos",
+        "RT3-a-desplegado",
+        "RT3-d-desplegado",
+        "RT3-b",
+        "F22",
+    ]
+    assert sub(outcome, "RT3-b").result == "no ejecutado" and sub(outcome, "RT3-b").missing == (
+        "rt3b_version_ya_registrada",
+    )
+    assert sub(outcome, "RT3-a").readings["invalid_params"] == (("package", rt3.EXPECTED_REASON["RT3-a"]),)
+    assert sub(outcome, "F22").readings["recommendations"] == 0
+
+
+@pytest.mark.parametrize("case_id", ["RT3-a", "RT3-c", "RT3-d"])
+def test_rt3_a_package_accepted_by_u4_fails(tworld: Rt2World, tmp_path: Path, case_id: str) -> None:
+    token = case_id.lower()
+    tworld.register_overrides.pop(token)  # el doble responde 200: «aceptado por U4»
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    assert outcome.result == "falla" and f"rt3_{case_id}_aceptado_por_u4" in outcome.missing
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "code"),
+    [
+        (422, problem(422, "unprocessable_explanation"), "rt3_RT3-a_estado_422_unprocessable_explanation"),
+        (409, problem(409, "conflict_state"), "rt3_RT3-a_estado_409_conflict_state"),
+        (403, problem(403, "forbidden"), "rt3_RT3-a_estado_403_forbidden"),
+    ],
+)
+def test_rt3_a_422_with_another_code_or_a_409_or_a_403_fails_with_the_status_and_code(
+    tworld: Rt2World, tmp_path: Path, status: int, body: dict[str, Any], code: str
+) -> None:
+    tworld.register_overrides["rt3-a"] = lambda call: (status, body)
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    assert outcome.result == "falla" and outcome.missing == (code,)
+
+
+def test_rt3_a_reason_code_different_from_the_table_fails(tworld: Rt2World, tmp_path: Path) -> None:
+    def other(call: Any) -> tuple[int, Any]:
+        body = problem(422, "validation_error")
+        body["invalid_params"] = [{"name": "package", "reason_code": "manifest_sha256_mismatch"}]
+        return 422, body
+
+    tworld.register_overrides["rt3-a"] = other
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    assert outcome.missing == ("rt3_RT3-a_reason_code_distinto",)
+
+
+def test_rt3_a_422_without_invalid_params_of_the_package_fails(tworld: Rt2World, tmp_path: Path) -> None:
+    tworld.register_overrides["rt3-a"] = lambda call: (422, problem(422, "validation_error"))
+    assert rt3_run(tworld, rt3_params(tmp_path)).missing == ("rt3_RT3-a_sin_invalid_params_package",)
+
+
+def test_rt3_a_new_version_in_the_model_list_after_the_registrations_fails(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    def leaks(call: Any) -> tuple[int, Any]:
+        tworld.add_model("mv-colada", "registrado")
+        return reject("RT3-c")(call)
+
+    tworld.register_overrides["rt3-c"] = leaks
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    assert (
+        outcome.result == "falla"
+        and outcome.missing == ("rt3_lista_de_modelos_cambio",)
+        and "mv-colada" in sub(outcome, "sin_cambio_en_modelos").detail
+    )
+
+
+def test_rt3_the_active_version_changing_fails() -> None:
+    result = rt3.judge_unchanged(
+        {"mv-a": "activo", "mv-b": "inactivo"}, {"mv-a": "inactivo", "mv-b": "activo"}, "mv-a", "mv-b"
+    )
+    assert result.result == "falla" and result.missing == ("rt3_lista_de_modelos_cambio",)
+    assert rt3.judge_unchanged({"a": "activo"}, {"a": "activo"}, "a", "a").result == "pasa"
+
+
+def test_rt3_a_single_recommendation_in_the_window_fails_with_its_case_and_version(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    def stray() -> None:
+        tworld.recommendations.append(
+            {
+                "entry_type": "recommendation",
+                "seq": tworld.seq(),
+                "recorded_at": iso(tworld.clock.now()),
+                "case_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "outcome": "favorable",
+                "model_version_id": "mv-otra",
+            }
+        )
+
+    tworld.on_probe = stray  # una `recommendation` de otra version dentro de la ventana de la sonda
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    assert outcome.result == "falla" and outcome.missing == ("rt3_recommendation_con_f22_apagado",)
+    assert (
+        "3fa85f64-5717-4562-b3fc-2c963f66afa6" in sub(outcome, "F22").detail
+        and "mv-otra" in sub(outcome, "F22").detail
+    )
+
+
+def test_rt3_without_failclosed_of_timeout_or_explainer_unavailable_fails_when_all_are_explainer_error(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    tworld.state_cases = f22_cases("explainer_error")
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    assert (
+        outcome.missing == ("rt3_f22_sin_causa_timeout_o_explainer_unavailable",)
+        and "explainer_error" in sub(outcome, "F22").detail
+    )
+
+
+def test_rt3_all_the_probe_cases_in_listo_fail(tworld: Rt2World, tmp_path: Path) -> None:
+    tworld.state_cases = f22_cases(None, "listo")
+    assert rt3_run(tworld, rt3_params(tmp_path)).missing == ("rt3_f22_caso_en_listo",)
+
+
+def test_rt3_cases_in_no_disponible_with_explainer_unavailable_pass(tworld: Rt2World, tmp_path: Path) -> None:
+    tworld.state_cases = f22_cases("explainer_unavailable", "no_disponible", 6)
+    assert rt3_run(tworld, rt3_params(tmp_path)).result == "pasa"
+
+
+def test_rt3_a_case_in_en_evaluacion_without_attempts_after_the_deadline_fails(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    tworld.state_cases = f22_cases(None, "en_evaluacion", 0)
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    assert "rt3_f22_caso_sin_intentos" in outcome.missing and sum(tworld.clock.sleeps) >= rt3.ATTEMPTS_TIMEOUT
+
+
+def test_rt3_rejected_probes_fail_f22(tworld: Rt2World, tmp_path: Path) -> None:
+    tworld.simulator.accepted_ratio = 0.0
+    assert rt3_run(tworld, rt3_params(tmp_path)).missing == ("rt3_f22_sonda_rechazada",)
+
+
+def test_rt3b_validacion_fallida_passes() -> None:
+    result = rt3.judge_rt3b(rt3.RegistrationReading(200), "validacion_fallida", [], [], RT3B)
+    assert result.result == "pasa" and result.mandatory is False
+
+
+def test_rt3b_promoted_with_explainer_error_and_no_recommendation_passes_and_with_one_fails() -> None:
+    cases = [
+        rt3.CaseReading("c1", "en_sincronizacion", "explainer_error", 1),
+        rt3.CaseReading("c2", "no_disponible", "feature_dictionary_incomplete", 6),
+    ]
+    assert rt3.judge_rt3b(rt3.RegistrationReading(200), "activo", cases, [], RT3B).result == "pasa"
+    mine = [rt3.RecommendationReading("c1", RT3B)]
+    result = rt3.judge_rt3b(rt3.RegistrationReading(200), "activo", cases, mine, RT3B)
+    assert result.result == "falla" and result.missing == ("rt3b_recommendation_de_la_version_alterada",)
+    wrong = [rt3.CaseReading("c1", "en_sincronizacion", "timeout", 1)]
+    assert rt3.judge_rt3b(rt3.RegistrationReading(200), "activo", wrong, [], RT3B).missing == (
+        "rt3b_sin_fail_closed_esperado",
+    )
+
+
+def test_rt3b_409_at_registration_is_no_ejecutado_and_does_not_lower_rt3() -> None:
+    result = rt3.judge_rt3b(rt3.RegistrationReading(409, "conflict_state"), None, [], [], RT3B)
+    assert result.result == "no ejecutado" and result.missing == ("rt3b_version_ya_registrada",)
+    from vectra_verification.scenarios.outcome import SubOutcome, combine
+
+    assert combine([result, SubOutcome("RT3-a", "pasa")])[0] == "pasa"
+
+
+def test_rt3b_full_flow_registers_validates_and_a_validation_failure_passes(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    package = Rt3Package("RT3-b", make_package(tmp_path, RT3B), RT3B)
+    tworld.register_overrides.pop("rt3-b")
+    tworld.validation_outcome = "validacion_fallida"
+    outcome = rt3_run(
+        tworld, rt3_params(tmp_path, packages={**rt3_params(tmp_path).packages, "RT3-b": package})
+    )
+    assert sub(outcome, "RT3-b").result == "pasa" and tworld.registrations[-1] == (RT3B, "ingeniero-1")
+    assert outcome.result == "pasa"
+
+
+def test_rt3b_full_flow_promoted_by_the_operator_with_probes_in_failclosed_passes(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    from vectra_verification.clients.k8s_read import K8sRead
+
+    package = Rt3Package("RT3-b", make_package(tmp_path, RT3B), RT3B)
+    tworld.register_overrides.pop("rt3-b")
+    tworld.state_cases = f22_cases("explainer_error")
+    tworld.at(
+        900.0, lambda: tworld.set_state(RT3B, "activo")
+    )  # el operador la promueve, despues de que `cro-1` la apruebe
+    deps = Rt3Deps(
+        KIND,
+        tworld.clock,
+        tworld.sessions,
+        tworld.simulator,
+        tworld.registry,
+        K8sRead(IsvcKubectl()),
+        tworld.prom,
+    )  # type: ignore[arg-type]
+    result = rt3._rt3b(rt3.Rt3Run(deps, rt3_params(tmp_path)), package)
+    assert result.result == "pasa", result
+    assert tworld.approvals == [(RT3B, "cro-1")] and tworld.registrations[-1] == (RT3B, "ingeniero-1")
+    assert result.readings["causes"] == ["explainer_error"]
+
+
+def test_rt3_a_or_d_deployed_not_ready_passes_with_the_cause_not_read(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    for name in ("RT3-a-desplegado", "RT3-d-desplegado"):
+        assert sub(outcome, name).result == "pasa" and sub(outcome, name).readings["causa_no_leida"] is True
+
+
+def test_rt3_a_deployed_package_that_is_ready_fails(tworld: Rt2World, tmp_path: Path) -> None:
+    outcome = rt3_run(tworld, rt3_params(tmp_path), IsvcKubectl({"isvc-a": "True"}))
+    assert outcome.result == "falla" and outcome.missing == ("rt3_RT3-a-desplegado_listo",)
+
+
+def test_rt3_forbidden_kubectl_for_the_deployed_ones_is_no_ejecutado_and_does_not_lower_rt3(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    outcome = rt3_run(
+        tworld,
+        rt3_params(tmp_path),
+        IsvcKubectl(fail="Error from server (Forbidden): inferenceservices is forbidden"),
+    )
+    assert sub(outcome, "RT3-a-desplegado").result == "no ejecutado" and sub(
+        outcome, "RT3-a-desplegado"
+    ).missing == ("rt3_k8s_forbidden",)
+    assert outcome.result == "pasa"  # P-2 (a): un no ejecutado opcional no baja RT-3
+
+
+def test_rt3_wait_for_escalation_waits_over_19_minutes_without_real_sleep_and_only_informs(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    tworld.state_cases = lambda case_id, record: (
+        ("no_disponible", "explainer_unavailable", 6)
+        if (tworld.clock.now() - record.created).total_seconds() > 1170
+        else ("en_sincronizacion", "timeout", 1)
+    )
+    tworld.gauge, tworld.alert_firing = 1.0, True
+    outcome = rt3_run(tworld, rt3_params(tmp_path, wait_for_escalation=True))
+    assert outcome.result == "pasa" and outcome.readings["escalated_to_no_disponible"] is True
+    assert (
+        outcome.readings["failclosed_persistent_max"] == 1.0
+        and outcome.readings["failclosed_persistent_alert_firing"] is True
+    )
+    assert sum(tworld.clock.sleeps) > 1160.0
+
+
+def test_rt3_the_registry_not_responding_is_no_ejecutado_and_the_bff_not_responding_too(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    tworld.registry_transport.handle_request = lambda request: (_ for _ in ()).throw(
+        httpx.ConnectError("sin conexion")
+    )  # type: ignore[method-assign]
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    assert sub(outcome, "F22").result == "no ejecutado" and outcome.result == "no ejecutado"
+    tworld.bff.doubles.governance.fail(503)
+    assert rt3_run(tworld, rt3_params(tmp_path)).result == "no ejecutado"
+
+
+def test_rt3_the_closing_after_reverting_f22_is_a_probe_case_that_reaches_listo(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    tworld.state_cases = None
+    deps = Rt3Deps(KIND, tworld.clock, tworld.sessions, tworld.simulator, tworld.registry)
+    assert rt3.rt3_closing(deps, rt3_params(tmp_path)).result == "pasa"
+    tworld.state_cases = f22_cases()
+    closing = rt3.rt3_closing(deps, rt3_params(tmp_path), timeout=120.0)
+    assert closing.result == "no ejecutado" and closing.missing == ("rt3_cierre_f22_sigue_apagado",)
+
+
+def test_rt3_missing_packages_are_refused_and_staging_is_refused_with_zero_requests(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    params = rt3_params(tmp_path)
+    with pytest.raises(ScenarioError, match="rt3_paquetes_faltan"):
+        rt3_run(tworld, Rt3Params({"RT3-a": params.packages["RT3-a"]}, 5))
+    deps = Rt3Deps(guard.STAGING, tworld.clock, tworld.sessions, tworld.simulator, tworld.registry)
+    with pytest.raises(guard.GuardError, match="section_denied_in_staging:rt3"):
+        rt3.rt3(deps, params)
+    assert tworld.oidc.logins == [] and tworld.simulator.runs == []
+
+
+def test_guard_resolve_frozen_called_from_rt3_or_rt2_setup_is_refused_with_zero_requests(
+    tworld: Rt2World,
+) -> None:
+    from vectra_contracts.models.governance import FrozenResolutionIn
+
+    bff = tworld.sessions.writer("cumplimiento-1")
+    before = len(tworld.bff.doubles.governance.calls)
+    for section in ("rt3", "rt2-setup", "decisions"):
+        with pytest.raises(guard.GuardError, match="reactivation_outside_rt2"):
+            bff.resolve_frozen(PROXY, FrozenResolutionIn(action="reactivar", justification="x"), section)
+    assert len(tworld.bff.doubles.governance.calls) == before
+
+
+def test_guard_a_production_host_or_issuer_sends_zero_requests(tworld: Rt2World) -> None:
+    from vectra_verification.clients.bff import BffClient
+
+    with pytest.raises(guard.GuardError, match="environment_not_allowed"):
+        BffClient(
+            guard.Environment(
+                "prod", "vectra.banco.internal", "https://vectra.banco.internal/auth/realms/vectra"
+            ),
+            tworld.oidc.login("analista-1"),
+            TAG_FOR_TESTS,
+        )
+    assert tworld.bff.doubles.governance.calls == []
+
+
+from rt2_world import TAG as TAG_FOR_TESTS  # noqa: E402

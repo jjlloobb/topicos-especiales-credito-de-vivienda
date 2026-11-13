@@ -183,7 +183,17 @@ class BiasProm(httpx.BaseTransport):
             return httpx.Response(
                 200, json={"status": "success", "data": {"resultType": "matrix", "result": result}}
             )
-        if expression == rt2_module.BIAS_OK:
+        if expression == "max(vectra_cases_failclosed_persistent)":
+            result = (
+                [{"metric": {}, "value": [0, repr(self.world.gauge)]}] if self.world.gauge is not None else []
+            )
+        elif expression.startswith("ALERTS{"):
+            result = (
+                [{"metric": {"alertname": "FailClosedPersistente"}, "value": [0, "1"]}]
+                if self.world.alert_firing
+                else []
+            )
+        elif expression == rt2_module.BIAS_OK:
             result = [{"metric": {}, "value": [0, repr(runs[-1][1])]}] if runs else []
         else:
             result = (
@@ -221,6 +231,8 @@ class FakeSimulator:
         if scenario == "stratified":
             world.on_batch(started, ids, volume / rate)
         world.clock.sleep(volume / rate)
+        if scenario == "normal" and world.on_probe is not None:
+            world.on_probe()
         report = RunReport(
             scenario=scenario, sent=volume, accepted=accepted, rejected_by_code={"validation_error": volume - accepted} if accepted < volume else {},
             case_ids=tuple(ids), started_at=started, finished_at=world.clock.now(), generator_version="g", seed=1, sampling_seed=seed, rate=rate,
@@ -255,6 +267,10 @@ class Rt2World:
         self.validation_outcome = "lista_para_aprobacion"
         self.no_policy = False
         self.empty_disparity = False
+        self.register_overrides: dict[str, Callable[[Any], tuple[int, Any]]] = {}
+        self.gauge: float | None = None
+        self.on_probe: Callable[[], None] | None = None
+        self.alert_firing = False
         self.freeze_freezes_model = True
         self.reactivation_status = 204
         self.refreeze_after: float | None = None
@@ -423,6 +439,8 @@ class Rt2World:
     def _register(self, call: Any) -> tuple[int, Any]:
         body = call.json()
         model_id = body["artifact_uri"].split("/")[-2]
+        if model_id in self.register_overrides:
+            return self.register_overrides[model_id](call)
         if model_id in self.models:
             return 409, problem(409, "conflict_state")
         self.registrations.append((model_id, self._caller(call)))
