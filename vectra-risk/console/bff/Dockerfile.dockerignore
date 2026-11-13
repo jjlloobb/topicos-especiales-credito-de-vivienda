@@ -1,0 +1,17 @@
+# Contexto = raiz de vectra-risk/: la imagen solo COPIA contracts/python y console/bff/{pyproject.toml,src}, pero el contexto
+# se envia entero. Fuera lo pesado (entornos virtuales, caches, herramientas, documentacion).
+.venv
+**/node_modules
+**/dist
+**/__pycache__
+**/.hypothesis
+.benchmarks
+.git
+platform/.tools
+platform/.charts
+aidlc-docs
+bitacoras
+revisiones
+entradas
+tareas
+loop

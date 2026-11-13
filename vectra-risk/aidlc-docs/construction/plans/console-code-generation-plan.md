@@ -69,6 +69,7 @@ vectra-risk/console/
 > - `bff/pytest.ini` y `bff/coveragerc` apuntan la cobertura a `console_bff`, como en U8 y U9.
 > - **U10-T02:** se agrega `bff/tools/role_matrix.py` (Paso 7; `--check` compara la matriz generada de `REGISTRY`, C03 y `contracts/openapi/role-endpoint-matrix.md`, P-4 (a)); `pytest.ini` suma `tests/doubles`, `../../contracts/tests` y `tools` a `pythonpath`; `bff/tests/doubles/` lleva los cinco dobles de los destinos y el soporte de tokens (`bff_*.py`).
 > - **U10-T03:** se agrega `spa/playwright.config.ts` (proyectos `chromium` y `firefox`, un `worker`, `webServer` de los dobles y de Vite; no estaba en esta estructura) y `spa/scripts/check-browsers.mjs`; `spa/tests/poc/` lleva la PoC del Paso 10 (página, callback, página de otro origen, `vite.poc.config.ts` y `poc.spec.ts`) y `spa/tests/support/` los dobles de las pruebas; `bff/tests/doubles/` suma `bff_oidc.py` (emisor OIDC de prueba) y `bff_e2e_server.py` (el BFF con dobles y el emisor en un proceso, para Playwright), con `bff/tests/integration/test_bff_e2e_server.py`. `console/Makefile` suma `e2e-spa`.
+> - **U10-T05:** el despliegue son **dos** charts, `chart/bff` y `chart/spa` (uno por `Application`: `console-bff` en `vectra-app` y `console-spa` en `vectra-edge`; el plan §1 tenía uno solo, P-2), cada uno con su `values.yaml` de producción; `chart/bff/values-kind.yaml` (HPA de 2 a 2 y request de memoria de 128 MiB solo en kind, P-1 = b) y `Dockerfile.dockerignore` en `bff/` y `spa/`. Pruebas nuevas: `bff/tests/unit/test_chart.py`, `bff/tests/integration/test_image.py`, `bff/tools/chart_data.py` (los datos del realm para `conftest`) y `spa/tests/unit/chart-config.test.ts`; reglas en `policies/conftest/`; `spa/nginx.conf`. Sale `chart/templates/.gitkeep`.
 
 ---
 
@@ -191,7 +192,7 @@ vectra-risk/console/
 
 ### Bloque F — Despliegue y operación
 
-- [ ] **Paso 17 — Imágenes**
+- [x] **Paso 17 — Imágenes** (U10-T05; firma, SBOM y escaneo diferidos por la demo (T1); etapas `previous` diferidas con `version` (P-15))
   - BFF: Python oficial por digest, `runAsNonRoot`, `readOnlyRootFilesystem`.
   - SPA (INF-U10-02): etapas `build`, `no-previous` (`FROM scratch`, manifiesto vacío), `previous` (`FROM ${PREVIOUS_IMAGE}`, por omisión `no-previous`) y final `nginx-unprivileged` por digest; copia los recursos de `previous` listados en su `manifest.json`; etiqueta OCI `vectra.io/previous-digest` (`none` en el primer release).
   - `nginx.conf`: `no-store` en `index.html`, `version.json` y `config.json`; `immutable` en `assets/`; fallback a `index.html` solo para rutas sin extensión; sin `server_tokens`.
@@ -199,7 +200,7 @@ vectra-risk/console/
   - Diseño: INF-U10-02; NFR-U10-44, 45; P-U10-06.
   - **Aceptación**: `hadolint console/bff/Dockerfile console/spa/Dockerfile`; prueba sobre la imagen de la SPA construida con un `PREVIOUS_IMAGE` de fixture (contiene los recursos de las dos versiones y ninguno más viejo; la etiqueta tiene el digest) y sin él (etiqueta `none`, sin recursos anteriores); prueba de `nginx.conf` con `nginx -t` y `curl` en un contenedor local (`/cases/123` → `index.html`; `/assets/no-existe.js` → 404; cabeceras de caché).
 
-- [ ] **Paso 18 — Chart, cuotas y flujos**
+- [x] **Paso 18 — Chart, cuotas y flujos** (U10-T05)
   - BFF: `Deployment` con HPA de 2 a 6 (en kind, `minReplicas = maxReplicas = 2`), `maxSurge: 1` y `maxUnavailable: 0`, PDB, spread por zona, `vectra-high`, `ServiceMonitor` 8081, `ConfigMap` de URLs y audiencias.
   - SPA: 2 réplicas fijas con `vectra.io/hpa-exempt`, `maxSurge: 100%` y `maxUnavailable: 0`, PDB, spread, `vectra-normal`, `ConfigMap` de `config.json` montado sin `subPath` y anotación `checksum/config`.
   - Aporte a las cuotas de `vectra-app` y `vectra-edge` con los pods del rollout y el proxy (INF-U10-01) en `platform/policies/quotas/` de U1.
@@ -207,14 +208,14 @@ vectra-risk/console/
   - Diseño: INF-U10-01, 03, 04; NFR-U10-10..12, 20, 22.
   - **Aceptación**: `helm template` con cada values + `kubeconform` + `conftest test console/policies/conftest/` (réplicas, HPA de kind, exención, estrategias, PDB, spread, PriorityClass, sin `subPath`, `checksum/config`, `config.json` sin secretos y con los `redirect_uri` del realm del entorno); `kyverno test` de U1 (`require-hpa-bounds`); `conftest test platform/policies/quotas/`; `uv run python platform/network/generate.py --check`.
 
-- [ ] **Paso 19 — Alertas, runbooks y dashboard**
+- [ ] **Paso 19 — Alertas, runbooks y dashboard** — diferido por la demo (T2)
   - `PrometheusRule` con las **seis** alertas de P-U10-10 y sus recording rules, cada una con `severity` y `runbook_url`.
   - Runbooks `console-bff-error-budget`, `console-bff-down`, `console-dependency-circuit-open`, `console-client-errors-spike` (con la sección de `csp_violation`) y `console-spa-emergency-rollback`.
   - Dashboard `observability/dashboards/console.json`, como `ConfigMap` con la etiqueta `vectra.io/dashboard` y la anotación `grafana_folder` (revisión de consistencia entre unidades, 2026-11-01).
   - Diseño: P-U10-10; INF-U10-05.
   - **Aceptación**: `promtool test rules console/observability/rules/tests/*.yaml` (cada alerta a los dos lados del umbral; un 503 `dependency_unavailable` no cuenta para el presupuesto; `ConsoleChunkOrCspError` dispara con una serie que pasa de 0 a 1); `uv run python platform/tests/test_runbooks.py --root console`; `uv run python contracts/tools/forbidden_phrases.py console/observability/dashboards/console.json`.
 
-- [ ] **Paso 20 — Workflows de CI y de release**
+- [ ] **Paso 20 — Workflows de CI y de release** — diferido por la demo (T4)
   - `.github/workflows/console.yml` en cada PR que toca `console/`: `uv sync --frozen`, ruff, mypy, import-linter, `npm ci --ignore-scripts`, ESLint, typecheck, pruebas con perfil `ci` y semilla impresa, cobertura, matriz rol × endpoint, `size-limit`, Playwright con dobles, `helm template`, `conftest`, `promtool`; reutiliza `tests.yml`, `supply-chain.yml` y `policies.yml` de U1, este con `path: console/chart` (revisión de consistencia entre unidades, 2026-11-01).
   - Workflow nocturno: perfiles `nightly`, `mutmut` y Stryker.
   - `.github/workflows/console-spa-release.yml`: lee el digest de `console-spa` de `vectra-risk-gitops/values/prod/console-spa.yaml` (revisión de consistencia entre unidades, 2026-11-01), lo verifica con `cosign verify`, construye con `PREVIOUS_IMAGE` (o sin él si producción no tiene digest) y abre el PR a **staging**.
@@ -223,7 +224,7 @@ vectra-risk/console/
   - Diseño: NFR-U10-44, 60..63; INF-U10-02.
   - **Aceptación**: `actionlint .github/workflows/console*.yml`; `! grep -E "kubectl|helm (install|upgrade)|terraform apply" .github/workflows/console*.yml`; `uv run pytest console/bff/tests/unit/test_previous_digest_check.py` (etiqueta distinta → falla; `none` con producción vacía → pasa; `none` con producción con digest → falla; digest que no estuvo en staging → falla; caso correcto → pasa).
 
-- [ ] **Paso 21 — Applications, especificaciones de carga y trazabilidad**
+- [x] **Paso 21 — Applications, especificaciones de carga y trazabilidad** (U10-T05; k6 y Lighthouse CI diferidos por la demo (T3))
   - Entradas `console-bff` y `console-spa` en `vectra-risk-gitops/components.yaml` con `wave: 5`; `generate.py` escribe una Application por entorno, sin auto-sync (revisión de consistencia entre unidades, 2026-11-01).
   - Script k6 con el perfil por rol de P-U10-11 (200 usuarios, 30 min) y configuración de Lighthouse CI con el perfil de red del banco.
   - Trazabilidad de cada BR-U10 a una prueba.
@@ -232,7 +233,7 @@ vectra-risk/console/
 
 ### Bloque G — Verificación en kind (con aprobación humana)
 
-- [ ] **Paso 22 — Puerta de aprobación y escenarios en kind**
+- [ ] **Paso 22 — Puerta de aprobación y escenarios en kind** — consolidado en U12 Paso 18 (enmienda §8)
   - **Requisito previo**: un PR con los Pasos 1–21 aprobado por un humano, con U1–U4 y U7–U9 instalados en kind.
   - El operador ejecuta, con evidencia:
     1. la prueba de concepto del step-up (Paso 10) y la suite de Playwright con Keycloak real y los usuarios `analista-1` … `cumplimiento-2` (incluido aprobador ≠ proponente con `cro-1` y `cro-2`, y el diálogo de step-up que U2 no puede probar sin la SPA; seguimiento de la quinta revisión de coherencia, 2026-10-31);
@@ -246,11 +247,11 @@ vectra-risk/console/
 
 ### Bloque H — Documentación y cierre
 
-- [ ] **Paso 23 — Documentación**
+- [x] **Paso 23 — Documentación** (U10-T05)
   - `console/README.md`: arquitectura, cómo correr el BFF con dobles y la SPA con Vite, constantes, flujo de release de la SPA y el rollback de emergencia; referencia a `role-endpoint-matrix.md`.
   - **Aceptación**: `test -s console/README.md`; un enlace por runbook y por documento de diseño, comprobado por `platform/tests/test_links.py`.
 
-- [ ] **Paso 24 — Cierre de la unidad**
+- [x] **Paso 24 — Cierre de la unidad** (U10-T05; cierre acotado a la demo)
   - **Aceptación**: `make -C console check`, que corre en orden las verificaciones estáticas, las propiedades, las pruebas de integración y las de Playwright con dobles de los Pasos 1–21 y termina en 0. Las de kind (Paso 22) se revisan como evidencia en el PR.
 
 ---

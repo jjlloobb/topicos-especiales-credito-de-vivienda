@@ -1,0 +1,6 @@
+# Values de console-bff (U10, U10-T05). Aqui solo lo que cambia de un chart a otro por entorno: el emisor publico de los tokens (P-4), `https://<hostname>` mas `jwt.issuer_path`
+# de `identity-edge/gateway/routes.yaml`: el mismo `authority` de la SPA y el `iss` que valida el gateway. Pendiente en U12 (y U02-T21): comprobar que Keycloak emite ese `iss`.
+# El JWKS (`oidc.jwksUrl`) es el de `routes.yaml` en todos los entornos y rige el del chart.
+# Digest: el operador lo fija en U12 Paso 18, tras publicar la imagen (console/README.md, seccion «Imagenes»). Hasta entonces rige el digest de ejemplo del chart.
+oidc:
+  issuer: https://vectra.staging.banco.internal/auth/realms/vectra
