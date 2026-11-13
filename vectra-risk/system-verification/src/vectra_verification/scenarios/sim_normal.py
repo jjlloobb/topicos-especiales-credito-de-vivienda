@@ -114,8 +114,8 @@ def read_cases(
                     raise
                 reads[case_id] = CaseRead(None)
                 continue
-            reads[case_id] = CaseRead(detail.state, detail.last_cause)
-            if detail.state == "en_evaluacion":
+            reads[case_id] = CaseRead(str(detail.state), detail.last_cause)
+            if str(detail.state) == "en_evaluacion":
                 still.append(case_id)
         pending[:] = still
         return not still, None
