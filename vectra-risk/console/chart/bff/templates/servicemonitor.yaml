@@ -1,0 +1,22 @@
+{{- /* ServiceMonitor del puerto de metricas (F60; 8081). */ -}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: console-bff
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: console-bff
+    app.kubernetes.io/part-of: console
+    vectra.io/criticality: {{ .Values.deployment.criticality }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: console-bff
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      # La etiqueta `service` que emite U0 no pasa a `exported_service` (shared-infrastructure.md §1).
+      honorLabels: true

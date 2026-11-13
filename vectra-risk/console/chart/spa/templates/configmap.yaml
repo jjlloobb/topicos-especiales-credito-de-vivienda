@@ -1,0 +1,13 @@
+{{- /* ConfigMap de `config.json` (INF-U10-03; C-3): solo OIDC y el `uid` de `bias.json`. Sin secretos: el cliente es publico (PKCE). `|-` deja el texto sin salto final:
+`checksum/config` es el sha256 de este `data` tal cual. */ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.configMapName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: console-spa-config
+    app.kubernetes.io/part-of: console
+data:
+  {{ .Values.config.fileName }}: |-
+    {{- include "console-spa.config" . | nindent 4 }}

@@ -1,0 +1,7 @@
+apiVersion: v2
+name: console-spa
+description: >-
+  Chart de U10 (Paso 18, acotado a la demo): el Deployment console-spa (nginx sin privilegios, 2 replicas fijas con `vectra.io/hpa-exempt`) con su Service (8080),
+  PDB, ServiceAccount y el ConfigMap de `config.json`, montado como volumen completo. Sin HPA, ServiceMonitor, Server, HTTPRoute ni cabeceras (son de U1 y de U2).
+type: application
+version: 0.1.0

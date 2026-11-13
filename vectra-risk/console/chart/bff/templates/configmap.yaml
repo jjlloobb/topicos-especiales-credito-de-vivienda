@@ -1,0 +1,12 @@
+{{- /* ConfigMap de variables de `console-bff` (INF-U10-01): URLs, emisor y JWKS. Sin secretos: el BFF usa el token del usuario (`deployment-architecture.md` §3: «ExternalSecret: Ninguno»).
+«Audiencias»: el BFF no lee ninguna variable de audiencia; U0 valida `aud = console-bff` (el nombre del servicio) y el realm la pone con el mapper `aud-console-bff`. */ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.configMapName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: console-bff-config
+    app.kubernetes.io/part-of: console
+data:
+  {{- include "console-bff.env" . | nindent 2 }}

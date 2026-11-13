@@ -78,6 +78,11 @@ components:
   # `vectra-serving` (C-2) y, tras la verificacion de U12 Paso 18, los digests. Va con `governance` en la wave 5: `ServingConfig` es estricto y las tres
   # imagenes (governance, scoring, explainability) se construyen del mismo commit (scoring-explainability/docs/imagenes.md). La PrometheusRule (T2) esta diferida.
   - { name: scoring-explainability, wave: 5, namespace: vectra-app, path: scoring-explainability/chart, env_values: true }
+  # U10 (U10-T05): `console-bff` (HPA de 2 a 6, PDB, ServiceMonitor, ConfigMap de URLs, emisor y JWKS; sin Secret: usa el token del usuario) en `vectra-app` y `console-spa` (nginx, 2 replicas fijas con
+  # `vectra.io/hpa-exempt`, PDB y el ConfigMap de `config.json`) en `vectra-edge`: un chart y un Application por pieza (P-2). Los values de cada entorno (`values/<env>/console-*.yaml`) traen el
+  # hostname y el emisor; `kind_values` baja el HPA del BFF a 2 y 2 y su request de memoria a 128 MiB (P-1 = b, decision del usuario 2026-11-13; `DECISIONES-LOOP.md` §7): staging y prod siguen en 256 MiB.
+  - { name: console-bff, wave: 5, namespace: vectra-app, path: console/chart/bff, env_values: true, kind_values: [console/chart/bff/values-kind.yaml] }
+  - { name: console-spa, wave: 5, namespace: vectra-edge, path: console/chart/spa, env_values: true }
   # U6 (U06-T02): los InferenceService de cada version (azul/verde). Los values por entorno no declaran ninguno: los agrega `promotion-tool` por PR
   # (esquema: model-serving/chart/values.schema.json y model-serving/docs/values.md). El Application es de vectra-serving; el perfil `staging` crea su
   # predictor en vectra-staging con el namespace explicito del recurso.
