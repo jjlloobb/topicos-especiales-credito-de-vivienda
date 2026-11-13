@@ -37,7 +37,8 @@ aggregator:
 # trust-manager de U1, en los namespaces con `vectra.io/mesh: enabled`; en kind firma a Keycloak). Staging y prod usan `banco-ca`: su ConfigMap
 # lo fija el Bloque H (CANDIDATAS.md, U03-T05). El chart no crea ningun Secret.
 keycloak:
-  issuer: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra
+  # Emisor medido (identity-edge/docs/emisor-de-tokens.md, U02-T21): con KC_HOSTNAME como URL completa todo token lleva `iss` = el hostname publico. Produccion por omision; kind y staging en vectra-risk-gitops/values/<env>/decision-registry.yaml.
+  issuer: https://vectra.banco.internal/auth/realms/vectra
   jwksUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/certs
   caConfigMap: vectra-internal-ca
 # Deployment `decision-registry-service` (INF-U3-03; NFR-U3-10, 11): 8080 con el contrato y 8081 con /metrics, /healthz y /readyz.

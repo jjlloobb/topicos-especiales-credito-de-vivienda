@@ -15,6 +15,7 @@ spec:
       valueFiles:
       - /vectra-risk/vectra-risk-gitops/envs/staging/values.yaml
       - /vectra-risk/bias-monitoring/chart/values-monitoring-policy.yaml
+      - /vectra-risk/vectra-risk-gitops/values/staging/bias-monitoring.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: vectra-app

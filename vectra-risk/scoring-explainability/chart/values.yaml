@@ -18,7 +18,8 @@ images:
 # Validacion de tokens y obtencion de los de servicio (F50; variables de U0). Mismos valores que `governance` y `bias-monitoring`; el realm y el
 # nombre publico los fija U2. La CA sale del ConfigMap `vectra-internal-ca` (Bundle de trust-manager de U1). El chart no crea ningun Secret.
 keycloak:
-  issuer: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra
+  # Emisor medido (identity-edge/docs/emisor-de-tokens.md, U02-T21): con KC_HOSTNAME como URL completa todo token lleva `iss` = el hostname publico. Produccion por omision; kind y staging en vectra-risk-gitops/values/<env>/scoring-explainability.yaml.
+  issuer: https://vectra.banco.internal/auth/realms/vectra
   jwksUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/certs
   tokenUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token
   caConfigMap: vectra-internal-ca

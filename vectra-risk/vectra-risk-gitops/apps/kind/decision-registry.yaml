@@ -14,6 +14,7 @@ spec:
     helm:
       valueFiles:
       - /vectra-risk/vectra-risk-gitops/envs/kind/values.yaml
+      - /vectra-risk/vectra-risk-gitops/values/kind/decision-registry.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: vectra-app
