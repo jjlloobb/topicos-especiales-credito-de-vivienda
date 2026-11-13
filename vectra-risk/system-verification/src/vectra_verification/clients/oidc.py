@@ -2,7 +2,7 @@
 
 La herramienta actua como el cliente publico `vectra-console` (U2): Authorization Code con PKCE S256, sin *password grant* (el realm no lo ofrece). Genera `state`,
 `nonce` y `code_verifier`; abre la URL de autorizacion en **Chromium sin interfaz con Playwright**, que llena el formulario de Keycloak con la contraseña y el codigo
-TOTP; **intercepta y aborta** la navegacion al `redirect_uri` registrado antes de salir a la red (la SPA nunca se carga) y toma `code` y `state` de esa URL; compara
+TOTP; **intercepta** la navegacion al `redirect_uri` registrado antes de salir a la red (la SPA nunca se carga: la respuesta de Keycloak se pide sin seguir la redireccion, se toma `code` y `state` de su `Location` y la navegacion se cierra con un 204); compara
 `state` (si no coincide, error **sin** llamar al endpoint de token), canjea `code` con el `code_verifier` y valida el ID token: firma contra el JWKS del realm, `iss` exacto
 (`guard.check_token_issuer`), `aud = vectra-console`, `exp`, `nonce` y `acr = mfa`; en el step-up, ademas, `auth_time` de hace `MFA_MAX_AGE` segundos o menos.
 
@@ -17,8 +17,13 @@ Reglas que este modulo cumple y las pruebas fijan:
   rechaza uno ya usado); si el refresco falla, hace **un** login nuevo.
 - Tokens de servicio: `client_credentials` con `private_key_jwt` ES256. La `aud` de la aserción es el **emisor del entorno** (medido en U02-T21: Keycloak publica un solo emisor
   y rechaza una aserción con la URL interna de token).
-- Chromium solo confia en el certificado del servidor del entorno (P-2 (a)): su huella SPKI se toma por una conexion TLS **verificada** con la CA del entorno y se pasa como
-  `--ignore-certificate-errors-spki-list`. Nunca `ignore_https_errors` ni el modo sin aislamiento de Chromium (Paso 15).
+- Confianza TLS, lo que de verdad protege cada camino (P-2). Hay **dos** caminos y no son el mismo: (1) los subrecursos de la pagina (CSS, JS, imagenes) los pide Chromium, que solo acepta el
+  certificado del servidor del entorno por su huella SPKI (`--ignore-certificate-errors-spki-list`, tomada por una conexion TLS **verificada** con la CA del entorno); (2) las **navegaciones**, incluido el POST con la
+  contraseña y el codigo TOTP, las pide `route.fetch` desde el proceso de Playwright (Node), que no usa esa huella: confia en las CA publicas de Node mas la del entorno que se le da por `NODE_EXTRA_CA_CERTS`
+  (`ca_file`). Ningun camino acepta un certificado cualquiera ni usa `ignore_https_errors`, y sin la CA el fallo de TLS termina en un `OidcError` (probado con Node sin la CA). Dar la misma CA a los dos caminos en
+  la imagen es del Paso 15 (U12-T04). Nunca el modo sin aislamiento de Chromium.
+- Un fallo de Playwright (TLS, red, arranque o cierre del contexto) sale como `OidcError` con codigo estable (`browser_error`, `browser_launch_error`, `browser_close_error`): sus mensajes traen la URL de
+  autorizacion (`state`, `nonce`, `code_challenge`) y no salen del modulo.
 """
 
 from __future__ import annotations
@@ -196,12 +201,45 @@ class HeadlessForm(FormDriver):
     def submit(
         self, authorize_url: str, redirect_uri: str, username: str, password: Secret, otp: Callable[[], str]
     ) -> str:
-        browser = self._launch()
-        context = browser.new_context(
-            ignore_https_errors=False, service_workers="block", accept_downloads=False
-        )
+        """Todo fallo de Playwright (TLS, red, arranque, cierre del contexto) sale como `OidcError` con codigo estable: el mensaje y la traza de Playwright traen la URL de autorizacion
+        (`state`, `nonce`, `code_challenge`) y no salen del modulo (`from None`)."""
+        try:
+            browser = self._launch()
+            context = browser.new_context(
+                ignore_https_errors=False, service_workers="block", accept_downloads=False
+            )
+        except PlaywrightError:
+            raise OidcError("browser_launch_error") from None
         self.contexts_opened += 1
         try:
+            returned_url = self._drive(context, authorize_url, redirect_uri, username, password, otp)
+        except BaseException:
+            self._discard(context)  # un fallo al cerrar no tapa el error original
+            raise
+        if self._discard(context):
+            raise OidcError("browser_close_error") from None
+        return returned_url
+
+    def _discard(self, context: Any) -> bool:
+        """Cierra el contexto (siempre, y se cuenta); devuelve si el cierre fallo."""
+        try:
+            context.close()
+        except PlaywrightError:
+            return True
+        finally:
+            self.contexts_closed += 1
+        return False
+
+    def _drive(
+        self,
+        context: Any,
+        authorize_url: str,
+        redirect_uri: str,
+        username: str,
+        password: Secret,
+        otp: Callable[[], str],
+    ) -> str:
+        if True:
             returned: list[str] = []
 
             def intercept(route: Route) -> None:
@@ -268,11 +306,6 @@ class HeadlessForm(FormDriver):
                     "browser_error"
                 ) from None  # el mensaje de Playwright puede traer la URL de retorno con su `code`
             return returned[0]
-        finally:
-            try:
-                context.close()
-            finally:
-                self.contexts_closed += 1
 
 
 class UserSession:

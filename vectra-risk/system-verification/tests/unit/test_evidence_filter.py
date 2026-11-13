@@ -259,3 +259,52 @@ def test_f08_the_code_in_a_url_and_the_pkce_verifier_are_removed_but_a_problem_c
     assert "state=abc" in cleaned and "session_state=z" in cleaned
     problem = '{"type": "about:blank", "code": "conflict_state", "reason": "decision_already_recorded"}'
     assert evidence.scrub(problem) == problem
+
+
+# --- U12-T02 ronda 2, F-05: el objeto HAR con cualquier orden de claves y `code=` al principio de un formulario -------------------------------------
+
+
+@pytest.mark.parametrize(
+    "har",
+    [
+        '{"value": "sid=sesion-har-orden-1", "name": "Cookie"}',
+        "{'value': 'sid=sesion-har-orden-1', 'name': 'cookie'}",
+        '{"comment": "x", "value": "sid=sesion-har-orden-1", "domain": "h", "name": "Authorization"}',
+        '{"name": "Set-Cookie", "comment": "x", "value": "sid=sesion-har-orden-1"}',
+        '{"value": "sid=sesion-har-orden-1", "name": "refresh_token"}',
+    ],
+)
+def test_f05_a_har_object_is_cleaned_with_any_key_order(har: str) -> None:
+    cleaned = evidence.scrub(f"entrada: {har}\n")
+    assert "sesion-har-orden-1" not in cleaned and "[REDACTADO]" in cleaned
+
+
+def test_f05_a_har_object_with_another_header_is_untouched() -> None:
+    for har in (
+        '{"value": "application/json", "name": "Accept"}',
+        '{"name": "Accept", "value": "application/json"}',
+    ):
+        assert evidence.scrub(har) == har
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "code=CODIGO-SECRETO-77&grant_type=authorization_code",
+        "grant_type=x&code=CODIGO-SECRETO-77",
+        "POST /token\n\ncode=CODIGO-SECRETO-77&redirect_uri=y",
+        "x code=CODIGO-SECRETO-77",
+    ],
+)
+def test_f05_code_at_the_start_of_a_form_body_is_removed(body: str) -> None:
+    cleaned = evidence.scrub(body)
+    assert "CODIGO-SECRETO-77" not in cleaned and "code=[REDACTADO]" in cleaned
+
+
+def test_f05_code_is_still_kept_as_a_problem_field_and_other_names_ending_in_code_are_not_touched() -> None:
+    problem = '{"type": "about:blank", "code": "conflict_state", "reason": "decision_already_recorded"}'
+    assert evidence.scrub(problem) == problem
+    assert (
+        evidence.scrub("http_code=500&error_code=x&status_code=200")
+        == "http_code=500&error_code=x&status_code=200"
+    )

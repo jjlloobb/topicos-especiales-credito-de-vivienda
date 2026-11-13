@@ -277,11 +277,72 @@ def test_red_a_wrong_client_or_an_unregistered_redirect_uri_gets_no_login_form(
         assert 'name="username"' not in response.text and response.status_code in (400, 404)
 
 
-def test_credentials_come_from_the_vault_double_not_from_test_variables(credentials: Credentials) -> None:
+def test_credentials_come_from_the_vault_double_not_from_test_variables(
+    keycloak: KeycloakStack, real_environment: guard.Environment
+) -> None:
+    """Las credenciales del login salen de la cadena boveda -> `Credentials`: el doble recibe las lecturas, los valores son los generados para el realm y ninguno esta en el entorno del proceso."""
+    vault = keycloak.vault()
+    creds = Credentials(real_environment, VAULT_ADDR, TOKEN, vault)
+    assert vault.count == 0
+    password, seed = creds.user_password("analista-1").reveal(), creds.user_totp_seed("analista-1").reveal()
+    assert vault.count >= 1 and all(r.url.path.endswith("identity/synthetic-users") for r in vault.requests)
     assert (
-        "client:channel-simulator" in credentials.held_properties()
-        or credentials.user_password("analista-1").reveal()
+        password == keycloak.generated.variables["SYNTH_ANALISTA_1_PASSWORD"]
+        and seed == keycloak.generated.variables["SYNTH_ANALISTA_1_TOTP_SEED"]
     )
+    assert password not in os.environ.values() and seed not in os.environ.values()
+    assert (
+        creds.user_password("analista-1").reveal() == password and vault.count == 1
+    )  # una lectura del secreto compartido
+
+
+def test_red_f03_a_tls_failure_in_the_form_is_a_stable_oidc_error_without_the_authorization_url(
+    keycloak: KeycloakStack,
+    real_environment: guard.Environment,
+    credentials: Credentials,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Node (que hace `route.fetch`) sin la CA del entorno: el fallo de TLS no escapa como `playwright.Error` ni deja `state`, `nonce` o `code_challenge` en el mensaje o la traza."""
+    import traceback
+
+    from vectra_verification.clients.oidc import server_spki_pin
+
+    monkeypatch.delenv("NODE_EXTRA_CA_CERTS", raising=False)
+    pin = server_spki_pin("127.0.0.1", keycloak.port, keycloak.pki.ca_file)
+    client = OidcClient(
+        real_environment,
+        credentials,
+        Clock(),
+        ca_file=keycloak.pki.ca_file,
+        form=HeadlessForm(pin, ca_file=None),
+    )
+    client._last_window = _WINDOWS  # noqa: SLF001
+    requests = []
+    real_request = client.authorization_request
+
+    def recording(step_up: bool):  # type: ignore[no-untyped-def]
+        requests.append(real_request(step_up))
+        return requests[-1]
+
+    client.authorization_request = recording  # type: ignore[method-assign]
+    try:
+        with pytest.raises(OidcError) as error:
+            client.login("cro-1")
+        text = "".join(traceback.format_exception(error.value)) + str(error.value)
+        (request,) = requests
+        assert str(error.value) in ("browser_error", "browser_close_error", "login_timeout")
+        for secret in (
+            request.state,
+            request.nonce.reveal(),
+            request.code_verifier.reveal(),
+            request.url,
+            "code_challenge=",
+            "self-signed",
+            "Call log",
+        ):
+            assert secret not in text, secret
+    finally:
+        client.close()
 
 
 def test_red_without_the_window_wait_keycloak_itself_rejects_the_reused_totp_code(
