@@ -1,0 +1,54 @@
+# Valores comunes del chart de U11 (Paso 11 acotado a la demo). Se renderiza con `make -C product-metrics policy-chart`.
+# Los ocho parametros de cumplimiento (F, S, N y los targets) NO estan aqui: viven solo en `values-product-metrics-policy.yaml` (INF-U11-02,
+# CODEOWNERS): las plantillas lo leen del archivo del chart (`.Files`) o de los values que Argo CD le pasa con el mismo archivo, y los exigen con `required`.
+# Perfil demo (DD-3 b): 2 replicas fijas en los tres entornos. El unico ajuste de kind es el request de memoria (`values-kind.yaml`, P-1 = b).
+namespace: vectra-app
+# `imageRegistry` lo pasa Argo CD desde `vectra-risk-gitops/envs/<env>/values.yaml`; `image.repository` vale en un render local sin ese valor.
+image:
+  repository: kind-registry:5000/vectra/product-metrics
+  # Digest de ejemplo mientras el operador no publique la imagen (product-metrics/docs/imagenes.md); cada entorno fija el suyo.
+  # Sin digest no se renderiza (`required`): una imagen por etiqueta la rechaza Kyverno (`disallow-latest`).
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000007
+# Obtencion de tokens (F50). El realm y el nombre publico los fija U2; la CA sale del ConfigMap `vectra-internal-ca` (Bundle de trust-manager de U1).
+keycloak:
+  tokenUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token
+  caConfigMap: vectra-internal-ca
+  caMountPath: /etc/vectra/ca
+# U3 (F28): el unico servicio al que `product-metrics` llama.
+peers:
+  registryUrl: http://decision-registry-service.vectra-app.svc.cluster.local:8080
+# La llave `private_key_jwt` (INF-U11-03, F50): un ExternalSecret desde `identity/clients/product-metrics` (cliente de U2, solo `registry:read:metrics`),
+# propiedad `private-key`, montado de solo lectura. `clientId` vale `vectra_product.config.CLIENT_ID` (lo compara `tests/unit/test_chart.py`).
+identity:
+  clientId: product-metrics
+  secretName: product-metrics-client
+  vaultKey: identity/clients/product-metrics
+  vaultProperty: private-key
+  mountPath: /var/run/vectra/client
+  secretStore: { name: vectra-store, kind: ClusterSecretStore }
+  refreshInterval: 1h
+# `values-product-metrics-policy.yaml` como ConfigMap, montado como directorio (sin `subPath`) en la ruta de `vectra_product.params.POLICY_PATH`.
+policy:
+  configMapName: product-metrics-policy
+  mountPath: /etc/vectra/product-metrics-policy
+  fileName: values-product-metrics-policy.yaml
+# Deployment `product-metrics` (INF-U11-01; NFR-U11-05, 13): solo 8081. 2 replicas fijas, sin HPA.
+deployment:
+  priorityClassName: vectra-normal
+  criticality: medium
+  replicas: 2
+  metricsPort: 8081
+  progressDeadlineSeconds: 4800
+  terminationGracePeriodSeconds: 10
+  hpaExempt: "carga constante y estado en memoria (INF-U11-01): 2 replicas fijas, una por zona"
+  # staging y prod: 256 MiB (INF-U11-01). kind pide 128 MiB (`values-kind.yaml`, P-1 = b).
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+  pdb: { minAvailable: 1 }
+dashboard:
+  configMapName: product-metrics-dashboard
+  folder: Vectra / Producto
+  # Los valores del sidecar de Grafana de U1 (platform/observability/values/kube-prometheus-stack.yaml): la etiqueta y la anotacion de carpeta.
+  label: vectra.io/dashboard
+  folderAnnotation: grafana_folder

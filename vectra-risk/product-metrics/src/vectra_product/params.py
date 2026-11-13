@@ -67,8 +67,10 @@ def parse(raw: Any) -> Params:
     if minimum < config.NOISE_MIN_DECISIONS_MIN:
         raise ParamsError(f"noise_min_decisions: menor que {config.NOISE_MIN_DECISIONS_MIN}")
     hours = _number(raw, "target_origination_hours")
-    if hours <= 0:
-        raise ParamsError("target_origination_hours: no es mayor que 0")
+    if hours <= config.TARGET_ORIGINATION_HOURS_MIN_EXCLUSIVE:
+        raise ParamsError(
+            f"target_origination_hours: no es mayor que {config.TARGET_ORIGINATION_HOURS_MIN_EXCLUSIVE:g}"
+        )
     north_star = None if raw["target_north_star"] is None else _unit_closed(raw, "target_north_star")
     return Params(
         noise_floor=floor,

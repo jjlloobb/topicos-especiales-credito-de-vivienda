@@ -1,0 +1,91 @@
+# Recording rules (BR-U11-06; P-U11-05; NFR-U11-06, 32): la respuesta completa (`:1h`), la regla de desincronia (solo las causas de la categoria
+# `desincronia`) y las `:dedup`, que con dos replicas identicas valen lo que una replica (no el doble).
+rule_files:
+  - ../product-metrics.rules.yaml
+evaluation_interval: 1m
+
+tests:
+  - name: respuesta-completa-98-de-100-es-0-98
+    interval: 1m
+    input_series:
+      # 98 recomendaciones repartidas entre favorable, desfavorable y revision_requerida y 2 fail_closed, por la misma ventana (cuarta revision de coherencia, 2026-10-31)
+      - series: 'vectra_recommendations_total{outcome="favorable", pod="a"}'
+        values: '0+50x61'
+      - series: 'vectra_recommendations_total{outcome="desfavorable", pod="a"}'
+        values: '0+30x61'
+      - series: 'vectra_recommendations_total{outcome="revision_requerida", pod="a"}'
+        values: '0+18x61'
+      - series: 'vectra_recommendations_total{outcome="fail_closed", pod="a"}'
+        values: '0+2x61'
+    promql_expr_test:
+      - expr: vectra:product_complete_response_ratio:1h
+        eval_time: 60m
+        exp_samples:
+          - labels: 'vectra:product_complete_response_ratio:1h'
+            value: 0.98
+
+  - name: respuesta-completa-sin-fail-closed-es-1
+    interval: 1m
+    input_series:
+      - series: 'vectra_recommendations_total{outcome="favorable", pod="a"}'
+        values: '0+10x61'
+      - series: 'vectra_recommendations_total{outcome="fail_closed", pod="a"}'
+        values: '0x61'
+    promql_expr_test:
+      - expr: vectra:product_complete_response_ratio:1h
+        eval_time: 60m
+        exp_samples:
+          - labels: 'vectra:product_complete_response_ratio:1h'
+            value: 1
+
+  - name: desincronia-cuenta-version-mismatch-y-feature-dictionary-incomplete-y-no-otra-categoria
+    interval: 1m
+    input_series:
+      - series: 'vectra_scoring_failclosed_total{cause="version_mismatch", pod="s1"}'
+        values: '0+1x61'
+      - series: 'vectra_scoring_failclosed_total{cause="feature_dictionary_incomplete", pod="s1"}'
+        values: '0+2x61'
+      # categoria `dependencia`: no cuenta
+      - series: 'vectra_scoring_failclosed_total{cause="timeout", pod="s1"}'
+        values: '0+10x61'
+      - series: 'vectra_scoring_failclosed_total{cause="registry_unavailable", pod="s1"}'
+        values: '0+10x61'
+    promql_expr_test:
+      - expr: vectra:product_desync_failclosed:rate1h
+        eval_time: 60m
+        exp_samples:
+          - labels: 'vectra:product_desync_failclosed:rate1h'
+            value: 0.05 # (1 + 2) por minuto = 3 / 60 s
+
+  - name: desincronia-sin-causas-de-su-categoria-no-hay-serie
+    interval: 1m
+    input_series:
+      - series: 'vectra_scoring_failclosed_total{cause="timeout", pod="s1"}'
+        values: '0+10x61'
+    promql_expr_test:
+      - expr: vectra:product_desync_failclosed:rate1h
+        eval_time: 60m
+        exp_samples: []
+
+  - name: dedup-dos-replicas-identicas-valen-lo-que-una
+    interval: 1m
+    input_series:
+      - series: 'vectra_product_north_star_ratio{period="30d", channel="web", outcome="all", job="product-metrics", pod="a", instance="10.0.0.1:8081"}'
+        values: '0.42x10'
+      - series: 'vectra_product_north_star_ratio{period="30d", channel="web", outcome="all", job="product-metrics", pod="b", instance="10.0.0.2:8081"}'
+        values: '0.42x10'
+      - series: 'vectra_product_north_star_decisions{period="30d", part="numerator", channel="web", outcome="all", model_version_id="m1", job="product-metrics", pod="a", instance="10.0.0.1:8081"}'
+        values: '21x10'
+      - series: 'vectra_product_north_star_decisions{period="30d", part="numerator", channel="web", outcome="all", model_version_id="m1", job="product-metrics", pod="b", instance="10.0.0.2:8081"}'
+        values: '21x10'
+    promql_expr_test:
+      - expr: vectra:product_north_star_ratio:dedup
+        eval_time: 5m
+        exp_samples:
+          - labels: 'vectra:product_north_star_ratio:dedup{period="30d", channel="web", outcome="all", job="product-metrics"}'
+            value: 0.42
+      - expr: vectra:product_north_star_decisions:dedup
+        eval_time: 5m
+        exp_samples:
+          - labels: 'vectra:product_north_star_decisions:dedup{period="30d", part="numerator", channel="web", outcome="all", model_version_id="m1", job="product-metrics"}'
+            value: 21 # no 42: `max`, no `sum`

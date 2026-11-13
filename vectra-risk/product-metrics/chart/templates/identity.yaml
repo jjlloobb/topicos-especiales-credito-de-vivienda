@@ -1,0 +1,24 @@
+{{- /* ExternalSecret de la llave `private_key_jwt` (INF-U11-03; leccion de U04-T08): ESO materializa en vectra-app la llave del cliente `product-metrics` de U2
+(`identity/clients/product-metrics`, propiedad `private-key`). Ningun Secret en el render. */ -}}
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.identity.secretName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: product-metrics
+    app.kubernetes.io/part-of: product-metrics
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  refreshInterval: {{ .Values.identity.refreshInterval }}
+  secretStoreRef:
+    name: {{ .Values.identity.secretStore.name }}
+    kind: {{ .Values.identity.secretStore.kind }}
+  target:
+    name: {{ .Values.identity.secretName }}
+  data:
+    - secretKey: private-key
+      remoteRef:
+        key: {{ .Values.identity.vaultKey }}
+        property: {{ .Values.identity.vaultProperty }}

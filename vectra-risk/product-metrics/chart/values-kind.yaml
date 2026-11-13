@@ -1,0 +1,7 @@
+# Solo kind (P-1 = b, decision del usuario 2026-11-12; `DECISIONES-LOOP.md` §7): request de memoria de 128 MiB por replica en lugar de los 256 MiB
+# de INF-U11-01 (la maquina de la demo tiene 14 GiB). Es la unica desviacion: replicas, limits, PDB y exencion no cambian. La memoria real del pod
+# con 2 000 decisiones se comprueba en U12 Paso 18. Entra por `kind_values` de `components.yaml`.
+deployment:
+  resources:
+    requests:
+      memory: 128Mi

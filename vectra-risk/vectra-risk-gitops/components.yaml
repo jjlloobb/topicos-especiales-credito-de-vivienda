@@ -69,6 +69,10 @@ components:
   # (el unico que congela), con la identidad (ExternalSecret) de cada proceso. `values-monitoring-policy.yaml` va en `values` (INF-U9-03): el archivo
   # vive en el monorepo y lo cubre CODEOWNERS. El Job `x04-probe` (T5) y las alertas (T2) estan diferidos.
   - { name: bias-monitoring, wave: 5, namespace: vectra-app, path: bias-monitoring/chart, env_values: true, values: [bias-monitoring/chart/values-monitoring-policy.yaml] }
+  # U11 (U11-T03): `product-metrics` (2 replicas fijas, `vectra.io/hpa-exempt`, PDB, ServiceMonitor, PrometheusRule con las cuatro alertas, ConfigMap del dashboard
+  # `product.json` y el `ExternalSecret` de su llave). `values-product-metrics-policy.yaml` va en `values` (INF-U11-02): el archivo vive en el monorepo y lo cubre
+  # CODEOWNERS. `kind_values` baja solo el request de memoria a 128 MiB (P-1 = b, decision del usuario 2026-11-12; `DECISIONES-LOOP.md` §7): staging y prod siguen en 256 MiB.
+  - { name: product-metrics, wave: 5, namespace: vectra-app, path: product-metrics/chart, env_values: true, values: [product-metrics/chart/values-product-metrics-policy.yaml], kind_values: [product-metrics/chart/values-kind.yaml] }
   # U7 (U07-T04): `scoring-service` y `explainability-service` (2 replicas del HPA de 2 a 6, PDB, ServiceMonitor, ExternalSecret de la llave `private_key_jwt`) en un solo
   # Application. Los values de cada entorno (`values/<env>/scoring-explainability.yaml`) traen las plantillas de URL de los Services que KServe crea en
   # `vectra-serving` (C-2) y, tras la verificacion de U12 Paso 18, los digests. Va con `governance` en la wave 5: `ServingConfig` es estricto y las tres
