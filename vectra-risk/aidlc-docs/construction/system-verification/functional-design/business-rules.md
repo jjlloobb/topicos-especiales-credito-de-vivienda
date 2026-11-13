@@ -73,7 +73,7 @@ Cada escenario guarda su evidencia: comando, salida y resultado esperado frente 
 |---|---|---|
 | Decisiones para U11 y la disparidad humana de U9 | 2 000 casos `normal` decididos por el conductor | Se corren **antes** de RT-2, con el modelo de referencia activo (sin congelar), para que los casos lleguen a `listo` |
 | Tamaño por caso (INF-U8-08) | Los primeros 1 000 de esos 2 000 | Se mide el crecimiento de `case-db` y del registro antes y después |
-| RT-2 | ~1 500 casos `stratified` por corrida (≥ 30 por celda de U9; el volumen se ajusta si la sección se niega, NFR-U12-11; cuarta revisión de coherencia entre unidades, 2026-10-31) | Después de las decisiones, con el modelo proxy promovido |
+| RT-2 | ~1 500 casos `stratified` por corrida (≥ 30 por celda de U9 (por celda **alcanzable**; precisada en U12-T03, 2026-11-13, `DECISIONES-LOOP.md` §10); el volumen se ajusta si la sección se niega, NFR-U12-11; cuarta revisión de coherencia entre unidades, 2026-10-31) | Después de las decisiones, con el modelo proxy promovido |
 | Dashboard de producto | Las 2 000 decisiones | El mismo conjunto de U11 |
 
 - **Días** (nota 2 de Q6): `decided_at` lo pone case-service con su reloj, así que no se puede simular el pasado. `day` de U11 es «ayer completo» y `RuidoExplicacion` necesita **S** días seguidos bajo el piso.
