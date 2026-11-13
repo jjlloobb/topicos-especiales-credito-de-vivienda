@@ -1,5 +1,5 @@
 {{- /* core-banking-mock (Paso 20; INF-U8-02, 03; BR-U8-22): solo con `coreMock.enabled` (kind y staging; la regla de conftest de los values de produccion lo fija en false).
-Namespace `vectra-mock` explicito en cada recurso (P-3 = a: una sola Application). 2 replicas fijas con `vectra.io/hpa-exempt` y su justificacion, PDB, `vectra-low`.
+Namespace `vectra-mock` explicito en cada recurso (P-3 = a: una sola Application). 2 replicas fijas con `vectra.io/hpa-exempt` y su justificacion, PDB, `vectra-low`, `vectra.io/criticality: medium` (la politica `require-criticality-label` de U1 solo admite critical, high y medium; INF-U8-02 decia `low`).
 El chart NO crea el `Server`, las `HTTPRoute` ni la `AuthorizationPolicy` del mock: los genera U1 desde `http_routes.core-banking-mock` de flows.yaml. El fixture esta en la
 imagen (/app/fixtures/credits.json), sin ConfigMap ni volumen. Variables: las de U0 para validar tokens. */ -}}
 {{- if .Values.coreMock.enabled }}

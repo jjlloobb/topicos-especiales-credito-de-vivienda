@@ -211,8 +211,8 @@ deny contains msg if {
 deny contains msg if {
 	input.kind == "Deployment"
 	input.metadata.name == "core-banking-mock"
-	object.get(input.metadata.labels, "vectra.io/criticality", "") != "low"
-	msg := "service-shape: el mock lleva vectra.io/criticality: low"
+	object.get(input.metadata.labels, "vectra.io/criticality", "") != "medium"
+	msg := "service-shape: el mock lleva vectra.io/criticality: medium (U1 solo admite critical, high y medium)"
 }
 
 # regla: mock-exempt

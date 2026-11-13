@@ -111,7 +111,7 @@ mock:
   name: core-banking-mock
   replicas: 2
   priorityClassName: vectra-low
-  criticality: low
+  criticality: medium  # Kyverno `require-criticality-label` solo admite critical | high | medium (INF-U8-02 dice `low`)
   hpaExempt: "Doble del core bancario de solo lectura: 2 replicas fijas, sin carga que escalar (kind y staging)"
   resources:
     requests: { cpu: 50m, memory: 64Mi }

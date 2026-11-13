@@ -928,7 +928,7 @@ def test_the_mock_and_the_migration_follow_inf_u8_02_and_04(env: str) -> None:
         return
     mock = deployment(docs, MOCK)
     assert mock["spec"]["replicas"] == 2 and mock["metadata"]["annotations"]["vectra.io/hpa-exempt"]
-    assert mock["metadata"]["labels"]["vectra.io/criticality"] == "low"
+    assert mock["metadata"]["labels"]["vectra.io/criticality"] == "medium"
     mock_pod = pod(docs, MOCK)
     assert mock_pod["priorityClassName"] == "vectra-low"
     assert mock_pod["containers"][0]["resources"] == {
