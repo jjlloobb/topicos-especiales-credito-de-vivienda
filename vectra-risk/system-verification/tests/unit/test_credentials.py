@@ -241,3 +241,42 @@ def test_an_environment_without_a_vault_is_refused() -> None:
 
     with pytest.raises(CredentialsError, match="environment_without_vault"):
         Credentials(Environment("prod", "vectra.banco.internal", "x"), ADDR, TOKEN)
+
+
+# --- U12-T02, F-04: `Credentials` atada al entorno de la lista y a una direccion de boveda permitida --------------------------------------------------
+
+
+def test_f04_credentials_refuse_a_hand_built_environment() -> None:
+    from vectra_verification.guard import Environment
+
+    forged = Environment("kind", "vectra.banco.internal", "https://vectra.banco.internal/auth/realms/vectra")
+    with pytest.raises(CredentialsError, match="environment_not_allowed"):
+        Credentials(forged, ADDR, TOKEN, VaultDouble("secret", synthetic_secrets()))
+    with pytest.raises(CredentialsError, match="environment_not_allowed"):
+        Credentials(
+            Environment(KIND.name, KIND.host, KIND.issuer),
+            ADDR,
+            TOKEN,
+            VaultDouble("secret", synthetic_secrets()),
+        )
+
+
+@pytest.mark.parametrize(
+    "addr",
+    [
+        "http://vault.banco.internal:8200",
+        "https://vault.prod.banco.internal",
+        "http://vault.vault.svc.evil.test:8200",
+        "ftp://vault.vault.svc",
+    ],
+)
+def test_f04_a_real_connection_only_goes_to_an_allowed_vault_address(addr: str) -> None:
+    with pytest.raises(CredentialsError, match="vault_addr_not_allowed"):
+        Credentials(KIND, addr, TOKEN)
+
+
+@pytest.mark.parametrize(
+    "addr", ["http://vault.vault.svc:8200", "http://127.0.0.1:38211", "https://localhost:8200"]
+)
+def test_f04_allowed_vault_addresses_pass(addr: str) -> None:
+    assert Credentials(KIND, addr, TOKEN) is not None

@@ -1,5 +1,5 @@
 # Comandos de U12 (system-verification). Se ejecutan desde cualquier sitio; corren en la raiz del workspace `vectra-risk/`.
-# Pasos 1 a 4 (U12-T01): lint, tipos, contratos de imports, pruebas y cobertura de la logica pura. Los pasos de imagen, workflow, README, enlaces y trazabilidad
+# Pasos 1 a 6 (U12-T01 y U12-T02): lint, tipos, contratos de imports, pruebas y coberturas. Los pasos de imagen, workflow, README, enlaces y trazabilidad
 # (Pasos 15 a 17) los agrega U12-T04: `traceability` falla hasta el Paso 17 y no hay Markdown en la unidad hasta entonces.
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 UV := cd $(ROOT) && uv run
@@ -17,9 +17,11 @@ types:
 imports:
 	$(UV) lint-imports --config system-verification/.importlinter
 
-# Pasos 1 a 4: las pruebas de `tests/unit` y `tests/property` con el perfil `ci` (500 ejemplos, semilla impresa en la cabecera, sin `-q`), y en la misma corrida la
-# cobertura de ramas del 100 % en `report` y `sampler` (NFR-U12-40). `mutmut` esta diferido por la demo (T3). El >= 85 % del resto del paquete es del Paso 16 (U12-T04).
+# Pasos 1 a 6 (U12-T02): todas las pruebas (`unit`, `property` e `integration`: Keycloak y PostgreSQL de Testcontainers, `case-service` y el BFF reales en proceso) con el perfil `ci` (500 ejemplos, semilla impresa en
+# la cabecera, sin `-q`) y la cobertura de ramas del paquete >= 85 % (NFR-U12-40; antes nadie la comprobaba: candidata de U12-T01); y en una segunda pasada, solo `unit` y `property`, la cobertura del 100 % en `report` y
+# `sampler`. `mutmut` esta diferido por la demo (T3). Las pruebas con Docker necesitan Docker y Chromium: sin ellos **fallan**, no se omiten.
 test:
+	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest system-verification/tests -p no:cacheprovider --cov=vectra_verification --cov-branch --cov-fail-under=85 --cov-report=term-missing
 	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest system-verification/tests/unit system-verification/tests/property -p no:cacheprovider \
 		--cov=vectra_verification.report --cov=vectra_verification.sampler --cov-branch --cov-fail-under=100 --cov-report=term-missing
 

@@ -14,6 +14,7 @@ inyecta: este modulo no lee la hora del sistema.
 
 from __future__ import annotations
 
+import ssl
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from typing import Final
@@ -51,6 +52,12 @@ MARGIN_SECONDS: Final = 300.0
 REACTIVATION_SECTION: Final = "rt2"
 
 
+def check_known(environment: Environment) -> None:
+    """El entorno debe ser **uno de** `ENVIRONMENTS` (la misma instancia): uno armado a mano con el nombre `kind` no pasa (F-04 de la revision de U12-T01)."""
+    if not any(environment is known for known in ENVIRONMENTS):
+        raise GuardError("environment_not_allowed")
+
+
 def check_environment(issuer: str, gateway_host: str) -> Environment:
     """El entorno cuyo `issuer` y host coinciden exactamente con los configurados; si no hay, error (antes de cualquier solicitud)."""
     for environment in ENVIRONMENTS:
@@ -61,19 +68,24 @@ def check_environment(issuer: str, gateway_host: str) -> Environment:
 
 def check_token_issuer(environment: Environment, iss: str) -> None:
     """El `iss` de un token ya obtenido debe ser el del realm del entorno."""
+    check_known(environment)
     if iss != environment.issuer:
         raise GuardError("token_issuer_not_allowed")
 
 
 def gateway_client(
-    issuer: str, gateway_host: str, transport: httpx.BaseTransport | None = None
+    issuer: str,
+    gateway_host: str,
+    transport: httpx.BaseTransport | None = None,
+    verify: ssl.SSLContext | bool = True,
 ) -> httpx.Client:
-    """Un cliente HTTP hacia el gateway, creado solo si el entorno pasa la barrera: sin ella no se envia ninguna solicitud."""
+    """Un cliente HTTP hacia el gateway, creado solo si el entorno pasa la barrera: sin ella no se envia ninguna solicitud. `verify` es la CA del entorno."""
     environment = check_environment(issuer, gateway_host)
-    return httpx.Client(base_url=f"https://{environment.host}", transport=transport)
+    return httpx.Client(base_url=f"https://{environment.host}", transport=transport, verify=verify)
 
 
 def check_section(environment: Environment, section: str) -> None:
+    check_known(environment)
     if section not in SECTIONS:
         raise GuardError(f"section_unknown:{section}")
     if environment.name != KIND.name and section not in STAGING_SECTIONS:

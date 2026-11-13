@@ -14,17 +14,24 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Final
+from urllib.parse import urlsplit
 
 import httpx
 import pyotp
 
-from vectra_verification.guard import KIND, Environment
+from vectra_verification.guard import KIND, Environment, GuardError, check_known
 
 MOUNTS: Final = {"kind": "secret", "staging": "vectra"}
 CLIENTS: Final = ("channel-simulator", "verification-reader")
 USERS: Final = ("analista-1", "analista-2", "ingeniero-1", "cro-1", "cumplimiento-1")
 CLIENT_KEY_PROPERTY: Final = "private-key"
 SYNTHETIC_USERS_PATH: Final = "identity/synthetic-users"
+# F-04: la direccion de la boveda a la que se conecta de verdad. El servicio de la boveda de kind (`platform/operators/vault-kind.yaml`) y un `port-forward` local
+# (`127.0.0.1` o `localhost`); la de produccion no esta. Con un transporte inyectado (pruebas) no sale ninguna solicitud y la direccion no se mira.
+ALLOWED_VAULT_HOSTS: Final = ("vault.vault.svc", "127.0.0.1", "localhost")
+# El token de desarrollo de la boveda de kind es la palabra `root` y esta escrito en `platform/operators/vault-kind.yaml`: no es un secreto, y como valor a buscar
+# rechazaria toda evidencia que diga `/dev/root` o el logger `root` (F-09). Solo se excluye ese valor exacto y solo en kind: un token real (`hvs.…`) sigue protegido.
+DEV_VAULT_TOKEN: Final = "root"  # noqa: S105
 
 
 class CredentialsError(Exception):
@@ -50,6 +57,11 @@ def _property(user: str, suffix: str) -> str:
     return f"SYNTH_{user.upper().replace('-', '_')}_{suffix}"
 
 
+def _vault_addr_allowed(addr: str) -> bool:
+    parts = urlsplit(addr)
+    return parts.scheme in ("http", "https") and parts.hostname in ALLOWED_VAULT_HOSTS
+
+
 class Credentials:
     def __init__(
         self,
@@ -60,6 +72,14 @@ class Credentials:
     ) -> None:
         if environment.name not in MOUNTS:
             raise CredentialsError("environment_without_vault")
+        try:
+            check_known(
+                environment
+            )  # F-04: tiene que ser uno de `guard.ENVIRONMENTS`, no uno armado a mano con el nombre `kind`
+        except GuardError:
+            raise CredentialsError("environment_not_allowed") from None
+        if transport is None and not _vault_addr_allowed(vault_addr):
+            raise CredentialsError("vault_addr_not_allowed")
         self._environment = environment
         self._mount = MOUNTS[environment.name]
         self._token = vault_token
@@ -154,5 +174,6 @@ class Credentials:
         """Todo lo secreto que se cargo, incluido el token de la boveda: lo que `evidence.ensure_clean` no debe encontrar en una salida."""
         values = {secret.reveal() for secret in self._clients.values()}
         values.update(secret.reveal() for secret in (self._synthetic or {}).values())
-        values.add(self._token)
+        if not (self._environment.name == KIND.name and self._token == DEV_VAULT_TOKEN):
+            values.add(self._token)
         return frozenset(values)
