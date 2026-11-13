@@ -2057,6 +2057,9 @@ version = "0.1.0"
 source = { editable = "system-verification" }
 dependencies = [
     { name = "httpx" },
+    { name = "playwright" },
+    { name = "pyarrow" },
+    { name = "pyjwt", extra = ["crypto"] },
     { name = "pyotp" },
     { name = "pyyaml" },
     { name = "vectra-contracts" },
@@ -2065,6 +2068,9 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = "==0.28.1" },
+    { name = "playwright", specifier = "==1.64.0" },
+    { name = "pyarrow", specifier = "==26.0.1" },
+    { name = "pyjwt", extras = ["crypto"], specifier = "==2.15.1" },
     { name = "pyotp", specifier = "==2.10.0" },
     { name = "pyyaml", specifier = "==6.0.3" },
     { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
