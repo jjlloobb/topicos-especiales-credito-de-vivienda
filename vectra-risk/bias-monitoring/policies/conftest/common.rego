@@ -11,9 +11,9 @@ image_repository_suffix := "/vectra/bias-monitoring"
 
 # El unico conjunto de variables de entorno de cada proceso (INF-U9-03): las del codigo (`vectra_bias.app.REQUIRED` y las opcionales que se
 # usan; `vectra_bias.run.build_deps`). Ninguna constante del codigo (CACHE_TTL_SECONDS, timeouts, reintentos) es una variable.
-service_env := {"VECTRA_REGISTRY_URL", "VECTRA_TOKEN_URL", "VECTRA_CLIENT_ID", "VECTRA_CLIENT_KEY_PATH", "VECTRA_OIDC_ISSUER", "VECTRA_JWKS_URL", "VECTRA_CA_BUNDLE", "VECTRA_POLICY_PATH"}
+service_env := {"VECTRA_REGISTRY_URL", "VECTRA_TOKEN_URL", "VECTRA_ASSERTION_AUDIENCE", "VECTRA_CLIENT_ID", "VECTRA_CLIENT_KEY_PATH", "VECTRA_OIDC_ISSUER", "VECTRA_JWKS_URL", "VECTRA_CA_BUNDLE", "VECTRA_POLICY_PATH"}
 
-job_env := {"VECTRA_REGISTRY_URL", "VECTRA_GOVERNANCE_URL", "VECTRA_PUSHGATEWAY_URL", "VECTRA_POLICY_PATH", "VECTRA_TOKEN_URL", "VECTRA_CLIENT_ID", "VECTRA_CLIENT_KEY_PATH", "VECTRA_CA_BUNDLE"}
+job_env := {"VECTRA_REGISTRY_URL", "VECTRA_GOVERNANCE_URL", "VECTRA_PUSHGATEWAY_URL", "VECTRA_POLICY_PATH", "VECTRA_TOKEN_URL", "VECTRA_ASSERTION_AUDIENCE", "VECTRA_CLIENT_ID", "VECTRA_CLIENT_KEY_PATH", "VECTRA_CA_BUNDLE"}
 
 resources := {"requests": {"cpu": "100m", "memory": "128Mi"}, "limits": {"cpu": "500m", "memory": "256Mi"}}
 

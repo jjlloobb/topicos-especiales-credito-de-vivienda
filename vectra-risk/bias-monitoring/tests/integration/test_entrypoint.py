@@ -23,7 +23,7 @@ from http_doubles import Keycloak, RegistryU3
 from scenario import POLICY
 from service_support import write_policy
 from strategies import auth as u0_auth
-from world import PRIVATE_KEY_PEM, freeze_record
+from world import ASSERTION_AUDIENCE, PRIVATE_KEY_PEM, freeze_record
 
 APP_URL, OPS_URL = "http://127.0.0.1:8080", "http://127.0.0.1:8081"
 SERVICE = "bias-monitoring-service"
@@ -51,6 +51,7 @@ def world(tmp_path: Path):
     env = {
         "VECTRA_REGISTRY_URL": registry.url,
         "VECTRA_TOKEN_URL": keycloak.url + "/token",
+        "VECTRA_ASSERTION_AUDIENCE": ASSERTION_AUDIENCE,
         "VECTRA_CLIENT_ID": SERVICE,
         "VECTRA_CLIENT_KEY_PATH": str(tmp_path / "client.pem"),
         "VECTRA_OIDC_ISSUER": u0_auth.ISSUER,
@@ -168,3 +169,13 @@ def test_an_out_of_range_policy_stops_the_start(world):
         assert process.wait(15) != 0
     message = (tmp_path / "stderr.log").read_text(encoding="utf-8")
     assert "VECTRA_POLICY_PATH" in message and "window_days_out_of_range" in message
+
+
+def test_assertion_audience_the_real_process_signs_with_the_issuer_and_not_with_the_token_url(world):
+    keycloak, _, env, tmp_path = world
+    with launched(env, tmp_path):
+        assert wait_for(OPS_URL + "/readyz") is not None
+        assert httpx.get(APP_URL + "/v1/freezes", headers=cumplimiento(), timeout=5).status_code == 200
+    assert keycloak.requests, "el servicio no pidio token"
+    assert {r["assertion_audience"] for r in keycloak.requests} == {ASSERTION_AUDIENCE}
+    assert ASSERTION_AUDIENCE != env["VECTRA_TOKEN_URL"]

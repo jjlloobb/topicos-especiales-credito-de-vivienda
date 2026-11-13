@@ -20,8 +20,10 @@ from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs
 
 import httpx
+import jwt
 import mock_auth
 import pytest
 from case_pg import Db
@@ -125,11 +127,19 @@ class Double:
         return f"http://{HOST}:{self.port}"
 
 
-def keycloak_handle(method: str, path: str, _: bytes) -> tuple[int, dict[str, str], bytes]:
-    """`/jwks` con la llave de prueba y `/token` con un token de servicio: lo que un contenedor necesita de Keycloak para arrancar y servir."""
+#: La `aud` que Keycloak acepta en la aserción: su emisor (U00-T04). El render local trae el emisor de produccion; el doble acepta el de prueba.
+ASSERTION_AUDIENCE = "https://vectra.localtest.me/auth/realms/vectra"
+
+
+def keycloak_handle(method: str, path: str, body: bytes) -> tuple[int, dict[str, str], bytes]:
+    """`/jwks` con la llave de prueba y `/token` con un token de servicio: lo que un contenedor necesita de Keycloak para arrancar y servir.
+    Como Keycloak, `/token` responde 400 `invalid_client` si la `aud` de la aserción no es el emisor configurado."""
     if path == "/jwks":
         return 200, {"content-type": "application/json"}, json.dumps(mock_auth.jwks_document()).encode()
     if path == "/token" and method == "POST":
+        assertion = parse_qs(body.decode()).get("client_assertion", [""])[0]
+        if jwt.decode(assertion, options={"verify_signature": False}).get("aud") != ASSERTION_AUDIENCE:
+            return 400, {"content-type": "application/json"}, json.dumps({"error": "invalid_client"}).encode()
         token = mock_auth.bearer("core:read-credit")["authorization"].removeprefix("Bearer ")
         return (
             200,
@@ -220,6 +230,10 @@ class Run:
     ) -> list[str]:
         env = chart_env(c)
         env.update({k: v for k, v in overrides.items() if k in env})
+        if (
+            "VECTRA_ASSERTION_AUDIENCE" in env
+        ):  # el render local trae el emisor de produccion; el doble de Keycloak acepta el de prueba
+            env["VECTRA_ASSERTION_AUDIENCE"] = ASSERTION_AUDIENCE
         if role:
             env["PGUSER"], env["PGPASSWORD"] = role, ROLE_PASSWORD[role]
         args = [

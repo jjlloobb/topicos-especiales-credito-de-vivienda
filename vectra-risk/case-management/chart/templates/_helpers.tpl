@@ -61,6 +61,7 @@ seccompProfile: { type: RuntimeDefault }
 {{- $svc := index . 1 -}}
 - { name: VECTRA_CLIENT_ID, value: {{ $svc.clientId | quote }} }
 - { name: VECTRA_TOKEN_URL, value: {{ required "keycloak.tokenUrl es obligatorio" $root.Values.keycloak.tokenUrl | quote }} }
+- { name: VECTRA_ASSERTION_AUDIENCE, value: {{ required "keycloak.issuer es obligatorio" $root.Values.keycloak.issuer | quote }} }
 - { name: VECTRA_CLIENT_KEY_PATH, value: {{ printf "%s/private-key" $root.Values.identity.mountPath | quote }} }
 - { name: VECTRA_CA_BUNDLE, value: {{ printf "%s/ca.crt" $root.Values.internalCA.mountPath | quote }} }
 {{- end -}}

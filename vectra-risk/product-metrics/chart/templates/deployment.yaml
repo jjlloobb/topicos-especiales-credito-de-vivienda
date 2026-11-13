@@ -65,6 +65,7 @@ spec:
             - { name: VECTRA_REGISTRY_URL, value: {{ required "peers.registryUrl es obligatorio" .Values.peers.registryUrl | quote }} }
             - { name: VECTRA_CLIENT_ID, value: {{ required "identity.clientId es obligatorio" $id.clientId | quote }} }
             - { name: VECTRA_TOKEN_URL, value: {{ required "keycloak.tokenUrl es obligatorio" .Values.keycloak.tokenUrl | quote }} }
+            - { name: VECTRA_ASSERTION_AUDIENCE, value: {{ required "keycloak.issuer es obligatorio" .Values.keycloak.issuer | quote }} }
             - { name: VECTRA_CLIENT_KEY_PATH, value: {{ $keyPath | quote }} }
             - { name: VECTRA_CA_BUNDLE, value: {{ printf "%s/ca.crt" (required "keycloak.caMountPath es obligatorio" .Values.keycloak.caMountPath) | quote }} }
           # Sin `startupProbe` larga (INF-U11-01): el arranque no espera a U3; la readiness (`/readyz`) si, hasta 30 min con U3 caido.

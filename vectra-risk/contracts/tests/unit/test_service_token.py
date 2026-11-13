@@ -14,6 +14,7 @@ from vectra_common.service_token import ServiceTokenProvider, provider_from_env
 
 NOW = 1_800_000_000.0
 URL = "https://kc/token"
+AUD = "https://issuer.example/realms/vectra"  # emisor: distinto de la URL de token
 
 
 def pem(key: Any) -> str:
@@ -51,6 +52,7 @@ def provider(poster: Any, now: dict[str, float] | None = None, **over: Any) -> S
         pem(EC_KEY),
         "scoring-service",
         ("case:recommend", "otro:scope"),
+        assertion_audience=AUD,
         poster=poster,
         clock=lambda: clock["value"],
         **over,
@@ -83,11 +85,11 @@ async def test_assertion_claims_and_signature():
         assertion,
         public_pem(EC_KEY),
         algorithms=["ES256"],
-        audience=URL,
+        audience=AUD,
         options={"verify_exp": False, "verify_iat": False, "verify_nbf": False},
     )
     assert claims["iss"] == claims["sub"] == "case-worker"
-    assert claims["aud"] == URL
+    assert claims["aud"] == AUD
     assert claims["iat"] == int(NOW)
     assert claims["exp"] == int(NOW) + st.ASSERTION_LIFETIME == int(NOW) + 60
     assert len(claims["jti"]) == 32
@@ -109,7 +111,15 @@ async def test_other_algorithm_is_honored():
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     poster = Poster(ok())
     source = ServiceTokenProvider(
-        "c", URL, pem(key), "a", ("s",), algorithm="RS256", poster=poster, clock=lambda: NOW
+        "c",
+        URL,
+        pem(key),
+        "a",
+        ("s",),
+        assertion_audience=AUD,
+        algorithm="RS256",
+        poster=poster,
+        clock=lambda: NOW,
     )
     await source.token()
     assert jwt.get_unverified_header(poster.calls[0][1]["client_assertion"])["alg"] == "RS256"
@@ -160,14 +170,14 @@ async def test_malformed_answer_is_unavailable(answer):
 async def test_default_poster_is_the_one_from_deps(monkeypatch):
     poster = Poster(ok())
     monkeypatch.setattr(st.deps, "post_form_once", poster)
-    source = ServiceTokenProvider("c", URL, pem(EC_KEY), "a", ("s",))
+    source = ServiceTokenProvider("c", URL, pem(EC_KEY), "a", ("s",), assertion_audience=AUD)
     assert await source.token() == "uno"
     assert poster.calls[0][0] == URL
 
 
 async def test_default_clock_is_real_time():
     poster = Poster(ok("uno", 3600), ok("dos", 3600))
-    source = ServiceTokenProvider("c", URL, pem(EC_KEY), "a", ("s",), poster=poster)
+    source = ServiceTokenProvider("c", URL, pem(EC_KEY), "a", ("s",), assertion_audience=AUD, poster=poster)
     assert await source.token() == "uno"
     assert await source.token() == "uno"
 
@@ -177,6 +187,7 @@ async def test_provider_from_env_reads_everything(tmp_path, monkeypatch):
     path.write_text(pem(EC_KEY), encoding="utf-8")
     monkeypatch.setenv("VECTRA_CLIENT_ID", "case-worker")
     monkeypatch.setenv("VECTRA_TOKEN_URL", URL)
+    monkeypatch.setenv("VECTRA_ASSERTION_AUDIENCE", AUD)
     monkeypatch.setenv("VECTRA_CLIENT_KEY_PATH", str(path))
     monkeypatch.setenv("VECTRA_CLIENT_KEY_ID", "k9")
     poster = Poster(ok())
@@ -195,6 +206,7 @@ async def test_key_id_is_optional_in_the_environment(tmp_path, monkeypatch):
     path.write_text(pem(EC_KEY), encoding="utf-8")
     monkeypatch.setenv("VECTRA_CLIENT_ID", "c")
     monkeypatch.setenv("VECTRA_TOKEN_URL", URL)
+    monkeypatch.setenv("VECTRA_ASSERTION_AUDIENCE", AUD)
     monkeypatch.setenv("VECTRA_CLIENT_KEY_PATH", str(path))
     monkeypatch.delenv("VECTRA_CLIENT_KEY_ID", raising=False)
     poster = Poster(ok())
@@ -202,3 +214,82 @@ async def test_key_id_is_optional_in_the_environment(tmp_path, monkeypatch):
     source = provider_from_env("a", ("s",))
     await source.token()
     assert "kid" not in jwt.get_unverified_header(poster.calls[0][1]["client_assertion"])
+
+
+# --- U00-T04: la `aud` de la asercion es el emisor configurado, no la URL a la que se envia ---
+
+
+async def test_assertion_audience_is_the_configured_one_and_not_the_token_url():
+    poster = Poster(ok())
+    await provider(poster).token()
+    claims = jwt.decode(poster.calls[0][1]["client_assertion"], options={"verify_signature": False})
+    assert claims["aud"] == AUD and claims["aud"] != URL
+
+
+async def test_assertion_audience_request_goes_to_the_token_url():
+    poster = Poster(ok())
+    await provider(poster).token()
+    assert poster.calls[0][0] == URL != AUD
+
+
+async def test_assertion_audience_claims_and_form_are_unchanged():
+    poster = Poster(ok())
+    await provider(poster).token()
+    data = poster.calls[0][1]
+    claims = jwt.decode(data["client_assertion"], options={"verify_signature": False})
+    assert set(claims) == {"iss", "sub", "aud", "jti", "iat", "exp"}
+    assert data["audience"] == "scoring-service" != AUD  # la del access token no cambia
+
+
+def _env(tmp_path, monkeypatch, audience: str | None) -> None:
+    path = tmp_path / "key.pem"
+    path.write_text(pem(EC_KEY), encoding="utf-8")
+    monkeypatch.setenv("VECTRA_CLIENT_ID", "c")
+    monkeypatch.setenv("VECTRA_TOKEN_URL", URL)
+    monkeypatch.setenv("VECTRA_CLIENT_KEY_PATH", str(path))
+    if audience is None:
+        monkeypatch.delenv("VECTRA_ASSERTION_AUDIENCE", raising=False)
+    else:
+        monkeypatch.setenv("VECTRA_ASSERTION_AUDIENCE", audience)
+
+
+async def test_assertion_audience_is_read_from_the_environment(tmp_path, monkeypatch):
+    _env(tmp_path, monkeypatch, AUD)
+    poster = Poster(ok())
+    monkeypatch.setattr(st.deps, "post_form_once", poster)
+    await provider_from_env("a", ("s",)).token()
+    url, data, _ = poster.calls[0]
+    assert url == URL
+    assert jwt.decode(data["client_assertion"], options={"verify_signature": False})["aud"] == AUD
+
+
+def test_assertion_audience_missing_in_the_environment_fails_when_building(tmp_path, monkeypatch):
+    _env(tmp_path, monkeypatch, None)
+    with pytest.raises(KeyError, match="VECTRA_ASSERTION_AUDIENCE"):
+        provider_from_env("a", ("s",))
+
+
+def test_assertion_audience_empty_in_the_environment_fails_when_building(tmp_path, monkeypatch):
+    _env(tmp_path, monkeypatch, "")
+    with pytest.raises(ValueError, match=r"^VECTRA_ASSERTION_AUDIENCE must not be empty$"):
+        provider_from_env("a", ("s",))
+
+
+def test_assertion_audience_empty_is_a_value_error():
+    with pytest.raises(ValueError, match=r"^assertion_audience must not be empty$"):
+        ServiceTokenProvider("c", URL, pem(EC_KEY), "a", ("s",), assertion_audience="")
+
+
+async def test_assertion_audience_first_token_is_requested_even_with_a_negative_clock():
+    """Sin token todavía no hay nada que servir de caché: el estado inicial no depende del reloj (mata `_token = ""` y `_expires_at = 1.0`)."""
+    poster = Poster(ok("nuevo"))
+    p = provider(poster, {"value": -100.0})
+    assert await p.token() == "nuevo"
+    assert len(poster.calls) == 1
+
+
+def test_assertion_audience_is_required_by_name():
+    with pytest.raises(TypeError, match="assertion_audience"):
+        ServiceTokenProvider("c", URL, pem(EC_KEY), "a", ("s",))  # type: ignore[call-arg]
+    with pytest.raises(TypeError):
+        ServiceTokenProvider("c", URL, pem(EC_KEY), "a", ("s",), AUD)  # type: ignore[misc]

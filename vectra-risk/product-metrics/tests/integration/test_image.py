@@ -30,7 +30,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from entries import render as render_entry
 from entries import us503_specs
-from http_servers import Server, registry_app, token_app
+from http_servers import ASSERTION_AUDIENCE, Server, registry_app, token_app
 from registry_double import RegistryDouble
 from vectra_product import collector, config, params
 
@@ -115,6 +115,10 @@ def chart_env(pod: Doc, d: Doubles, drop: tuple[str, ...] = ()) -> dict[str, str
             name in env
         ):  # solo se cambia la URL de una variable que el chart pone: una que el chart no pone no aparece aqui
             env[name] = url
+    if (
+        "VECTRA_ASSERTION_AUDIENCE" in env
+    ):  # el render local trae el emisor de produccion; el doble de Keycloak acepta el de prueba
+        env["VECTRA_ASSERTION_AUDIENCE"] = ASSERTION_AUDIENCE
     return {k: v for k, v in env.items() if k not in drop}
 
 

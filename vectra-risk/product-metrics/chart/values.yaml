@@ -11,6 +11,8 @@ image:
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000007
 # Obtencion de tokens (F50). El realm y el nombre publico los fija U2; la CA sale del ConfigMap `vectra-internal-ca` (Bundle de trust-manager de U1).
 keycloak:
+  # Emisor medido (identity-edge/docs/emisor-de-tokens.md): la `aud` de la aserción de servicio (U00-T04). Produccion por omision; kind y staging en vectra-risk-gitops/values/<env>/product-metrics.yaml.
+  issuer: https://vectra.banco.internal/auth/realms/vectra
   tokenUrl: https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token
   caConfigMap: vectra-internal-ca
   caMountPath: /etc/vectra/ca

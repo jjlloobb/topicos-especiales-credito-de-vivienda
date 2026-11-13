@@ -2,3 +2,6 @@
 image:
   repository: kind-registry:5000/vectra/identity-jobs
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000001
+# Emisor de los tokens de kind: el hostname publico de Keycloak. Es la `aud` de la aserción de servicio (U00-T04).
+keycloak:
+  issuer: https://vectra.localtest.me/auth/realms/vectra

@@ -75,7 +75,7 @@ async def urllib_put(url: str, body: bytes) -> None:
 
 
 def fetch_from_env(http_get: HttpGet = urllib_get) -> Fetch:
-    """El token de `keycloak-reader` (`VECTRA_CLIENT_ID`, `VECTRA_TOKEN_URL`, `VECTRA_CLIENT_KEY_PATH`) y la URL del Admin API."""
+    """El token de `keycloak-reader` (`VECTRA_CLIENT_ID`, `VECTRA_TOKEN_URL`, `VECTRA_ASSERTION_AUDIENCE`, `VECTRA_CLIENT_KEY_PATH`) y la URL del Admin API."""
     return make_fetch(os.environ[ADMIN_URL_ENV], provider_from_env("keycloak", ()), http_get)
 
 

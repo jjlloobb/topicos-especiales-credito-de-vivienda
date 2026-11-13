@@ -185,6 +185,7 @@ def job_config(artifact_uri: str, **over: Any) -> JobConfig:
         "s3_access_key": "validation-readonly",
         "s3_secret_key": "s3cret",
         "token_url": "https://keycloak/token",
+        "assertion_audience": "https://issuer.example/realms/vectra",
         "client_id": "model-validation-job",
         "key_path": "/var/run/vectra/client/private-key",
         "key_id": None,

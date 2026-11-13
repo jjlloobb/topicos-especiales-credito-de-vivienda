@@ -33,9 +33,11 @@ class Environment:
         key_file.write_text(self.private, encoding="utf-8")
         self.realm_file = REALM_DIR / f"realm.{env}.yaml"
         self.token_requests: list[dict[str, Any]] = []
+        self.assertion_audience = jc.issuer(env)
         for name, value in {
             "VECTRA_CLIENT_ID": "keycloak-reader",
             "VECTRA_TOKEN_URL": design.token_url(),
+            "VECTRA_ASSERTION_AUDIENCE": jc.issuer(env),
             "VECTRA_CLIENT_KEY_PATH": str(key_file),
             "KEYCLOAK_ADMIN_URL": design.admin_url(),
             "PUSHGATEWAY_URL": design.pushgateway_url(),
@@ -51,8 +53,9 @@ class Environment:
         assert form["grant_type"] == "client_credentials"
         assert form["client_assertion_type"] == ASSERTION_TYPE
         header = jwt.get_unverified_header(form["client_assertion"])
+        # Como Keycloak: la `aud` es el emisor, no la URL a la que se envia; con la URL de token el doble responde 400.
         claims = jwt.decode(
-            form["client_assertion"], self.public, algorithms=["ES256"], audience=design.token_url()
+            form["client_assertion"], self.public, algorithms=["ES256"], audience=self.assertion_audience
         )
         self.token_requests.append({"header": header, "claims": claims})
         return {"access_token": self.server.expected_token, "expires_in": 300}
@@ -107,7 +110,7 @@ async def test_realm_drift_pushes_the_number_of_differences(env_kind: Environmen
     assert body.endswith("vectra_realm_drift 3\n")
 
 
-async def test_realm_drift_asks_for_the_token_with_an_es256_assertion_of_the_reader(
+async def test_realm_drift_assertion_audience_asks_for_the_token_with_an_es256_assertion_of_the_reader(
     env_kind: Environment,
 ) -> None:
     env_kind.serve(keycloak_view(load_git("kind")))
@@ -116,7 +119,7 @@ async def test_realm_drift_asks_for_the_token_with_an_es256_assertion_of_the_rea
     first = env_kind.token_requests[0]
     assert first["header"]["alg"] == "ES256"
     assert first["claims"]["iss"] == first["claims"]["sub"] == "keycloak-reader"
-    assert first["claims"]["aud"] == design.token_url()
+    assert first["claims"]["aud"] == env_kind.assertion_audience != design.token_url()
     assert env_kind.server.tokens_seen == {f"Bearer {env_kind.server.expected_token}"}
 
 
@@ -528,6 +531,7 @@ def test_render_design_values(render_env: str) -> None:
         env = {e["name"]: e["value"] for e in pod["containers"][0]["env"]}
         assert env["KEYCLOAK_ADMIN_URL"] == design.admin_url()
         assert env["VECTRA_TOKEN_URL"] == design.token_url()
+        assert env["VECTRA_ASSERTION_AUDIENCE"] == jc.issuer(render_env) != env["VECTRA_TOKEN_URL"]
         assert env["PUSHGATEWAY_URL"] == design.pushgateway_url()
         assert env["VECTRA_CLIENT_ID"] == "keycloak-reader"
         repository, digest = pod["containers"][0]["image"].split("@")
@@ -835,6 +839,9 @@ PER_DOCUMENT: list[tuple[str, str, Callable[[Docs], None]]] = [
             "signing-key-age",
         ),
     ),
+    ("env", "assertion-audience-is-the-token-url", _env_set("VECTRA_ASSERTION_AUDIENCE", design.token_url())),
+    ("env", "assertion-audience-missing", _env_drop("VECTRA_ASSERTION_AUDIENCE")),
+    ("env", "assertion-audience-of-another-realm", _env_set("VECTRA_ASSERTION_AUDIENCE", "https://vectra.banco.internal/auth/realms/otro")),
     ("env", "pushgateway", _env_set("PUSHGATEWAY_URL", "http://pushgateway.vectra-observability.svc:9092")),
     ("env", "client-id", _env_set("VECTRA_CLIENT_ID", "keycloak-config-cli")),
     ("env", "key-path", _env_set("VECTRA_CLIENT_KEY_PATH", "/var/key")),

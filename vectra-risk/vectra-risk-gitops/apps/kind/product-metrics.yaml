@@ -16,6 +16,7 @@ spec:
       - /vectra-risk/vectra-risk-gitops/envs/kind/values.yaml
       - /vectra-risk/product-metrics/chart/values-product-metrics-policy.yaml
       - /vectra-risk/product-metrics/chart/values-kind.yaml
+      - /vectra-risk/vectra-risk-gitops/values/kind/product-metrics.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: vectra-app

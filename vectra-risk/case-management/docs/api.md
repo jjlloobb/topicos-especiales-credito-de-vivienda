@@ -39,8 +39,8 @@ Todas obligatorias, sin valores por omisión (si falta una, el proceso no arranc
 
 | Proceso | Variables |
 |---|---|
-| `case-service` (`python -m vectra_case.app`) | `CASE_DB_DSN`, `CASE_GOVERNANCE_URL`, `CASE_REGISTRY_URL`, `CASE_CORE_ENABLED`, `CASE_CORE_URL` (solo con el core habilitado), `CASE_ALLOW_TEST_SCENARIOS`, `VECTRA_OIDC_ISSUER`, `VECTRA_JWKS_URL`, `VECTRA_CLIENT_ID`, `VECTRA_TOKEN_URL`, `VECTRA_CLIENT_KEY_PATH`, `VECTRA_CA_BUNDLE`; `PGUSER` y `PGPASSWORD` (Secret `pg-role-case-app`) |
-| `case-worker` (`python -m vectra_case.worker`) | `CASE_DB_DSN`, `CASE_GOVERNANCE_URL`, `CASE_SCORING_URL`, `VECTRA_CLIENT_ID`, `VECTRA_TOKEN_URL`, `VECTRA_CLIENT_KEY_PATH`, `VECTRA_CA_BUNDLE`; `PGUSER` y `PGPASSWORD` (Secret `pg-role-case-worker`) |
+| `case-service` (`python -m vectra_case.app`) | `CASE_DB_DSN`, `CASE_GOVERNANCE_URL`, `CASE_REGISTRY_URL`, `CASE_CORE_ENABLED`, `CASE_CORE_URL` (solo con el core habilitado), `CASE_ALLOW_TEST_SCENARIOS`, `VECTRA_OIDC_ISSUER`, `VECTRA_JWKS_URL`, `VECTRA_CLIENT_ID`, `VECTRA_TOKEN_URL`, `VECTRA_ASSERTION_AUDIENCE`, `VECTRA_CLIENT_KEY_PATH`, `VECTRA_CA_BUNDLE`; `PGUSER` y `PGPASSWORD` (Secret `pg-role-case-app`) |
+| `case-worker` (`python -m vectra_case.worker`) | `CASE_DB_DSN`, `CASE_GOVERNANCE_URL`, `CASE_SCORING_URL`, `VECTRA_CLIENT_ID`, `VECTRA_TOKEN_URL`, `VECTRA_ASSERTION_AUDIENCE`, `VECTRA_CLIENT_KEY_PATH`, `VECTRA_CA_BUNDLE`; `PGUSER` y `PGPASSWORD` (Secret `pg-role-case-worker`) |
 | Migración (`alembic -c /app/alembic.ini upgrade head`) | `CASE_DATABASE_URL`, `RETENTION_DECIDED_YEARS`, `RETENTION_UNDECIDED_YEARS`, `RETENTION_INTAKE_KEYS_DAYS`; `PGUSER` y `PGPASSWORD` (Secret `pg-role-case-migrator`) |
 | `core-banking-mock` (`python -m core_banking_mock.app`) | `VECTRA_OIDC_ISSUER`, `VECTRA_JWKS_URL`, `VECTRA_CA_BUNDLE` |
 

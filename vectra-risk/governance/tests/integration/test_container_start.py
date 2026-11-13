@@ -30,6 +30,9 @@ from strategies import auth as u0_auth
 
 pytestmark = pytest.mark.integration
 
+#: La `aud` que Keycloak acepta: su emisor, no la URL de token del doble.
+ASSERTION_AUDIENCE = "https://vectra.localtest.me/auth/realms/vectra"
+
 ROOT = Path(__file__).resolve().parents[3]
 IMAGE = "localhost:5001/vectra/governance:dev"
 SERVING = "governance:read-serving"
@@ -88,7 +91,7 @@ def test_ca_1_the_image_starts_with_postgres_minio_and_the_chart_variables(
     jwks = json.dumps(u0_auth.jwks_document())
     # Un solo contenedor hace de Keycloak (JWKS y `/token`) y de registro (U3: `POST /v1/entries`, con un ack por llamada).
     serve_peers = (
-        "import http.server, json, datetime\n"
+        "import http.server, json, datetime, base64, urllib.parse\n"
         "seq = []\n"
         "class H(http.server.BaseHTTPRequestHandler):\n"
         "    def reply(self, body):\n"
@@ -99,6 +102,9 @@ def test_ca_1_the_image_starts_with_postgres_minio_and_the_chart_variables(
         "    def do_POST(self):\n"
         "        raw = self.rfile.read(int(self.headers['content-length']))\n"
         "        if self.path == '/token':\n"
+        "            aud = json.loads(base64.urlsafe_b64decode(urllib.parse.parse_qs(raw.decode())['client_assertion'][0].split('.')[1] + '=='))['aud']\n"
+        "            if aud != " + repr(ASSERTION_AUDIENCE) + ":\n"
+        "                self.send_response(400); self.send_header('content-length', '0'); self.end_headers(); return\n"
         "            return self.reply({'access_token': 'tok-real', 'expires_in': 300})\n"
         "        assert self.headers['authorization'] == 'Bearer tok-real'\n"
         "        seq.append(json.loads(raw))\n"
@@ -136,6 +142,7 @@ def test_ca_1_the_image_starts_with_postgres_minio_and_the_chart_variables(
         "VECTRA_CLIENT_ID": "governance-service",
         "VECTRA_CLIENT_KEY_PATH": "/var/run/vectra/client/private-key",
         "VECTRA_TOKEN_URL": f"http://{keycloak.name}:8000/token",
+        "VECTRA_ASSERTION_AUDIENCE": ASSERTION_AUDIENCE,
         "VECTRA_OIDC_ISSUER": u0_auth.ISSUER,
         "VECTRA_JWKS_URL": f"http://{keycloak.name}:8000/certs",
         "VECTRA_CA_BUNDLE": "/etc/vectra/ca/ca.crt",

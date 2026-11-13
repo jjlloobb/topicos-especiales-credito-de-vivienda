@@ -108,6 +108,7 @@ class JobSpec:
     policy: PolicyDraft
     s3_endpoint: str
     token_url: str
+    assertion_audience: str
     source_id: str | None = None
     baseline_version_id: str | None = None
 
@@ -128,6 +129,7 @@ def job_manifest(spec: JobSpec) -> dict[str, Any]:
         "VECTRA_S3_ENDPOINT": spec.s3_endpoint,
         "VECTRA_S3_ACCESS_KEY": MINIO_ACCESS_KEY,
         "VECTRA_TOKEN_URL": spec.token_url,
+        "VECTRA_ASSERTION_AUDIENCE": spec.assertion_audience,
         "VECTRA_CLIENT_ID": JOB_SERVICE_ACCOUNT,
         "VECTRA_CLIENT_KEY_PATH": f"{CLIENT_KEY_DIR}/private-key",
         "VECTRA_POLICY": spec.policy.model_dump_json(include=set(PolicyDraft.model_fields)),

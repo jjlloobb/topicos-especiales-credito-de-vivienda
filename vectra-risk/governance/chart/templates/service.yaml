@@ -75,6 +75,8 @@ spec:
             - { name: VECTRA_CLIENT_ID, value: {{ .Values.serviceIdentity.clientId | quote }} }
             - { name: VECTRA_CLIENT_KEY_PATH, value: {{ printf "%s/private-key" .Values.serviceIdentity.mountPath | quote }} }
             - { name: VECTRA_TOKEN_URL, value: {{ .Values.keycloak.tokenUrl | quote }} }
+            # La `aud` de la aserción es el emisor que Keycloak publica, no la URL de token (U00-T04): se deriva de `keycloak.issuer`; el Job la recibe de aqui.
+            - { name: VECTRA_ASSERTION_AUDIENCE, value: {{ required "keycloak.issuer es obligatorio" .Values.keycloak.issuer | quote }} }
             - { name: GOVERNANCE_REGISTRY_URL, value: {{ .Values.peers.registryUrl | quote }} }
             - { name: GOVERNANCE_BIAS_URL, value: {{ .Values.peers.biasUrl | quote }} }
             # Variables de U0 (F50): sin ellas `create_app` no arranca. La CA de Keycloak se monta del ConfigMap de U1 (Bundle de trust-manager).

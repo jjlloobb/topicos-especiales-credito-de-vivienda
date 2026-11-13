@@ -251,9 +251,16 @@ deny contains msg if {
 deny contains msg if {
 	is_deployment
 	names := {e.name | some e in service_container.env}
-	missing := {"VECTRA_CLIENT_ID", "VECTRA_CLIENT_KEY_PATH", "VECTRA_TOKEN_URL", "GOVERNANCE_REGISTRY_URL", "GOVERNANCE_BIAS_URL"} - names
+	missing := {"VECTRA_CLIENT_ID", "VECTRA_CLIENT_KEY_PATH", "VECTRA_TOKEN_URL", "VECTRA_ASSERTION_AUDIENCE", "GOVERNANCE_REGISTRY_URL", "GOVERNANCE_BIAS_URL"} - names
 	count(missing) > 0
 	msg := sprintf("service-identity: faltan %v", [missing])
+}
+
+deny contains msg if {
+	is_deployment
+	e := env_of(service_container, "VECTRA_ASSERTION_AUDIENCE")
+	not endswith(e.value, "/realms/vectra")
+	msg := "service-identity: VECTRA_ASSERTION_AUDIENCE es el emisor de Keycloak (termina en /realms/vectra), no una URL de token (U00-T04)"
 }
 
 deny contains msg if {

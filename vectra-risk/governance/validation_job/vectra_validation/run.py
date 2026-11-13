@@ -99,6 +99,7 @@ def token_provider(config: JobConfig) -> ServiceTokenProvider:
         Path(config.key_path).read_text(encoding="utf-8"),
         config.audience,
         (config.scope,),
+        assertion_audience=config.assertion_audience,
         key_id=config.key_id,
     )
 
