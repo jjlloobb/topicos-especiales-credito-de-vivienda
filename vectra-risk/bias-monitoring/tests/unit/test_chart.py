@@ -706,6 +706,7 @@ def test_env_the_variables_of_both_processes_contain_what_the_code_reads(env: st
         "VECTRA_GOVERNANCE_URL",
         "VECTRA_PUSHGATEWAY_URL",
         "VECTRA_TOKEN_URL",
+        "VECTRA_ASSERTION_AUDIENCE",
         "VECTRA_CLIENT_ID",
         "VECTRA_CLIENT_KEY_PATH",
         "VECTRA_POLICY_PATH",

@@ -19,7 +19,7 @@ import jwt
 from cryptography.hazmat.primitives import serialization
 from strategies import auth as u0_auth
 from vectra_contracts.models.monitoring import MonitoringWindow
-from world import _KEY
+from world import _KEY, ASSERTION_AUDIENCE
 
 PUBLIC_KEY = _KEY.public_key().public_bytes(
     serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
@@ -79,11 +79,19 @@ class Keycloak(HttpDouble):
             return 200, u0_auth.jwks_document()
         if method == "POST" and path == "/token":
             form = {k: v[0] for k, v in parse_qs(body.decode()).items()}
-            claims = jwt.decode(
-                form["client_assertion"], PUBLIC_KEY, algorithms=["ES256"], audience=self.url + "/token"
-            )
+            try:  # como Keycloak: la `aud` es el emisor, no la URL de token (U00-T04); si no, 400
+                claims = jwt.decode(
+                    form["client_assertion"], PUBLIC_KEY, algorithms=["ES256"], audience=ASSERTION_AUDIENCE
+                )
+            except jwt.InvalidAudienceError:
+                return 400, {"error": "invalid_client", "error_description": "Invalid token audience"}
             self.requests.append(
-                {"client_id": claims["sub"], "audience": form["audience"], "scope": form["scope"]}
+                {
+                    "client_id": claims["sub"],
+                    "audience": form["audience"],
+                    "scope": form["scope"],
+                    "assertion_audience": claims["aud"],
+                }
             )
             token = f"tok|{form['audience']}|{form['scope']}|{claims['sub']}"
             return 200, {"access_token": token, "expires_in": 300}

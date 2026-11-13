@@ -371,6 +371,7 @@ CASES: list[tuple[str, str, Callable[[list[Doc]], None]]] = [
     ("constante como variable", "env", _dep(add_env("CYCLE_SECONDS", "300"))),
     ("plazo de la pasada como variable", "env", _dep(add_env("FULL_PASS_DEADLINE_SECONDS", "4500"))),
     ("falta VECTRA_TOKEN_URL", "env", _dep(drop_env("VECTRA_TOKEN_URL"))),
+    ("falta VECTRA_ASSERTION_AUDIENCE", "env", _dep(drop_env("VECTRA_ASSERTION_AUDIENCE"))),
     ("falta VECTRA_REGISTRY_URL", "env", _dep(drop_env("VECTRA_REGISTRY_URL"))),
     ("clientId de otro cliente", "identity-doc", _dep(set_env("VECTRA_CLIENT_ID", "governance-service"))),
     ("cuenta de servicio de otro", "identity-doc", _dep(set_at([*POD, "serviceAccountName"], "default"))),

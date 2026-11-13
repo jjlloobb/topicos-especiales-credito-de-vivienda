@@ -25,7 +25,7 @@ def test_the_required_names_are_exactly_the_variables_of_the_rendered_deployment
 def test_the_optional_variables_are_not_in_the_chart_and_the_peer_and_identity_ones_are_required() -> None:
     assert set(OPTIONAL) & set(chart_env()) == set()
     assert not set(OPTIONAL) & set(REQUIRED)
-    peers = {"GOVERNANCE_REGISTRY_URL", "GOVERNANCE_BIAS_URL", "VECTRA_CLIENT_ID", "VECTRA_CLIENT_KEY_PATH", "VECTRA_TOKEN_URL"}
+    peers = {"GOVERNANCE_REGISTRY_URL", "GOVERNANCE_BIAS_URL", "VECTRA_CLIENT_ID", "VECTRA_CLIENT_KEY_PATH", "VECTRA_TOKEN_URL", "VECTRA_ASSERTION_AUDIENCE"}
     assert peers <= set(REQUIRED) and peers <= set(chart_env())
 
 
@@ -80,6 +80,8 @@ def test_the_identity_and_peers_come_from_the_environment_without_defaults() -> 
         FULL["VECTRA_TOKEN_URL"],  # F-03: el token propio no usa GOVERNANCE_JOB_TOKEN_URL
     )
     assert config.token_url != FULL["GOVERNANCE_JOB_TOKEN_URL"] == config.api.job_token_url
+    assert config.assertion_audience == FULL["VECTRA_ASSERTION_AUDIENCE"] != config.token_url
+    assert config.api.assertion_audience == config.assertion_audience  # el Job recibe la misma (P-2)
     assert (config.client_key_id, config.replica) == (None, config.replica)
     over = config_from_env({**FULL, "VECTRA_CLIENT_KEY_ID": "kid", "GOVERNANCE_REPLICA": "pod-7"})
     assert (over.client_key_id, over.replica) == ("kid", "pod-7")
@@ -99,7 +101,7 @@ def test_the_service_token_needs_the_client_key_but_its_absence_is_a_503_not_a_b
         token()
 
 
-def test_the_service_token_is_a_private_key_jwt_for_the_audience_and_scope(
+def test_assertion_audience_the_service_token_is_a_private_key_jwt_for_the_audience_and_scope(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from cryptography.hazmat.primitives import serialization
@@ -124,6 +126,10 @@ def test_the_service_token_is_a_private_key_jwt_for_the_audience_and_scope(
     assert token() == "tok-1" and token() == "tok-1"  # el segundo sale de la cache del proveedor
     assert len(posts) == 1
     assert posts[0]["url"] == FULL["VECTRA_TOKEN_URL"]
+    import jwt
+
+    claims = jwt.decode(posts[0]["client_assertion"], options={"verify_signature": False})
+    assert claims["aud"] == FULL["VECTRA_ASSERTION_AUDIENCE"] != FULL["VECTRA_TOKEN_URL"]
     assert (posts[0]["audience"], posts[0]["scope"]) == ("bias-monitoring-service", "bias:compare")
 
 

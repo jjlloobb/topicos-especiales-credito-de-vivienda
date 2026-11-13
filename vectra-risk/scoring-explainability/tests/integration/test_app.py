@@ -10,10 +10,12 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import parse_qs
 from uuid import uuid4
 
 import explainability.metrics as explainability_metrics
 import httpx
+import jwt
 import pytest
 import scoring.metrics as scoring_metrics
 from cryptography.hazmat.primitives import serialization
@@ -203,6 +205,10 @@ def test_the_chart_only_injects_urls_and_the_settings_name_what_is_missing() -> 
     assert scoring_settings(good).predictor_url_template == "http://x/{inference_service}"
 
 
+#: La `aud` que Keycloak acepta en la aserción: su emisor (U00-T04), distinto de la URL de token del doble.
+ASSERTION_AUDIENCE = "https://vectra.localtest.me/auth/realms/vectra"
+
+
 class _RealProcess:
     """`python -m scoring.app` como proceso, con `REQUIRED_ENV` y los `VECTRA_*` de U0 apuntando a dobles HTTP (U04-T09, CA-6).
 
@@ -211,6 +217,7 @@ class _RealProcess:
 
     def __init__(self, tmp_path: Path, gov: GovernanceDouble, kserve: KServeDouble) -> None:
         self.gov, self.kserve = gov, kserve
+        self.assertion_audiences: list[str] = []
         self.explain, self.registry = ExplainabilityDouble(), RegistryDouble()
         self.servers = [
             Server(app).start()
@@ -247,6 +254,7 @@ class _RealProcess:
             "VECTRA_JWKS_URL": self.servers[4].url + "/jwks",
             "VECTRA_CLIENT_ID": "scoring-service",
             "VECTRA_TOKEN_URL": self.servers[5].url + "/token",
+            "VECTRA_ASSERTION_AUDIENCE": ASSERTION_AUDIENCE,
             "VECTRA_CLIENT_KEY_PATH": str(key),
         }
         self.process = subprocess.Popen([sys.executable, "-c", code], env=self.env)  # noqa: S603
@@ -255,8 +263,12 @@ class _RealProcess:
     async def _jwks(_request: Request) -> JSONResponse:
         return JSONResponse(u0.jwks_document())
 
-    @staticmethod
-    async def _token(_request: Request) -> JSONResponse:
+    async def _token(self, request: Request) -> JSONResponse:
+        form = parse_qs((await request.body()).decode())
+        audience = jwt.decode(form["client_assertion"][0], options={"verify_signature": False})["aud"]
+        self.assertion_audiences.append(audience)
+        if audience != ASSERTION_AUDIENCE:  # Keycloak: 400 `invalid_client`, `Invalid token audience`
+            return JSONResponse({"error": "invalid_client"}, status_code=400)
         return JSONResponse({"access_token": "t", "expires_in": 300})
 
     async def ready(self) -> None:
@@ -351,3 +363,18 @@ async def test_main_policy_parameters_and_policy_version_id_come_from_the_same_s
 
 def test_the_authenticator_helper_checks_the_service_audience() -> None:
     assert authenticator("scoring-service").audience == "scoring-service"
+
+
+async def test_assertion_audience_the_real_process_signs_with_the_configured_one_and_not_with_the_token_url(
+    tmp_path: Path,
+) -> None:
+    kserve = KServeDouble()
+    gov = GovernanceDouble(serving_config(cutoff="0.5000", low_confidence_threshold="0.1000"))
+    process = _RealProcess(tmp_path, gov, kserve)
+    try:
+        await process.ready()
+        await process.recommend()  # con la `aud` equivocada el doble responde 400 y esta llamada no llega a 200
+        assert process.assertion_audiences
+        assert set(process.assertion_audiences) == {ASSERTION_AUDIENCE} != {process.env["VECTRA_TOKEN_URL"]}
+    finally:
+        process.stop()

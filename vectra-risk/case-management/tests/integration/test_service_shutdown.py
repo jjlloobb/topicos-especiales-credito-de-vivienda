@@ -15,8 +15,10 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs
 
 import httpx
+import jwt
 import pytest
 from case_pg import Db, url
 from cryptography.hazmat.primitives import serialization
@@ -26,6 +28,8 @@ from u8_support import insert_fail_closed, seed_case
 pytestmark = pytest.mark.integration
 # uvicorn vuelve a emitir la senal capturada tras un apagado ordenado: el proceso termina con 0 o con -SIGTERM.
 CLEAN_EXIT = (0, -signal.SIGTERM)
+#: La `aud` que Keycloak acepta en la aserción: su emisor (U00-T04), distinto de la URL de token del doble.
+ASSERTION_AUDIENCE = "https://vectra.localtest.me/auth/realms/vectra"
 ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -35,6 +39,7 @@ class Stub:
     def __init__(self, delay: float) -> None:
         self.delay = delay
         self.entries: list[dict[str, Any]] = []
+        self.assertion_audiences: list[str] = []
         self.lock = threading.Lock()
         stub = self
 
@@ -53,6 +58,11 @@ class Stub:
             def do_POST(self) -> None:  # noqa: N802
                 raw = self.rfile.read(int(self.headers.get("content-length", 0)))
                 if self.path == "/token":
+                    form = parse_qs(raw.decode())
+                    audience = jwt.decode(form["client_assertion"][0], options={"verify_signature": False})["aud"]
+                    stub.assertion_audiences.append(audience)
+                    if audience != ASSERTION_AUDIENCE:  # Keycloak: 400 `invalid_client`, `Invalid token audience`
+                        return self._send(400, {"error": "invalid_client"})
                     return self._send(200, {"access_token": "t", "expires_in": 300})
                 entry = json.loads(raw)
                 with stub.lock:
@@ -103,6 +113,7 @@ def start(db: Db, stub: Stub, tmp_path: Path) -> subprocess.Popen[bytes]:
         "VECTRA_JWKS_URL": f"{base}/jwks",
         "VECTRA_CLIENT_ID": "case-service",
         "VECTRA_TOKEN_URL": f"{base}/token",
+        "VECTRA_ASSERTION_AUDIENCE": ASSERTION_AUDIENCE,
         "VECTRA_CLIENT_KEY_PATH": str(key),
     }
     log = (tmp_path / "service.log").open("wb")
@@ -177,3 +188,24 @@ def test_sigterm_during_a_reconciler_batch_finishes_the_batch_without_half_sent_
         states,
     )  # cada envio quedo registrado: nada a medio enviar
     assert "pendiente_registro" not in states
+
+
+def test_assertion_audience_the_real_process_signs_with_the_issuer_and_not_with_the_token_url(
+    db: Db, tmp_path: Path
+) -> None:
+    case_id = seed_case(db, state="no_disponible")
+    insert_fail_closed(db, case_id, 1)
+    stub = Stub(0.0)
+    proc = start(db, stub, tmp_path)
+    try:
+        deadline = time.monotonic() + 40
+        while not stub.entries and time.monotonic() < deadline:
+            assert proc.poll() is None
+            time.sleep(0.1)
+        assert stub.entries, "el reconciliador no envio nada: con otra `aud` el doble responde 400 y no hay token"
+        assert set(stub.assertion_audiences) == {ASSERTION_AUDIENCE}
+        assert ASSERTION_AUDIENCE != f"http://127.0.0.1:{stub.port}/token"
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=20)
+        stub.close()

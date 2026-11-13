@@ -13,7 +13,9 @@ from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs
 
+import jwt
 import pytest
 from api_support import FakeModelStore, registration_body
 from evidence_support import FakeRegistry
@@ -28,6 +30,9 @@ from vectra_governance.evidence import RegistryUnavailable
 from vectra_governance.service import build_app
 
 pytestmark = pytest.mark.integration
+
+#: La `aud` que Keycloak acepta: su emisor. Distinta de la URL de token (`{registry}/token`).
+ASSERTION_AUDIENCE = "https://vectra.localtest.me/auth/realms/vectra"
 
 
 def now() -> datetime:
@@ -48,6 +53,12 @@ class RegistryServer:
                 raw = self.rfile.read(int(self.headers["content-length"]))
                 if self.path == "/token":  # el endpoint de tokens de U2: `client_credentials` con `private_key_jwt`
                     grants.append(raw.decode())
+                    assertion = parse_qs(raw.decode())["client_assertion"][0]
+                    if jwt.decode(assertion, options={"verify_signature": False})["aud"] != ASSERTION_AUDIENCE:
+                        self.send_response(400)  # Keycloak: `invalid_client`, `Invalid token audience`
+                        self.send_header("content-length", "0")
+                        self.end_headers()
+                        return
                     answer = json.dumps({"access_token": "tok-real", "expires_in": 300}).encode()
                     self.send_response(200)
                     self.send_header("content-type", "application/json")
@@ -123,6 +134,7 @@ def chart_env(db: Db, minio: Minio, registry_url: str, key: Path) -> dict[str, s
         "VECTRA_CLIENT_ID": "governance-service",
         "VECTRA_CLIENT_KEY_PATH": str(key),
         "VECTRA_TOKEN_URL": f"{registry_url}/token",
+        "VECTRA_ASSERTION_AUDIENCE": ASSERTION_AUDIENCE,
         "GOVERNANCE_REPLICA": "build-app-test",
     }
 

@@ -25,7 +25,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from entries import render, specs_on, us503_specs
-from http_servers import Server, registry_app, token_app
+from http_servers import ASSERTION_AUDIENCE, Server, registry_app, token_app
 from registry_double import RegistryDouble
 from vectra_product.main import main
 
@@ -51,7 +51,11 @@ def free_port() -> int:
 class RealProcess:
     def __init__(self, tmp_path: Path, double: RegistryDouble) -> None:
         self.double = double
-        self.servers = [Server(registry_app(double)).start(), Server(token_app()).start()]
+        self.assertion_audiences: list[str] = []
+        self.servers = [
+            Server(registry_app(double)).start(),
+            Server(token_app(self.assertion_audiences)).start(),
+        ]
         key = tmp_path / "client.pem"
         key.write_bytes(
             ec.generate_private_key(ec.SECP256R1()).private_bytes(
@@ -74,6 +78,7 @@ class RealProcess:
                 "VECTRA_REGISTRY_URL": self.servers[0].url,
                 "VECTRA_CLIENT_ID": "product-metrics",
                 "VECTRA_TOKEN_URL": self.servers[1].url + "/token",
+                "VECTRA_ASSERTION_AUDIENCE": ASSERTION_AUDIENCE,
                 "VECTRA_CLIENT_KEY_PATH": str(key),
                 "VECTRA_POLICY_PATH": str(policy),
             },
@@ -248,6 +253,7 @@ def test_main_in_the_test_process_wires_the_environment_serves_and_returns_0_on_
         "VECTRA_REGISTRY_URL": servers[0].url,
         "VECTRA_CLIENT_ID": "product-metrics",
         "VECTRA_TOKEN_URL": servers[1].url + "/token",
+        "VECTRA_ASSERTION_AUDIENCE": ASSERTION_AUDIENCE,
         "VECTRA_CLIENT_KEY_PATH": str(key),
         "VECTRA_POLICY_PATH": str(policy),
     }.items():
@@ -295,3 +301,14 @@ def test_no_log_line_of_the_real_process_keeps_only_level_timestamp_and_service(
     ]
     bare = [line for line in lines if set(line) <= {"level", "timestamp", "service"}]
     assert bare == [], f"lineas de log sin contenido: {bare[:3]}"
+
+
+def test_assertion_audience_the_real_process_signs_with_the_issuer_and_not_with_the_token_url(tmp_path: Path) -> None:
+    double = RegistryDouble([render(s) for s in us503_specs(now=stamp_now())])
+    process = RealProcess(tmp_path, double)
+    try:
+        process.wait_for("/readyz", 200)  # leer U3 exige el token: con otra `aud` el doble responde 400 y nunca queda listo
+        assert process.assertion_audiences
+        assert set(process.assertion_audiences) == {ASSERTION_AUDIENCE} != {process.servers[1].url + "/token"}
+    finally:
+        process.stop()

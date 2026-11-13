@@ -386,7 +386,8 @@ def test_the_report_sent_over_f32_carries_the_disclaimer() -> None:
         return {"access_token": "tok-1", "expires_in": 60}
 
     tokens = ServiceTokenProvider(
-        "model-validation-job", "https://keycloak/token", _ec_key(), "governance-service", ("governance:validation-report",), poster=poster
+        "model-validation-job", "https://keycloak/token", _ec_key(), "governance-service", ("governance:validation-report",),
+        assertion_audience="https://issuer.example/realms/vectra", poster=poster
     )
     sender = HttpReportSender("http://governance", tokens, transport=httpx.MockTransport(handler))
     _, memory_sender, report = onnx_run()
@@ -402,7 +403,7 @@ def test_a_rejected_report_makes_the_job_fail() -> None:
     async def poster(url: str, data: Any, timeout: float) -> Any:
         return {"access_token": "t", "expires_in": 60}
 
-    tokens = ServiceTokenProvider("c", "https://k/token", _ec_key(), "a", ("s",), poster=poster)
+    tokens = ServiceTokenProvider("c", "https://k/token", _ec_key(), "a", ("s",), assertion_audience="https://i/realms/v", poster=poster)
     sender = HttpReportSender("http://g", tokens, transport=httpx.MockTransport(lambda r: httpx.Response(409)))
     _, _, report = onnx_run()
     with pytest.raises(ValidationJobError, match="report_rejected"):
@@ -444,7 +445,7 @@ def _env(**over: str) -> dict[str, str]:
         "VECTRA_JOB_MODE": "validacion", "VECTRA_RUN_ID": "r", "VECTRA_MODEL_VERSION_ID": VERSION, "VECTRA_MANIFEST_URI": MANIFEST,
         "VECTRA_ARTIFACT_URI": "s3://b/predictor.json", "VECTRA_EXPLAINER_URI": "s3://b/explainer.json", "VECTRA_DATASET_REF": DATASET,
         "VECTRA_GOVERNANCE_URL": "http://g", "VECTRA_S3_ENDPOINT": "http://minio:9000", "VECTRA_S3_ACCESS_KEY": "a",
-        "VECTRA_S3_SECRET_KEY": "s", "VECTRA_TOKEN_URL": "https://k/token", "VECTRA_CLIENT_KEY_PATH": "/nonexistent",
+        "VECTRA_S3_SECRET_KEY": "s", "VECTRA_TOKEN_URL": "https://k/token", "VECTRA_ASSERTION_AUDIENCE": "https://i/realms/v", "VECTRA_CLIENT_KEY_PATH": "/nonexistent",
         "VECTRA_POLICY": policy().model_dump_json(),
     }
     return {**base, **over}
@@ -488,3 +489,15 @@ def test_report_json_has_the_contract_fields() -> None:
     assert set(json.loads(report.model_dump_json())) == {
         "auc_roc", "auc_target", "auc_meets_target", "initial_disparity", "sync_check", "dataset_ref", "disclaimer"
     }
+
+
+def test_assertion_audience_missing_in_the_job_environment_fails_with_its_name() -> None:
+    from vectra_validation.config import from_env
+    from vectra_validation.errors import ValidationJobError
+
+    env = _env()
+    env["VECTRA_ASSERTION_AUDIENCE"] = "https://i/realms/v"
+    assert from_env(env).assertion_audience == "https://i/realms/v"
+    del env["VECTRA_ASSERTION_AUDIENCE"]
+    with pytest.raises(ValidationJobError, match="missing_env:VECTRA_ASSERTION_AUDIENCE"):
+        from_env(env)

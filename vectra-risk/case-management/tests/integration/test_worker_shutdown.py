@@ -20,8 +20,10 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs
 
 import httpx
+import jwt
 import pytest
 from case_pg import Db, url
 from case_strategies import recommendation_from_wire
@@ -36,6 +38,10 @@ from worker_support import case_row, job_row, new_case
 pytestmark = pytest.mark.integration
 ROOT = Path(__file__).resolve().parents[3]
 OPS = "http://127.0.0.1:8081"
+
+
+#: La `aud` que Keycloak acepta en la aserción: su emisor (U00-T04), distinto de la URL de token del doble.
+ASSERTION_AUDIENCE = "https://vectra.localtest.me/auth/realms/vectra"
 
 
 class Stub:
@@ -64,6 +70,10 @@ class Stub:
             def do_POST(self) -> None:  # noqa: N802
                 raw = self.rfile.read(int(self.headers.get("content-length", 0)))
                 if self.path == "/token":
+                    form = parse_qs(raw.decode())
+                    audience = jwt.decode(form["client_assertion"][0], options={"verify_signature": False})["aud"]
+                    if audience != ASSERTION_AUDIENCE:  # Keycloak: 400 `invalid_client`, `Invalid token audience`
+                        return self._send(400, json.dumps({"error": "invalid_client"}).encode())
                     return self._send(200, json.dumps({"access_token": "t", "expires_in": 300}).encode())
                 request = ScoringRequest.model_validate_json(raw)
                 stub.requests.append(request)
@@ -110,6 +120,7 @@ def start(db: Db, stub: Stub, tmp_path: Path) -> subprocess.Popen[bytes]:
         "CASE_SCORING_URL": base,
         "VECTRA_CLIENT_ID": "case-worker",
         "VECTRA_TOKEN_URL": f"{base}/token",
+        "VECTRA_ASSERTION_AUDIENCE": ASSERTION_AUDIENCE,
         "VECTRA_CLIENT_KEY_PATH": str(key),
     }
     log = (tmp_path / "worker.log").open("wb")

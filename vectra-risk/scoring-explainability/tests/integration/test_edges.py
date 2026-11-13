@@ -124,6 +124,7 @@ def _env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **urls: str) -> None:
         **urls,
         "VECTRA_CLIENT_ID": "svc",
         "VECTRA_TOKEN_URL": "http://keycloak/token",
+        "VECTRA_ASSERTION_AUDIENCE": "http://keycloak/realm",
         "VECTRA_CLIENT_KEY_PATH": str(_ec_key(tmp_path)),
         "VECTRA_OIDC_ISSUER": "http://keycloak/realm",
         "VECTRA_JWKS_URL": "http://keycloak/jwks",

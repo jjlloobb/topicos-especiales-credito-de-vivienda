@@ -5,6 +5,7 @@ volumenes) se compara con el render versionado en `identity-edge/jobs/rendered/`
 """
 
 import copy
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -25,6 +26,14 @@ CONFTEST = _ROOT / "platform" / ".tools" / "bin" / "conftest"
 ENVS = ("kind", "staging", "prod")
 NAMESPACE = "vectra-identity"
 Docs = list[dict[str, Any]]
+
+
+def issuer(env: str) -> str:
+    """El emisor que Keycloak publica en `env`: su `KC_HOSTNAME` (render versionado) + el realm. Es la `aud` de la aserción (U00-T04)."""
+    text = (EDGE / "keycloak" / "rendered" / env / "keycloak.yaml").read_text(encoding="utf-8")
+    match = re.search(r"name: KC_HOSTNAME\n\s+value: (\S+)", text)
+    assert match, f"{env}: el render de Keycloak no fija KC_HOSTNAME"
+    return match.group(1).rstrip("/") + "/realms/vectra"
 
 
 def values_file(env: str) -> Path:
@@ -116,6 +125,7 @@ def expected_documents(env: str, image: str) -> Docs:
     common_env = {
         "VECTRA_CLIENT_ID": "keycloak-reader",
         "VECTRA_TOKEN_URL": design.token_url(),
+        "VECTRA_ASSERTION_AUDIENCE": issuer(env),
         "VECTRA_CLIENT_KEY_PATH": "/etc/vectra/reader/private-key",
         "VECTRA_CA_BUNDLE": "/etc/vectra/ca/ca.crt",
         "KEYCLOAK_ADMIN_URL": design.admin_url(),

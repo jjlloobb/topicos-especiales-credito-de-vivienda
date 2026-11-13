@@ -214,6 +214,8 @@ CASES: list[tuple[str, Change]] = [
     # Identidad propia y pares (U04-T08)
     ("service-identity", _drop_env(service_container, "VECTRA_CLIENT_ID")),
     ("service-identity", _drop_env(service_container, "VECTRA_TOKEN_URL")),
+    ("service-identity", _drop_env(service_container, "VECTRA_ASSERTION_AUDIENCE")),
+    ("service-identity", _set_env(service_container, "VECTRA_ASSERTION_AUDIENCE", "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token")),
     ("service-identity", _drop_env(service_container, "GOVERNANCE_REGISTRY_URL")),
     ("service-identity", _drop_env(service_container, "GOVERNANCE_BIAS_URL")),
     ("service-identity", _drop_env(service_container, "VECTRA_CLIENT_KEY_PATH")),

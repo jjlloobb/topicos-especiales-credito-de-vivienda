@@ -240,6 +240,7 @@ def test_the_cronjob_runs_to_completion_freezes_and_pushes_its_metrics(
         "VECTRA_PUSHGATEWAY_URL",
         "VECTRA_POLICY_PATH",
         "VECTRA_TOKEN_URL",
+        "VECTRA_ASSERTION_AUDIENCE",
         "VECTRA_CLIENT_ID",
         "VECTRA_CLIENT_KEY_PATH",
         "VECTRA_CA_BUNDLE",

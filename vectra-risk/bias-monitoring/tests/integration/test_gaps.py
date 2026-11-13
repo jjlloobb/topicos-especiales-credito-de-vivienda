@@ -18,7 +18,7 @@ from vectra_bias.publish import list_groups
 from vectra_bias.registry_client import RegistryError, query_daily
 from vectra_bias.run import EXIT_FAILED, EXIT_PUSH, acquire_tokens, log_outcome, main, run_once
 from vectra_contracts.models.monitoring import DayRange, MonitoringQuery, MonitoringRangeRequest
-from world import GOVERNANCE_URL, PRIVATE_KEY_PEM, PUSHGATEWAY_URL, REGISTRY_URL, World
+from world import ASSERTION_AUDIENCE, GOVERNANCE_URL, PRIVATE_KEY_PEM, PUSHGATEWAY_URL, REGISTRY_URL, World
 
 TODAY = NOW.date()
 
@@ -102,6 +102,7 @@ def _job_env(tmp_path, **over):
         "VECTRA_GOVERNANCE_URL": dead,
         "VECTRA_PUSHGATEWAY_URL": dead,
         "VECTRA_TOKEN_URL": dead + "/token",
+        "VECTRA_ASSERTION_AUDIENCE": ASSERTION_AUDIENCE,
         "VECTRA_CLIENT_ID": "bias-monitoring-job",
         "VECTRA_CLIENT_KEY_PATH": str(tmp_path / "client.pem"),
         "VECTRA_POLICY_PATH": str(tmp_path / "policy.yaml"),
@@ -111,7 +112,7 @@ def _job_env(tmp_path, **over):
 
 def test_main_with_every_dependency_down_is_a_failed_run_and_a_push_failure(tmp_path, monkeypatch):
     env = _job_env(tmp_path)
-    for name in ("VECTRA_CLIENT_ID", "VECTRA_TOKEN_URL", "VECTRA_CLIENT_KEY_PATH"):
+    for name in ("VECTRA_CLIENT_ID", "VECTRA_TOKEN_URL", "VECTRA_ASSERTION_AUDIENCE", "VECTRA_CLIENT_KEY_PATH"):
         monkeypatch.setenv(name, env[name])  # `provider_from_env` lee el entorno del proceso
     assert (
         main(env) == EXIT_PUSH
@@ -212,6 +213,7 @@ def _service_env(tmp_path, **over):
     env = {
         "VECTRA_REGISTRY_URL": "http://registry.test",
         "VECTRA_TOKEN_URL": "http://keycloak.test/token",
+        "VECTRA_ASSERTION_AUDIENCE": ASSERTION_AUDIENCE,
         "VECTRA_CLIENT_ID": "bias-monitoring-service",
         "VECTRA_CLIENT_KEY_PATH": str(tmp_path / "client.pem"),
         "VECTRA_OIDC_ISSUER": "https://keycloak.test/auth/realms/vectra",

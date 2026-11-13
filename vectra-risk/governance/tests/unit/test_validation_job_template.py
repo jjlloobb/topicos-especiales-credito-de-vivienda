@@ -22,6 +22,7 @@ def spec() -> JobSpec:
         job_name="validation-1", mode="validacion", run_id="r1", model_version_id="mv-1", image="reg/job@sha256:" + "a" * 64,
         manifest_uri="s3://m", artifact_uri="s3://a", explainer_uri="s3://e", dataset_ref="s3://d", callback_url="http://g",
         s3_endpoint="http://minio:9000", token_url="https://keycloak/token",
+        assertion_audience="https://issuer.example/realms/vectra",
         policy=PolicyDraft(cutoff="0.0800", low_confidence_threshold="0.0300", channel_rules=[], normative=[]),
     )
 
@@ -150,7 +151,9 @@ def test_the_real_token_provider_builds_its_tls_context_with_the_ca_the_manifest
     import json
     import ssl
     import threading
+    from urllib.parse import parse_qs
 
+    import jwt
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import ec
     from vectra_validation.config import from_env
@@ -170,9 +173,10 @@ def test_the_real_token_provider_builds_its_tls_context_with_the_ca_the_manifest
     ca = _self_signed_ca(tmp_path)
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_POST(self) -> None:  # noqa: N802
-            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            form = parse_qs(self.rfile.read(int(self.headers.get("Content-Length", 0))).decode())
+            aud = jwt.decode(form["client_assertion"][0], options={"verify_signature": False})["aud"]
             body = json.dumps({"access_token": "tok", "expires_in": 60}).encode()
-            self.send_response(200)
+            self.send_response(200 if aud == spec().assertion_audience else 400)  # Keycloak: `Invalid token audience`
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -203,3 +207,16 @@ def test_the_real_token_provider_builds_its_tls_context_with_the_ca_the_manifest
         assert asyncio.run(token_provider(from_env(cluster_env)).token()) == "tok"
     finally:
         server.shutdown()
+
+
+def test_assertion_audience_the_job_receives_the_one_of_the_service_configuration() -> None:
+    """U00-T04 (P-2): `governance-service` pasa su `VECTRA_ASSERTION_AUDIENCE` al Job; `VECTRA_TOKEN_AUDIENCE` (la del access token) no se toca."""
+    from vectra_governance.service import REQUIRED, config_from_env
+
+    full = {name: f"valor-de-{name.lower()}" for name in REQUIRED}
+    configured = {**full, "VECTRA_ASSERTION_AUDIENCE": "https://issuer.example/realms/otro"}
+    audience = config_from_env(configured).api.assertion_audience
+    job = JobSpec(**{**spec().__dict__, "assertion_audience": audience})
+    env = {e["name"]: e["value"] for e in job_manifest(job)["spec"]["template"]["spec"]["containers"][0]["env"] if "value" in e}
+    assert env["VECTRA_ASSERTION_AUDIENCE"] == "https://issuer.example/realms/otro" != env["VECTRA_TOKEN_URL"]
+    assert "VECTRA_TOKEN_AUDIENCE" not in env  # el Job conserva su valor por omision (`governance-service`)
