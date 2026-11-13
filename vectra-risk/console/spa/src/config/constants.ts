@@ -21,6 +21,12 @@ export const INBOX_REFRESH_SECONDS = 15;
 export const CASE_REFRESH_SECONDS = 3;
 export const CASE_REFRESH_MAX_SECONDS = 120;
 
+/**
+ * BR-U10-06: «MFA reciente» = `auth_time` de hace <= 900 s. Es `MFA_MAX_AGE` de U0 (`vectra_contracts.routes`, BR-U0-72): una prueba
+ * (`config.test.ts`) lee ese archivo y la ata. No esta en domain-entities §4 (candidata de diseno) y no es de `TIME_CONSTANTS`.
+ */
+export const MFA_MAX_AGE_SECONDS = 900;
+
 export const TIME_CONSTANTS = {
   STEPUP_TIMEOUT_SECONDS,
   IDLE_WARNING_SECONDS,

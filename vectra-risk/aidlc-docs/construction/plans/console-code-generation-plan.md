@@ -68,6 +68,7 @@ vectra-risk/console/
 > - **P-3:** `object_rules.py` expone `OBJECT_RULES`, un mapa `operation_id` → regla o `None`; el Paso 5 exige al arrancar que las 30 rutas estén en él.
 > - `bff/pytest.ini` y `bff/coveragerc` apuntan la cobertura a `console_bff`, como en U8 y U9.
 > - **U10-T02:** se agrega `bff/tools/role_matrix.py` (Paso 7; `--check` compara la matriz generada de `REGISTRY`, C03 y `contracts/openapi/role-endpoint-matrix.md`, P-4 (a)); `pytest.ini` suma `tests/doubles`, `../../contracts/tests` y `tools` a `pythonpath`; `bff/tests/doubles/` lleva los cinco dobles de los destinos y el soporte de tokens (`bff_*.py`).
+> - **U10-T03:** se agrega `spa/playwright.config.ts` (proyectos `chromium` y `firefox`, un `worker`, `webServer` de los dobles y de Vite; no estaba en esta estructura) y `spa/scripts/check-browsers.mjs`; `spa/tests/poc/` lleva la PoC del Paso 10 (página, callback, página de otro origen, `vite.poc.config.ts` y `poc.spec.ts`) y `spa/tests/support/` los dobles de las pruebas; `bff/tests/doubles/` suma `bff_oidc.py` (emisor OIDC de prueba) y `bff_e2e_server.py` (el BFF con dobles y el emisor en un proceso, para Playwright), con `bff/tests/integration/test_bff_e2e_server.py`. `console/Makefile` suma `e2e-spa`.
 
 ---
 
@@ -145,19 +146,19 @@ vectra-risk/console/
 
 ### Bloque E — SPA
 
-- [ ] **Paso 10 — Prueba de concepto del step-up (puerta de los Pasos 11–15)**
+- [x] **Paso 10 — Prueba de concepto del step-up (puerta de los Pasos 11–15)** (U10-T03)
   - Página mínima con un botón que, en su manejador de clic, llama a `OidcClient.createSigninRequest` (`prompt=login`, `max_age=0`, `acr_values=mfa`, `redirect_uri=/stepup-callback`, `stateStore` en `InMemoryWebStorage`) y a `window.open` de forma síncrona; `stepup-callback.ts` hace `postMessage({code, state}, location.origin)` y se cierra; la ventana principal valida origen, ventana y `state` y llama a `processSigninResponse`.
   - Diseño: P-U10-07; BR-U10-06; tech-stack (OIDC).
   - **Aceptación**: `npx playwright test console/spa/tests/poc` en Chromium y Firefox contra Keycloak de kind (operador) y contra un emisor OIDC de prueba en CI: el token nuevo trae `acr = mfa`; `sessionStorage` y `localStorage` vacíos; un `window.open` llamado fuera del clic queda bloqueado; un `postMessage` de otro origen se ignora. Si la prueba falla, se detiene el bloque y se revisa P-U10-07 antes de seguir.
 
-- [ ] **Paso 11 — `auth`, `stepup` e `inactivity`**
-  - `auth`: `UserManager` con `InMemoryWebStorage`, login con PKCE, refresco rotativo, login silencioso (`prompt=none`), logout con `end_session_endpoint`.
+- [x] **Paso 11 — `auth`, `stepup` e `inactivity`** (U10-T03)
+  - `auth`: `UserManager` con `userStore` en `InMemoryWebStorage` y login por **redirección** (`signinRedirect`) con PKCE; solo el estado transitorio del flujo (`state`, `code_verifier`, `nonce`) en `sessionStorage` (un solo módulo, excepción acotada de ESLint); recarga con una redirección `prompt=none` (sin bucle), refresco rotativo con el refresh token, logout con `end_session_endpoint` (decisión del usuario, 2026-11-12, ronda 1 de U10-T03; precisa P-U10-07).
   - `stepup`: el flujo del Paso 10 con el botón «Verificar y confirmar» (token sin MFA reciente) y `StepUpDialog` (403 `mfa_required` inesperado); reintento único con el mismo cuerpo; vencimiento de 5 min; anuncio `aria-live` y devolución del foco en < 1 s.
   - `inactivity`: contador de la sesión (`keydown`, `pointerdown`, `focusin`, `wheel`, `scroll`), difusión `activity` y `logout` por `BroadcastChannel`, aviso a los 25 min y logout a los 30.
   - Diseño: BR-U10-05, 06, 20; P-U10-07; NFR-U10-40, 41, 52.
   - **Aceptación**: `npm run -w console/spa test -- auth stepup inactivity` con reloj simulado: PBT-U10-05 (fast-check, stateful); actividad en la pestaña A durante 40 min con B quieta → sin logout; 30 min sin actividad → logout en las dos; el refresco de la bandeja no reinicia el contador.
 
-- [ ] **Paso 12 — `api`, `i18n`, `reporter` y `version`**
+- [x] **Paso 12 — `api`, `i18n`, `reporter` y `version`** (U10-T03; parcial: ver `tareas/U10-T03-spa-acceso-y-base.md`)
   - `api`: cliente `openapi-fetch` de U0 con timeout de 10 s y TanStack Query.
   - `i18n`: `messages.es.json` y `labels.es.json` con un texto por cada `code`, `reason` y valor de enumerado de U0 (arreglos constantes de `contracts/ts`); `Intl` en `es-CO`.
   - `reporter`: traducción al catálogo cerrado de `error_code`, ≤ 10 por minuto, `fetch` con `keepalive`, sin mensajes, trazas ni URL con parámetros.
