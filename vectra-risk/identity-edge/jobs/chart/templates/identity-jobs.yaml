@@ -5,6 +5,7 @@
 {{- define "identity-jobs.env" -}}
 - { name: VECTRA_CLIENT_ID, value: {{ .root.Values.keycloak.clientId | quote }} }
 - { name: VECTRA_TOKEN_URL, value: {{ .root.Values.keycloak.tokenUrl | quote }} }
+- { name: VECTRA_ASSERTION_AUDIENCE, value: {{ required "keycloak.issuer es obligatorio" .root.Values.keycloak.issuer | quote }} }
 - { name: VECTRA_CLIENT_KEY_PATH, value: /etc/vectra/reader/private-key }
 - { name: VECTRA_CA_BUNDLE, value: /etc/vectra/ca/ca.crt }
 - { name: KEYCLOAK_ADMIN_URL, value: {{ .root.Values.keycloak.adminUrl | quote }} }

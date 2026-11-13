@@ -65,6 +65,7 @@ spec:
               env:
                 - { name: VECTRA_CLIENT_ID, value: "keycloak-reader" }
                 - { name: VECTRA_TOKEN_URL, value: "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token" }
+                - { name: VECTRA_ASSERTION_AUDIENCE, value: "https://vectra.staging.banco.internal/auth/realms/vectra" }
                 - { name: VECTRA_CLIENT_KEY_PATH, value: /etc/vectra/reader/private-key }
                 - { name: VECTRA_CA_BUNDLE, value: /etc/vectra/ca/ca.crt }
                 - { name: KEYCLOAK_ADMIN_URL, value: "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/admin/realms/vectra" }
@@ -136,6 +137,7 @@ spec:
               env:
                 - { name: VECTRA_CLIENT_ID, value: "keycloak-reader" }
                 - { name: VECTRA_TOKEN_URL, value: "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token" }
+                - { name: VECTRA_ASSERTION_AUDIENCE, value: "https://vectra.staging.banco.internal/auth/realms/vectra" }
                 - { name: VECTRA_CLIENT_KEY_PATH, value: /etc/vectra/reader/private-key }
                 - { name: VECTRA_CA_BUNDLE, value: /etc/vectra/ca/ca.crt }
                 - { name: KEYCLOAK_ADMIN_URL, value: "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/admin/realms/vectra" }

@@ -59,6 +59,7 @@ spec:
                 - { name: VECTRA_PUSHGATEWAY_URL, value: {{ required "peers.pushgatewayUrl es obligatorio" .Values.peers.pushgatewayUrl | quote }} }
                 - { name: VECTRA_POLICY_PATH, value: {{ $policyPath | quote }} }
                 - { name: VECTRA_TOKEN_URL, value: {{ required "keycloak.tokenUrl es obligatorio" .Values.keycloak.tokenUrl | quote }} }
+                - { name: VECTRA_ASSERTION_AUDIENCE, value: {{ required "keycloak.issuer es obligatorio" .Values.keycloak.issuer | quote }} }
                 - { name: VECTRA_CLIENT_ID, value: {{ required "identity.job.clientId es obligatorio" $id.clientId | quote }} }
                 - { name: VECTRA_CLIENT_KEY_PATH, value: {{ $keyPath | quote }} }
                 - { name: VECTRA_CA_BUNDLE, value: {{ printf "%s/ca.crt" .Values.keycloak.caMountPath | quote }} }
