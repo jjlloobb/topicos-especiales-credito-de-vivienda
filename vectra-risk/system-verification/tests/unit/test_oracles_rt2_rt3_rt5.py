@@ -612,7 +612,6 @@ def test_rt2_setup_in_staging_is_refused_with_zero_requests(world: Rt2World, tmp
 
 import copy
 
-from rt2_world import iso
 from vectra_verification.scenarios.rt2 import Rt2Deps, Rt2Params, Rt2Result, Rt2State
 
 
