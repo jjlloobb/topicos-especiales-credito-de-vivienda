@@ -21,7 +21,9 @@ REDACTED: Final = "[REDACTADO]"
 MIN_FRAGMENT: Final = 8
 
 _HEADER_NAMES: Final = r"authorization|proxy-authorization|cookie|set-cookie|x-vault-token"
-_FIELD_NAMES: Final = r"access_token|refresh_token|id_token|client_assertion|client_secret|password"
+_FIELD_NAMES: Final = (
+    r"access_token|refresh_token|id_token|client_assertion|client_secret|password|code_verifier|otp"
+)
 # `pre`: comilla (o comilla escapada) que abre la cabecera o la clave; `post`: la que la cierra (clave de JSON).
 _HEADERS: Final = re.compile(
     rf"""(?i) (?<![A-Za-z0-9_]) (?P<pre>\\?["']?) (?P<key>{_HEADER_NAMES}) (?P<post>\\?["']?) (?P<sep>[ \t]*[:=][ \t]*)""",
@@ -31,7 +33,22 @@ _FIELDS: Final = re.compile(
     rf"""(?i) (?<![A-Za-z0-9_]) (?P<pre>\\?["']?) (?P<key>{_FIELD_NAMES}) (?P<post>\\?["']?) (?P<sep>\s*[:=]\s*)""",
     re.X,
 )
+# F-08: las cabeceras como tupla (`('Cookie', 'x')`, `(b'cookie', b'x')`: httpx y h11) y como objeto de HAR (`{"name": "Cookie", "value": "x"}`: Playwright); y el `code` de
+# una URL o de un formulario (`?code=`, `&code=`). `code` no es un campo general: es el nombre del codigo de error de `Problem` y no se puede borrar de las evidencias.
+_QUOTED_VALUE: Final = r"""b?(?P<vq>["'])(?:\\.|(?!(?P=vq)).)*(?P=vq)"""
+_TUPLE_HEADERS: Final = re.compile(
+    rf"""(?i)(?P<head>[(\[]\s*b?(?P<q>["'])(?:{_HEADER_NAMES})(?P=q)\s*,\s*){_QUOTED_VALUE}"""
+)
+# Un objeto de HAR (`{"name": "Cookie", "value": "x"}`) con **cualquier orden de claves** y claves de mas: se mira cada objeto plano `{...}`; si su `name` es una cabecera o un campo de credencial, se quita su `value`.
+_FLAT_OBJECT: Final = re.compile(r"\{[^{}]*\}")
+_HAR_NAME: Final = re.compile(
+    rf"""(?i)["']name["']\s*:\s*(?P<q>["'])(?:{_HEADER_NAMES}|{_FIELD_NAMES})(?P=q)"""
+)
+_HAR_VALUE: Final = re.compile(rf"""(?i)(?P<head>["']value["']\s*:\s*){_QUOTED_VALUE}""")
+# `code=` en una URL o formulario: tras `?`, `&`, `#`, el principio del texto o un espacio; no `http_code=` ni `error_code=`.
+_URL_CODE: Final = re.compile(r"(?i)(?P<head>(?<![\w-])code=)[^&\s\"'#]*")
 _JWT: Final = re.compile(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*")
+_PEM_ARMOR: Final = re.compile(r"-----(?:BEGIN|END)[A-Z ]*-----")
 _ESCAPED_WHITESPACE: Final = re.compile(r"\\[nrt]")
 _WHITESPACE: Final = re.compile(r"\s+")
 _BASE32: Final = re.compile(r"[A-Z2-7]+=*")
@@ -102,8 +119,20 @@ def _scrub_with(pattern: re.Pattern[str], text: str, *, header: bool) -> str:
     return "".join(out)
 
 
+def _quoted_value(match: re.Match[str]) -> str:
+    quote_char = match.group("vq")
+    return f"{match.group('head')}{quote_char}{REDACTED}{quote_char}"
+
+
+def _har_object(match: re.Match[str]) -> str:
+    obj = match.group(0)
+    return _HAR_VALUE.sub(_quoted_value, obj) if _HAR_NAME.search(obj) else obj
+
+
 def scrub(text: str) -> str:
     """Quita las cabeceras y los campos de credenciales; una salida limpia queda igual."""
+    text = _TUPLE_HEADERS.sub(_quoted_value, _FLAT_OBJECT.sub(_har_object, text))
+    text = _URL_CODE.sub(lambda m: f"{m.group('head')}{REDACTED}", text)
     return _scrub_with(_FIELDS, _scrub_with(_HEADERS, text, header=True), header=False)
 
 
@@ -125,8 +154,10 @@ def _forms(secret: str) -> set[str]:
 
 
 def _fragments(secret: str) -> set[str]:
-    """Los trozos del secreto que quedan si un filtro lo parte en una comilla, una barra o un espacio."""
-    return {chunk for chunk in re.split(r"""[\s"'\\]+""", secret) if len(chunk) >= MIN_FRAGMENT}
+    """Los trozos del secreto que quedan si un filtro lo parte en una comilla, una barra o un espacio. La armadura PEM (`-----BEGIN … KEY-----`) no cuenta: la lleva
+    cualquier certificado y no es secreta (F-07); el cuerpo de la llave si."""
+    body = _PEM_ARMOR.sub(" ", secret)
+    return {chunk for chunk in re.split(r"""[\s"'\\]+""", body) if len(chunk) >= MIN_FRAGMENT}
 
 
 def _contains(text: str, compact_text: str, secret: str) -> bool:

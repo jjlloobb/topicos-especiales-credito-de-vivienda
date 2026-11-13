@@ -170,6 +170,8 @@ spec:
     ports:
     - port: 8081
       protocol: TCP
+    - port: 4191
+      protocol: TCP
   podSelector: {}
   policyTypes:
   - Ingress
@@ -207,6 +209,40 @@ spec:
     group: policy.linkerd.io
     kind: Server
     name: metrics-8081
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: metrics-4191
+  namespace: vectra-mock
+spec:
+  podSelector: {}
+  port: 4191
+  proxyProtocol: unknown
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: f60-metrics-4191-mtls
+  namespace: vectra-mock
+spec:
+  identities:
+  - prometheus.vectra-observability.serviceaccount.identity.linkerd.cluster.local
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: f60-metrics-4191
+  namespace: vectra-mock
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: MeshTLSAuthentication
+    name: f60-metrics-4191-mtls
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: metrics-4191
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

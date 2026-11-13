@@ -178,3 +178,133 @@ def test_f02_the_seed_case_rule_does_not_make_clean_text_fail() -> None:
         == "sin secretos, solo texto normal y corto"
     )
     assert evidence.prepare("pw sin nada mas", ENV_SECRETS) == "pw sin nada mas"
+
+
+# --- U12-T02: las candidatas F-07, F-08 y F-09 de la revision de U12-T01 -----------------------------------------------------------------------------
+
+CERTIFICATE = (
+    "-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIUQ2pXn1x0f3d1xv9mHq8mYb0yVbowCgYIKoZIzj0EAwIw\n"
+    "-----END CERTIFICATE-----\n"
+)
+PRIVATE_KEY = (
+    "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgq1b2c3d4e5f6g7h8\n"
+    "i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6A7B8C9D0\n-----END PRIVATE KEY-----"
+)
+
+
+def test_f07_the_pem_armor_of_a_loaded_key_does_not_make_a_certificate_a_secret() -> None:
+    assert (
+        evidence.prepare(f"cadena de confianza:\n{CERTIFICATE}", {PRIVATE_KEY})
+        == f"cadena de confianza:\n{CERTIFICATE}"
+    )
+    assert evidence.prepare("ver -----BEGIN y -----END de la llave: KEY----- ok", {PRIVATE_KEY}).endswith(
+        "ok"
+    )
+
+
+def test_f07_the_body_of_the_key_is_still_a_secret_after_excluding_the_armor() -> None:
+    body_line = PRIVATE_KEY.splitlines()[1]
+    with pytest.raises(EvidenceError, match="evidence_contains_secret"):
+        evidence.prepare(f"volcado accidental: {body_line}", {PRIVATE_KEY})
+    with pytest.raises(EvidenceError, match="evidence_contains_secret"):
+        evidence.prepare(PRIVATE_KEY, {PRIVATE_KEY})
+    glued = "-----BEGIN PRIVATE KEY-----chan-sim-key"  # la forma del doble de la boveda: el cuerpo pegado a la armadura
+    with pytest.raises(EvidenceError, match="evidence_contains_secret"):
+        evidence.prepare("salida con chan-sim-key dentro", {glued})
+
+
+def test_f09_the_development_vault_token_of_kind_is_not_a_secret_but_a_real_token_is() -> None:
+    from vectra_verification.credentials import Credentials
+    from vectra_verification.guard import KIND, STAGING
+
+    dev = Credentials(KIND, "http://vault.vault.svc:8200", "root")
+    assert "root" not in dev.secret_values()
+    assert (
+        evidence.prepare("/dev/root montado; logger root: iniciado", dev.secret_values())
+        == "/dev/root montado; logger root: iniciado"
+    )
+    real = Credentials(KIND, "http://vault.vault.svc:8200", "hvs.CAESIJx-real-token-0001")
+    assert "hvs.CAESIJx-real-token-0001" in real.secret_values()
+    with pytest.raises(EvidenceError, match="evidence_contains_secret"):
+        evidence.prepare("token hvs.CAESIJx-real-token-0001", real.secret_values())
+    in_staging = Credentials(
+        STAGING, "http://vault.vault.svc:8200", "root"
+    )  # fuera de kind `root` si es un valor a proteger
+    assert "root" in in_staging.secret_values()
+
+
+def test_f08_tuple_and_har_header_forms_are_removed() -> None:
+    raw = (
+        f"[('Authorization', 'Bearer {JWT}'), (b'cookie', b'sid=sesion-9f3a2b'), ('Set-Cookie', 'k=v-secreto-77')]\n"
+        '{"name": "Cookie", "value": "sid=sesion-har-41c0"}\n'
+        "{'name': 'Authorization', 'value': 'Basic dXNlcjpwYXNzd29yZA=='}\n"
+        '{"name": "Accept", "value": "application/json"}\n'
+    )
+    cleaned = evidence.scrub(raw)
+    for leaked in (JWT, "sesion-9f3a2b", "k=v-secreto-77", "sesion-har-41c0", "dXNlcjpwYXNzd29yZA=="):
+        assert leaked not in cleaned
+    assert '{"name": "Accept", "value": "application/json"}' in cleaned
+    assert "('Authorization', '[REDACTADO]')" in cleaned
+
+
+def test_f08_the_code_in_a_url_and_the_pkce_verifier_are_removed_but_a_problem_code_is_kept() -> None:
+    raw = (
+        "GET https://h/callback?state=abc&code=8f2c9d10-aaaa-bbbb-cccc-0123456789ab.1.2&session_state=z\n"
+        "grant_type=authorization_code&code_verifier=verificador-pkce-123&redirect_uri=x\n"
+        "Location: https://h/cb?code=otro-codigo-77\n"
+    )
+    cleaned = evidence.scrub(raw)
+    for leaked in ("8f2c9d10-aaaa", "verificador-pkce-123", "otro-codigo-77"):
+        assert leaked not in cleaned
+    assert "state=abc" in cleaned and "session_state=z" in cleaned
+    problem = '{"type": "about:blank", "code": "conflict_state", "reason": "decision_already_recorded"}'
+    assert evidence.scrub(problem) == problem
+
+
+# --- U12-T02 ronda 2, F-05: el objeto HAR con cualquier orden de claves y `code=` al principio de un formulario -------------------------------------
+
+
+@pytest.mark.parametrize(
+    "har",
+    [
+        '{"value": "sid=sesion-har-orden-1", "name": "Cookie"}',
+        "{'value': 'sid=sesion-har-orden-1', 'name': 'cookie'}",
+        '{"comment": "x", "value": "sid=sesion-har-orden-1", "domain": "h", "name": "Authorization"}',
+        '{"name": "Set-Cookie", "comment": "x", "value": "sid=sesion-har-orden-1"}',
+        '{"value": "sid=sesion-har-orden-1", "name": "refresh_token"}',
+    ],
+)
+def test_f05_a_har_object_is_cleaned_with_any_key_order(har: str) -> None:
+    cleaned = evidence.scrub(f"entrada: {har}\n")
+    assert "sesion-har-orden-1" not in cleaned and "[REDACTADO]" in cleaned
+
+
+def test_f05_a_har_object_with_another_header_is_untouched() -> None:
+    for har in (
+        '{"value": "application/json", "name": "Accept"}',
+        '{"name": "Accept", "value": "application/json"}',
+    ):
+        assert evidence.scrub(har) == har
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "code=CODIGO-SECRETO-77&grant_type=authorization_code",
+        "grant_type=x&code=CODIGO-SECRETO-77",
+        "POST /token\n\ncode=CODIGO-SECRETO-77&redirect_uri=y",
+        "x code=CODIGO-SECRETO-77",
+    ],
+)
+def test_f05_code_at_the_start_of_a_form_body_is_removed(body: str) -> None:
+    cleaned = evidence.scrub(body)
+    assert "CODIGO-SECRETO-77" not in cleaned and "code=[REDACTADO]" in cleaned
+
+
+def test_f05_code_is_still_kept_as_a_problem_field_and_other_names_ending_in_code_are_not_touched() -> None:
+    problem = '{"type": "about:blank", "code": "conflict_state", "reason": "decision_already_recorded"}'
+    assert evidence.scrub(problem) == problem
+    assert (
+        evidence.scrub("http_code=500&error_code=x&status_code=200")
+        == "http_code=500&error_code=x&status_code=200"
+    )

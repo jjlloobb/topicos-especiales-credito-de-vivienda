@@ -66,6 +66,7 @@ Falta sumar lo que todavía no tiene Application en esta base: U11 (0,2891 GiB: 
 Lo que verifica U12 Paso 18 (enmienda §8):
 
 - **Escenario 7 del Paso 24:** el Job `rt5-demo-<runId>` con el `runId` de `prepare` dispara `CoreWriteAttempt` con `vectra_core_write_attempts_total` en 0 (enmienda §6 P-13: «La de U12 es la que cuenta»). El oráculo lee el log del Job (403 con `l5d-proxy-error`), la alerta en Prometheus y el contador del mock.
+- **Métricas del proxy de Linkerd para D3 (U01-T09, F-02 de U08-T05):** en kind, el target `linkerd-proxy` de `vectra-mock` en `up == 1` (no 403: el `Server` del 4191 sin rutas debe dejar pasar el raspado mTLS de `prometheus` y las sondas `/live` y `/ready`); la serie `inbound_http_authz_deny_total` con `namespace="vectra-mock"` y `route_name="core-mock-catch-all"` tras el 403 real del Job de RT-5 (las etiquetas están **por confirmar**: la documentación de Linkerd 2026.10.2 no las lista para esa métrica); y los pods de `vectra-mock` `Ready` con ese `Server` aplicado.
 - **Escenario 1:** la suite de conectividad (`case-service` → scoring denegado; `case-worker` → scoring permitido; `case-worker` → registro y core denegados; el mock alcanza solo el JWKS).
 - **Escenario 5:** PBT-U8-07 abreviado contra el registro real.
 - **Push de las dos imágenes y digests reales**, en el mismo PR que los de `governance` y `scoring-explainability`, del mismo commit (`case-management/docs/imagenes.md`; C-4). U12 (`prepare`) agrega ahí el `probes.runId`.

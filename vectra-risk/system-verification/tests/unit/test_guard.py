@@ -195,3 +195,27 @@ def test_guard_never_reads_the_system_clock() -> None:
         "datetime.now" not in Path(guard.__file__).read_text()
         and ".now(" not in Path(guard.__file__).read_text()
     )
+
+
+# --- U12-T02, F-04 de la revision de U12-T01: la barrera compara la identidad del entorno, no su nombre ------------------------------------------------
+
+
+def test_f04_a_hand_built_environment_is_refused_everywhere() -> None:
+    forged = guard.Environment(
+        "kind", "vectra.banco.internal", "https://vectra.banco.internal/auth/realms/vectra"
+    )
+    for call in (
+        lambda: guard.check_section(forged, "rt2"),
+        lambda: guard.check_reactivation(forged, "rt2"),
+        lambda: guard.check_job_patch(forged),
+        lambda: guard.check_decisions(forged, datetime(2026, 11, 13, 10, tzinfo=UTC), 10, 10),
+        lambda: guard.check_token_issuer(forged, forged.issuer),
+    ):
+        with pytest.raises(GuardError, match="environment_not_allowed"):
+            call()
+    equal_copy = guard.Environment(
+        KIND.name, KIND.host, KIND.issuer
+    )  # igual por valor, no es el entorno de la lista
+    with pytest.raises(GuardError, match="environment_not_allowed"):
+        guard.check_section(equal_copy, "prepare")
+    guard.check_section(KIND, "rt2")

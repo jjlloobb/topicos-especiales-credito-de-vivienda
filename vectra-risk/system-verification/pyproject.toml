@@ -3,8 +3,17 @@ name = "vectra-verification"
 version = "0.1.0"
 description = "U12 system-verification: verificacion del sistema (simulador, conductor, escenarios, informe), fuera del cluster y de solo lectura"
 requires-python = ">=3.12,<3.13"
-# Sin la libreria comun de la API (Paso 1 del plan: la imagen no la lleva; tech-stack: `httpx` propio). `playwright` lo agrega U12-T02.
-dependencies = ["vectra-contracts", "httpx==0.28.1", "pyotp==2.10.0", "pyyaml==6.0.3"]
+# Sin la libreria comun de la API (Paso 1 del plan: la imagen no la lleva; tech-stack: `httpx` propio). U12-T02 agrega `playwright` (login sin navegador visible, solo en
+# `clients.oidc`), `pyjwt[crypto]` (ES256 de `private_key_jwt` y firma de los tokens; `jwt` se usa directo, no por la libreria comun) y `pyarrow` (la particion `test` de U5, solo en `simulator`).
+dependencies = [
+  "vectra-contracts",
+  "httpx==0.28.1",
+  "pyotp==2.10.0",
+  "pyyaml==6.0.3",
+  "playwright==1.64.0",
+  "pyjwt[crypto]==2.15.1",
+  "pyarrow==26.0.1",
+]
 
 [tool.uv.sources]
 vectra-contracts = { workspace = true }

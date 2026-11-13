@@ -440,5 +440,5 @@ Notas:
 | U9 | 3 | C · D · E+cierre (11, 12, 14, 17, 18) |
 | U10 | 5 | A+B · C+D (5–9) · E1 (10–12) · E2 (13–16) · F+cierre (17, 18, 21, 23, 24). E partido el 2026-11-12 (decisión del usuario; alternativa conservadora de §4): U10-T03 y U10-T04; el cierre pasa a U10-T05 |
 | U11 | 3 | A+B · C+D · E+cierre (10–13, 15, 17, 18) |
-| U12 | 5 | sin cambio (su Paso 18 es la verificación consolidada) |
+| U12 | 6 | A+B (1–4) · C (5–6) · D (8, 10) · E (12, 13) · F (15, 17) · G+H (18–19). E y F partidos el 2026-11-13 (decisión del usuario): U12-T04 y U12-T05; la verificación consolidada (Paso 18) pasa a U12-T06 |
 | **Total** | **≈ 27** | antes ≈ 33 |
