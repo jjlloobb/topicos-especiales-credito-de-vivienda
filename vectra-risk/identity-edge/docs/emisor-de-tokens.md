@@ -48,12 +48,12 @@ En todos los 200 el token trae `iss` = `https://vectra.localtest.me/auth/realms/
 
 | Medida | HTTP | Resultado |
 |---|---|---|
-| M-a | 200 | `iss` = `https://vectra.localtest.me/auth/realms/vectra` (sin cambio) |
-| M-b, `aud` = URL de token interna | 400 | `invalid_client: Invalid token audience` (**sigue rechazada**) |
-| M-b, `aud` = URL de token pública / emisor público | 200 / 200 | `iss` público |
-| M-b, `aud` = emisor interno | 400 | `Invalid token audience` |
-| M-c (U0, `aud` interna) | 400 | `invalid_client: Invalid token audience` |
-| M-d con `Host` interno | 200 | `issuer` público, pero `token_endpoint` y `jwks_uri` bajo `https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/` |
+| M-e: a | 200 | `iss` = `https://vectra.localtest.me/auth/realms/vectra` (sin cambio) |
+| M-e: b, `aud` = URL de token interna | 400 | `invalid_client: Invalid token audience` (**sigue rechazada**) |
+| M-e: b, `aud` = URL de token pública / emisor público | 200 / 200 | `iss` público |
+| M-e: b, `aud` = emisor interno | 400 | `Invalid token audience` |
+| M-e: c (U0, `aud` interna) | 400 | `invalid_client: Invalid token audience` |
+| M-e: d con `Host` interno | 200 | `issuer` público, pero `token_endpoint` y `jwks_uri` bajo `https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/` |
 
 Con el modo dinámico Keycloak anuncia las URL internas en el *discovery* pero **no** las acepta como `aud` de la aserción, y el `iss` sigue
 siendo el público. La opción (a) de P-2 no resuelve H2; la (b) sí es consistente con lo medido: una `aud` igual al emisor público (o a
