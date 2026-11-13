@@ -16,7 +16,6 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import timedelta
-from pathlib import Path
 
 import httpx
 from external_paths import ROOT

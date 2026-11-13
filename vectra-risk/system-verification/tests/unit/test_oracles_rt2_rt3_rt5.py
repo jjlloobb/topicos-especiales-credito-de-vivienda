@@ -15,7 +15,6 @@ import pytest
 from fake_clock import FakeClock
 from rt5_world import (
     APP_LOG,
-    JOB,
     PROXY_LOG,
     RUN_ID,
     JobKubectl,
