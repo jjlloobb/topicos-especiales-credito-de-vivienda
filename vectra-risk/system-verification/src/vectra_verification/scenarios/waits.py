@@ -1,6 +1,6 @@
 """Esperas con el reloj inyectado (U12-T03, P-4 (a); NFR-U12-42). Una sola funcion de sondeo: condicion, intervalo y plazo, con `Clock.sleep`.
 
-Ningun modulo de `scenarios/` llama a `time.sleep`, `time.time` ni `datetime.now`: las esperas largas (15 min de la ventana de RT-5, 12 a 19 min de `no_disponible`, 1 800 s de RT-2,
+Ningun modulo de `scenarios/` duerme ni lee la hora del sistema por su cuenta (solo el reloj inyectado): las esperas largas (15 min de la ventana de RT-5, 12 a 19 min de `no_disponible`, 1 800 s de RT-2,
 45 min de bias, 300 s del barrido) se prueban con el reloj falso, sin dormir.
 """
 
