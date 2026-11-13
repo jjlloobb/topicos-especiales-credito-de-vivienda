@@ -7,10 +7,12 @@ de prueba cambia una sola cosa del mundo correcto, y el resto sigue igual (NFR-U
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -508,5 +510,16 @@ class Rt2World:
         self.bff.close()
 
 
-def decode(text: str) -> Any:
-    return json.loads(text)
+def make_package(base: Path, model_id: str) -> Path:
+    """Un paquete de U5 chico (los archivos de `manifest.json`): lo que `registro-cuerpo.sh` y `registration_body` leen."""
+    directory = base / model_id
+    directory.mkdir(parents=True, exist_ok=True)
+    files = []
+    for name in ("predictor.json", "explainer.json", "feature_dictionary.json", "feature_spec.json"):
+        data = json.dumps({"model_version_id": model_id, "name": name}).encode()
+        (directory / name).write_bytes(data)
+        files.append({"name": name, "sha256": hashlib.sha256(data).hexdigest(), "model_version_id": model_id})
+    (directory / "manifest.json").write_text(
+        json.dumps({"model_version_id": model_id, "files": files}), encoding="utf-8"
+    )
+    return directory

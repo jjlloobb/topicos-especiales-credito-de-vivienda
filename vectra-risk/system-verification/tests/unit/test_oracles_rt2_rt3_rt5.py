@@ -385,14 +385,13 @@ def test_rt5_json_helpers_are_valid() -> None:
 # --- rt2-setup (CA-10) -------------------------------------------------------------------------------------------------------------
 # El BFF **real** en proceso (con los dobles de U10 para governance y case-service, con estado): cada escritura sale con un token de step-up y con el `sub` del usuario.
 
-import hashlib
 import subprocess
 from collections.abc import Iterator
 from pathlib import Path
 
 from external_paths import ROOT
 from registry_read_double import freeze_item
-from rt2_world import PROXY, REFERENCE, Rt2World
+from rt2_world import PROXY, REFERENCE, Rt2World, make_package
 from vectra_verification.scenarios import rt2
 from vectra_verification.scenarios.common import ScenarioError, registration_body
 
@@ -403,21 +402,6 @@ def world() -> Iterator[Rt2World]:
     built.add_model(REFERENCE, "activo", registered_by="otro-ingeniero", approved_by="otro-cro")
     yield built
     built.close()
-
-
-def make_package(base: Path, model_id: str) -> Path:
-    """Un paquete de U5 chico (los 5 archivos de `manifest.json`): lo que `registro-cuerpo.sh` y `registration_body` leen."""
-    directory = base / model_id
-    directory.mkdir(parents=True, exist_ok=True)
-    files = []
-    for name in ("predictor.json", "explainer.json", "feature_dictionary.json", "feature_spec.json"):
-        data = json.dumps({"model_version_id": model_id, "name": name}).encode()
-        (directory / name).write_bytes(data)
-        files.append({"name": name, "sha256": hashlib.sha256(data).hexdigest(), "model_version_id": model_id})
-    (directory / "manifest.json").write_text(
-        json.dumps({"model_version_id": model_id, "files": files}), encoding="utf-8"
-    )
-    return directory
 
 
 def versions(
