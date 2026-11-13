@@ -1,0 +1,52 @@
+[importlinter]
+root_packages =
+    vectra_verification
+include_external_packages = True
+
+# NFR-U12-01, Paso 1: `sampler`, `report`, `story_map` y `rt2_latency` no hacen E/S: ni red, ni procesos, ni asincronia, ni los modulos con E/S de la
+# unidad. `story_map` lee su archivo con `pathlib` (P-3); `yaml` se prohibe aqui a los otros tres y se permite solo en `story_map`.
+[importlinter:contract:logica-pura-sin-es]
+name = sampler, report, story_map y rt2_latency no hacen E/S
+type = forbidden
+source_modules =
+    vectra_verification.sampler
+    vectra_verification.report
+    vectra_verification.story_map
+    vectra_verification.rt2_latency
+forbidden_modules =
+    httpx
+    requests
+    socket
+    subprocess
+    asyncio
+    pyotp
+    vectra_verification.credentials
+    vectra_verification.evidence
+    vectra_verification.manifest
+    vectra_verification.simulator
+    vectra_verification.driver
+    vectra_verification.cli
+    vectra_verification.clients
+    vectra_verification.scenarios
+    vectra_verification.load
+
+# P-3: `yaml` solo en `story_map`.
+[importlinter:contract:yaml-solo-en-story-map]
+name = sampler, report y rt2_latency no importan yaml
+type = forbidden
+source_modules =
+    vectra_verification.sampler
+    vectra_verification.report
+    vectra_verification.rt2_latency
+forbidden_modules =
+    yaml
+
+# Paso 1: U12 no depende de `vectra_common` (la imagen no la lleva). Esta instalada en el entorno del workspace: sin este contrato, un import
+# accidental pasaria aqui y fallaria en la imagen.
+[importlinter:contract:sin-vectra-common]
+name = ningun modulo importa vectra_common
+type = forbidden
+source_modules =
+    vectra_verification
+forbidden_modules =
+    vectra_common

@@ -25,6 +25,7 @@ members = [
     "vectra-reference",
     "vectra-risk",
     "vectra-scoring",
+    "vectra-verification",
 ]
 
 [[package]]
@@ -1987,6 +1988,7 @@ dev = [
     { name = "vectra-product" },
     { name = "vectra-reference" },
     { name = "vectra-scoring" },
+    { name = "vectra-verification" },
 ]
 
 [package.metadata]
@@ -2031,6 +2033,7 @@ dev = [
     { name = "vectra-product", editable = "product-metrics" },
     { name = "vectra-reference", editable = "reference-model" },
     { name = "vectra-scoring", editable = "scoring-explainability/scoring" },
+    { name = "vectra-verification", editable = "system-verification" },
 ]
 
 [[package]]
@@ -2045,6 +2048,25 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "vectra-common", editable = "contracts/python/vectra_common" },
+    { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
+]
+
+[[package]]
+name = "vectra-verification"
+version = "0.1.0"
+source = { editable = "system-verification" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pyotp" },
+    { name = "pyyaml" },
+    { name = "vectra-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = "==0.28.1" },
+    { name = "pyotp", specifier = "==2.10.0" },
+    { name = "pyyaml", specifier = "==6.0.3" },
     { name = "vectra-contracts", editable = "contracts/python/vectra_contracts" },
 ]
 
