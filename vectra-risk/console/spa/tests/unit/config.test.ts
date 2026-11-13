@@ -43,6 +43,16 @@ describe("constants.ts", () => {
     expect(constants.CASE_REFRESH_SECONDS).toBeLessThan(constants.CASE_REFRESH_MAX_SECONDS);
   });
 
+  it("MFA_MAX_AGE_SECONDS es MFA_MAX_AGE de U0 (BR-U0-72), leido de su archivo", () => {
+    const source = readFileSync(
+      resolve(VECTRA_RISK, "contracts", "python", "vectra_contracts", "src", "vectra_contracts", "routes", "__init__.py"),
+      "utf-8",
+    );
+    const found = /^MFA_MAX_AGE: Final = (\d+)$/m.exec(source);
+    expect(found).not.toBeNull();
+    expect(constants.MFA_MAX_AGE_SECONDS).toBe(Number(found?.[1]));
+  });
+
   it.each(["kind", "staging", "prod"])("IDLE_LOGOUT_SECONDS = ssoSessionIdleTimeout de realm.%s.yaml", (env) => {
     const path = resolve(VECTRA_RISK, "identity-edge", "keycloak", "realm", `realm.${env}.yaml`);
     const realm = parse(readFileSync(path, "utf-8")) as { ssoSessionIdleTimeout?: number };

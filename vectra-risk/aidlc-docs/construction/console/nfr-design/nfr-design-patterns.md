@@ -81,7 +81,11 @@ referencian en el Infrastructure Design y en el plan de tareas.
 ## 3. Sesión y seguridad del navegador
 
 ### P-U10-07 — Sesión en memoria, step-up e inactividad (BR-U10-05, 06; NFR-U10-40, 41)
-- `oidc-client-ts`: `UserManager` con `InMemoryWebStorage` para el login, el refresco y el estado de usuario.
+- `oidc-client-ts`: `UserManager` con `InMemoryWebStorage` para el **usuario y los tokens** (login, refresco).
+- **Login por redirección** (decisión del usuario, 2026-11-12; precisa P-U10-07, BR-U10-05 y tech-stack §2 tras la ronda 1 de U10-T03). Una redirección completa recarga la página y borra la memoria, así que el `state`, el `code_verifier` y el `nonce` del flujo van en `sessionStorage` (`stateStore` del login), con **una clave por flujo** (`oidc.<state>`) que `oidc-client-ts` borra al leer la respuesta del callback, con éxito o con error. Es el **único** uso de `sessionStorage` de la SPA: un solo módulo (`auth/loginStateStorage.ts`), nombrado en la configuración de ESLint, que sigue prohibiéndolo en el resto. Los tokens, el ID token y el perfil **nunca** salen de la memoria (BR-U10-05). Sin `signinPopup` ni iframe:
+  1. «Iniciar sesión» llama `signinRedirect`; el emisor vuelve a `/callback?code&state`, que es la propia SPA: `AuthProvider` canjea el código en memoria, limpia la URL (`history.replaceState`) y sigue en la misma página;
+  2. al cargar sin sesión en memoria, **una** redirección con `prompt=none`; si el emisor responde `login_required` (o cualquier error), se muestra el login interactivo y **no** se vuelve a redirigir (sin bucle);
+  3. el refresco usa el refresh token (`automaticSilentRenew`); `popup_redirect_uri` y `silent_redirect_uri` van vacíos, así que la librería no puede abrir un iframe ni una ventana.
 - **Step-up con la API de bajo nivel** (segunda revisión del Infrastructure Design de U10, 2026-10-10): `signinPopup` abre la ventana por su cuenta (no siempre dentro del clic) y procesa la respuesta en la ventana emergente, lo que contradice BR-U10-06. Por eso el módulo `stepup` usa `OidcClient` directamente:
   1. en el manejador del clic, `OidcClient.createSigninRequest({prompt: "login", max_age: 0, acr_values: "mfa", redirect_uri: "/stepup-callback"})` genera la URL con `state`, `nonce` y PKCE en un `stateStore` en memoria, y `window.open(url)` se llama de forma síncrona;
   2. `/stepup-callback` solo hace `postMessage({code, state}, location.origin)` y se cierra;
