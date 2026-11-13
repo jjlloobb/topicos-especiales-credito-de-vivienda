@@ -87,7 +87,7 @@ vectra-risk/system-verification/
 
 ### Bloque C — Clientes, simulador y conductor
 
-- [ ] **Paso 5 — Clientes de lectura y del gateway**
+- [x] **Paso 5 — Clientes de lectura y del gateway** (U12-T02)
   - `gateway` y `bff`: `httpx` con la cabecera de escenario de U8 y un `traceparent` con el prefijo de la corrida.
   - **Login y step-up sin navegador visible** (revisión del plan de tareas de U12, 2026-10-10): el BFF no hace el flujo OIDC, lo hace el cliente público `vectra-console` (U2), y Keycloak solo ofrece Authorization Code + PKCE (sin *password grant*). La herramienta actúa como ese cliente:
     1. genera `state`, `nonce` y `code_verifier`;
@@ -104,7 +104,7 @@ vectra-risk/system-verification/
   - Diseño: INF-U12-03; NFR-U12-50.
   - **Aceptación**: `uv run pytest system-verification/tests/integration/test_clients.py` con dobles (cada solicitud lleva la cabecera y el prefijo; el cliente del registro manda el token de `verification-reader`; un `port-forward` caído → error claro, sin reintento silencioso).
 
-- [ ] **Paso 6 — Simulador y conductor de decisiones**
+- [x] **Paso 6 — Simulador y conductor de decisiones** (U12-T02) — escenarios `rt1` y `rt4` diferidos por la demo
   - `simulator`: escenarios `normal`, `stratified`, `rt1`, `rt4` desde U5 (partición `test` y manifiesto adversarial), con `generator_version` y `seed` registrados; una `Idempotency-Key` por solicitud; ritmo ≤ 30/s; `RunReport` sin datos del solicitante.
   - `driver`: `analista-1` y `analista-2` por el BFF; `DecisionMix` con semilla; 409 y 422 contados, sin reintentar con otro contenido.
   - **Volumen de demostración** (BR-U12-06; pendientes consolidados, segunda tanda, 2026-10-10): la sección `decisions` envía **2 000** casos `normal` y el conductor los decide, con el modelo de referencia activo y antes de RT-2. Son los datos de la prueba en kind de U11 (INF-U11-06), del dashboard de producto, de la disparidad humana de U9 y, los primeros 1 000, de `CASE-SIZE`. El manifiesto registra el número enviado y el decidido.

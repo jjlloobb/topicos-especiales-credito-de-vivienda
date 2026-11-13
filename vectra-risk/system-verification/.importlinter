@@ -3,7 +3,7 @@ root_packages =
     vectra_verification
 include_external_packages = True
 
-# NFR-U12-01, Paso 1: `sampler`, `report`, `story_map` y `rt2_latency` no hacen E/S: ni red, ni procesos, ni asincronia, ni los modulos con E/S de la
+# NFR-U12-01, Paso 1 (y U12-T02: `playwright`, `jwt` y `pyarrow` tambien): `sampler`, `report`, `story_map` y `rt2_latency` no hacen E/S: ni red, ni procesos, ni asincronia, ni los modulos con E/S de la
 # unidad. `story_map` lee su archivo con `pathlib` (P-3); `yaml` se prohibe aqui a los otros tres y se permite solo en `story_map`.
 [importlinter:contract:logica-pura-sin-es]
 name = sampler, report, story_map y rt2_latency no hacen E/S
@@ -20,6 +20,9 @@ forbidden_modules =
     subprocess
     asyncio
     pyotp
+    playwright
+    jwt
+    pyarrow
     vectra_verification.credentials
     vectra_verification.evidence
     vectra_verification.manifest
@@ -50,3 +53,83 @@ source_modules =
     vectra_verification
 forbidden_modules =
     vectra_common
+
+# U12-T02: cada biblioteca con E/S o con navegador entra por un solo archivo. `allow_indirect_imports`: `driver` importa `simulator` (que importa `pyarrow`) y no por eso rompe el contrato.
+# `playwright` solo en `clients.oidc`.
+[importlinter:contract:playwright-solo-en-oidc]
+name = playwright solo en clients.oidc
+type = forbidden
+source_modules =
+    vectra_verification.guard
+    vectra_verification.credentials
+    vectra_verification.evidence
+    vectra_verification.clock
+    vectra_verification.sampler
+    vectra_verification.report
+    vectra_verification.story_map
+    vectra_verification.rt2_latency
+    vectra_verification.simulator
+    vectra_verification.driver
+    vectra_verification.manifest
+    vectra_verification.cli
+    vectra_verification.scenarios
+    vectra_verification.load
+    vectra_verification.clients._api
+    vectra_verification.clients.gateway
+    vectra_verification.clients.bff
+    vectra_verification.clients.registry
+    vectra_verification.clients.prom
+    vectra_verification.clients.loki
+    vectra_verification.clients.k8s_read
+forbidden_modules =
+    playwright
+allow_indirect_imports = True
+
+# `kubectl` se invoca desde un solo archivo, que es el que mira la prueba de verbos: `subprocess` solo en `clients.k8s_read`.
+[importlinter:contract:subprocess-solo-en-k8s-read]
+name = subprocess solo en clients.k8s_read
+type = forbidden
+source_modules =
+    vectra_verification.guard
+    vectra_verification.credentials
+    vectra_verification.evidence
+    vectra_verification.clock
+    vectra_verification.sampler
+    vectra_verification.report
+    vectra_verification.story_map
+    vectra_verification.rt2_latency
+    vectra_verification.simulator
+    vectra_verification.driver
+    vectra_verification.manifest
+    vectra_verification.cli
+    vectra_verification.scenarios
+    vectra_verification.load
+    vectra_verification.clients._api
+    vectra_verification.clients.oidc
+    vectra_verification.clients.gateway
+    vectra_verification.clients.bff
+    vectra_verification.clients.registry
+    vectra_verification.clients.prom
+    vectra_verification.clients.loki
+forbidden_modules =
+    subprocess
+allow_indirect_imports = True
+
+# `pyarrow` solo en `simulator` (la particion `test` de U5).
+[importlinter:contract:pyarrow-solo-en-simulator]
+name = pyarrow solo en simulator
+type = forbidden
+source_modules =
+    vectra_verification.guard
+    vectra_verification.credentials
+    vectra_verification.evidence
+    vectra_verification.clock
+    vectra_verification.driver
+    vectra_verification.manifest
+    vectra_verification.cli
+    vectra_verification.scenarios
+    vectra_verification.load
+    vectra_verification.clients
+forbidden_modules =
+    pyarrow
+allow_indirect_imports = True

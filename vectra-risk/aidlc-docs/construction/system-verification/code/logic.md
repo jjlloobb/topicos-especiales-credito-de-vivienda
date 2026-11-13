@@ -88,3 +88,15 @@ render(report) -> str
 
 Cobertura de ramas del 100 % en `report` y `sampler` (`make -C system-verification check`; NFR-U12-40). **`mutmut` en `report` está diferido por la
 demo (T3):** enmienda del recorte funcional, §3 U12, fila «4»; no se configuró. El ≥ 85 % del resto del paquete se comprueba en el Paso 16 (U12-T04).
+
+
+## Cambios de U12-T02 sobre `guard`, `credentials` y `evidence` (candidatas F-04, F-07, F-08 y F-09 de la revisión de U12-T01)
+
+- **F-04.** `guard.check_known` exige que el entorno sea **uno de** `guard.ENVIRONMENTS` (la misma instancia, no igual por valor); lo llaman `check_section` (y con él `check_job_patch`, `check_reactivation` y `check_decisions`) y `check_token_issuer`.
+  `Credentials` lo exige al crearse y, cuando se conecta de verdad (sin transporte inyectado), exige una dirección de bóveda de `ALLOWED_VAULT_HOSTS` (`vault.vault.svc`, `127.0.0.1`, `localhost`; esquema `http` o `https`). Con un transporte
+  inyectado (pruebas) no sale ninguna solicitud y la dirección no se mira. Las pruebas con host dinámico registran su entorno en `guard.ENVIRONMENTS` solo durante la prueba (`dynamic_environment`).
+- **F-07.** `_fragments` quita la armadura PEM (`-----BEGIN … -----`, `-----END … -----`) antes de partir el secreto: un certificado ya no da `evidence_contains_secret`; el cuerpo de la llave sigue protegido.
+- **F-08.** `scrub` quita el valor de las cabeceras en forma de tupla (`('Cookie', 'x')`, `(b'cookie', b'x')`) y de HAR (`{"name": "Cookie", "value": "x"}`), el `code=` de una URL o formulario (`[?&#]code=`) y los campos `code_verifier` y `otp`. `code` **no** es un campo general: es el
+  nombre del código de error de `Problem` y `{"code": "conflict_state"}` sale igual.
+- **F-09.** `Credentials.secret_values()` no incluye el token de la bóveda cuando es `root` en kind: es el token de desarrollo escrito en `platform/operators/vault-kind.yaml`, no un secreto, y como valor a buscar rechazaba toda evidencia con `/dev/root` o el logger `root`. Se excluye solo ese valor exacto y solo en kind
+  (un largo mínimo habría dejado sin proteger cualquier secreto corto): un token real (`hvs.…`) y `root` en staging siguen protegidos.
