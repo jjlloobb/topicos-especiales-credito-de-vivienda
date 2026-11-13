@@ -5,24 +5,42 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src tests --ignore-pattern tests/unit/eslint-fixtures",
-    "test": "vitest run"
+    "lint": "eslint src tests playwright.config.ts --ignore-pattern tests/unit/eslint-fixtures",
+    "test": "vitest run",
+    "build": "vite build"
   },
+  "browserslist": [
+    "last 2 Chrome versions",
+    "last 2 Edge versions",
+    "Firefox ESR"
+  ],
   "dependencies": {
+    "@tanstack/react-query": "5.107.1",
     "@vectra/contracts": "*",
     "oidc-client-ts": "3.5.0",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-aria-components": "1.22.1",
+    "react-dom": "19.3.1",
+    "react-router": "7.18.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.0",
+    "@size-limit/file": "12.1.0",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
     "@types/node": "22.20.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@typescript-eslint/parser": "8.72.1",
     "@vitejs/plugin-react": "6.3.0",
+    "@vitest/coverage-v8": "5.0.5",
     "eslint": "10.14.0",
     "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react": "7.37.5",
+    "fast-check": "4.10.2",
+    "jsdom": "31.0.0",
+    "size-limit": "12.1.0",
     "typescript": "5.9.3",
     "vite": "8.3.8",
     "vitest": "5.0.5",

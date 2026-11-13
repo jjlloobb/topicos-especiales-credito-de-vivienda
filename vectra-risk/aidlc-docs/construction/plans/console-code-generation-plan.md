@@ -68,6 +68,7 @@ vectra-risk/console/
 > - **P-3:** `object_rules.py` expone `OBJECT_RULES`, un mapa `operation_id` → regla o `None`; el Paso 5 exige al arrancar que las 30 rutas estén en él.
 > - `bff/pytest.ini` y `bff/coveragerc` apuntan la cobertura a `console_bff`, como en U8 y U9.
 > - **U10-T02:** se agrega `bff/tools/role_matrix.py` (Paso 7; `--check` compara la matriz generada de `REGISTRY`, C03 y `contracts/openapi/role-endpoint-matrix.md`, P-4 (a)); `pytest.ini` suma `tests/doubles`, `../../contracts/tests` y `tools` a `pythonpath`; `bff/tests/doubles/` lleva los cinco dobles de los destinos y el soporte de tokens (`bff_*.py`).
+> - **U10-T03:** se agrega `spa/playwright.config.ts` (proyectos `chromium` y `firefox`, un `worker`, `webServer` de los dobles y de Vite; no estaba en esta estructura) y `spa/scripts/check-browsers.mjs`; `spa/tests/poc/` lleva la PoC del Paso 10 (página, callback, página de otro origen, `vite.poc.config.ts` y `poc.spec.ts`) y `spa/tests/support/` los dobles de las pruebas; `bff/tests/doubles/` suma `bff_oidc.py` (emisor OIDC de prueba) y `bff_e2e_server.py` (el BFF con dobles y el emisor en un proceso, para Playwright), con `bff/tests/integration/test_bff_e2e_server.py`. `console/Makefile` suma `e2e-spa`.
 
 ---
 
@@ -145,19 +146,19 @@ vectra-risk/console/
 
 ### Bloque E — SPA
 
-- [ ] **Paso 10 — Prueba de concepto del step-up (puerta de los Pasos 11–15)**
+- [x] **Paso 10 — Prueba de concepto del step-up (puerta de los Pasos 11–15)** (U10-T03)
   - Página mínima con un botón que, en su manejador de clic, llama a `OidcClient.createSigninRequest` (`prompt=login`, `max_age=0`, `acr_values=mfa`, `redirect_uri=/stepup-callback`, `stateStore` en `InMemoryWebStorage`) y a `window.open` de forma síncrona; `stepup-callback.ts` hace `postMessage({code, state}, location.origin)` y se cierra; la ventana principal valida origen, ventana y `state` y llama a `processSigninResponse`.
   - Diseño: P-U10-07; BR-U10-06; tech-stack (OIDC).
   - **Aceptación**: `npx playwright test console/spa/tests/poc` en Chromium y Firefox contra Keycloak de kind (operador) y contra un emisor OIDC de prueba en CI: el token nuevo trae `acr = mfa`; `sessionStorage` y `localStorage` vacíos; un `window.open` llamado fuera del clic queda bloqueado; un `postMessage` de otro origen se ignora. Si la prueba falla, se detiene el bloque y se revisa P-U10-07 antes de seguir.
 
-- [ ] **Paso 11 — `auth`, `stepup` e `inactivity`**
-  - `auth`: `UserManager` con `InMemoryWebStorage`, login con PKCE, refresco rotativo, login silencioso (`prompt=none`), logout con `end_session_endpoint`.
+- [x] **Paso 11 — `auth`, `stepup` e `inactivity`** (U10-T03)
+  - `auth`: `UserManager` con `userStore` en `InMemoryWebStorage` y login por **redirección** (`signinRedirect`) con PKCE; solo el estado transitorio del flujo (`state`, `code_verifier`, `nonce`) en `sessionStorage` (un solo módulo, excepción acotada de ESLint); recarga con una redirección `prompt=none` (sin bucle), refresco rotativo con el refresh token, logout con `end_session_endpoint` (decisión del usuario, 2026-11-12, ronda 1 de U10-T03; precisa P-U10-07).
   - `stepup`: el flujo del Paso 10 con el botón «Verificar y confirmar» (token sin MFA reciente) y `StepUpDialog` (403 `mfa_required` inesperado); reintento único con el mismo cuerpo; vencimiento de 5 min; anuncio `aria-live` y devolución del foco en < 1 s.
   - `inactivity`: contador de la sesión (`keydown`, `pointerdown`, `focusin`, `wheel`, `scroll`), difusión `activity` y `logout` por `BroadcastChannel`, aviso a los 25 min y logout a los 30.
   - Diseño: BR-U10-05, 06, 20; P-U10-07; NFR-U10-40, 41, 52.
   - **Aceptación**: `npm run -w console/spa test -- auth stepup inactivity` con reloj simulado: PBT-U10-05 (fast-check, stateful); actividad en la pestaña A durante 40 min con B quieta → sin logout; 30 min sin actividad → logout en las dos; el refresco de la bandeja no reinicia el contador.
 
-- [ ] **Paso 12 — `api`, `i18n`, `reporter` y `version`**
+- [x] **Paso 12 — `api`, `i18n`, `reporter` y `version`** (U10-T03; parcial: ver `tareas/U10-T03-spa-acceso-y-base.md`)
   - `api`: cliente `openapi-fetch` de U0 con timeout de 10 s y TanStack Query.
   - `i18n`: `messages.es.json` y `labels.es.json` con un texto por cada `code`, `reason` y valor de enumerado de U0 (arreglos constantes de `contracts/ts`); `Intl` en `es-CO`.
   - `reporter`: traducción al catálogo cerrado de `error_code`, ≤ 10 por minuto, `fetch` con `keepalive`, sin mensajes, trazas ni URL con parámetros.
@@ -165,24 +166,24 @@ vectra-risk/console/
   - Diseño: BR-U10-17, 18, 21, 22; P-U10-06, 09; NFR-U10-53.
   - **Aceptación**: `npm run -w console/spa test -- api i18n reporter version`: PBT-U10-06; `uv run python contracts/tools/forbidden_phrases.py console/spa/src/i18n/*.json` en 0; 20 errores en un minuto → 10 envíos; `version.json` distinto → aviso sin recarga.
 
-- [ ] **Paso 13 — Vistas de casos**
+- [x] **Paso 13 — Vistas de casos** (U10-T04; parcial: ver `tareas/U10-T04-spa-vistas-y-e2e.md`)
   - `CasesInbox` (filtros de `CaseFilter` en la URL, «Ir al caso» por `case_id`, refresco de 15 s), `CaseDetail` (refresco de 3 s hasta 2 min), `RecommendationSummary`, `ExplanationPanel` (`record_explanation_view` una vez por vista, solo con rol `analista`, y una prueba de que `cro` no la llama; seguimiento de la quinta revisión de coherencia, 2026-10-31), `ApplicationView` (`free_text` como texto), `CreditStatusBadge` (incluido `no_integrado`), `DecisionForm` (validación igual que el servidor, diálogo de confirmación, botón deshabilitado en curso), `ManualApplicationForm` (`Idempotency-Key` por envío), `PersistentFailures` con `retry`, `ApplicantSummaryButton`, `Dossier` (PDF en el navegador) e `IntegrityCheck` (inicio con MFA, `already_active`, estado cada 30 s).
   - Diseño: BR-U10-07..11, 03; frontend-components. Historias: US-102, 104, 106, 107, 108, 109, 110, 112, 402, 403, 501, 502.
   - **Aceptación**: `npm run -w console/spa test -- views/cases`: PBT-U10-04 (mismo oráculo que PBT-U8-03); las pruebas de ejemplo del FD de casos (bandeja sin `vencido` por omisión, `free_text` con `<script>`, `no_integrado`, baja confianza y `revision_requerida`, `decision_already_recorded`, expediente sin identificadores, `retry` del CRO, panel de explicación con una sola llamada y ninguna sin abrirlo); la URL de la bandeja nunca contiene datos del solicitante.
 
-- [ ] **Paso 14 — Vistas de gobierno y sesgo**
+- [x] **Paso 14 — Vistas de gobierno y sesgo** (U10-T04; parcial: ver `tareas/U10-T04-spa-vistas-y-e2e.md`)
   - `RoleMenu` desde `get_me` con las rutas por rol de BR-U10-12; modelos, políticas y fuentes con sus diálogos con MFA; `PrePostReportView` + `DecideDataSourceDialog` (sin informe, sin botones); `BiasDashboard` (`DisparityTables` con celdas insuficientes y `GrafanaEmbed` con la leyenda propia encima); `Freezes` y `FreezeContextView` + `ResolveFrozenDialog` (aviso de `reactivar`).
   - Diseño: BR-U10-12..16. Historias: US-201, 203, 205, 206, 304, 305, 306, 307.
   - **Aceptación**: `npm run -w console/spa test -- views/governance views/bias`: las rutas por rol coinciden con la columna «Roles» de C03 (`cro` no ve el paquete de contexto; `cumplimiento` no ve la bandeja); celdas insuficientes nunca muestran 0 ni una tasa; el `disclaimer` y la leyenda siempre presentes.
 
-- [ ] **Paso 15 — CSP, accesibilidad y extremo a extremo con dobles**
+- [x] **Paso 15 — CSP, accesibilidad y extremo a extremo con dobles** (U10-T04; parcial: ver `tareas/U10-T04-spa-vistas-y-e2e.md`)
   - Playwright contra la SPA de Vite y el BFF con dobles: recorrido de todas las vistas y diálogos con un listener de `securitypolicyviolation` (0 violaciones con la CSP de U2, Trusted Types incluido) y `@axe-core/playwright` (0 `serious` y `critical`).
   - `index.html` sin `<script>` ni `<style>` en línea; `build.modulePreload.polyfill = false`.
   - `size-limit` ≤ 250 KiB comprimido inicial.
   - Diseño: NFR-U10-03, 42, 50, 51; P-U10-08. Historias: US-611.
   - **Aceptación**: `npx playwright test console/spa/tests/e2e console/spa/tests/csp console/spa/tests/a11y --project=chromium --project=firefox`; `npx size-limit` en 0.
 
-- [ ] **Paso 16 — Resumen del frontend**
+- [x] **Paso 16 — Resumen del frontend** (U10-T04; parcial: ver `tareas/U10-T04-spa-vistas-y-e2e.md`)
   - Cobertura de ramas **100 %** en `stepup` y en la validación de la decisión, ≥ 80 % en el resto; Stryker en `stepup`.
   - Resumen en `aidlc-docs/construction/console/code/spa.md`.
   - Diseño: NFR-U10-61, 62.

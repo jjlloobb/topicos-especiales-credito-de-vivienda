@@ -5,3 +5,6 @@ core:
 coreMock:
   enabled: true
 allowTestScenarios: true
+# Emisor de los tokens de staging (U02-T21): el hostname publico de Keycloak, que es el `iss` que firma (identity-edge/docs/emisor-de-tokens.md).
+keycloak:
+  issuer: https://vectra.staging.banco.internal/auth/realms/vectra

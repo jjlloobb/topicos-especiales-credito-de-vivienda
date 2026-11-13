@@ -1,0 +1,90 @@
+# `RuidoExplicacion` (S = 3 del archivo de parametros, BR-U11-14) y `ProductMetricsDegraded` (for: 1 h; BR-U11-10), sobre las series `:dedup`
+# (P-U11-05): con dos replicas identicas hay una sola alerta. La alerta de ruido es una senal de producto, no una falla tecnica.
+rule_files:
+  - ../product-metrics.rules.yaml
+evaluation_interval: 1m
+
+tests:
+  - name: ruido-a-los-dos-lados-del-umbral-S
+    interval: 1m
+    input_series:
+      - series: 'vectra_product_noise_days_below_floor{job="product-metrics", service="product-metrics", pod="a", instance="10.0.0.1:8081"}'
+        values: '2x10 3x10' # S = 3: 2 dias no dispara; 3 dispara de inmediato (for: 0)
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: RuidoExplicacion
+        exp_alerts: []
+      - eval_time: 12m # la alerta lee la `:dedup`, que se graba un paso de evaluacion antes: el valor 3 de 11 min llega a la alerta a los 12
+        alertname: RuidoExplicacion
+        exp_alerts:
+          - exp_labels: {severity: SEV3, job: product-metrics, service: product-metrics}
+            exp_annotations:
+              summary: La explicacion se consulta por debajo del piso F durante S dias seguidos (senal de producto, no una falla tecnica)
+              runbook_url: product-metrics/observability/runbooks/product-noise.md
+
+  - name: ruido-dos-replicas-identicas-una-sola-alerta
+    interval: 1m
+    input_series:
+      - series: 'vectra_product_noise_days_below_floor{job="product-metrics", service="product-metrics", pod="a", instance="10.0.0.1:8081"}'
+        values: '4x10'
+      - series: 'vectra_product_noise_days_below_floor{job="product-metrics", service="product-metrics", pod="b", instance="10.0.0.2:8081"}'
+        values: '4x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: RuidoExplicacion
+        exp_alerts:
+          - exp_labels: {severity: SEV3, job: product-metrics, service: product-metrics}
+            exp_annotations:
+              summary: La explicacion se consulta por debajo del piso F durante S dias seguidos (senal de producto, no una falla tecnica)
+              runbook_url: product-metrics/observability/runbooks/product-noise.md
+
+  - name: degraded-a-los-dos-lados-de-1-hora
+    interval: 1m
+    input_series:
+      - series: 'vectra_product_metrics_degraded{job="product-metrics", service="product-metrics", pod="a", instance="10.0.0.1:8081"}'
+        values: '1x100'
+    alert_rule_test:
+      # La alerta lee la `:dedup` y los grupos de reglas se evaluan sin orden fijo: el borde de 1 h tiene un paso de evaluacion de holgura (1 h +/- 1 min),
+      # asi que se prueba a 2 min de cada lado para que el caso no dependa de ese orden.
+      - eval_time: 58m
+        alertname: ProductMetricsDegraded
+        exp_alerts: []
+      - eval_time: 62m
+        alertname: ProductMetricsDegraded
+        exp_alerts:
+          - exp_labels: {severity: SEV3, job: product-metrics, service: product-metrics}
+            exp_annotations:
+              summary: Mas del 1 % de las entradas de los ultimos 30 dias se excluyeron del calculo (BR-U11-10)
+              runbook_url: product-metrics/observability/runbooks/product-metrics-degraded.md
+
+  - name: degraded-dos-replicas-una-sola-alerta
+    interval: 1m
+    input_series:
+      - series: 'vectra_product_metrics_degraded{job="product-metrics", service="product-metrics", pod="a", instance="10.0.0.1:8081"}'
+        values: '1x100'
+      - series: 'vectra_product_metrics_degraded{job="product-metrics", service="product-metrics", pod="b", instance="10.0.0.2:8081"}'
+        values: '1x100'
+    alert_rule_test:
+      - eval_time: 61m
+        alertname: ProductMetricsDegraded
+        exp_alerts:
+          - exp_labels: {severity: SEV3, job: product-metrics, service: product-metrics}
+            exp_annotations:
+              summary: Mas del 1 % de las entradas de los ultimos 30 dias se excluyeron del calculo (BR-U11-10)
+              runbook_url: product-metrics/observability/runbooks/product-metrics-degraded.md
+
+  - name: degraded-solo-una-replica-con-la-marca-sigue-contando-como-una
+    interval: 1m
+    input_series:
+      - series: 'vectra_product_metrics_degraded{job="product-metrics", service="product-metrics", pod="a", instance="10.0.0.1:8081"}'
+        values: '1x100'
+      - series: 'vectra_product_metrics_degraded{job="product-metrics", service="product-metrics", pod="b", instance="10.0.0.2:8081"}'
+        values: '0x100'
+    alert_rule_test:
+      - eval_time: 61m # `max` entre replicas: una sola replica con la marca basta para el aviso
+        alertname: ProductMetricsDegraded
+        exp_alerts:
+          - exp_labels: {severity: SEV3, job: product-metrics, service: product-metrics}
+            exp_annotations:
+              summary: Mas del 1 % de las entradas de los ultimos 30 dias se excluyeron del calculo (BR-U11-10)
+              runbook_url: product-metrics/observability/runbooks/product-metrics-degraded.md

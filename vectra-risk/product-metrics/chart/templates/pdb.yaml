@@ -1,0 +1,14 @@
+{{- /* PDB por `app.kubernetes.io/name` (require-spread-and-pdb de U1): con 2 replicas fijas, una siempre en pie en un drenaje (NFR-U11-05). */ -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: product-metrics
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: product-metrics
+    app.kubernetes.io/part-of: product-metrics
+spec:
+  minAvailable: {{ .Values.deployment.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: product-metrics

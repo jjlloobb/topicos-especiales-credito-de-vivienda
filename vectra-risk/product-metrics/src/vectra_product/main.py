@@ -8,9 +8,10 @@ y la ejercen las pruebas en el mismo proceso. `main()` solo lee el entorno de ca
 - **Readiness:** lista si hay instantanea publicada **o** el breaker hacia U3 esta abierto o semiabierto (una pasada fallida o vencida
   no basta; al cerrarse el breaker sin instantanea vuelve a 503). Un predicado que lanza una excepcion es 503 (lo resuelve `ops_server`).
 - **Sin `run_service` ni `ops_server.serve`**, que exigen una app de 8080. Se sirve la app de `create_ops_app` con un `uvicorn.Server`
-  propio que **no captura señales**: uvicorn, al salir de una señal capturada, la vuelve a emitir y el proceso muere con estado -15 en
-  lugar de 0. Aqui `SIGTERM` activa `stop`: no se toman ciclos nuevos, la pagina en curso termina, la pasada a medias se descarta y el
-  proceso sale con codigo 0.
+  de uvicorn tal cual. `SIGTERM` y `SIGINT` los trata `main` con `loop.add_signal_handler`, que activa `stop`: no se toman ciclos nuevos, la
+  pagina en curso termina, la pasada a medias se descarta y el proceso sale con codigo 0. Es ese manejador del bucle el que da el 0: uvicorn
+  captura las señales mientras sirve y, al salir, las vuelve a emitir al manejador que tenia el bucle (C-4 de U11-T03: una subclase que
+  desactivaba esa captura era redundante y ninguna prueba la ejercia; las pruebas del proceso real y de la imagen fijan el 0).
 - **Entorno** (solo aqui y solo cableado): `VECTRA_REGISTRY_URL` (obligatoria), `VECTRA_POLICY_PATH` (opcional) y las `VECTRA_CLIENT_ID`,
   `VECTRA_TOKEN_URL`, `VECTRA_CLIENT_KEY_PATH` y `VECTRA_CLIENT_KEY_ID` que lee `vectra_common.service_token.provider_from_env`.
   NFR-U11-21: el unico acceso HTTP saliente es `vectra_common.deps` (ningun modulo importa `httpx`) y no hay rutas de negocio.
@@ -19,12 +20,12 @@ y la ejercen las pruebas en el mismo proceso. `main()` solo lee el entorno de ca
 from __future__ import annotations
 
 import asyncio
-import contextlib
+import logging
 import os
 import random
 import signal
 import time
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
@@ -64,14 +65,6 @@ def make_readiness(holder: Holder, reader: Reader) -> Callable[[], bool]:
     return ready
 
 
-class _OpsServer(uvicorn.Server):
-    """`uvicorn.Server` que no captura `SIGTERM` ni `SIGINT`: `main` los trata con `stop` y el proceso sale con codigo 0."""
-
-    @contextlib.contextmanager
-    def capture_signals(self) -> Iterator[None]:
-        yield
-
-
 async def run(
     reader: Reader,
     params: Params,
@@ -88,7 +81,7 @@ async def run(
     holder = Holder()
     operations = Operations()
     collector = register(holder, REGISTRY)
-    server: _OpsServer | None = None
+    server: uvicorn.Server | None = None
     try:
         state = ProductState(reader, wall, operations.read)
         scheduler = Scheduler(
@@ -103,7 +96,7 @@ async def run(
             stop=stop,
         )
         app = create_ops_app(make_readiness(holder, reader))
-        server = _OpsServer(
+        server = uvicorn.Server(
             uvicorn.Config(app, host=host, port=port, log_config=None, access_log=False, lifespan="off")
         )
         serving = asyncio.ensure_future(server.serve())
@@ -140,9 +133,16 @@ async def _amain(stop: asyncio.Event, port: int) -> int:
     return 0
 
 
+#: Loggers de terceros que escriben por `logging` estandar: con el filtro de U0 (`configure`) una linea de `INFO` de ellos queda solo con `level`, `timestamp` y
+#: `service`, sin contenido (C-6, F-06 de U11-T02). Se suben a `WARNING`; U0 no se toca.
+QUIET_LOGGERS: Final = ("uvicorn", "uvicorn.error", "uvicorn.access", "httpx", "httpcore")
+
+
 def main(port: int = OPS_PORT) -> int:
     process.init("service")
     configure(SERVICE_NAME)
+    for name in QUIET_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
 
     async def go() -> int:
         stop = asyncio.Event()

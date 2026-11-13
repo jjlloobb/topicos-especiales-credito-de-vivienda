@@ -55,14 +55,14 @@ vectra-risk/system-verification/
 
 ### Bloque A — Estructura y barreras
 
-- [ ] **Paso 1 — Esqueleto y prueba de comandos de `kubectl`**
+- [x] **Paso 1 — Esqueleto y prueba de comandos de `kubectl`** (U12-T01)
   - Directorios de §1; `pyproject.toml` como miembro del workspace (depende de `vectra_contracts`; **no** de `vectra_common`).
   - import-linter: `sampler`, `report`, `story_map` y `rt2_latency` sin E/S.
   - Prueba estática: el código y los guiones solo invocan `kubectl` con `get`, `auth can-i`, `logs` y `port-forward`; cualquier `exec`, `apply`, `create`, `delete`, `patch`, `scale`, `edit` o `rollout` (y `argocd app sync`) → falla.
   - Diseño: NFR-U12-01, 43; INF-U12-02.
   - **Aceptación**: `uv sync --frozen && uv run lint-imports --config system-verification/.importlinter`; `uv run pytest system-verification/tests/unit/test_kubectl_verbs.py` (un fixture con `kubectl apply` → falla).
 
-- [ ] **Paso 2 — Barrera de entorno, credenciales y filtro de evidencias**
+- [x] **Paso 2 — Barrera de entorno, credenciales y filtro de evidencias** (U12-T01)
   - `guard`: lista de `issuer` y hosts de kind y staging; secciones permitidas por entorno (staging: `prepare`, sin parche de Jobs; seguimiento de la quinta revisión de coherencia, 2026-10-31; `decisions` ≤ 100, lectura de `u11`, `report`); `decisions` no empieza después de las 23:00 UTC.
   - `credentials`: lee del Vault de kind (o la bóveda de staging) con la sesión del operador, en las rutas que usa ESO, la llave de `channel-simulator` y de `verification-reader` y las contraseñas y semillas TOTP de los usuarios sintéticos, salvo las de `cumplimiento-*` fuera de kind (excepción de FR-BIA-05; seguimiento de la cuarta revisión de coherencia, 2026-10-31); solo en memoria; TOTP con `pyotp`.
   - `evidence`: filtro que quita `Authorization`, tokens, cookies y semillas; falla si una salida contiene un JWT o una semilla.
@@ -71,7 +71,7 @@ vectra-risk/system-verification/
 
 ### Bloque B — Lógica pura
 
-- [ ] **Paso 3 — `sampler`, `rt2_latency`, `story_map` y `report`**
+- [x] **Paso 3 — `sampler`, `rt2_latency`, `story_map` y `report`** (U12-T01)
   - `sampler`: muestra `normal` y `stratified` (≥ 30 por celda de U9: atributo, grupo y banda), determinista con semilla; informa las celdas que no alcanzan.
   - `rt2_latency`: inicio = menor `recorded_at` de las `recommendation` del lote; fin = `recorded_at` del `freeze`; `passed` ≤ 1 800 s.
   - `story_map`: carga `report/story-map.yaml` y falla ante una historia sin fila o una evidencia desconocida.
@@ -79,7 +79,7 @@ vectra-risk/system-verification/
   - Diseño: BR-U12-01, 06, 07, 11, 13; domain-entities §3, §4; NFR-U12-11, 20, 21.
   - **Aceptación**: `HYPOTHESIS_PROFILE=ci uv run pytest system-verification/tests/property/test_sampler.py tests/property/test_report.py tests/property/test_rt2_latency.py tests/unit/test_story_map.py`: PBT-U12-01, 02 y 04; las pruebas de ejemplo de business-logic-model §3 del informe y de la latencia.
 
-- [ ] **Paso 4 — Resumen de la lógica pura**
+- [x] **Paso 4 — Resumen de la lógica pura** (U12-T01) — `mutmut` diferido por la demo (T3)
   - Cobertura de ramas **100 %** en `report` y `sampler`; `mutmut` en `report`.
   - Cobertura de ramas **≥ 85 %** en el resto del paquete (NFR-U12-40): se comprueba en el Paso 16, cuando existen los clientes y los escenarios (pendientes posteriores al cierre, 2026-10-10).
   - Resumen en `aidlc-docs/construction/system-verification/code/logic.md`.

@@ -3,7 +3,7 @@ ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 UV := cd $(ROOT) && uv run
 NPM := cd $(ROOT) && npm run -w console/spa
 
-.PHONY: lint-bff lint-spa lint test-bff test-spa test check
+.PHONY: lint-bff lint-spa lint test-bff test-spa build-spa e2e-spa test check
 
 lint-bff:
 	$(UV) ruff check console
@@ -28,9 +28,24 @@ test-bff:
 	cd $(ROOT) && HYPOTHESIS_PROFILE=ci uv run pytest console/bff/tests/unit console/bff/tests/property -q -p no:cacheprovider --rootdir=console/bff $(COV_PURE)
 	cd $(ROOT) && uv run python console/bff/tools/role_matrix.py --check
 
+# U10-T03 (CA-6) y U10-T04 (Paso 16): vitest con cobertura de ramas. Umbrales en `console/spa/vite.config.ts`: 100 % en `src/stepup/**` (NFR-U10-61) y en
+# `src/views/cases/decision-validation.ts` (la validacion de la decision, PBT-U10-04), y >= 80 % en todo `src/`. Imprime la semilla de las PBT
+# (NFR-U10-62); `VECTRA_PBT_PROFILE=nightly` elige el perfil nocturno.
 test-spa:
-	$(NPM) test
+	$(NPM) test -- --coverage
 
-test: test-bff test-spa
+# U10-T04 (Paso 15): el build de la SPA y su presupuesto (NFR-U10-03: el JavaScript inicial <= 250 KiB con gzip; lee el manifiesto de Vite).
+build-spa:
+	$(NPM) build
+	cd $(ROOT) && npm exec -w console/spa -- size-limit
+
+# U10-T03 (CA-1, la puerta del Paso 10) y U10-T04 (Paso 15): Playwright en Chromium y Firefox contra el emisor OIDC de prueba y el BFF con dobles:
+# la PoC del step-up (`tests/poc`), el recorrido de las vistas (`tests/e2e`), la CSP de U2 con Trusted Types (`tests/csp`) y `axe` (`tests/a11y`),
+# sobre el BUILD servido con `vite preview` (P-3 (a)). Los navegadores no vienen con `npm ci`: si faltan, falla diciendo como instalarlos. En serie.
+e2e-spa: build-spa
+	cd $(ROOT) && node console/spa/scripts/check-browsers.mjs
+	cd $(ROOT) && npx playwright test -c console/spa/playwright.config.ts tests/poc tests/e2e tests/csp tests/a11y --project=chromium --project=firefox
+
+test: test-bff test-spa e2e-spa
 
 check: lint test

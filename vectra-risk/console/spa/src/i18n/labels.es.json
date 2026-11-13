@@ -1,0 +1,173 @@
+{
+  "CASE_STATES": {
+    "en_evaluacion": "En evaluación",
+    "listo": "Listo",
+    "en_sincronizacion": "En sincronización",
+    "no_disponible": "No disponible",
+    "modelo_congelado": "Modelo congelado",
+    "decidido": "Decidido",
+    "vencido": "Vencido"
+  },
+  "CREDIT_STATUSES": {
+    "en_estudio": "En estudio",
+    "aprobado": "Aprobado",
+    "desembolsado": "Desembolsado",
+    "rechazado": "Rechazado",
+    "cancelado": "Cancelado",
+    "sin_credito": "Sin crédito",
+    "no_disponible": "No disponible",
+    "no_integrado": "No integrado"
+  },
+  "DECISIONS": {
+    "sigue": "Sigue la recomendación",
+    "se_aparta": "Se aparta de la recomendación",
+    "resuelve_revision": "Resuelve la revisión"
+  },
+  "ENTRY_TYPES": {
+    "recommendation": "Recomendación",
+    "fail_closed": "Recomendación no emitida",
+    "human_decision": "Decisión humana",
+    "explanation_view": "Consulta de la explicación",
+    "model_event": "Evento de modelo",
+    "policy_event": "Evento de política",
+    "data_source_event": "Evento de fuente de datos",
+    "freeze": "Congelamiento",
+    "frozen_resolution": "Resolución de congelamiento",
+    "genesis": "Inicio del registro",
+    "checkpoint": "Punto de control"
+  },
+  "EXPLAINER_ERRORS": {
+    "timeout": "La explicación tardó demasiado",
+    "unavailable": "El servicio de explicación no está disponible",
+    "error": "Error al generar la explicación",
+    "version_mismatch": "La versión de la explicación no coincide",
+    "factuality_failed": "La explicación no superó la verificación",
+    "feature_dictionary_incomplete": "Diccionario de variables incompleto"
+  },
+  "FAIL_CLOSED_CAUSES": {
+    "model_frozen": "Modelo congelado",
+    "serving_config_unavailable": "Configuración de servicio no disponible",
+    "model_output_invalid": "Resultado del modelo no válido",
+    "timeout": "Tiempo de espera agotado",
+    "explainer_unavailable": "Explicación no disponible",
+    "explainer_error": "Error en la explicación",
+    "version_mismatch": "Versión que no coincide",
+    "feature_dictionary_incomplete": "Diccionario de variables incompleto",
+    "factuality_failed": "Explicación no verificada",
+    "registry_unavailable": "Registro no disponible"
+  },
+  "FINAL_OUTCOMES": {
+    "favorable": "Favorable",
+    "desfavorable": "Desfavorable"
+  },
+  "LOCAL_CAUSES": {
+    "serving_config_unavailable": "Configuración de servicio no disponible",
+    "scoring_unreachable": "Servicio de puntaje inalcanzable",
+    "scoring_rejected": "Servicio de puntaje rechazó la solicitud"
+  },
+  "LOG_EVENTS": {
+    "authz.denied": "Acceso denegado",
+    "recommendation.fail_closed": "Recomendación no emitida",
+    "applicant_summary.generated": "Resumen para el solicitante generado",
+    "case.viewed": "Caso consultado",
+    "case.retry_requested": "Reintento de caso solicitado",
+    "evaluation.result_discarded": "Resultado de evaluación descartado",
+    "disparity.viewed": "Disparidad consultada",
+    "freeze_context.viewed": "Contexto de congelamiento consultado",
+    "console.client_error": "Error del navegador",
+    "registry.idempotency_conflict": "Conflicto de idempotencia en el registro"
+  },
+  "OUTCOMES": {
+    "favorable": "Favorable",
+    "desfavorable": "Desfavorable",
+    "revision_requerida": "Revisión requerida"
+  },
+  "REASON_CODES": {
+    "score_bajo_corte": "Puntaje por debajo del corte",
+    "score_sobre_corte": "Puntaje por encima del corte",
+    "baja_confianza": "Confianza baja",
+    "vis": "Vivienda de interés social",
+    "no_vis": "Vivienda que no es de interés social",
+    "tasa_sobre_usura": "Tasa por encima de la usura",
+    "parametro_normativo_no_vigente": "Parámetro normativo no vigente"
+  },
+  "REGISTRY_ERRORS": {
+    "unavailable": "Registro no disponible"
+  },
+  "ROLES": {
+    "analista": "Analista",
+    "ingeniero_riesgo": "Ingeniero de riesgo",
+    "cro": "Director de riesgo (CRO)",
+    "cumplimiento": "Cumplimiento"
+  },
+  "SCOPES": {
+    "case:recommend": "Recomendar casos",
+    "scoring:explain": "Explicar puntajes",
+    "governance:read-serving": "Leer la configuración de servicio",
+    "governance:freeze": "Congelar modelos",
+    "governance:validation-report": "Registrar informes de validación",
+    "governance:promotion": "Promover modelos",
+    "bias:compare": "Comparar fuentes de datos",
+    "governance:read-dictionary": "Leer el diccionario de variables",
+    "governance:read-feature-spec": "Leer la especificación de variables",
+    "registry:append:case": "Registrar eventos de casos",
+    "registry:append:scoring": "Registrar eventos de puntaje",
+    "registry:append:governance": "Registrar eventos de gobierno",
+    "registry:read:explanation": "Leer explicaciones del registro",
+    "registry:read:monitoring": "Leer el monitoreo del registro",
+    "registry:read:metrics": "Leer métricas del registro",
+    "intake:submit": "Enviar solicitudes de crédito",
+    "core:read-credit": "Leer el estado de crédito",
+    "core:write-credit": "Escribir el estado de crédito"
+  },
+  "SERVING_STATES": {
+    "activo": "Activo",
+    "congelado": "Congelado",
+    "no_disponible": "No disponible"
+  },
+  "MODEL_STATES": {
+    "registrado": "Registrado",
+    "en_validacion": "En validación",
+    "validacion_fallida": "Validación fallida",
+    "lista_para_aprobacion": "Lista para aprobación",
+    "aprobado": "Aprobado",
+    "rechazado": "Rechazado",
+    "activo": "Activo",
+    "inactivo": "Inactivo",
+    "congelado": "Congelado",
+    "retirado": "Retirado"
+  },
+  "RESOLUTION_ACTIONS": {
+    "reactivar": "Reactivar",
+    "descartar": "Descartar",
+    "investigar": "Investigar"
+  },
+  "CELL_STATUSES": {
+    "suficiente": "Muestra suficiente",
+    "muestra_insuficiente": "Muestra insuficiente"
+  },
+  "ATTRIBUTES": {
+    "sexo": "Sexo",
+    "rango_edad": "Rango de edad",
+    "region": "Región",
+    "estrato": "Estrato"
+  },
+  "BANDS": {
+    "lt_20": "Menos de 20",
+    "20_30": "De 20 a 30",
+    "gt_30": "Más de 30"
+  },
+  "CHANNELS": {
+    "web": "Web",
+    "manual": "Manual"
+  },
+  "EMPLOYMENT_TYPES": {
+    "asalariado": "Asalariado",
+    "independiente": "Independiente",
+    "pensionado": "Pensionado"
+  },
+  "PROPERTY_CONDITIONS": {
+    "nueva": "Nueva",
+    "usada": "Usada"
+  }
+}
