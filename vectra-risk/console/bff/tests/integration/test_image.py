@@ -1,6 +1,6 @@
-"""Pasos 17 y 18 (CA-4): los dos contenedores reales arrancan con lo que **pone el chart** (U04-T06, F-01; U11-T03, CA-4).
+"""Pasos 17 y 18 (CA-4; INF-U10-02; NFR-U10-44; NFR-U10-45): los dos contenedores reales arrancan con lo que **pone el chart** (U04-T06, F-01; U11-T03, CA-4).
 
-Un chart que renderiza bien no prueba que el contenedor arranque. La orden, las variables, los montajes, el usuario y los `emptyDir` salen del render de kind
+Un chart que renderiza bien no prueba que el contenedor arranque. NFR-U10-45: sin root, con el sistema de archivos de solo lectura, con las cabeceras de cache del diseno y sin cabeceras de seguridad (las pone el gateway de U2). La orden, las variables, los montajes, el usuario y los `emptyDir` salen del render de kind
 (`helm template` con lo que usa Argo CD). Cada contenedor corre con `docker run --read-only` y el `--user` del chart; los puertos se publican en un puerto libre del host
 (nunca el 8080 ni el 8081).
 

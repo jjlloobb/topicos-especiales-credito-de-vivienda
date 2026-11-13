@@ -1,4 +1,4 @@
-{{- /* Service solo con 8080 (F02; INF-U10-01). La SPA no expone metricas: sin 8081 y sin ServiceMonitor (INF-U10-05). La afinidad `vectra-spa-route` es una cookie del
+{{- /* Service solo con 8080 (F02; INF-U10-01). La SPA no expone metricas: sin 8081 y sin ServiceMonitor. La afinidad `vectra-spa-route` es una cookie del
 gateway de U2 (ruta `spa`), no del Service. */ -}}
 apiVersion: v1
 kind: Service
