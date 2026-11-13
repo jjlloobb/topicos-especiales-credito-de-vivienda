@@ -1,0 +1,9 @@
+apiVersion: v2
+name: case-management
+description: >-
+  Chart de U8 (Paso 20, acotado a la demo): case-service y case-worker (cada uno con Deployment, Service, HPA de 2 a 6, PDB, ServiceAccount, ExternalSecret
+  de la llave private_key_jwt y ServiceMonitor), el Job de migracion como hook de sync, el core-banking-mock (solo con coreMock.enabled), el Job de la
+  demostracion de RT-5 (solo en kind, con probes.runId) y la PrometheusRule CoreWriteAttempt (solo con coreMock.enabled). Diferido por la demo: el CronJob
+  case-retention (P-12), las otras ocho alertas (T2) y la firma de las imagenes (T1).
+type: application
+version: 0.1.0

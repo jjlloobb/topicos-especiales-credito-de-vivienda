@@ -1,0 +1,7 @@
+# Values de case-management en produccion (U8, U08-T05; revision de consistencia entre unidades, 2026-11-01): sin core (`credit_status = no_integrado`), sin el mock
+# y sin escenarios de prueba. Los tres van escritos aunque coincidan con los defaults del chart: una regla de conftest lee este archivo (NFR-U8-44).
+core:
+  enabled: false
+coreMock:
+  enabled: false
+allowTestScenarios: false

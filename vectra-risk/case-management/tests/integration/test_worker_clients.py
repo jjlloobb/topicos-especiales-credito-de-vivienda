@@ -184,6 +184,27 @@ async def test_serving_config_cache_uses_if_none_match_and_a_304_renews_it() -> 
         await governance.aclose()
 
 
+async def test_serving_config_cache_ttl_boundary_serves_at_exactly_5_s_and_rereads_just_after() -> None:
+    """C-7 (U08-T05; `revisiones/U08-T04/ronda-4.md`, F-01): `ServingConfigClient` usa `edad <= SERVING_CONFIG_CACHE_TTL`. Con un reloj controlado: a los 5 s exactos la cache
+    sirve (ninguna llamada nueva) y a los 5 s mas un instante vuelve a leer. La mutacion `<=` -> `<` en `governance_client.py` la hace fallar."""
+    gov = GovernanceDouble()
+    now = [1_000.0]
+    governance = governance_client(gov, clock=lambda: now[0])
+    try:
+        first = await governance.get()
+        assert gov.calls == 1
+        now[0] += SERVING_CONFIG_CACHE_TTL - 0.001
+        assert await governance.get() == first and gov.calls == 1  # dentro del plazo
+        now[0] = 1_000.0 + SERVING_CONFIG_CACHE_TTL
+        assert await governance.get() == first and gov.calls == 1  # a los 5 s exactos: la cache sirve
+        now[0] = 1_000.0 + SERVING_CONFIG_CACHE_TTL + 0.001
+        assert (
+            await governance.get() == first and gov.calls == 2
+        )  # 5 s y un instante: vuelve a leer (304 con If-None-Match)
+    finally:
+        await governance.aclose()
+
+
 async def test_a_503_from_governance_makes_exactly_one_call_per_attempt() -> None:
     gov, double = GovernanceDouble(), ScoringDouble()
     gov.down = True

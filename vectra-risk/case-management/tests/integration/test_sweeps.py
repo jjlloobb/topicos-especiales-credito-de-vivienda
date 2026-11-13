@@ -25,6 +25,7 @@ async def test_active_serving_config_moves_frozen_cases_to_en_evaluacion_with_a_
     assert scalar(db, "SELECT updated_at > created_at FROM cases WHERE case_id = %s", a) is True
 
 
+# BR-U8-14 (congelamiento despues de la recomendacion): la marca `model_frozen_after_recommendation` la pone y la quita el barrido.
 async def test_frozen_serving_config_marks_listo_cases_of_that_version_and_reactivation_clears_the_mark(
     db: Db,
 ) -> None:

@@ -1,0 +1,19 @@
+# El `spec` de la PrometheusRule que rinde case-management/chart (Paso 21; INF-U8-03; US-603). Lo regenera `make -C case-management rules WRITE=1`;
+# `make -C case-management rules` falla si difiere del render de kind (y del de staging). Una alerta (CoreWriteAttempt) y ninguna regla de grabacion:
+# las otras ocho alertas de P-U8 estan diferidas por la demo (T2).
+groups:
+- name: case-management
+  rules:
+  - alert: CoreWriteAttempt
+    expr: |-
+      increase(vectra_core_write_attempts_total[5m]) > 0
+      or
+      sum(inbound_http_authz_deny_total{namespace="vectra-mock", route_name="core-mock-catch-all"})
+        - (sum(inbound_http_authz_deny_total{namespace="vectra-mock", route_name="core-mock-catch-all"} offset 5m) or vector(0))
+        > 0
+    labels:
+      severity: SEV2
+    annotations:
+      summary: Un intento de escritura al core bancario (RT-5)
+      description: '`vectra_core_write_attempts_total` creció: el mock recibió un `POST /v1/credits/{id}/status` que Linkerd dejó pasar. La serie `inbound_http_authz_deny_total` de la ruta `core-mock-catch-all` es la denegación del proxy, la capa L7 que debe bloquearlo antes de llegar al mock; en la demostración de RT-5 esta es la evidencia esperada.'
+      runbook_url: case-management/observability/runbooks/core-write-attempt.md

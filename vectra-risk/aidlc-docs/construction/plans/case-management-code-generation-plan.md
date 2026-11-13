@@ -274,7 +274,7 @@ vectra-risk/case-management/
 
 ### Bloque F — `case-retention` y `core-banking-mock`
 
-- [ ] **Paso 16 — CLI `case-retention`**
+- [ ] **Paso 16 — CLI `case-retention`** (diferido por la demo (T5); sin ella no hay plantilla del CronJob, P-12)
   - `python -m vectra_case.retention --dsn …`, la misma CLI para el CronJob y el `restore-drill` de U1. No acepta plazos por argumento: los lee de `retention_settings`.
   - Corrida de P-U8-07: lotes de ≤ 500 con `FOR UPDATE SKIP LOCKED` y `lock_timeout = 1s`; borra `case_identifiers` y `application.free_text`, fija `anonymized_at`, pasa a `vencido` y borra el trabajo de los no decididos; el plazo de 10 años se cuenta desde `decisions.decided_at` de la decisión `confirmada`; borra `intake_keys` vencidas; inserta su fila en `retention_runs`.
   - Diseño: BR-U8-02, 20; P-U8-05, 07; NFR-U8-46.
@@ -305,13 +305,13 @@ vectra-risk/case-management/
 
 ### Bloque G — Despliegue y operación
 
-- [ ] **Paso 19 — Dockerfiles y cadena de suministro**
+- [x] **Paso 19 — Dockerfiles y cadena de suministro** (U08-T05; firma, SBOM, escaneo y la prueba sobre el SBOM diferidos por la demo (T1))
   - Una imagen para `case-service`, `case-worker`, `case-retention` y la migración (P-U8-10), y otra para el mock con sus fixtures; base Python oficial pinneada por digest, `runAsNonRoot` y `readOnlyRootFilesystem`.
   - Construidas, escaneadas, con SBOM y firmadas con `sign-image.yml` de U1; el escaneo y el SBOM son de `supply-chain.yml`.
   - Diseño: P-U8-10; NFR-U8-34.
   - **Aceptación**: `hadolint case-management/Dockerfile case-management/core_banking_mock/Dockerfile`; prueba sobre el SBOM: ninguna librería de circuit breaking.
 
-- [ ] **Paso 20 — Chart, values, cuotas y flujos**
+- [x] **Paso 20 — Chart, values, cuotas y flujos** (U08-T05; sin el CronJob `case-retention` (P-12))
   - `case-service` y `case-worker`: `Deployment`, `Service`, `HorizontalPodAutoscaler` (2–6, CPU 70 %, estabilización 60/300 s), `PodDisruptionBudget`, `ServiceAccount` propia, `ExternalSecret` de la llave `private_key_jwt`, la contraseña del rol de base desde `pg-role-case-app` o `pg-role-case-worker`, que entrega U1 (INF-U1-02; revisión de consistencia entre unidades, 2026-11-01), y `ServiceMonitor`; recursos y probes de INF-U8-04; spread por zona; `vectra-high`; sidecar nativo de Linkerd.
     - `case-service`: `preStop.sleep` de 5 s y `terminationGracePeriodSeconds: 20`;
     - `case-worker`: `terminationGracePeriodSeconds: 30`.
@@ -331,7 +331,7 @@ vectra-risk/case-management/
 
     Además, `kyverno test` (sin excepción a `require-spread-and-pdb`), `conftest test platform/policies/quotas/` (cuota ≥ suma de aportes) y `uv run python platform/network/generate.py --check`.
 
-- [ ] **Paso 21 — Alertas y runbooks**
+- [x] **Paso 21 — Alertas y runbooks** (U08-T05; solo `CoreWriteAttempt`; el resto, T2)
   - `PrometheusRule` con:
     - `CaseEvidencePending` y `CaseEvidenceAbandoned` (P-U8-04);
     - `CaseRetentionMissing` y `CaseRetentionOverdue` (P-U8-07);
@@ -348,13 +348,13 @@ vectra-risk/case-management/
 
     Además, `uv run python platform/tests/test_runbooks.py --root case-management` y `helm template` con los values de producción → sin `CoreWriteAttempt`.
 
-- [ ] **Paso 22 — Documentación**
+- [x] **Paso 22 — Documentación** (U08-T05; `retention.md` y el `conftest` de la firma diferidos por la demo)
   - `case-management/docs/retention.md`: plazos, fuente única (`retention_settings`), riesgo aceptado de los respaldos y los tres **[VERIFICAR]**, con un espacio para la firma de cumplimiento; el despliegue a producción la exige (NFR-U8-47).
   - `case-management/docs/api.md` y el OpenAPI exportado de `case-service` y del mock.
   - Diseño: BR-U8-20; NFR-U8-47.
   - **Aceptación**: `uv run python case-management/tools/check_openapi.py` (el OpenAPI versionado coincide con el de la app) y una regla de `conftest` sobre `vectra-risk-gitops/values/prod/case-management.yaml` que exige el value con la referencia a la firma de `retention.md`: `generate.py` no escribe anotaciones propias en una Application (revisión de consistencia entre unidades, 2026-11-01).
 
-- [ ] **Paso 23 — Applications, especificación de carga y trazabilidad**
+- [x] **Paso 23 — Applications, especificación de carga y trazabilidad** (U08-T05; k6 diferido (T3))
   - Entradas en `vectra-risk-gitops/components.yaml` con `wave: 5` (migración como hook, `case-service`, `case-worker`, CronJob): `case-management` en todos los entornos y la del mock con `envs: [kind, staging]`. `generate.py` escribe las Applications, sin auto-sync (revisión de consistencia entre unidades, 2026-11-01).
   - Script k6 para U12: 10 solicitudes/s de ingesta con la consola en paralelo, umbrales de NFR-U8-01 y el histograma de NFR-U8-02.
   - Trazabilidad de cada BR-U8 a una prueba.
@@ -363,7 +363,7 @@ vectra-risk/case-management/
 
 ### Bloque H — Verificación en kind (con aprobación humana)
 
-- [ ] **Paso 24 — Puerta de aprobación y escenarios en kind**
+- [ ] **Paso 24 — Puerta de aprobación y escenarios en kind** (consolidado en U12 Paso 18 (enmienda §8))
   - **Requisito previo**: un PR con los Pasos 1–23 aprobado por un humano, con U1–U7 instalados en kind y un modelo activo.
   - El operador ejecuta, con evidencia:
     1. suite de conectividad de U1: `case-service` → scoring denegado; `case-worker` → scoring permitido; `case-worker` → registro y core denegados; el mock alcanza solo el JWKS de Keycloak;
@@ -378,11 +378,11 @@ vectra-risk/case-management/
 
 ### Bloque I — Cierre
 
-- [ ] **Paso 25 — Frontend: N/A**
+- [x] **Paso 25 — Frontend: N/A** (U08-T05)
   - La consola es de U10.
   - **Aceptación**: `test ! -d case-management/frontend`.
 
-- [ ] **Paso 26 — Cierre de la unidad**
+- [x] **Paso 26 — Cierre de la unidad** (U08-T05; cierre acotado a la demo)
   - **Aceptación**: `make -C case-management check`, que corre en orden las verificaciones estáticas, las migraciones, las propiedades y las pruebas de integración de los Pasos 1–23 y termina en 0. Las de kind (Paso 24) se revisan como evidencia en el PR.
 
 ---

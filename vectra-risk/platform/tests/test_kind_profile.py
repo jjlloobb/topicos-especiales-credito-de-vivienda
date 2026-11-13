@@ -21,7 +21,10 @@ PLATFORM = Path(__file__).resolve().parents[1]
 # total pasa a 9,2656 GiB, redondeado hacia arriba a 0,1 GiB. El CronJob no cuenta (`requested_gib()` suma Deployment y StatefulSet). El tope de parada era 9,49 GiB.
 # Subido a 10,4 en U07-T04 (misma regla de DECISIONES-LOOP.md §7): `scoring-service` y `explainability-service` suman 2 servicios x 2 replicas x (256 Mi + 20 Mi
 # de proxy) = 1,0781 GiB y el total pasa a 10,3438 GiB, redondeado hacia arriba a 0,1 GiB. El tope de parada era 10,58 GiB (9,3 + 1,08 + 0,2).
-BUDGET_GIB = 10.4
+# Subido a 11,1 en U08-T05 (misma regla de DECISIONES-LOOP.md §7; P-1 = (b), decision del usuario, 2026-11-12): `case-service` y `case-worker` piden 128 Mi solo en kind
+# (`case-management/chart/values-kind.yaml`; INF-U8-04 dice 256 Mi) y el mock 64 Mi: 2 x (128 + 20) + 2 x (128 + 20) + 2 x (64 + 20) Mi = 760 Mi = 0,7422 GiB, y el total pasa a
+# 11,0859 GiB, redondeado hacia arriba a 0,1 GiB. Con 256 Mi (opcion a) habria sido 1,2422 GiB y 11,6. Falta sumar U11 (0,2891 GiB) y U10 (0,6406 GiB): la proyeccion es 12,0 GiB (tope de parada, 13,0).
+BUDGET_GIB = 11.1
 PROXY_GIB = 20 / 1024
 MESHED = {
     "vectra-edge", "vectra-app", "vectra-serving", "vectra-staging", "vectra-data", "vectra-identity", "vectra-mock",

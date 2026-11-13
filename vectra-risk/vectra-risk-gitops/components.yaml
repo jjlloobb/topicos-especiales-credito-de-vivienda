@@ -74,6 +74,13 @@ components:
   # `vectra-serving` (C-2) y, tras la verificacion de U12 Paso 18, los digests. Va con `governance` en la wave 5: `ServingConfig` es estricto y las tres
   # imagenes (governance, scoring, explainability) se construyen del mismo commit (scoring-explainability/docs/imagenes.md). La PrometheusRule (T2) esta diferida.
   - { name: scoring-explainability, wave: 5, namespace: vectra-app, path: scoring-explainability/chart, env_values: true }
+  # U8 (U08-T05): `case-service` y `case-worker` (2 replicas del HPA de 2 a 6, PDB, ServiceMonitor, ExternalSecret de la llave `private_key_jwt`), el Job de migracion como
+  # hook de sync y, solo en kind y staging (`coreMock.enabled`), el `core-banking-mock` en `vectra-mock` (P-3 = a: un solo Application, el chart pone el namespace de cada recurso),
+  # la PrometheusRule `CoreWriteAttempt` y, solo en kind y con `probes.runId` (U12, `prepare`), el Job `rt5-demo-<runId>`. `values-kind.yaml` va en `kind_values` (P-2 = a): es lo
+  # que `render_env("kind")` de U1 debe ver (el mock y el request de memoria de kind, P-1 = b); no pasa `values/kind/case-management.yaml` (C-9). Va con `governance` en la wave 5:
+  # `ServingConfig` es estricto y las imagenes (governance, scoring, explainability, case-management) se construyen del mismo commit (case-management/docs/imagenes.md).
+  # El CronJob `case-retention` (P-12) y las otras alertas (T2) estan diferidos.
+  - { name: case-management, wave: 5, namespace: vectra-app, path: case-management/chart, env_values: true, kind_values: [case-management/chart/values-kind.yaml] }
   # U6 (U06-T02): los InferenceService de cada version (azul/verde). Los values por entorno no declaran ninguno: los agrega `promotion-tool` por PR
   # (esquema: model-serving/chart/values.schema.json y model-serving/docs/values.md). El Application es de vectra-serving; el perfil `staging` crea su
   # predictor en vectra-staging con el namespace explicito del recurso.
