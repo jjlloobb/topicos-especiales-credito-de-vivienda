@@ -41,7 +41,11 @@ Falta sumar lo que todavía no tiene Application en esta base: U11 (0,2891 GiB: 
 
 ### Cierre (CA-14 y CA-15)
 
-_A completar con las corridas finales (bitácora de U08-T05)._
+`make -C case-management check` termina en 0: `lint` (ruff, mypy `--strict`, import-linter con 5 contratos), `670 passed` con el perfil `ci` en 17 min 31 s, cobertura de ramas 96,76 % en `vectra_case` (≥ 95) y 100 % en los ocho módulos, las dos imágenes, la prueba de los contenedores (13 pruebas), el chart en los tres entornos (`Valid: 22/22/16`), la admisión de U1 (`pass: 38/38/28`), la cuota con los flujos, `CoreWriteAttempt` (`SUCCESS` ×2), los runbooks, el OpenAPI, los enlaces y la trazabilidad (52 identificadores). **20 min 26 s** con carga 18,01/16,69/13,52 al empezar (la primera corrida, que falló en `policy-chart-u1` por la criticidad del mock, duró 16 min 38 s con carga 3,67/5,44/5,25). `make -C platform check-local` (802 pruebas, 6 min 56 s, carga 16,49/13,12/10,16) y `check-tools` (4 min 25 s, carga 12,07/12,58/11,18), corridos por separado, terminan en 0.
+
+**RL-4: el `make check` de todas las unidades, en serie** (`uptime` y duración de cada una en `bitacoras/U08-T05.md`, CA-15): `contracts` 217 s, `decision-registry` 1 075 s, `governance` 209 s, `reference-model` 183 s, `model-serving` 122 s, `scoring-explainability` 225 s, `bias-monitoring` 1 010 s, `console` 99 s, `product-metrics` 617 s e `identity-edge` 1 711 s, todas en rc 0, más `platform` y `case-management` (arriba). Dos fallaron la primera vez por el entorno y pasaron al repetirlas: `contracts` (`tsc: not found`, el worktree no tenía `node_modules`; con `npm ci`, rc 0) y `governance` (6 errores de `XMinioServerNotInitialized` en el `setup` con la máquina a carga 8 a 19; en frío, rc 0). Candidatas en `CANDIDATAS.md`.
+
+**Lo que no es como dice la tarea** (detalle en la bitácora): el mock lleva `vectra.io/criticality: medium` y no `low` (la política de U1 solo admite `critical`, `high` y `medium`); `build_app().openapi()` no trae rutas, así que `check_openapi.py` compara `spec_for` de U0 sobre las rutas servidas; el Job `rt5-demo` necesita un interruptor (`probes.enabled`, solo en `values/kind`) para distinguir kind de staging.
 
 ## Decisiones
 
