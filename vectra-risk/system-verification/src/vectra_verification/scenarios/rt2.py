@@ -400,6 +400,46 @@ class ToolReactivation:
         return None
 
 
+class PresenterReactivation:
+    """El modo `presenter` (decision del usuario, 2026-11-13; U12-T04): la herramienta **no** inicia sesion con ningun usuario de cumplimiento ni envia la reactivacion. Espera, con el reloj inyectado y un plazo, a que
+    el presentador la haga en la consola con `cumplimiento-2` (`/congelamientos/:freezeId`, `ResolveFrozenDialog`, step-up que impone el BFF) y la ve en `monitoring_freezes`. `since` es el inicio de la verificacion: una
+    `frozen_resolution` anterior no puede ser de esta corrida. Con `action = reactivar` devuelve `None` y la verificacion posterior (`verify_reactivation`) es la de siempre; con `investigar`, `falla`; al vencer el plazo,
+    `no ejecutado`, y la seccion se retoma en la fase `reactivacion`."""
+
+    def __init__(
+        self, registry: RegistryClient, clock: Clock, *, since: datetime, timeout: float = OPERATOR_TIMEOUT
+    ) -> None:
+        self._registry, self._clock, self._since, self._timeout = registry, clock, since, timeout
+
+    def _resolutions(self, model_version_id: str) -> list[dict[str, Any]]:
+        items = self._registry.freezes_raw(recorded_from=self._since)
+        return [i for i in items if i.get("model_version_id") == model_version_id and "action" in i]
+
+    def reactivate(self, model_version_id: str) -> SubOutcome | None:
+        seen: list[dict[str, Any]] = []
+
+        def done() -> tuple[bool, None]:
+            seen[:] = self._resolutions(model_version_id)
+            return any(r.get("action") in ("reactivar", "investigar") for r in seen), None
+
+        waited = poll(self._clock, done, interval=POLL, timeout=self._timeout)
+        if not waited.met:
+            return SubOutcome(
+                "reactivacion",
+                NO_EJECUTADO,
+                ("rt2_reactivacion_pendiente_del_presentador",),
+                f"el presentador no reactivo {model_version_id} en la consola con cumplimiento-2 dentro de {self._timeout:g} s",
+            )
+        if any(r.get("action") == "reactivar" for r in seen):
+            return None
+        return SubOutcome(
+            "reactivacion",
+            FALLA,
+            ("rt2_reactivacion_investigar",),
+            "el presentador resolvio con action investigar, no reactivar",
+        )
+
+
 @dataclass
 class Rt2Params:
     reference_version_id: str
