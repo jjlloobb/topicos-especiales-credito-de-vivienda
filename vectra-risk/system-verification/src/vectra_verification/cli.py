@@ -98,9 +98,11 @@ class _Parser(argparse.ArgumentParser):
         super().__init__(*args, **kwargs)
         self._out = out
 
-    def _print_message(self, message: str, file: Any = None) -> None:
-        if message:
-            print(message, end="", file=self._out or file or sys.stdout)
+    def print_help(self, file: Any = None) -> None:
+        super().print_help(file or self._out)
+
+    def print_usage(self, file: Any = None) -> None:
+        super().print_usage(file or self._out)
 
     def error(self, message: str) -> Any:
         raise UsageError(message)
