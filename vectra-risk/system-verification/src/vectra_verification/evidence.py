@@ -129,8 +129,87 @@ def _har_object(match: re.Match[str]) -> str:
     return _HAR_VALUE.sub(_quoted_value, obj) if _HAR_NAME.search(obj) else obj
 
 
+# U12-T04 (F-N4 de la ronda 2 de U12-T02): `{[^{}]*}` no ve un objeto con una llave dentro del valor ni con otro objeto anidado. Un recorrido que sabe de cadenas (comillas dobles o simples, `\x` como un
+# solo caracter) lleva la pila de objetos y, al cerrar cada uno, mira **sus** claves `name` y `value`: asi la llave de un valor no cuenta y un objeto anidado no tapa al de afuera.
+_SENSITIVE_NAME: Final = re.compile(rf"(?i)(?:{_HEADER_NAMES}|{_FIELD_NAMES})")
+_NAME_THEN_VALUE: Final = re.compile(
+    rf"""(?i)["']name["']\s*:\s*(?P<q>["'])(?:{_HEADER_NAMES}|{_FIELD_NAMES})(?P=q)\s*,\s*(?P<head>["']value["']\s*:\s*){_QUOTED_VALUE}"""
+)
+
+
+def _string_end(text: str, start: int) -> int | None:
+    """El indice de la comilla que cierra la cadena que abre en `start` (en la misma linea), leyendo `\\x` como un caracter; `None` si no cierra."""
+    quote_char = text[start]
+    i = start + 1
+    while i < len(text) and text[i] not in "\r\n":
+        if text[i] == "\\":
+            i += 2
+            continue
+        if text[i] == quote_char:
+            return i
+        i += 1
+    return None
+
+
+class _Frame:
+    __slots__ = ("pending", "values")
+
+    def __init__(self) -> None:
+        self.pending: str | None = None
+        self.values: dict[str, tuple[int, int]] = {}
+
+
+def _har_spans(text: str) -> list[tuple[int, int]]:
+    """Los intervalos (sin comillas) de los `value` cuyo objeto tiene un `name` de cabecera o de campo de credencial, en cualquier orden y con cualquier anidamiento."""
+    spans: list[tuple[int, int]] = []
+    stack: list[_Frame | None] = []
+    i = 0
+    while i < len(text):
+        char = text[i]
+        top = stack[-1] if stack else None
+        if char in "\"'":
+            end = _string_end(text, i)
+            if end is None:
+                i += 1
+                continue
+            after = end + 1
+            while after < len(text) and text[after] in " \t":
+                after += 1
+            if top is not None and after < len(text) and text[after] == ":":
+                top.pending = text[i + 1 : end].lower()
+            elif top is not None and top.pending is not None:
+                top.values[top.pending] = (i + 1, end)
+                top.pending = None
+            i = end + 1
+            continue
+        if char == "{":
+            stack.append(_Frame())
+        elif char == "[":
+            stack.append(None)
+        elif char in "}]":
+            frame = stack.pop() if stack else None
+            if frame is not None and "name" in frame.values and "value" in frame.values:
+                name_start, name_end = frame.values["name"]
+                if _SENSITIVE_NAME.fullmatch(text[name_start:name_end]):
+                    spans.append(frame.values["value"])
+            if stack and stack[-1] is not None:
+                stack[-1].pending = None
+        elif top is not None and char not in " \t\r\n:":
+            top.pending = None
+        i += 1
+    return spans
+
+
+def _har_walk(text: str) -> str:
+    out = text
+    for start, end in sorted(_har_spans(text), reverse=True):
+        out = out[:start] + REDACTED + out[end:]
+    return out
+
+
 def scrub(text: str) -> str:
     """Quita las cabeceras y los campos de credenciales; una salida limpia queda igual."""
+    text = _NAME_THEN_VALUE.sub(_quoted_value, _har_walk(text))
     text = _TUPLE_HEADERS.sub(_quoted_value, _FLAT_OBJECT.sub(_har_object, text))
     text = _URL_CODE.sub(lambda m: f"{m.group('head')}{REDACTED}", text)
     return _scrub_with(_FIELDS, _scrub_with(_HEADERS, text, header=True), header=False)

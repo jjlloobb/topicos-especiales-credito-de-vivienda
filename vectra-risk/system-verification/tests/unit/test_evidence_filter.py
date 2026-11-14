@@ -308,3 +308,41 @@ def test_f05_code_is_still_kept_as_a_problem_field_and_other_names_ending_in_cod
         evidence.scrub("http_code=500&error_code=x&status_code=200")
         == "http_code=500&error_code=x&status_code=200"
     )
+
+
+# --- U12-T04 (F-N4 de la ronda 2 de U12-T02): el objeto HAR con una llave en el valor o con otro objeto anidado, en los dos ordenes de claves ----------
+
+
+@pytest.mark.parametrize(
+    "har",
+    [
+        '{"name":"Cookie","value":"sid=SECRETO-HAR-N4","x":{"y":1}}',
+        '{"x":{"y":1},"value":"sid=SECRETO-HAR-N4","name":"Cookie"}',
+        '{"name":"Cookie","value":"a}b SECRETO-HAR-N4"}',
+        '{"value":"a}b SECRETO-HAR-N4","name":"Cookie"}',
+        '{"name":"Cookie","value":"a{b SECRETO-HAR-N4"}',
+        '{"value":"a{b SECRETO-HAR-N4","name":"Cookie"}',
+        '{"name":"Cookie","value":"{\\"s\\": \\"SECRETO-HAR-N4\\"}"}',
+        '{"value":"{\\"s\\": \\"SECRETO-HAR-N4\\"}","name":"Cookie"}',
+        '[{"name": "Accept", "value": "x"}, {"value": "k=SECRETO-HAR-N4", "meta": {"a": [1, {"b": 2}]}, "name": "Set-Cookie"}]',
+        "{'value': 'a}b SECRETO-HAR-N4', 'name': 'Authorization'}",
+        'no es {"name":"Cookie","value":"SECRETO-HAR-N4"} ni lo que dice el usuario',
+    ],
+)
+def test_fn4_a_har_object_with_braces_or_nesting_is_cleaned_in_both_key_orders(har: str) -> None:
+    cleaned = evidence.scrub(f"entrada: {har}\n")
+    assert "SECRETO-HAR-N4" not in cleaned and "[REDACTADO]" in cleaned
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"code": "conflict_state"}',
+        "http_code=500&error_code=x&status_code=200",
+        '{"name": "Accept", "value": "a}b", "x": {"y": 1}}',
+        '{"value": "a{b", "name": "Accept"}',
+        "it's {\"name\": \"Accept\", \"value\": \"x\"} and that's all",
+    ],
+)
+def test_fn4_what_is_not_a_credential_is_untouched(text: str) -> None:
+    assert evidence.scrub(text) == text
