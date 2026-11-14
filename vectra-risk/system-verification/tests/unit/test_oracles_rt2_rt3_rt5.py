@@ -1901,7 +1901,8 @@ def test_rt2_bias_counting_uses_the_truncated_second_of_the_freeze_as_the_refere
     assert rt2.count_bias_runs(ts, ok, 20.4) == [30.0, 40.0, 50.0]
     assert rt2.count_bias_runs(ts, ok, 20.0) == [30.0, 40.0, 50.0]
     assert rt2.count_bias_runs(ts, ok, 20.999) == [30.0, 40.0, 50.0]
-    assert rt2.count_bias_runs(ts, ok, 21.0) == [40.0, 50.0]  # la marca 30 es la referencia si el freeze cae en el segundo 21
+    # la marca 30 es la referencia si el freeze cae en el segundo 21
+    assert rt2.count_bias_runs(ts, ok, 21.0) == [40.0, 50.0]
 
 
 DELAYS = pytest.mark.parametrize("delay", [0.05, 0.9], ids=["mismo_segundo", "cruza_al_segundo_siguiente"])
