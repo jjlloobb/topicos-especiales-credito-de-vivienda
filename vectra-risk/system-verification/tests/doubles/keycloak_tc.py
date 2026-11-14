@@ -29,7 +29,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import quote
 
 import httpx
 import yaml
@@ -222,89 +221,6 @@ def make_pki(directory: Path) -> Pki:
     )
 
 
-def repair_shared_authenticator_configs(base_url: str, context: ssl.SSLContext, admin_password: str) -> int:
-    """Une a cada ejecucion su `authenticatorConfig` cuando keycloak-config-cli 6.5.1 (con Keycloak 26.8.1) la dejo sin enlazar.
-
-    Hallazgo de U12-T02 (ver `CANDIDATAS.md`): `realm.kind.yaml` reutiliza los alias `loa-mfa`, `amr-otp` y `amr-hwk` en los subflujos de `ingeniero_riesgo`, `cro`, `cumplimiento`, `operacion` y
-    `break-glass`; config-cli solo enlaza el alias a la **primera** ejecucion que lo cita. Las demas quedan sin configuracion y Keycloak falla **todo** login con un `NullPointerException`
-    (`loaConditionConfig is null`). Esta funcion no edita el realm: lee de `realm.kind.yaml` que alias corresponde a cada ejecucion (por flujo y posicion) y crea la configuracion que falta por la API de
-    administracion, para que el resto de la prueba ejerza el login. Devuelve cuantas ejecuciones reparo (0 si config-cli ya las enlazo todas).
-    """
-    realm = yaml.safe_load(REALM_FILE.read_text(encoding="utf-8").replace("$(env:", "(env:"))
-    configs = {c["alias"]: c["config"] for c in realm["authenticatorConfig"]}
-    repaired = 0
-    with httpx.Client(verify=context, timeout=30) as http:
-        token = http.post(
-            f"{base_url}/auth/realms/master/protocol/openid-connect/token",
-            data={
-                "grant_type": "password",
-                "client_id": "admin-cli",
-                "username": "bootstrap",
-                "password": admin_password,
-            },
-        ).json()["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
-        admin = f"{base_url}/auth/admin/realms/vectra/authentication"
-        for flow in realm["authenticationFlows"]:
-            if flow.get("builtIn"):
-                continue
-            wanted = sorted(flow.get("authenticationExecutions", []), key=lambda e: e.get("priority", 0))
-            listing = http.get(f"{admin}/flows/{quote(flow['alias'])}/executions", headers=headers).json()
-            actual = [e for e in listing if e.get("level") == 0]
-            if len(actual) != len(wanted):
-                continue
-            for execution, intent in zip(actual, wanted, strict=True):
-                alias = intent.get("authenticatorConfig")
-                if alias and not execution.get("authenticationConfig"):
-                    body = {"alias": f"{alias}-{execution['id'][:8]}", "config": configs[alias]}
-                    response = http.post(
-                        f"{admin}/executions/{execution['id']}/config", headers=headers, json=body
-                    )
-                    response.raise_for_status()
-                    repaired += 1
-    return repaired
-
-
-def complete_user_profiles(base_url: str, context: ssl.SSLContext, admin_password: str) -> int:
-    """Da nombre, apellido y correo sinteticos a los usuarios del realm.
-
-    Segundo hallazgo de U12-T02 (ver `CANDIDATAS.md`): `realm.kind.yaml` no configura el perfil de usuario y los usuarios semilla no traen `email`, `firstName` ni `lastName`; con el perfil por
-    omision de Keycloak 26.8.1 (que los exige) el primer login termina en la accion requerida `VERIFY_PROFILE` y nunca llega al `redirect_uri`. Esta funcion no edita el realm: completa los usuarios por la API
-    de administracion con datos inventados (`.invalid`). Devuelve cuantos completo.
-    """
-    names = [
-        u["username"]
-        for u in yaml.safe_load(REALM_FILE.read_text(encoding="utf-8").replace("$(env:", "(env:"))["users"]
-    ]
-    with httpx.Client(verify=context, timeout=30) as http:
-        token = http.post(
-            f"{base_url}/auth/realms/master/protocol/openid-connect/token",
-            data={
-                "grant_type": "password",
-                "client_id": "admin-cli",
-                "username": "bootstrap",
-                "password": admin_password,
-            },
-        ).json()["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
-        for name in names:
-            found = http.get(
-                f"{base_url}/auth/admin/realms/vectra/users",
-                params={"username": name, "exact": "true"},
-                headers=headers,
-            ).json()
-            update = {
-                "email": f"{name}@u12t02.invalid",
-                "firstName": "Sintetico",
-                "lastName": name,
-                "emailVerified": True,
-            }
-            http.put(
-                f"{base_url}/auth/admin/realms/vectra/users/{found[0]['id']}", headers=headers, json=update
-            ).raise_for_status()
-    return len(names)
-
-
 @dataclass
 class KeycloakStack:
     port: int
@@ -317,8 +233,6 @@ class KeycloakStack:
     workdir: Path
     container: DockerContainer
     started_at: float
-    repaired_configs: int = 0
-    completed_profiles: int = 0
 
     @property
     def token_url(self) -> str:
@@ -429,12 +343,6 @@ def keycloak_stack() -> Iterator[KeycloakStack]:
         container.start()
         _wait_ready(base_url, pki.ca_file, container)
         _apply_realm(port, pki, generated, admin_password, workdir)
-        repaired = repair_shared_authenticator_configs(
-            base_url, ssl.create_default_context(cafile=str(pki.ca_file)), admin_password
-        )
-        completed = complete_user_profiles(
-            base_url, ssl.create_default_context(cafile=str(pki.ca_file)), admin_password
-        )
         yield KeycloakStack(
             port,
             f"{base_url}/auth/realms/vectra",
@@ -446,8 +354,6 @@ def keycloak_stack() -> Iterator[KeycloakStack]:
             workdir,
             container,
             started,
-            repaired,
-            completed,
         )
     finally:
         try:
