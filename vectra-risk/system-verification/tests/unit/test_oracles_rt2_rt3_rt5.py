@@ -30,6 +30,7 @@ from vectra_verification import guard
 from vectra_verification.clients.k8s_read import Completed, K8sRead
 from vectra_verification.clients.prom import PromClient
 from vectra_verification.scenarios import rt5
+from vectra_verification.scenarios.outcome import SubOutcome, combine
 
 KIND = guard.KIND
 NOW = datetime(2026, 11, 13, 20, 0, tzinfo=UTC)
@@ -754,7 +755,8 @@ def test_rt2_without_a_freeze_at_the_cap_fails_and_the_message_has_the_last_bias
     )
     detail = next(s.detail for s in result.rt2.subresults if s.name == "v1:freeze")
     assert "vectra_bias_last_run_ok=0" in detail and "u3_unavailable" in detail
-    assert result.latency.result == "no ejecutado"
+    # F-04: el sistema respondio y no detecto en 2 700 s: `RT2-LATENCY` es `falla`, no `no ejecutado`
+    assert result.latency.result == "falla" and result.latency.missing == ("rt2_latencia_sin_freeze",)
 
 
 def test_rt2_a_freeze_of_another_version_does_not_count(rworld: Rt2World) -> None:
@@ -1231,7 +1233,6 @@ def test_rt3b_promoted_with_explainer_error_and_no_recommendation_passes_and_wit
 def test_rt3b_409_at_registration_is_no_ejecutado_and_does_not_lower_rt3() -> None:
     result = rt3.judge_rt3b(rt3.RegistrationReading(409, "conflict_state"), None, [], [], RT3B)
     assert result.result == "no ejecutado" and result.missing == ("rt3b_version_ya_registrada",)
-    from vectra_verification.scenarios.outcome import SubOutcome, combine
 
     assert combine([result, SubOutcome("RT3-a", "pasa")])[0] == "pasa"
 
@@ -1782,3 +1783,109 @@ def test_rt5_ranged_never_asks_start_after_end_and_never_skips_or_repeats_a_poin
         start.timestamp() + 15.0 * n for n in range(int((end - start).total_seconds() // 15.0) + 1)
     ]  # sin huecos ni repetidos
     assert saved.end == end
+
+
+# --- ronda 2: F-05 (infraestructura), F-07 (huecos de prueba) -----------------------------------------------------------------------
+
+from vectra_verification.clients.k8s_read import K8sError
+from vectra_verification.clients.oidc import OidcError
+
+
+def forward_lost(request: httpx.Request) -> httpx.Response:
+    raise K8sError("port_forward_lost:vectra-app/pod/decision-registry-0")
+
+
+def test_rt2_a_lost_port_forward_is_no_ejecutado_with_its_code_and_keeps_the_resume_point(
+    rworld: Rt2World,
+) -> None:
+    rworld.registry_transport.handle_request = forward_lost  # type: ignore[method-assign]
+    result = rt2_run(rworld)
+    assert (
+        result.rt2.result == "no ejecutado"
+        and codes(result) == ("rt2_port_forward_caido",)
+        and result.pending == "freeze"
+    )
+    assert (
+        result.state.versions[PROXY].done["lote"].result == "pasa"
+        and result.state.versions[PROXY].batch is not None
+    )
+    assert result.latency.result == "no ejecutado"
+
+
+def test_rt2_a_login_that_fails_is_no_ejecutado_with_its_code(rworld: Rt2World) -> None:
+    def broken(user: str) -> Any:
+        raise OidcError("login_timeout")
+
+    rworld.oidc.login = broken  # type: ignore[method-assign]
+    result = rt2_run(rworld)
+    assert (
+        result.rt2.result == "no ejecutado"
+        and codes(result) == ("rt2_sesion_oidc_no_disponible",)
+        and result.pending == "promocion"
+    )
+    assert "login_timeout" in result.rt2.subresults[-1].detail
+
+
+def test_rt3_a_lost_port_forward_keeps_the_subresults_already_computed(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    tworld.registry_transport.handle_request = forward_lost  # type: ignore[method-assign]
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    assert outcome.result == "no ejecutado" and outcome.missing[-1] == "rt3_port_forward_caido"
+    assert [s.name for s in outcome.subresults][:4] == ["RT3-a", "RT3-c", "RT3-d", "sin_cambio_en_modelos"]
+    assert outcome.readings["interrumpida_tras"][-1] == "RT3-b" and sub(outcome, "RT3-a").result == "pasa"
+
+
+def test_rt3_a_login_that_fails_is_no_ejecutado(tworld: Rt2World, tmp_path: Path) -> None:
+    def broken(user: str) -> Any:
+        raise OidcError("login_rejected")
+
+    tworld.oidc.login = broken  # type: ignore[method-assign]
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    assert outcome.result == "no ejecutado" and outcome.missing == ("rt3_sesion_oidc_no_disponible",)
+
+
+def test_rt5_a_lost_port_forward_or_a_kubectl_that_does_not_answer_is_no_ejecutado(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for message, code in (
+        ("port_forward_lost:vectra-observability/pod/prometheus-0", "rt5_port_forward_caido"),
+        ("get_failed:vectra-app/job:x", "rt5_kubectl_no_responde"),
+    ):
+
+        def failing(*args: Any, **kwargs: Any) -> Any:
+            raise K8sError(message)
+
+        monkeypatch.setattr(rt5, "read", failing)
+        outcome, *_ = evaluate()
+        assert outcome.result == "no ejecutado" and outcome.missing == (code,)
+
+
+def test_rt5_a_run_id_with_no_stable_code_still_validates_before_reading() -> None:
+    with pytest.raises(ValueError, match="run_id_invalid"):
+        evaluate(run_id="x")
+
+
+def test_rt3b_a_403_at_registration_is_a_failure_and_not_a_no_ejecutado() -> None:
+    result = rt3.judge_rt3b(rt3.RegistrationReading(403, "forbidden"), None, [], [], RT3B)
+    assert result.result == "falla" and result.missing == ("rt3b_registro_rechazado",)
+    assert (
+        combine([result, SubOutcome("RT3-a", "pasa")])[0] == "falla"
+    )  # un `falla` opcional si baja RT-3 (P-2 (a))
+
+
+def test_rt2_a_new_case_in_a_state_that_is_neither_listo_nor_modelo_congelado_fails(rworld: Rt2World) -> None:
+    rworld.state_cases = lambda case_id, record: (
+        ("no_disponible", "timeout", 6) if record.kind == "probe" else ("listo", None, 1)
+    )
+    result = rt2_run(rworld)
+    assert codes(result) == ("rt2_caso_nuevo_no_quedo_modelo_congelado",) and result.pending == "casos_nuevos"
+    assert "no_disponible" in next(s.detail for s in result.rt2.subresults if s.name == "v1:casos_nuevos")
+
+
+def test_rt5_retention_is_compared_with_t0_and_not_with_t1() -> None:
+    """La retencion cubre t1 pero no t0 (el Job duro 20 s): `no ejecutado`. Comparar con t1 lo dejaria pasar."""
+    between = T0 + timedelta(seconds=10)
+    outcome, *_ = evaluate(good_spec(lowest=between))
+    assert outcome.result == "no ejecutado" and outcome.missing == ("rt5_retencion_no_cubre_t0",)
+    assert evaluate(good_spec(lowest=T0))[0].result == "pasa"  # exactamente t0 cubre

@@ -18,6 +18,7 @@ from vectra_verification.clients.bff import BffClient
 from vectra_verification.clock import Clock
 from vectra_verification.guard import Environment
 from vectra_verification.report import FALLA, NO_EJECUTADO, PASA
+from vectra_verification.scenarios.common import INFRA_ERRORS, infra_failure
 from vectra_verification.scenarios.outcome import Outcome
 from vectra_verification.scenarios.rt3 import CATALOG_CAUSES
 from vectra_verification.scenarios.waits import poll
@@ -136,6 +137,9 @@ def sim_normal(
     guard.check_section(environment, "decisions")
     try:
         reads = read_cases(bff, clock, report.case_ids, timeout)
+    except INFRA_ERRORS as error:  # F-05 (ronda 2)
+        code, detail = infra_failure(error, "sim_normal")
+        return Outcome("SIM-NORMAL", NO_EJECUTADO, EXPECTED, detail, (code,))
     except ApiError as error:
         if error.status == 0 or error.status >= 500:
             return Outcome(

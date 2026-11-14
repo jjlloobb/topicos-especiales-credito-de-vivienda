@@ -30,7 +30,13 @@ from vectra_verification.clients.registry import RegistryClient
 from vectra_verification.clock import Clock
 from vectra_verification.guard import Environment
 from vectra_verification.report import FALLA, NO_EJECUTADO, PASA, Result
-from vectra_verification.scenarios.common import ScenarioError, Sessions, registration_body
+from vectra_verification.scenarios.common import (
+    INFRA_ERRORS,
+    ScenarioError,
+    Sessions,
+    infra_failure,
+    registration_body,
+)
 from vectra_verification.scenarios.outcome import Outcome, SubOutcome, combine, from_subresults
 from vectra_verification.scenarios.rt5 import STEP, ranged
 from vectra_verification.scenarios.waits import poll
@@ -849,12 +855,23 @@ def _latency_phase(run: Rt2Run, version: ProxyVersion, vs: VersionState, number:
     return SubOutcome("latencia", PASA, readings={"latency_seconds": vs.measurement.latency_seconds})
 
 
-def latency_outcome(measurements: Sequence[rt2_latency.Rt2Measurement]) -> Outcome:
+def latency_outcome(
+    measurements: Sequence[rt2_latency.Rt2Measurement], *, no_freeze: bool = False
+) -> Outcome:
     """`RT2-LATENCY` (P-12 (a)): `pasa` si el maximo de las corridas **hechas** es <= 1 800 s; la evidencia dice cuantas fueron (con 1, cita DD-1) y, si falla, trae la medicion."""
     count = len(measurements)
     suffix = f"{count} medicion(es)" + (" (DD-1: una version del proxy en la demo)" if count == 1 else "")
     expected = f"latencia de deteccion maxima <= {LIMIT_SECONDS:g} s; {suffix}"
     readings = {"measurements": [m for m in measurements], "runs": count}
+    if not measurements and no_freeze:
+        return Outcome(
+            "RT2-LATENCY",
+            FALLA,
+            expected,
+            f"sin freeze al tope de {FREEZE_TIMEOUT:g} s: la deteccion tardo mas de {LIMIT_SECONDS:g} s o no ocurrio; {suffix}",
+            ("rt2_latencia_sin_freeze",),
+            readings=readings,
+        )
     if not measurements:
         return Outcome(
             "RT2-LATENCY",
@@ -928,6 +945,9 @@ def run_rt2(deps: Rt2Deps, params: Rt2Params, state: Rt2State | None = None) -> 
                 result = SubOutcome(phase, code_result, (code,), str(error))
             except ObsError as error:
                 result = SubOutcome(phase, NO_EJECUTADO, ("rt2_prometheus_no_responde",), str(error))
+            except INFRA_ERRORS as error:  # F-05 (ronda 2): `port-forward` caido o login que falla: `no ejecutado`, con la fase como punto de retoma
+                code, detail = infra_failure(error, "rt2")
+                result = SubOutcome(phase, NO_EJECUTADO, (code,), detail)
             subs.append(_renamed(result, name))
             if result.result == PASA:
                 vs.done[phase] = result
@@ -948,6 +968,9 @@ def run_rt2(deps: Rt2Deps, params: Rt2Params, state: Rt2State | None = None) -> 
                 sub = _latency_phase(run, version, vs, number)
             except (ApiError, ObsError) as error:
                 sub = SubOutcome("latencia", NO_EJECUTADO, ("rt2_registro_no_responde",), str(error))
+            except INFRA_ERRORS as error:
+                code, detail = infra_failure(error, "rt2")
+                sub = SubOutcome("latencia", NO_EJECUTADO, (code,), detail)
             subs.append(_renamed(sub, f"v{version.run}:latencia"))
         if vs.measurement is not None:
             measurements.append(vs.measurement)
@@ -978,7 +1001,12 @@ def run_rt2(deps: Rt2Deps, params: Rt2Params, state: Rt2State | None = None) -> 
         tuple(run.queries),
         readings,
     )
-    return Rt2Result(rt2, latency_outcome(measurements), closing, state, pending, unreachable)
+    no_freeze = pending == "freeze" and any(
+        s.name.endswith(":freeze") and s.result == FALLA for s in subs
+    )  # F-04: el sistema respondio y no detecto dentro del tope de 2 700 s: es `falla`, no `no ejecutado`
+    return Rt2Result(
+        rt2, latency_outcome(measurements, no_freeze=no_freeze), closing, state, pending, unreachable
+    )
 
 
 def _renamed(sub: SubOutcome, name: str) -> SubOutcome:

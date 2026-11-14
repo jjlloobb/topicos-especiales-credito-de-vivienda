@@ -29,8 +29,10 @@ from vectra_verification.clock import Clock
 from vectra_verification.guard import Environment
 from vectra_verification.report import FALLA, NO_EJECUTADO, PASA, Result
 from vectra_verification.scenarios.common import (
+    INFRA_ERRORS,
     ScenarioError,
     Sessions,
+    infra_failure,
     list_all_models,
     registration_body,
     snapshot,
@@ -491,8 +493,26 @@ def rt3(deps: Rt3Deps, params: Rt3Params) -> Outcome:
         raise ScenarioError("rt3_paquetes_faltan", ",".join(missing_packages))
     run = Rt3Run(deps, params)
     subs: list[SubOutcome] = []
-    reader = deps.sessions.reader(ENGINEER)
     readings: dict[str, Any] = {}
+    try:
+        _rt3_steps(deps, params, run, subs, readings)
+    except INFRA_ERRORS as error:  # F-05 (ronda 2): un `port-forward` caido o un login que falla no es un incumplimiento; se conservan los sub-resultados ya calculados
+        code, detail = infra_failure(error, "rt3")
+        readings["interrumpida_tras"] = [s.name for s in subs]
+        subs.append(SubOutcome("infraestructura", NO_EJECUTADO, (code,), detail, True))
+    return from_subresults(
+        "RT-3",
+        "RT3-a, c y d rechazados por U4 sin cambios en los modelos, y con F22 apagado ninguna recommendation y casos en fail-closed",
+        subs,
+        readings=readings,
+        queries=run.queries,
+    )
+
+
+def _rt3_steps(
+    deps: Rt3Deps, params: Rt3Params, run: Rt3Run, subs: list[SubOutcome], readings: dict[str, Any]
+) -> None:
+    reader = deps.sessions.reader(ENGINEER)
     try:
         before = snapshot(list_all_models(reader))
         for case_id in REGISTRY_CASES:
@@ -501,7 +521,8 @@ def rt3(deps: Rt3Deps, params: Rt3Params) -> Outcome:
         subs.append(judge_unchanged(before, after, active_model(before), active_model(after)))
     except ApiError as error:
         result, code = _api_failure(error, "rt3")
-        return Outcome("RT-3", result, "RT-3", str(error), (code,))
+        subs.append(SubOutcome("registro", result, (code,), str(error), True))
+        return
     for case_id in ("RT3-a", "RT3-d"):
         name = params.deployed.get(case_id)
         if name is None:
@@ -561,13 +582,6 @@ def rt3(deps: Rt3Deps, params: Rt3Params) -> Outcome:
     except ApiError as error:
         result, code = _api_failure(error, "rt3")
         subs.append(SubOutcome("F22", result, (code,), str(error), True))
-    return from_subresults(
-        "RT-3",
-        "RT3-a, c y d rechazados por U4 sin cambios en los modelos, y con F22 apagado ninguna recommendation y casos en fail-closed",
-        subs,
-        readings=readings,
-        queries=run.queries,
-    )
 
 
 def _all_unavailable(run: Rt3Run, ids: Sequence[str]) -> bool:

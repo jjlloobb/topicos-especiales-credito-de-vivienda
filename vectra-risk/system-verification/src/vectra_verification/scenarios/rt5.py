@@ -49,6 +49,10 @@ SERIES_FULL: Final = f"{DENY_FAMILY}{{{DENY_LABELS}}}"
 LOG_LINE: Final = re.compile(r"rt5-demo: POST (?P<url>\S+) -> (?P<code>\d{3}) l5d-proxy-error: (?P<value>.*)")
 NO_RESPONSE: Final = "rt5-demo: sin respuesta"
 
+_EXPECTED: Final = (
+    "403 de Linkerd (l5d-proxy-error con valor) en el log del Job; CoreWriteAttempt en firing; "
+    f"{DENY_FAMILY} con maximo >= 1; {COUNTER_NAME} sin superar 0"
+)
 Point = tuple[float, float]
 Series = dict[str, list[Point]]
 
@@ -142,10 +146,7 @@ def _max(series: Series) -> float | None:
 
 def judge(run_id: str, started_at: datetime, readings: Readings) -> Outcome:
     """Puro: el resultado de RT-5 con lo leido. `falla` = el sistema respondio y no cumplio; `no ejecutado` = faltaba un prerrequisito."""
-    expected = (
-        "403 de Linkerd (l5d-proxy-error con valor) en el log del Job; CoreWriteAttempt en firing; "
-        f"{DENY_FAMILY} con maximo >= 1; {COUNTER_NAME} sin superar 0"
-    )
+    expected = _EXPECTED
     queries = tuple(readings.queries)
     log_text = readings.log.kind if readings.log else "sin log"
     base = {"run_id": run_id, "log": log_text}
@@ -459,11 +460,14 @@ def run(
     guard.check_section(environment, "rt5")
     if not RUN_ID.fullmatch(run_id):
         raise ValueError("run_id_invalid")
-    return judge(
-        run_id,
-        started_at,
-        read(k8s, prom, clock, run_id, started_at, environment=environment, after_job=after_job),
-    )
+    try:
+        readings = read(k8s, prom, clock, run_id, started_at, environment=environment, after_job=after_job)
+    except K8sError as error:  # F-05 (ronda 2): un `port-forward` caido o un `kubectl` que no responde no es un incumplimiento
+        code = (
+            "rt5_port_forward_caido" if str(error).startswith("port_forward") else "rt5_kubectl_no_responde"
+        )
+        return Outcome("RT-5", NO_EJECUTADO, _EXPECTED, f"{code}: {str(error)[:200]}", (code,))
+    return judge(run_id, started_at, readings)
 
 
 __all__ = ["Readings", "judge", "parse_job", "parse_log", "ranged", "read", "run"]

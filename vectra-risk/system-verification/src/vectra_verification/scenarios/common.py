@@ -21,6 +21,8 @@ from vectra_contracts.models.governance import ModelRegistration, ModelVersion
 from vectra_verification import guard
 from vectra_verification.clients._api import ApiError, RunTag
 from vectra_verification.clients.bff import BffClient, Session
+from vectra_verification.clients.k8s_read import K8sError
+from vectra_verification.clients.oidc import OidcError
 from vectra_verification.clock import Clock
 from vectra_verification.guard import Environment
 
@@ -143,3 +145,16 @@ def snapshot(models: list[ModelVersion]) -> dict[str, str]:
 
 def check_section(environment: Environment, section: str) -> None:
     guard.check_section(environment, section)
+
+
+INFRA_ERRORS: Final = (K8sError, OidcError)
+
+
+def infra_failure(error: Exception, prefix: str) -> tuple[str, str]:
+    """El codigo estable y el detalle de un fallo de infraestructura que **no** es un incumplimiento del sistema (F-05, ronda 2): un `port-forward` caido o un `kubectl` que no responde (`K8sError`) y un login que no se pudo
+    hacer o renovar (`OidcError`). El resultado es `no ejecutado`; el detalle trae el codigo del error, que nunca lleva credenciales."""
+    if isinstance(error, K8sError):
+        forward = str(error).startswith("port_forward")
+        return f"{prefix}_{'port_forward_caido' if forward else 'kubectl_no_responde'}", str(error)[:200]
+    code = str(error)[:80] or type(error).__name__  # `OidcError` lleva un codigo estable como mensaje
+    return f"{prefix}_sesion_oidc_no_disponible", f"oidc:{code}"
