@@ -32,7 +32,7 @@ from vectra_verification.clients._api import ApiError, RunTag
 from vectra_verification.clients.bff import BffClient, Session
 from vectra_verification.clock import Clock
 from vectra_verification.guard import Environment
-from vectra_verification.simulator import DEFAULT_RATE, SimulationResult, Simulator, pace
+from vectra_verification.simulator import DEFAULT_RATE, RunReport, SimulationResult, Simulator, pace
 
 ANALYSTS: Final = ("analista-1", "analista-2")
 DRIVER_RATE: Final = 10.0  # por usuario; el gateway limita `/api/console` a 20/s
@@ -277,11 +277,17 @@ def run_decisions(
     volume: int | None = None,
     rate: float = DEFAULT_RATE,
     environment: Environment,
+    settle: Callable[[RunReport], None] | None = None,
 ) -> DecisionsResult:
-    """La seccion `decisions`: simulador `normal` y despues el conductor sobre los `case_ids` del `RunReport`. Con el modelo de referencia activo y antes de RT-2."""
+    """La seccion `decisions`: simulador `normal` y despues el conductor sobre los `case_ids` del `RunReport`. Con el modelo de referencia activo y antes de RT-2.
+
+    `settle` (U12-T04, F-04 de la ronda 1 de U12-T02): un paso entre el simulador y el conductor. El conductor solo decide los casos que ya estan en `listo`; sin esperar, los que siguen `en_evaluacion` quedan
+    sin decidir y se cuentan como `not_ready` sin que nadie los vuelva a mirar. La CLI pasa aqui la espera (sondeo con el reloj inyectado hasta que ninguno este `en_evaluacion`, o hasta un plazo)."""
     count = default_volume(environment) if volume is None else volume
     simulation = simulator.run("normal", count, seed, rate=rate, section="decisions")
     report = simulation.report
+    if settle is not None:
+        settle(report)
     driven = driver.run(report.case_ids)
     record = DecisionsRecord(
         report.sent, report.accepted, len(driven.decided_case_ids), report.case_ids[:CASE_SIZE_CASES]

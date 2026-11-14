@@ -358,3 +358,56 @@ def test_red_without_the_window_wait_keycloak_itself_rejects_the_reused_totp_cod
     client.otp_code = lambda user: credentials.totp(user, datetime.now(UTC))  # type: ignore[method-assign]  # sin memoria ni espera
     with pytest.raises(OidcError, match="login_rejected"):
         client.login("analista-2")
+
+
+def test_red_fn1_a_route_fetch_failure_prints_nothing_to_stderr_not_the_authorization_url_nor_the_call_log(
+    keycloak: KeycloakStack,
+    real_environment: guard.Environment,
+    credentials: Credentials,
+    monkeypatch: pytest.MonkeyPatch,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    """F-N1 (U12-T04): con Node sin la CA, `route.fetch` falla **dentro del manejador**. Playwright imprimia en stderr «Error occurred in event listener» con el `Call log` y la URL de autorizacion
+    (`state`, `nonce`, `code_challenge`). `capfd` captura el descriptor 2 de verdad (tambien lo que escribe el proceso de Node), no solo `sys.stderr`."""
+    from vectra_verification.clients.oidc import server_spki_pin
+
+    monkeypatch.delenv("NODE_EXTRA_CA_CERTS", raising=False)
+    pin = server_spki_pin("127.0.0.1", keycloak.port, keycloak.pki.ca_file)
+    client = OidcClient(
+        real_environment,
+        credentials,
+        Clock(),
+        ca_file=keycloak.pki.ca_file,
+        form=HeadlessForm(pin, ca_file=None),
+    )
+    client._last_window = _WINDOWS  # noqa: SLF001
+    requests = []
+    real_request = client.authorization_request
+
+    def recording(step_up: bool):  # type: ignore[no-untyped-def]
+        requests.append(real_request(step_up))
+        return requests[-1]
+
+    client.authorization_request = recording  # type: ignore[method-assign]
+    capfd.readouterr()
+    try:
+        with pytest.raises(OidcError) as error:
+            client.login("cro-1")
+    finally:
+        client.close()
+    assert str(error.value) in ("browser_error", "browser_close_error", "login_timeout")
+    captured = capfd.readouterr()
+    (request,) = requests
+    for stream in (captured.err, captured.out):
+        for secret in (
+            request.state,
+            request.nonce.reveal(),
+            request.code_verifier.reveal(),
+            request.url,
+            "code_challenge=",
+            "Call log",
+            "Error occurred in event listener",
+            "AUTH_SESSION_ID",
+            "KC_AUTH_SESSION_HASH",
+        ):
+            assert secret not in stream, secret

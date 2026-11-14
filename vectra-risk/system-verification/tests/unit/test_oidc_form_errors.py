@@ -176,3 +176,82 @@ def test_a_launch_failure_is_a_stable_error_without_the_url(monkeypatch: pytest.
     with pytest.raises(OidcError) as error:
         HeadlessForm(None).submit(URL, REDIRECT, "analista-1", Secret("contrasena"), lambda: "1")
     assert str(error.value) == "browser_launch_error" and STATE not in _text(error.value)
+
+
+# --- U12-T04 (F-N1, F-N2 y F-N3 de la ronda 2 de U12-T02) -------------------------------------------------------------------------------------------------
+
+
+def test_fn2_the_oidc_error_does_not_carry_the_playwright_error_in_its_context() -> None:
+    with pytest.raises(OidcError) as error:
+        _submit(goto_error=PlaywrightError(f"Page.goto: net::ERR_CONNECTION_REFUSED at {URL}"))
+    assert str(error.value) == "browser_error"
+    assert error.value.__cause__ is None and error.value.__context__ is None
+
+
+@pytest.mark.parametrize("failing", ["route", "on", "new_page"])
+def test_fn3_route_on_and_new_page_failures_are_a_stable_error_and_the_context_is_closed(
+    monkeypatch: pytest.MonkeyPatch, failing: str
+) -> None:
+    def boom(*args: Any, **kwargs: Any) -> Any:
+        raise PlaywrightError(f"Context.{failing}: {URL}")
+
+    monkeypatch.setattr(Context, failing, boom)
+    form = HeadlessForm(None)
+    browser = Browser(close_error=None, goto_error=None, form_count=1)
+    form._browser = browser  # type: ignore[assignment]
+    with pytest.raises(OidcError) as error:
+        form.submit(URL, REDIRECT, "analista-1", Secret("contrasena"), lambda: "1")
+    _assert_clean(error.value)
+    assert str(error.value) == "browser_error" and error.value.__context__ is None
+    assert form.contexts_opened == form.contexts_closed == 1 and browser.contexts[0].closed
+
+
+def test_fn1_a_route_fetch_failure_stays_inside_the_handler_aborts_the_route_and_ends_in_a_stable_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """El manejador no deja salir el error de `route.fetch` (Playwright lo imprimiria en stderr con el `Call log`): aborta la ruta, anota el fallo y el login termina con `browser_error` sin esperar el plazo."""
+    aborted: list[bool] = []
+    raised: list[BaseException] = []
+
+    class FailingRoute(Route):
+        def fetch(self, **kwargs: Any) -> Response:
+            raise PlaywrightError(f"Route.fetch: self-signed certificate\nCall log:\n  - → GET {URL}")
+
+        def abort(self, **kwargs: Any) -> None:
+            aborted.append(True)
+
+    class FailingPage(Page):
+        def wait_for_timeout(self, ms: int) -> None:
+            try:
+                assert self.context.handler is not None
+                self.context.handler(FailingRoute())
+            except BaseException as error:  # lo que Playwright imprimiria en stderr
+                raised.append(error)
+                raise
+
+    monkeypatch.setattr(Context, "new_page", lambda self: FailingPage(self, None, 1))
+    with pytest.raises(OidcError) as error:
+        _submit()
+    assert str(error.value) == "browser_error" and not raised and aborted == [True]
+    _assert_clean(error.value)
+
+
+def test_fn1_a_route_that_cannot_be_aborted_either_is_still_a_stable_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DeadRoute(Route):
+        def fetch(self, **kwargs: Any) -> Response:
+            raise PlaywrightError(f"Route.fetch: {URL}")
+
+        def abort(self, **kwargs: Any) -> None:
+            raise PlaywrightError("Route is already handled")
+
+    class DeadPage(Page):
+        def wait_for_timeout(self, ms: int) -> None:
+            assert self.context.handler is not None
+            self.context.handler(DeadRoute())
+
+    monkeypatch.setattr(Context, "new_page", lambda self: DeadPage(self, None, 1))
+    with pytest.raises(OidcError) as error:
+        _submit()
+    assert str(error.value) == "browser_error"

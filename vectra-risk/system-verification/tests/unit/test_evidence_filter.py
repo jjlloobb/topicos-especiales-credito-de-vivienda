@@ -308,3 +308,138 @@ def test_f05_code_is_still_kept_as_a_problem_field_and_other_names_ending_in_cod
         evidence.scrub("http_code=500&error_code=x&status_code=200")
         == "http_code=500&error_code=x&status_code=200"
     )
+
+
+# --- U12-T04 (F-N4 de la ronda 2 de U12-T02): el objeto HAR con una llave en el valor o con otro objeto anidado, en los dos ordenes de claves ----------
+
+
+@pytest.mark.parametrize(
+    "har",
+    [
+        '{"name":"Cookie","value":"sid=SECRETO-HAR-N4","x":{"y":1}}',
+        '{"x":{"y":1},"value":"sid=SECRETO-HAR-N4","name":"Cookie"}',
+        '{"name":"Cookie","value":"a}b SECRETO-HAR-N4"}',
+        '{"value":"a}b SECRETO-HAR-N4","name":"Cookie"}',
+        '{"name":"Cookie","value":"a{b SECRETO-HAR-N4"}',
+        '{"value":"a{b SECRETO-HAR-N4","name":"Cookie"}',
+        '{"name":"Cookie","value":"{\\"s\\": \\"SECRETO-HAR-N4\\"}"}',
+        '{"value":"{\\"s\\": \\"SECRETO-HAR-N4\\"}","name":"Cookie"}',
+        '[{"name": "Accept", "value": "x"}, {"value": "k=SECRETO-HAR-N4", "meta": {"a": [1, {"b": 2}]}, "name": "Set-Cookie"}]',
+        "{'value': 'a}b SECRETO-HAR-N4', 'name': 'Authorization'}",
+        'no es {"name":"Cookie","value":"SECRETO-HAR-N4"} ni lo que dice el usuario',
+    ],
+)
+def test_fn4_a_har_object_with_braces_or_nesting_is_cleaned_in_both_key_orders(har: str) -> None:
+    cleaned = evidence.scrub(f"entrada: {har}\n")
+    assert "SECRETO-HAR-N4" not in cleaned and "[REDACTADO]" in cleaned
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"code": "conflict_state"}',
+        "http_code=500&error_code=x&status_code=200",
+        '{"name": "Accept", "value": "a}b", "x": {"y": 1}}',
+        '{"value": "a{b", "name": "Accept"}',
+        'it\'s {"name": "Accept", "value": "x"} and that\'s all',
+    ],
+)
+def test_fn4_what_is_not_a_credential_is_untouched(text: str) -> None:
+    assert evidence.scrub(text) == text
+
+
+# --- U12-T04 ronda 2 (F-07): el HAR **dentro de una cadena JSON**, que es como `Store` escribe toda evidencia (`json.dumps({"output": ...})`), y el coste del recorrido -------------------------
+
+
+EMBEDDED_HAR = [
+    '{"name": "Cookie", "value": "sid=SECRETO-F07"}',
+    '{"value": "sid=SECRETO-F07", "name": "Set-Cookie"}',
+    '[{"name": "Accept", "value": "x"}, {"name": "Authorization", "value": "Bearer SECRETO-F07"}]',
+    '{"name": "Cookie", "value": "a}b SECRETO-F07", "x": {"y": 1}}',
+    "{'name': 'Cookie', 'value': 'sid=SECRETO-F07'}",
+    '{"n\\u0061me": "Cookie", "value": "sid=SECRETO-F07"}',
+]
+
+
+def stored(output: str, **more: object) -> str:
+    """Lo que `Store` pasa al filtro: el documento de la evidencia ya serializado."""
+    import json
+
+    return json.dumps(
+        {"evidence": {"output": output, **more}, "outcome": {"detail": output}}, ensure_ascii=False, indent=2
+    )
+
+
+@pytest.mark.parametrize("har", EMBEDDED_HAR)
+def test_f07_a_har_inside_a_json_string_is_cleaned_in_the_text_the_store_writes(har: str) -> None:
+    import json
+
+    cleaned = evidence.prepare(stored(f"GET /api\nheaders: {har}\n"), [])
+    assert "SECRETO-F07" not in cleaned and "[REDACTADO]" in cleaned
+    assert json.loads(cleaned)["evidence"]["output"].startswith("GET /api")  # sigue siendo un JSON valido
+
+
+def test_f07_a_har_inside_two_levels_of_json_strings_is_cleaned() -> None:
+    import json
+
+    inner = json.dumps({"headers": [{"name": "Cookie", "value": "sid=SECRETO-F07"}]})
+    outer = json.dumps({"body": inner})
+    assert "SECRETO-F07" not in evidence.prepare(stored(outer), [])
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"code": "conflict_state"}',
+        "http_code=500&error_code=x&status_code=200",
+        '[{"name": "Accept", "value": "application/json"}]',
+        "una evidencia limpia: RT-5 pasa, 403 l5d-proxy-error, series y ventanas",
+        '{"name": "Accept", "value": "a}b", "x": {"y": 1}}',
+    ],
+)
+def test_f07_what_already_passed_stays_as_it_was_also_inside_a_json_string(text: str) -> None:
+    import json
+
+    assert evidence.scrub(text) == text
+    document = stored(text)
+    assert evidence.scrub(document) == document
+    assert json.loads(evidence.prepare(document, []))["evidence"]["output"] == text
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        '\\"' * 8192,
+        "\\'" * 8192,
+        '{"a": ' + '\\"' * 8192,
+        '"' * 16384,
+        "[" * 16384,
+        "{" * 16384,
+        '"\\"' * 6000,
+    ],
+)
+def test_f07_the_walk_has_a_bounded_cost_on_runs_of_escaped_quotes_and_brackets(shape: str) -> None:
+    """Ronda 1: 16 KB de `\\"` fuera de una cadena tardaban 5,6 s y 200 KB pasaban de 4 min (coste cuadratico). Ahora son milisegundos."""
+    import time
+
+    for text in (shape, f"x\n{shape}\ny", stored(shape)):
+        started = time.perf_counter()
+        evidence.scrub(text)
+        assert time.perf_counter() - started < 1.0, (shape[:12], len(text))
+
+
+def test_f07_a_megabyte_of_real_json_and_200_kb_of_quotes_stay_in_seconds() -> None:
+    import json
+    import time
+
+    big = json.dumps(
+        {"rows": [{"name": f"c{i}", "value": f"v{i}", "x": {"y": [1, 2, i]}} for i in range(12000)]}
+    )
+    assert len(big) > 600_000
+    started = time.perf_counter()
+    assert evidence.scrub(big) == big
+    assert evidence.scrub(stored(big)) == stored(big)
+    assert time.perf_counter() - started < 8.0
+    started = time.perf_counter()
+    evidence.scrub('\\"' * 100_000)
+    assert time.perf_counter() - started < 2.0

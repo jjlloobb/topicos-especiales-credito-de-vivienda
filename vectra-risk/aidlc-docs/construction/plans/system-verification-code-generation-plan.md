@@ -162,13 +162,13 @@ vectra-risk/system-verification/
 
 ### Bloque E — Demos, informe y CLI
 
-- [ ] **Paso 12 — Demos**
+- [x] **Paso 12 — Demos** (U12-T04)
   - Guiones `journey-7-3.md`, `journey-7-4.md`, `rt-5.md` y `dashboard.md` con los pasos del presentador, las lecturas y las llamadas a la API, y un `verify/<demo>.sh` por demo que comprueba cada paso.
   - Los cambios al clúster (artefacto alterado, modelo proxy, Jobs de prueba) son PRs preparados en `demos/prs/`, que el operador sincroniza antes.
   - Diseño: BR-U12-09.
   - **Aceptación**: la prueba del Paso 1 sobre `demos/`; `shellcheck system-verification/demos/verify/*.sh`.
 
-- [ ] **Paso 13 — CLI por secciones, manifiesto y `CODEOWNERS`**
+- [x] **Paso 13 — CLI por secciones, manifiesto y `CODEOWNERS`** (U12-T04; 8 secciones; parche solo de `case-management`; prueba de `CODEOWNERS` diferida)
   - `cli`: secciones `prepare`, `network`, `decisions`, `rt1`, `rt4`, `rt5`, `rt3`, `rt2-setup`, `rt2`, `load`, `pii`, `u11`, `resilience`, `report`, en el orden de business-logic-model §2.1, con retoma desde una sección y evidencia al terminar cada una.
   - **`prepare`** (revisión del plan de tareas de U12, 2026-10-10): primera sección, **antes** del PR de los Jobs de prueba. Genera el `runId` de la verificación, escribe el manifiesto inicial con ese `runId` y `started_at = ahora`, y produce el parche de values de kind (`probes.runId`, y el de U8 para RT-5) que el operador usa en el PR. Así los Jobs de prueba terminan **después** de `started_at`, y el oráculo de X04 y X06 (Paso 9) puede aceptarlos. Sin `prepare`, las demás secciones se niegan a correr.
   - `manifest`: `manifest.json` con SHA-256 por archivo, `started_at`, semillas, `generator_version`, digests (leídos del clúster), tamaño de `test` y las **solicitudes repetidas** entre escenarios (misma fila de U5 enviada en dos escenarios, NFR-U12-11); tope de 50 MB.

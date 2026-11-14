@@ -1,0 +1,7 @@
+--- a/flows.yaml
++++ b/flows.yaml
+@@ -4,3 +4,3 @@
+   x: 1
+-  y: 2
++  y: 3
++kubectl apply -f x.yaml

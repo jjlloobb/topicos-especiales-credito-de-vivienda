@@ -15,6 +15,9 @@ dependencies = [
   "pyarrow==26.0.1",
 ]
 
+[project.scripts]
+vectra-verification = "vectra_verification.cli:main"
+
 [tool.uv.sources]
 vectra-contracts = { workspace = true }
 

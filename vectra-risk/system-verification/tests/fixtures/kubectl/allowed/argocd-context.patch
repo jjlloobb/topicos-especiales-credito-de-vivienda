@@ -1,0 +1,6 @@
+--- a/flows.yaml
++++ b/flows.yaml
+@@ -4,3 +4,3 @@
+   system_namespaces: [kube-system, argocd, kyverno]
+-  env_disabled: { kind: [], staging: [], prod: [] }
++  env_disabled: { kind: [F22], staging: [], prod: [] }

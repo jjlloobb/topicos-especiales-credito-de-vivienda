@@ -43,6 +43,7 @@ WRAPPERS = {
 }
 PROGRAMS = ("kubectl", "argocd")
 _PROGRAM_WORD = re.compile(r"\b(kubectl|argocd)\b")
+_REFERENCE = re.compile(r"[/:@]|https://")
 _SEPARATORS = re.compile(r"&&|\|\||[;|&)`\n]")
 
 
@@ -125,8 +126,8 @@ def _indirect(prefix: str) -> bool:
     before = prefix.rstrip().rstrip("\"'")
     if before.endswith(("=", "$(which", "$(command -v", "`which")):
         return True
-    if re.search(r"=\s*(\$\(|`)[^)`]*$", prefix):
-        return True
+    if re.search(r"=\s*(\$\(|`)[^)`]*$", prefix) and not re.search(r"=\s*(\$\(|`)\s*$", prefix):
+        return True  # F-06: `POD=$(kubectl get ...)` no es indirecta (el verbo de dentro se juzga igual); `K=$(which kubectl)` y `X=$(echo kubectl)` si
     words = re.findall(r"[\w.-]+", before)
     return bool(words) and words[-1] in WRAPPERS or bool(re.search(r"\beval\b", prefix))
 
@@ -146,6 +147,8 @@ def scan_text(text: str, name: str, base_line: int = 1) -> list[Finding]:
                 findings.append(Finding(name, number, f"{program} <indirect>"))
                 continue
             tail = line[match.end() :]
+            if Path(name).name == "Dockerfile" and _REFERENCE.match(tail.lstrip()):
+                continue  # F-06: el binario como ruta o URL (`COPY ... /usr/local/bin/kubectl /...`): lo que sigue a `kubectl` ahi no es un argumento
             cut = _SEPARATORS.search(tail)
             tokens, quoted = _split(tail[: cut.start()] if cut else tail)
             if program == "argocd":
@@ -244,6 +247,13 @@ def scan_file(path: Path, name: str | None = None) -> list[Finding]:
         text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:  # un binario: no es texto que alguien ejecute como orden
         return []
+    if (
+        path.suffix == ".patch"
+    ):  # F-06: en un parche se juzgan solo las lineas anadidas; el contexto de `flows.yaml` nombra el namespace de Argo CD en una lista
+        text = "\n".join(
+            line[1:] if line.startswith("+") and not line.startswith("+++") else ""
+            for line in text.split("\n")
+        )
     return scan_python(text, label) if _is_python(path, text) else scan_text(text, label)
 
 
@@ -439,3 +449,65 @@ def test_f01_a_python_file_that_does_not_parse_is_a_finding(tmp_path: Path) -> N
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "a.py").write_text("def (:\n")
     assert [f.verb for f in scan_tree(tmp_path)] == ["<unparsable>"]
+
+
+# --- U12-T04 (F-06 de U12-T01, P-13): el detector se amplia, no se relaja ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["pod-substitution.sh", "Dockerfile", "argocd-context.patch"])
+def test_f06_the_forms_that_are_accepted_have_a_fixture_in_allowed(name: str) -> None:
+    assert scan_file(FIXTURES / "allowed" / name, name) == []
+
+
+@pytest.mark.parametrize(
+    ("name", "label", "verbs"),
+    [
+        ("pod-substitution-delete.sh", "x.sh", ["delete"]),
+        ("assigned-binary.sh", "x.sh", ["kubectl <indirect>"]),
+        ("which-binary.sh", "x.sh", ["kubectl <indirect>"]),
+        ("variable-verb.sh", "x.sh", ["$V"]),
+        ("nohup.sh", "x.sh", ["kubectl <indirect>"]),
+        ("watch.sh", "x.sh", ["kubectl <indirect>"]),
+        ("context-substitution.sh", "x.sh", None),
+        ("added-apply.patch", "x.patch", ["apply"]),
+        ("dockerfile-variable/Dockerfile", "Dockerfile", ["$V"]),
+        ("dockerfile-word/Dockerfile", "Dockerfile", ["delete"]),
+    ],
+)
+def test_f06_the_neighbouring_forms_keep_failing(name: str, label: str, verbs: list[str] | None) -> None:
+    findings = scan_file(FIXTURES / "prohibited" / name, label)
+    assert findings, name
+    if verbs is not None:
+        assert [f.verb for f in findings] == verbs
+
+
+def test_f06_the_binary_as_a_path_is_accepted_only_in_a_dockerfile() -> None:
+    line = "COPY --from=tools /usr/local/bin/kubectl /usr/local/bin/kubectl\n"
+    assert scan_text(line, "Dockerfile") == [] and scan_text(line, "guion.sh") != []
+    assert (
+        scan_text("RUN kubectl $V x\n", "Dockerfile") != []
+        and scan_text("RUN kubectl --foo x\n", "Dockerfile") != []
+    )
+
+
+def test_f06_a_patch_is_judged_by_its_added_lines_and_prose_with_the_bare_name_passes() -> None:
+    assert scan_text("Solo se usa `kubectl`\nSe sincroniza en Argo CD", "README.md") == []
+    assert scan_text("sincroniza la Application `network` en Argo CD, con prune\n", "demos/x.md") == []
+
+
+DEMOS_DIR = UNIT / "demos"
+
+
+def test_red_u12_t04_an_exec_in_a_verify_and_the_sync_of_argo_cd_in_a_script_fail() -> None:
+    """Rojo de CA-4: una orden de escritura agregada a un `verify` real, y la orden de sincronizar de Argo CD en un guion real, hacen fallar el detector."""
+    verify = (DEMOS_DIR / "verify" / "rt-5.sh").read_text(encoding="utf-8")
+    assert scan_text(verify, "verify/rt-5.sh") == []
+    assert [
+        f.verb
+        for f in scan_text(
+            verify + '\nkubectl --context kind-vectra exec -n vectra-app "$POD" -- ls\n', "verify/rt-5.sh"
+        )
+    ] == ["exec"]
+    guion = (DEMOS_DIR / "journey-7-3.md").read_text(encoding="utf-8")
+    assert scan_text(guion, "journey-7-3.md") == []
+    assert [f.verb for f in scan_text(guion + "\nargocd app sync network\n", "journey-7-3.md")] == ["argocd"]

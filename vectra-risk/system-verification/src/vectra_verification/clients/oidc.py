@@ -239,13 +239,19 @@ class HeadlessForm(FormDriver):
         password: Secret,
         otp: Callable[[], str],
     ) -> str:
-        if True:
-            returned: list[str] = []
+        returned: list[str] = []
+        failed = False  # un fallo dentro del manejador de rutas
+        crashed = False  # un fallo de Playwright en el flujo principal
 
-            def intercept(route: Route) -> None:
-                """Playwright no llama al manejador en cada salto de una redireccion del servidor: la de Keycloak al `redirect_uri` no se veria. Por eso las **navegaciones** se piden sin seguir
-                redirecciones (`max_redirects=0`): si la respuesta redirige al `redirect_uri`, se toma `Location` y la navegacion se cierra con un 204 (el navegador no sale a la red ni carga la SPA);
-                si redirige a otro sitio, se le entrega al navegador tal cual. Una solicitud directa al `redirect_uri` se aborta."""
+        def intercept(route: Route) -> None:
+            """Playwright no llama al manejador en cada salto de una redireccion del servidor: la de Keycloak al `redirect_uri` no se veria. Por eso las **navegaciones** se piden sin seguir
+            redirecciones (`max_redirects=0`): si la respuesta redirige al `redirect_uri`, se toma `Location` y la navegacion se cierra con un 204 (el navegador no sale a la red ni carga la SPA);
+            si redirige a otro sitio, se le entrega al navegador tal cual. Una solicitud directa al `redirect_uri` se aborta.
+
+            F-N1 (U12-T04): un fallo de `route.fetch` (TLS, red, tiempo) **no sale** del manejador: Playwright lo imprimiria en stderr como «Error occurred in event listener» con el `Call log`, que
+            trae la URL de autorizacion (`state`, `nonce`, `code_challenge`) y, con Keycloak colgado, la cookie de sesion. Se captura aqui, se aborta la ruta y se anota solo que fallo."""
+            nonlocal failed
+            try:
                 request = route.request
                 if request.url.startswith(redirect_uri):
                     returned.append(request.url)  # solo en memoria
@@ -261,51 +267,55 @@ class HeadlessForm(FormDriver):
                     route.fulfill(status=204, body="")
                 else:
                     route.fulfill(response=response)
+            except PlaywrightError:
+                failed = True  # el texto de Playwright no se guarda ni se imprime
+                try:
+                    route.abort()
+                except PlaywrightError:
+                    pass  # la ruta ya estaba resuelta o el contexto se cerro: el fallo ya quedo anotado
 
+        def finished(request: Any) -> None:
+            if request.url.startswith(redirect_uri):
+                self.redirect_requests_finished += 1
+
+        # F-N3 (U12-T04): `route`, `on` y `new_page` tambien dentro del `try`. F-N2: el `OidcError` se lanza **fuera** del `except`, para que el `PlaywrightError` (con la URL) no quede en `__context__`.
+        try:
             context.route("**/*", intercept)
-
-            def finished(request: Any) -> None:
-                if request.url.startswith(redirect_uri):
-                    self.redirect_requests_finished += 1
-
             context.on("requestfinished", finished)
             page = context.new_page()
-            try:
-                page.goto(authorize_url, wait_until="domcontentloaded", timeout=self._timeout_ms)
-                if not page.locator("input[name=username]").count():
-                    raise OidcError("login_form_missing")
-                page.locator("input[name=username]").fill(username)
-                page.locator("input[name=password]").fill(password.reveal())
-                page.locator("[type=submit]").first.click(no_wait_after=True)
-                filled_otp = False
-                waited = 0
-                while not returned:
-                    if page.locator("input[name=otp]").count() and not filled_otp:
-                        page.locator("input[name=otp]").fill(otp())
-                        page.locator("[type=submit]").first.click(no_wait_after=True)
-                        filled_otp = True
-                    elif message := self._visible_error(page):
-                        self.rejection_text = (
-                            message
-                            + " | "
-                            + page.title()
-                            + " | "
-                            + ",".join(
-                                page.locator("input").evaluate_all(
-                                    "els => els.map(e => e.name + ':' + e.type)"
-                                )
-                            )
-                        )  # solo nombres de campo, sin valores
-                        raise OidcError("login_rejected")  # un solo intento: el realm bloquea al quinto fallo
-                    page.wait_for_timeout(100)
-                    waited += 100
-                    if waited > self._timeout_ms:
-                        raise OidcError("login_timeout")
-            except PlaywrightError:
-                raise OidcError(
-                    "browser_error"
-                ) from None  # el mensaje de Playwright puede traer la URL de retorno con su `code`
-            return returned[0]
+            page.goto(authorize_url, wait_until="domcontentloaded", timeout=self._timeout_ms)
+            if not page.locator("input[name=username]").count():
+                raise OidcError("login_form_missing")
+            page.locator("input[name=username]").fill(username)
+            page.locator("input[name=password]").fill(password.reveal())
+            page.locator("[type=submit]").first.click(no_wait_after=True)
+            filled_otp = False
+            waited = 0
+            while not returned and not failed:
+                if page.locator("input[name=otp]").count() and not filled_otp:
+                    page.locator("input[name=otp]").fill(otp())
+                    page.locator("[type=submit]").first.click(no_wait_after=True)
+                    filled_otp = True
+                elif message := self._visible_error(page):
+                    self.rejection_text = (
+                        message
+                        + " | "
+                        + page.title()
+                        + " | "
+                        + ",".join(
+                            page.locator("input").evaluate_all("els => els.map(e => e.name + ':' + e.type)")
+                        )
+                    )  # solo nombres de campo, sin valores
+                    raise OidcError("login_rejected")  # un solo intento: el realm bloquea al quinto fallo
+                page.wait_for_timeout(100)
+                waited += 100
+                if waited > self._timeout_ms:
+                    raise OidcError("login_timeout")
+        except PlaywrightError:
+            crashed = True  # el mensaje de Playwright puede traer la URL de retorno con su `code`
+        if crashed or (failed and not returned):
+            raise OidcError("browser_error")
+        return returned[0]
 
 
 class UserSession:
@@ -398,6 +408,7 @@ class OidcClient:
         ca_file: Path | None = None,
         transport: httpx.BaseTransport | None = None,
         form: FormDriver | None = None,
+        totp_windows: dict[str, int] | None = None,
     ) -> None:
         guard.check_known(environment)
         self._environment = environment
@@ -410,7 +421,9 @@ class OidcClient:
             timeout=HTTP_TIMEOUT,
         )
         self._form = form
-        self._last_window: dict[str, int] = {}
+        self._last_window: dict[str, int] = (
+            totp_windows if totp_windows is not None else {}
+        )  # compartida entre clientes si se pasa (F-09)
         self._jwks: dict[str, Any] = {}
         self.token_requests = 0
 

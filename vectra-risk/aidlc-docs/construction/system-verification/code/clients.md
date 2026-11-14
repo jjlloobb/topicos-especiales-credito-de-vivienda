@@ -29,7 +29,7 @@ class Clock:  now() -> datetime (UTC con zona); monotonic() -> float; sleep(seco
 
 # clients.oidc
 OidcClient(environment, credentials, clock, *, ca_file=None, transport=None, form=None)
-  .login(user) -> UserSession;  .step_up(user) -> UserSession          # PKCE S256, Chromium sin interfaz, TOTP sin reuso de ventana
+  .login(user) -> UserSession;  .step_up(user) -> UserSession          # PKCE S256, Chromium sin interfaz, TOTP sin reuso de ventana (la ventana de cada usuario se comparte entre clientes del proceso: `totp_windows=`, `live.TOTP_WINDOWS`)
   .service_session(client_id, scopes) -> ServiceSession                # private_key_jwt ES256, aud = emisor del entorno
   .authorization_request(step_up) -> AuthorizationRequest;  .exchange_refresh(refresh) -> (TokenSet, claims);  .close()
 UserSession: .bearer() (renueva), .refresh(), .claims, .acr, .auth_time, .tokens, .step_up, .refreshes, .relogins

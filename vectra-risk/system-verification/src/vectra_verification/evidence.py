@@ -129,8 +129,147 @@ def _har_object(match: re.Match[str]) -> str:
     return _HAR_VALUE.sub(_quoted_value, obj) if _HAR_NAME.search(obj) else obj
 
 
+# U12-T04 (F-N4 de la ronda 2 de U12-T02): `{[^{}]*}` no ve un objeto con una llave dentro del valor ni con otro objeto anidado. Un recorrido que sabe de cadenas (comillas dobles o simples, `\x` como un
+# solo caracter) lleva la pila de objetos y, al cerrar cada uno, mira **sus** claves `name` y `value`: asi la llave de un valor no cuenta y un objeto anidado no tapa al de afuera.
+_SENSITIVE_NAME: Final = re.compile(rf"(?i)(?:{_HEADER_NAMES}|{_FIELD_NAMES})")
+_NAME_THEN_VALUE: Final = re.compile(
+    rf"""(?i)["']name["']\s*:\s*(?P<q>["'])(?:{_HEADER_NAMES}|{_FIELD_NAMES})(?P=q)\s*,\s*(?P<head>["']value["']\s*:\s*){_QUOTED_VALUE}"""
+)
+
+
+class _Strings:
+    """Donde cierra la cadena que abre en `start` (en la misma linea; `\\x` cuenta como un caracter); `None` si no cierra.
+
+    Coste acotado (F-07, ronda 2): si una cadena que abre con `"` no cierra antes del fin de la linea, **ninguna** otra que abra con `"` mas adelante en esa linea cierra tampoco (cada una lee el mismo resto
+    desde un limite entre caracteres), y se recuerda. Una racha de `\\"` fuera de una cadena ya no hace un recorrido hasta el fin de la linea por cada comilla (antes: 16 KB tardaban 5,6 s)."""
+
+    def __init__(self) -> None:
+        self._dead: dict[str, int] = {}
+
+    def end(self, text: str, start: int) -> int | None:
+        quote_char = text[start]
+        if self._dead.get(quote_char, -1) > start:
+            return None
+        i = start + 1
+        while i < len(text) and text[i] not in "\r\n":
+            if text[i] == "\\":
+                i += 2
+                continue
+            if text[i] == quote_char:
+                return i
+            i += 1
+        self._dead[quote_char] = i
+        return None
+
+
+def _unescaped(raw: str) -> str:
+    """El contenido de una cadena JSON con sus escapes leidos (`n\\u0061me` es `name`); si no se puede leer, tal cual."""
+    if "\\" not in raw:
+        return raw
+    try:
+        decoded = json.loads(f'"{raw}"')
+    except ValueError:
+        return raw
+    return decoded if isinstance(decoded, str) else raw
+
+
+class _Frame:
+    __slots__ = ("pending", "values")
+
+    def __init__(self) -> None:
+        self.pending: str | None = None
+        self.values: dict[str, tuple[int, int]] = {}
+
+
+def _har_spans(text: str) -> list[tuple[int, int]]:
+    """Los intervalos (sin comillas) de los `value` cuyo objeto tiene un `name` de cabecera o de campo de credencial, en cualquier orden y con cualquier anidamiento."""
+    spans: list[tuple[int, int]] = []
+    stack: list[_Frame | None] = []
+    strings = _Strings()
+    i = 0
+    while i < len(text):
+        char = text[i]
+        top = stack[-1] if stack else None
+        if char in "\"'":
+            end = strings.end(text, i)
+            if end is None:
+                i += 1
+                continue
+            after = end + 1
+            while after < len(text) and text[after] in " \t":
+                after += 1
+            if top is not None and after < len(text) and text[after] == ":":
+                top.pending = _unescaped(text[i + 1 : end]).lower()
+            elif top is not None and top.pending is not None:
+                top.values[top.pending] = (i + 1, end)
+                top.pending = None
+            i = end + 1
+            continue
+        if char == "{":
+            stack.append(_Frame())
+        elif char == "[":
+            stack.append(None)
+        elif char in "}]":
+            frame = stack.pop() if stack else None
+            if frame is not None and "name" in frame.values and "value" in frame.values:
+                name_start, name_end = frame.values["name"]
+                if _SENSITIVE_NAME.fullmatch(_unescaped(text[name_start:name_end])):
+                    spans.append(frame.values["value"])
+            if stack and stack[-1] is not None:
+                stack[-1].pending = None
+        elif top is not None and char not in " \t\r\n:":
+            top.pending = None
+        i += 1
+    return spans
+
+
+def _har_walk(text: str) -> str:
+    out = text
+    for start, end in sorted(_har_spans(text), reverse=True):
+        out = out[:start] + REDACTED + out[end:]
+    return out
+
+
+_EMBEDDED_DEPTH: Final = 3
+
+
+def _har_embedded(text: str, depth: int = 0) -> str:
+    """F-07 (ronda 2): `Store` escribe toda evidencia con `json.dumps`, y un HAR dentro de una cadena JSON lleva las comillas escapadas (`{\\"name\\": \\"Cookie\\", ...}`): el recorrido de arriba no lo ve como objeto. Cada cadena JSON
+    (en la misma linea, con escapes) se decodifica, se limpia con el mismo recorrido (y, si trae otra cadena JSON dentro, tambien esa, hasta `_EMBEDDED_DEPTH` niveles) y se vuelve a codificar. Solo se reescribe la cadena que cambia."""
+    if depth >= _EMBEDDED_DEPTH or "\\" not in text:
+        return text
+    strings = _Strings()
+    out: list[str] = []
+    copied = 0
+    i = 0
+    while i < len(text):
+        if text[i] != '"':
+            i += 1
+            continue
+        end = strings.end(text, i)
+        if end is None:
+            i += 1
+            continue
+        content = text[i + 1 : end]
+        if "\\" in content:
+            try:
+                decoded = json.loads(f'"{content}"')
+            except ValueError:
+                decoded = None
+            if isinstance(decoded, str):
+                cleaned = _har_walk(_har_embedded(decoded, depth + 1))
+                if cleaned != decoded:
+                    out.append(text[copied : i + 1])
+                    out.append(json.dumps(cleaned, ensure_ascii=False)[1:-1])
+                    copied = end
+        i = end + 1
+    out.append(text[copied:])
+    return "".join(out)
+
+
 def scrub(text: str) -> str:
     """Quita las cabeceras y los campos de credenciales; una salida limpia queda igual."""
+    text = _NAME_THEN_VALUE.sub(_quoted_value, _har_walk(_har_embedded(text)))
     text = _TUPLE_HEADERS.sub(_quoted_value, _FLAT_OBJECT.sub(_har_object, text))
     text = _URL_CODE.sub(lambda m: f"{m.group('head')}{REDACTED}", text)
     return _scrub_with(_FIELDS, _scrub_with(_HEADERS, text, header=True), header=False)

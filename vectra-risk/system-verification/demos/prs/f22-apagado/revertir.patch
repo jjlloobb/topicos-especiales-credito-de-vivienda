@@ -1,0 +1,137 @@
+diff --git b/vectra-risk/platform/network/flows.yaml a/vectra-risk/platform/network/flows.yaml
+index d742e63..8ac74f1 100644
+--- b/vectra-risk/platform/network/flows.yaml
++++ a/vectra-risk/platform/network/flows.yaml
+@@ -3,7 +3,7 @@
+ meshed_namespaces: [vectra-edge, vectra-app, vectra-serving, vectra-staging, vectra-data, vectra-identity, vectra-mock, vectra-observability, vectra-restore-drill]
+ system_namespaces: [cnpg-system, cert-manager, linkerd, kyverno, external-secrets, envoy-gateway-system, argocd, kserve, vault]
+ #: En kind F22 se puede deshabilitar para el PR de RT-3 (BR-U12-04); nunca en staging ni en produccion.
+-env_disabled: { kind: [F22], staging: [], prod: [] }
++env_disabled: { kind: [], staging: [], prod: [] }
+ #: Rango de pods para la NetworkAuthentication de los flujos con origen sin malla: F80 (operador de CNPG), F91 y F61 (`envoy-ratelimit`, T1).
+ #: 0.0.0.0/32 no autoriza a nadie hasta que el banco entregue el rango.
+ pod_cidr: { kind: 192.168.0.0/16, staging: 0.0.0.0/32, prod: 0.0.0.0/32 }
+diff --git b/vectra-risk/platform/network/generated/kind/connectivity-suite.yaml a/vectra-risk/platform/network/generated/kind/connectivity-suite.yaml
+index 46af238..19fc381 100644
+--- b/vectra-risk/platform/network/generated/kind/connectivity-suite.yaml
++++ a/vectra-risk/platform/network/generated/kind/connectivity-suite.yaml
+@@ -104,6 +104,11 @@ allowed:
+   ports:
+   - 8080
+   to: decision-registry-service
++- flow: F22
++  from: explainability-service
++  ports:
++  - 8080
++  to: explainer
+ - flow: F23
+   from: explainability-service
+   ports:
+diff --git b/vectra-risk/platform/network/generated/kind/vectra-app.yaml a/vectra-risk/platform/network/generated/kind/vectra-app.yaml
+index 3fd39d8..092c802 100644
+--- b/vectra-risk/platform/network/generated/kind/vectra-app.yaml
++++ a/vectra-risk/platform/network/generated/kind/vectra-app.yaml
+@@ -1354,6 +1354,31 @@ spec:
+ ---
+ apiVersion: networking.k8s.io/v1
+ kind: NetworkPolicy
++metadata:
++  labels:
++    vectra.io/flow: F22
++  name: allow-f22-explainability-service-to-explainer-egress
++  namespace: vectra-app
++spec:
++  egress:
++  - ports:
++    - port: 8080
++      protocol: TCP
++    to:
++    - namespaceSelector:
++        matchLabels:
++          kubernetes.io/metadata.name: vectra-serving
++      podSelector:
++        matchLabels:
++          vectra.io/component: explainer
++  podSelector:
++    matchLabels:
++      app.kubernetes.io/name: explainability-service
++  policyTypes:
++  - Egress
++---
++apiVersion: networking.k8s.io/v1
++kind: NetworkPolicy
+ metadata:
+   labels:
+     vectra.io/flow: F23
+diff --git b/vectra-risk/platform/network/generated/kind/vectra-serving.yaml a/vectra-risk/platform/network/generated/kind/vectra-serving.yaml
+index 415b5b2..f0c0d92 100644
+--- b/vectra-risk/platform/network/generated/kind/vectra-serving.yaml
++++ a/vectra-risk/platform/network/generated/kind/vectra-serving.yaml
+@@ -95,6 +95,67 @@ spec:
+ ---
+ apiVersion: networking.k8s.io/v1
+ kind: NetworkPolicy
++metadata:
++  labels:
++    vectra.io/flow: F22
++  name: allow-f22-to-explainer-ingress
++  namespace: vectra-serving
++spec:
++  ingress:
++  - from:
++    - namespaceSelector:
++        matchLabels:
++          kubernetes.io/metadata.name: vectra-app
++      podSelector:
++        matchLabels:
++          app.kubernetes.io/name: explainability-service
++    ports:
++    - port: 8080
++      protocol: TCP
++  podSelector:
++    matchLabels:
++      vectra.io/component: explainer
++  policyTypes:
++  - Ingress
++---
++apiVersion: policy.linkerd.io/v1beta3
++kind: Server
++metadata:
++  name: explainer-8080
++  namespace: vectra-serving
++spec:
++  podSelector:
++    matchLabels:
++      vectra.io/component: explainer
++  port: 8080
++  proxyProtocol: unknown
++---
++apiVersion: policy.linkerd.io/v1alpha1
++kind: MeshTLSAuthentication
++metadata:
++  name: f22-explainer-8080-mtls
++  namespace: vectra-serving
++spec:
++  identities:
++  - explainability-service.vectra-app.serviceaccount.identity.linkerd.cluster.local
++---
++apiVersion: policy.linkerd.io/v1alpha1
++kind: AuthorizationPolicy
++metadata:
++  name: f22-explainer-8080
++  namespace: vectra-serving
++spec:
++  requiredAuthenticationRefs:
++  - group: policy.linkerd.io
++    kind: MeshTLSAuthentication
++    name: f22-explainer-8080-mtls
++  targetRef:
++    group: policy.linkerd.io
++    kind: Server
++    name: explainer-8080
++---
++apiVersion: networking.k8s.io/v1
++kind: NetworkPolicy
+ metadata:
+   labels:
+     vectra.io/flow: F46
