@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Final, Literal
+from typing import Any, Final, Literal
 from uuid import UUID
 
 import httpx
@@ -146,3 +146,36 @@ class RegistryClient:
             seq_after=seq_after,
             limit=limit,
         )
+
+    def freezes_raw(
+        self,
+        *,
+        recorded_from: datetime | None = None,
+        recorded_to: datetime | None = None,
+        seq_after: int | None = None,
+        limit: int = 1000,
+    ) -> list[dict[str, Any]]:
+        """`monitoring_freezes` **sin validar** (U12-T03): el oraculo de RT-2 valida el `context_package` campo por campo y nombra el que falta; con `freezes` un paquete incompleto es `invalid_response` y no dice cual."""
+        params: dict[str, str | int] = {"projection": "monitoring_freezes", "limit": limit}
+        if recorded_from is not None:
+            params["recorded_from"] = recorded_from.isoformat()
+        if recorded_to is not None:
+            params["recorded_to"] = recorded_to.isoformat()
+        cursor = seq_after
+        items: list[dict[str, Any]] = []
+        for _ in range(MAX_PAGES):
+            if cursor is not None:
+                params["seq_after"] = cursor
+            response = self._page(params)
+            try:
+                body = response.json()
+                page_items, following = list(body["items"]), body.get("next_seq_after")
+            except (ValueError, KeyError, TypeError):
+                raise ApiError(response.status_code, "invalid_response") from None
+            items.extend(item for item in page_items if isinstance(item, dict))
+            if following is None:
+                return items
+            if cursor is not None and following <= cursor:
+                raise ApiError(response.status_code, "pagination_stuck")
+            cursor = int(following)
+        raise ApiError(0, "pagination_unbounded")

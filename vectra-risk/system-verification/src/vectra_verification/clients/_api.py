@@ -41,12 +41,14 @@ class ApiError(Exception):
         code: str | None = None,
         reason: str | None = None,
         retry_after: float | None = None,
+        invalid_params: tuple[tuple[str, str], ...] | None = None,
     ) -> None:
         super().__init__(f"http_{status}:{code or '-'}:{reason or '-'}")
         self.status = status
         self.code = code
         self.reason = reason
         self.retry_after = retry_after
+        self.invalid_params = invalid_params  # (`name`, `reason_code`) de un 422 `validation_error` (U12-T03: RT-3 lee el motivo del rechazo de U4)
 
 
 class RunTag:
@@ -83,8 +85,15 @@ def error_of(response: httpx.Response) -> ApiError:
         problem = Problem.model_validate_json(response.content)
     except ValidationError:
         return ApiError(response.status_code, retry_after=retry)
+    params = (
+        tuple((p.name, p.reason_code) for p in problem.invalid_params) if problem.invalid_params else None
+    )
     return ApiError(
-        response.status_code, problem.code.value, problem.reason.value if problem.reason else None, retry
+        response.status_code,
+        problem.code.value,
+        problem.reason.value if problem.reason else None,
+        retry,
+        params,
     )
 
 

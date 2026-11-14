@@ -113,13 +113,13 @@ vectra-risk/system-verification/
 
 ### Bloque D — Escenarios y mediciones
 
-- [ ] **Paso 7 — RT-1 y RT-4**
+- [ ] (diferido por la demo: enmienda §3 U12) **Paso 7 — RT-1 y RT-4**
   - RT-1: por cada par de U5, por el BFF con `analista-1`: `free_text` del detalle igual byte a byte; recomendación y narrativa iguales a las del par; sin llamadas distintas de scoring y explainability.
   - RT-4: los 18 casos; `confidence` bajo el umbral, `revision_requerida` y `baja_confianza`.
   - Diseño: BR-U12-04; INF-U12-03.
   - **Aceptación**: `uv run pytest system-verification/tests/unit/test_oracles_rt1_rt4.py`: los oráculos contra respuestas correctas → `pasa` e incorrectas (narrativa distinta, `free_text` alterado, confianza alta) → `falla` (NFR-U12-42).
 
-- [ ] **Paso 8 — RT-2, RT-3 y RT-5**
+- [x] **Paso 8 — RT-2, RT-3 y RT-5** (U12-T03) — RT-2 con 1 versión (DD-1)
   - RT-3 (cuarta revisión de coherencia entre unidades, 2026-10-31): `RT3-a`, `c` y `d`: 422 de U4 al registrar, sin cambio en `serving-config`; `a` y `d`, desplegados por PR sin registrar, no listos con `ModelPackageIntegrityFailed` (quinta revisión de coherencia entre unidades, 2026-10-31). `RT3-b`: `validacion_fallida`; si pasa la validación, se aprueba y se promueve como en RT-2, y da `FailClosed` con `explainer_error` o `feature_dictionary_incomplete`. PR solo de kind que deshabilita F22: `FailClosed` con `timeout` o `explainer_unavailable`, que es la evidencia de `journey-7-3` (quinta revisión de coherencia entre unidades, 2026-10-31). Cero `recommendation` de la versión alterada, y con F22 deshabilitado, de ninguna versión (proyección `metrics`); casos `en_sincronizacion`, o `no_disponible` tras ≈ 15,5 min. `version_mismatch` en runtime lo cubren las pruebas de integración de U7.
   - RT-2 (cuarta revisión de coherencia entre unidades, 2026-10-31): por cada una de las 5 versiones del proxy, ya aprobadas en `rt2-setup`: PR de promoción y sync; `mark_active` del operador con `promotion-tool` (F08), y la herramienta espera a verla `activo` en `list_models`; PR post-activación de la anterior; lote `stratified` (la sección se niega si una celda no alcanza 30), entrada `freeze`, casos nuevos `modelo_congelado`, reactivación por `cumplimiento-1` con MFA por el BFF, comprobación de que no se recongela y `rt2_latency`. En la primera, además, sigue congelada tras 3 corridas más de bias antes de reactivar. Al final, rollback al modelo de referencia (quinta revisión de coherencia entre unidades, 2026-10-31).
   - **`rt2-setup`** (quinta revisión de coherencia entre unidades, 2026-10-31): `ingeniero-1` registra las 5 versiones y lanza su validación por el BFF, tras el PR de sus `InferenceService` de staging; `cro-1` las aprueba, distinto de `registered_by`. Termina cuando las 5 están `aprobado`; si una queda en `validacion_fallida`, la sección se niega a seguir.
@@ -134,24 +134,24 @@ vectra-risk/system-verification/
   - **Aceptación**: `uv run pytest system-verification/tests/unit/test_oracles_rt2_rt3_rt5.py` (una sola `recommendation` en RT-3 → `falla`; `RT3-a` aceptado por U4 → `falla`; sin `FailClosed` de `timeout` o `explainer_unavailable` con F22 deshabilitado → `falla`; una versión reactivada que se recongela el mismo día → `falla`; dos corridas con el mismo `model_version_id` → `falla` (cuarta revisión de coherencia entre unidades, 2026-10-31); una corrida de RT-2 de 31 min → `falla` con la medición registrada; un `freeze` sin el campo `data_sources` o con `initial_disparity` vacía, o con un `FreezeContext` incompleto → `falla`; RT-5 con un 403 sin `l5d-proxy-error` (de la aplicación) → `falla`; RT-5 evaluado 6 h después del Job con un doble de Prometheus que tiene la alerta solo en [t0, t1 + 5 min] → `pasa`, y con la alerta fuera de esa ventana → `falla`; retención que no cubre t0 → `no ejecutado` (pendientes consolidados, segunda tanda, 2026-10-10); la serie de denegaciones **nace en 1** dentro de la ventana y no vuelve a crecer → `pasa`; la serie ausente en la ventana → `falla` (pendientes consolidados, tercera tanda, 2026-10-10); contador del mock > 0 → `falla`; sin `CoreWriteAttempt` → `falla` (pendientes consolidados, 2026-10-10); revisión del plan de tareas de U12, 2026-10-10).
     Además, contra un **Prometheus real** (pendientes abiertos, 2026-10-10): `uv run pytest system-verification/tests/integration/test_rt5_promql.py` levanta Prometheus por digest con Testcontainers sobre un bloque TSDB creado con `promtool tsdb create-blocks-from openmetrics` a partir de fixtures (la serie de denegaciones que nace en 1 y no crece; la alerta solo en [t0, t1 + 5 min]; el contador del mock en 0 y en 1; la evaluación 6 h después). Comprueba que cada expresión del oráculo es aceptada por la API (sin `bad_data`) y que el resultado es `pasa`, `falla` o `no ejecutado` como en los casos con doble. Corre en CI (Paso 16) sin clúster.
 
-- [ ] **Paso 8b — Sección `resilience`** (seguimiento de la quinta revisión de coherencia, 2026-10-31)
+- [ ] (diferido por la demo: enmienda §3 U12) **Paso 8b — Sección `resilience`** (seguimiento de la quinta revisión de coherencia, 2026-10-31)
   - Oráculos de `RESTORE-DRILL` y `READINESS` (BR-U12-08b); el operador provoca cada caída y la herramienta lee `kubectl get pods`, `/readyz` por `port-forward` y las respuestas por el gateway.
   - **Aceptación**: `uv run pytest system-verification/tests/unit/test_oracles_resilience.py`: `governance-db` caída con governance no listo → `falla`; `case-db` caída con case-service listo → `falla`; `verify_chain` distinto de «íntegra» → `falla`; sin evidencia → `no ejecutado`.
 
-- [ ] **Paso 9 — X01–X10**
+- [ ] (diferido por la demo: enmienda §3 U12) **Paso 9 — X01–X10**
   - Red: toma la salida de la suite de conectividad de U1 (X01, X02, X05, X07, X08, X09) como evidencia.
   - Comportamiento: X03 (`ingeniero-1` y `cro-1` intentan `resolve_frozen` → 403); X04 y X06 desde los Jobs `x04-probe` y `x06-probe`, que solo cuentan con el `runId` del manifiesto y un `completionTime` posterior al `started_at` que fijó la sección `prepare` (Paso 13), **antes** del PR de los Jobs (revisión del plan de tareas de U12, 2026-10-10); X10 (`/auth/admin` → 404).
   - Diseño: BR-U12-05; INF-U12-02.
   - **Aceptación**: `uv run pytest system-verification/tests/unit/test_oracles_x.py` (un Job de otro `runId` o con `completionTime` anterior → `no ejecutado`; un 200 en X03 → `falla`; un 200 en X10 → `falla`).
 
-- [ ] **Paso 10 — `SIM-NORMAL`, `LOGS-NO-PII` y `CASE-SIZE`**
+- [x] **Paso 10 — `SIM-NORMAL`, `LOGS-NO-PII` y `CASE-SIZE`** (U12-T03) — `LOGS-NO-PII` y `CASE-SIZE` diferidos por la demo
   - `SIM-NORMAL`: `accepted = sent`, un caso por solicitud y cada uno en `listo` o en un fail-closed documentado.
   - `LOGS-NO-PII`: consulta de Loki sobre el periodo por los `SYN-…` y los nombres de U5 enviados → 0 resultados.
   - `CASE-SIZE`: crecimiento de `case-db` y del registro por caso con los primeros 1 000 casos (series de Prometheus de U1 y U8).
   - Diseño: BR-U12-06, 12; domain-entities §4.1.
   - **Aceptación**: `uv run pytest system-verification/tests/unit/test_oracles_measurements.py` (un `SYN-` encontrado → `falla`; `accepted < sent` → `falla`).
 
-- [ ] **Paso 11 — Carga (US-609)**
+- [ ] (diferido por la demo: enmienda §3 U12) **Paso 11 — Carga (US-609)**
   - `capacity`: asignable de los 4 workers frente a la suma de máximos de los HPA (`vectra-app`, `vectra-edge`, `vectra-serving`) y de KServe, y CPU y memoria libres del host; si no alcanza, `scale = 0,5` y se registra.
   - `run`: línea base a 5/s; después 20/s + 200 usuarios durante 30 min (cubre NFR-U1-11) con los scripts k6 de U8 y U10, que entran por el gateway (seguimiento de la quinta revisión de coherencia, 2026-10-31), en su propio contenedor `grafana/k6` de 2 CPU y 2 GiB, siempre aparte y **lanzado por el operador** (pendientes consolidados, 2026-10-10). Intercambio con la sección `load` (pendientes consolidados, segunda tanda, 2026-10-10):
     - `load` no lanza contenedores: imprime el comando exacto de `docker run` (digest de `grafana/k6`, límites, red de kind, variables de entorno con la URL, `tmpfs` con los tokens que `load` renueva cada 240 s y que el filtro de evidencia excluye (seguimiento de la quinta revisión de coherencia, 2026-10-31), montaje del directorio de evidencias de la verificación) y espera;

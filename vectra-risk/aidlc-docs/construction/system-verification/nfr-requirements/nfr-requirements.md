@@ -23,7 +23,7 @@ Los IDs `NFR-U12-xx` se referencian en el Infrastructure Design y en el plan de 
 | ID | Requisito | Verificación |
 |---|---|---|
 | NFR-U12-10 | Semillas fijas de muestreo y de la mezcla; `generator_version` y `seed` de U5; imagen de U12 por digest. Cada evidencia registra esos valores, el commit y el digest de cada imagen desplegada (leídos del clúster) | PBT-U12-01, 03 (misma semilla → misma muestra y misma mezcla) |
-| NFR-U12-11 | La evidencia registra también el tamaño de la partición `test` de U5 y si hubo solicitudes repetidas entre escenarios. Si el muestreo estratificado no alcanza 30 casos en alguna celda, la sección `rt2` **se niega a correr** y lo informa (nota de Q4) | Prueba con una población de fixture con una celda chica → `rt2` se niega |
+| NFR-U12-11 | La evidencia registra también el tamaño de la partición `test` de U5 y si hubo solicitudes repetidas entre escenarios. Si el muestreo estratificado no alcanza 30 casos en alguna celda, la sección `rt2` **se niega a correr** y lo informa (nota de Q4) *(Precisada en U12-T03, 2026-11-13; decisión del usuario, `DECISIONES-LOOP.md` §10.)* «Alguna celda» es una celda **alcanzable**: una con 30 o más filas disponibles en `test`. Las inalcanzables no hacen que `rt2` se niegue: se informan en la evidencia, con sus filas disponibles y tomadas. | Prueba con una población de fixture con una celda chica → `rt2` se niega |
 
 ## 3. Integridad de las evidencias (Q5)
 
