@@ -1285,6 +1285,7 @@ def test_exit_f10_state_is_saved_at_the_end_of_each_phase(
     assert len({*writes}) > 5  # y cada una con mas que la anterior
 
 
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
 def test_exit_f04_the_live_factory_hands_over_to_the_real_backend_and_the_module_runs_as_main(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1305,3 +1306,60 @@ def test_exit_f04_the_live_factory_hands_over_to_the_real_backend_and_the_module
     assert "pragma: no cover" not in (SYSTEM / "src" / "vectra_verification" / "cli.py").read_text(
         encoding="utf-8"
     )
+
+
+def test_f09_all_closes_the_backend_of_the_previous_section_before_opening_another(
+    tmp_path: Path, world: Rt2World
+) -> None:
+    from vectra_verification import manifest as mf
+    from vectra_verification.store import Store
+
+    h = harness(tmp_path, world)
+    assert h.prepare() == 0
+    opened: list[WorldBackend] = []
+
+    def factory(environment: object, args: object, clock: object, prefix: str) -> WorldBackend:
+        fresh = WorldBackend(world)
+        opened.append(fresh)
+        assert all(b.closed for b in opened[:-1]), "se abrio un backend con el anterior todavia abierto"
+        return fresh
+
+    app = cli.Cli({}, h.clock, factory, h.out, h.err)  # type: ignore[arg-type]
+    app.store = Store(h.dir, lambda: ())
+    app.manifest = mf.Manifest.load(app.store)
+    parsed = app.parser.parse_args(["decisions", "--dir", str(h.dir)])
+    for _ in range(3):
+        assert app._open_backend(guard.KIND, "decisions", parsed, interrupt=False) is None  # noqa: SLF001
+    assert len(opened) == 3 and all(b.closed for b in opened[:2]) and not opened[2].closed
+
+
+def test_f09_the_delivery_arrives_by_option_or_by_the_manifest_and_the_other_paths_hang_from_it(
+    tmp_path: Path, world: Rt2World
+) -> None:
+    h = harness(tmp_path, world)
+    delivery = tmp_path / "entrega"
+    assert h.prepare(delivery=str(delivery)) == 0
+    assert h.manifest()["paths"] == {"delivery": str(delivery.resolve())}
+    assert h.run("decisions", "--volume", "20") in (0, 1, 2)
+    assert h.args_seen[-1].delivery == str(delivery.resolve())  # del manifiesto
+    other = tmp_path / "otra"
+    h.run("decisions", "--volume", "20", "--delivery", str(other), "--redo")
+    assert h.args_seen[-1].delivery == str(other)  # la opcion manda
+    assert (
+        h.run("rt3") == 3 and "rt3_paquete_inexistente" in h.err.getvalue()
+    )  # los paquetes se buscan en <entrega>/adversarial/rt3
+    assert h.manifest()["sections"]["rt3"]["state"] == "interrumpida"
+
+
+def test_f09_without_a_delivery_anywhere_the_paths_are_asked_for_and_nothing_is_guessed(
+    tmp_path: Path, world: Rt2World
+) -> None:
+    h = harness(tmp_path, world)
+    assert h.prepare() == 0 and "paths" not in h.manifest()
+    for section, option in (
+        ("rt3", "--packages-dir"),
+        ("rt2-setup", "--proxy-root"),
+        ("rt2", "--reference-dir"),
+    ):
+        assert h.run(section) == 3, section
+        assert "ruta_faltante" in h.err.getvalue() and option in h.err.getvalue(), (section, h.err.getvalue())

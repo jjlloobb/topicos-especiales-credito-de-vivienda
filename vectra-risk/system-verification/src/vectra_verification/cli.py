@@ -177,6 +177,11 @@ def build_parser(
         default=DEFAULT_PATCH_ROOT,
         help="la carpeta de los values dentro del repositorio, para las rutas del parche",
     )
+    p.add_argument(
+        "--delivery",
+        default=None,
+        help="la entrega de U5 (con datasets/test.parquet): se guarda en el manifiesto y las secciones que envian solicitudes la leen de ahi",
+    )
     d = sections["decisions"]
     d.add_argument("--volume", type=int, default=None)
     d.add_argument("--rate", type=float, default=10.0)
@@ -187,10 +192,15 @@ def build_parser(
         default=1800.0,
         help="segundos que se espera a que ningun caso siga en evaluacion",
     )
-    d.add_argument("--delivery", default="reference-model/.out", help="la entrega de U5")
+    for name in ("decisions", "rt3", "rt2-setup", "rt2"):
+        sections[name].add_argument(
+            "--delivery", default=None, help="la entrega de U5 (por omision, la de `prepare --delivery`)"
+        )
     sections["rt5"].add_argument("--after-job-minutes", type=float, default=15.0)
     t = sections["rt3"]
-    t.add_argument("--packages-dir", default="reference-model/.out/adversarial/rt3")
+    t.add_argument(
+        "--packages-dir", default=None, help="los paquetes RT-3 (por omision, <entrega>/adversarial/rt3)"
+    )
     t.add_argument(
         "--rt3b-dir",
         default=None,
@@ -205,12 +215,18 @@ def build_parser(
     t.add_argument("--closing", action="store_true", help="solo el cierre de D1 (tras revertir el PR de F22)")
     for name in ("rt2-setup", "rt2"):
         s = sections[name]
-        s.add_argument("--proxy-root", default="reference-model/.out/proxy")
+        s.add_argument(
+            "--proxy-root", default=None, help="las corridas del proxy (por omision, <entrega>/proxy)"
+        )
         s.add_argument("--versions", type=int, default=1, help="versiones del proxy (1 en la demo: DD-1)")
         s.add_argument("--seed", type=int, default=DEFAULT_SEED)
     sections["rt2-setup"].add_argument("--validation-timeout", type=float, default=1800.0)
     r = sections["rt2"]
-    r.add_argument("--reference-dir", default="reference-model/.out/package")
+    r.add_argument(
+        "--reference-dir",
+        default=None,
+        help="el paquete del modelo de referencia (por omision, <entrega>/package)",
+    )
     r.add_argument(
         "--reactivation",
         choices=("tool", "presenter"),
@@ -387,6 +403,8 @@ class Cli:
             started_at=started, commit=args.commit, operator=args.operator, environment=environment.name
         )
         manifest.start_section("prepare", started)
+        if args.delivery:
+            manifest.data["paths"] = {"delivery": str(Path(args.delivery).resolve())}
         patched = False
         try:
             guard.check_job_patch(environment)
@@ -447,6 +465,7 @@ class Cli:
         manifest.start_section(section, now)
         if section == "report":
             return self._finish(section, SectionResult(), self._report(args))
+        self._resolve_paths(args)
         refused = self._open_backend(environment, section, args, interrupt=True)
         if refused is not None:
             return refused
@@ -468,6 +487,28 @@ class Cli:
             self._interrupt(section, f"interrumpida: {type(error).__name__}")
             raise
         return self._finish(section, result, None)
+
+    def _resolve_paths(self, args: argparse.Namespace) -> None:
+        """Las rutas de datos llegan por opcion o por el manifiesto (`prepare --delivery`), nunca de una ruta del repositorio escrita en el codigo (la demo corre en otra maquina y desde una imagen)."""
+        assert self.manifest is not None
+        if hasattr(args, "delivery") and not args.delivery:
+            args.delivery = self.manifest.data.get("paths", {}).get("delivery")
+        for attr, inside in (
+            ("packages_dir", "adversarial/rt3"),
+            ("proxy_root", "proxy"),
+            ("reference_dir", "package"),
+        ):
+            if hasattr(args, attr) and not getattr(args, attr) and getattr(args, "delivery", None):
+                setattr(args, attr, str(Path(args.delivery) / inside))
+
+    @staticmethod
+    def _required(args: argparse.Namespace, attr: str, option: str) -> str:
+        from vectra_verification.scenarios.common import ScenarioError
+
+        value = getattr(args, attr)
+        if not value:
+            raise ScenarioError("ruta_faltante", f"{option} (o --delivery, o `prepare --delivery`)")
+        return str(value)
 
     def _open_backend(
         self, environment: Environment, section: str, args: argparse.Namespace, *, interrupt: bool
@@ -501,6 +542,7 @@ class Cli:
 
         assert self.manifest is not None and self.store is not None
         manifest, store = self.manifest, self.store
+        self._resolve_paths(args)
         refused = self._open_backend(environment, section, args, interrupt=False)
         if refused is not None:
             return refused
@@ -668,7 +710,7 @@ class Cli:
         backend = self.backend
         packages: dict[str, Any] = {}
         if with_packages:
-            root = Path(args.packages_dir)
+            root = Path(self._required(args, "packages_dir", "--packages-dir"))
             absent = [case for case in rt3.REGISTRY_CASES if not (root / case / "manifest.json").is_file()]
             if args.rt3b_dir and not (Path(args.rt3b_dir) / "manifest.json").is_file():
                 absent.append("RT3-b")
@@ -718,7 +760,7 @@ class Cli:
 
         versions = []
         for run in range(1, int(args.versions) + 1):
-            directory = Path(args.proxy_root) / f"run-{run}"
+            directory = Path(self._required(args, "proxy_root", "--proxy-root")) / f"run-{run}"
             if not (directory / "manifest.json").is_file():
                 raise ScenarioError("rt2_paquete_inexistente", directory.name)
             identifier = package_version(directory)
@@ -767,7 +809,7 @@ class Cli:
             checkpoint=save_state, notify=self.say,
         )  # fmt: skip
         params = rt2.Rt2Params(
-            package_version(Path(args.reference_dir)), self._versions(args), args.seed, volume=args.volume,
+            package_version(Path(self._required(args, "reference_dir", "--reference-dir"))), self._versions(args), args.seed, volume=args.volume,
             operator_timeout=args.operator_timeout, bias_timeout=args.bias_timeout,
         )  # fmt: skip
         state = rt2.Rt2State()

@@ -408,6 +408,7 @@ class OidcClient:
         ca_file: Path | None = None,
         transport: httpx.BaseTransport | None = None,
         form: FormDriver | None = None,
+        totp_windows: dict[str, int] | None = None,
     ) -> None:
         guard.check_known(environment)
         self._environment = environment
@@ -420,7 +421,9 @@ class OidcClient:
             timeout=HTTP_TIMEOUT,
         )
         self._form = form
-        self._last_window: dict[str, int] = {}
+        self._last_window: dict[str, int] = (
+            totp_windows if totp_windows is not None else {}
+        )  # compartida entre clientes si se pasa (F-09)
         self._jwks: dict[str, Any] = {}
         self.token_requests = 0
 
