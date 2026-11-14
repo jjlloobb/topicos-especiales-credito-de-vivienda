@@ -57,7 +57,7 @@ Las ocho secciones, en el orden en que se corren (`vectra-verification <sección
 - La cuenta `grafana-admin` y un `port-forward` al pod de Grafana de `vectra-observability` para D4 (Grafana no tiene OIDC).
 - El eco de U2 y la `ServiceAccount` temporal de U4 retirados antes del sync de U10.
 - `CASE_ALLOW_TEST_SCENARIOS` activo (`allowTestScenarios: true`, ya en los values de kind).
-- La entrega del modelo de referencia (`reference-model/.out`, de `make -C reference-model release`): `decisions`, `rt3`, `rt2-setup` y `rt2` la leen. Se copia a la máquina de la demo y se monta de solo lectura en `/verification/reference-model/.out`. `prepare`, `rt5`, `u11` y `report` no la necesitan.
+- La entrega del modelo de referencia (`reference-model/.out`, de `make -C reference-model release`): `decisions`, `rt3`, `rt2-setup` y `rt2` la leen. Se copia a la máquina de la demo y se monta de solo lectura en `/verification/reference-model/.out`. `prepare`, `rt5`, `u11` y `report` no la necesitan. `prepare --delivery <ruta>` guarda la ruta (la de **dentro** del contenedor) en el manifiesto (`paths.delivery`) y las demás secciones la toman de ahí; cada una acepta también `--delivery`. `--packages-dir`, `--proxy-root` y `--reference-dir` cuelgan de la entrega: sin ninguna ruta, la sección termina con código 3 y `ruta_faltante`.
 - Para `prepare` con parche: el archivo `vectra-risk-gitops/values/kind/case-management.yaml` del commit que se verifica, montado de solo lectura (`--values-file`).
 - Los PR de las demos (`runId`, apagar y revertir F22, proxy, promoción) los abre una persona con el repositorio; sus parches están en la imagen (ver «Los guiones, los `verify` y los PR»).
 
@@ -97,7 +97,7 @@ La herramienta corre en la estación del operador, no en el clúster: no hace fa
 
 La imagen no trae el binario de Argo CD, `helm`, `git`, `curl` ni manifiestos de Kubernetes. Sin escaneo, SBOM ni firma (diferido por la demo).
 
-**Perfil `seccomp` de Chromium.** El sandbox de Chromium necesita crear espacios de nombres de usuario, que el perfil por omisión de Docker bloquea. La imagen se corre con `--security-opt seccomp=chrome.json` y **nunca** con `--no-sandbox`. El archivo está en la imagen y en `seccomp/chrome.json` del repositorio:
+**Perfil `seccomp` de Chromium.** El sandbox de Chromium necesita crear espacios de nombres de usuario, que el perfil por omisión de Docker bloquea. La imagen se corre con `--security-opt seccomp=chrome.json` y **nunca** con `--no-sandbox`. El sandbox solo se garantiza ejecutando desde la imagen (`VERIFICATION_CHROMIUM_SANDBOX=1`): fuera de ella, `HeadlessForm._launch` arranca Chromium sin sandbox. El archivo está en la imagen y en `seccomp/chrome.json` del repositorio:
 
 ```sh
 docker run --rm --entrypoint cat localhost:5001/vectra/system-verification:dev /opt/system-verification/seccomp/chrome.json > chrome.json
@@ -143,7 +143,7 @@ vv() {
 | `--mount` de `vectra-ca.pem` (`readonly`) y `-e VERIFICATION_CA_FILE` | el certificado raíz, de solo lectura. Lo reciben los **dos** caminos TLS: Node por `NODE_EXTRA_CA_CERTS` y Chromium por la huella SPKI del certificado que verifica esa CA. Nada más: sin `ignore_https_errors`, sin `--ignore-certificate-errors`, sin instalar la CA en el almacén del sistema |
 | `--mount` de `evidence` en `/verification/evidence` | el único directorio donde la herramienta escribe (`--dir` por omisión). Sin este montaje, `prepare` termina con código 3 y `store_unwritable` |
 | `--mount` de `case-management.yaml` (`readonly`) | el archivo de values que `prepare` parchea (`--values-file /values/case-management.yaml`) |
-| `--mount` de `reference-model-out` (`readonly`) | la entrega del modelo de referencia (solo `decisions`, `rt3`, `rt2-setup` y `rt2`) |
+| `--mount` de `reference-model-out` (`readonly`) | la entrega del modelo de referencia (solo `decisions`, `rt3`, `rt2-setup` y `rt2`); `prepare --delivery /verification/reference-model/.out` guarda esa ruta en el manifiesto |
 | `-e VAULT_ADDR -e VAULT_TOKEN` | sin valor: Docker toma las variables del entorno del proceso. El token no es un archivo ni va en la línea de órdenes |
 
 El emisor del login es solo el público: `https://vectra.localtest.me/auth/realms/vectra` (`--issuer`, `--gateway-host`).
@@ -155,7 +155,7 @@ El emisor del login es solo el público: `https://vectra.localtest.me/auth/realm
 
 ### Los guiones, los `verify` y los PR
 
-Todo está en la imagen, en `/opt/system-verification`: `demos/*.md` (los guiones), `demos/verify/*.sh`, `demos/prs/` (los parches y plantillas de los PR) y `report/story-map.yaml`. Para leerlos o sacarlos:
+Todo está en la imagen, en `/opt/system-verification`: `demos/*.md` (los guiones), `demos/verify/*.sh`, `demos/prs/` (los parches de los PR y `entrada.py`, que arma el parche de la entrada `staging` de D1 y D2 con el `python3` de la imagen) y `report/story-map.yaml`. Para leerlos o sacarlos:
 
 ```sh
 docker run --rm --entrypoint cat localhost:5001/vectra/system-verification:dev /opt/system-verification/demos/rt-5.md
@@ -171,14 +171,24 @@ docker run --rm --read-only --tmpfs /tmp --network host --user "$(id -u):$(id -g
   --entrypoint sh localhost:5001/vectra/system-verification:dev /opt/system-verification/demos/verify/rt-5.sh 1
 ```
 
-Salida de cada `verify`: 0 el estado esperado, 1 no lo es, 2 no se pudo leer.
+Salida de cada `verify`: 0 el estado esperado, 1 no lo es, 2 no se pudo leer. `journey-7-4.sh 5` y `dashboard.sh 5` leen además del `manifest.json` (`manifest_value`).
+
+`entrada.py` lee los values que se le pasan y escribe el diff por la salida estándar; no escribe ningún archivo, así que corre con el sistema de archivos de solo lectura:
+
+```sh
+docker run --rm --read-only --tmpfs /tmp --user "$(id -u):$(id -g)" \
+  --mount type=bind,source="$PWD/model-serving.yaml",target=/work/model-serving.yaml,readonly --workdir /work \
+  --entrypoint python3 localhost:5001/vectra/system-verification:dev /opt/system-verification/demos/prs/entrada.py \
+  --values /work/model-serving.yaml --version mv-AAAA-MM-DD-xxxxxxxx --storage-uri s3://model-store/<ruta>/ > entrada.patch
+```
 
 ## Cómo correr cada sección
 
 Con `vv` definido (arriba). Cada sección escribe en `evidence/`; `report` se puede correr en cualquier momento.
 
 ```sh
-vv prepare --commit "$(git rev-parse --short HEAD)" --operator "su-nombre" --values-file /values/case-management.yaml
+vv prepare --commit "$(git rev-parse --short HEAD)" --operator "su-nombre" --values-file /values/case-management.yaml \
+    --delivery /verification/reference-model/.out
 vv decisions                                  # D4, día D: antes de las 22:18 UTC
 vv rt5                                        # D3
 vv rt3                                        # D1
@@ -196,8 +206,8 @@ Tiempos reales por demo (las esperas de los PR y de las sincronizaciones van apa
 
 | Demo | Secciones | Tiempo real |
 |---|---|---|
-| D1 (`journey-7-3`) | `rt3` | ≥ 19,3 min hasta `no_disponible`; ≈ 21 min hasta `FailClosedPersistente` en `firing`. Aparte: dos PR con su sync (apagar y revertir F22) |
-| D2 (`journey-7-4`) | `rt2-setup`, `rt2` | más de 75 min con 1 versión del proxy (≈ 30 min más por las 2 corridas de bias de `no_recongela`). Aparte: 4 PR de promoción y 2 del proxy |
+| D1 (`journey-7-3`) | `rt3` | 12,4 a 19,3 min hasta `no_disponible`; la herramienta espera hasta 25 min; `FailClosedPersistente` llega a `firing` unos minutos después y se sondea hasta 5 min tras la escalada. Aparte: dos PR con su sync (apagar y revertir F22) y el cierre `rt3 --closing` (≤ 15 min) |
+| D2 (`journey-7-4`) | `rt2-setup`, `rt2` | más de 75 min con 1 versión del proxy, en 9 pasos (≈ 30 min más por las 2 corridas de bias de `no_recongela`). Aparte: 4 PR de promoción y 2 del proxy |
 | D3 (`rt-5`) | `rt5` | segundos el Job; la alerta `CoreWriteAttempt` se ve ≈ 5 min en `firing` y se apaga sola |
 | D4 (`dashboard`) | `decisions`, `u11` | `decisions` ≈ 42 min, el día D antes de las 22:18 UTC (barrera de las 23:00 UTC); `u11` el día D + 1, después de las 02:40 UTC (la pasada de U11 es a las 02:30 UTC más hasta 10 min). Aparte: Grafana por `port-forward` |
 

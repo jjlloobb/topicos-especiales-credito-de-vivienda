@@ -557,7 +557,8 @@ class Cli:
         assert self.backend is not None
         try:
             with ExitStack() as stack:
-                sim = RecordingSimulator(self.backend.simulator(mf.prefix_of(manifest.run_id)))
+                backend = self.backend
+                sim = RecordingSimulator(lambda: backend.simulator(mf.prefix_of(manifest.run_id)))
                 _, deps, params = self._rt3_inputs(environment, args, sim, stack, with_packages=False)
                 from vectra_verification.scenarios import rt3
 

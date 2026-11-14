@@ -100,6 +100,9 @@ def evidence_dir(work: Path) -> Path:
     return path
 
 
+DELIVERY_IN_IMAGE = "/verification/reference-model/.out"  # donde el README monta la entrega de U5 (de solo lectura)
+
+
 def prepare_command(evidence: Path, *, user: str = TEST_USER, name: str | None = None) -> list[str]:
     options = base_options(user=user)
     if name:
@@ -118,6 +121,8 @@ def prepare_command(evidence: Path, *, user: str = TEST_USER, name: str | None =
         "operadora",
         "--values-file",
         "/values/case-management.yaml",
+        "--delivery",
+        DELIVERY_IN_IMAGE,
     ]
 
 
@@ -188,7 +193,7 @@ def test_content_no_argocd_helm_k6_git_curl_and_no_kubernetes_manifests() -> Non
         "hits = []\n"
         "for root in ('/opt', '/usr/local', '/etc', '/verification', '/usr/share', '/var'):\n"
         "    for path in pathlib.Path(root).rglob('*'):\n"
-        "        if path.suffix in ('.patch', '.tpl') or path.is_symlink() or not path.is_file() or path.stat().st_size > 2_000_000:  # un parche es un diff (`git apply`), no un manifiesto\n"
+        "        if path.suffix in ('.patch',) or path.is_symlink() or not path.is_file() or path.stat().st_size > 2_000_000:  # un parche es un diff (`git apply`), no un manifiesto\n"
         "            continue\n"
         "        try:\n"
         "            text = path.read_text(encoding='utf-8')\n"
@@ -370,10 +375,69 @@ def test_run_prepare_again_is_refused_with_3_and_the_manifest_does_not_change(wo
     assert "prepare_manifest_exists" in done.stderr and (evidence / "manifest.json").read_bytes() == before
 
 
+def test_run_prepare_with_the_delivery_mounted_read_only_records_it_and_without_the_mount_it_still_prepares(
+    work: Path,
+) -> None:
+    """`prepare --delivery` guarda la ruta (dentro del contenedor) en el manifiesto; no lee la entrega: con o sin el montaje, `prepare` termina. El montaje es de solo lectura."""
+    delivery = work / "entrega"
+    delivery.mkdir()
+    (delivery / "test.parquet").write_bytes(b"PAR1")
+    with_mount = evidence_dir(work)
+    command = prepare_command(with_mount)
+    command[command.index(IMAGE) : command.index(IMAGE)] = mount(delivery, DELIVERY_IN_IMAGE)
+    done = docker(*command)
+    assert done.returncode == 0, done.stdout + done.stderr
+    manifest = json.loads((with_mount / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["paths"]["delivery"] == DELIVERY_IN_IMAGE
+    other = work / "sin-montaje"
+    other.mkdir()
+    other.chmod(0o777)
+    without = other / "evidence"
+    without.mkdir()
+    without.chmod(0o777)
+    done = docker(*prepare_command(without))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert json.loads((without / "manifest.json").read_text(encoding="utf-8"))["paths"]["delivery"] == DELIVERY_IN_IMAGE
+
+
+def test_run_a_section_with_data_and_no_delivery_ends_with_ruta_faltante_code_3(work: Path) -> None:
+    """Sin `--delivery` (ni en `prepare`), `rt3` no tiene de donde sacar `--packages-dir`: termina con 3 y `ruta_faltante`, sin traza."""
+    evidence = evidence_dir(work)
+    command = prepare_command(evidence)
+    del command[-2:]  # sin `--delivery`
+    assert docker(*command).returncode == 0
+    done = docker(
+        "run", *base_options(user=TEST_USER),
+        *mount(evidence, "/verification/evidence", read_only=False),
+        "-e", "VAULT_ADDR=http://127.0.0.1:9", "-e", "VAULT_TOKEN=token-de-prueba",
+        IMAGE, "rt3",
+    )  # fmt: skip
+    assert done.returncode == 3, done.stdout + done.stderr
+    assert "ruta_faltante" in done.stdout + done.stderr and "Traceback" not in done.stdout + done.stderr
+
+
+def test_run_entrada_py_travels_in_the_image_and_builds_the_patch_read_only(work: Path) -> None:
+    """`demos/prs/entrada.py` (D1 y D2) corre con el `python3` de la imagen, de solo lectura y sin escribir nada; las plantillas de parche fijas ya no existen."""
+    values = work / "model-serving.yaml"
+    values.write_text("# valores\ninferenceServices: []\n", encoding="utf-8")
+    done = docker(
+        "run", *base_options(user=TEST_USER), *mount(values, "/work/model-serving.yaml"),
+        "--workdir", "/work", "--entrypoint", "python3",
+        IMAGE, "/opt/system-verification/demos/prs/entrada.py", "--values", "/work/model-serving.yaml",
+        "--version", "mv-2026-11-13-0123abcd", "--storage-uri", "s3://model-store/proxy/mv-2026-11-13-0123abcd/",
+    )  # fmt: skip
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "+  - { modelVersionId: mv-2026-11-13-0123abcd" in done.stdout and "profile: staging" in done.stdout
+    assert values.read_text(encoding="utf-8").endswith("inferenceServices: []\n")
+    listing = in_image(["-c", "find /opt/system-verification/demos -name '*.tpl' | wc -l"], entrypoint="sh")
+    assert listing.stdout.strip() == "0", listing.stdout
+
+
 def test_run_without_the_evidence_mount_is_a_clear_error_not_a_traceback() -> None:
     done = docker(
         "run", *base_options(user=TEST_USER), *mount(VALUES, "/values/case-management.yaml"), IMAGE,
         "prepare", "--commit", "c0ffee1", "--operator", "operadora", "--values-file", "/values/case-management.yaml",
+        "--delivery", DELIVERY_IN_IMAGE,
     )  # fmt: skip
     assert done.returncode == 3, done.stdout + done.stderr
     assert "store_unwritable" in done.stderr and "Traceback" not in done.stderr + done.stdout

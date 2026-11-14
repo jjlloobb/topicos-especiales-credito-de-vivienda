@@ -1082,16 +1082,19 @@ def test_readme_every_cli_example_parses_with_the_real_parser() -> None:
     parser = cli.build_parser({})
     seen = 0
     for block in _fenced_blocks(_readme()):
-        for line in block.splitlines():
+        for line in block.replace("\\\n", " ").splitlines():  # una orden en varias lineas (`\`) es una sola
             if not line.startswith("vv "):
                 continue
             argv = shlex.split(line.split("   #")[0], comments=False)[1:]
             try:
-                parser.parse_args(argv)
+                parsed = parser.parse_args(argv)
+                if argv[0] == "prepare":  # la entrega: la ruta de DENTRO del contenedor, donde el README monta los datos
+                    assert parsed.delivery == "/verification/reference-model/.out", line
             except SystemExit as stop:  # argparse se niega: una opcion que no existe
                 raise AssertionError(f"el README trae una orden que la CLI no acepta: {line}") from stop
             seen += 1
     assert seen >= 8  # cada una de las secciones que corren
+    assert "vv prepare" in _readme()
 
 
 def test_readme_the_downloads_and_the_profile_match_the_dockerfile_and_the_file() -> None:
@@ -1111,7 +1114,7 @@ def test_readme_the_downloads_and_the_profile_match_the_dockerfile_and_the_file(
 def test_readme_says_the_times_of_the_four_demos_as_the_scripts_do() -> None:
     text = _readme()
     for file, figures in {
-        "journey-7-3.md": ("19,3 min", "21 min"),
+        "journey-7-3.md": ("12,4 a 19,3 min", "25 min"),
         "journey-7-4.md": ("75 min", "30 min"),
         "rt-5.md": ("5 min",),
         "dashboard.md": ("42 min", "22:18 UTC", "02:30 UTC"),
