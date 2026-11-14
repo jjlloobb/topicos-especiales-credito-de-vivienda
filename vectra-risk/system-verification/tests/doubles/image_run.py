@@ -29,19 +29,19 @@ README_FLAGS = (
     '--user "$(id -u):$(id -g)"',
     MEMORY,
     SECCOMP_OPTION,
-    "-v",
+    "--mount type=bind",
     "-e",
 )
 
 
 def base_options(
-    *, user: str | None = None, seccomp: Path | None = SECCOMP, network_host: bool = False
+    *, user: str | None = None, seccomp: Path | None = SECCOMP, network_host: bool = False, tmpfs: bool = True
 ) -> list[str]:
     """Las opciones comunes con el valor de la prueba: `--user` y la ruta del perfil cambian; el resto es literal."""
     options = [
         "--rm",
         *READ_ONLY.split(),
-        *TMPFS.split(),
+        *(TMPFS.split() if tmpfs else []),
         *MEMORY.split(),
         "--user",
         user or f"{os.getuid()}:{os.getgid()}",
@@ -54,7 +54,8 @@ def base_options(
 
 
 def mount(source: Path, target: str, *, read_only: bool = True) -> list[str]:
-    return ["-v", f"{source}:{target}{':ro' if read_only else ''}"]
+    """`--mount type=bind` (como el README): si falta la ruta, Docker se niega; `-v` crearia un directorio de root en su lugar."""
+    return ["--mount", f"type=bind,source={source},target={target}{',readonly' if read_only else ''}"]
 
 
 def unique_name(label: str) -> str:

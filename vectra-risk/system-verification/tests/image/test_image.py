@@ -460,6 +460,19 @@ def test_sandbox_without_the_profile_the_login_ends_with_a_clear_error_and_not_a
     assert "state=" not in done.stderr and "nonce" not in done.stderr
 
 
+def test_run_without_the_tmpfs_the_login_ends_with_a_clear_error_so_the_readme_requires_it() -> None:
+    """Rojo documentado: con `--read-only` y sin `--tmpfs /tmp` (`HOME=/tmp` no se puede escribir) Playwright no arranca; el login termina con un codigo estable, no colgado ni con una traza."""
+    done = docker(
+        "run", *base_options(user=TEST_USER, tmpfs=False), *mount(image_run.DOUBLES, "/doubles"),
+        "--entrypoint", "python", IMAGE, "/doubles/container_login.py", "submit",
+    )  # fmt: skip
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout.strip().splitlines()[-1]) == {
+        "login": "error",
+        "error": "browser_launch_error",
+    }
+
+
 # --- CA-5: la CA en los dos caminos TLS, y nada mas ----------------------------------------------------------------------------------------------------
 
 

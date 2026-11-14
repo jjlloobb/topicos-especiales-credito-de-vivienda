@@ -782,3 +782,175 @@ def test_the_verifies_leave_no_process_and_write_nothing_in_the_evidence_directo
         ["pgrep", "-f", str(tmp_path / "bin" / "kubectl")], capture_output=True, text=True, check=False
     )
     assert leftover.stdout.strip() == ""
+
+
+# --- U12-T05 (Paso 17, CA-6): el README de lo que entra ----------------------------------------------------------------------------------------------------
+
+README = SYSTEM / "README.md"
+
+
+def _readme() -> str:
+    return README.read_text(encoding="utf-8")
+
+
+def _fenced_blocks(text: str) -> list[str]:
+    return re.findall(r"```sh\n(.*?)```", text, flags=re.S)
+
+
+def _joined(block: str) -> str:
+    """El bloque sin las continuaciones `\\` y con los espacios normalizados: una orden por linea logica."""
+    return re.sub(r"\s+", " ", block.replace("\\\n", " "))
+
+
+def _run_block() -> str:
+    blocks = [b for b in _fenced_blocks(_readme()) if "vv() {" in b]
+    assert len(blocks) == 1, "el README define la orden `docker run` en un solo bloque"
+    return _joined(blocks[0])
+
+
+def test_readme_lists_the_eight_sections_in_order_and_the_six_deferred_ones() -> None:
+    text = _readme()
+    rows = re.findall(r"^\| (\d) \| `([a-z0-9-]+)` \|", text, flags=re.M)
+    assert [name for _, name in rows] == list(cli.SECTIONS_RUN)  # el orden de la CLI
+    assert [int(n) for n, _ in rows] == list(range(1, 9))
+    deferred = [s for s in cli.guard.SECTIONS if s not in cli.SECTIONS_RUN]
+    assert len(deferred) == 6 and all(f"`{name}`" in text for name in deferred)
+    assert "--reactivation tool" in text and "--reactivation presenter" in text
+    for code in ("| 0 |", "| 1 |", "| 2 |", "| 3 |"):
+        assert code in text
+
+
+def test_readme_run_command_has_every_option_and_the_test_of_the_image_uses_the_same_ones() -> None:
+    import image_run
+
+    block = _run_block()
+    for flag in image_run.README_FLAGS:
+        assert flag in block, f"el README no trae `{flag}`"
+    # lo que `base_options` pone en la orden que corre `test_image.py`: cada opcion, con su valor literal, esta en la del README
+    options = image_run.base_options(user="1:1")
+    for pair in ("--read-only", "--tmpfs /tmp", "--memory 1g", "--rm"):
+        assert pair in " ".join(options) and pair in block
+    assert any(o.startswith("seccomp=") for o in options) and "--security-opt seccomp=" in block
+    assert "--network host" in block and "--read-only" in block
+    assert (
+        block.count("type=bind") >= 4 and "readonly" in block
+    )  # kubeconfig, certificado, values y entrega: de solo lectura
+    assert "-e KUBECONFIG=/kube/config" in block and "-e VERIFICATION_CA_FILE=/certs/ca.pem" in block
+    assert "localhost:5001/vectra/system-verification:dev" in block and image_run.IMAGE in block
+
+
+def test_readme_vault_token_is_a_variable_and_never_a_file() -> None:
+    block = _run_block()
+    assert "-e VAULT_ADDR -e VAULT_TOKEN" in block
+    assert not re.search(r"source=\S*(token|vault)", block, flags=re.I)  # ningun montaje del token
+    assert not re.search(
+        r"VAULT_TOKEN=\S", block[block.index("docker run") :]
+    )  # sin valor en la orden (el `export` de arriba es un ejemplo)
+    assert re.search(
+        r"export VAULT_TOKEN=\.\.\.", block
+    )  # el valor sale del entorno del operador, no de un archivo
+    text = _readme()
+    assert "solo como variable de entorno" in text and "nunca en un archivo" in text
+
+
+def test_readme_every_cli_example_parses_with_the_real_parser() -> None:
+    parser = cli.build_parser({})
+    seen = 0
+    for block in _fenced_blocks(_readme()):
+        for line in block.splitlines():
+            if not line.startswith("vv "):
+                continue
+            argv = shlex.split(line.split("   #")[0], comments=False)[1:]
+            try:
+                parser.parse_args(argv)
+            except SystemExit as stop:  # argparse se niega: una opcion que no existe
+                raise AssertionError(f"el README trae una orden que la CLI no acepta: {line}") from stop
+            seen += 1
+    assert seen >= 8  # cada una de las secciones que corren
+
+
+def test_readme_the_downloads_and_the_profile_match_the_dockerfile_and_the_file() -> None:
+    import hashlib
+
+    text, docker = _readme(), (SYSTEM / "Dockerfile").read_text(encoding="utf-8")
+    for name in ("KUBECTL_SHA256", "CHROMIUM_SHA256"):
+        value = re.search(rf"^ARG {name}=(\S+)$", docker, flags=re.M)
+        assert value and value.group(1) in text, name
+    assert re.search(r"^ARG KUBECTL_VERSION=(\S+)$", docker, flags=re.M).group(1) in text  # type: ignore[union-attr]
+    assert hashlib.sha256((SYSTEM / "seccomp" / "chrome.json").read_bytes()).hexdigest() in text
+    assert "<!-- seccomp/chrome.json" in text and "Origen:" in text and "SHA-256:" in text
+    lock = (SYSTEM / "image" / "apt.lock").read_text(encoding="utf-8").splitlines()
+    assert f"({len(lock)} `.deb`)" in text
+
+
+def test_readme_says_the_times_of_the_four_demos_as_the_scripts_do() -> None:
+    text = _readme()
+    for file, figures in {
+        "journey-7-3.md": ("19,3 min", "21 min"),
+        "journey-7-4.md": ("75 min", "30 min"),
+        "rt-5.md": ("5 min",),
+        "dashboard.md": ("42 min", "22:18 UTC", "02:30 UTC"),
+    }.items():
+        script = (DEMOS / file).read_text(encoding="utf-8")
+        for figure in figures:
+            assert figure in script and figure in text, (file, figure)
+
+
+def test_readme_has_the_prerequisites_the_memory_of_kind_and_the_network_limits() -> None:
+    text = _readme()
+    for phrase in (
+        "K16",
+        "AAAAMMDD-HHMM",
+        "camino a la bóveda",
+        "CASE_ALLOW_TEST_SCENARIOS",
+        "cumplimiento-2",
+        "grafana-admin",
+        "certificado raíz",
+        "model-store",
+        "vectra-verification-operators",
+        "macOS y Windows",
+        "--network host",
+    ):
+        assert phrase in text, phrase
+    budget = re.search(
+        r"^BUDGET_GIB = ([0-9.]+)$",
+        (VECTRA / "platform/tests/test_kind_profile.py").read_text(encoding="utf-8"),
+        flags=re.M,
+    )
+    assert (
+        budget and f"{budget.group(1)}".replace(".", ",") + " GiB" in text
+    )  # los requests de kind: 11,8 GiB
+    assert "14 GiB como mínimo, 16 recomendados" in text
+
+
+def test_readme_reading_the_report_the_limit_and_what_will_be_not_run() -> None:
+    from vectra_verification import report
+
+    text = _readme()
+    assert (
+        "el manifiesto (`manifest.json`) detecta alteraciones accidentales" in text and "CODEOWNERS" in text
+    )
+    assert report.MANIFEST_LIMIT.split(" Esa protección")[0].replace("El manifiesto", "el manifiesto") in text
+    table = text.split("### Qué saldrá `no ejecutado` y por qué")[1].split("\n## ")[0]
+    for item in (
+        "US-106",
+        "US-109",
+        "US-604",
+        "US-608",
+        "US-609",
+        "US-610",
+        "US-603",
+        "`X01`",
+        "US-305",
+        "`X03`",
+        "`RT3-b`",
+        "`RT2-LATENCY`",
+    ):
+        assert item in table, item
+
+
+def test_readme_names_no_k6_and_no_deferred_application() -> None:
+    text = _readme()
+    assert not re.search(r"\bk6\b", text, flags=re.I)
+    assert "bias-monitoring" not in text and "decision-registry-rebuild" not in text
+    assert "`case-management`" in text or "case-management" in text
