@@ -105,6 +105,8 @@ sync identity-jobs identity-rules identity-monitors
 kubectl apply -f identity-edge/tests/e2e/echo/manifests.yaml
 ```
 
+> **Nota (U02-T22).** El realm de Git se importó por primera vez contra un Keycloak real y tenía dos defectos que impedían todo login (alias de configuración compartidos y `VERIFY_PROFILE`); están corregidos. Si el kind ya tiene el realm viejo, ver `realm-importacion.md` (qué hace el operador).
+
 ## 6. Pruebas, una evidencia por ítem
 
 Cada ítem deja un archivo en `aidlc-docs/construction/identity-edge/evidence/paso-16/<n>-<nombre>.txt`, con el comando, la salida y el resultado esperado contra el obtenido. Ese directorio va adjunto al PR de cierre.

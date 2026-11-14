@@ -16,6 +16,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 import httpx
+import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from vectra_common.errors import DependencyUnavailable
@@ -40,6 +41,8 @@ REGISTRY_URL = "http://registry.test"
 GOVERNANCE_URL = "http://governance.test"
 PUSHGATEWAY_URL = "http://pushgateway.test"
 TOKEN_URL = "http://keycloak.test/token"
+#: La `aud` que Keycloak acepta en la aserción: su emisor (U00-T04), distinto de la URL de token.
+ASSERTION_AUDIENCE = "https://vectra.localtest.me/auth/realms/vectra"
 CLIENT_ID = "bias-monitoring-job"
 
 
@@ -73,11 +76,21 @@ class Keycloak:
         if self.down or url != TOKEN_URL:
             raise DependencyUnavailable()
         assert data["grant_type"] == "client_credentials"
-        assert data["client_assertion"]
+        claims = jwt.decode(data["client_assertion"], options={"verify_signature": False})
+        if claims["aud"] != ASSERTION_AUDIENCE:  # Keycloak: 400 `invalid_client`, `Invalid token audience`
+            raise DependencyUnavailable()
         return {"access_token": f"tok|{data['audience']}|{data['scope']}", "expires_in": 300}
 
     def provider(self, audience: str, scopes: tuple[str, ...]) -> ServiceTokenProvider:
-        return ServiceTokenProvider(CLIENT_ID, TOKEN_URL, PRIVATE_KEY_PEM, audience, scopes, poster=self.post)
+        return ServiceTokenProvider(
+            CLIENT_ID,
+            TOKEN_URL,
+            PRIVATE_KEY_PEM,
+            audience,
+            scopes,
+            assertion_audience=ASSERTION_AUDIENCE,
+            poster=self.post,
+        )
 
 
 def _scopes_of(request: httpx.Request) -> tuple[str, set[str]] | None:

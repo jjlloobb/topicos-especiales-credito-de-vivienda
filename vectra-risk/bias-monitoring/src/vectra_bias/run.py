@@ -10,7 +10,7 @@ Todo o nada sobre los datos: nunca congela con una lectura parcial ni con invali
 llama a `freeze`, y nunca para la poblacion `humana`.
 
 Entorno (lo fija el chart, Paso 12): `VECTRA_REGISTRY_URL`, `VECTRA_GOVERNANCE_URL`, `VECTRA_PUSHGATEWAY_URL`,
-`VECTRA_TOKEN_URL`, `VECTRA_CLIENT_ID`, `VECTRA_CLIENT_KEY_PATH` (y `VECTRA_CLIENT_KEY_ID`), y `VECTRA_POLICY_PATH` si el
+`VECTRA_TOKEN_URL`, `VECTRA_ASSERTION_AUDIENCE`, `VECTRA_CLIENT_ID`, `VECTRA_CLIENT_KEY_PATH` (y `VECTRA_CLIENT_KEY_ID`), y `VECTRA_POLICY_PATH` si el
 `ConfigMap` no esta en la ruta por omision de `config.POLICY_PATH`.
 
 Codigo de salida: 0 corrida completa; 1 corrida fallida (lectura, libreria, invalidas, agregador atrasado, token o `freeze`);

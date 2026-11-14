@@ -559,9 +559,12 @@ def test_env_each_service_has_what_its_code_requires_and_no_constant(env: str) -
     docs = render(env)
     scoring, explainability = env_map(container(docs)), env_map(container(docs, EXPL))
     assert set(sapp.REQUIRED_ENV) <= set(scoring) and set(xapp.REQUIRED_ENV) <= set(explainability)
-    assert {"VECTRA_CLIENT_ID", "VECTRA_TOKEN_URL", "VECTRA_CLIENT_KEY_PATH"} <= set(scoring) & set(
-        explainability
-    )
+    assert {
+        "VECTRA_CLIENT_ID",
+        "VECTRA_TOKEN_URL",
+        "VECTRA_ASSERTION_AUDIENCE",
+        "VECTRA_CLIENT_KEY_PATH",
+    } <= set(scoring) & set(explainability)
     constants = {n for mod in (scfg, xcfg) for n in dir(mod) if n.isupper() and not n.startswith("_")}
     assert constants and not constants & (set(scoring) | set(explainability)), (
         "INF-U7-04: un presupuesto es variable de entorno"

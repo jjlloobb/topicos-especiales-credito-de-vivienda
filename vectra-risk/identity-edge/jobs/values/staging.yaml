@@ -2,3 +2,6 @@
 image:
   repository: registro.banco.internal/vectra/identity-jobs
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000002
+# Emisor de los tokens de staging: el hostname publico de Keycloak. Es la `aud` de la aserción de servicio (U00-T04).
+keycloak:
+  issuer: https://vectra.staging.banco.internal/auth/realms/vectra

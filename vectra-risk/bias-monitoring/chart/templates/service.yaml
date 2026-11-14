@@ -59,6 +59,7 @@ spec:
           env:
             - { name: VECTRA_REGISTRY_URL, value: {{ required "peers.registryUrl es obligatorio" .Values.peers.registryUrl | quote }} }
             - { name: VECTRA_TOKEN_URL, value: {{ required "keycloak.tokenUrl es obligatorio" .Values.keycloak.tokenUrl | quote }} }
+            - { name: VECTRA_ASSERTION_AUDIENCE, value: {{ required "keycloak.issuer es obligatorio" .Values.keycloak.issuer | quote }} }
             - { name: VECTRA_CLIENT_ID, value: {{ required "identity.service.clientId es obligatorio" $id.clientId | quote }} }
             - { name: VECTRA_CLIENT_KEY_PATH, value: {{ $keyPath | quote }} }
             - { name: VECTRA_OIDC_ISSUER, value: {{ required "keycloak.issuer es obligatorio" .Values.keycloak.issuer | quote }} }

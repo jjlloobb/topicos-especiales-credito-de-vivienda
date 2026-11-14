@@ -79,7 +79,7 @@ sale del entorno.
 |---|---|
 | `VECTRA_REGISTRY_URL` | obligatoria; URL de U3 (el mismo nombre que usa U9). Sin ella el proceso sale con código 3. |
 | `VECTRA_POLICY_PATH` | opcional; por omisión `params.POLICY_PATH` (`/etc/vectra/product-metrics-policy/values-product-metrics-policy.yaml`). Un archivo inválido: código 2, sin servir nada. |
-| `VECTRA_CLIENT_ID`, `VECTRA_TOKEN_URL`, `VECTRA_CLIENT_KEY_PATH`, `VECTRA_CLIENT_KEY_ID` | las lee `vectra_common.service_token.provider_from_env`. |
+| `VECTRA_CLIENT_ID`, `VECTRA_TOKEN_URL`, `VECTRA_ASSERTION_AUDIENCE`, `VECTRA_CLIENT_KEY_PATH`, `VECTRA_CLIENT_KEY_ID` | las lee `vectra_common.service_token.provider_from_env`. |
 | `VECTRA_CA_BUNDLE` | la lee `vectra_common.deps` si `VECTRA_REGISTRY_URL` es `https://`. |
 
 - **Comando de arranque de la imagen:** `python -m vectra_product.main`. Sirve 8081 (`/metrics`, `/healthz`, `/readyz`); no hay 8080 ni

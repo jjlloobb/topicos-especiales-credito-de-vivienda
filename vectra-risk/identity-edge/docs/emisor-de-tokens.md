@@ -64,3 +64,18 @@ la URL de token pública) se acepta, y `service_token` solo tendría que firmar 
 - Circula **un** emisor, el público (`KC_HOSTNAME` + `/realms/vectra`), para usuarios y para servicios, pidan por donde pidan. No hay dos emisores (R3 descartado).
 - Por eso el `keycloak.issuer` de cada servicio que valida debe ser el público de su entorno (corregido en esta tarea).
 - Ningún servicio puede obtener hoy un token de servicio: la aserción de `vectra_common.service_token` se firma con la URL interna y se rechaza (P-2, abierto: ver `CANDIDATAS.md`).
+
+## Tras U00-T04: `vectra_common.service_token` firma el emisor (mismo guion, sin banderas)
+
+`ServiceTokenProvider` recibe `assertion_audience` (por nombre, sin valor por omisión) y firma esa `aud`; la petición sigue yendo a `token_url`. Los charts
+la rinden en `VECTRA_ASSERTION_AUDIENCE`, derivada de `keycloak.issuer` (el emisor público del entorno). `measure_issuer.py` mide M-c dos veces con el proveedor
+de la rama, por el host interno desviado a `127.0.0.1:<puerto>` (mismo contenedor de Keycloak 26.8.1, configuración de kind):
+
+| Medida | Orden | HTTP | Resultado |
+|---|---|---|---|
+| M-c (aud configurada) | `ServiceTokenProvider("probe-svc", <URL interna de token>, …, assertion_audience=<emisor público>).token()` | 200 | `iss` = `https://vectra.localtest.me/auth/realms/vectra`; `azp` = `probe-svc`; `aud` = `account` |
+| M-c (aud antigua) | el mismo, con `assertion_audience=<URL interna de token>` (lo que firmaba U0 antes) | 400 | `invalid_client: Invalid token audience` |
+
+El proveedor corregido obtiene el token por el único camino que la red permite desde `vectra-app` (F50), y el defecto de R2 queda reproducido y cerrado con el mismo guion.
+Lo que ata a cada workload a esa `aud` es `platform/tests/test_token_issuer.py` (la variable vale exactamente el emisor de su entorno) y, en cada unidad, un doble de
+Keycloak que responde 400 a una aserción cuya `aud` no es la configurada. No se midió en kind con el realm real (U12 Paso 18).

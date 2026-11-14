@@ -11,7 +11,7 @@ image_repository_suffix := "/vectra/product-metrics"
 
 # El unico conjunto de variables del contenedor (`process.md`, «Entorno y arranque»): las de cableado que pone el chart. `VECTRA_POLICY_PATH` es opcional y no
 # se pone (el ConfigMap se monta en `params.POLICY_PATH`). Ninguna constante de `config.py` (CYCLE_SECONDS, FULL_PASS_DEADLINE_SECONDS...) es una variable.
-container_env := {"VECTRA_REGISTRY_URL", "VECTRA_CLIENT_ID", "VECTRA_TOKEN_URL", "VECTRA_CLIENT_KEY_PATH", "VECTRA_CA_BUNDLE"}
+container_env := {"VECTRA_REGISTRY_URL", "VECTRA_CLIENT_ID", "VECTRA_TOKEN_URL", "VECTRA_ASSERTION_AUDIENCE", "VECTRA_CLIENT_KEY_PATH", "VECTRA_CA_BUNDLE"}
 
 # INF-U11-01 / NFR-U11-13: 100m de CPU; limits 500m / 512Mi. El request de memoria es de 256Mi en staging y prod y de 128Mi en kind (P-1 = b).
 memory_requests := {"256Mi", "128Mi"}

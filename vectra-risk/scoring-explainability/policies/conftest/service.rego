@@ -10,7 +10,7 @@ namespace := "vectra-app"
 services := {"scoring-service", "explainability-service"}
 
 # El unico conjunto de variables de entorno de cada servicio (INF-U7-04): las de `REQUIRED_ENV` de su `app.py`, las de U0 (F50) y la telemetria.
-common_env := {"VECTRA_CLIENT_ID", "VECTRA_CLIENT_KEY_PATH", "VECTRA_TOKEN_URL", "VECTRA_OIDC_ISSUER", "VECTRA_JWKS_URL", "VECTRA_CA_BUNDLE", "VECTRA_OTLP_ENDPOINT"}
+common_env := {"VECTRA_CLIENT_ID", "VECTRA_CLIENT_KEY_PATH", "VECTRA_TOKEN_URL", "VECTRA_ASSERTION_AUDIENCE", "VECTRA_OIDC_ISSUER", "VECTRA_JWKS_URL", "VECTRA_CA_BUNDLE", "VECTRA_OTLP_ENDPOINT"}
 
 service_env := {
 	"scoring-service": (common_env | {"SCORING_GOVERNANCE_URL", "SCORING_EXPLAINABILITY_URL", "SCORING_REGISTRY_URL", "SCORING_PREDICTOR_URL_TEMPLATE"}),

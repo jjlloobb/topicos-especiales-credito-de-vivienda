@@ -73,6 +73,8 @@ spec:
             - { name: VECTRA_CLIENT_ID, value: {{ $svc.clientId | quote }} }
             - { name: VECTRA_CLIENT_KEY_PATH, value: {{ $keyPath | quote }} }
             - { name: VECTRA_TOKEN_URL, value: {{ required "keycloak.tokenUrl es obligatorio" $.Values.keycloak.tokenUrl | quote }} }
+            # La `aud` de la aserción es el emisor, no la URL de token (U00-T04).
+            - { name: VECTRA_ASSERTION_AUDIENCE, value: {{ required "keycloak.issuer es obligatorio" $.Values.keycloak.issuer | quote }} }
             # Variables de U0 (F50): sin ellas `create_app` no arranca. La CA de Keycloak se monta del ConfigMap de U1 (Bundle de trust-manager).
             - { name: VECTRA_OIDC_ISSUER, value: {{ required "keycloak.issuer es obligatorio" $.Values.keycloak.issuer | quote }} }
             - { name: VECTRA_JWKS_URL, value: {{ required "keycloak.jwksUrl es obligatorio" $.Values.keycloak.jwksUrl | quote }} }

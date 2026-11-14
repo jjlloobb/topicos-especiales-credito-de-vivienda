@@ -14,6 +14,13 @@ admin_url := "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth
 
 token_url := "https://keycloak-admin.vectra-identity.svc.cluster.local:8443/auth/realms/vectra/protocol/openid-connect/token"
 
+# La `aud` de la aserción `private_key_jwt` es el emisor que Keycloak publica (U00-T04): el hostname publico de cada entorno + el realm, no la URL de token.
+assertion_audiences := {
+	"https://vectra.localtest.me/auth/realms/vectra",
+	"https://vectra.staging.banco.internal/auth/realms/vectra",
+	"https://vectra.banco.internal/auth/realms/vectra",
+}
+
 image_repositories := {"registro.banco.internal/vectra/identity-jobs", "kind-registry:5000/vectra/identity-jobs"}
 
 priority_class := "vectra-low"
@@ -157,8 +164,16 @@ deny contains msg if {
 deny contains msg if {
 	is_cronjob
 	actual := {e.name: e.value | some e in container.env}
-	actual != expected_env
+	object.remove(actual, ["VECTRA_ASSERTION_AUDIENCE"]) != expected_env
 	msg := sprintf("env: las variables de %s no son las del diseno (INF-U2-09)", [input.metadata.name])
+}
+
+deny contains msg if {
+	is_cronjob
+	actual := {e.name: e.value | some e in container.env}
+	audience := object.get(actual, "VECTRA_ASSERTION_AUDIENCE", "")
+	not audience in assertion_audiences
+	msg := sprintf("env: VECTRA_ASSERTION_AUDIENCE de %s no es el emisor publico de un entorno (U00-T04)", [input.metadata.name])
 }
 
 deny contains msg if {

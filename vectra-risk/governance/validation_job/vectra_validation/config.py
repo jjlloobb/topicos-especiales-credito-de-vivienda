@@ -28,6 +28,7 @@ class JobConfig:
     s3_access_key: str
     s3_secret_key: str
     token_url: str
+    assertion_audience: str
     client_id: str
     key_path: str
     key_id: str | None
@@ -69,6 +70,7 @@ def from_env(env: Mapping[str, str]) -> JobConfig:
         s3_access_key=_need(env, "VECTRA_S3_ACCESS_KEY"),
         s3_secret_key=_need(env, "VECTRA_S3_SECRET_KEY"),
         token_url=_need(env, "VECTRA_TOKEN_URL"),
+        assertion_audience=_need(env, "VECTRA_ASSERTION_AUDIENCE"),
         client_id=env.get("VECTRA_CLIENT_ID", "model-validation-job"),
         key_path=_need(env, "VECTRA_CLIENT_KEY_PATH"),
         key_id=env.get("VECTRA_CLIENT_KEY_ID") or None,
