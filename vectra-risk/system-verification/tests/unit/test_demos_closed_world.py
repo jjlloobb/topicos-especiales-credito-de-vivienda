@@ -1088,7 +1088,9 @@ def test_readme_every_cli_example_parses_with_the_real_parser() -> None:
             argv = shlex.split(line.split("   #")[0], comments=False)[1:]
             try:
                 parsed = parser.parse_args(argv)
-                if argv[0] == "prepare":  # la entrega: la ruta de DENTRO del contenedor, donde el README monta los datos
+                if (
+                    argv[0] == "prepare"
+                ):  # la entrega: la ruta de DENTRO del contenedor, donde el README monta los datos
                     assert parsed.delivery == "/verification/reference-model/.out", line
             except SystemExit as stop:  # argparse se niega: una opcion que no existe
                 raise AssertionError(f"el README trae una orden que la CLI no acepta: {line}") from stop

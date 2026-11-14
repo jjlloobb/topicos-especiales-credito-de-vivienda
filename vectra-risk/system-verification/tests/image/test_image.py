@@ -100,7 +100,9 @@ def evidence_dir(work: Path) -> Path:
     return path
 
 
-DELIVERY_IN_IMAGE = "/verification/reference-model/.out"  # donde el README monta la entrega de U5 (de solo lectura)
+DELIVERY_IN_IMAGE = (
+    "/verification/reference-model/.out"  # donde el README monta la entrega de U5 (de solo lectura)
+)
 
 
 def prepare_command(evidence: Path, *, user: str = TEST_USER, name: str | None = None) -> list[str]:
@@ -397,7 +399,10 @@ def test_run_prepare_with_the_delivery_mounted_read_only_records_it_and_without_
     without.chmod(0o777)
     done = docker(*prepare_command(without))
     assert done.returncode == 0, done.stdout + done.stderr
-    assert json.loads((without / "manifest.json").read_text(encoding="utf-8"))["paths"]["delivery"] == DELIVERY_IN_IMAGE
+    assert (
+        json.loads((without / "manifest.json").read_text(encoding="utf-8"))["paths"]["delivery"]
+        == DELIVERY_IN_IMAGE
+    )
 
 
 def test_run_a_section_with_data_and_no_delivery_ends_with_ruta_faltante_code_3(work: Path) -> None:
@@ -427,7 +432,9 @@ def test_run_entrada_py_travels_in_the_image_and_builds_the_patch_read_only(work
         "--version", "mv-2026-11-13-0123abcd", "--storage-uri", "s3://model-store/proxy/mv-2026-11-13-0123abcd/",
     )  # fmt: skip
     assert done.returncode == 0, done.stdout + done.stderr
-    assert "+  - { modelVersionId: mv-2026-11-13-0123abcd" in done.stdout and "profile: staging" in done.stdout
+    assert (
+        "+  - { modelVersionId: mv-2026-11-13-0123abcd" in done.stdout and "profile: staging" in done.stdout
+    )
     assert values.read_text(encoding="utf-8").endswith("inferenceServices: []\n")
     listing = in_image(["-c", "find /opt/system-verification/demos -name '*.tpl' | wc -l"], entrypoint="sh")
     assert listing.stdout.strip() == "0", listing.stdout
