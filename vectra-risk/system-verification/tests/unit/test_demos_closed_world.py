@@ -1057,11 +1057,29 @@ def test_readme_run_command_has_every_option_and_the_test_of_the_image_uses_the_
         assert pair in " ".join(options) and pair in block
     assert any(o.startswith("seccomp=") for o in options) and "--security-opt seccomp=" in block
     assert "--network host" in block and "--read-only" in block
-    assert (
-        block.count("type=bind") >= 4 and "readonly" in block
-    )  # kubeconfig, certificado, values y entrega: de solo lectura
+    mounts = re.findall(r"--mount (type=bind,\S+)", block)
+    assert len(mounts) >= 5
+    for mount in mounts:  # F-04 (ronda 2): cada montaje dice a donde va y cuales son de solo lectura; `evidence/` es el unico escribible
+        target = re.search(r"target=(\S+?)(?:,|$)", mount)
+        assert target is not None, mount
+        writable = target.group(1) == "/verification/evidence"
+        assert mount.rstrip("\\ ").endswith(",readonly") != writable, f"el montaje {target.group(1)} {'debe ser escribible' if writable else 'debe ser de solo lectura'}: {mount}"
+    assert {re.search(r"target=(\S+?)(?:,|$)", m).group(1) for m in mounts} >= {  # type: ignore[union-attr]
+        "/kube/config", "/certs/ca.pem", "/verification/evidence", "/values/case-management.yaml", "/verification/reference-model/.out",
+    }  # fmt: skip
     assert "-e KUBECONFIG=/kube/config" in block and "-e VERIFICATION_CA_FILE=/certs/ca.pem" in block
     assert "localhost:5001/vectra/system-verification:dev" in block and image_run.IMAGE in block
+
+
+def test_rt5_verify_step_1_a_kubectl_error_is_cannot_read_2_and_only_a_missing_job_is_not_expected_1(
+    tmp_path: Path,
+) -> None:
+    """U12-T05, ronda 2: con otro contexto o sin conexion, `get job` fallaba y el paso 1 decia «no existe» (1); un error de `kubectl` es «no se pudo leer» (2)."""
+    files = {"manifest.json": MANIFEST}
+    code, text, _ = run_verify(tmp_path / "caido", "rt-5.sh", "1", state={"down": True}, files=files)
+    assert code == 2 and "NO SE PUDO LEER" in text and "no existe job" not in text, (code, text)
+    code, text, _ = run_verify(tmp_path / "falta", "rt-5.sh", "1", state={"jobs": {}}, files=files)
+    assert code == 1 and "no existe job/rt5-demo-20261113-1000" in text, (code, text)
 
 
 def test_readme_vault_token_is_a_variable_and_never_a_file() -> None:

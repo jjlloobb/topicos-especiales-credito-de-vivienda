@@ -1005,10 +1005,11 @@ def run_rt2(deps: Rt2Deps, params: Rt2Params, state: Rt2State | None = None) -> 
                 code, detail = infra_failure(error, "rt2")
                 result = SubOutcome(phase, NO_EJECUTADO, (code,), detail)
             subs.append(_renamed(result, name))
+            if result.result == PASA:
+                vs.done[phase] = result  # antes de guardar: un `docker stop` justo despues deja el archivo con la fase hecha (no se reenvia el lote)
             if deps.checkpoint is not None:
                 deps.checkpoint(state)
             if result.result == PASA:
-                vs.done[phase] = result
                 continue
             stopped, pending = True, phase
         if vs.cells is not None:

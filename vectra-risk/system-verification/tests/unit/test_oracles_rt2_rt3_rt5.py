@@ -951,6 +951,31 @@ def test_rt2_an_operator_pending_run_resumes_from_its_phase_with_the_returned_st
     ) == 1  # las celdas no se repitieron como lote
 
 
+def test_rt2_the_state_saved_after_a_phase_already_marks_the_phase_as_done_so_a_resume_does_not_resend_the_batch(
+    world: Rt2World,
+) -> None:
+    """N-1 (U12-T04, ronda 2) y U12-T05, ronda 2: el guardado por fase llegaba una fase tarde: con `docker stop` justo despues del lote, el archivo guardado no lo tenia como hecho y la retoma lo reenviaba."""
+    world.add_model(PROXY, "aprobado", registered_by="ingeniero-1", approved_by="cro-1")
+    world.start_bias()
+    world.operator_promotes(10.0)
+    world.operator_rolls_back(6000.0)
+    saved: list[tuple[set[str], int]] = []
+
+    def checkpoint(state: Rt2State) -> None:
+        saved.append((set(copy.deepcopy(state.versions[PROXY].done)), len(world.simulator.runs)))
+
+    deps = Rt2Deps(
+        KIND, world.clock, world.sessions, world.simulator, world.registry, world.prom, None, checkpoint=checkpoint
+    )  # type: ignore[arg-type]
+    rt2.run_rt2(deps, Rt2Params(REFERENCE, [rt2.ProxyVersion(1, PROXY)], 7))
+    passed = len(saved)
+    assert passed >= 3
+    for index, (done, _runs) in enumerate(saved[:passed]):
+        assert len(done) == index + 1, (index, done)  # tras cada fase, el archivo guardado ya la trae como hecha (`celdas`, `promocion`, `lote`...)
+    batch = next(i for i, (done, _) in enumerate(saved) if "lote" in done)
+    assert saved[batch][1] >= 1  # y el lote ya salio
+
+
 def test_rt2_the_registry_not_responding_is_no_ejecutado(rworld: Rt2World) -> None:
     rworld.registry_transport.handle_request = lambda request: (_ for _ in ()).throw(
         httpx.ConnectError("sin conexion")

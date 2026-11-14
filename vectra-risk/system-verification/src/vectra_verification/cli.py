@@ -380,6 +380,17 @@ class Cli:
         self.say(f"seccion {section}: {RESULT_TEXT[EXIT_REFUSED]} ({EXIT_REFUSED}): {message}", self.err)
         return EXIT_REFUSED
 
+    def _infrastructure_failed(self, section: str, error: Exception, *, interrupt: bool = True) -> int:
+        """Un fallo de infraestructura (`K8sError`, `OidcError`: Chromium que no arranca, la boveda que no responde, un `port-forward` caido, un contexto de `kubectl` que no existe) no es un incumplimiento del sistema: `no ejecutado` (2), con un codigo estable y sin traza. La seccion queda interrumpida (se puede repetir)."""
+        from vectra_verification.scenarios.common import infra_failure
+
+        code, detail = infra_failure(error, section.replace("-", "_"))
+        text = evidence_filter.scrub(f"{code}: {detail}")[:300]
+        if interrupt:
+            self._interrupt(section, f"infraestructura: {text}")
+        self.say(f"seccion {section}: {RESULT_TEXT[EXIT_NOT_RUN]} ({EXIT_NOT_RUN}): {text}")
+        return EXIT_NOT_RUN
+
     def _blocked(self, section: str, message: str) -> int:
         """El filtro de evidencias se nego a escribir: no quedo el archivo; la seccion queda interrumpida."""
         self._interrupt(section, f"filtro de evidencias: {message}")
@@ -477,13 +488,15 @@ class Cli:
         refused = self._open_backend(environment, section, args, interrupt=True)
         if refused is not None:
             return refused
-        digests = self._read_digests()
-        manifest.set_digests(section, digests)
-        from vectra_verification.scenarios.common import ScenarioError
+        from vectra_verification.scenarios.common import INFRA_ERRORS, ScenarioError
         from vectra_verification.simulator import SimulatorError
 
         try:
+            digests = self._read_digests()
+            manifest.set_digests(section, digests)
             result = self._run(environment, section, args, digests)
+        except INFRA_ERRORS as error:
+            return self._infrastructure_failed(section, error)
         except (
             ScenarioError,
             SimulatorError,
@@ -522,6 +535,8 @@ class Cli:
         self, environment: Environment, section: str, args: argparse.Namespace, *, interrupt: bool
     ) -> int | None:
         """Crea el `Backend` de la seccion. Un prerrequisito que falta (la boveda, la CA, el kubeconfig, la entrega de U5) no es un fallo: `no ejecutado` (2). `None` si quedo abierto."""
+        from vectra_verification.scenarios.common import INFRA_ERRORS
+
         assert self.manifest is not None and self.store is not None
         if self.factory is None:
             raise Refused("backend_missing: no hay forma de llegar al sistema")
@@ -541,11 +556,13 @@ class Cli:
                 f"seccion {section}: {RESULT_TEXT[EXIT_NOT_RUN]} ({EXIT_NOT_RUN}): prerrequisito: {text}"
             )
             return EXIT_NOT_RUN
+        except INFRA_ERRORS as error:  # la boveda no responde al abrir el backend
+            return self._infrastructure_failed(section, error, interrupt=interrupt)
         return None
 
     def _execute_closing(self, environment: Environment, section: str, args: argparse.Namespace) -> int:
         """`rt3 --closing` (el paso 6 de D1, tras revertir F22): un caso de sonda nuevo llega a `listo`. Su resultado va **aparte** (`closing_rt3`): el registro de `rt3` (resultado, codigo, nota, retoma) no se toca."""
-        from vectra_verification.scenarios.common import ScenarioError
+        from vectra_verification.scenarios.common import INFRA_ERRORS, ScenarioError
         from vectra_verification.simulator import SimulatorError
 
         assert self.manifest is not None and self.store is not None
@@ -565,6 +582,8 @@ class Cli:
                 closing = rt3.rt3_closing(deps, params)
             for _name, positions in sim.runs:
                 manifest.record_rows("rt3-closing", positions)
+        except INFRA_ERRORS as error:
+            return self._infrastructure_failed(section, error, interrupt=False)
         except (ScenarioError, SimulatorError) as error:
             return self._refused(section, evidence_filter.scrub(f"{type(error).__name__}: {error}")[:300])
         manifest.data["closing_rt3"] = {
