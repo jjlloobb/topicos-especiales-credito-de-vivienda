@@ -1,6 +1,6 @@
 """Descarga con SHA-256 comprobado (Paso 15, P-8): lo usa el `Dockerfile` en la etapa `fetch`; no se instala en la imagen final.
 
-    fetch.py get <url> <sha256> <destino> [--mode 0755]   descarga, comprueba la suma y solo entonces escribe el destino
+    fetch.py get [--mode 0755] <sha256> <destino> <url>   descarga, comprueba la suma y solo entonces escribe el destino
     fetch.py unzip <zip> <destino>                         extrae respetando los permisos del zip (el `zipfile` de Python los pierde)
 
 Una suma que no coincide termina con codigo 1 y sin dejar archivo: la construccion se detiene.
@@ -57,8 +57,12 @@ def unzip(source: Path, dest: Path) -> int:
 
 def main(argv: list[str]) -> int:
     if len(argv) >= 4 and argv[0] == "get":
-        mode = int(argv[argv.index("--mode") + 1], 8) if "--mode" in argv else 0o644
-        return get(argv[1], argv[2], Path(argv[3]), mode)
+        rest = argv[1:]
+        mode = 0o644
+        if rest[0] == "--mode":
+            mode, rest = int(rest[1], 8), rest[2:]
+        if len(rest) == 3:
+            return get(rest[2], rest[0], Path(rest[1]), mode)
     if len(argv) == 3 and argv[0] == "unzip":
         return unzip(Path(argv[1]), Path(argv[2]))
     sys.stderr.write(f"{__doc__}\n")

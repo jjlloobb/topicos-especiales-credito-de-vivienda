@@ -29,11 +29,11 @@ FROM docker.io/library/python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66ed
 COPY system-verification/image/fetch.py /fetch.py
 ARG KUBECTL_VERSION=v1.37.0
 ARG KUBECTL_SHA256=6129359f4e1f3848a5572ccb0b26cf28b8ca08cef38c95a765b2f64a2c961a2f
-RUN python3 /fetch.py get "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" "${KUBECTL_SHA256}" /out/kubectl --mode 0755
+RUN python3 /fetch.py get --mode 0755 "${KUBECTL_SHA256}" /out/kubectl https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl
 ARG CHROMIUM_VERSION=156.0.8078.4
 ARG CHROMIUM_REVISION=1248
 ARG CHROMIUM_SHA256=c3e50596aef52c58f8fda3c6b3411c33d34c88b177b3ed1c2243359fd3b8ba20
-RUN python3 /fetch.py get "https://cdn.playwright.dev/builds/cft/${CHROMIUM_VERSION}/linux64/chrome-headless-shell-linux64.zip" "${CHROMIUM_SHA256}" /dl/chromium.zip \
+RUN python3 /fetch.py get "${CHROMIUM_SHA256}" /dl/chromium.zip "https://cdn.playwright.dev/builds/cft/${CHROMIUM_VERSION}/linux64/chrome-headless-shell-linux64.zip" \
     && python3 /fetch.py unzip /dl/chromium.zip "/out/browsers/chromium_headless_shell-${CHROMIUM_REVISION}" \
     && touch "/out/browsers/chromium_headless_shell-${CHROMIUM_REVISION}/INSTALLATION_COMPLETE" \
     && chmod -R a+rX,go-w /out/browsers
