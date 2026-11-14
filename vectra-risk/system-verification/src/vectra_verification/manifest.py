@@ -10,6 +10,8 @@ conteos y posiciones de fila. La escritura es de `store.Store` (el unico escrito
 
 from __future__ import annotations
 
+import difflib
+import hashlib
 import json
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
@@ -102,6 +104,7 @@ class Manifest:
                 "rows_sent": {},
                 "repeated_requests": [],
                 "files": {},
+                "evidence": {},
             }
         )
 
@@ -150,8 +153,9 @@ class Manifest:
         self.data["test_rows"] = test_rows
         self.data["parquet_sha256"] = parquet_sha256
 
-    def set_decisions(self, sent: int, accepted: int, decided: int) -> None:
-        self.data["decisions"] = {"sent": sent, "accepted": accepted, "decided": decided}
+    def set_decisions(self, **counts: int) -> None:
+        """Enviadas, aceptadas, decididas y las que quedaron sin decidir: solo conteos."""
+        self.data["decisions"] = dict(counts)
 
     def set_digests(self, section: str, digests: Mapping[str, str]) -> None:
         self.data["digests"][section] = dict(sorted(digests.items()))
@@ -196,7 +200,7 @@ class Manifest:
         record = self.sections[name]
         record["seconds"] = float(record["seconds"]) + (now - parse_iso(record["resumed_at"])).total_seconds()
         record.update(
-            state=STATE_INTERRUPTED if pending is not None else STATE_DONE,
+            state=STATE_INTERRUPTED if pending is not None or result == report.NO_EJECUTADO else STATE_DONE,
             finished_at=iso(now),
             result=result,
             exit_code=exit_code,
@@ -264,6 +268,32 @@ class Manifest:
             {"sections": list(names), "count": len(rows), "positions": rows}
             for names, rows in sorted(groups.items())
         ]
+
+
+def evidence_file(element: str) -> str:
+    """El nombre del archivo de una evidencia: las cuatro de las demos (`rt-5` y `RT-5` solo se distinguen por la capitalizacion) llevan el prefijo `demo-`, para no chocar en un sistema de archivos que no distingue mayusculas."""
+    return f"demo-{element}.json" if element in report.DEMO_IDS else f"{element}.json"
+
+
+def prefix_of(run_id: str) -> str:
+    """El prefijo de 8 hex de la corrida (`X-Test-Scenario: <escenario>.<prefijo>`) derivado del `runId`."""
+    return hashlib.sha256(run_id.encode()).hexdigest()[:8]
+
+
+def runid_patch(values_text: str, run_id: str, *, path: str) -> str:
+    """El parche de `prepare` (diff unificado que `git apply` acepta): agrega `runId: "<runId>"` bajo `probes:` en los values de kind de `case-management`, **entre comillas** (un `runId` de solo digitos no seria texto). Solo esa linea."""
+    lines = values_text.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if line.rstrip("\r\n") == "probes:":
+            end = index + 1
+            while end < len(lines) and lines[end].startswith((" ", "\t")):
+                end += 1
+            if any(item.strip().startswith("runId:") for item in lines[index + 1 : end]):
+                raise ManifestError("values_already_have_runid")
+            patched = [*lines[:end], f'  runId: "{run_id}"\n', *lines[end:]]
+            diff = difflib.unified_diff(lines, patched, fromfile=f"a/{path}", tofile=f"b/{path}", n=3)
+            return "".join(diff)
+    raise ManifestError("values_without_probes")
 
 
 def reasons_not_executed(rows: Sequence[report.ReportRow], manifest: Manifest) -> list[tuple[str, str]]:
@@ -339,7 +369,9 @@ def _duration(seconds: float) -> str:
     return f"{hours} h {minutes:02d} min {rest:02d} s" if hours else f"{minutes} min {rest:02d} s"
 
 
-def render_full(verification: report.VerificationReport, manifest: Manifest) -> str:
+def render_full(
+    verification: report.VerificationReport, manifest: Manifest, notes: Mapping[str, str] | None = None
+) -> str:
     """El informe: `report.render`, la duracion por seccion y total (con las esperas del operador aparte) y «No ejecutado y por que»."""
     lines = [report.render(verification).rstrip("\n"), "", "## Duración por sección", ""]
     per, total, waits = manifest.durations()
@@ -359,9 +391,14 @@ def render_full(verification: report.VerificationReport, manifest: Manifest) -> 
         + "".join(f"; {w['name']}: {_duration(float(w['seconds']))}" for w in manifest.data["operator_waits"])
         + ".",
         "",
-        "## No ejecutado y por qué",
-        "",
     ]
+    if notes:
+        lines += (
+            ["## Notas de las evidencias", ""]
+            + [f"- **{name}**: {text}" for name, text in notes.items()]
+            + [""]
+        )
+    lines += ["## No ejecutado y por qué", ""]
     reasons = reasons_not_executed(verification.rows, manifest)
     if reasons:
         lines += ["| Elemento | Motivo |", "|---|---|"]
