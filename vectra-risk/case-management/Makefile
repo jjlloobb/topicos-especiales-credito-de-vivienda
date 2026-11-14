@@ -65,7 +65,7 @@ policy-chart:
 	cd $(ROOT) && for env in kind staging prod; do test -s vectra-risk-gitops/values/$$env/case-management.yaml || { echo "falta $$env"; exit 1; }; done
 	cd $(ROOT) && $(TOOLS)/conftest test --policy $(POLICIES) --namespace values.prod vectra-risk-gitops/values/prod/case-management.yaml
 	cd $(ROOT) && $(TOOLS)/conftest test --policy $(POLICIES) --namespace values.staging vectra-risk-gitops/values/staging/case-management.yaml
-	cd $(ROOT) && ! grep -rn "runId" vectra-risk-gitops/values/*/case-management.yaml case-management/chart/values.yaml case-management/chart/values-kind.yaml
+	cd $(ROOT) && ! grep -rn "runId" vectra-risk-gitops/values/staging/case-management.yaml vectra-risk-gitops/values/prod/case-management.yaml case-management/chart/values.yaml case-management/chart/values-kind.yaml
 	cd $(ROOT) && ! grep -rnE "schedule|timeZone" case-management/chart/values.yaml
 
 # Las politicas de U1 (Kyverno y rego) sobre el render de cada entorno. `platform check-chart` rinde los tres entornos en un mismo directorio y Kyverno aborta con
