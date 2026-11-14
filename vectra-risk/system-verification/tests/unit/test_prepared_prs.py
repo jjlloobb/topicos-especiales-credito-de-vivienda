@@ -347,12 +347,20 @@ def test_rt5_run_id_the_line_68_does_not_forbid_the_run_id_in_kind_and_changes_o
 # --- rt3-staging y proxy-staging --------------------------------------------------------------------------------------------------------------------
 
 
-def filled(template: Path, **holes: str) -> str:
-    text = template.read_text(encoding="utf-8")
-    for name, value in holes.items():
-        text = text.replace(f"{{{{{name}}}}}", value)
-    assert "{{" not in text
-    return text
+ENTRY = PRS / "entrada.py"
+RT3_A, RT3_D, PROXY_URI = (
+    "s3://model-store/adversarial/rt3/RT3-a/",
+    "s3://model-store/adversarial/rt3/RT3-d/",
+    f"s3://model-store/{M1}/",
+)
+
+
+def entry_patch(copy: Copy, version: str, uri: str) -> subprocess.CompletedProcess[str]:
+    """El parche que arma `demos/prs/entrada.py` sobre el archivo de la copia **tal como esta** (lo que dicen los README)."""
+    return run(
+        [sys.executable, str(ENTRY), "--version", version, "--storage-uri", uri],
+        copy.v,
+    )
 
 
 def render(copy: Copy) -> subprocess.CompletedProcess[str]:
@@ -368,19 +376,32 @@ def render(copy: Copy) -> subprocess.CompletedProcess[str]:
     )
 
 
-@pytest.mark.parametrize(
-    ("directory", "template", "holes"),
-    [
-        ("rt3-staging", "RT3-a.patch.tpl", {"M1": M1}),
-        ("rt3-staging", "RT3-d.patch.tpl", {"M1": M1}),
-        ("proxy-staging", "proxy.patch.tpl", {"M2": M1}),
-    ],
-)
-def test_rt3_staging_and_proxy_staging_filled_with_a_fixture_id_apply_and_render_the_isvc_in_vectra_staging(
-    copy: Copy, directory: str, template: str, holes: dict[str, str]
+def promote_reference(copy: Copy) -> None:
+    """El estado de la demo: el modelo de referencia ya promovido por `promotion-tool` (`create-promotion-pr`), es decir, una entrada `prod` en `inferenceServices`, con la misma funcion que usa la herramienta."""
+    sys.path.insert(0, str(VECTRA / "governance" / "promotion_tool"))
+    try:
+        from vectra_promotion import values as promotion_values
+    finally:
+        sys.path.pop(0)
+    path = copy.v / "vectra-risk-gitops/values/kind/model-serving.yaml"
+    text = path.read_text(encoding="utf-8")
+    entries = promotion_values.promote(
+        promotion_values.parse(text), "mv-2026-01-01-aaaaaaaa", "s3://model-store/mv-2026-01-01-aaaaaaaa/"
+    )
+    path.write_text(promotion_values.edit(text, entries), encoding="utf-8")
+
+
+@pytest.mark.parametrize("promoted", [False, True], ids=["lista-vacia", "referencia-promovida"])
+@pytest.mark.parametrize("uri", [RT3_A, RT3_D, PROXY_URI], ids=["RT3-a", "RT3-d", "proxy"])
+def test_rt3_staging_and_proxy_staging_the_generated_patch_applies_in_both_states_and_renders_the_isvc_in_vectra_staging(
+    copy: Copy, uri: str, promoted: bool
 ) -> None:
-    patch = filled(PRS / directory / template, **holes)
-    assert copy.apply(patch, "--check").returncode == 0 and copy.apply(patch).returncode == 0
+    """F-02 (ronda 2): el parche se arma sobre el archivo como este: lista vacia (`main`) y modelo de referencia ya promovido (el estado de la demo)."""
+    if promoted:
+        promote_reference(copy)
+    made = entry_patch(copy, M1, uri)
+    assert made.returncode == 0, made.stderr
+    assert copy.apply(made.stdout, "--check").returncode == 0 and copy.apply(made.stdout).returncode == 0
     done = render(copy)
     assert done.returncode == 0, done.stderr
     names = {
@@ -389,6 +410,18 @@ def test_rt3_staging_and_proxy_staging_filled_with_a_fixture_id_apply_and_render
         if isinstance(d, dict) and d.get("kind") == "InferenceService"
     }
     assert ("vectra-staging", "isvc-26300247") in names
+    if promoted:
+        assert ("vectra-serving", "isvc-aaaaaaaa") in names  # la entrada de la referencia sigue donde estaba
+
+
+def test_the_entry_script_refuses_what_is_not_a_version_or_a_model_store_uri_and_writes_nothing(
+    copy: Copy,
+) -> None:
+    before = copy.digest()
+    for version, uri in (("mv-malo", RT3_A), (M1, "https://otro/")):
+        done = entry_patch(copy, version, uri)
+        assert done.returncode == 2 and done.stdout == "" and "entrada.py:" in done.stderr
+    assert copy.digest() == before
 
 
 def test_rt3_staging_with_rt3_a_and_rt3_d_at_the_same_time_helm_fails_with_repetido_and_the_readme_says_so(
@@ -410,13 +443,13 @@ def test_rt3_staging_with_rt3_a_and_rt3_d_at_the_same_time_helm_fails_with_repet
     ) and "repetido" in (PRS / "rt3-staging" / "README.md").read_text(encoding="utf-8")
 
 
-def test_the_templates_keep_the_hole_marked_and_are_not_fixed_patches() -> None:
-    for directory, template, hole in (
-        ("rt3-staging", "RT3-a.patch.tpl", "{{M1}}"),
-        ("rt3-staging", "RT3-d.patch.tpl", "{{M1}}"),
-        ("proxy-staging", "proxy.patch.tpl", "{{M2}}"),
-    ):
-        assert hole in (PRS / directory / template).read_text(encoding="utf-8")
+def test_the_readmes_send_to_the_script_and_no_fixed_template_is_left() -> None:
+    for directory in ("rt3-staging", "proxy-staging"):
+        readme = (PRS / directory / "README.md").read_text(encoding="utf-8")
+        assert "demos/prs/entrada.py" in readme and "git apply" in readme, directory
+        assert not list((PRS / directory).glob("*.tpl")) and not list((PRS / directory).glob("*.patch")), (
+            directory
+        )
 
 
 def test_promocion_readme_names_the_four_commands_as_they_are_in_the_cli_of_promotion_tool() -> None:

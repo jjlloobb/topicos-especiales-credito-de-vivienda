@@ -31,14 +31,25 @@ case "${1:-}" in
     expected "RT-2, RT2-LATENCY y journey-7-4 pasan"
     ;;
   4)
-    # Cerrado D2 (rollback), el modelo de referencia vuelve a servir: su InferenceService (segundo argumento) esta listo.
+    # Cerrado D2 (rollback y mark-active), el modelo de referencia vuelve a servir **y esta activo**: su InferenceService (segundo argumento) esta listo y `rt2` registro en el manifiesto que governance lo
+    # tiene `activo` y a la version del proxy `inactivo` (K16 no lee governance: lo que vio la CLI).
     [ -n "${2:-}" ] || cannot_read "falta el nombre del InferenceService de referencia (isvc-<8 hex>)"
     READY="$(kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get inferenceservices.serving.kserve.io "$2" -n vectra-serving -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)" || cannot_read "lectura de inferenceservice $2"
     [ "$READY" = "True" ] || not_expected "$2 no esta Ready"
-    expected "$2 esta Ready"
+    CLOSING="$(manifest_value closing_rt2 result)" || exit 2
+    [ -n "$CLOSING" ] || cannot_read "el manifiesto no trae closing_rt2: corre 'vectra-verification rt2' hasta el cierre (rollback-pr y mark-active del modelo de referencia)"
+    [ "$CLOSING" = "pasa" ] || not_expected "el modelo de referencia no esta activo en governance (cierre de rt2: $CLOSING)"
+    expected "$2 esta Ready y el modelo de referencia esta activo (cierre de rt2: pasa)"
+    ;;
+  5)
+    # `rt2-setup` termino bien: la version del proxy esta registrada, validada y aprobada (lo que la CLI dejo en el manifiesto; la version vive en governance y K16 no la lee).
+    RESULT="$(manifest_value sections rt2-setup result)" || exit 2
+    [ -n "$RESULT" ] || cannot_read "el manifiesto no trae la seccion rt2-setup: corre 'vectra-verification rt2-setup'"
+    [ "$RESULT" = "pasa" ] || not_expected "rt2-setup salio $RESULT"
+    expected "rt2-setup paso"
     ;;
   *)
-    say "uso: journey-7-4.sh <1|2|3|4> [isvc]" >&2
+    say "uso: journey-7-4.sh <1|2|3|4|5> [isvc]" >&2
     exit 2
     ;;
 esac
