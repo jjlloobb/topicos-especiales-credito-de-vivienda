@@ -247,6 +247,19 @@ def test_exit_codes_pasa_is_0_falla_is_1_and_no_ejecutado_is_2_with_three_differ
     world.close()
 
 
+def test_rt5_and_u11_do_not_build_the_simulator_so_they_do_not_need_the_u5_delivery(
+    tmp_path: Path,
+) -> None:
+    """U12-T05: la imagen revelo que `rt5` pedia `reference-model/.out/test.parquet` aunque solo lee `kubectl` y Prometheus: el simulador se arma al usarlo (`decisions`, `rt3`, `rt2`)."""
+    world = Rt2World()
+    h = Harness(tmp_path / "v", clock=world.clock)
+    assert h.prepare() == 0
+    h.backend = rt5_world(world)
+    assert h.run("rt5") == 0
+    assert not [event for event in h.backend.events if event.startswith("simulator:")]
+    world.close()
+
+
 def test_exit_the_three_results_and_the_refusal_have_four_different_texts() -> None:
     assert len(set(cli.RESULT_TEXT.values())) == 4 and cli.code_of(["pasa"]) == 0
     assert (
@@ -442,6 +455,18 @@ def test_prepare_makes_the_manifest_the_run_id_and_the_patch_without_a_single_re
         and "case-management-runid.patch" in manifest["files"]
     )
     assert sorted(p.name for p in h.dir.iterdir()) == ["case-management-runid.patch", "manifest.json"]
+
+
+def test_prepare_in_a_directory_that_cannot_be_written_is_refused_with_3_and_a_clear_message(
+    tmp_path: Path, world: Rt2World
+) -> None:
+    """U12-T05: en la imagen (`--read-only`) sin el montaje de `evidence/`, `mkdir` falla con `EROFS`: un codigo estable y el codigo 3, no una traza."""
+    blocker = tmp_path / "no-es-un-directorio"
+    blocker.write_text("x", encoding="utf-8")
+    h = Harness(blocker / "evidence", None)
+    assert h.prepare() == 3
+    assert "store_unwritable" in h.err.getvalue() and "Traceback" not in h.err.getvalue()
+    assert blocker.read_text(encoding="utf-8") == "x"
 
 
 def test_prepare_a_started_at_of_2026_10_12_at_14_07_31_gives_the_run_id_20261012_1407(

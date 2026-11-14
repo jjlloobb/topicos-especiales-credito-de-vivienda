@@ -175,7 +175,12 @@ class HeadlessForm(FormDriver):
                 else:
                     os.environ["NODE_EXTRA_CA_CERTS"] = previous
             args = [f"--ignore-certificate-errors-spki-list={self._spki_pin}"] if self._spki_pin else []
-            self._browser = self._playwright.chromium.launch(headless=True, args=args)
+            # Playwright agrega `--no-sandbox` si no se le pide `chromium_sandbox=True`. La imagen (Paso 15) lo pide con `VERIFICATION_CHROMIUM_SANDBOX=1` y corre con el perfil `seccomp` de Chromium;
+            # en un host que no permite espacios de nombres de usuario el lanzamiento falla con `browser_launch_error` en vez de bajar la proteccion.
+            sandbox = os.environ.get("VERIFICATION_CHROMIUM_SANDBOX") == "1"
+            self._browser = self._playwright.chromium.launch(
+                headless=True, args=args, chromium_sandbox=sandbox
+            )
         return self._browser
 
     def close(self) -> None:
@@ -454,7 +459,15 @@ class OidcClient:
     def _form_driver(self) -> FormDriver:
         if self._form is None:  # pragma: no cover - Chromium real; lo ejercita test_oidc_headless
             parts = urlsplit(self._environment.issuer)
-            pin = server_spki_pin(parts.hostname or "", parts.port or 443, self._ca_file)
+            pin: str | None = None
+            try:
+                pin = server_spki_pin(parts.hostname or "", parts.port or 443, self._ca_file)
+            except OSError:  # U12-T05: un certificado que la CA montada no firma, o de otro nombre (`ssl.SSLCertVerificationError`), o un servidor que no responde
+                pass
+            if (
+                pin is None
+            ):  # el `OidcError` se lanza fuera del `except`: el contexto no arrastra el error de `ssl` (F-N2)
+                raise OidcError("tls_pin_error")
             self._form = HeadlessForm(pin, ca_file=self._ca_file)
         return self._form
 

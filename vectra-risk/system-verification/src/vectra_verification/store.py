@@ -9,6 +9,8 @@ por un resumen con el tamano y el SHA-256 del original (NFR-U12-20). Una prueba 
 
 from __future__ import annotations
 
+import contextlib
+import errno
 import hashlib
 import json
 import os
@@ -91,11 +93,18 @@ class Store:
             )
         cleaned = evidence.prepare(text, self._secrets())  # falla cerrado: aun no existe ningun archivo
         data = cleaned.encode("utf-8")
-        self.directory.mkdir(parents=True, exist_ok=True)
         temporary = path.with_name(f".{name}.{os.getpid()}.tmp")
         try:
+            self.directory.mkdir(parents=True, exist_ok=True)
             temporary.write_bytes(data)
             os.replace(temporary, path)
+        except OSError as error:  # U12-T05: sin el montaje de `evidence/` en la imagen (`--read-only`) o sin permiso: un codigo estable, no una traza
+            raise StoreError(
+                f"store_unwritable:{self.directory.name}:{errno.errorcode.get(error.errno or 0, 'OSError')}"
+            ) from None
         finally:
-            temporary.unlink(missing_ok=True)
+            with contextlib.suppress(
+                OSError
+            ):  # el directorio puede no existir (ENOTDIR, EROFS): ya se informo arriba
+                temporary.unlink(missing_ok=True)
         return Stored(name, sha256_of(data), size, summarized)

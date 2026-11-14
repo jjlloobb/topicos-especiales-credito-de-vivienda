@@ -45,7 +45,9 @@ def test_a_failure_while_renaming_removes_the_temporary(
         raise OSError("sin permiso")
 
     monkeypatch.setattr(store.os, "replace", boom)
-    with pytest.raises(OSError, match="sin permiso"):
+    with pytest.raises(
+        StoreError, match="store_unwritable"
+    ):  # U12-T05: el OSError sale como un error estable de la herramienta
         out.write("a.json", "{}")
     assert list(tmp_path.iterdir()) == []
 

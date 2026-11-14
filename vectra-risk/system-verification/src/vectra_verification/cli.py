@@ -244,10 +244,18 @@ def code_of(results: Sequence[str]) -> int:
 class RecordingSimulator:
     """Pasa todo al simulador y anota las posiciones de fila que cada seccion envio: con ellas el manifiesto detecta las solicitudes repetidas entre escenarios (NFR-U12-11)."""
 
-    def __init__(self, inner: Any) -> None:
-        self._inner = inner
+    def __init__(self, factory: Callable[[], Any]) -> None:
+        self._factory = factory
+        self._built: Any = None
         self.runs: list[tuple[str, tuple[int, ...]]] = []
         self.reports: list[Any] = []
+
+    @property
+    def _inner(self) -> Any:
+        """U12-T05: el simulador se arma al usarlo. Leer la entrega de U5 (`reference-model/.out`) al empezar cualquier seccion hacia que `rt5` y `u11`, que solo leen `kubectl` y Prometheus, exigieran el parquet."""
+        if self._built is None:
+            self._built = self._factory()
+        return self._built
 
     def select(self, *args: Any, **kwargs: Any) -> Any:
         return self._inner.select(*args, **kwargs)
@@ -503,7 +511,7 @@ class Cli:
         assert self.backend is not None and self.manifest is not None
         manifest, backend, clock = self.manifest, self.backend, self.clock
         prefix = mf.prefix_of(manifest.run_id)
-        sim = RecordingSimulator(backend.simulator(prefix))
+        sim = RecordingSimulator(lambda: backend.simulator(prefix))
         outcomes: list[Outcome] = []
         result = SectionResult()
         with ExitStack() as stack:
