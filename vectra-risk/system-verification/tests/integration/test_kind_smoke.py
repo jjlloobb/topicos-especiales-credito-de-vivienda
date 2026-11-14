@@ -49,6 +49,15 @@ use_u10_doubles()
 import bff_builders  # noqa: E402, I001
 
 
+@pytest.fixture(scope="module", autouse=True)
+def leave_the_totp_window_clean() -> Iterator[None]:
+    """Keycloak rechaza un codigo TOTP reusado dentro de su ventana de 30 s, tambien el que uso **otro modulo**: al terminar, se espera (con el reloj real: el de Keycloak no se inyecta) al inicio de la ventana
+    siguiente, para que `test_oidc_headless.py`, que corre despues con los mismos usuarios, no reuse un codigo de este modulo. Sin esta espera, 5 de sus 17 pruebas fallaban con `login_rejected` en `make check`."""
+    yield
+    now = time.time()
+    time.sleep((int(now // 30) + 1) * 30 - now + 1.0)
+
+
 def load_humo() -> ModuleType:
     spec = importlib.util.spec_from_file_location("humo_kind", HUMO_PATH)
     assert spec is not None and spec.loader is not None
