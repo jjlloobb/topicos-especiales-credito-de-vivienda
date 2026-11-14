@@ -1,4 +1,4 @@
-# Resumen del código — U12 `system-verification`, Pasos 12 y 13 (U12-T04)
+# Resumen del código — U12 `system-verification`, Pasos 12, 13 (U12-T04), 15 y 17 (U12-T05)
 
 Código en `vectra-risk/system-verification/src/vectra_verification/`: `cli` (14 subcomandos más `all`), `live` (el mundo real de la CLI), `store` (el único escritor), `manifest`, `scenarios/u11`, `scenarios/demos`, `scenarios/resume` y, en `scenarios/rt2`, el modo `PresenterReactivation`.
 Guiones, `verify` y PR preparados en `system-verification/demos/`. Contratos de import-linter nuevos: `store` solo lo importa `cli`; `cli` es el único que une `scenarios`, `driver` y `store`.
@@ -56,19 +56,47 @@ paneles, `panel X`; las órdenes, `vectra-verification <sección> --opción`; lo
 
 ## BR → prueba
 
+Las trece reglas de negocio de U12 (`functional-design/business-rules.md`). Las diferidas por la demo dicen «diferida» con su cita; ninguna tiene código ni prueba (la lista «Diferido por la demo» de `evidence/cierre-demo.md` es la de los identificadores de infraestructura).
+
 | Regla | Prueba |
 |---|---|
-| BR-U12-09 (guiones y `verify` sin órdenes de escritura) | `tests/unit/test_kubectl_verbs.py` (F-06 ampliado), `tests/unit/test_demos_closed_world.py` (`-k k16` y los `verify` contra el doble de `kubectl`), `tests/unit/test_prepared_prs.py` |
-| BR-U12-10 (dónde corre: barreras de la CLI) | `tests/integration/test_cli.py` (`-k "guard or help or exit"`) |
-| BR-U12-11 (resultado de tres valores, informe) | `tests/integration/test_cli.py` (`-k "report or demo_evidence"`), `tests/unit/test_u11.py` |
-| BR-U12-13 (historias, informe, `u11`) | `tests/integration/test_cli.py`, `tests/unit/test_manifest.py`, `tests/unit/test_u11.py` |
+| BR-U12-01 (qué envía el simulador) | `tests/unit/test_u5_reader.py`, `tests/property/test_sampler.py`, `tests/integration/test_simulator.py`, `tests/integration/test_decisions_volume.py` |
+| BR-U12-02 (cómo envía) | `tests/integration/test_simulator.py`, `tests/unit/test_oracles_measurements.py` (`SIM-NORMAL`) |
+| BR-U12-03 (`decision-driver` y login) | `tests/integration/test_driver.py`, `tests/unit/test_oidc_flow.py`, `tests/integration/test_oidc_headless.py`, `tests/unit/test_oidc_form_errors.py`, `tests/image/test_image.py` (`-k tls`: la CA en los dos caminos, dentro de la imagen) |
+| BR-U12-04 (un escenario por RT, con oráculo) | `tests/unit/test_oracles_rt2_rt3_rt5.py`, `tests/integration/test_rt5_promql.py`, `tests/integration/test_rt3_real_chain.py`, `tests/integration/test_rt2_cells_real_u5.py`; `tests/image/test_image.py` (`rt5` dentro de la imagen, contra dobles) |
+| BR-U12-05 (red de U1 más comportamiento) | **diferida** (sección `network`): enmienda `demo-recorte-funcional.md` §3 U12, fila «13» (la sección `pii` y `network` salen) y §2 |
+| BR-U12-06 (volúmenes de demostración) | `tests/unit/test_rt2_cells.py`, `tests/property/test_sampler.py`, `tests/integration/test_decisions_volume.py`, `tests/unit/test_u11.py` |
+| BR-U12-07 (latencia de detección de RT-2) | `tests/property/test_rt2_latency.py`, `tests/unit/test_oracles_rt2_rt3_rt5.py` |
+| BR-U12-08 (perfil combinado) | **diferida** (sección `load`, Paso 11): enmienda §3 U12, fila «8b · 9 · 11: D» |
+| BR-U12-08b (sección `resilience`) | **diferida** (Paso 8b): enmienda §3 U12, fila «8b · 9 · 11: D» |
+| BR-U12-09 (guiones y `verify` sin órdenes de escritura) | `tests/unit/test_kubectl_verbs.py` (F-06 ampliado; recorre también `README.md` y `Dockerfile`), `tests/unit/test_demos_closed_world.py` (`-k k16`, los `verify` contra el doble de `kubectl` y `-k readme`), `tests/unit/test_prepared_prs.py` |
+| BR-U12-10 (dónde corre: barreras de la CLI) | `tests/integration/test_cli.py` (`-k "guard or help or exit"`), `tests/unit/test_guard.py` |
+| BR-U12-11 (resultado de tres valores, informe) | `tests/integration/test_cli.py` (`-k "report or demo_evidence"`), `tests/unit/test_u11.py`, `tests/unit/test_scenario_outcome.py` |
+| BR-U12-12 (logs sin datos del solicitante) | **diferida** (`LOGS-NO-PII`, Paso 10): enmienda §3 U12, fila «10» (P-18) |
+| BR-U12-13 (historias, informe, `u11`) | `tests/integration/test_cli.py`, `tests/unit/test_manifest.py`, `tests/unit/test_u11.py`, `tests/unit/test_story_map.py`, `tests/property/test_report.py` |
+
+| Otros identificadores | Prueba |
+|---|---|
 | NFR-U12-05 (filtro de todo lo que se escribe) | `tests/unit/test_store.py`, `tests/unit/test_evidence_filter.py` |
 | NFR-U12-31 (tiempo medido) | `tests/integration/test_cli.py` (`-k report`), `tests/unit/test_manifest.py` |
+| INF-U12-01 (la imagen y cómo se corre) | `tests/image/test_image.py` (`make -C system-verification test-image`), `tests/unit/test_demos_closed_world.py` (`-k readme`) |
 | INF-U12-04 (CLI y manifiesto) | `tests/integration/test_cli.py`, `tests/unit/test_manifest.py` |
+| INF-U12-05 (capacidad para la carga) | **diferida** (Paso 11): ver `evidence/cierre-demo.md`, «Diferido por la demo» |
+
+## La imagen (U12-T05, Paso 15; INF-U12-01)
+
+`system-verification/Dockerfile` (contexto: la raíz de `vectra-risk/`; `make -C system-verification image`), etiqueta local `localhost:5001/vectra/system-verification:dev`. El README de la unidad es la guía del operador (la orden `docker run`, los montajes, la red); aquí lo que el código necesita saber:
+
+- **Contenido:** Python 3.12 por digest, `vectra_verification` (editable sobre `/opt/system-verification`, junto a `report/story-map.yaml`, `demos/` y `seccomp/`) y `vectra_contracts`; sin `vectra_common`; Playwright 1.64.0 con el Chromium headless shell de la revisión 1248 (el binario que `launch(headless=True)` usa; no sirve `chrome://sandbox`, por eso la prueba del sandbox mira los procesos en `/proc`); `kubectl` v1.37.0; sin Argo CD, `helm`, `k6`, `git`, `curl` ni manifiestos. Cada descarga con versión y SHA-256 en el `Dockerfile` (`image/apt.lock`, `image/requirements.txt` con hashes y los `ARG` de `kubectl` y Chromium).
+- **Usuario y archivos:** `USER 65532:65532`, funciona con cualquier uid sin root: `HOME=/tmp` (tmpfs), navegadores en `/opt/ms-playwright` (legibles por todos), directorio de evidencias montado en `/verification/evidence`.
+- **Sandbox:** `VERIFICATION_CHROMIUM_SANDBOX=1` hace que `HeadlessForm` lance Chromium con `chromium_sandbox=True` (Playwright agrega `--no-sandbox` si no se lo piden); con `--security-opt seccomp=chrome.json`. Sin el perfil, `browser_launch_error`.
+- **CA:** Node por `NODE_EXTRA_CA_CERTS` (lo pone `HeadlessForm` desde `ca_file`) y Chromium por la huella SPKI; un certificado que la CA no firma o de otro nombre falla en la huella con `tls_pin_error`.
+
+Defectos que la imagen reveló en `src/` (U12-T04), corregidos con su rojo en `bitacoras/U12-T05.md`: (1) Playwright lanzaba Chromium con `--no-sandbox` (`clients/oidc.py`); (2) sin el montaje de evidencias, `prepare` terminaba en una traza `OSError` (`store.py`: `store_unwritable`, código 3); (3) `rt5` y `u11` pedían la entrega de U5 sin necesitarla (`cli.RecordingSimulator` arma el simulador al usarlo); (4) un certificado no firmado por la CA salía de `_form_driver` como `ssl.SSLCertVerificationError` y no como `OidcError` (`tls_pin_error`).
 
 ## Lo que U12-T05 y U12-T06 necesitan
 
-- **U12-T05:** `vectra-verification` es lo que la imagen arranca; `--help` y `prepare` no hacen solicitudes. La imagen necesita `report/story-map.yaml` (opción `--story-map`), `python3` y `sh` (los `verify`), y los values de kind si `prepare` corre dentro (`--values-file`). `--ca-file` expone la CA de U12-T02.
+- **U12-T05 (hecho: la imagen y el README):** `vectra-verification` es lo que la imagen arranca; `--help` y `prepare` no hacen solicitudes. La imagen necesita `report/story-map.yaml` (opción `--story-map`), `python3` y `sh` (los `verify`), y los values de kind si `prepare` corre dentro (`--values-file`). `--ca-file` expone la CA de U12-T02.
   La tabla de arriba es la fuente del README.
 - **U12-T06:** `cumplimiento-2` (contraseña y semilla) en la bóveda de kind y en el teléfono del presentador; `analista-2` o `cro-2` igual; `grafana-admin`; el PR de `runId` fusionado deja `make -C case-management policy-chart` en verde; el modo `presenter` ensayado de verdad; los cinco recursos de F22 desaparecen con el sync con prune y vuelven con la reversión;
   RT3-b da 409 con los paquetes del modelo de referencia (se genera desde `proxy/run-5`); `CoreWriteAttempt` dura ≈ 5 min en `firing` y no se ensaya dos veces sin reiniciar el proxy de Linkerd de `vectra-mock`; `FailClosedPersistente` no distingue un ensayo anterior.
