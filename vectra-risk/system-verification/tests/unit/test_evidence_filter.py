@@ -341,7 +341,7 @@ def test_fn4_a_har_object_with_braces_or_nesting_is_cleaned_in_both_key_orders(h
         "http_code=500&error_code=x&status_code=200",
         '{"name": "Accept", "value": "a}b", "x": {"y": 1}}',
         '{"value": "a{b", "name": "Accept"}',
-        "it's {\"name\": \"Accept\", \"value\": \"x\"} and that's all",
+        'it\'s {"name": "Accept", "value": "x"} and that\'s all',
     ],
 )
 def test_fn4_what_is_not_a_credential_is_untouched(text: str) -> None:
