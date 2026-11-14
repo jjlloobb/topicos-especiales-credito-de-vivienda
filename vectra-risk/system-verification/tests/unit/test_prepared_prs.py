@@ -55,7 +55,9 @@ class Copy:
         sha = hashlib.sha256()
         base = self.v / sub
         for path in sorted(
-            p for p in base.rglob("*") if p.is_file() and not {".tools", ".charts"} & set(p.relative_to(self.v).parts)
+            p
+            for p in base.rglob("*")
+            if p.is_file() and not {".tools", ".charts"} & set(p.relative_to(self.v).parts)
         ):
             sha.update(str(path.relative_to(self.v)).encode() + path.read_bytes())
         return sha.hexdigest()

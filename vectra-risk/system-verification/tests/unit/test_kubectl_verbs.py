@@ -493,3 +493,21 @@ def test_f06_the_binary_as_a_path_is_accepted_only_in_a_dockerfile() -> None:
 def test_f06_a_patch_is_judged_by_its_added_lines_and_prose_with_the_bare_name_passes() -> None:
     assert scan_text("Solo se usa `kubectl`\nSe sincroniza en Argo CD", "README.md") == []
     assert scan_text("sincroniza la Application `network` en Argo CD, con prune\n", "demos/x.md") == []
+
+
+DEMOS_DIR = UNIT / "demos"
+
+
+def test_red_u12_t04_an_exec_in_a_verify_and_the_sync_of_argo_cd_in_a_script_fail() -> None:
+    """Rojo de CA-4: una orden de escritura agregada a un `verify` real, y la orden de sincronizar de Argo CD en un guion real, hacen fallar el detector."""
+    verify = (DEMOS_DIR / "verify" / "rt-5.sh").read_text(encoding="utf-8")
+    assert scan_text(verify, "verify/rt-5.sh") == []
+    assert [
+        f.verb
+        for f in scan_text(
+            verify + '\nkubectl --context kind-vectra exec -n vectra-app "$POD" -- ls\n', "verify/rt-5.sh"
+        )
+    ] == ["exec"]
+    guion = (DEMOS_DIR / "journey-7-3.md").read_text(encoding="utf-8")
+    assert scan_text(guion, "journey-7-3.md") == []
+    assert [f.verb for f in scan_text(guion + "\nargocd app sync network\n", "journey-7-3.md")] == ["argocd"]

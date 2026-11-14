@@ -29,6 +29,8 @@ forbidden_modules =
     vectra_verification.simulator
     vectra_verification.driver
     vectra_verification.cli
+    vectra_verification.store
+    vectra_verification.live
     vectra_verification.clients
     vectra_verification.scenarios
     vectra_verification.load
@@ -140,6 +142,69 @@ name = scenarios no importa httpx, requests, socket, subprocess, playwright ni p
 type = forbidden
 source_modules =
     vectra_verification.scenarios
+forbidden_modules =
+    httpx
+    requests
+    socket
+    subprocess
+    playwright
+    pyarrow
+allow_indirect_imports = True
+
+# U12-T04: `store` es el UNICO escritor de la carpeta de la verificacion y solo lo importan `cli` y `manifest` (que recibe un `Store`, no escribe). Nadie mas de `src/` lo alcanza: una escritura directa en otro modulo
+# la ve ademas la prueba estatica de `test_store.py`.
+[importlinter:contract:store-solo-para-cli-y-manifest]
+name = store solo lo importan cli y manifest
+type = forbidden
+source_modules =
+    vectra_verification.guard
+    vectra_verification.credentials
+    vectra_verification.clock
+    vectra_verification.sampler
+    vectra_verification.report
+    vectra_verification.story_map
+    vectra_verification.rt2_latency
+    vectra_verification.simulator
+    vectra_verification.driver
+    vectra_verification.live
+    vectra_verification.scenarios
+    vectra_verification.clients
+    vectra_verification.load
+forbidden_modules =
+    vectra_verification.store
+
+# U12-T04: `cli` es el UNICO que junta `scenarios`, `driver` y `store`. `manifest` (datos y texto del informe) no conoce los escenarios ni el conductor ni los clientes, y `live` (el mundo real) no conoce a `cli` ni a `store`.
+[importlinter:contract:manifest-y-live-no-juntan-escenarios-y-store]
+name = manifest no importa scenarios, driver, clients, simulator, cli ni live
+type = forbidden
+source_modules =
+    vectra_verification.manifest
+forbidden_modules =
+    vectra_verification.scenarios
+    vectra_verification.driver
+    vectra_verification.clients
+    vectra_verification.simulator
+    vectra_verification.cli
+    vectra_verification.live
+
+[importlinter:contract:live-sin-cli-ni-store]
+name = live no importa cli ni store
+type = forbidden
+source_modules =
+    vectra_verification.live
+forbidden_modules =
+    vectra_verification.cli
+    vectra_verification.store
+    vectra_verification.manifest
+
+# U12-T04: la seccion `u11` y las evidencias de las demos no hacen E/S por su cuenta (lo que lee entra por `clients.prom`; las derivaciones de `demos` y la retoma de `resume` son puras).
+[importlinter:contract:u11-demos-y-resume-sin-es]
+name = scenarios.u11, scenarios.demos y scenarios.resume no importan httpx, socket, subprocess, playwright ni pyarrow directo
+type = forbidden
+source_modules =
+    vectra_verification.scenarios.u11
+    vectra_verification.scenarios.demos
+    vectra_verification.scenarios.resume
 forbidden_modules =
     httpx
     requests
