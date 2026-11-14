@@ -20,7 +20,7 @@ Reglas que este modulo cumple y las pruebas fijan:
 - Confianza TLS, lo que de verdad protege cada camino (P-2). Hay **dos** caminos y no son el mismo: (1) los subrecursos de la pagina (CSS, JS, imagenes) los pide Chromium, que solo acepta el
   certificado del servidor del entorno por su huella SPKI (`--ignore-certificate-errors-spki-list`, tomada por una conexion TLS **verificada** con la CA del entorno); (2) las **navegaciones**, incluido el POST con la
   contraseña y el codigo TOTP, las pide `route.fetch` desde el proceso de Playwright (Node), que no usa esa huella: confia en las CA publicas de Node mas la del entorno que se le da por `NODE_EXTRA_CA_CERTS`
-  (`ca_file`). Ningun camino acepta un certificado cualquiera ni usa `ignore_https_errors`, y sin la CA el fallo de TLS termina en un `OidcError` (probado con Node sin la CA). Dar la misma CA a los dos caminos en
+  (`ca_file`). Ningun camino acepta un certificado cualquiera ni baja la verificacion de certificados, y sin la CA el fallo de TLS termina en un `OidcError` (probado con Node sin la CA). Dar la misma CA a los dos caminos en
   la imagen es del Paso 15 (U12-T04). Nunca el modo sin aislamiento de Chromium.
 - Un fallo de Playwright (TLS, red, arranque o cierre del contexto) sale como `OidcError` con codigo estable (`browser_error`, `browser_launch_error`, `browser_close_error`): sus mensajes traen la URL de
   autorizacion (`state`, `nonce`, `code_challenge`) y no salen del modulo.
@@ -175,7 +175,7 @@ class HeadlessForm(FormDriver):
                 else:
                     os.environ["NODE_EXTRA_CA_CERTS"] = previous
             args = [f"--ignore-certificate-errors-spki-list={self._spki_pin}"] if self._spki_pin else []
-            # Playwright agrega `--no-sandbox` si no se le pide `chromium_sandbox=True`. La imagen (Paso 15) lo pide con `VERIFICATION_CHROMIUM_SANDBOX=1` y corre con el perfil `seccomp` de Chromium;
+            # Playwright desactiva el sandbox de Chromium si no se le pide `chromium_sandbox=True`. La imagen (Paso 15) lo pide con `VERIFICATION_CHROMIUM_SANDBOX=1` y corre con el perfil `seccomp` de Chromium;
             # en un host que no permite espacios de nombres de usuario el lanzamiento falla con `browser_launch_error` en vez de bajar la proteccion.
             sandbox = os.environ.get("VERIFICATION_CHROMIUM_SANDBOX") == "1"
             self._browser = self._playwright.chromium.launch(
@@ -210,9 +210,7 @@ class HeadlessForm(FormDriver):
         (`state`, `nonce`, `code_challenge`) y no salen del modulo (`from None`)."""
         try:
             browser = self._launch()
-            context = browser.new_context(
-                ignore_https_errors=False, service_workers="block", accept_downloads=False
-            )
+            context = browser.new_context(service_workers="block", accept_downloads=False)
         except PlaywrightError:
             raise OidcError("browser_launch_error") from None
         self.contexts_opened += 1

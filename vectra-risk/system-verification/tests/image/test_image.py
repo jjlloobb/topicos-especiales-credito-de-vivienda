@@ -127,24 +127,20 @@ def prepare_command(evidence: Path, *, user: str = TEST_USER, name: str | None =
 def test_content_every_from_is_pinned_by_digest_and_the_image_has_no_unsafe_flags() -> None:
     text = DOCKERFILE.read_text(encoding="utf-8")
     froms = [line for line in text.splitlines() if line.startswith("FROM ")]
-    assert froms and all("@sha256:" in line or line.startswith("FROM scratch") for line in froms)
+    assert froms and all("@sha256:" in line for line in froms)
     forbidden = re.compile(
         r"no-sandbox|ignore_https_errors|ignore-certificate-errors([^-]|$)|NODE_TLS_REJECT_UNAUTHORIZED"
     )
     offenders = [
         str(path.relative_to(UNIT))
         for path in [DOCKERFILE, *(UNIT / "src").rglob("*.py")]
-        if forbidden.search(
-            path.read_text(encoding="utf-8").replace("ignore-certificate-errors-spki-list", "")
-        )
+        if forbidden.search(path.read_text(encoding="utf-8"))
     ]
-    # `oidc.py` nombra los indicadores en comentarios y en el `ignore_https_errors=False` del contexto; `--no-sandbox` solo aparece escrito en el comentario de `_launch`.
-    assert [o for o in offenders if not o.endswith("clients/oidc.py")] == []
+    assert (
+        offenders == []
+    )  # ni en el Dockerfile ni en `src/` (la CA es la unica via; el sandbox se pide, no se baja)
     oidc = (UNIT / "src/vectra_verification/clients/oidc.py").read_text(encoding="utf-8")
-    assert "ignore_https_errors=False" in oidc and "ignore_https_errors=True" not in oidc
-    assert "--no-sandbox" not in re.sub(
-        r"#.*", "", oidc
-    )  # el indicador no se pasa nunca: solo se nombra en un comentario
+    assert "chromium_sandbox=sandbox" in oidc and "ignore-certificate-errors-spki-list" in oidc
 
 
 def test_content_python_playwright_chromium_and_the_workspace_packages() -> None:
