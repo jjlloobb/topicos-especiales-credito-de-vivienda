@@ -357,6 +357,8 @@ class Rt2World:
         self.freeze_entries.append(item)
         if self.freeze_freezes_model:
             self.set_state(PROXY, "congelado")
+        # U9 escribe el `freeze` **dentro** de la corrida y fija la marca de fin despues (`run.py`): la marca de la corrida que congelo es posterior al `recorded_at`
+        self.bias_runs.append((self.clock.now().timestamp() + 1.0, self.bias_ok))
 
     def start_bias(self, every: float = 900.0, first: float = 120.0, runs: int = 40) -> None:
         for number in range(runs):
@@ -407,8 +409,10 @@ class Rt2World:
         if self.state_cases is not None:
             return self.state_cases(case_id, record)
         age = (self.clock.now() - record.created).total_seconds()
-        if age < 10:
-            return "en_evaluacion", None, 0
+        if (
+            age < 10
+        ):  # U8 escribe `attempts` al tomar el trabajo: el caso sigue en `en_evaluacion` con `attempts >= 1` mientras dura la llamada a scoring
+            return "en_evaluacion", None, 1
         if record.kind == "probe" and record.frozen_at_creation and not self.probe_listo:
             reactivated = self._reactivated
             if (

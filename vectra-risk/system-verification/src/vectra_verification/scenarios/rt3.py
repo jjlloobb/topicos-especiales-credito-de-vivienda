@@ -230,12 +230,12 @@ def judge_f22(cases: Sequence[CaseReading], recommendations: Sequence[Recommenda
     if odd:
         missing.append("rt3_f22_estado_inesperado")
         notes.append(f"estados fuera del fail-closed: {odd}")
-    if not missing and not any(c.state in FAIL_CLOSED_STATES and c.last_cause in F22_CAUSES for c in cases):
+    if not missing and any(c.state == "en_evaluacion" for c in cases):
+        missing.append("rt3_f22_caso_sin_estado_final")
+        notes.append("hay casos todavia en_evaluacion al vencer el plazo")
+    elif not missing and not any(c.state in FAIL_CLOSED_STATES and c.last_cause in F22_CAUSES for c in cases):
         missing.append("rt3_f22_sin_causa_timeout_o_explainer_unavailable")
         notes.append(f"ningun caso con last_cause timeout o explainer_unavailable; causas vistas: {causes}")
-    elif not missing and any(c.state == "en_evaluacion" for c in cases):
-        missing.append("rt3_f22_caso_sin_estado_final")
-        notes.append("hay casos todavia en_evaluacion")
     if recommendations:
         first = recommendations[0]
         missing.append("rt3_recommendation_con_f22_apagado")
@@ -380,7 +380,8 @@ class Rt3Run:
                     detail.last_cause,
                     detail.attempts or 0,
                 )
-            return all(c.attempts >= 1 or c.state not in ("en_evaluacion",) for c in seen.values()), None
+            # U8 escribe `attempts` al tomar el trabajo y el caso sigue en `en_evaluacion` mientras la llamada a scoring esta en vuelo: se espera a que salga de `en_evaluacion`
+            return all(c.state != "en_evaluacion" for c in seen.values()), None
 
         poll(self.d.clock, settled, interval=POLL, timeout=timeout)
         return list(seen.values())

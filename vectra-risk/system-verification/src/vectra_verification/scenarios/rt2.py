@@ -138,11 +138,15 @@ def judge_package(freeze: Mapping[str, Any]) -> tuple[str, ...]:
 def count_bias_runs(
     timestamps: Sequence[tuple[float, float]], ok: Sequence[tuple[float, float]], after: float
 ) -> list[float]:
-    """Pura. Las corridas de bias completas y posteriores a `after`: valores distintos de `vectra_bias_last_run_timestamp` mayores que `after`, con `vectra_bias_last_run_ok == 1` en el primer paso en que aparecen. Una corrida fallida no cuenta."""
+    """Pura. Las corridas de bias correctas **estrictamente posteriores** a la de referencia (arbitraje de la ronda 1, F-02). La referencia es la primera marca `vectra_bias_last_run_timestamp` mayor o igual que `after` (el `recorded_at` del `freeze` o de la reactivacion): la corrida que congelo escribe el `freeze` **antes** de fijar su marca de fin (U9 `run.py`), asi que su marca es posterior al `freeze` y no es «una mas». Se cuentan valores distintos con `vectra_bias_last_run_ok == 1` en el primer paso en que aparecen; una corrida fallida no cuenta."""
     ok_at = dict(ok)
+    ordered = sorted(timestamps)
+    reference = next((value for _, value in ordered if value >= after), None)
+    if reference is None:  # la corrida que congelo (o la que estaba en vuelo) aun no termino
+        return []
     seen: list[float] = []
-    for moment, value in sorted(timestamps):
-        if value > after and value not in seen and ok_at.get(moment) == 1.0:
+    for moment, value in ordered:
+        if value > reference and value not in seen and ok_at.get(moment) == 1.0:
             seen.append(value)
     return seen
 

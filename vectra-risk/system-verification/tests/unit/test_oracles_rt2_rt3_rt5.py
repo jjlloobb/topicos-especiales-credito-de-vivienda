@@ -827,7 +827,8 @@ def test_rt2_a_bias_run_with_ok_0_does_not_count(rworld: Rt2World) -> None:
 def test_rt2_counting_bias_runs_is_a_pure_function() -> None:
     ts = [(1.0, 10.0), (2.0, 10.0), (3.0, 20.0), (4.0, 20.0), (5.0, 30.0)]
     ok = [(1.0, 1.0), (2.0, 1.0), (3.0, 0.0), (4.0, 0.0), (5.0, 1.0)]  # Pushgateway: el ultimo valor se queda
-    assert rt2.count_bias_runs(ts, ok, 5.0) == [10.0, 30.0]  # la de 20 (ok = 0 al aparecer) no cuenta
+    # referencia: la primera marca >= 5 (la de 10, la corrida que congelo); cuentan las correctas **estrictamente posteriores**: la de 20 (ok = 0) no cuenta
+    assert rt2.count_bias_runs(ts, ok, 5.0) == [30.0]
     assert rt2.count_bias_runs(ts, ok, 10.0) == [30.0]
 
 
@@ -908,9 +909,7 @@ def test_rt2_the_promotion_that_leaves_the_reference_active_fails(world: Rt2Worl
 def test_rt2_a_rollback_still_pending_is_said_by_the_closing_field_and_does_not_change_the_result(
     rworld: Rt2World,
 ) -> None:
-    rworld.clock.events = [
-        e for e in rworld.clock.events if e[0] < rworld.clock.now() + timedelta(seconds=5000)
-    ]  # sin rollback
+    rworld.clock.events = [e for e in rworld.clock.events if e[2].__name__ != "back"]  # sin rollback
     result = rt2_run(rworld)
     assert (
         result.rt2.result == "pasa" and result.closing is not None and result.closing.result == "no ejecutado"
@@ -1717,3 +1716,46 @@ def test_rt3_the_closing_with_rejected_probes_or_the_bff_down_says_so(
     tworld.bff.doubles.case.fail(503)
     closing = rt3.rt3_closing(deps, rt3_params(tmp_path))
     assert closing.result == "no ejecutado" and closing.missing == ("rt3_cierre_dependencia_no_responde",)
+
+
+# --- ronda 2 (arbitraje): F-01 y F-02 -------------------------------------------------------------------------------------------
+
+
+def test_rt3_f22_keeps_waiting_while_the_cases_are_en_evaluacion_even_with_attempts_at_1(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    tworld.state_cases = lambda case_id, record: (
+        ("en_evaluacion", None, 1)
+        if (tworld.clock.now() - record.created).total_seconds() < 7.0
+        else ("en_sincronizacion", "timeout", 1)
+    )
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    assert outcome.result == "pasa", [
+        (s.name, s.missing, s.detail) for s in outcome.subresults if s.result != "pasa"
+    ]
+    assert sub(outcome, "F22").readings["states"] == {"en_sincronizacion": 5}
+
+
+def test_rt3_f22_cases_that_never_leave_en_evaluacion_fail_at_the_deadline_with_the_existing_code(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    tworld.state_cases = f22_cases(None, "en_evaluacion", 2)
+    outcome = rt3_run(tworld, rt3_params(tmp_path))
+    assert outcome.result == "falla" and outcome.missing == ("rt3_f22_caso_sin_estado_final",)
+    assert sum(tworld.clock.sleeps) >= rt3.ATTEMPTS_TIMEOUT
+
+
+def test_rt2_the_run_that_froze_is_not_one_more_bias_run_after_the_freeze(rworld: Rt2World) -> None:
+    """F-02: con la corrida que congelo y solo 2 corridas mas, la fase no pasa (antes daba `pasa` unos 15 min antes de lo debido)."""
+    result = rt2_run(rworld, params={"bias_timeout": 1900.0})
+    assert result.rt2.result == "no ejecutado" and codes(result) == ("rt2_corridas_de_bias_pendientes",)
+    assert "de 3 corridas" in next(s.detail for s in result.rt2.subresults if s.name == "v1:sigue_congelada")
+
+
+def test_rt2_bias_counting_reference_is_the_first_mark_at_or_after_the_freeze() -> None:
+    ts = [(1.0, 10.0), (2.0, 10.0), (3.0, 20.0), (4.0, 30.0), (5.0, 40.0)]
+    ok = [(m, 1.0) for m, _ in ts]
+    assert rt2.count_bias_runs(ts, ok, 15.0) == [30.0, 40.0]  # 20 es la que congelo: referencia, no cuenta
+    assert rt2.count_bias_runs(ts, ok, 20.0) == [30.0, 40.0]
+    assert rt2.count_bias_runs(ts, ok, 45.0) == []  # la corrida que congelo aun no termino: sin referencia
+    assert rt2.count_bias_runs(ts, ok, 5.0) == [20.0, 30.0, 40.0]
