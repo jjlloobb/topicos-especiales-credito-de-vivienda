@@ -108,7 +108,7 @@ fecha de evaluación (la candidata decía 21). El volumen es un piso: el resulta
 ## Qué evidencias produce esta tarea y cuáles no (con las secciones diferidas)
 
 Produce: `RT-2`, `RT2-LATENCY`, `RT-3`, `RT-5` y `SIM-NORMAL`. No hay evidencia de `rt2-setup` (no es un elemento del informe). Siguen en `no ejecutado` por lo diferido: `RT-1`, `RT-4`, `X01` a `X10`, `LOGS-NO-PII`, `CASE-SIZE`, `LOAD`, `RESILIENCE` y las historias
-que dependen de ellos. `RT-5` y `RT-3` tienen sub-resultados `no ejecutado` que no bajan el resultado (P-2 (a)); el informe los muestra.
+que dependen de ellos. `RT-3` tiene sub-resultados opcionales (`RT3-b` y los dos «desplegado») que, si salen `no ejecutado`, no bajan el resultado (P-2 (a)); el informe los muestra. `RT-5` no tiene sub-resultados.
 
 ## Lo que U12-T04 y U12-T05 pueden llamar
 
@@ -117,3 +117,9 @@ que dependen de ellos. `RT-5` y `RT-3` tienen sub-resultados `no ejecutado` que 
   `ToolReactivation`; para esperar al presentador, un `Reactivator` que no haga nada y la verificación posterior de `verify_reactivation` (la misma). Los textos al operador describen el paso sin la orden. Para `SIM-NORMAL`: llamarla al final de `decisions`.
 - **U12-T05 (Paso 18):** la serie `inbound_http_authz_deny_total` con `namespace` y `route_name` tras U01-T09; el valor real de `l5d-proxy-error`; `CoreWriteAttempt` en `firing` con los intervalos reales; que `rt5` corra dentro de los 3 días de retención; qué `last_cause` da F22 apagado;
   las métricas de bias por el Pushgateway; K16 en `vectra-staging`; el login real de `ingeniero-1`, `cro-1` y `cumplimiento-1`; la audiencia que acepta governance de un token reenviado por el BFF; los paquetes RT-3 y proxy en el model-store.
+
+## Enmienda de la ronda 2 (arbitraje de U12-T03, 2026-11-13; rige sobre la tarea)
+
+- **Espera de F22.** El oráculo no deja de esperar por `attempts ≥ 1`: U8 escribe `attempts` al tomar el trabajo (`case-management/src/vectra_case/job_queue.py`) y el caso sigue en `en_evaluacion` mientras la llamada a scoring está en vuelo (hasta `SCORING_TIMEOUT`). `Rt3Run.cases` espera a que **cada caso de la sonda salga de `en_evaluacion`**; al vencer el plazo, un caso que sigue en `en_evaluacion` da `rt3_f22_caso_sin_intentos` (sin intentos) o `rt3_f22_caso_sin_estado_final` (con ellos). `_rt3b` usa el mismo `cases`.
+- **«3 corridas más de bias».** La corrida que congeló escribe el `freeze` **antes** de fijar su marca de fin (`bias-monitoring/src/vectra_bias/run.py`), así que su marca `vectra_bias_last_run_timestamp` es posterior al `recorded_at` del `freeze` y no es «una más». La referencia es **la primera marca mayor o igual que el `recorded_at` del `freeze`** y se cuentan las corridas correctas (`vectra_bias_last_run_ok == 1`) **estrictamente posteriores** a ella (`rt2.count_bias_runs`). Lo mismo en `no_recongela`, con el `recorded_at` de la reactivación: una corrida en vuelo durante la reactivación no cuenta.
+- **Otros cambios de la ronda.** `rt5.ranged` no pide nunca `start > end` en la costura (F-03). Sin `freeze` al tope de 2 700 s, `RT2-LATENCY` es `falla` con `rt2_latencia_sin_freeze` (F-04). `K8sError` y `OidcError` dentro de `rt2`, `rt3`, `rt5` y `sim_normal` dan `no ejecutado` con `<sección>_port_forward_caido`, `<sección>_kubectl_no_responde` o `<sección>_sesion_oidc_no_disponible`, conservando los sub-resultados y el punto de retoma (`Rt2Result.pending`; en `rt3`, `readings["interrumpida_tras"]` y el sub-resultado `infraestructura`) (F-05).
