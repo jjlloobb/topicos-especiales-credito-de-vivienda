@@ -191,3 +191,23 @@ def test_rt5_promql_missing_series_the_family_absent_or_with_other_labels() -> N
             'namespace="vectra-app", route_name="case-api"' in real.obtained
             and "nadie raspa" not in real.obtained
         )
+
+
+def test_rt5_promql_the_seam_with_a_remainder_smaller_than_the_step_is_not_asked_past_the_end() -> None:
+    """F-03 (ronda 2): si lo que sobra tras un tramo es menor que `step`, Prometheus real responde `bad_data` a un `start > end`; `ranged` no lo pide y no pierde ni repite ningun punto."""
+    data = spec(counter=[(t, 0.0) for t in every(BASE - timedelta(hours=48), BASE)])
+    with prometheus_with(data) as url:
+        prom = PromClient(url)
+        end = datetime.now(UTC).replace(microsecond=0)
+        start = end - timedelta(
+            seconds=15.0 * (rt5.MAX_POINTS - 1) - 8.0
+        )  # un tramo completo y 8 s... menos de 15 s de resto
+        start = end - timedelta(seconds=15.0 * (rt5.MAX_POINTS - 1) + 7.0)
+        merged, saved = rt5.ranged(prom, rt5.COUNTER, start, end, 15.0)
+        stamps = [t for t, _ in next(iter(merged.values()))]
+        assert (
+            stamps == [start.timestamp() + 15.0 * n for n in range(len(stamps))]
+            and len(stamps) == int((end - start).total_seconds() // 15) + 1
+        )
+        assert saved.end == end
+        prom.close()

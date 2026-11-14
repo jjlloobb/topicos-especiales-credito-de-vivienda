@@ -1759,3 +1759,26 @@ def test_rt2_bias_counting_reference_is_the_first_mark_at_or_after_the_freeze() 
     assert rt2.count_bias_runs(ts, ok, 20.0) == [30.0, 40.0]
     assert rt2.count_bias_runs(ts, ok, 45.0) == []  # la corrida que congelo aun no termino: sin referencia
     assert rt2.count_bias_runs(ts, ok, 5.0) == [20.0, 30.0, 40.0]
+
+
+# --- ronda 2: F-03, la costura de `ranged` -----------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("extra", [0.0, 7.0, 14.0, 15.0, 22.0])
+def test_rt5_ranged_never_asks_start_after_end_and_never_skips_or_repeats_a_point_at_the_seam(
+    extra: float,
+) -> None:
+    start = NOW - timedelta(hours=60)
+    end = start + timedelta(
+        seconds=15.0 * (rt5.MAX_POINTS - 1) + extra
+    )  # lo que sobra tras el primer tramo es menor que `step`
+    spec = good_spec(counter=[(t, 0.0) for t in every(start, end)])
+    double = PromDouble(spec)
+    merged, saved = rt5.ranged(PromClient("http://prom", transport=double), rt5.COUNTER, start, end)
+    asked = [(float(r.url.params["start"]), float(r.url.params["end"])) for r in double.requests]
+    assert all(a <= b for a, b in asked), asked
+    stamps = [t for t, _ in next(iter(merged.values()))]
+    assert stamps == [
+        start.timestamp() + 15.0 * n for n in range(int((end - start).total_seconds() // 15.0) + 1)
+    ]  # sin huecos ni repetidos
+    assert saved.end == end

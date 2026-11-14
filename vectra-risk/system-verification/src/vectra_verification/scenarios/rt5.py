@@ -306,6 +306,10 @@ def ranged(
         if chunk_end >= end:
             break
         cursor = chunk_end + timedelta(seconds=step)
+        if (
+            cursor > end
+        ):  # lo que sobra es menor que `step`: no hay otro punto que pedir (Prometheus real responde `bad_data` si `start > end`)
+            break
     assert last is not None
     return merged, QueryResult(
         expression,

@@ -196,6 +196,8 @@ class PromDouble(httpx.BaseTransport):
             return self._error("un rango o increase() dentro de PromQL: no lo usa el oraculo")
         if request.url.path.endswith("query_range"):
             start, end, step = float(params["start"]), float(params["end"]), float(params["step"])
+            if end < start:
+                return self._error("end timestamp must not be before start time")
             if (end - start) / step > MAX_POINTS:
                 return self._error(
                     "exceeded maximum resolution of 11,000 points per timeseries. Try decreasing the query resolution (?step=XX)"
