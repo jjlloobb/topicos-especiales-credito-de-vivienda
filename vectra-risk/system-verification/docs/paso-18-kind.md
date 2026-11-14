@@ -92,7 +92,7 @@ Las Applications de U3 a U11 están todas en la **wave 5** y `model-serving` en 
 | **F4** Flujo base | Una solicitud hasta `listo` y una decisión; **puerta de las cuatro demos** | 15 min |
 | **F5** `prepare` y D3 | `prepare`, PR de `runId`, sync de `case-management`, la alerta en vivo | 20 min |
 | **F6** `decisions` (D4, día D) | 2 000 casos y el conductor; `rt5` al terminar | ≈ 45 min |
-| **F7** D1 (`rt3`) | RT3-a, c y d; PR de F22 apagado; esperar; PR de reversión | ≈ 50 min (≥ 19,3 de espera, ≈ 21 hasta la alerta, 2 PR) |
+| **F7** D1 (`rt3`) | RT3-a, c y d; PR de F22 apagado; esperar; PR de reversión | ≈ 50 min (12,4 a 19,3 de espera, la alerta unos minutos después, 2 PR) |
 | **F8** D2 (`rt2-setup`, `rt2`) | PR `proxy-staging`; promoción; lote; `freeze`; 3 corridas de bias; reactivación; 1 corrida más; rollback; retirar staging | ≈ 3 h (más de 75 min de esperas, más 6 PR) |
 | **F9** D4 (día D + 1 UTC) | `u11`; Grafana por `port-forward`; el dashboard «Producto» | 15 min, tras la espera |
 | **F10** Informe y estado final | `report`; `estado-final.sh`; PR de verificación | 30 min |
@@ -124,7 +124,7 @@ Las Applications de U3 a U11 están todas en la **wave 5** y `model-serving` en 
 | U6: imágenes y paquetes del model-store | [`model-serving/docs/paso-11-kind.md`](../../model-serving/docs/paso-11-kind.md) | §0 a §2 (paquetes: líneas 42 a 58) |
 | U7, U8, U9, U11: imágenes y digests | [`scoring-explainability/docs/imagenes.md`](../../scoring-explainability/docs/imagenes.md), [`case-management/docs/imagenes.md`](../../case-management/docs/imagenes.md), [`bias-monitoring/docs/imagenes.md`](../../bias-monitoring/docs/imagenes.md), [`product-metrics/docs/imagenes.md`](../../product-metrics/docs/imagenes.md) | Enteros |
 | U10: imágenes | [`console/README.md`](../../console/README.md) | «Imágenes» |
-| U12: imagen, orden `docker run`, prerrequisitos y lectura del informe | `system-verification/README.md` | **Por confirmar** (lo escribe U12-T05; ver F0) |
+| U12: imagen, orden `docker run` (la función `vv`), prerrequisitos y lectura del informe | `system-verification/README.md` | «La imagen», «Cómo correrla: la orden `docker run`» y «Cómo correr cada sección» (la orden se muestra en F0, paso 9) |
 | Las cuatro demos y sus PR preparados | [`system-verification/demos/journey-7-3.md`](../demos/journey-7-3.md), `journey-7-4.md`, `rt-5.md`, `dashboard.md`, [`demos/verify/`](../demos/verify) y [`demos/prs/`](../demos/prs) | Cada demo, en su fase |
 
 ## F0 Prerrequisitos y máquina limpia
@@ -166,29 +166,45 @@ Entradas: K-01 a K-05. Plantilla: `00-prerrequisitos.md`. Duración: 30 min, má
    system-verification/docs/kind/observabilidad.sh targets
    ```
    Lee su salida así: pods de una unidad sin imagen (`ImagePullBackOff`) se hacen en F1; `ExternalSecret` sin sincronizar, en la siembra del paso 5; una Application fuera de `Healthy`, en F2. **Una unidad completa (imágenes, secretos, sync, realm, política, modelo de referencia, paquetes) que el diagnóstico muestra sana no se repite.** `arranque.sh` informa y sale con 1 cuando hay hallazgos; con 2 si no pudo leer.
-7. **Paquetes de U5.** `make -C reference-model release` genera, en `reference-model/.out/`, el paquete base, `reference-model/.out/proxy/run-1`, `reference-model/.out/adversarial/rt3` y `reference-policy.json` (procedimiento: `reference-model/docs/release.md`). Comprueba que `reference-model/.out` existe y que la vigencia normativa de `reference-policy.json` cubre los dos días de la corrida (`aidlc-docs/construction/plans/demo-recorte-funcional.md`, línea 388); si no, todos los casos saldrán `revision_requerida`.
+7. **Paquetes de U5.** `make -C reference-model release` genera, en `reference-model/.out/`, el paquete base, `reference-model/.out/proxy/run-1`, `reference-model/.out/adversarial/rt3` y `reference-policy.json` (procedimiento: `reference-model/docs/release.md`). Comprueba que `reference-model/.out` existe y que la vigencia normativa de `reference-policy.json` cubre los dos días de la corrida (`aidlc-docs/construction/plans/demo-recorte-funcional.md`, línea 388); si no, todos los casos saldrán `revision_requerida`. Si la demo corre en otra máquina, copia allí `reference-model/.out` (ver los avisos del paso 9).
 8. **La bóveda desde la estación** (la CLI de U12 y `humo` la leen; K16 no da este camino). En una terminal que se queda abierta:
    ```bash
    kubectl --context kind-vectra port-forward -n vault --address=127.0.0.1 pod/vault-0 8200:8200
    ```
    En la terminal de trabajo: `export VAULT_ADDR=http://127.0.0.1:8200` y `export VAULT_TOKEN=root` (el token de desarrollo de kind está escrito en `platform/operators/vault-kind.yaml`; en kind no es un secreto). Si el `port-forward` cae, la herramienta da un error claro: vuélvelo a abrir.
-9. **La imagen de U12 y la orden `docker run`.** La herramienta se ejecuta **desde la imagen** (`system-verification/README.md`, de U12-T05), no desde el árbol de trabajo: la imagen lleva Chromium, `kubectl`, `python3` y las dependencias. La orden de abajo es el borrador que sigue a U12-T05; **la de verdad es la del README de la imagen**. POR CONFIRMAR contra el README de U12-T05: cada flag, cada montaje, el nombre del directorio de evidencias y si la imagen arranca `vectra-verification` como punto de entrada.
+9. **La imagen de U12 y la orden `docker run`.** La herramienta se ejecuta **desde la imagen** (`system-verification/README.md`, «Cómo correrla: la orden `docker run`»), no desde el árbol de trabajo: la imagen lleva la herramienta, los guiones y los `verify` de las demos, `kubectl`, `python3` y el Chromium sin interfaz del login. La orden es **la función `vv` del README**, mostrada aquí una sola vez con las rutas de este repositorio; solo se agrega `--name` (para que `memoria.sh` encuentre el contenedor) y la lista `VV_EXTRA` (para `humo`). Si el README cambia, vale el README: `tests/unit/test_kind_guide.py` falla cuando una opción o un montaje del README falta aquí. Los montajes son `--mount type=bind`: si falta un archivo, Docker se niega en vez de crear un directorio de root.
    ```bash
-   # POR CONFIRMAR contra el README de U12-T05
+   export VERIFICATION_IMAGE="${VERIFICATION_IMAGE:-localhost:5001/vectra/system-verification:dev}"   # en F1 la cambias por el digest
    export VERIF_HOME="${VERIF_HOME:-$HOME/.vectra-verification}"; mkdir -p "$VERIF_HOME"; chmod 700 "$VERIF_HOME"
    kind get kubeconfig --name vectra > "$VERIF_HOME/kubeconfig"
-   kubectl --context kind-vectra get secret -n cert-manager vectra-internal-ca -o jsonpath='{.data.ca\.crt}' | base64 -d > "$VERIF_HOME/ca.crt"
-   VERIF_RUN=(--rm -i --read-only --tmpfs /tmp --network host
-     --user "$(id -u):$(id -g)" --memory 1g
-     --security-opt seccomp=system-verification/seccomp/chrome.json
-     -v "$PWD/system-verification/evidence:/evidence"
-     -v "$VERIF_HOME/kubeconfig:/kube/config:ro" -v "$VERIF_HOME/ca.crt:/ca.crt:ro"
-     -v "$PWD/reference-model/.out:/reference-model/.out:ro"
-     -e VAULT_ADDR -e VAULT_TOKEN -e KUBECONFIG=/kube/config -e VERIFICATION_CA_FILE=/ca.crt)
-   vectra-verification() { docker run --name "vectra-verification-$$-$RANDOM" "${VERIF_RUN[@]}" "$VERIFICATION_IMAGE" "$@"; }
-   humo() { docker run --name "vectra-verification-$$-$RANDOM" "${VERIF_RUN[@]}" -v "$PWD/system-verification/docs/kind/humo.py:/humo.py:ro" --entrypoint python "$VERIFICATION_IMAGE" /humo.py "$@"; }
+   kubectl --context kind-vectra get secret -n cert-manager vectra-internal-ca -o jsonpath='{.data.ca\.crt}' | base64 -d > "$VERIF_HOME/vectra-ca.pem"
+   export EVID="$PWD/system-verification/evidence/$(date -u +%Y%m%d)-$(git rev-parse --short HEAD)"
+   mkdir -p "$EVID" && chmod 755 "$EVID"      # la verificación de esta corrida escribe aquí (un directorio nuevo por verificación)
+   export VERIFICATION_DIR="$EVID"             # los `verify` de las demos leen el manifiesto de aquí
+   vv() {
+     docker run --rm --name "vectra-verification-$$-$RANDOM" --read-only --tmpfs /tmp --network host \
+       --user "$(id -u):$(id -g)" --memory 1g \
+       --security-opt seccomp=system-verification/seccomp/chrome.json \
+       --mount type=bind,source="$VERIF_HOME/kubeconfig",target=/kube/config,readonly -e KUBECONFIG=/kube/config \
+       --mount type=bind,source="$VERIF_HOME/vectra-ca.pem",target=/certs/ca.pem,readonly -e VERIFICATION_CA_FILE=/certs/ca.pem \
+       --mount type=bind,source="$EVID",target=/verification/evidence \
+       --mount type=bind,source="$PWD/vectra-risk-gitops/values/kind/case-management.yaml",target=/values/case-management.yaml,readonly \
+       --mount type=bind,source="$PWD/reference-model/.out",target=/verification/reference-model/.out,readonly \
+       -e VAULT_ADDR -e VAULT_TOKEN \
+       "${VV_EXTRA[@]}" "$VERIFICATION_IMAGE" "$@"
+   }
+   vectra-verification() { vv "$@"; }   # el nombre con que la guía llama a la herramienta
+   humo() { local VV_EXTRA=(--mount type=bind,source="$PWD/system-verification/docs/kind/humo.py",target=/humo.py,readonly --entrypoint python); vv /humo.py "$@"; }
    ```
-   Con estas dos funciones, cada `vectra-verification <sección>` y cada `humo <subcomando>` de la guía corre dentro de la imagen. `VERIFICATION_IMAGE` es la imagen **por digest** (la publicas en F1). El token de la bóveda va como variable, nunca como archivo. **Si la orden de arriba se niega a arrancar Chromium** (el sandbox necesita espacios de nombres de usuario sin privilegios y el perfil `seccomp`), el login y `humo consola` terminan con un error claro; la herramienta nunca desactiva el sandbox.
+   Con estas tres funciones, cada `vectra-verification <sección>` y cada `humo <subcomando>` de la guía corre dentro de la imagen (el punto de entrada de la imagen es `vectra-verification`; `humo` lo cambia por `python`, que la imagen trae con sus dependencias). `VERIFICATION_IMAGE` es la imagen **por digest** (la publicas en F1). El token de la bóveda va como variable (`-e VAULT_TOKEN`), nunca como archivo ni en la línea de órdenes; la herramienta solo acepta `127.0.0.1`, `localhost` y `vault.vault.svc` como bóveda (paso 8). **Si la orden se niega a arrancar Chromium** (el sandbox necesita espacios de nombres de usuario sin privilegios y el perfil `seccomp`), el login y `humo consola` terminan con `browser_launch_error` (código 2); la herramienta nunca desactiva el sandbox.
+
+   **Avisos de la herramienta y de la imagen** (de `system-verification/README.md` y de `CANDIDATAS.md`; la demo los respeta):
+   - **Solo Linux.** `--network host` comparte la red del host: con Docker Desktop (macOS y Windows) comparte la de la máquina virtual y ni el gateway de kind ni los `port-forward` llegan. No está probado: corre la demo en Linux (o en una máquina virtual Linux con Docker y kind).
+   - **La entrega de U5** (`reference-model/.out`, paso 7) se genera con el repositorio. Si la demo corre en otra máquina, **cópiala allí** antes de empezar: se monta de solo lectura en `/verification/reference-model/.out`. `prepare`, `rt5`, `u11` y `report` no la necesitan; `decisions`, `rt3`, `rt2-setup` y `rt2` sí. Sin `--delivery` en `prepare` ni en la sección, la sección termina con código 3 y `ruta_faltante`.
+   - **`--memory 1g` no está medido con 2 000 decisiones.** Lo mides tú en F6 (`memoria.sh durante` y `docker stats`, K-09): si el contenedor sale `OOMKilled` (código 137), anótalo en la plantilla y sube `--memory` en `vv` antes de volver a correr la sección.
+   - **El perfil `seccomp`** (`system-verification/seccomp/chrome.json`) es el de `containers-common`, no el de Playwright; el resultado esperado es el mismo.
+   - **La ventana TOTP no se comparte entre procesos.** Dos órdenes seguidas con el mismo usuario dentro de 30 s reusan el código y Keycloak rechaza la segunda; **un rechazo cuenta para el bloqueo por fuerza bruta**. Espera 30 s entre una orden y la siguiente que use los mismos usuarios (`humo login` lo recuerda al terminar).
+   - **Una verificación, un directorio.** `prepare` se corre una vez por directorio de evidencias (`$EVID`); para otra verificación, un directorio nuevo.
 10. **Calendario.** `date -u`. Decide las dos fechas (día D y día D + 1; el día D + 1 no es día 1 del mes) y empieza la jornada 2 antes de las 17:00 UTC.
 
 <!-- inventario:F0 -->
@@ -225,12 +241,14 @@ Entradas: K-06 a K-09. Plantilla: `01-imagenes.md`. Duración: 60 a 90 min. Puer
 | U10 | `console-bff` y `console-spa` | `console/README.md`, «Imágenes» |
 | U11 | `product-metrics` | `product-metrics/docs/imagenes.md` |
 
-**La imagen de U12.** Constrúyela y compruébala como dice el README de la imagen (POR CONFIRMAR contra el README de U12-T05) y publícala en el registro local; el digest es el que usas en `VERIFICATION_IMAGE`:
+**La imagen de U12.** Constrúyela como dice el README de la imagen («La imagen»): `make -C system-verification image` desde `vectra-risk/` (la construcción descarga Chromium, `kubectl` y los paquetes del sistema, cada uno con su suma comprobada; sin `make`, la construcción equivalente que da el README). Comprueba que arranca con `docker run --rm --read-only localhost:5001/vectra/system-verification:dev --help`, publícala en el registro local y exporta `VERIFICATION_IMAGE` con **el digest** que imprime `docker inspect`; es el que usan `vv` y `humo`. La imagen corre en tu estación, no en el clúster: no hace falta cargarla en los nodos de kind.
 
 ```bash operador
 docker push localhost:5001/vectra/system-verification:dev
 docker inspect --format '{{index .RepoDigests 0}}' localhost:5001/vectra/system-verification:dev
 ```
+
+Con el digest en la mano: `export VERIFICATION_IMAGE=localhost:5001/vectra/system-verification@sha256:<digest>`.
 
 <!-- inventario:F1 -->
 | Id | Qué se mira | Cómo (solo lectura) | Demo |
@@ -384,13 +402,13 @@ Entradas: K-27 a K-37. Plantilla: `03-identidad-y-acceso.md`. Duración: 40 min.
 
 Entradas: K-38. Plantilla: `04-flujo-base.md`. Duración: 15 min. **Es la puerta de las cuatro demos.**
 
-**Prerrequisitos.** F3 completa. `reference-model/.out` montado (F0, paso 9). `CASE_ALLOW_TEST_SCENARIOS` activo en los values de kind (`allowTestScenarios: true` en `vectra-risk-gitops/values/kind/case-management.yaml`): la solicitud de `humo flujo` lleva la cabecera de escenario y debe aceptarse (K-36).
+**Prerrequisitos.** F3 completa. `reference-model/.out` montado en `/verification/reference-model/.out` (F0, paso 9). `CASE_ALLOW_TEST_SCENARIOS` activo en los values de kind (`allowTestScenarios: true` en `vectra-risk-gitops/values/kind/case-management.yaml`): la solicitud de `humo flujo` lleva la cabecera de escenario y debe aceptarse (K-36).
 
 **Pasos.**
 
 1. **Una solicitud de punta a punta:**
    ```bash
-   humo flujo --delivery /reference-model/.out
+   humo flujo --delivery /verification/reference-model/.out
    ```
    Envía una solicitud `normal` por el gateway, sondea hasta `listo` (plazo por omisión de 300 s), lee el detalle y la explicación por el BFF con `analista-1`, registra una decisión, lee `/api/console/models` con `ingeniero-1` y `/api/console/freezes` con `cumplimiento-1`, e informa el **estado HTTP de cada llamada**. Esperado: el caso `listo` con `registry_entry_id`; la decisión con ack; ninguna llamada con 401 ni 429.
 2. **Un servicio real acepta un token real** (la pregunta de R-5): si el caso llega a `listo`, el token de usuario fue aceptado por el BFF, `case-service`, `scoring-service` y `explainability-service` (el que cada servicio valida es el emisor público), y la aserción de servicio de `case-worker` y `scoring-service` fue aceptada por Keycloak. Si no llega: `kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=case-worker` busca `invalid_client` (la `aud`, K-31); un 401 en la salida de `humo flujo` nombra el **destino** que rechaza (el emisor, K-30).
@@ -414,9 +432,10 @@ Entradas: K-39 a K-43. Plantilla: `05-prepare-y-d3.md`. Duración: 20 min. **Emp
 
 1. **`prepare`.** Fija el `runId` y el `started_at` (sin ninguna solicitud) y escribe el parche del `runId`:
    ```bash
-   vectra-verification prepare --commit "$(git rev-parse HEAD)" --operator "<tu nombre>"
+   vectra-verification prepare --commit "$(git rev-parse --short HEAD)" --operator "<tu nombre>" \
+       --values-file /values/case-management.yaml --delivery /verification/reference-model/.out
    ```
-   POR CONFIRMAR contra el README de U12-T05: de dónde lee los values de kind la imagen (`--values-file`, `--patch-root`). El `runId` es `AAAAMMDD-HHMM` de `started_at`. `prepare` se corre **una sola vez**: repetirlo se niega.
+   `--commit` y `--operator` van por parámetro (la imagen no trae `git`). `--values-file` es el archivo de values de kind que `vv` montó de solo lectura en `/values/case-management.yaml` (el de `vectra-risk-gitops/values/kind/` del commit que se verifica); `prepare` escribe en `$EVID` el `manifest.json` y `case-management-runid.patch`. `--delivery` guarda en el manifiesto la ruta de la entrega **dentro del contenedor** (`paths.delivery`): `decisions`, `rt3`, `rt2-setup` y `rt2` la toman de ahí y ya no tienen una por omisión (sin ella, código 3 y `ruta_faltante`; cada una acepta también `--delivery`). El `runId` es `AAAAMMDD-HHMM` de `started_at`. `prepare` se corre **una sola vez** por `$EVID`: repetirlo se niega (código 3).
 2. **El PR de `runId`.** Abre el PR `system-verification/demos/prs/rt5-run-id/` con el parche que produjo `prepare` (agrega `runId` bajo `probes:` en `vectra-risk-gitops/values/kind/case-management.yaml`); antes, `make -C case-management policy-chart` debe seguir en verde. Fusiónalo.
 3. **Sincroniza `case-management` con prune** (el Job `rt5-demo-<runId>` nace **después** de `started_at`):
    ```bash operador
@@ -448,9 +467,9 @@ Entradas: K-39 a K-43. Plantilla: `05-prepare-y-d3.md`. Duración: 20 min. **Emp
 
 ## F6 `decisions` (D4, día D)
 
-Entradas: K-44 a K-47. Plantilla: `06-decisions-d4.md`. Duración: ≈ 45 min. Demo: D4 (`system-verification/demos/dashboard.md`). Puerta al final.
+Entradas: K-44 a K-47. Plantilla: `06-decisions-d4.md`. Duración: ≈ 45 min (más la espera a `listo`, hasta 30 min). Demo: D4 (`system-verification/demos/dashboard.md`). Puerta al final.
 
-**Prerrequisitos.** F5 completa. **Lanza antes de ≈ 22:18 UTC** (`date -u`): `decisions` estima 2 000 / 10 + 2 000 × 1 s + 300 s ≈ 42 min y se niega si no termina antes de las 23:00 UTC. El modelo de referencia `activo` (sin congelar: `decisions` va antes de RT-2). Nada más corriendo en la máquina.
+**Prerrequisitos.** F5 completa. **Lanza antes de ≈ 22:18 UTC** (`date -u`): `decisions` estima 2 000 / 10 + 2 000 × 1 s + 300 s ≈ 42 min y se niega si no termina antes de las 23:00 UTC. **La estimación no cuenta la espera a que ningún caso siga en evaluación** (`--settle-timeout`, 1 800 s por omisión): con el sistema lento, `decisions` puede durar hasta 30 min más. Lánzala con holgura (antes de ≈ 21:45 UTC si puedes) y no empieces nada más pesado mientras corre. El modelo de referencia `activo` (sin congelar: `decisions` va antes de RT-2). Nada más corriendo en la máquina.
 
 **Pasos.**
 
@@ -458,8 +477,9 @@ Entradas: K-44 a K-47. Plantilla: `06-decisions-d4.md`. Duración: ≈ 45 min. D
 2. **Lanza `decisions`** (2 000 casos `normal` y el conductor; espera a que cada caso llegue a `listo`). **Es la primera ejecución real de `live.py`** (el mundo real de la CLI: bóveda, login, `kubectl`, `port-forward`; 0 % de cobertura hasta hoy, `aidlc-docs/construction/system-verification/code/cli.md`): si falla al arrancar, antes de la primera solicitud, el error nombra qué parte (bóveda, login, lectura de Kubernetes o `port-forward`) y no se envió nada; corrige y repite sin `--redo`. `humo flujo` de F4 ya ejercitó los mismos clientes de login y de API, no el armado de `live.py`.
    ```bash
    vectra-verification decisions
+   system-verification/demos/verify/dashboard.sh 5
    ```
-   **Espera (≈ 45 min).** Mientras tanto, en otra terminal y sin competir por memoria: `system-verification/docs/kind/memoria.sh durante` (gate de 1,5 GiB) y `docker stats --no-stream` del contenedor de la imagen (K-09: frente a `--memory 1g`). No abras navegadores de más.
+   `dashboard.sh 5` lee del manifiesto que `decisions` terminó y pasó (no consulta el clúster); córrelo al terminar. **Espera (≈ 45 min).** Mientras tanto, en otra terminal y sin competir por memoria: `system-verification/docs/kind/memoria.sh durante` (gate de 1,5 GiB) y `docker stats --no-stream` del contenedor de la imagen (K-09: frente a `--memory 1g`). No abras navegadores de más.
 3. **Mide la memoria con 2 000 decisiones:** `system-verification/docs/kind/memoria.sh despues` (K-47: `case-service`, `case-worker`, el BFF y `product-metrics` frente a su request de 128 MiB).
 4. **El agregador:** el log del último Job del agregador con atraso 0 (`kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=registry-aggregator`) y, si ya corrió una pasada de bias, `observabilidad.sh consulta vectra_bias_last_run_ok` (K-46).
 5. **`rt5`, al terminar `decisions`** (lee el Job de F5 y la alerta; pasados más de 15 min del Job usa `query_range`):
@@ -482,7 +502,7 @@ Entradas: K-44 a K-47. Plantilla: `06-decisions-d4.md`. Duración: ≈ 45 min. D
 
 ## F7 D1 (`rt3`)
 
-Entradas: K-48 a K-52. Plantilla: `07-d1-rt3.md`. Duración: ≈ 50 min (≥ 19,3 min de espera, ≈ 21 min hasta la alerta, dos PR). Demo: D1 (`system-verification/demos/journey-7-3.md`). Puerta al final.
+Entradas: K-48 a K-52. Plantilla: `07-d1-rt3.md`. Duración: ≈ 50 min (12,4 a 19,3 min de espera hasta `no_disponible`, la alerta unos minutos después, dos PR). Demo: D1 (`system-verification/demos/journey-7-3.md`). Puerta al final.
 
 **Prerrequisitos.** F6 completa. Va **después** de `decisions`: F22 apagado deja **todos** los casos en fail-closed. Antes de D2: debe estar revertido y comprobado antes del lote. Los paquetes RT3-a, c y d en el model-store (K-24). El presentador con `analista-2` (o `cro-2`) en la consola, y las semillas en su teléfono (K-33).
 
@@ -496,15 +516,16 @@ Entradas: K-48 a K-52. Plantilla: `07-d1-rt3.md`. Duración: ≈ 50 min (≥ 19,
 2. **Opcional:** el paquete RT3-b, generado desde `reference-model/.out/proxy/run-5` y subido al model-store. Sin él, RT3-b sale `no ejecutado` y no baja RT-3.
 3. **`rt3`:**
    ```bash
-   vectra-verification rt3 --packages-dir reference-model/.out/adversarial/rt3
+   vectra-verification rt3
    ```
-   Registra RT3-a, c y d (422 de U4), envía 5 casos de sonda y espera la escalada. POR CONFIRMAR contra el README de U12-T05: la ruta de `--packages-dir` dentro de la imagen. **Espera (≥ 19,3 min hasta `no_disponible`; ≈ 21 min hasta la alerta).** Mientras tanto el presentador abre `ruta /casos` con `analista-2`: primero «En sincronización» y, pasados los 19,3 min, «No disponible». Tú, cada minuto:
+   Registra RT3-a, c y d (422 de U4), envía 5 casos de sonda y espera la escalada. Los paquetes los toma de `<entrega>/adversarial/rt3` (la ruta de `--delivery` que guardó `prepare`; `--packages-dir` solo si están en otro sitio). **Espera (12,4 a 19,3 min hasta `no_disponible`; la herramienta espera hasta 25 min; `FailClosedPersistente` llega a `firing` unos minutos después del primer caso en `no_disponible`: la herramienta la sondea hasta 5 min tras la escalada).** Mientras tanto el presentador abre `ruta /casos` con `analista-2`: primero «En sincronización» y, pasados entre 12,4 y 19,3 min, «No disponible». Tú, cada minuto:
    ```bash
-   system-verification/demos/verify/journey-7-3.sh 5
+   system-verification/demos/verify/journey-7-3.sh 2
+   system-verification/demos/verify/journey-7-3.sh 3
    system-verification/docs/kind/observabilidad.sh consulta 'vectra_cases_failclosed_persistent'
    system-verification/docs/kind/observabilidad.sh consulta 'ALERTS{alertname="FailClosedPersistente"}'
    ```
-   Anota qué `last_cause` dio F22 apagado (`timeout` o `explainer_unavailable`) y el tiempo medido (K-50). Con `journey-7-3.sh 2` y `journey-7-3.sh 3` compruebas el caso y la alerta.
+   Anota qué `last_cause` dio F22 apagado (`timeout` o `explainer_unavailable`) y el tiempo medido (K-50). `journey-7-3.sh 2` mira que el gauge de casos en fail-closed persistente suba a 1 o más y `journey-7-3.sh 3` que la alerta esté en `firing` (puede fallar hasta que pasen los minutos de espera). **Cuando `rt3` termine**, `system-verification/demos/verify/journey-7-3.sh 5` lee la evidencia que dejó (no antes: la escribe la herramienta al final).
 4. **PR de reversión.** Abre el PR `system-verification/demos/prs/f22-apagado/revertir.patch`, fusiónalo y sincroniza `network` con prune:
    ```bash operador
    argocd app sync network --prune && argocd app wait network --health --timeout 900
@@ -513,21 +534,20 @@ Entradas: K-48 a K-52. Plantilla: `07-d1-rt3.md`. Duración: ≈ 50 min (≥ 19,
    ```bash
    vectra-verification rt3 --closing
    system-verification/demos/verify/journey-7-3.sh 4
-   humo flujo --delivery /reference-model/.out
    ```
-   La alerta se apaga y un caso nuevo llega a `listo` (K-52). **Cuenta** cuántos `no_disponible` quedan en la bandeja: siguen activos en D2 y D4; el guion no los limpia y el sistema no los reactiva solo.
+   Vuelven los cinco recursos de red hacia el explainer y un caso de sonda **nuevo** recorre el flujo y llega a `listo` (K-52); el resultado del cierre queda en el manifiesto como `closing_rt3`, aparte del de `rt3`, y `journey-7-3.sh 4` lo lee de ahí (por eso va **después** de `rt3 --closing`, no antes). **`FailClosedPersistente` sigue en `firing`**: los casos de la primera sonda quedan en `no_disponible`, el reintento del CRO no existe de punta a punta (la vista está diferida) y nada los reactiva; no es un fallo de la reversión. **Cuenta** cuántos `no_disponible` quedan en la bandeja: siguen activos en D2 y D4 y no los afectan (ninguna demo lee ese gauge ni esa alerta). Después de **30 s** (ventana TOTP), `humo flujo --delivery /verification/reference-model/.out` confirma el flujo con otro caso.
 
 <!-- inventario:F7 -->
 | Id | Qué se mira | Cómo (solo lectura) | Demo |
 |---|---|---|---|
 | K-48 | RT3-a, c y d: 422 de U4 y serving-config sin cambio. RT3-b y 'a y d desplegados' se informan y pueden quedar no ejecutado | `vectra-verification rt3` | D1 |
 | K-49 | Con el PR de F22 fusionado y network sincronizada con prune, desaparecen los cinco recursos de F22; con la reversion, vuelven | `vectra-verification rt3`; `estado-final.sh` | D1 |
-| K-50 | Que last_cause da F22 apagado (timeout o explainer_unavailable); el caso pasa de en_sincronizacion a no_disponible en 19,3 min o mas; cero recommendation | `vectra-verification rt3`; `journey-7-3.sh` | D1 |
-| K-51 | vectra_cases_failclosed_persistent raspado y FailClosedPersistente en firing a los 21 min | `observabilidad.sh consulta vectra_cases_failclosed_persistent`; `observabilidad.sh consulta ALERTS{alertname="FailClosedPersistente"}` | D1 |
+| K-50 | Que last_cause da F22 apagado (timeout o explainer_unavailable); el caso pasa de en_sincronizacion a no_disponible entre 12,4 y 19,3 min; cero recommendation | `vectra-verification rt3`; `journey-7-3.sh` | D1 |
+| K-51 | vectra_cases_failclosed_persistent raspado y FailClosedPersistente en firing unos minutos despues del primer caso en no_disponible (la herramienta la sondea hasta 5 min tras la escalada) | `observabilidad.sh consulta vectra_cases_failclosed_persistent`; `observabilidad.sh consulta ALERTS{alertname="FailClosedPersistente"}` | D1 |
 | K-52 | La reversion devuelve el flujo a listo; cuantos casos no_disponible quedan y si la alerta sigue activa durante D2 y D4 | `humo flujo`; `estado-final.sh` | D1, D2 |
 <!-- /inventario:F7 -->
 
-**Puerta de F7.** Sigues solo si: RT3-a, c y d dieron 422, con F22 apagado hubo cero `recommendation` y los casos de sonda llegaron a `no_disponible`, la alerta se vio, y **tras la reversión** `humo flujo` vuelve a dar `listo`. RT3-b y «a y d desplegados» pueden salir `no ejecutado` (decisión del usuario: K16 no llega a `vectra-staging`). Síntomas: los cinco recursos no vuelven, `network` no se sincronizó con prune (U1); el caso no llega a `no_disponible`, el reintento de U8; D1 no se ensaya dos veces sin esperar a que la alerta se apague.
+**Puerta de F7.** Sigues solo si: RT3-a, c y d dieron 422, con F22 apagado hubo cero `recommendation` y los casos de sonda llegaron a `no_disponible`, la alerta se vio, y **tras la reversión** `closing_rt3` está en `pasa` (`journey-7-3.sh 4` sale 0) y `humo flujo` vuelve a dar `listo`; `FailClosedPersistente` sigue en `firing` y se anota. RT3-b y «a y d desplegados» pueden salir `no ejecutado` (decisión del usuario: K16 no llega a `vectra-staging`). Síntomas: los cinco recursos no vuelven, `network` no se sincronizó con prune (U1); el caso no llega a `no_disponible`, el reintento de U8; D1 no se ensaya dos veces sin esperar a que la alerta se apague.
 
 ## F8 D2 (`rt2-setup`, `rt2`)
 
@@ -535,18 +555,27 @@ Entradas: K-53 a K-61. Plantilla: `08-d2-rt2.md`. Duración: ≈ 3 h (más de 75
 
 **Prerrequisitos.** F7 completa, con F22 **revertido y comprobado**. **La máquina sin otra carga** (R-1): nada de `decisions`, de construir imágenes ni de navegadores de más. **Al menos 1,5 GiB disponibles:** `system-verification/docs/kind/memoria.sh durante` sale 0 (puerta de memoria, R-4). El modelo de referencia `activo`. `reference-model/.out/proxy/run-1` existe. El presentador con `cumplimiento-2` en la consola si usa el modo `presenter`; con el modo `tool`, la herramienta usa `cumplimiento-1`. Decide el modo antes de empezar y **ensaya el otro al menos una vez**.
 
-**Pasos** (los de `journey-7-4.md`):
+> **Advertencia 1: interrumpe `rt2` solo con Ctrl-C.** El guardado por fase de `rt2` llega una fase tarde (`CANDIDATAS.md`, «U12, `scenarios/rt2.py:1008-1011`», N-1 de la revisión de U12-T04). Con **Ctrl-C** la herramienta guarda lo hecho y, al volver a correr `rt2`, retoma sin repetir. Si el contenedor se detiene o se mata de otra forma (el comando de parada de Docker, `SIGKILL`, un reinicio de la máquina), **no**: al retomar **reenvía el lote de 1 500 solicitudes** (y la evidencia queda con dos lotes). Si el contenedor se cortó así, anótalo en la plantilla antes de volver a correr `rt2` y avisa: la evidencia trae dos lotes.
+>
+> **Advertencia 2: ten listo el cierre antes de que venza el plazo.** Al terminar sus fases, `rt2` **espera el cierre del paso 7** (`rollback-pr`, sync, pods `Ready`, `mark-active` del modelo de referencia) durante `--operator-timeout` (3 600 s por omisión) (`CANDIDATAS.md`, «U12, `cli.py:826` y `rt2._wait_closing`», N-2). Si el plazo vence, `closing_rt2` queda `no ejecutado` con `rt2` terminada y **no hay forma de retomar solo el cierre**: `rt2 --redo` empieza D2 desde cero. Antes de lanzar `rt2` deja preparados el PR de `rollback-pr` y la sesión de Argo CD; cuando `rt2` imprima que espera el cierre, el reloj corre. Si prevés tardar más, lanza `rt2` con `--operator-timeout` mayor.
 
-1. **PR `proxy-staging`** (`system-verification/demos/prs/proxy-staging/`, con el `model_version_id` de `reference-model/.out/proxy/run-1`); fusiónalo y sincroniza `model-serving`:
+**Pasos** (los de `journey-7-4.md`; la numeración de la guía no es la del guion):
+
+1. **PR `proxy-staging`.** El parche **no es fijo**: se genera sobre los values tal como estén (`system-verification/demos/prs/proxy-staging/README.md`) con `entrada.py`, solo con la biblioteca estándar y sin escribir nada; `<M2>` es el `model_version_id` de `reference-model/.out/proxy/run-1/manifest.json`:
+   ```bash
+   python3 system-verification/demos/prs/entrada.py --version <M2> --storage-uri "s3://model-store/<M2>/" > proxy.patch
+   ```
+   Aplícalo con `git apply`, abre el PR, fusiónalo y sincroniza `model-serving`:
    ```bash operador
    sync model-serving
    ```
 2. **`rt2-setup`** (`ingeniero-1` registra y valida la versión; `cro-1` la aprueba):
    ```bash
    vectra-verification rt2-setup
+   system-verification/demos/verify/journey-7-4.sh 5
    ```
-   **Espera (validación, hasta 30 min).** Mira `system-verification/docs/kind/memoria.sh durante` y `arranque.sh vectra-serving`.
-3. **Promoción** (`system-verification/demos/prs/promocion/README.md`): los PR de `promotion-tool` (`create-promotion-pr`, fusión, sync de `model-serving` con prune, `mark-active`); la invocación completa está en `governance/docs/paso-20-kind.md`, §5 y §6 (no se copia). Después de fusionar cada uno:
+   **Espera (validación, hasta 30 min).** Mira `system-verification/docs/kind/memoria.sh durante` y `arranque.sh vectra-serving`. `journey-7-4.sh 5` lee del manifiesto que `rt2-setup` pasó (la versión vive en governance y K16 no la lee).
+3. **Promoción de `<M2>`** (`system-verification/demos/prs/promocion/README.md`), en **este orden**: `promotion-tool create-promotion-pr <M2>`, fusión, sync de `model-serving` con prune; `promotion-tool mark-active <M2>` (governance deja a `<M1>`, el modelo de referencia, `inactivo`); `promotion-tool post-activation-pr <M1>`, fusión y sync (`<M1>` baja a 1 réplica). `post-activation-pr` solo vale **después** del `mark-active` de la versión nueva. La invocación completa está en `governance/docs/paso-20-kind.md`, §5.4 y §6 (no se copia). Después de fusionar cada PR:
    ```bash operador
    argocd app sync model-serving --prune && argocd app wait model-serving --health --timeout 900
    ```
@@ -555,7 +584,7 @@ Entradas: K-53 a K-61. Plantilla: `08-d2-rt2.md`. Duración: ≈ 3 h (más de 75
    ```bash
    vectra-verification rt2 --reactivation presenter
    ```
-   (o `--reactivation tool`; por omisión es `tool`). **Espera (más de 75 min).** Mira cada 15 min, mientras tanto:
+   (o `--reactivation tool`; por omisión es `tool`). **Interrúmpela solo con Ctrl-C** (advertencia 1). Al terminar las fases, `rt2` imprime qué falta y **espera el cierre del paso 7** (advertencia 2). **Espera (más de 75 min).** Mira cada 15 min, mientras tanto:
    ```bash
    system-verification/demos/verify/journey-7-4.sh 2
    kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=bias-monitoring-job --tail=50
@@ -565,11 +594,12 @@ Entradas: K-53 a K-61. Plantilla: `08-d2-rt2.md`. Duración: ≈ 3 h (más de 75
    Si el log trae 504 o `agregador_atrasado`: es **R-1**; anota la hora y la carga de la máquina, espera la siguiente corrida y, tras tres sin `freeze`, D2 queda `no ejecutado` y se avisa (decide el usuario). Si el **primer ensayo** da 504 de U3, se para.
 5. **El presentador** (`ruta /congelamientos` y `ruta /congelamientos/:freezeId`, con `cumplimiento-2`): muestra el paquete (antes, después, últimos 7 días, atributo, volumen afectado) y el texto «Modelo congelado». En modo `presenter` resuelve con «reactivar» en `ResolveFrozenDialog` (pide MFA, ventana emergente y `/stepup-callback`; `acr = mfa`). Vencido el plazo (`--reactivation-timeout`), `rt2` queda `no ejecutado` y se retoma volviendo a correrla.
 6. **Tras reactivar, no se recongela.** `no_recongela` espera **siempre 2 corridas** del cron (≈ 30 min más) y, si el reloj de U3 va 0,5 s o más por delante del de U9 (no ocurre en kind), una corrida de más (`CANDIDATAS.md`, líneas 744 y 747). **Espera (≈ 30 min).** Mira cada 15 min `observabilidad.sh consulta 'vectra_bias_last_run_ok'` y el log del Job de bias.
-7. **Cierre: rollback al modelo de referencia** (`rollback-pr`, fusión, sync de `model-serving` con prune) y `system-verification/demos/verify/journey-7-4.sh 3` y `journey-7-4.sh 4 isvc-<8 hex>`:
+7. **Cierre: rollback al modelo de referencia. Hazlo cuando `rt2` imprima que espera el cierre, dentro del plazo** (advertencia 2): `promotion-tool rollback-pr <M1>`, fusión, sync de `model-serving` con prune:
    ```bash operador
    argocd app sync model-serving --prune && argocd app wait model-serving --health --timeout 900
    ```
-8. **Retira staging:** el PR inverso de `proxy-staging` (y el de `rt3-staging`, si se hizo) y sincroniza `model-serving` con prune otra vez:
+   Espera a que los pods de `<M1>` estén `Ready` (`kubectl --context kind-vectra get inferenceservices,pods -n vectra-serving`) y, **después**, `promotion-tool mark-active <M1>` (governance deja a `<M2>` `inactivo`). `rt2` lo ve y termina. Entonces: `system-verification/demos/verify/journey-7-4.sh 3` y `journey-7-4.sh 4 isvc-<8 hex>`; el 4 lee `closing_rt2` del manifiesto (que governance tiene a `<M1>` `activo`), así que solo vale cuando `rt2` ya terminó.
+8. **Retira staging:** el PR inverso de `proxy-staging` (y el de `rt3-staging`, si se hizo) y, opcional, `promotion-tool post-activation-pr <M2>` (deja a `<M2>` sin 2 réplicas de más); sincroniza `model-serving` con prune otra vez:
    ```bash operador
    argocd app sync model-serving --prune && argocd app wait model-serving --health --timeout 900
    ```
@@ -589,7 +619,7 @@ Entradas: K-53 a K-61. Plantilla: `08-d2-rt2.md`. Duración: ≈ 3 h (más de 75
 | K-61 | Tras reactivar no se recongela; el barrido de U8 devuelve los modelo_congelado; el rollback deja el modelo de referencia activo; la duracion real frente a mas de 75 min | `vectra-verification rt2`; `estado-final.sh` | D2 |
 <!-- /inventario:F8 -->
 
-**Puerta de F8.** Sigues solo si: el proxy pasó `aprobado` y luego `activo`; el `freeze` trae su paquete completo y `rt2_latency` ≤ 1 800 s (una medición, DD-1); los casos nuevos quedaron en `modelo_congelado`; la reactivación se hizo en el modo elegido y el otro modo se ensayó al menos una vez; no se recongeló; el rollback dejó el modelo de referencia `activo`; cero 504 en el log del Job de bias. Síntomas: 504 o `agregador_atrasado` (U3, R-1); `OOMKilled` (R-4); `version_mismatch` en la promoción (U6 y U7); sin `freeze` tras 3 corridas, R-1.
+**Puerta de F8.** Sigues solo si: el proxy pasó `aprobado` y luego `activo`; el `freeze` trae su paquete completo y `rt2_latency` ≤ 1 800 s (una medición, DD-1); los casos nuevos quedaron en `modelo_congelado`; la reactivación se hizo en el modo elegido y el otro modo se ensayó al menos una vez; no se recongeló; el cierre se hizo dentro del plazo y `closing_rt2` quedó en `pasa` (`journey-7-4.sh 4` sale 0: el rollback dejó el modelo de referencia `activo`); cero 504 en el log del Job de bias. Síntomas: 504 o `agregador_atrasado` (U3, R-1); `OOMKilled` (R-4); `version_mismatch` en la promoción (U6 y U7); sin `freeze` tras 3 corridas, R-1.
 
 ## F9 D4 (día D + 1 UTC)
 
@@ -599,10 +629,11 @@ Entradas: K-62 y K-63. Plantilla: `09-d4-u11-y-grafana.md`. Duración: 15 min, t
 
 **Pasos.**
 
-1. **Grafana arriba:** `system-verification/demos/verify/dashboard.sh 2`.
-2. **`u11`** (las cuatro series de los paneles y `ProductMetricsStale`):
+1. **Grafana arriba:** `system-verification/demos/verify/dashboard.sh 1`.
+2. **`u11`** (las cuatro series de los paneles y `ProductMetricsStale`; `dashboard.sh 2` comprueba que las cuatro series tengan valor y `dashboard.sh 3` que la alerta no esté en `firing`):
    ```bash
    vectra-verification u11
+   system-verification/demos/verify/dashboard.sh 2
    system-verification/demos/verify/dashboard.sh 3
    ```
 3. **Grafana por `port-forward` con `grafana-admin`.** La credencial sale del Secret `grafana-admin` (lo llena ESO desde `grafana/admin`; `platform/observability/grafana/external-secrets.yaml`, líneas 31 a 36):

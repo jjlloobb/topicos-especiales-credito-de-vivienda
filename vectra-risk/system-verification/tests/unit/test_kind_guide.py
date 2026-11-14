@@ -8,7 +8,9 @@ La prueba de mundo cerrado **no** demuestra que la guia funcione en kind: demues
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
 from functools import cache
 from pathlib import Path
 
@@ -40,12 +42,10 @@ GENERATED = (
 )
 KUBE_PREFIXES = ("deploy/", "job/", "pod/", "svc/", "sa/", "statefulset/")
 NOT_REPO_PATHS = {"identity/synthetic-users", "grafana/admin", "secret/data"}
-# Lo que escribe U12-T05 y todavia no esta en esta rama: se acepta solo mientras no exista y la guia lleve la marca POR CONFIRMAR.
-PENDING_T05 = {"system-verification/README.md"}
 # Series que no emite este repositorio: las del propio Prometheus y las de cAdvisor (las nombra la guia para medir la retencion y la memoria).
 EXTERNAL_SERIES = {"prometheus_tsdb_lowest_timestamp_seconds", "container_memory_working_set_bytes"}
 TIMES = {
-    "journey-7-3.md": ("≥ 19,3 min", "≈ 21 min"),
+    "journey-7-3.md": ("12,4 a 19,3 min", "hasta 25 min", "5 min"),
     "journey-7-4.md": ("más de 75 min", "≈ 30 min"),
     "rt-5.md": ("5 min",),
     "dashboard.md": ("22:18 UTC", "23:00 UTC", "02:40 UTC"),
@@ -181,8 +181,8 @@ def closed_world_findings(text: str) -> list[str]:
             )
             if step not in steps:
                 found.append(f"{where}: {script} no tiene el paso {step}")
-        for pr in re.findall(r"demos/prs/([\w-]+)", line):
-            if not (kd.SYSTEM / "demos/prs" / pr).is_dir():
+        for pr in re.findall(r"demos/prs/([\w-]+(?:\.py)?)", line):
+            if not (kd.SYSTEM / "demos/prs" / pr).exists():
                 found.append(f"{where}: el PR preparado {pr} no existe en demos/prs")
         for span in re.findall(r"`([^`\n]+)`", line):
             if (
@@ -196,8 +196,6 @@ def closed_world_findings(text: str) -> list[str]:
                     or resolve(span.rstrip("/")) is not None
                 ):
                     continue
-                if span in PENDING_T05 and MARKER in text:
-                    continue  # lo escribe U12-T05; la guia lo marca POR CONFIRMAR
                 if (
                     re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}/[\w.-]+", span)
                     and "." in span.split("/")[0]
@@ -435,32 +433,151 @@ def test_the_guide_is_written_for_any_machine() -> None:
 # --- la coherencia -----------------------------------------------------------------------------------------------------------------------------------
 
 
-def docker_run_flags(text: str) -> set[str]:
-    """Las opciones (`--bandera`) del primer bloque con `docker run` o con la lista de opciones del `docker run`."""
-    for _, _, body in code_blocks(text):
-        if "docker run" in body or "VERIF_RUN=(" in body:
-            return set(re.findall(r"(?<![\w-])(--[a-z][a-z-]*)", body))
-    return set()
+def vv_block(text: str) -> str:
+    """El bloque de codigo que define la funcion `vv` (la orden `docker run` unica: la del README y la de la guia)."""
+    found = [body for _, _, body in code_blocks(text) if re.search(r"^\s*vv\(\) \{", body, re.M)]
+    assert len(found) == 1, "la funcion `vv` se define una sola vez"
+    return found[0]
 
 
-def test_coherence_the_docker_run_is_the_one_of_the_readme_or_says_it_is_pending() -> None:
-    """La orden `docker run` de la guia es la del README de la imagen (U12-T05). Mientras el README no exista, la guia lo dice con una marca que el orquestador concilia; cuando exista, la marca se retira y
-    cada opcion del `docker run` del README esta en la de la guia."""
-    if readme_exists():
-        assert MARKER not in GUIDE_TEXT, (
-            "el README ya existe: retira las marcas POR CONFIRMAR y concilia la orden docker run"
+def vv_function(text: str) -> str:
+    """Solo la funcion `vv`, de `vv() {` a su llave de cierre."""
+    match = re.search(r"^\s*vv\(\) \{.*?^\s*\}", vv_block(text), re.M | re.S)
+    assert match is not None
+    return match.group(0)
+
+
+def vv_tokens(block: str) -> set[str]:
+    """Lo que la orden fija: banderas largas, `-e VARIABLE`, el destino de cada montaje, `readonly` y el perfil seccomp (no las rutas de origen, que cambian de una maquina a otra)."""
+    tokens = set(re.findall(r"(?<![\w-])(--[a-z][a-z-]*)", block))
+    tokens |= {f"-e {name}" for name in re.findall(r"(?<![\w-])-e ([A-Z_]+)", block)}
+    tokens |= {f"target={target}" for target in re.findall(r"target=([\w/.-]+)", block)}
+    tokens |= {f"readonly:{target}" for target in re.findall(r"target=([\w/.-]+),readonly", block)}
+    tokens |= {"seccomp" for _ in re.findall(r"seccomp=\S*chrome\.json", block)}
+    return tokens
+
+
+def test_coherence_the_docker_run_is_the_one_of_the_readme() -> None:
+    """La orden `docker run` de la guia es la funcion `vv` del README de la imagen (U12-T05): cada bandera, cada variable, cada montaje (su destino y si es de solo lectura) y el perfil seccomp del README estan en la de la guia.
+    Las marcas «POR CONFIRMAR» ya no existen."""
+    assert readme_exists() and MARKER not in GUIDE_TEXT, (
+        "el README existe: la guia no lleva marcas POR CONFIRMAR"
+    )
+    readme, guide = (
+        vv_tokens(vv_function(README.read_text(encoding="utf-8"))),
+        vv_tokens(vv_function(GUIDE_TEXT)),
+    )
+    assert readme >= {
+        "--read-only",
+        "--tmpfs",
+        "--network",
+        "--user",
+        "--memory",
+        "--security-opt",
+        "-e VAULT_TOKEN",
+        "seccomp",
+    }
+    assert readme - guide == set(), (
+        f"la orden docker run de la guía no trae {sorted(readme - guide)} del README"
+    )
+    assert guide - readme <= {"--name", "--entrypoint"}, sorted(guide - readme)
+    assert "VAULT_TOKEN=" not in GUIDE_TEXT.replace("export VAULT_TOKEN=root", ""), (
+        "el token va como variable, no como valor ni archivo"
+    )
+    assert "no-sandbox" not in GUIDE_TEXT.replace("nunca desactiva el sandbox", "")
+
+
+def test_coherence_the_functions_of_the_guide_build_the_docker_command_of_the_readme(tmp_path: Path) -> None:
+    """Se corre el bloque real de la guia con un `docker` de mentira que escribe sus argumentos: `vv` y `humo` arman la orden del README (el punto de entrada de la imagen intacto en `vv`, `python` y el guion montado en `humo`),
+    la imagen va justo antes de los argumentos y `VV_EXTRA` no se filtra de `humo` a la orden siguiente."""
+    block = vv_block(GUIDE_TEXT)
+    functions = block[block.index("vv() {") :]
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "docker").write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DOCKER_OUT.$$"\n', encoding="utf-8")
+    (fake / "docker").chmod(0o755)
+    env = {
+        **os.environ,
+        "PATH": f"{fake}:{os.environ['PATH']}",
+        "DOCKER_OUT": str(tmp_path / "argv"),
+        "VERIF_HOME": "/h",
+        "EVID": "/e",
+        "VERIFICATION_IMAGE": "img@sha256:x",
+        "VAULT_ADDR": "http://127.0.0.1:8200",
+        "VAULT_TOKEN": "t",
+    }
+    script = f"{functions}\nvv prepare --commit abc\nhumo flujo --delivery /d\nvectra-verification report\n"
+    done = subprocess.run(
+        ["bash", "-c", script], env=env, capture_output=True, text=True, check=False, cwd=tmp_path
+    )
+    assert done.returncode == 0, done.stderr
+    runs = [
+        p.read_text(encoding="utf-8").split("\n")[:-1]
+        for p in sorted(tmp_path.glob("argv.*"), key=lambda p: p.stat().st_mtime_ns)
+    ]
+    assert len(runs) == 3
+    prepare, humo, report = runs
+    flags = vv_tokens(vv_block(README.read_text(encoding="utf-8")))
+    for argv in runs:
+        assert (
+            argv[0] == "run"
+            and "--rm" in argv
+            and "--read-only" in argv
+            and "--network" in argv
+            and argv[argv.index("--network") + 1] == "host"
         )
-        missing = docker_run_flags(README.read_text(encoding="utf-8")) - docker_run_flags(GUIDE_TEXT)
-        assert missing == set(), f"la orden docker run de la guía no trae {sorted(missing)} del README"
-    else:
-        assert GUIDE_TEXT.count(MARKER) >= 3
-        flags = docker_run_flags(GUIDE_TEXT)
-        for flag in ("--read-only", "--tmpfs", "--network", "--user", "--security-opt", "--memory"):
-            assert flag in flags, flag
-        assert "-e VAULT_TOKEN" in GUIDE_TEXT and "VAULT_TOKEN=" not in GUIDE_TEXT.replace(
-            "export VAULT_TOKEN=root", ""
-        ), "el token de la bóveda va como variable, no como valor ni archivo"
-        assert "no-sandbox" not in GUIDE_TEXT.replace("nunca desactiva el sandbox", "")
+        assert argv[argv.index("--memory") + 1] == "1g" and any(
+            a.startswith("seccomp=") and a.endswith("chrome.json") for a in argv
+        )
+        assert argv.count("VAULT_TOKEN") == 1 and "VAULT_TOKEN=t" not in argv and "t" not in argv, (
+            "el token va como variable, sin valor"
+        )
+        assert {f"target={a.split('target=')[1].split(',')[0]}" for a in argv if "target=" in a} >= {
+            f for f in flags if f.startswith("target=")
+        }
+    assert prepare[prepare.index("img@sha256:x") :] == ["img@sha256:x", "prepare", "--commit", "abc"]
+    assert "--entrypoint" not in prepare and "--entrypoint" not in report
+    assert report[report.index("img@sha256:x") :] == ["img@sha256:x", "report"]
+    at = humo.index("img@sha256:x")
+    assert humo[at:] == ["img@sha256:x", "/humo.py", "flujo", "--delivery", "/d"]
+    assert humo[humo.index("--entrypoint") + 1] == "python" and any(
+        a.endswith("target=/humo.py,readonly") for a in humo
+    )
+
+
+def test_coherence_the_known_limits_of_the_tool_are_warned_where_the_operator_meets_them() -> None:
+    """Los dos defectos conocidos de D2 (N-1 y N-2 de la revision de U12-T04, en `CANDIDATAS.md`) se advierten en la fase de D2 como avisos visibles, y los demas limites de la herramienta y de la imagen, en su fase."""
+    f8 = section(GUIDE_TEXT, "F8")
+    first, second = (re.search(rf"> \*\*Advertencia {n}[^\n]*(?:\n>[^\n]*)*", f8) for n in (1, 2))
+    assert first is not None and second is not None, "D2: faltan los avisos visibles (blockquote) 1 y 2"
+    assert all(
+        word in first.group(0)
+        for word in ("Ctrl-C", "comando de parada de Docker", "SIGKILL", "reenvía el lote")
+    ), first.group(0)
+    assert all(
+        word in second.group(0)
+        for word in ("--operator-timeout", "3 600 s", "no hay forma de retomar solo el cierre")
+    ), second.group(0)
+    assert f8.index("Advertencia 1") < f8.index("**Pasos")
+    assert "Interrúmpela solo con Ctrl-C" in f8 and "dentro del plazo" in f8
+    f0 = section(GUIDE_TEXT, "F0")
+    for needle in (
+        "Solo Linux",
+        "`--network host`",
+        "cópiala allí",
+        "`--memory 1g` no está medido",
+        "containers-common",
+        "La ventana TOTP no se comparte entre procesos",
+        "30 s",
+    ):
+        assert needle in f0, needle
+    f6 = section(GUIDE_TEXT, "F6")
+    assert "no cuenta la espera" in f6 and "1 800 s" in f6, (
+        "F6: la estimacion de `decisions` no cuenta la espera a `listo`"
+    )
+    assert "sigue en `firing`" in section(
+        GUIDE_TEXT, "F7"
+    ) or "**`FailClosedPersistente` sigue en `firing`**" in section(GUIDE_TEXT, "F7")
 
 
 def test_coherence_the_eight_sections_appear_in_the_order_of_the_cli_and_no_deferred_one_is_run() -> None:
@@ -498,10 +615,15 @@ def test_coherence_the_verifies_are_invoked_as_u12_t04_defined_them() -> None:
         )
         for name in ("journey-7-3", "journey-7-4", "rt-5", "dashboard")
     }
-    used = re.findall(r"demos/verify/((?:journey-7-3|journey-7-4|rt-5|dashboard))\.sh (\d+)", GUIDE_TEXT)
+    used = re.findall(r"(?<![\w-])((?:journey-7-3|journey-7-4|rt-5|dashboard))\.sh (\d+)", GUIDE_TEXT)
     assert used and all(step in steps[name] for name, step in used)
     for name in steps:  # cada verify se usa en alguna fase
         assert any(u == name for u, _ in used), name
+    for (
+        name,
+        numbers,
+    ) in steps.items():  # y cada paso de cada verify (D4: `dashboard.sh 1` es Grafana, `2` las series, `3` la alerta, `4` la evidencia y `5` que `decisions` paso)
+        assert {step for u, step in used if u == name} == numbers, (name, sorted(numbers))
 
 
 def test_coherence_the_times_are_the_ones_of_the_demo_scripts() -> None:

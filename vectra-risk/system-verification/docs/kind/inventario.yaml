@@ -401,14 +401,14 @@ entradas:
     demo: [D1]
   - id: K-50
     fase: F7
-    que: "Que last_cause da F22 apagado (timeout o explainer_unavailable); el caso pasa de en_sincronizacion a no_disponible en 19,3 min o mas; cero recommendation"
+    que: "Que last_cause da F22 apagado (timeout o explainer_unavailable); el caso pasa de en_sincronizacion a no_disponible entre 12,4 y 19,3 min; cero recommendation"
     fuentes: ["T05:374", "T04:167", "ENM:382"]
     comprobacion: ["seccion:rt3", "verify:journey-7-3.sh"]
     plantilla: 07-d1-rt3.md
     demo: [D1]
   - id: K-51
     fase: F7
-    que: "vectra_cases_failclosed_persistent raspado y FailClosedPersistente en firing a los 21 min"
+    que: "vectra_cases_failclosed_persistent raspado y FailClosedPersistente en firing unos minutos despues del primer caso en no_disponible (la herramienta la sondea hasta 5 min tras la escalada)"
     fuentes: ["C-U8:75", "T04:143", "T04:167"]
     comprobacion: ["guion:observabilidad.sh consulta vectra_cases_failclosed_persistent", "guion:observabilidad.sh consulta ALERTS{alertname=\"FailClosedPersistente\"}"]
     plantilla: 07-d1-rt3.md
