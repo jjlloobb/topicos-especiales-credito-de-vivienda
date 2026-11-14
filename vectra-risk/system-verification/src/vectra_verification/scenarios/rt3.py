@@ -61,6 +61,8 @@ PROBES: Final = 5
 POLL: Final = 15.0
 ATTEMPTS_TIMEOUT: Final = 900.0
 ESCALATION_TIMEOUT: Final = 1500.0  # no_disponible tras 12,4 a 19,3 min (backoff de U8): mas el margen
+ALERT_TIMEOUT: Final = 300.0  # F-05: tras ver la escalada, el gauge (30 s), el raspado y el `for: 1m` de la alerta pueden tardar unos minutos mas
+ALERT_POLL: Final = 30.0
 DEPLOYED_TIMEOUT: Final = 300.0
 VALIDATION_TIMEOUT: Final = 1800.0
 OPERATOR_TIMEOUT: Final = 3600.0
@@ -88,6 +90,7 @@ class Rt3Params:
     wait_for_escalation: bool = False
     attempts_timeout: float = ATTEMPTS_TIMEOUT
     escalation_timeout: float = ESCALATION_TIMEOUT
+    alert_timeout: float = ALERT_TIMEOUT
     deployed_timeout: float = DEPLOYED_TIMEOUT
     operator_timeout: float = OPERATOR_TIMEOUT
 
@@ -415,6 +418,18 @@ class Rt3Run:
             return None, "rt3_k8s_no_responde"
         return waited.met, None
 
+    def informative_until_alert(self, timeout: float) -> dict[str, Any]:
+        """F-05: `FailClosedPersistente` necesita el gauge (cada 30 s), el raspado y su `for: 1m` despues del **primer** caso escalado: se lee cada 30 s hasta `timeout` (reloj inyectado) en vez de una vez."""
+        if self.d.prom is None:
+            return self.informative()
+
+        def firing() -> tuple[bool, dict[str, Any]]:
+            reading = self.informative()
+            return reading.get("failclosed_persistent_alert_firing") is True, reading
+
+        waited = poll(self.d.clock, firing, interval=ALERT_POLL, timeout=timeout)
+        return {**waited.value, "alert_waited_seconds": waited.elapsed}
+
     def informative(self) -> dict[str, Any]:
         """Lecturas de `journey-7-3` (U12-T04): el gauge y la alerta `FailClosedPersistente`; no cambian el resultado de RT-3."""
         if self.d.prom is None:
@@ -578,7 +593,9 @@ def _rt3_steps(
                     timeout=params.escalation_timeout,
                 )
                 readings["escalated_to_no_disponible"] = escalated.met
-                readings.update(run.informative())
+                readings.update(
+                    run.informative_until_alert(params.alert_timeout) if escalated.met else run.informative()
+                )
     except ApiError as error:
         result, code = _api_failure(error, "rt3")
         subs.append(SubOutcome("F22", result, (code,), str(error), True))

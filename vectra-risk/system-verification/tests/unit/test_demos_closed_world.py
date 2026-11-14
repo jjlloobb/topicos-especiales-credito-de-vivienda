@@ -132,6 +132,21 @@ def alert_names() -> set[str]:
     return set(re.findall(r"alert:\s*([A-Za-z]+)", corpus()))
 
 
+def job_prefixes() -> set[str]:
+    """Los nombres de Job de prueba que el chart de case-management declara: `printf "rt5-demo-%s" $runId`."""
+    return set(
+        re.findall(r'printf "(rt5-[a-z]+)-%s"', _read("case-management/chart/templates/rt5-demo-job.yaml"))
+    )
+
+
+def promotion_commands() -> set[str]:
+    return set(
+        re.findall(
+            r'sub\.add_parser\("([a-z-]+)"\)', _read("governance/promotion_tool/vectra_promotion/cli.py")
+        )
+    )
+
+
 def values_keys() -> set[str]:
     """Las claves de values que el repositorio declara: las referenciadas como `.Values.a.b` y las de primer nivel de los values y de `flows.yaml`."""
     keys = {m.replace(".Values.", "") for m in re.findall(r"\.Values\.[A-Za-z0-9_.]+", corpus())}
@@ -237,6 +252,16 @@ def check_markdown(path: Path, name: str) -> list[Violation]:
                             bad(f"opcion que la seccion {words[0]} no tiene: {option}")
             elif tick.startswith("--") and tick.split()[0].rstrip(",") not in all_options | {"--help"}:
                 bad(f"opcion de la CLI que no existe: {tick.split()[0]}")
+        for prefix in re.findall(r"(rt5-[a-z]+)-<runId>", line):
+            if prefix not in job_prefixes():
+                bad(
+                    f"Job de prueba que el chart no declara: {prefix}-<runId> (el chart trae {sorted(job_prefixes())})"
+                )
+        for tick in _ticks(line):
+            if tick.startswith("promotion-tool "):
+                words = tick.split()
+                if len(words) < 2 or words[1] not in promotion_commands():
+                    bad(f"subcomando que promotion-tool no tiene: {words[1] if len(words) > 1 else ''}")
         for title in re.findall(r"[Dd]ashboard `([^`]+)`", line):
             if title not in boards:
                 bad(f"dashboard que ni product.json ni operacion.json tienen: {title}")
@@ -274,6 +299,70 @@ def check_markdown(path: Path, name: str) -> list[Violation]:
     return out
 
 
+# El orden de los pasos (F-03 y AMARILLO de la ronda 1): la primera aparicion de cada ancla en el guion, por (linea, columna). Una regla (a, b) se aplica solo si el guion nombra las dos.
+ANCHORS = {
+    "prepare": r"vectra-verification prepare",
+    "pr-runid": r"rt5-run-id",
+    "rt5": r"vectra-verification rt5(?![-\w])",
+    "decisions": r"vectra-verification decisions",
+    "u11": r"vectra-verification u11",
+    "apagar": r"apagar\.patch",
+    "rt3": r"vectra-verification rt3(?![-\w])(?! --closing)",
+    "revertir": r"revertir\.patch",
+    "rt3-closing": r"vectra-verification rt3 --closing",
+    "pr-proxy": r"Arma el PR `proxy-staging`",
+    "rt2-setup": r"vectra-verification rt2-setup",
+    "create": r"promotion-tool create-promotion-pr",
+    "mark": r"promotion-tool mark-active",
+    "post": r"promotion-tool post-activation-pr",
+    "rt2": r"vectra-verification rt2(?![-\w])",
+    "rollback": r"promotion-tool rollback-pr",
+}
+ORDER = [
+    ("prepare", "pr-runid"),
+    ("pr-runid", "rt5"),
+    ("prepare", "rt5"),
+    ("prepare", "decisions"),
+    ("decisions", "u11"),
+    ("apagar", "rt3"),
+    ("rt3", "revertir"),
+    ("revertir", "rt3-closing"),
+    ("pr-proxy", "rt2-setup"),
+    ("rt2-setup", "rt2"),
+    ("decisions", "rt2"),
+    ("create", "mark"),
+    ("mark", "post"),
+    ("post", "rt2"),
+    ("rt2", "rollback"),
+    ("post", "rollback"),
+]
+
+
+def check_order(path: Path, name: str) -> list[Violation]:
+    first: dict[str, tuple[int, int]] = {}
+    lines = path.read_text(encoding="utf-8").split("\n")
+    for number, line in enumerate(lines, start=1):
+        for anchor, pattern in ANCHORS.items():
+            found = re.search(pattern, line)
+            if found and anchor not in first:
+                first[anchor] = (number, found.start())
+    out = [
+        Violation(name, first[after][0], f"`{after}` aparece antes que `{before}` y debe ir despues")
+        for before, after in ORDER
+        if before in first and after in first and first[after] <= first[before]
+    ]
+    for number, line in enumerate(
+        lines, start=1
+    ):  # dentro de un mismo paso: el rollback va antes que el mark-active de la referencia
+        rollback, mark = re.search(ANCHORS["rollback"], line), list(re.finditer(ANCHORS["mark"], line))
+        if rollback and mark and not any(m.start() > rollback.start() for m in mark):
+            out.append(Violation(name, number, "el mark-active va despues del rollback-pr"))
+    steps = [int(m.group(1)) for line in lines if (m := STEP_ROW.match(line))]
+    if steps != list(range(1, len(steps) + 1)):
+        out.append(Violation(name, 1, f"los pasos no estan numerados 1..N en orden: {steps}"))
+    return out
+
+
 def DEMOS_DIR_OF(path: Path) -> Path:  # noqa: N802
     return path.parent
 
@@ -295,6 +384,9 @@ def check_verify(path: Path, name: str) -> list[Violation]:
         for token in NAMESPACE.findall(line):
             if token not in users and token not in NOT_NAMESPACES:
                 out.append(Violation(name, number, f"namespace que no esta en flows.yaml: {token}"))
+        for prefix in re.findall(r"(rt5-[a-z]+)-[$\"]", line):
+            if prefix not in job_prefixes():
+                out.append(Violation(name, number, f"Job de prueba que el chart no declara: {prefix}"))
         for alert in re.findall(r'alertname="([A-Za-z]+)"', line):
             if alert not in alert_names():
                 out.append(Violation(name, number, f"alerta que ninguna regla define: {alert}"))
@@ -307,7 +399,7 @@ def check_verify(path: Path, name: str) -> list[Violation]:
 def check(demos: Path) -> list[Violation]:
     found: list[Violation] = []
     for path in sorted(demos.glob("*.md")):
-        found += check_markdown(path, f"{path.name}")
+        found += check_markdown(path, f"{path.name}") + check_order(path, f"{path.name}")
     for path in sorted((demos / "verify").glob("*.sh")):
         found += check_verify(path, f"verify/{path.name}")
     for path in sorted((demos / "prs").rglob("*.patch*")):
@@ -397,6 +489,67 @@ def test_red_each_mutation_of_a_script_fails_naming_the_file_and_the_line(
     ]
 
 
+def swapped(text: str, first: str, second: str) -> str:
+    """El texto con la linea que contiene `first` y la que contiene `second` intercambiadas."""
+    lines = text.split("\n")
+    i, j = (next(n for n, line in enumerate(lines) if marker in line) for marker in (first, second))
+    lines[i], lines[j] = lines[j], lines[i]
+    return "\n".join(lines)
+
+
+@pytest.mark.parametrize(
+    ("file", "first", "second", "expected"),
+    [
+        ("journey-7-4.md", "vectra-verification rt2-setup", "vectra-verification rt2 --reactivation", "rt2"),
+        ("journey-7-4.md", "Arma el PR `proxy-staging`", "vectra-verification rt2-setup", "rt2-setup"),
+        ("journey-7-4.md", "Promueve `<M2>`", "vectra-verification rt2 --reactivation", "rt2"),
+        ("journey-7-4.md", "vectra-verification rt2 --reactivation", "Mientras `rt2` verifica", "rollback"),
+        ("rt-5.md", "Abre el PR `rt5-run-id`", "Corre `vectra-verification rt5`", "rt5"),
+        ("dashboard.md", "corre `vectra-verification decisions`", "corre `vectra-verification u11`", "u11"),
+        ("journey-7-3.md", "apagar.patch", "rt3 --packages-dir", "rt3"),
+        ("journey-7-3.md", "revertir.patch", "rt3 --packages-dir", "rt3"),
+    ],
+)
+def test_red_steps_in_an_impossible_order_fail_naming_the_file_and_the_line(
+    tmp_path: Path, file: str, first: str, second: str, expected: str
+) -> None:
+    """AMARILLO de la ronda 1: la prueba de mundo cerrado ve el orden de las secciones y de los PR de cada guion."""
+    demos = copy_of(tmp_path)
+    path = demos / file
+    path.write_text(swapped(path.read_text(encoding="utf-8"), first, second), encoding="utf-8")
+    found = check(demos)
+    assert any(v.file == file and v.line > 0 and expected in v.message for v in found), [
+        str(v) for v in found
+    ]
+
+
+@pytest.mark.parametrize(
+    ("file", "old", "new", "expected"),
+    [
+        ("rt-5.md", "Job `rt5-demo-<runId>`", "Job `rt5-probe-<runId>`", "rt5-probe"),
+        (
+            "journey-7-4.md",
+            "`promotion-tool post-activation-pr <M1>`",
+            "`promotion-tool post-activate-pr <M1>`",
+            "post-activate-pr",
+        ),
+        (
+            "journey-7-4.md",
+            "`promotion-tool rollback-pr <M1>`, fusión, sync de la Application `model-serving` en Argo CD, espera a que los pods de `<M1>` estén `Ready` y, **después**, `promotion-tool mark-active <M1>`",
+            "`promotion-tool mark-active <M1>`, y **después** `promotion-tool rollback-pr <M1>`",
+            "mark-active va despues",
+        ),
+    ],
+)
+def test_red_a_job_name_outside_the_chart_or_a_command_of_promotion_tool_that_does_not_exist_fails(
+    tmp_path: Path, file: str, old: str, new: str, expected: str
+) -> None:
+    found = mutate(tmp_path, file, old, new)
+    assert any(v.file == file and v.line > 0 and expected in v.message for v in found), [
+        str(v) for v in found
+    ]
+
+
 def test_red_a_deleted_source_makes_the_script_fail(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: D103
     """Si se borra la fuente (una ruta de `routes.ts`), el guion falla: la prueba no tiene su propia lista de permitidos."""
     original = routes()
@@ -432,6 +585,22 @@ def test_the_scripts_carry_the_phrases_and_times_the_task_requires() -> None:
         text = (DEMOS / file).read_text(encoding="utf-8")
         assert all(n in text for n in needles), file
     assert "no se abre" in journey and "/fallos" not in (DEMOS / "journey-7-3.md").read_text(encoding="utf-8")
+
+
+def test_d1_says_what_happens_when_f22_is_reverted_and_d2_follows_the_sequence_of_promotion_tool() -> None:
+    """F-01 y F-03 (ronda 2): la alerta NO se apaga al revertir F22 (los casos de la sonda siguen en `no_disponible`); y D2 trae `post-activation-pr`, `rollback-pr` y `mark-active` de la referencia."""
+    d1 = (DEMOS / "journey-7-3.md").read_text(encoding="utf-8")
+    row = next(line for line in d1.split("\n") if line.startswith("| 6 |"))
+    assert "**sigue en `firing`**" in row and "se apaga" not in row and "closing_rt3" in row
+    assert "reintento del CRO" in d1 and "No afectan a D2, D3 ni D4" in d1
+    verify = (DEMOS / "verify" / "journey-7-3.sh").read_text(encoding="utf-8")
+    assert "closing_rt3" in verify and "se apago" not in verify
+    d2 = (DEMOS / "journey-7-4.md").read_text(encoding="utf-8")
+    for command in ("create-promotion-pr", "post-activation-pr", "rollback-pr", "mark-active"):
+        assert f"`promotion-tool {command} <M" in d2, command
+    assert "espera el cierre" in d2 and "closing_rt2" in d2
+    verify = (DEMOS / "verify" / "journey-7-4.sh").read_text(encoding="utf-8")
+    assert "closing_rt2" in verify and "esta activo" in verify
 
 
 def test_every_step_of_every_verify_is_named_by_its_script() -> None:
@@ -579,6 +748,11 @@ def evidence(result: str) -> str:
     return json.dumps({"evidence": {"result": result}})
 
 
+def closing_manifest(section: str, result: str, **more: object) -> str:
+    """El `manifest.json` con el cierre que la CLI registra aparte (`closing_rt3`, `closing_rt2`)."""
+    return json.dumps({"run_id": "20261113-1000", f"closing_{section}": {"result": result, **more}})
+
+
 @pytest.mark.parametrize(
     ("script", "step", "ok_state", "bad_state", "files"),
     [
@@ -600,9 +774,9 @@ def evidence(result: str) -> str:
         (
             "journey-7-3.sh",
             "4",
-            {"pods": PROM_POD, "prom": {GAUGE: [0]}},
-            {"pods": PROM_POD, "prom": {FAIL_ALERT: [1]}},
             {},
+            {},
+            {"manifest.json": closing_manifest("rt3", "pasa")},
         ),
         ("rt-5.sh", "1", {"jobs": {"rt5-demo-20261113-1000": {}}}, {"jobs": {}}, {"manifest.json": MANIFEST}),
         (
@@ -673,11 +847,13 @@ def test_each_verify_gives_0_for_the_expected_state_and_1_for_another_with_the_d
 ) -> None:
     code, text, calls = run_verify(tmp_path / "ok", script, step, state=ok_state, files=files)
     assert code == 0, text
-    if script.startswith(("journey-7-3", "rt-5", "dashboard")) and step in {"4", "6"} and not ok_state:
+    if script.startswith(("rt-5", "dashboard")) and step in {"6", "4"} and not ok_state:
         return
     other = dict(files)
     for name in [n for n in other if n.endswith(".json") and n != "manifest.json"]:
         other[name] = evidence("falla")
+    if script == "journey-7-3.sh" and step == "4":
+        other["manifest.json"] = closing_manifest("rt3", "no ejecutado")
     code, text, _ = run_verify(tmp_path / "bad", script, step, state=bad_state, files=other)
     assert code == 1, text
     assert all(
@@ -731,7 +907,56 @@ def test_verify_the_isvc_steps_and_the_job_log_and_the_dashboard_series(tmp_path
         )[0]
         == 1
     )
-    assert run_verify(tmp_path / "c", "journey-7-4.sh", "4", "isvc-26300247", state=ready)[0] == 0
+    closed = {"manifest.json": closing_manifest("rt2", "pasa")}
+    assert (
+        run_verify(tmp_path / "c", "journey-7-4.sh", "4", "isvc-26300247", state=ready, files=closed)[0] == 0
+    )
+    # F-03: el InferenceService listo no basta; la referencia tiene que estar `activo` en governance (lo que `rt2` vio al cerrar)
+    for index, closing in enumerate(("no ejecutado", "falla")):
+        other = {"manifest.json": closing_manifest("rt2", closing)}
+        done = run_verify(
+            tmp_path / f"c{index}", "journey-7-4.sh", "4", "isvc-26300247", state=ready, files=other
+        )
+        assert done[0] == 1 and "no esta activo" in done[1], done
+    assert (
+        run_verify(
+            tmp_path / "c2",
+            "journey-7-4.sh",
+            "4",
+            "isvc-26300247",
+            state=ready,
+            files={"manifest.json": MANIFEST},
+        )[0]
+        == 2
+    )
+    assert (
+        run_verify(
+            tmp_path / "c3",
+            "journey-7-4.sh",
+            "4",
+            "isvc-26300247",
+            state={"isvc": {"isvc-26300247": "False"}},
+            files=closed,
+        )[0]
+        == 1
+    )
+
+    def section(result: str) -> str:
+        return json.dumps({"sections": {"rt2-setup": {"result": result}, "decisions": {"result": result}}})
+
+    assert (
+        run_verify(tmp_path / "s1", "journey-7-4.sh", "5", files={"manifest.json": section("pasa")})[0] == 0
+    )
+    assert (
+        run_verify(tmp_path / "s2", "journey-7-4.sh", "5", files={"manifest.json": section("no ejecutado")})[
+            0
+        ]
+        == 1
+    )
+    assert run_verify(tmp_path / "s3", "journey-7-4.sh", "5", files={"manifest.json": MANIFEST})[0] == 2
+    assert run_verify(tmp_path / "s4", "dashboard.sh", "5", files={"manifest.json": section("pasa")})[0] == 0
+    assert run_verify(tmp_path / "s5", "dashboard.sh", "5", files={"manifest.json": section("falla")})[0] == 1
+    assert run_verify(tmp_path / "s6", "dashboard.sh", "5", files={"manifest.json": MANIFEST})[0] == 2
     assert run_verify(tmp_path / "d", "journey-7-4.sh", "1")[0] == 2
     job = {"pods": {"vectra-app|job-name=rt5-demo-20261113-1000": ["rt5-demo-x"]}, "jobs": {}}
     proxy = "rt5-demo: POST http://core -> 403 l5d-proxy-error: unauthorized\n"
