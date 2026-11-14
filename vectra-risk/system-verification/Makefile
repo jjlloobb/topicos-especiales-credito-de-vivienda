@@ -26,8 +26,9 @@ test:
 		--cov=vectra_verification.report --cov=vectra_verification.sampler --cov-branch --cov-fail-under=100 --cov-report=term-missing
 
 # U12-T04 (Paso 12): los `verify` de las demos pasan por shellcheck (`shellcheck-py`; sin red si ya esta en la cache de `uv`) y los enlaces de los Markdown de la raiz (guiones, `cli.md`) se comprueban con la prueba de enlaces de U1.
+# U12-T06: `shellcheck` y `links` alcanzan tambien `docs/` (los guiones de lectura de `docs/kind/` y la guia `docs/paso-18-kind.md`; `test_links.py` recorre todos los Markdown de `vectra-risk/`).
 shellcheck:
-	cd $(ROOT) && uvx --from shellcheck-py shellcheck system-verification/demos/verify/*.sh
+	cd $(ROOT) && uvx --from shellcheck-py shellcheck system-verification/demos/verify/*.sh system-verification/docs/kind/*.sh
 
 links:
 	$(UV) python platform/tests/test_links.py
