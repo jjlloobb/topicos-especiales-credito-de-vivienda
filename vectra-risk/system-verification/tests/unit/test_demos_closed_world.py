@@ -1063,7 +1063,9 @@ def test_readme_run_command_has_every_option_and_the_test_of_the_image_uses_the_
         target = re.search(r"target=(\S+?)(?:,|$)", mount)
         assert target is not None, mount
         writable = target.group(1) == "/verification/evidence"
-        assert mount.rstrip("\\ ").endswith(",readonly") != writable, f"el montaje {target.group(1)} {'debe ser escribible' if writable else 'debe ser de solo lectura'}: {mount}"
+        assert mount.rstrip("\\ ").endswith(",readonly") != writable, (
+            f"el montaje {target.group(1)} {'debe ser escribible' if writable else 'debe ser de solo lectura'}: {mount}"
+        )
     assert {re.search(r"target=(\S+?)(?:,|$)", m).group(1) for m in mounts} >= {  # type: ignore[union-attr]
         "/kube/config", "/certs/ca.pem", "/verification/evidence", "/values/case-management.yaml", "/verification/reference-model/.out",
     }  # fmt: skip
@@ -1148,6 +1150,14 @@ def test_readme_has_the_prerequisites_the_memory_of_kind_and_the_network_limits(
     text = _readme()
     for phrase in (
         "K16",
+        "kind-vectra",
+        "KUBE_CONTEXT",
+        "`make`, `python3` y `git`",
+        "Docker Desktop",
+        "Ctrl-C",
+        "docker save",
+        "image/apt.lock",
+        "puede **fallar**",
         "AAAAMMDD-HHMM",
         "camino a la bóveda",
         "CASE_ALLOW_TEST_SCENARIOS",

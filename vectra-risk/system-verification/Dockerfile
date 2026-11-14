@@ -46,8 +46,11 @@ RUN pip install --no-cache-dir --require-hashes --no-deps --prefix=/install -r /
 COPY contracts/python/vectra_contracts /src/vectra_contracts
 COPY system-verification/pyproject.toml /opt/system-verification/pyproject.toml
 COPY system-verification/src /opt/system-verification/src
-RUN pip install --no-cache-dir --no-deps --prefix=/install /src/vectra_contracts \
-    && pip install --no-cache-dir --no-deps --prefix=/install -e /opt/system-verification
+COPY system-verification/image/build-requirements.txt /build-requirements.txt
+# `hatchling` y sus dependencias, con version y hash, en la etapa de construccion (no van a la imagen final: solo se copia /install); los paquetes se construyen sin aislamiento, con lo ya instalado.
+RUN pip install --no-cache-dir --require-hashes --no-deps -r /build-requirements.txt \
+    && pip install --no-cache-dir --no-deps --no-build-isolation --prefix=/install /src/vectra_contracts \
+    && pip install --no-cache-dir --no-deps --no-build-isolation --prefix=/install -e /opt/system-verification
 
 FROM docker.io/library/python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159
 ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \

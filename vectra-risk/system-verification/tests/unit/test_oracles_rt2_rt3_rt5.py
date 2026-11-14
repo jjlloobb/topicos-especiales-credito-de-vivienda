@@ -965,13 +965,23 @@ def test_rt2_the_state_saved_after_a_phase_already_marks_the_phase_as_done_so_a_
         saved.append((set(copy.deepcopy(state.versions[PROXY].done)), len(world.simulator.runs)))
 
     deps = Rt2Deps(
-        KIND, world.clock, world.sessions, world.simulator, world.registry, world.prom, None, checkpoint=checkpoint
+        KIND,
+        world.clock,
+        world.sessions,
+        world.simulator,
+        world.registry,
+        world.prom,
+        None,
+        checkpoint=checkpoint,
     )  # type: ignore[arg-type]
     rt2.run_rt2(deps, Rt2Params(REFERENCE, [rt2.ProxyVersion(1, PROXY)], 7))
     passed = len(saved)
     assert passed >= 3
     for index, (done, _runs) in enumerate(saved[:passed]):
-        assert len(done) == index + 1, (index, done)  # tras cada fase, el archivo guardado ya la trae como hecha (`celdas`, `promocion`, `lote`...)
+        assert len(done) == index + 1, (
+            index,
+            done,
+        )  # tras cada fase, el archivo guardado ya la trae como hecha (`celdas`, `promocion`, `lote`...)
     batch = next(i for i, (done, _) in enumerate(saved) if "lote" in done)
     assert saved[batch][1] >= 1  # y el lote ya salio
 
