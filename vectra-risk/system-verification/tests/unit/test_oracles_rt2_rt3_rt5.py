@@ -1889,3 +1889,36 @@ def test_rt5_retention_is_compared_with_t0_and_not_with_t1() -> None:
     outcome, *_ = evaluate(good_spec(lowest=between))
     assert outcome.result == "no ejecutado" and outcome.missing == ("rt5_retencion_no_cubre_t0",)
     assert evaluate(good_spec(lowest=T0))[0].result == "pasa"  # exactamente t0 cubre
+
+
+# --- ronda 3: F-11, la marca de U9 va truncada al segundo -------------------------------------------------------------------------
+
+
+def test_rt2_bias_counting_uses_the_truncated_second_of_the_freeze_as_the_reference() -> None:
+    """F-11 (pura): el `recorded_at` es 20,4 y la marca de la corrida que congelo es 20 (truncada): es la referencia aunque sea menor que `after`."""
+    ts = [(1.0, 10.0), (2.0, 20.0), (3.0, 30.0), (4.0, 40.0), (5.0, 50.0)]
+    ok = [(m, 1.0) for m, _ in ts]
+    assert rt2.count_bias_runs(ts, ok, 20.4) == [30.0, 40.0, 50.0]
+    assert rt2.count_bias_runs(ts, ok, 20.0) == [30.0, 40.0, 50.0]
+    assert rt2.count_bias_runs(ts, ok, 20.999) == [30.0, 40.0, 50.0]
+    assert rt2.count_bias_runs(ts, ok, 21.0) == [40.0, 50.0]  # la marca 30 es la referencia si el freeze cae en el segundo 21
+
+
+DELAYS = pytest.mark.parametrize("delay", [0.05, 0.9], ids=["mismo_segundo", "cruza_al_segundo_siguiente"])
+
+
+@DELAYS
+def test_rt2_f11_the_run_that_froze_plus_two_is_not_enough(rworld: Rt2World, delay: float) -> None:
+    """F-11: con la marca entera de U9 (no posterior al `recorded_at`), la que congelo mas 2 no basta (freeze a 1 500 s, corridas cada 900 s, el `recorded_at` en .3 s: con 0,05 s la marca queda en el mismo segundo; con 0,9 s cruza)."""
+    rworld.run_delay = delay
+    result = rt2_run(rworld, params={"bias_timeout": 1900.0})  # congelo + 2 corridas
+    assert result.rt2.result == "no ejecutado" and codes(result) == ("rt2_corridas_de_bias_pendientes",)
+    assert "solo 2 de 3" in next(s.detail for s in result.rt2.subresults if s.name == "v1:sigue_congelada")
+
+
+@DELAYS
+def test_rt2_f11_the_run_that_froze_plus_three_passes(rworld: Rt2World, delay: float) -> None:
+    """F-11: la que congelo mas 3 da `pasa` (antes del arreglo el oraculo exigia 4 y daba `no ejecutado` en el tope de 3 600 s)."""
+    rworld.run_delay = delay
+    result = rt2_run(rworld)
+    assert result.rt2.result == "pasa", [(s.name, s.result, s.missing) for s in result.rt2.subresults]

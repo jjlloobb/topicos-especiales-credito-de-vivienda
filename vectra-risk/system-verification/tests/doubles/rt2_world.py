@@ -281,6 +281,8 @@ class Rt2World:
         self.recommendation_version: str | None = None
         self.frozen_resolutions_early = False
         self.bias_ok = 1.0
+        self.freeze_fraction = 0.3  # segundos de fraccion del `recorded_at` del freeze sobre el reloj (entero)
+        self.run_delay = 0.05  # lo que tarda la corrida de bias entre el `freeze` y su marca de fin
         self.registrations: list[tuple[str, str]] = []
         self.approvals: list[tuple[str, str]] = []
         self.validation_calls: list[str] = []
@@ -350,22 +352,25 @@ class Rt2World:
         item["model_version_id"] = PROXY
         item["context_package"]["model_version_id"] = PROXY
         item["freeze_id"] = f"freeze-{PROXY}-{item['seq']}"
-        item["frozen_at"] = item["recorded_at"] = iso(self.clock.now())
+        recorded = self.clock.now() + timedelta(seconds=self.freeze_fraction)  # el `recorded_at` real lleva microsegundos
+        item["frozen_at"] = item["recorded_at"] = recorded.isoformat().replace("+00:00", "Z")
         item["context_package"]["initial_disparity"] = {"attributes": ATTRIBUTES}
         if self.package_variant is not None:
             self.package_variant(item)
         self.freeze_entries.append(item)
         if self.freeze_freezes_model:
             self.set_state(PROXY, "congelado")
-        # U9 escribe el `freeze` **dentro** de la corrida y fija la marca de fin despues (`run.py`): la marca de la corrida que congelo es posterior al `recorded_at`
-        self.bias_runs.append((self.clock.now().timestamp() + 1.0, self.bias_ok))
+        # U9 escribe el `freeze` dentro de la corrida y publica la marca de fin **truncada al segundo** (`publish.py`: `int(finished_at.timestamp())`):
+        # un entero, casi siempre del mismo segundo que el `recorded_at`, es decir **por debajo** de el
+        finished = recorded + timedelta(seconds=self.run_delay)
+        self.bias_runs.append((float(int(finished.timestamp())), self.bias_ok))
 
     def start_bias(self, every: float = 900.0, first: float = 120.0, runs: int = 40) -> None:
         for number in range(runs):
             self.clock.at(first + number * every, self._bias_run)
 
     def _bias_run(self) -> None:
-        self.bias_runs.append((self.clock.now().timestamp(), self.bias_ok))
+        self.bias_runs.append((float(int(self.clock.now().timestamp())), self.bias_ok))
         if (
             self.refreeze_after is not None
             and PROXY in self.models
