@@ -25,6 +25,18 @@ run_id() {
   sed -n 's/.*"run_id": *"\([0-9]\{8\}-[0-9]\{4\}\)".*/\1/p' "$VERIFICATION_DIR/manifest.json" | head -n 1
 }
 
+# `manifest_value <clave> [<clave>...]`: el valor (texto) que el manifiesto que escribio la CLI tiene en esa ruta de claves, o vacio si no esta (por ejemplo `sections decisions result` o `closing_rt3 result`).
+manifest_value() {
+  [ -f "$VERIFICATION_DIR/manifest.json" ] || cannot_read "no hay $VERIFICATION_DIR/manifest.json: corre prepare primero"
+  python3 - "$VERIFICATION_DIR/manifest.json" "$@" <<'PY' || cannot_read "el manifiesto no se pudo leer"
+import json, sys
+node = json.load(open(sys.argv[1], encoding="utf-8"))
+for key in sys.argv[2:]:
+    node = node.get(key) if isinstance(node, dict) else None
+print("" if node is None else node)
+PY
+}
+
 # `evidence_result <archivo>`: el resultado (`pasa` o `falla`) de una evidencia que la CLI ya escribio.
 evidence_result() {
   [ -f "$VERIFICATION_DIR/$1" ] || cannot_read "no existe la evidencia $1 en $VERIFICATION_DIR"

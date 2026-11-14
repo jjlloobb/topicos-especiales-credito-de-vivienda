@@ -11,6 +11,8 @@ from dataclasses import dataclass
 
 from vectra_verification.clock import Clock
 
+EPSILON = 1e-6
+
 
 @dataclass(frozen=True)
 class Waited[T]:
@@ -37,6 +39,8 @@ def poll[T](
         if done:
             return Waited(True, value, elapsed, attempts)
         remaining = timeout - elapsed
-        if remaining <= 0:
+        if (
+            remaining <= EPSILON
+        ):  # el error de coma flotante de `monotonic` deja `elapsed` un pelo por debajo del plazo: un `sleep` de 1e-12 no mueve el reloj y el sondeo no terminaba
             return Waited(False, value, min(elapsed, timeout), attempts)
         clock.sleep(min(interval, remaining))

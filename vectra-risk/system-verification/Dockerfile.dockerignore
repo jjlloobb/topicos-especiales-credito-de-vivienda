@@ -1,0 +1,11 @@
+# Contexto de la imagen de U12: solo lo que el Dockerfile copia (la raiz de vectra-risk/ es enorme).
+*
+!contracts/python/vectra_contracts
+!system-verification/pyproject.toml
+!system-verification/src
+!system-verification/demos
+!system-verification/report
+!system-verification/seccomp
+!system-verification/image
+**/__pycache__
+**/*.pyc

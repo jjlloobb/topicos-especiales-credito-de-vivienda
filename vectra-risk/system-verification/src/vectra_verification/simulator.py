@@ -1,6 +1,6 @@
 """Simulador de solicitudes (U12 Paso 6; BR-U12-01, BR-U12-02; NFR-U12-10, NFR-U12-11, NFR-U12-50; PBT-U12-01).
 
-Lee la entrega de U5 (P-5 (a)): `datasets/test.parquet` con `pyarrow` y `adversarial/manifest.json` de la misma carpeta (por omision `reference-model/.out`). De cada fila toma las
+Lee la entrega de U5 (P-5 (a)): `datasets/test.parquet` con `pyarrow` y `adversarial/manifest.json` de la misma carpeta. De cada fila toma las
 columnas de `ApplicationIn` y la valida con ese modelo (estricto: se valida desde JSON); `default` y `synthetic_id` no se envian. `generator_version` y `seed` salen del manifiesto,
 y se registran el tamaño de `test` y el SHA-256 del Parquet. Escenarios `normal` (`sampler.normal`) y `stratified` (`sampler.stratified`: el volumen es un piso, se envian **todas** las filas
 devueltas y el resultado trae las celdas cortas). Los escenarios `rt1` y `rt4` estan diferidos por la demo (enmienda §3 U12, fila «6»): pedirlos es `scenario_deferred`, sin solicitudes.
@@ -38,7 +38,6 @@ DEFAULT_RATE: Final = 10.0
 MAX_RATE: Final = 30.0  # `intake-channel-simulator` de U2: 30/s sin rafaga
 MAX_RESENDS: Final = 3
 RESEND_STATUSES: Final = (429, 503)
-DEFAULT_DELIVERY: Final = Path("reference-model/.out")
 RELEASE_HINT: Final = "make -C reference-model release"
 DELIVERY_FILES: Final = ("datasets/test.parquet", "adversarial/manifest.json")
 APPLICATION_COLUMNS: Final = frozenset(ApplicationIn.model_fields)

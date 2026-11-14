@@ -38,8 +38,15 @@ case "${1:-}" in
     [ "$RESULT" = "pasa" ] || not_expected "dashboard no paso"
     expected "dashboard pasa"
     ;;
+  5)
+    # `decisions` termino y paso (lo que la CLI dejo en el manifiesto): es lo que alimenta a U11.
+    RESULT="$(manifest_value sections decisions result)" || exit 2
+    [ -n "$RESULT" ] || cannot_read "el manifiesto no trae la seccion decisions: corre 'vectra-verification decisions'"
+    [ "$RESULT" = "pasa" ] || not_expected "decisions salio $RESULT"
+    expected "decisions paso"
+    ;;
   *)
-    say "uso: dashboard.sh <1|2|3|4>" >&2
+    say "uso: dashboard.sh <1|2|3|4|5>" >&2
     exit 2
     ;;
 esac

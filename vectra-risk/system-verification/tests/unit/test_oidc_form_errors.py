@@ -255,3 +255,60 @@ def test_fn1_a_route_that_cannot_be_aborted_either_is_still_a_stable_error(
     with pytest.raises(OidcError) as error:
         _submit()
     assert str(error.value) == "browser_error"
+
+
+# --- U12-T05 (la imagen revelo que Playwright agrega `--no-sandbox` si no se le pide `chromium_sandbox=True`) -----------------------------------------------
+
+
+class _Chromium:
+    def __init__(self) -> None:
+        self.launch_kwargs: dict[str, Any] = {}
+
+    def launch(self, **kwargs: Any) -> Any:
+        self.launch_kwargs = kwargs
+        raise PlaywrightError("detenido: la prueba solo mira como se lanza")
+
+
+class _Playwright:
+    def __init__(self) -> None:
+        self.chromium = _Chromium()
+
+    def start(self) -> "_Playwright":
+        return self
+
+
+@pytest.mark.parametrize(("value", "expected"), [("1", True), (None, False), ("0", False), ("", False)])
+def test_the_chromium_sandbox_is_requested_when_the_image_says_so(
+    monkeypatch: pytest.MonkeyPatch, value: str | None, expected: bool
+) -> None:
+    import vectra_verification.clients.oidc as module
+
+    fake = _Playwright()
+    monkeypatch.setattr(module, "sync_playwright", lambda: fake)
+    if value is None:
+        monkeypatch.delenv("VERIFICATION_CHROMIUM_SANDBOX", raising=False)
+    else:
+        monkeypatch.setenv("VERIFICATION_CHROMIUM_SANDBOX", value)
+    with pytest.raises(OidcError):
+        HeadlessForm(None).submit(URL, REDIRECT, "analista-1", Secret("contrasena"), lambda: "1")
+    assert fake.chromium.launch_kwargs["chromium_sandbox"] is expected
+
+
+def test_an_untrusted_or_misnamed_certificate_at_the_pin_step_is_a_stable_oidc_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """U12-T05 (CA-5, la imagen): una CA que no firma el certificado, o uno de otro nombre, hace fallar `server_spki_pin` con `ssl.SSLCertVerificationError`; sale como `OidcError`, no como una traza."""
+    import ssl
+
+    import vectra_verification.clients.oidc as module
+    from vectra_verification import guard
+    from vectra_verification.clock import Clock
+
+    def untrusted(host: str, port: int, ca_file: object) -> str:
+        raise ssl.SSLCertVerificationError("certificate verify failed: self-signed certificate")
+
+    monkeypatch.setattr(module, "server_spki_pin", untrusted)
+    client = module.OidcClient(guard.KIND, None, Clock())  # type: ignore[arg-type]
+    with pytest.raises(OidcError) as error:
+        client._form_driver()  # noqa: SLF001
+    assert str(error.value) == "tls_pin_error" and error.value.__context__ is None

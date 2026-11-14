@@ -19,7 +19,7 @@ Grafana no tiene OIDC ni `root_url`: el presentador entra por `port-forward` al 
 
 | N | Quién | Qué hace | Qué se ve y dónde | Verify |
 |---|---|---|---|---|
-| 1 | operador | Día D, antes de las 22:18 UTC: corre `vectra-verification decisions`. | SIM-NORMAL en la salida. | — (no observable con K16: lo escribe la herramienta en el manifiesto) |
+| 1 | operador | Día D, antes de las 22:18 UTC: corre `vectra-verification decisions`. | SIM-NORMAL en la salida. | `dashboard.sh 5` |
 | 2 | operador | Comprueba que Grafana está arriba. | — | `dashboard.sh 1` |
 | 3 | operador | Día D + 1, tras las 02:40 UTC: corre `vectra-verification u11`. | `dashboard` en la salida. | `dashboard.sh 2` |
 | 4 | presentador | Abre Grafana por `port-forward` con `grafana-admin`; muestra el dashboard `Producto` (uid `vectra-producto-panel`) en la carpeta `Vectra / Producto`. | Paneles: panel `North Star de ayer`, panel `Recomendaciones sostenidas (aproximación)`, panel `Tasa de consulta de la explicación y piso F` y panel `Días bajo el piso`. | `dashboard.sh 3` |

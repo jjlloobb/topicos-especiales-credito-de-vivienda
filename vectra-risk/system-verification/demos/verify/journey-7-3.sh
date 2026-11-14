@@ -26,13 +26,12 @@ case "${1:-}" in
     expected "FailClosedPersistente en firing"
     ;;
   4)
-    # Revertido el PR de F22: el gauge vuelve a 0 y la alerta se apaga (puede tardar unos minutos).
-    open_prom
-    VALUE="$(prom_max 'max(vectra_cases_failclosed_persistent)')" || exit 2
-    COUNT="$(prom_count 'ALERTS{alertname="FailClosedPersistente", alertstate="firing"}')" || exit 2
-    [ "$COUNT" -eq 0 ] || not_expected "FailClosedPersistente sigue en firing"
-    [ -z "$VALUE" ] || python3 -c 'import sys; sys.exit(0 if float(sys.argv[1]) == 0 else 1)' "$VALUE" || not_expected "vectra_cases_failclosed_persistent vale $VALUE"
-    expected "la alerta se apago"
+    # Revertido el PR de F22, el cierre de `rt3 --closing` (lo que la CLI registro en el manifiesto): un caso de sonda **nuevo** llego a `listo`. La alerta FailClosedPersistente **sigue** en firing:
+    # los casos de la primera sonda quedan en no_disponible y el reintento del CRO esta diferido (no se verifica que se apague).
+    RESULT="$(manifest_value closing_rt3 result)" || exit 2
+    [ -n "$RESULT" ] || cannot_read "el manifiesto no trae closing_rt3: corre 'vectra-verification rt3 --closing'"
+    [ "$RESULT" = "pasa" ] || not_expected "el cierre de D1 salio $RESULT"
+    expected "un caso de sonda nuevo llego a listo tras revertir F22 (FailClosedPersistente sigue en firing por los casos de la primera sonda)"
     ;;
   5)
     # La evidencia de la seccion rt3 que la CLI ya escribio.
