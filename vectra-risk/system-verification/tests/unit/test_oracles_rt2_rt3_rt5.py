@@ -856,7 +856,7 @@ def test_rt2_the_reactivation_is_a_separate_step_that_the_oracles_do_not_depend_
     """U12-T04 sustituye «reactivar» por «esperar al presentador» sin tocar los oraculos: aqui lo hace «el presentador» (un evento) y la verificacion posterior es la misma."""
 
     class Waiting:
-        def reactivate(self, model_version_id: str) -> None:
+        def reactivate(self, model_version_id: str, since: datetime | None = None) -> None:
             rworld.reactivate()  # el presentador lo hizo en la consola
 
     result = rt2_run(rworld, reactivator=Waiting())
@@ -865,7 +865,7 @@ def test_rt2_the_reactivation_is_a_separate_step_that_the_oracles_do_not_depend_
 
 def test_rt2_the_reactivation_not_verified_afterwards_fails(rworld: Rt2World) -> None:
     class Nothing:
-        def reactivate(self, model_version_id: str) -> None:
+        def reactivate(self, model_version_id: str, since: datetime | None = None) -> None:
             return None  # se pidio pero no paso nada
 
     result = rt2_run(rworld, reactivator=Nothing())
@@ -1319,6 +1319,89 @@ def test_rt3_wait_for_escalation_waits_over_19_minutes_without_real_sleep_and_on
         and outcome.readings["failclosed_persistent_alert_firing"] is True
     )
     assert sum(tworld.clock.sleeps) > 1160.0
+
+
+class ResolutionsRegistry:
+    """`freezes_raw` como el real: filtra por `recorded_from` (el servidor), y cuenta las lecturas."""
+
+    def __init__(self, entries: list[dict[str, Any]]) -> None:
+        self.entries, self.reads = entries, 0
+
+    def freezes_raw(self, *, recorded_from: datetime | None = None, **_: Any) -> list[dict[str, Any]]:
+        self.reads += 1
+        return [
+            e
+            for e in self.entries
+            if recorded_from is None or datetime.fromisoformat(e["recorded_at"]) >= recorded_from
+        ]
+
+
+def _resolution(mv: str, action: str, at: datetime) -> dict[str, Any]:
+    return {"model_version_id": mv, "action": action, "recorded_at": at.isoformat()}
+
+
+def test_f08_the_presenter_reactivation_looks_from_the_current_freeze_and_ignores_a_previous_rehearsal() -> (
+    None
+):
+    """F-08 (ronda 2): una `frozen_resolution` de un ensayo anterior (`--redo` o el modo `tool`) en el mismo directorio no es la del presentador. Reloj falso: el plazo vence sin dormir (la prueba no se cuelga)."""
+    clock = FakeClock()
+    started = clock.now()
+    old = _resolution("mv-x", "reactivar", started + timedelta(minutes=5))  # el ensayo anterior
+    freeze = started + timedelta(minutes=30)  # el congelamiento actual
+    registry = ResolutionsRegistry([old])
+    reactivation = rt2.PresenterReactivation(registry, clock, since=started, timeout=120.0)  # type: ignore[arg-type]
+    clock.advance(40 * 60)
+    outcome = reactivation.reactivate("mv-x", since=freeze)
+    assert outcome is not None and outcome.result == "no ejecutado"
+    assert outcome.missing == ("rt2_reactivacion_pendiente_del_presentador",)
+    assert registry.reads >= 2  # sondeo hasta el plazo, con el reloj inyectado
+    assert sum(clock.sleeps) <= 120.0
+    registry.entries.append(
+        _resolution("mv-x", "reactivar", clock.now() + timedelta(seconds=1))
+    )  # el presentador, ahora
+    assert reactivation.reactivate("mv-x", since=freeze) is None
+    mine = rt2.PresenterReactivation(registry, clock, since=started, timeout=60.0)  # type: ignore[arg-type]
+    assert (
+        mine.reactivate("mv-x") is None
+    )  # sin `since` se mira desde el inicio de la verificacion, como antes
+    assert (
+        rt2.PresenterReactivation(ResolutionsRegistry([old]), clock, since=started, timeout=60.0).reactivate(
+            "mv-x"
+        )
+        is None
+    )  # type: ignore[arg-type]
+
+
+def test_rt3_f05_the_alert_is_polled_after_the_escalation_and_not_read_once(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    """F-05 (ronda 2): `FailClosedPersistente` necesita el gauge, el raspado y su `for: 1m` despues del primer caso escalado: una lectura unica, en el instante de la escalada, la ve apagada (~14 % de las corridas)."""
+    scheduled: list[bool] = []
+
+    def state(case_id: str, record: Any) -> tuple[str, str, int]:
+        if (tworld.clock.now() - record.created).total_seconds() > 1170:
+            if not scheduled:  # la alerta llega ~100 s despues del primer caso escalado
+                scheduled.append(True)
+                tworld.at(100.0, lambda: setattr(tworld, "alert_firing", True))
+            return "no_disponible", "explainer_unavailable", 6
+        return "en_sincronizacion", "timeout", 1
+
+    tworld.state_cases = state
+    tworld.gauge = 1.0
+    outcome = rt3_run(tworld, rt3_params(tmp_path, wait_for_escalation=True))
+    assert outcome.readings["escalated_to_no_disponible"] is True
+    assert outcome.readings["failclosed_persistent_alert_firing"] is True
+    assert 0 < outcome.readings["alert_waited_seconds"] <= rt3.ALERT_TIMEOUT
+
+
+def test_rt3_f05_an_alert_that_never_fires_stops_at_the_deadline_with_the_fake_clock(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    tworld.state_cases = lambda case_id, record: ("no_disponible", "explainer_unavailable", 6)
+    tworld.gauge, tworld.alert_firing = 1.0, False
+    outcome = rt3_run(tworld, rt3_params(tmp_path, wait_for_escalation=True))
+    assert outcome.readings["failclosed_persistent_alert_firing"] is False
+    assert outcome.readings["alert_waited_seconds"] == rt3.ALERT_TIMEOUT
 
 
 def test_rt3_the_registry_not_responding_is_no_ejecutado_and_the_bff_not_responding_too(

@@ -1126,3 +1126,182 @@ def test_demo_evidence_the_rt5_u11_and_rt2_state_files_pass_the_filter_and_hold_
     for path in pipe.h.dir.iterdir():
         text = path.read_text(encoding="utf-8")
         assert not any(secret in text for secret in SECRETS) and "eyJ" not in text, path.name
+
+
+# --- ronda 2: el cierre de D1 y D2, la retoma de rt2, la fabrica real y el punto de entrada ---------------------------------------------------------------
+
+
+def rt3_record(pipe: Pipeline) -> dict:  # type: ignore[type-arg]
+    return json.loads(json.dumps(pipe.h.manifest()["sections"]["rt3"]))
+
+
+def test_exit_f06_rt3_closing_is_recorded_apart_and_does_not_rewrite_the_record_of_rt3(
+    pipe: Pipeline,
+) -> None:
+    """F-06 (ronda 2): `rt3 --closing` (el paso 6 de D1) deja `closing_rt3` y el registro de `rt3` (resultado, codigo, nota) queda tal cual."""
+    assert pipe.h.prepare() == 0
+    assert pipe.run("decisions") == 0 and pipe.run("rt5") == 0 and pipe.run("rt3") == 0
+    before = rt3_record(pipe)
+    pipe.h.before["rt3"] = lambda world: setattr(
+        world, "state_cases", None
+    )  # F22 revertido: un caso nuevo llega a `listo`
+    assert pipe.run("rt3", "--closing") == 0, pipe.h.out.getvalue() + pipe.h.err.getvalue()
+    manifest = pipe.h.manifest()
+    assert manifest["closing_rt3"]["result"] == "pasa" and rt3_record(pipe) == before
+    assert before["state"] == "terminada" and "cierre de D1 (rt3 --closing): pasa" in pipe.h.out.getvalue()
+    assert (pipe.h.dir / "RT-3.json").exists() and "closing_rt3" not in json.dumps(before)
+    done = subprocess.run(
+        ["sh", str(SYSTEM / "demos" / "verify" / "journey-7-3.sh"), "4"],
+        capture_output=True, text=True, check=False, env={"VERIFICATION_DIR": str(pipe.h.dir), "PATH": "/usr/bin:/bin"},
+    )  # fmt: skip
+    assert done.returncode == 0, done.stdout + done.stderr  # el verify del paso 6 lee lo que la CLI escribio
+
+
+def test_exit_f06_a_closing_that_does_not_reach_listo_is_not_executed_and_the_record_of_rt3_survives(
+    pipe: Pipeline,
+) -> None:
+    assert pipe.h.prepare() == 0
+    assert pipe.run("decisions") == 0 and pipe.run("rt5") == 0 and pipe.run("rt3") == 0
+    before = rt3_record(pipe)
+    pipe.h.before["rt3"] = lambda world: setattr(
+        world, "state_cases", lambda case_id, record: ("en_sincronizacion", "timeout", 1)
+    )  # F22 sigue apagado
+    assert pipe.run("rt3", "--closing") == 2
+    manifest = pipe.h.manifest()
+    assert (
+        manifest["closing_rt3"]["result"] == "no ejecutado"
+        and "rt3_cierre_f22_sigue_apagado" in manifest["closing_rt3"]["missing"]
+    )
+    assert rt3_record(pipe) == before and before["state"] == "terminada"  # `rt3` no vuelve a `interrumpida`
+    assert pipe.run("rt3") == 0 and "ya terminada" in pipe.h.out.getvalue()  # y no se repite RT-3 entero
+    pipe.h.before["rt3"] = lambda world: setattr(world, "state_cases", None)
+    assert pipe.run("rt3", "--closing") == 0 and pipe.h.manifest()["closing_rt3"]["result"] == "pasa"
+
+
+def test_exit_f06_closing_without_the_vault_is_a_prerequisite_and_leaves_rt3_as_it_was(
+    pipe: Pipeline,
+) -> None:
+    from vectra_verification.credentials import CredentialsError
+
+    assert pipe.h.prepare() == 0
+    assert pipe.run("decisions") == 0 and pipe.run("rt5") == 0 and pipe.run("rt3") == 0
+    before = rt3_record(pipe)
+
+    def broken(*args: object) -> object:
+        raise CredentialsError("vault_unreachable")
+
+    pipe.h.factory = broken  # type: ignore[method-assign,assignment]
+    assert pipe.run("rt3", "--closing") == 2 and "prerrequisito" in pipe.h.out.getvalue()
+    assert rt3_record(pipe) == before and "closing_rt3" not in pipe.h.manifest()
+
+
+def test_exit_f03_rt2_says_what_is_missing_while_it_waits_for_the_closing_and_records_it_apart(
+    pipe: Pipeline,
+) -> None:
+    """F-03 (ronda 2): `rt2` espera el `rollback-pr` y el `mark-active` del modelo de referencia, lo dice, y registra el cierre (`closing_rt2`) aparte del resultado de RT-2."""
+    upto_rt2_setup(pipe)
+    assert pipe.run("rt2") == 0
+    out = pipe.h.out.getvalue()
+    assert (
+        "rt2 espera el cierre" in out
+        and "rollback-pr" in out
+        and "mark-active" in out
+        and "cierre de D2: pasa" in out
+    )
+    assert pipe.h.manifest()["closing_rt2"]["result"] == "pasa"
+
+
+def test_exit_f03_without_the_closing_rt2_does_not_wait_an_hour_in_silence_and_the_verify_says_no(
+    pipe: Pipeline,
+) -> None:
+    upto_rt2_setup(pipe)
+
+    def promotes_only(world: Rt2World) -> None:
+        world.state_cases = None
+        world.operator_promotes(60.0)
+        world.start_bias()  # nadie hace el rollback
+
+    pipe.h.before["rt2"] = promotes_only
+    assert pipe.run("rt2", "--operator-timeout", "600") == 0
+    out = pipe.h.out.getvalue()
+    assert (
+        "rt2 espera el cierre (hasta 600 s)" in out
+        and "cierre de D2: no ejecutado: rt2_cierre_rollback_pendiente" in out
+    )
+    closing = pipe.h.manifest()["closing_rt2"]
+    assert closing["result"] == "no ejecutado" and "rt2_cierre_rollback_pendiente" in closing["missing"]
+    assert (pipe.h.dir / "RT-2.json").exists()  # el cierre no baja RT-2 (P-9 (a))
+
+
+class Interrupt(BaseException):  # noqa: N818
+    """Un Ctrl-C a mitad de una fase."""
+
+
+def test_exit_f10_an_interruption_in_the_middle_of_rt2_resumes_at_the_phase_where_it_stopped_without_resending_the_batch(
+    pipe: Pipeline,
+) -> None:
+    """F-10 (ronda 2): `state-rt2.json` se guarda al terminar cada fase y tambien si una excepcion corta la seccion; la siguiente corrida retoma ahi (no reenvia el lote)."""
+    upto_rt2_setup(pipe)
+    base = pipe.h.before["rt2"]
+
+    def interrupted(world: Rt2World) -> None:
+        base(world)
+
+        def stop() -> None:
+            raise Interrupt
+
+        world.at(1500.0, stop)  # a mitad de la espera de una fase, ya enviado el lote
+
+    pipe.h.before["rt2"] = interrupted
+    with pytest.raises(Interrupt):
+        pipe.run("rt2", "--reactivation", "presenter", "--reactivation-timeout", "7200")
+    assert (pipe.h.dir / "state-rt2.json").exists()
+    assert pipe.h.manifest()["sections"]["rt2"]["state"] == "interrumpida"
+    lots = [r[0] for r in pipe.world.simulator.runs].count("stratified")
+    assert lots == 1
+    pipe.h.before["rt2"] = lambda world: world.at(
+        2500.0, world.reactivate
+    )  # el presentador (a los 4 000 s del inicio de la primera corrida)
+    assert pipe.run("rt2", "--reactivation", "presenter") == 0, pipe.h.out.getvalue() + pipe.h.err.getvalue()
+    assert [r[0] for r in pipe.world.simulator.runs].count("stratified") == lots
+    assert pipe.h.manifest()["sections"]["rt2"]["state"] == "terminada"
+
+
+def test_exit_f10_state_is_saved_at_the_end_of_each_phase(
+    pipe: Pipeline, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    upto_rt2_setup(pipe)
+    writes: list[str] = []
+    real = cli.Store.write
+
+    def spy(self: object, name: str, text: str, **kw: object) -> object:
+        if name == "state-rt2.json":
+            writes.append(text)
+        return real(self, name, text, **kw)  # type: ignore[arg-type,misc]
+
+    monkeypatch.setattr(cli.Store, "write", spy)
+    assert pipe.run("rt2") == 0
+    assert len(writes) >= 11  # una por fase (11) y la final
+    assert len({*writes}) > 5  # y cada una con mas que la anterior
+
+
+def test_exit_f04_the_live_factory_hands_over_to_the_real_backend_and_the_module_runs_as_main(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F-04 (ronda 2): sin `# pragma: no cover` en `cli.py`; `_live_factory` y `python -m vectra_verification.cli` se prueban."""
+    import runpy
+    import types
+
+    seen: list[tuple[object, ...]] = []
+    fake = types.ModuleType("vectra_verification.live")
+    fake.live_backend = lambda *args: seen.append(args) or "backend"  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "vectra_verification.live", fake)
+    assert cli._live_factory("env", "args", "clock", "prefix") == "backend"  # type: ignore[arg-type]
+    assert seen and seen[0][:4] == ("env", "args", "clock", "prefix")
+    monkeypatch.setattr(sys, "argv", ["vectra-verification", "--help"])
+    with pytest.raises(SystemExit) as stop:
+        runpy.run_module("vectra_verification.cli", run_name="__main__")
+    assert stop.value.code == 0
+    assert "pragma: no cover" not in (SYSTEM / "src" / "vectra_verification" / "cli.py").read_text(
+        encoding="utf-8"
+    )

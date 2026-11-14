@@ -382,15 +382,15 @@ class SimulatorLike(Protocol):
 class Reactivator(Protocol):
     """El paso de reactivar, separable (decision del usuario para U12-T04): la herramienta lo hace (`ToolReactivation`) o espera a que lo haga el presentador en la consola. La verificacion posterior es la misma."""
 
-    def reactivate(self, model_version_id: str) -> SubOutcome | None:
-        """`None` si la reactivacion se pidio; un `SubOutcome` (`falla` o `no ejecutado`) si no se pudo."""
+    def reactivate(self, model_version_id: str, since: datetime | None = None) -> SubOutcome | None:
+        """`None` si la reactivacion se pidio; un `SubOutcome` (`falla` o `no ejecutado`) si no se pudo. `since` es el `recorded_at` del congelamiento **actual**: nada anterior es de esta corrida."""
 
 
 class ToolReactivation:
     def __init__(self, sessions: Sessions) -> None:
         self._sessions = sessions
 
-    def reactivate(self, model_version_id: str) -> SubOutcome | None:
+    def reactivate(self, model_version_id: str, since: datetime | None = None) -> SubOutcome | None:
         resolution = FrozenResolutionIn(action="reactivar", justification=JUSTIFICATION)
         try:
             self._sessions.write(COMPLIANCE, lambda c: c.resolve_frozen(model_version_id, resolution, "rt2"))
@@ -411,15 +411,17 @@ class PresenterReactivation:
     ) -> None:
         self._registry, self._clock, self._since, self._timeout = registry, clock, since, timeout
 
-    def _resolutions(self, model_version_id: str) -> list[dict[str, Any]]:
-        items = self._registry.freezes_raw(recorded_from=self._since)
+    def _resolutions(self, model_version_id: str, since: datetime) -> list[dict[str, Any]]:
+        items = self._registry.freezes_raw(recorded_from=since)
         return [i for i in items if i.get("model_version_id") == model_version_id and "action" in i]
 
-    def reactivate(self, model_version_id: str) -> SubOutcome | None:
+    def reactivate(self, model_version_id: str, since: datetime | None = None) -> SubOutcome | None:
+        """F-08 (ronda 2): se mira desde el `recorded_at` del congelamiento actual (como `verify_reactivation`), nunca antes del inicio de la verificacion: una reactivacion de un ensayo anterior (`--redo`, el modo `tool`) no cuenta."""
+        floor = max(self._since, since) if since is not None else self._since
         seen: list[dict[str, Any]] = []
 
         def done() -> tuple[bool, None]:
-            seen[:] = self._resolutions(model_version_id)
+            seen[:] = self._resolutions(model_version_id, floor)
             return any(r.get("action") in ("reactivar", "investigar") for r in seen), None
 
         waited = poll(self._clock, done, interval=POLL, timeout=self._timeout)
@@ -463,6 +465,12 @@ class Rt2Deps:
     registry: RegistryClient
     prom: PromClient | None
     reactivator: Reactivator | None = None
+    checkpoint: Callable[[Rt2State], None] | None = (
+        None  # F-10: se llama al terminar cada fase (pase o no), para que una interrupcion retome ahi
+    )
+    notify: Callable[[str], None] | None = (
+        None  # lo que la herramienta le dice al operador cuando espera algo suyo
+    )
 
 
 @dataclass
@@ -783,7 +791,8 @@ def verify_reactivation(run: Rt2Run, version: ProxyVersion, vs: VersionState) ->
 
 def _reactivacion(run: Rt2Run, version: ProxyVersion, vs: VersionState, index: int) -> SubOutcome:
     reactivator = run.d.reactivator or ToolReactivation(run.d.sessions)
-    refused = reactivator.reactivate(version.model_version_id)
+    assert vs.freeze is not None
+    refused = reactivator.reactivate(version.model_version_id, since=_at(vs.freeze["recorded_at"]))
     if refused is not None:
         return refused
     return verify_reactivation(run, version, vs)
@@ -946,6 +955,11 @@ def _wait_closing(run: Rt2Run) -> SubOutcome:
             last
         ).state == "inactivo", None
 
+    if run.d.notify is not None:
+        run.d.notify(
+            f"rt2 espera el cierre (hasta {run.p.operator_timeout:g} s): faltan, del modelo de referencia {run.p.reference_version_id}, "
+            f"el `rollback-pr` (fusion y sync) y el `mark-active`; la version del proxy {last} debe quedar `inactivo`"
+        )
     if poll(run.d.clock, back, interval=POLL, timeout=run.p.operator_timeout).met:
         return SubOutcome("cierre", PASA)
     return SubOutcome(
@@ -991,6 +1005,8 @@ def run_rt2(deps: Rt2Deps, params: Rt2Params, state: Rt2State | None = None) -> 
                 code, detail = infra_failure(error, "rt2")
                 result = SubOutcome(phase, NO_EJECUTADO, (code,), detail)
             subs.append(_renamed(result, name))
+            if deps.checkpoint is not None:
+                deps.checkpoint(state)
             if result.result == PASA:
                 vs.done[phase] = result
                 continue

@@ -432,7 +432,9 @@ class Cli:
             self.say(f"seccion {section}: {RESULT_TEXT[EXIT_NOT_RUN]} ({EXIT_NOT_RUN})")
             return EXIT_NOT_RUN
         closing = bool(getattr(args, "closing", False))
-        if section != "report" and manifest.is_done(section) and not args.redo and not closing:
+        if closing:  # F-06: el cierre de D1 no es la seccion `rt3`: no la reinicia ni reescribe su registro
+            return self._execute_closing(environment, section, args)
+        if section != "report" and manifest.is_done(section) and not args.redo:
             record = manifest.sections[section]
             self.say(f"seccion {section}: ya terminada ({record.get('result')}); no se repite sin --redo")
             return int(record.get("exit_code") or EXIT_PASS)
@@ -445,18 +447,9 @@ class Cli:
         manifest.start_section(section, now)
         if section == "report":
             return self._finish(section, SectionResult(), self._report(args))
-        if self.factory is None:
-            raise Refused("backend_missing: no hay forma de llegar al sistema")
-        try:
-            self.backend = self.factory(environment, args, self.clock, mf.prefix_of(manifest.run_id))
-        except _prerequisite_errors() as error:  # la boveda, la CA, el kubeconfig o la entrega de U5 que faltan: un prerrequisito, no un fallo
-            text = evidence_filter.scrub(f"{type(error).__name__}: {error}")[:200]
-            manifest.interrupt_section(section, self.clock.now(), f"prerrequisito: {text}")
-            manifest.save(store)
-            self.say(
-                f"seccion {section}: {RESULT_TEXT[EXIT_NOT_RUN]} ({EXIT_NOT_RUN}): prerrequisito: {text}"
-            )
-            return EXIT_NOT_RUN
+        refused = self._open_backend(environment, section, args, interrupt=True)
+        if refused is not None:
+            return refused
         digests = self._read_digests()
         manifest.set_digests(section, digests)
         from vectra_verification.scenarios.common import ScenarioError
@@ -475,6 +468,68 @@ class Cli:
             self._interrupt(section, f"interrumpida: {type(error).__name__}")
             raise
         return self._finish(section, result, None)
+
+    def _open_backend(
+        self, environment: Environment, section: str, args: argparse.Namespace, *, interrupt: bool
+    ) -> int | None:
+        """Crea el `Backend` de la seccion. Un prerrequisito que falta (la boveda, la CA, el kubeconfig, la entrega de U5) no es un fallo: `no ejecutado` (2). `None` si quedo abierto."""
+        assert self.manifest is not None and self.store is not None
+        if self.factory is None:
+            raise Refused("backend_missing: no hay forma de llegar al sistema")
+        if (
+            self.backend is not None
+        ):  # `all` corre varias secciones: el backend de la anterior se cierra antes de abrir otro (F-09)
+            self.backend.close()
+            self.backend = None
+        try:
+            self.backend = self.factory(environment, args, self.clock, mf.prefix_of(self.manifest.run_id))
+        except _prerequisite_errors() as error:
+            text = evidence_filter.scrub(f"{type(error).__name__}: {error}")[:200]
+            if interrupt:
+                self.manifest.interrupt_section(section, self.clock.now(), f"prerrequisito: {text}")
+                self.manifest.save(self.store)
+            self.say(
+                f"seccion {section}: {RESULT_TEXT[EXIT_NOT_RUN]} ({EXIT_NOT_RUN}): prerrequisito: {text}"
+            )
+            return EXIT_NOT_RUN
+        return None
+
+    def _execute_closing(self, environment: Environment, section: str, args: argparse.Namespace) -> int:
+        """`rt3 --closing` (el paso 6 de D1, tras revertir F22): un caso de sonda nuevo llega a `listo`. Su resultado va **aparte** (`closing_rt3`): el registro de `rt3` (resultado, codigo, nota, retoma) no se toca."""
+        from vectra_verification.scenarios.common import ScenarioError
+        from vectra_verification.simulator import SimulatorError
+
+        assert self.manifest is not None and self.store is not None
+        manifest, store = self.manifest, self.store
+        refused = self._open_backend(environment, section, args, interrupt=False)
+        if refused is not None:
+            return refused
+        assert self.backend is not None
+        try:
+            with ExitStack() as stack:
+                sim = RecordingSimulator(self.backend.simulator(mf.prefix_of(manifest.run_id)))
+                _, deps, params = self._rt3_inputs(environment, args, sim, stack, with_packages=False)
+                from vectra_verification.scenarios import rt3
+
+                closing = rt3.rt3_closing(deps, params)
+            for _name, positions in sim.runs:
+                manifest.record_rows("rt3-closing", positions)
+        except (ScenarioError, SimulatorError) as error:
+            return self._refused(section, evidence_filter.scrub(f"{type(error).__name__}: {error}")[:300])
+        manifest.data["closing_rt3"] = {
+            "result": closing.result,
+            "missing": list(closing.missing),
+            "detail": evidence_filter.scrub(closing.detail)[:300],
+            "at": mf.iso(self.clock.now()),
+        }
+        manifest.save(store)
+        code = code_of([closing.result])
+        self.say(
+            f"cierre de D1 (rt3 --closing): {closing.result}"
+            + (f": {', '.join(closing.missing)}" if closing.missing else "")
+        )
+        self.say(f"seccion {section} --closing: {RESULT_TEXT[code]} ({code})")
+        return code
 
     def _read_digests(self) -> dict[str, str]:
         """Los digests `imageID` de los pods de los namespaces de K16, leidos del cluster al empezar la seccion (nunca en `prepare`)."""
@@ -596,26 +651,35 @@ class Cli:
         return [outcome], note
 
     # --- rt3 -----------------------------------------------------------------------------------------------------------------------
-    def _rt3(
-        self, environment: Environment, args: argparse.Namespace, sim: RecordingSimulator, stack: ExitStack
-    ) -> tuple[list[Outcome], SectionResult]:
-        from vectra_verification.scenarios import demos, rt3
+    def _rt3_inputs(
+        self,
+        environment: Environment,
+        args: argparse.Namespace,
+        sim: RecordingSimulator,
+        stack: ExitStack,
+        *,
+        with_packages: bool = True,
+    ) -> tuple[Any, Any, Any]:
+        """Los paquetes, los parametros y las dependencias de `rt3`; el cierre (`--closing`) no necesita los paquetes."""
+        from vectra_verification.scenarios import rt3
         from vectra_verification.scenarios.common import ScenarioError
-        from vectra_verification.scenarios.outcome import SubOutcome
 
         assert self.backend is not None
         backend = self.backend
-        root = Path(args.packages_dir)
-        absent = [case for case in rt3.REGISTRY_CASES if not (root / case / "manifest.json").is_file()]
-        if args.rt3b_dir and not (Path(args.rt3b_dir) / "manifest.json").is_file():
-            absent.append("RT3-b")
-        if absent:
-            raise ScenarioError("rt3_paquete_inexistente", ",".join(absent))
-        packages = {
-            case: rt3.Rt3Package(case, root / case, f"adversarial/rt3/{case}") for case in rt3.REGISTRY_CASES
-        }
-        if args.rt3b_dir:
-            packages["RT3-b"] = rt3.Rt3Package("RT3-b", Path(args.rt3b_dir), "adversarial/rt3/RT3-b")
+        packages: dict[str, Any] = {}
+        if with_packages:
+            root = Path(args.packages_dir)
+            absent = [case for case in rt3.REGISTRY_CASES if not (root / case / "manifest.json").is_file()]
+            if args.rt3b_dir and not (Path(args.rt3b_dir) / "manifest.json").is_file():
+                absent.append("RT3-b")
+            if absent:
+                raise ScenarioError("rt3_paquete_inexistente", ",".join(absent))
+            packages = {
+                case: rt3.Rt3Package(case, root / case, f"adversarial/rt3/{case}")
+                for case in rt3.REGISTRY_CASES
+            }
+            if args.rt3b_dir:
+                packages["RT3-b"] = rt3.Rt3Package("RT3-b", Path(args.rt3b_dir), "adversarial/rt3/RT3-b")
         deployed = {
             case: name for case, name in (("RT3-a", args.deployed_a), ("RT3-d", args.deployed_d)) if name
         }
@@ -636,20 +700,16 @@ class Cli:
             backend.k8s(),
             stack.enter_context(backend.prom()),
         )
-        result = SectionResult()
-        if args.closing:
-            closing: SubOutcome = rt3.rt3_closing(deps, params)
-            assert self.manifest is not None
-            self.manifest.data["closing_rt3"] = {
-                "result": closing.result,
-                "missing": list(closing.missing),
-                "detail": closing.detail,
-            }
-            result.extra_results.append(closing.result)
-            result.note = f"cierre de D1: {closing.result}"
-            return [], result
+        return packages, deps, params
+
+    def _rt3(
+        self, environment: Environment, args: argparse.Namespace, sim: RecordingSimulator, stack: ExitStack
+    ) -> tuple[list[Outcome], SectionResult]:
+        from vectra_verification.scenarios import demos, rt3
+
+        _, deps, params = self._rt3_inputs(environment, args, sim, stack)
         rt3_outcome = rt3.rt3(deps, params)
-        return [rt3_outcome, demos.journey_7_3(rt3_outcome)], result
+        return [rt3_outcome, demos.journey_7_3(rt3_outcome)], SectionResult()
 
     # --- rt2-setup y rt2 -----------------------------------------------------------------------------------------------------
     def _versions(self, args: argparse.Namespace) -> list[Any]:
@@ -698,19 +758,48 @@ class Cli:
             if args.reactivation == "presenter"
             else None
         )
-        deps = rt2.Rt2Deps(environment, self.clock, backend.sessions(), sim, registry, prom, reactivator)
+
+        def save_state(state: Any) -> None:
+            store.write(RT2_STATE, json.dumps(resume.encode(state)))
+
+        deps = rt2.Rt2Deps(
+            environment, self.clock, backend.sessions(), sim, registry, prom, reactivator,
+            checkpoint=save_state, notify=self.say,
+        )  # fmt: skip
         params = rt2.Rt2Params(
             package_version(Path(args.reference_dir)), self._versions(args), args.seed, volume=args.volume,
             operator_timeout=args.operator_timeout, bias_timeout=args.bias_timeout,
         )  # fmt: skip
-        state = None
-        if not args.redo and store.exists(RT2_STATE) and manifest.pending_of("rt2"):
-            state = resume.decode(json.loads(store.read_text(RT2_STATE)))
-        done = rt2.run_rt2(deps, params, state)
-        store.write(RT2_STATE, json.dumps(resume.encode(done.state)))
+        state = rt2.Rt2State()
+        if not args.redo and store.exists(RT2_STATE) and not manifest.is_done("rt2"):
+            state = resume.decode(
+                json.loads(store.read_text(RT2_STATE))
+            )  # F-10: tambien tras una interrupcion (Ctrl-C), no solo si quedo una fase pendiente
+        try:
+            done = rt2.run_rt2(deps, params, state)
+        finally:
+            save_state(
+                state
+            )  # F-10: lo que la fase en curso alcanzo a anotar (el lote enviado) sobrevive a una interrupcion
+        if done.closing is not None:  # el cierre va aparte: no cambia el resultado de RT-2 (P-9 (a))
+            manifest.data["closing_rt2"] = {
+                "result": done.closing.result,
+                "missing": list(done.closing.missing),
+                "at": mf.iso(self.clock.now()),
+            }
         result = SectionResult(pending=done.pending, note=f"reactivacion: {args.reactivation}")
         if done.pending:
             result.note += f"; se paro en la fase `{done.pending}`: vuelve a correr `rt2` para retomar"
+        if done.closing is not None:
+            result.note += f"; cierre: {done.closing.result}"
+            self.say(
+                f"cierre de D2: {done.closing.result}"
+                + (
+                    f": {', '.join(done.closing.missing)}: {done.closing.detail}"
+                    if done.closing.missing
+                    else ""
+                )
+            )
         journey = demos.journey_7_4(done.rt2.subresults, args.reactivation)
         return [done.rt2, done.latency, journey], result
 
@@ -845,13 +934,12 @@ def main(
     return cli.main(list(sys.argv[1:] if argv is None else argv))
 
 
-def _live_factory(
-    environment: Environment, args: argparse.Namespace, clock: Clock, prefix: str
-) -> Backend:  # pragma: no cover - el mundo real: lo cubre U12-T06
+def _live_factory(environment: Environment, args: argparse.Namespace, clock: Clock, prefix: str) -> Backend:
+    """El `Backend` real. Se importa `live` aqui y no arriba: `--help` y las pruebas no cargan `playwright` ni `pyarrow`."""
     from vectra_verification.live import live_backend
 
     return live_backend(environment, args, clock, prefix, os.environ)
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     sys.exit(main())

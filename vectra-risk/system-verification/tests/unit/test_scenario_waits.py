@@ -66,3 +66,18 @@ def test_invalid_interval_or_timeout_is_an_error() -> None:
     for interval, timeout in ((0, 10), (-1, 10), (5, -1)):
         with pytest.raises(ValueError, match="poll_interval_or_timeout_invalid"):
             waits.poll(FakeClock(), lambda: (True, None), interval=interval, timeout=timeout)
+
+
+def test_a_deadline_that_float_arithmetic_leaves_a_hair_short_still_ends_with_the_fake_clock() -> None:
+    """F-08 (ronda 2): con un reloj falso cuyo `monotonic` acumula error de coma flotante, `elapsed` quedaba en `timeout - 1e-12`, el ultimo `sleep` era de 1e-12 (no mueve el reloj) y el sondeo no terminaba nunca: la suite se colgaba al 100 % de CPU."""
+    clock = FakeClock()
+    clock._mono = 1000.1  # noqa: SLF001
+    reads: list[int] = []
+
+    def never() -> tuple[bool, None]:
+        reads.append(1)
+        assert len(reads) < 5000, "el sondeo no termina: el plazo nunca se alcanza"
+        return False, None
+
+    waited = waits.poll(clock, never, interval=30.0, timeout=600.0)
+    assert not waited.met and waited.elapsed <= 600.0 and len(reads) < 5000
