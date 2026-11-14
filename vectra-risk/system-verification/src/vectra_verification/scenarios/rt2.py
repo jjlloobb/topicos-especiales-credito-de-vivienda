@@ -503,7 +503,7 @@ class Rt2Run:
 
     # lecturas
     def model(self, model_id: str) -> ModelVersionDetail:
-        found = _state(self.d.sessions.reader(COMPLIANCE), model_id)
+        found = _state(self.d.sessions.reader(APPROVER), model_id)
         if found is None:
             raise ScenarioError("rt2_modelo_desconocido", model_id)
         return found

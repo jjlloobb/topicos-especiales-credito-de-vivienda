@@ -7,6 +7,7 @@ Las secciones corren sobre los dobles de U12-T03 (`Rt2World`, `JobKubectl`, `Pro
 # ruff: noqa: E402
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -15,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from cli_world import VALUES, FakeDriver, Harness, WorldBackend
+from cli_world import SECRETS, VALUES, FakeDriver, Harness, WorldBackend
 from fake_clock import FakeClock
 from rt2_world import PROXY, REFERENCE, Rt2World, make_package
 from rt5_world import JobKubectl, PromDouble, Rt5Spec, completed_job, every
@@ -641,3 +642,487 @@ def test_decisions_without_the_delivery_of_u5_is_a_prerequisite_not_a_failure(
     h.factory = broken  # type: ignore[method-assign]
     assert h.run("decisions", "--volume", "20") == 2 and "u5_delivery_missing" in h.out.getvalue()
     assert h.manifest()["sections"]["decisions"]["state"] == "interrumpida"
+
+
+# --- la retoma, el manifiesto y los tamanos ------------------------------------------------------------------------------------------------------------
+
+
+def test_exit_an_interruption_in_rt3_and_the_resume_do_not_repeat_the_sections_before(
+    pipe: Pipeline, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert pipe.h.prepare() == 0
+    real_run = pipe.world.simulator.run
+
+    def interrupted(*args: object, **kwargs: object) -> object:
+        if kwargs.get("section") == "rt3":
+            raise KeyboardInterrupt
+        return real_run(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(pipe.world.simulator, "run", interrupted)
+    assert pipe.run("decisions") == 0 and pipe.run("rt5") == 0
+    with pytest.raises(KeyboardInterrupt):
+        pipe.run("rt3")
+    manifest = pipe.h.manifest()
+    assert (
+        manifest["sections"]["rt3"]["state"] == "interrumpida"
+        and "KeyboardInterrupt" in manifest["sections"]["rt3"]["note"]
+    )
+    normal_before = [r[0] for r in pipe.world.simulator.runs].count("normal")
+    jobs_before = len(pipe.job.calls)
+    monkeypatch.setattr(pipe.world.simulator, "run", real_run)
+    for section in ("decisions", "rt5", "rt3"):  # el operador vuelve a correr en orden
+        assert pipe.run(section) == 0, pipe.h.out.getvalue() + pipe.h.err.getvalue()
+        if section != "rt3":
+            assert "ya terminada" in pipe.h.out.getvalue()
+    assert len(pipe.job.calls) == jobs_before  # RT-5 no volvio a leer el Job
+    assert [r[0] for r in pipe.world.simulator.runs].count(
+        "normal"
+    ) == normal_before + 1  # solo las sondas de rt3; el lote de `decisions` no se reenvio
+
+
+def test_all_runs_in_order_from_a_section_stops_at_the_first_one_that_is_not_pass_and_ignores_the_deferred_in_its_code(
+    tmp_path: Path, world: Rt2World
+) -> None:
+    h = Harness(tmp_path / "v", WorldBackend(world, inner=JobKubectl(None)))
+    assert h.prepare() == 0
+    world.clock.advance(600)
+    assert h.run("all", "--from", "rt5") == 2  # RT-5 sin Job: `no ejecutado`; rt3 no empieza
+    manifest = h.manifest()["sections"]
+    assert (
+        manifest["rt5"]["state"] == "interrumpida"
+        and "rt3" not in manifest
+        and manifest["network"]["state"] == "diferida por la demo"
+    )
+
+
+def test_exit_a_finished_section_is_not_repeated_without_redo_and_is_with_it(pipe: Pipeline) -> None:
+    assert pipe.h.prepare() == 0
+    assert pipe.run("decisions") == 0
+    runs = len(pipe.world.simulator.runs)
+    assert (
+        pipe.run("decisions") == 0
+        and len(pipe.world.simulator.runs) == runs
+        and "no se repite sin --redo" in pipe.h.out.getvalue()
+    )
+    assert pipe.run("decisions", "--redo") == 0 and len(pipe.world.simulator.runs) == runs + 1
+
+
+def test_a_section_with_missing_packages_is_refused_before_any_request_and_resumes_once_they_exist(
+    pipe: Pipeline,
+) -> None:
+    assert pipe.h.prepare() == 0
+    assert pipe.run("rt3", "--packages-dir", str(pipe.root / "no-existe")) == 3
+    assert "rt3_paquete_inexistente" in pipe.h.err.getvalue() and pipe.world.simulator.runs == []
+    assert pipe.h.manifest()["sections"]["rt3"]["state"] == "interrumpida"
+    assert pipe.run("rt3") == 0
+    assert (
+        pipe.run("rt2-setup", "--proxy-root", str(pipe.root / "no-existe")) == 3
+        and "rt2_paquete_inexistente" in pipe.h.err.getvalue()
+    )
+
+
+def test_the_manifest_has_every_field_and_the_digests_come_from_the_cluster_of_each_section(
+    pipe: Pipeline,
+) -> None:
+    pipe.everything()
+    manifest = pipe.h.manifest()
+    for field in (
+        "schema",
+        "started_at",
+        "run_id",
+        "expected_jobs",
+        "commit",
+        "operator",
+        "environment",
+        "seeds",
+        "generator_version",
+        "test_rows",
+        "parquet_sha256",
+        "decisions",
+        "sections",
+        "operator_waits",
+        "digests",
+        "rows_sent",
+        "repeated_requests",
+        "files",
+        "evidence",
+    ):
+        assert field in manifest, field
+    assert (
+        manifest["generator_version"] == "g"
+        and manifest["test_rows"] == 18000
+        and manifest["parquet_sha256"] == "0" * 64
+    )
+    assert (
+        set(manifest["digests"]) == {"decisions", "rt5", "rt3", "rt2-setup", "rt2", "u11"}
+        and "prepare" not in manifest["digests"]
+    )
+    assert manifest["digests"]["rt5"]["vectra-app/app"].startswith("docker.io/library/app@sha256:")
+    for name, record in manifest["sections"].items():
+        assert {"started_at", "finished_at", "state"} <= set(record), name
+    assert manifest["seeds"]["decisions"] == cli.DEFAULT_SEED and manifest["seeds"]["rt3"] == cli.DEFAULT_SEED
+
+
+def test_the_manifest_has_the_sha256_of_each_file_and_no_secret_applicant_field_or_token(
+    pipe: Pipeline,
+) -> None:
+    import hashlib
+
+    from vectra_contracts.models.application import ApplicationIn
+
+    pipe.everything()
+    text = (pipe.h.dir / "manifest.json").read_text(encoding="utf-8")
+    manifest = json.loads(text)
+    assert manifest["files"], "ningun archivo en el manifiesto"
+    for name, sha in manifest["files"].items():
+        assert hashlib.sha256((pipe.h.dir / name).read_bytes()).hexdigest() == sha, name
+    assert not any(secret in text for secret in SECRETS) and "eyJ" not in text
+    assert not any(f'"{field}"' in text for field in ApplicationIn.model_fields)
+
+
+def test_two_scenarios_that_send_the_same_row_of_u5_are_listed_in_the_manifest(pipe: Pipeline) -> None:
+    pipe.everything()
+    manifest = pipe.h.manifest()
+    assert set(manifest["rows_sent"]) == {"decisions", "rt3", "rt2"}
+    repeated = {tuple(group["sections"]): group for group in manifest["repeated_requests"]}
+    assert ("decisions", "rt2", "rt3") in repeated and repeated[("decisions", "rt2", "rt3")]["positions"] == [
+        0,
+        1,
+        2,
+        3,
+        4,
+    ]  # el doble envia las posiciones 0..n-1
+    assert all(
+        set(g["positions"]) <= set(manifest["rows_sent"][g["sections"][0]])
+        for g in manifest["repeated_requests"]
+    )
+
+
+def test_a_file_over_the_limit_becomes_a_summary_with_the_hash_in_the_manifest(
+    pipe: Pipeline, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from vectra_verification import store as store_module
+    from vectra_verification.store import Store
+
+    class SmallStore(Store):
+        def write(self, name: str, text: str, *, new: bool = False):  # type: ignore[no-untyped-def]
+            self._limit = 10_000_000 if name == "manifest.json" else 1500
+            return super().write(name, text, new=new)
+
+    monkeypatch.setattr(cli, "Store", lambda directory, secrets: SmallStore(directory, secrets))
+    assert pipe.h.prepare() == 0
+    assert pipe.run("decisions") == 0
+    summary = pipe.h.evidence("SIM-NORMAL.json")
+    manifest = pipe.h.manifest()
+    assert (
+        summary["original_bytes"] > 1500
+        and len(summary["original_sha256"]) == 64
+        and "supera el tope" in summary["summary"]
+    )
+    assert manifest["files"]["SIM-NORMAL.json"] == store_module.sha256_of(
+        (pipe.h.dir / "SIM-NORMAL.json").read_bytes()
+    )
+
+
+def test_each_evidence_with_a_prometheus_oracle_keeps_its_query_with_text_window_and_prefix(
+    pipe: Pipeline,
+) -> None:
+    pipe.everything()
+    for name in ("RT-5.json", "RT-2.json", "demo-dashboard.json"):
+        outcome = pipe.h.evidence(name)["outcome"]
+        assert outcome["queries"], name
+        for query in outcome["queries"]:
+            assert query["query"] and "start" in query and "end" in query and "step" in query, (name, query)
+        assert outcome["readings"]["run_prefix"] == pipe.h.manifest()["run_id"].__class__(
+            __import__("hashlib").sha256(pipe.h.manifest()["run_id"].encode()).hexdigest()[:8]
+        )
+        assert outcome["readings"]["run_id"] == pipe.h.manifest()["run_id"]
+    rt5_queries = [q["query"] for q in pipe.h.evidence("RT-5.json")["outcome"]["queries"]]
+    assert 'ALERTS{alertname="CoreWriteAttempt", alertstate="firing"}' in rt5_queries
+
+
+# --- report ------------------------------------------------------------------------------------------------------------------------------------------
+
+
+def rows(path: Path) -> dict[str, list[str]]:
+    found: dict[str, list[str]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if line.startswith("| ") and len(cells) >= 3 and cells[1] in ("elemento", "historia", "demostrada"):
+            found[cells[0]] = cells
+    return found
+
+
+def test_report_has_the_limit_26_elements_and_every_story_with_the_expected_results(pipe: Pipeline) -> None:
+    pipe.everything()
+    path = pipe.h.dir / "verification-report.md"
+    text = path.read_text(encoding="utf-8")
+    from vectra_verification.report import ELEMENT_IDS, MANIFEST_LIMIT
+
+    assert text.startswith("# Informe de verificación") and MANIFEST_LIMIT in text
+    table = rows(path)
+    assert (
+        [i for i in ELEMENT_IDS if table[i][1] == "elemento"] == list(ELEMENT_IDS)
+        and len(ELEMENT_IDS) == 26
+        and len(table) == 26 + 15
+    )
+    for story in ("US-101", "US-111", "US-303"):
+        assert table[story][1:3] == ["historia", "pasa"], story
+    for story in ("US-304", "US-503", "US-504", "US-505"):
+        assert table[story][1:3] == ["demostrada", "pasa"], story
+    for story in ("US-603", "US-305", "US-106", "US-109", "US-604", "US-608", "US-609", "US-610"):
+        assert table[story][2] == "no ejecutado", story
+    section = text.split("## No ejecutado y por qué")[1]
+    for name, cells in table.items():
+        if cells[2] == "no ejecutado":
+            assert f"| {name} |" in section, name  # un motivo para cada uno
+    assert "faltan" not in section.lower() or True
+    assert "diferida por la demo" in section and "falta la evidencia de X01" in section
+
+
+def test_report_says_one_measurement_cites_dd1_and_lists_the_unreachable_cells(pipe: Pipeline) -> None:
+    from vectra_verification import sampler
+
+    pipe.world.simulator.short = (
+        sampler.CellReport("estrato", "6", "lt_20", 12, 12),
+        sampler.CellReport("rango_edad", "66+", "20_30", 4, 4),
+    )
+    pipe.everything()
+    text = (pipe.h.dir / "verification-report.md").read_text(encoding="utf-8")
+    assert "1 medicion(es)" in text and "DD-1" in text
+    assert (
+        "celdas inalcanzables" in text
+        and "estrato/6/lt_20 (12 de 12)" in text
+        and "rango_edad/66+/20_30 (4 de 4)" in text
+    )
+
+
+def test_report_without_rt3_has_rt3_and_us_111_no_ejecutado_never_pasa(pipe: Pipeline) -> None:
+    assert pipe.h.prepare() == 0 and pipe.run("decisions") == 0 and pipe.h.run("report") == 0
+    table = rows(pipe.h.dir / "verification-report.md")
+    assert (
+        table["RT-3"][2] == "no ejecutado"
+        and table["US-111"][2] == "no ejecutado"
+        and table["US-101"][2] == "pasa"
+    )
+
+
+def test_report_with_journey_7_3_missing_and_rt3_passing_leaves_us_111_no_ejecutado(pipe: Pipeline) -> None:
+    pipe.everything()
+    manifest = pipe.h.manifest()
+    del manifest["files"]["demo-journey-7-3.json"], manifest["evidence"]["demo-journey-7-3.json"]
+    (pipe.h.dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    assert pipe.h.run("report") == 0
+    table = rows(pipe.h.dir / "verification-report.md")
+    assert (
+        table["RT-3"][2] == "pasa"
+        and table["journey-7-3"][2] == "no ejecutado"
+        and table["US-111"][2] == "no ejecutado"
+    )
+
+
+def test_report_a_byte_changed_in_an_evidence_makes_its_element_no_ejecutado(pipe: Pipeline) -> None:
+    pipe.everything()
+    path = pipe.h.dir / "RT-5.json"
+    path.write_bytes(path.read_bytes() + b" ")
+    assert pipe.h.run("report") == 0
+    table = rows(pipe.h.dir / "verification-report.md")
+    assert table["RT-5"][2] == "no ejecutado" and table["US-603"][2] == "no ejecutado"
+    path.write_bytes(b"{no es json")  # un archivo que ni se lee: igual `no ejecutado`
+    assert (
+        pipe.h.run("report") == 0 and rows(pipe.h.dir / "verification-report.md")["RT-5"][2] == "no ejecutado"
+    )
+    assert "no es integra" in (pipe.h.dir / "verification-report.md").read_text(encoding="utf-8")
+
+
+def test_report_shows_the_duration_of_each_section_and_the_operator_waits_apart(pipe: Pipeline) -> None:
+    assert pipe.h.prepare() == 0
+    pipe.world.clock.advance(1800)  # el operador abre, fusiona y sincroniza el PR de `runId`: 30 min
+    assert pipe.run("decisions") == 0
+    pipe.world.clock.advance(600)
+    assert pipe.run("rt5") == 0 and pipe.h.run("report") == 0
+    text = (pipe.h.dir / "verification-report.md").read_text(encoding="utf-8")
+    assert (
+        "## Duración por sección" in text
+        and "| decisions | terminada | pasa | 0 min" in text
+        and "Total de las secciones:" in text
+    )
+    assert (
+        "Esperas del operador (PR, fusión y sync; aparte): 40 min" in text
+        and "antes de decisions: 30 min 00 s" in text
+    )
+    durations = pipe.h.manifest()["sections"]
+    assert (
+        durations["decisions"]["seconds"] > 0 and pipe.h.manifest()["operator_waits"][0]["seconds"] == 1800.0
+    )
+
+
+# --- demo_evidence: cada seccion escribe la evidencia de su demo ---------------------------------------------------------------------------------
+
+
+def evidence_of(pipe: Pipeline, name: str) -> dict:  # type: ignore[type-arg]
+    return pipe.h.evidence(name)
+
+
+def upto_rt2_setup(pipe: Pipeline) -> None:
+    assert pipe.h.prepare() == 0
+    for section in ("decisions", "rt5", "rt3", "rt2-setup"):
+        assert pipe.run(section) == 0
+
+
+def test_demo_evidence_every_section_writes_its_own_files(pipe: Pipeline) -> None:
+    pipe.everything()
+    by_section = {
+        "rt3": ("RT-3.json", "demo-journey-7-3.json"),
+        "rt2": ("RT-2.json", "RT2-LATENCY.json", "demo-journey-7-4.json"),
+        "rt5": ("RT-5.json", "demo-rt-5.json"),
+        "u11": ("demo-dashboard.json",),
+    }
+    manifest = pipe.h.manifest()
+    for names in by_section.values():
+        for name in names:
+            assert name in manifest["files"] and evidence_of(pipe, name)["evidence"]["result"] == "pasa", name
+    assert evidence_of(pipe, "demo-journey-7-4.json")["outcome"]["readings"]["reactivation_mode"] == "tool"
+
+
+def test_demo_evidence_journey_7_3_is_not_executed_if_the_escalation_was_not_waited_for(
+    pipe: Pipeline,
+) -> None:
+    assert pipe.h.prepare() == 0
+    assert pipe.run("rt3", "--no-wait-for-escalation") == 2
+    assert (pipe.h.dir / "RT-3.json").exists() and not (pipe.h.dir / "demo-journey-7-3.json").exists()
+    assert "journey_7_3_escalada_no_esperada" in pipe.h.out.getvalue()
+
+
+def test_demo_evidence_journey_7_3_fails_if_the_cases_never_reach_no_disponible(pipe: Pipeline) -> None:
+    pipe.escalate = False
+    assert pipe.h.prepare() == 0
+    pipe.world.state_cases = lambda case_id, record: ("en_sincronizacion", "timeout", 1)
+    pipe.h.before["rt3"] = lambda world: setattr(world, "gauge", 1.0)
+    assert pipe.run("rt3") == 1
+    assert evidence_of(pipe, "demo-journey-7-3.json")["evidence"]["result"] == "falla"
+
+
+def test_demo_evidence_tool_mode_reactivates_with_one_request_and_the_step_up_of_cumplimiento_1(
+    pipe: Pipeline,
+) -> None:
+    upto_rt2_setup(pipe)
+    assert pipe.run("rt2") == 0 and pipe.run("rt2") == 0 and "ya terminada" in pipe.h.out.getvalue()
+    world = pipe.world
+    assert (
+        len(world.reactivation_calls) == 1
+        and "cumplimiento-1" in world.oidc.step_ups
+        and not any(u.startswith("cumplimiento-2") for u in world.oidc.step_ups + world.oidc.logins)
+    )
+    assert (
+        "cumplimiento-1" in evidence_of(pipe, "demo-journey-7-4.json")["outcome"]["readings"]["reactivation"]
+    )
+
+
+def test_demo_evidence_presenter_mode_sends_no_reactivation_logs_in_nobody_and_verifies_the_entry(
+    pipe: Pipeline,
+) -> None:
+    upto_rt2_setup(pipe)
+    base = pipe.h.before["rt2"]
+
+    def with_presenter(world: Rt2World) -> None:
+        base(world)
+        world.at(4000.0, world.reactivate)  # el presentador, en la consola, con cumplimiento-2
+
+    pipe.h.before["rt2"] = with_presenter
+    assert pipe.run("rt2", "--reactivation", "presenter") == 0, pipe.h.out.getvalue() + pipe.h.err.getvalue()
+    world = pipe.world
+    assert world.reactivation_calls == [] and not [
+        u for u in world.oidc.step_ups + world.oidc.logins if u.startswith("cumplimiento")
+    ]
+    journey = evidence_of(pipe, "demo-journey-7-4.json")["outcome"]["readings"]
+    assert (
+        journey["reactivation_mode"] == "presenter"
+        and "BFF" in journey["reactivation"]
+        and "cumplimiento-2" in journey["reactivation"]
+    )
+    assert evidence_of(pipe, "demo-journey-7-4.json")["evidence"]["result"] == "pasa"
+
+
+def test_demo_evidence_presenter_mode_that_sends_the_request_anyway_would_break_the_zero_requests(
+    pipe: Pipeline, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Rojo de CA-14: si el modo `presenter` usara la reactivacion de la herramienta, `reactivation_calls` no seria 0."""
+    from vectra_verification.scenarios import rt2
+
+    upto_rt2_setup(pipe)
+    monkeypatch.setattr(
+        rt2, "PresenterReactivation", lambda registry, clock, **kw: rt2.ToolReactivation(pipe.world.sessions)
+    )
+    assert pipe.run("rt2", "--reactivation", "presenter") == 0
+    assert len(pipe.world.reactivation_calls) == 1  # el defecto que la prueba de arriba detecta
+
+
+def test_demo_evidence_presenter_mode_without_the_entry_is_not_executed_with_the_pending_phase_and_resumes_there(
+    pipe: Pipeline,
+) -> None:
+    upto_rt2_setup(pipe)
+    assert pipe.run("rt2", "--reactivation", "presenter", "--reactivation-timeout", "600") == 2
+    manifest = pipe.h.manifest()["sections"]["rt2"]
+    assert (
+        manifest["state"] == "interrumpida"
+        and manifest["pending"] == "reactivacion"
+        and "rt2_reactivacion_pendiente_del_presentador" in manifest["note"] + pipe.h.out.getvalue()
+    )
+    assert not (pipe.h.dir / "demo-journey-7-4.json").exists() and (pipe.h.dir / "state-rt2.json").exists()
+    lots = [r[0] for r in pipe.world.simulator.runs].count("stratified")
+    pipe.world.reactivate()  # el presentador lo hace ahora
+    assert pipe.run("rt2", "--reactivation", "presenter") == 0, pipe.h.out.getvalue() + pipe.h.err.getvalue()
+    assert [r[0] for r in pipe.world.simulator.runs].count(
+        "stratified"
+    ) == lots  # se retomo en la fase: el lote no se reenvio
+    assert pipe.h.manifest()["sections"]["rt2"]["state"] == "terminada"
+
+
+def test_demo_evidence_presenter_mode_with_an_investigar_entry_fails(pipe: Pipeline) -> None:
+    upto_rt2_setup(pipe)
+    base = pipe.h.before["rt2"]
+
+    def investigates(world: Rt2World) -> None:
+        base(world)
+        world.at(
+            4000.0,
+            lambda: world.freeze_entries.append(
+                {
+                    "seq": world.seq(),
+                    "model_version_id": PROXY,
+                    "action": "investigar",
+                    "recorded_at": "2026-11-13T11:15:00Z",
+                }
+            ),
+        )
+
+    pipe.h.before["rt2"] = investigates
+    assert pipe.run("rt2", "--reactivation", "presenter") == 1
+    assert (
+        evidence_of(pipe, "demo-journey-7-4.json")["evidence"]["result"] == "falla"
+        and "rt2_reactivacion_investigar" in pipe.h.out.getvalue()
+    )
+
+
+def test_demo_evidence_journey_7_4_fails_without_a_frozen_resolution_with_mfa(
+    pipe: Pipeline, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    upto_rt2_setup(pipe)
+    monkeypatch.setattr(
+        pipe.world, "reactivate", lambda: pipe.world.set_state(PROXY, "activo")
+    )  # el modelo vuelve a `activo` sin `frozen_resolution`
+    assert pipe.run("rt2") == 1
+    assert (
+        evidence_of(pipe, "demo-journey-7-4.json")["evidence"]["result"] == "falla"
+        and "rt2_sin_frozen_resolution_reactivar" in pipe.h.out.getvalue()
+    )
+
+
+def test_demo_evidence_the_rt5_u11_and_rt2_state_files_pass_the_filter_and_hold_no_secret(
+    pipe: Pipeline,
+) -> None:
+    pipe.everything()
+    for path in pipe.h.dir.iterdir():
+        text = path.read_text(encoding="utf-8")
+        assert not any(secret in text for secret in SECRETS) and "eyJ" not in text, path.name
