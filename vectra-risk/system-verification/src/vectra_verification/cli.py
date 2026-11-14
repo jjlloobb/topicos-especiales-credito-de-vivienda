@@ -94,7 +94,15 @@ class Refused(Exception):
 
 
 class _Parser(argparse.ArgumentParser):
-    def error(self, message: str) -> Any:  # pragma: no cover - lo prueba `test_cli` por `main`
+    def __init__(self, *args: Any, out: TextIO | None = None, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._out = out
+
+    def _print_message(self, message: str, file: Any = None) -> None:
+        if message:
+            print(message, end="", file=self._out or file or sys.stdout)
+
+    def error(self, message: str) -> Any:
         raise UsageError(message)
 
 
@@ -123,10 +131,13 @@ class Backend(Protocol):
 BackendFactory = Callable[[Environment, argparse.Namespace, Clock, str], Backend]
 
 
-def build_parser(environ: dict[str, str] | os._Environ[str]) -> argparse.ArgumentParser:
+def build_parser(
+    environ: dict[str, str] | os._Environ[str], out: TextIO | None = None
+) -> argparse.ArgumentParser:
     parser = _Parser(
         prog="vectra-verification",
         description="Verificacion del sistema de Vectra Risk (U12), por secciones.",
+        out=out,
     )
     common = _Parser(add_help=False)
     common.add_argument(
@@ -143,16 +154,18 @@ def build_parser(environ: dict[str, str] | os._Environ[str]) -> argparse.Argumen
     )
     common.add_argument("--redo", action="store_true", help="repite una seccion terminada")
     sub = parser.add_subparsers(dest="section", metavar="seccion", parser_class=_Parser)
-    sections: dict[str, argparse.ArgumentParser] = {}
+    sections: dict[str, _Parser] = {}
     for name in guard.SECTIONS:
         sections[name] = sub.add_parser(name, parents=[common], help=HELP[name], description=HELP[name])
-    every = sub.add_parser(
+    every: _Parser = sub.add_parser(
         "all",
         parents=[common],
         help="corre las secciones en orden desde `--from`",
         description="corre las secciones en orden desde `--from`",
     )
     every.add_argument("--from", dest="start", default="decisions", choices=SECTIONS_RUN[1:])
+    for each in (*sections.values(), every):
+        each._out = out
     p = sections["prepare"]
     p.add_argument("--commit", required=True)
     p.add_argument("--operator", required=True)
@@ -264,7 +277,7 @@ class Cli:
         err: TextIO,
     ) -> None:
         self.environ, self.clock, self.factory, self.out, self.err = environ, clock, factory, out, err
-        self.parser = build_parser(environ)
+        self.parser = build_parser(environ, out)
         self.backend: Backend | None = None
         self.store: Store | None = None
         self.manifest: mf.Manifest | None = None
