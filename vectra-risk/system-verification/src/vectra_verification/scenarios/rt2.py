@@ -12,6 +12,7 @@ inalcanzables (menos de 30 disponibles) no bloquean: se informan con sus filas d
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -144,10 +145,11 @@ def judge_package(freeze: Mapping[str, Any]) -> tuple[str, ...]:
 def count_bias_runs(
     timestamps: Sequence[tuple[float, float]], ok: Sequence[tuple[float, float]], after: float
 ) -> list[float]:
-    """Pura. Las corridas de bias correctas **estrictamente posteriores** a la de referencia (arbitraje de la ronda 1, F-02). La referencia es la primera marca `vectra_bias_last_run_timestamp` mayor o igual que `after` (el `recorded_at` del `freeze` o de la reactivacion): la corrida que congelo escribe el `freeze` **antes** de fijar su marca de fin (U9 `run.py`), asi que su marca es posterior al `freeze` y no es «una mas». Se cuentan valores distintos con `vectra_bias_last_run_ok == 1` en el primer paso en que aparecen; una corrida fallida no cuenta."""
+    """Pura. Las corridas de bias correctas **estrictamente posteriores** a la de referencia (arbitraje de la ronda 1, F-02; enmienda de la ronda 3, F-11). U9 publica `vectra_bias_last_run_timestamp` **truncada al segundo** (`publish.py`: `int(finished_at.timestamp())`) y el `recorded_at` del `freeze` lleva microsegundos y cae casi siempre en el mismo segundo que el fin de la corrida que congelo: su marca queda **por debajo** de `after`. La referencia es la primera marca mayor o igual que `floor(after)`; la corrida que congelo es la referencia y no es «una mas». Se cuentan valores distintos con `vectra_bias_last_run_ok == 1` en el primer paso en que aparecen; una corrida fallida no cuenta."""
     ok_at = dict(ok)
     ordered = sorted(timestamps)
-    reference = next((value for _, value in ordered if value >= after), None)
+    floor = math.floor(after)
+    reference = next((value for _, value in ordered if value >= floor), None)
     if reference is None:  # la corrida que congelo (o la que estaba en vuelo) aun no termino
         return []
     seen: list[float] = []
@@ -1002,7 +1004,7 @@ def run_rt2(deps: Rt2Deps, params: Rt2Params, state: Rt2State | None = None) -> 
         readings,
     )
     no_freeze = pending == "freeze" and any(
-        s.name.endswith(":freeze") and s.result == FALLA for s in subs
+        s.name.endswith(":freeze") and s.result == FALLA and "rt2_freeze_ausente" in s.missing for s in subs
     )  # F-04: el sistema respondio y no detecto dentro del tope de 2 700 s: es `falla`, no `no ejecutado`
     return Rt2Result(
         rt2, latency_outcome(measurements, no_freeze=no_freeze), closing, state, pending, unreachable

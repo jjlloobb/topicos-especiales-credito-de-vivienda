@@ -134,6 +134,8 @@ class RegistryWorld(httpx.BaseTransport):
         assert names <= ENTRIES_PARAMS, f"parametros fuera del contrato: {sorted(names - ENTRIES_PARAMS)}"
         params = request.url.params
         projection = params["projection"]
+        if projection == "monitoring_freezes" and self.world.freezes_status != 200:
+            return httpx.Response(self.world.freezes_status, json=problem(self.world.freezes_status, "forbidden"))
         since = datetime.fromisoformat(params["recorded_from"]) if "recorded_from" in params else None
         until = datetime.fromisoformat(params["recorded_to"]) if "recorded_to" in params else None
         pool = self.world.recommendations if projection == "metrics" else self.world.freeze_entries
@@ -281,7 +283,8 @@ class Rt2World:
         self.recommendation_version: str | None = None
         self.frozen_resolutions_early = False
         self.bias_ok = 1.0
-        self.freeze_fraction = 0.3  # segundos de fraccion del `recorded_at` del freeze sobre el reloj (entero)
+        self.freezes_status = 200  # el estado con que responde la lectura de `monitoring_freezes` (un 4xx en la fase `freeze`)
+        self.freeze_fraction = 0.0  # fraccion de segundo del `recorded_at` del freeze sobre el reloj (entero); las pruebas de F-11 la fijan en 0,3
         self.run_delay = 0.05  # lo que tarda la corrida de bias entre el `freeze` y su marca de fin
         self.registrations: list[tuple[str, str]] = []
         self.approvals: list[tuple[str, str]] = []

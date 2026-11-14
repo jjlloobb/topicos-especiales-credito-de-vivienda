@@ -1910,7 +1910,7 @@ DELAYS = pytest.mark.parametrize("delay", [0.05, 0.9], ids=["mismo_segundo", "cr
 @DELAYS
 def test_rt2_f11_the_run_that_froze_plus_two_is_not_enough(rworld: Rt2World, delay: float) -> None:
     """F-11: con la marca entera de U9 (no posterior al `recorded_at`), la que congelo mas 2 no basta (freeze a 1 500 s, corridas cada 900 s, el `recorded_at` en .3 s: con 0,05 s la marca queda en el mismo segundo; con 0,9 s cruza)."""
-    rworld.run_delay = delay
+    rworld.freeze_fraction, rworld.run_delay = 0.3, delay
     result = rt2_run(rworld, params={"bias_timeout": 1900.0})  # congelo + 2 corridas
     assert result.rt2.result == "no ejecutado" and codes(result) == ("rt2_corridas_de_bias_pendientes",)
     assert "solo 2 de 3" in next(s.detail for s in result.rt2.subresults if s.name == "v1:sigue_congelada")
@@ -1919,6 +1919,16 @@ def test_rt2_f11_the_run_that_froze_plus_two_is_not_enough(rworld: Rt2World, del
 @DELAYS
 def test_rt2_f11_the_run_that_froze_plus_three_passes(rworld: Rt2World, delay: float) -> None:
     """F-11: la que congelo mas 3 da `pasa` (antes del arreglo el oraculo exigia 4 y daba `no ejecutado` en el tope de 3 600 s)."""
-    rworld.run_delay = delay
+    rworld.freeze_fraction, rworld.run_delay = 0.3, delay
     result = rt2_run(rworld)
     assert result.rt2.result == "pasa", [(s.name, s.result, s.missing) for s in result.rt2.subresults]
+
+
+def test_rt2_f12_a_403_in_the_freeze_phase_is_not_reported_as_no_freeze_at_the_cap(rworld: Rt2World) -> None:
+    """F-12: solo `rt2_freeze_ausente` (sin freeze al tope de 2 700 s) da `rt2_latencia_sin_freeze` y su texto; un 403 en el primer sondeo no."""
+    rworld.freezes_status = 403
+    result = rt2_run(rworld)
+    assert result.pending == "freeze" and codes(result) == ("rt2_http_403_forbidden",)
+    assert result.rt2.result == "falla"
+    assert result.latency.missing != ("rt2_latencia_sin_freeze",)
+    assert "sin freeze al tope" not in result.latency.obtained
