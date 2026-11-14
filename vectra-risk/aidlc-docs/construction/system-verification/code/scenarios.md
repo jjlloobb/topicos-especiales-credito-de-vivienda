@@ -15,7 +15,7 @@ to_evidence(outcome, command=, output=, commit=, images=, executed_at=, operator
 to_text(outcome) -> str                                                                                  # JSON; pasa por evidence.prepare sin cambios
 
 # scenarios.waits
-poll(clock, condition, interval=, timeout=) -> Waited(met, value, elapsed, attempts)      # reloj inyectado: ni un sleep real
+poll(clock, condition, interval=, timeout=) -> Waited(met, value, elapsed, attempts)      # reloj inyectado: ni un sleep real; un plazo que la coma flotante deja `1e-12` corto termina (`EPSILON`)
 
 # scenarios.common
 Sessions(environment, oidc, clock, tag, transport=, verify=).reader(user) / .writer(user) / .write(user, call)   # step-up renovado si auth_time > 800 s
