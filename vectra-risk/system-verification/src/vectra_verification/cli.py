@@ -320,7 +320,8 @@ class Cli:
                 continue
             section_args = self.parser.parse_args([name, *common, *(["--redo"] if args.redo else [])])
             code = self.run_section(name, section_args)
-            codes.append(code)
+            if name in SECTIONS_RUN:  # las diferidas responden 2 siempre: no cuentan en el codigo de `all`
+                codes.append(code)
             if code in (EXIT_FAIL, EXIT_REFUSED) or (code == EXIT_NOT_RUN and name in SECTIONS_RUN):
                 break
         return max(codes) if codes else EXIT_PASS
@@ -435,7 +436,13 @@ class Cli:
             record = manifest.sections[section]
             self.say(f"seccion {section}: ya terminada ({record.get('result')}); no se repite sin --redo")
             return int(record.get("exit_code") or EXIT_PASS)
-        manifest.start_section(section, self.clock.now())
+        now = self.clock.now()
+        last = manifest.last_finished()
+        if section != "report" and last is not None and now > last:
+            manifest.add_wait(
+                f"antes de {section}", last, now
+            )  # lo que tardo el operador entre secciones: aparte del tiempo de las secciones
+        manifest.start_section(section, now)
         if section == "report":
             return self._finish(section, SectionResult(), self._report(args))
         if self.factory is None:
@@ -593,11 +600,17 @@ class Cli:
         self, environment: Environment, args: argparse.Namespace, sim: RecordingSimulator, stack: ExitStack
     ) -> tuple[list[Outcome], SectionResult]:
         from vectra_verification.scenarios import demos, rt3
+        from vectra_verification.scenarios.common import ScenarioError
         from vectra_verification.scenarios.outcome import SubOutcome
 
         assert self.backend is not None
         backend = self.backend
         root = Path(args.packages_dir)
+        absent = [case for case in rt3.REGISTRY_CASES if not (root / case / "manifest.json").is_file()]
+        if args.rt3b_dir and not (Path(args.rt3b_dir) / "manifest.json").is_file():
+            absent.append("RT3-b")
+        if absent:
+            raise ScenarioError("rt3_paquete_inexistente", ",".join(absent))
         packages = {
             case: rt3.Rt3Package(case, root / case, f"adversarial/rt3/{case}") for case in rt3.REGISTRY_CASES
         }
@@ -641,11 +654,13 @@ class Cli:
     # --- rt2-setup y rt2 -----------------------------------------------------------------------------------------------------
     def _versions(self, args: argparse.Namespace) -> list[Any]:
         from vectra_verification.scenarios import rt2
-        from vectra_verification.scenarios.common import package_version
+        from vectra_verification.scenarios.common import ScenarioError, package_version
 
         versions = []
         for run in range(1, int(args.versions) + 1):
             directory = Path(args.proxy_root) / f"run-{run}"
+            if not (directory / "manifest.json").is_file():
+                raise ScenarioError("rt2_paquete_inexistente", directory.name)
             identifier = package_version(directory)
             versions.append(rt2.ProxyVersion(run, identifier, directory, identifier))
         return versions

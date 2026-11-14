@@ -7,6 +7,7 @@ Las secciones corren sobre los dobles de U12-T03 (`Rt2World`, `JobKubectl`, `Pro
 # ruff: noqa: E402
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -14,8 +15,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from cli_world import Harness, WorldBackend
-from rt2_world import REFERENCE, Rt2World
+from cli_world import VALUES, FakeDriver, Harness, WorldBackend
+from fake_clock import FakeClock
+from rt2_world import PROXY, REFERENCE, Rt2World, make_package
 from rt5_world import JobKubectl, PromDouble, Rt5Spec, completed_job, every
 from vectra_verification import cli, guard
 from vectra_verification.clients.prom import PromClient
@@ -268,3 +270,374 @@ def test_exit_the_deferred_sections_are_2_with_zero_requests_and_a_line_in_the_m
         and "enmienda §3 U12, fila «13»" in record["note"]
     )
     assert "diferida por la demo" in h.out.getvalue() and "(2)" in h.out.getvalue()
+
+
+# --- el mundo completo: las secciones de D1 a D4 sobre los dobles ------------------------------------------------------------------------------------
+
+from contract_world import problem
+from product_prom import Prom
+from vectra_verification.scenarios import rt3 as rt3_module
+
+
+def _reject(case_id: str):  # type: ignore[no-untyped-def]
+    def respond(call):  # type: ignore[no-untyped-def]
+        body = problem(422, "validation_error")
+        body["invalid_params"] = [{"name": "package", "reason_code": rt3_module.EXPECTED_REASON[case_id]}]
+        return 422, body
+
+    return respond
+
+
+class Pipeline:
+    """Todo lo que el operador deja listo y lo que hace entre secciones, sobre un `Rt2World`: los paquetes en disco, el Job de RT-5, F22 apagado, el cron de bias y el paso al dia D + 1."""
+
+    def __init__(self, tmp_path: Path, world: Rt2World, *, escalate: bool = True) -> None:
+        self.world = world
+        self.root = tmp_path / "paquetes"
+        for case in ("RT3-a", "RT3-c", "RT3-d"):
+            make_package(self.root / "rt3", case)
+            world.register_overrides[case] = _reject(case)
+        proxy = make_package(self.root, PROXY)
+        (self.root / "proxy").mkdir()
+        proxy.rename(self.root / "proxy" / "run-1")
+        self.reference = make_package(self.root, REFERENCE)
+        started = world.clock.now()
+        job_start, job_end = started + timedelta(minutes=5), started + timedelta(minutes=5, seconds=20)
+        now = started + timedelta(hours=6)
+        spec = Rt5Spec(
+            started_at=started,
+            alert=every(job_start, job_end + timedelta(minutes=5)),
+            deny=[(t, 1.0) for t in every(job_start + timedelta(seconds=5), job_end + timedelta(minutes=14))],
+            counter=[(t, 0.0) for t in every(started, now)],
+            lowest=now - timedelta(days=3),
+        )
+        self.job = JobKubectl(completed_job(job_start, job_end, f"rt5-demo-{RUN_ID}"))
+        backend = WorldBackend(
+            world,
+            runners={"rt5": self.job},
+            proms={
+                "rt5": PromClient("http://prom", transport=PromDouble(spec)),
+                "u11": PromClient("http://prom", transport=Prom()),
+            },
+        )
+        self.h = Harness(self.root.parent / "verificacion", backend)
+        self.escalate = escalate
+        self.waits: dict[str, float] = {}
+        self.h.before = {
+            "rt3": self._rt3,
+            "rt2": self._rt2,
+            "u11": self._u11,
+            "decisions": self._wait,
+            "rt5": self._wait,
+            "rt2-setup": self._wait,
+        }
+
+    def _wait(self, world: Rt2World) -> None:
+        return None
+
+    def _rt3(self, world: Rt2World) -> None:
+        if self.escalate:
+            world.state_cases = lambda case_id, record: (
+                ("no_disponible", "explainer_unavailable", 6)
+                if (world.clock.now() - record.created).total_seconds() > 1170
+                else ("en_sincronizacion", "timeout", 1)
+            )
+        world.gauge, world.alert_firing = 1.0, True
+
+    def _rt2(self, world: Rt2World) -> None:
+        world.state_cases = None
+        world.operator_promotes(60.0)
+        world.operator_rolls_back(6000.0)
+        world.start_bias()
+
+    def _u11(self, world: Rt2World) -> None:
+        world.clock.advance((datetime(2026, 11, 14, 3, 30, tzinfo=UTC) - world.clock.now()).total_seconds())
+
+    def args(self, section: str, *extra: str) -> list[str]:
+        flags: dict[str, list[str]] = {
+            "decisions": ["--volume", "20", "--settle-timeout", "300"],
+            "rt3": ["--packages-dir", str(self.root / "rt3"), "--probes", "5"],
+            "rt2-setup": ["--proxy-root", str(self.root / "proxy")],
+            "rt2": [
+                "--proxy-root",
+                str(self.root / "proxy"),
+                "--reference-dir",
+                str(self.reference),
+                "--volume",
+                "100",
+            ],
+        }
+        return [section, *flags.get(section, []), *extra]
+
+    def run(self, section: str, *extra: str) -> int:
+        return self.h.run(*self.args(section, *extra))
+
+    def everything(self, *rt2_extra: str) -> None:
+        assert self.h.prepare() == 0
+        for section in ("decisions", "rt5", "rt3", "rt2-setup"):
+            assert self.run(section) == 0, (section, self.h.out.getvalue(), self.h.err.getvalue())
+        assert self.run("rt2", *rt2_extra) == 0, (self.h.out.getvalue(), self.h.err.getvalue())
+        assert self.run("u11") == 0, (self.h.out.getvalue(), self.h.err.getvalue())
+        assert self.h.run("report") == 0
+
+
+@pytest.fixture
+def pipe(tmp_path: Path, world: Rt2World) -> Pipeline:
+    return Pipeline(tmp_path, world)
+
+
+def test_the_whole_pipeline_runs_every_section_with_exit_0_and_writes_the_evidences(pipe: Pipeline) -> None:
+    pipe.everything()
+    names = {p.name for p in pipe.h.dir.iterdir()}
+    assert {
+        "manifest.json",
+        "verification-report.md",
+        "case-management-runid.patch",
+        "SIM-NORMAL.json",
+        "RT-5.json",
+        "RT-3.json",
+        "RT-2.json",
+        "RT2-LATENCY.json",
+    } <= names
+    assert {
+        "demo-rt-5.json",
+        "demo-journey-7-3.json",
+        "demo-journey-7-4.json",
+        "demo-dashboard.json",
+    } <= names
+
+
+# --- prepare ---------------------------------------------------------------------------------------------------------------------------------------
+
+
+KIND_VALUES = "vectra-risk-gitops/values/kind/case-management.yaml"
+
+
+def check_patch(text: str, run_id: str) -> None:
+    """Lo que el parche de `prepare` puede ser: un archivo (los values de kind de `case-management`), y una sola linea anadida, la del `runId`, entre comillas."""
+    files = re.findall(r"^\+\+\+ b/(.+)$", text, re.M)
+    assert [f.removeprefix("vectra-risk/") for f in files] == [KIND_VALUES], files
+    added = [line for line in text.splitlines() if line.startswith("+") and not line.startswith("+++")]
+    removed = [line for line in text.splitlines() if line.startswith("-") and not line.startswith("---")]
+    assert added == [f'+  runId: "{run_id}"'] and removed == []
+
+
+def test_prepare_makes_the_manifest_the_run_id_and_the_patch_without_a_single_request(
+    tmp_path: Path, world: Rt2World
+) -> None:
+    h = harness(tmp_path, world)
+    assert h.prepare() == 0  # `environ` vacio: sin VAULT_ADDR ni kubeconfig
+    assert h.factory_calls == 0 and h.requests == 0
+    manifest = h.manifest()
+    assert re.fullmatch(r"[0-9]{8}-[0-9]{4}", manifest["run_id"]) and manifest["expected_jobs"] == [
+        f"rt5-demo-{manifest['run_id']}"
+    ]
+    assert (
+        manifest["commit"] == "c0ffee1" and manifest["operator"] == "operadora" and manifest["digests"] == {}
+    )
+    check_patch((h.dir / "case-management-runid.patch").read_text(encoding="utf-8"), manifest["run_id"])
+    assert (
+        manifest["sections"]["prepare"]["state"] == "terminada"
+        and "case-management-runid.patch" in manifest["files"]
+    )
+    assert sorted(p.name for p in h.dir.iterdir()) == ["case-management-runid.patch", "manifest.json"]
+
+
+def test_prepare_a_started_at_of_2026_10_12_at_14_07_31_gives_the_run_id_20261012_1407(
+    tmp_path: Path,
+) -> None:
+    clock = FakeClock(datetime(2026, 10, 12, 14, 7, 31, tzinfo=UTC))
+    h = Harness(tmp_path / "v", clock=clock)
+    assert h.prepare() == 0
+    manifest = h.manifest()
+    assert manifest["started_at"] == "2026-10-12T14:07:31Z" and manifest["run_id"] == "20261012-1407"
+    assert '+  runId: "20261012-1407"' in (h.dir / "case-management-runid.patch").read_text(encoding="utf-8")
+
+
+def test_prepare_with_an_existing_manifest_is_refused_and_started_at_does_not_change(tmp_path: Path) -> None:
+    clock = FakeClock(datetime(2026, 10, 12, 14, 7, 31, tzinfo=UTC))
+    h = Harness(tmp_path / "v", clock=clock)
+    assert h.prepare() == 0
+    before = (h.dir / "manifest.json").read_bytes()
+    clock.advance(3600)
+    assert h.prepare() == 3 and "prepare_manifest_exists" in h.err.getvalue()
+    assert (h.dir / "manifest.json").read_bytes() == before and h.manifest()[
+        "started_at"
+    ] == "2026-10-12T14:07:31Z"
+
+
+def test_prepare_the_red_that_restarts_started_at_on_resume_is_caught(
+    tmp_path: Path, world: Rt2World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Rojo de CA-7: si `prepare` reescribiera el manifiesto, `started_at` cambiaria. Con la guarda de `store.write(new=True)` quitada, el caso de arriba falla: se comprueba aqui que la guarda es la que protege."""
+    from vectra_verification import store as store_module
+
+    clock = FakeClock(datetime(2026, 10, 12, 14, 7, 31, tzinfo=UTC))
+    h = Harness(tmp_path / "v", clock=clock)
+    assert h.prepare() == 0
+    real = store_module.Store.write
+    monkeypatch.setattr(
+        store_module.Store, "write", lambda self, name, text, *, new=False: real(self, name, text, new=False)
+    )
+    monkeypatch.setattr(cli.Cli, "prepare", _prepare_without_the_check)
+    clock.advance(3600)
+    assert (
+        h.prepare() == 0 and h.manifest()["started_at"] != "2026-10-12T14:07:31Z"
+    )  # el defecto que la guarda evita
+
+
+def _prepare_without_the_check(self: cli.Cli, environment: guard.Environment, args: object) -> int:
+    from vectra_verification import manifest as mf
+    from vectra_verification.store import Store
+
+    store = Store(Path(args.dir), lambda: ())  # type: ignore[attr-defined]
+    manifest = mf.Manifest.new(
+        started_at=self.clock.now(), commit="x", operator="y", environment=environment.name
+    )
+    manifest.save(store)
+    return 0
+
+
+def test_prepare_in_staging_makes_no_patch(tmp_path: Path) -> None:
+    h = Harness(tmp_path / "v")
+    staging = ["--issuer", STAGING.issuer, "--gateway-host", STAGING.host]
+    assert h.run("prepare", "--commit", "abc", "--operator", "x", *staging) == 0
+    assert (
+        [p.name for p in h.dir.iterdir()] == ["manifest.json"]
+        and h.manifest()["files"] == {}
+        and h.manifest()["environment"] == "staging"
+    )
+    assert "sin parche" in h.manifest()["sections"]["prepare"]["note"]
+
+
+def test_prepare_in_production_or_with_a_missing_values_file_is_refused(tmp_path: Path) -> None:
+    h = Harness(tmp_path / "v")
+    assert (
+        h.run(
+            "prepare",
+            "--commit",
+            "a",
+            "--operator",
+            "b",
+            "--issuer",
+            "https://vectra.banco.example/auth/realms/vectra",
+            "--gateway-host",
+            "vectra.banco.example",
+        )
+        == 3
+    )
+    assert (
+        h.run("prepare", "--commit", "a", "--operator", "b", "--values-file", str(tmp_path / "no-esta.yaml"))
+        == 3
+    )
+    assert "prepare_values_missing" in h.err.getvalue() and not h.dir.exists()
+    assert (
+        h.run("prepare", "--operator", "b") == 3 and "uso incorrecto" in h.err.getvalue()
+    )  # `--commit` es obligatorio
+
+
+def test_prepare_the_red_patch_that_also_touches_bias_monitoring_fails_the_check() -> None:
+    bad = (
+        f'--- a/vectra-risk/{KIND_VALUES}\n+++ b/vectra-risk/{KIND_VALUES}\n@@ -1 +1,2 @@\n x\n+  runId: "20261113-1000"\n'
+        '--- a/vectra-risk/vectra-risk-gitops/values/kind/bias-monitoring.yaml\n+++ b/vectra-risk/vectra-risk-gitops/values/kind/bias-monitoring.yaml\n@@ -1 +1,2 @@\n y\n+  runId: "20261113-1000"\n'
+    )
+    with pytest.raises(AssertionError):
+        check_patch(bad, "20261113-1000")
+    with pytest.raises(AssertionError):  # una segunda linea anadida (por ejemplo, tocar `enabled`)
+        check_patch(
+            f'+++ b/vectra-risk/{KIND_VALUES}\n+  runId: "20261113-1000"\n+  enabled: false\n',
+            "20261113-1000",
+        )
+
+
+def test_prepare_leaves_probes_enabled_as_it_was(tmp_path: Path) -> None:
+    h = Harness(tmp_path / "v")
+    assert h.prepare() == 0
+    lines = [
+        ln
+        for ln in (h.dir / "case-management-runid.patch").read_text(encoding="utf-8").splitlines()
+        if ln[:1] in "+-" and ln[:3] not in ("+++", "---")
+    ]
+    assert all("enabled" not in ln for ln in lines) and "probes:" in VALUES.read_text(encoding="utf-8")
+
+
+# --- decisions: espera a `listo`, volumen y SIM-NORMAL ------------------------------------------------------------------------------------------------
+
+
+def no_real_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    import time
+
+    def boom(seconds: float) -> None:
+        raise AssertionError("un sleep real")
+
+    monkeypatch.setattr(time, "sleep", boom)
+
+
+def test_decisions_waits_for_listo_before_the_driver_and_decides_every_case_with_no_real_sleep(
+    tmp_path: Path, world: Rt2World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    no_real_sleep(monkeypatch)
+    h = harness(tmp_path, world)
+    assert h.prepare() == 0
+    assert h.run("decisions", "--volume", "20", "--seed", "11") == 0, h.err.getvalue()
+    driver = h.backend.driver_double  # type: ignore[union-attr]
+    assert driver.ready_at_start == 20, "el conductor empezo con casos aun en evaluacion"
+    decisions = h.manifest()["decisions"]
+    assert decisions == {"sent": 20, "accepted": 20, "decided": 20, "undecided_after_wait": 0, "not_ready": 0}
+    assert h.manifest()["seeds"]["decisions"] == 11 and world.simulator.runs[0][:2] == ("normal", 20)
+    evidence = h.evidence("SIM-NORMAL.json")
+    assert (
+        evidence["evidence"]["result"] == "pasa" and evidence["outcome"]["id"] == "SIM-NORMAL"
+    )  # `SIM-NORMAL` al final, con el `RunReport`
+
+
+def test_decisions_without_the_wait_the_late_cases_stay_undecided(world: Rt2World) -> None:
+    """Rojo de CA-8: el conductor de U12-T02 tal cual (sin `settle`) encuentra los casos en `en_evaluacion` y no decide ninguno."""
+    from vectra_verification import driver
+
+    double = FakeDriver(world)
+    done = driver.run_decisions(world.simulator, double, 5, volume=20, environment=guard.KIND)  # type: ignore[arg-type]
+    assert double.ready_at_start == 0 and done.record.decided == 0 and done.driver.not_ready == 20
+
+
+def test_decisions_that_do_not_settle_in_the_deadline_say_how_many_stayed_undecided_and_do_not_hide_it(
+    tmp_path: Path, world: Rt2World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    no_real_sleep(monkeypatch)
+    world.state_cases = lambda case_id, record: ("en_evaluacion", None, 1)
+    h = harness(tmp_path, world)
+    assert h.prepare() == 0
+    assert (
+        h.run("decisions", "--volume", "20", "--settle-timeout", "60") == 1
+    )  # SIM-NORMAL: `falla` (casos en evaluacion tras el plazo)
+    assert "20 casos seguian en evaluacion" in h.out.getvalue()
+    decisions = h.manifest()["decisions"]
+    assert (
+        decisions["undecided_after_wait"] == 20 and decisions["decided"] == 0 and decisions["not_ready"] == 20
+    )
+    assert "sim_normal_casos_en_evaluacion_tras_el_plazo" in h.out.getvalue()
+
+
+def test_decisions_the_volume_defaults_to_2000_in_kind_and_a_driver_failure_is_not_hidden(
+    tmp_path: Path, world: Rt2World
+) -> None:
+    h = harness(tmp_path, world)
+    assert h.prepare() == 0
+    assert h.run("decisions", "--rate", "30", "--settle-timeout", "600") in (0, 1, 2)
+    assert world.simulator.runs[0][1] == 2000 and h.manifest()["decisions"]["sent"] == 2000
+
+
+def test_decisions_without_the_delivery_of_u5_is_a_prerequisite_not_a_failure(
+    tmp_path: Path, world: Rt2World
+) -> None:
+    h = harness(tmp_path, world)
+    assert h.prepare() == 0
+
+    def broken(environment: object, args: object, clock: object, prefix: str) -> WorldBackend:
+        from vectra_verification.simulator import SimulatorError
+
+        raise SimulatorError("u5_delivery_missing:test.parquet: genere la entrega")
+
+    h.factory = broken  # type: ignore[method-assign]
+    assert h.run("decisions", "--volume", "20") == 2 and "u5_delivery_missing" in h.out.getvalue()
+    assert h.manifest()["sections"]["decisions"]["state"] == "interrumpida"

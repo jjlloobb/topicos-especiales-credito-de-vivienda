@@ -4,8 +4,8 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import httpx
 import pytest
+from product_prom import Prom
 from vectra_verification import guard
 from vectra_verification.clients.prom import PromClient
 from vectra_verification.guard import GuardError
@@ -17,33 +17,6 @@ PRODUCT = (
 D = datetime(2026, 11, 13, 22, 30, tzinfo=UTC)  # `decisions` termino el dia D
 AFTER_PASS = datetime(2026, 11, 14, 3, 30, tzinfo=UTC)  # D + 1, despues de las 02:40 y del plazo de la pasada
 BEFORE_PASS = datetime(2026, 11, 14, 2, 35, tzinfo=UTC)
-
-
-class Prom(httpx.BaseTransport):
-    """Prometheus de mentira: `values` da el valor por expresion (ausente = vector vacio); `stale` pone la alerta en firing; `down` responde 503."""
-
-    def __init__(
-        self, *, absent: tuple[str, ...] = (), stale: bool = False, down: bool = False, value: str = "0.4"
-    ) -> None:
-        self.absent, self.stale, self.down, self.value = absent, stale, down, value
-        self.queries: list[str] = []
-
-    def handle_request(self, request: httpx.Request) -> httpx.Response:
-        if self.down:
-            return httpx.Response(503, json={"status": "error", "errorType": "unavailable", "error": "x"})
-        expression = request.url.params["query"]
-        self.queries.append(expression)
-        if expression == u11.STALE:
-            result = (
-                [{"metric": {"alertname": "ProductMetricsStale"}, "value": [1.0, "1"]}] if self.stale else []
-            )
-        elif any(a in expression for a in self.absent):
-            result = []
-        else:
-            result = [{"metric": {}, "value": [1.0, self.value]}]
-        return httpx.Response(
-            200, json={"status": "success", "data": {"resultType": "vector", "result": result}}
-        )
 
 
 def run(transport: Prom, now: datetime = AFTER_PASS, finished: datetime | None = D) -> u11.Outcome:

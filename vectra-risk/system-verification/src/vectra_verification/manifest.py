@@ -227,6 +227,15 @@ class Manifest:
             "resumed_at": iso(now),
         }
 
+    def last_finished(self) -> datetime | None:
+        """El fin mas reciente de una seccion que corrio (no de una diferida): desde ahi hasta el inicio de la siguiente es lo que tardo el operador (un PR, su fusion y el sync)."""
+        ends = [
+            parse_iso(r["finished_at"])
+            for r in self.sections.values()
+            if r.get("finished_at") and r.get("state") != STATE_DEFERRED
+        ]
+        return max(ends) if ends else None
+
     def is_done(self, name: str) -> bool:
         return self.sections.get(name, {}).get("state") == STATE_DONE
 

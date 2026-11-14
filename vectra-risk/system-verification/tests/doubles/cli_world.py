@@ -83,10 +83,19 @@ class FakeDriver:
 
 class WorldBackend:
     def __init__(
-        self, world: Rt2World, *, inner: Runner | None = None, prom: PromClient | None = None
+        self,
+        world: Rt2World,
+        *,
+        inner: Runner | None = None,
+        prom: PromClient | None = None,
+        runners: dict[str, Runner] | None = None,
+        proms: dict[str, PromClient] | None = None,
     ) -> None:
         self.world = world
         self.runner = PodsRunner(inner)
+        self.runners = runners or {}
+        self.proms = proms or {}
+        self.section = ""
         self.prom_client = prom if prom is not None else world.prom
         self.driver_double = FakeDriver(world)
         self.closed = False
@@ -96,11 +105,12 @@ class WorldBackend:
         return SECRETS
 
     def k8s(self) -> K8sRead:
+        self.runner.inner = self.runners.get(self.section, self.runner.inner)
         return K8sRead(self.runner)
 
     @contextmanager
     def prom(self) -> Iterator[PromClient]:
-        yield self.prom_client
+        yield self.proms.get(self.section, self.prom_client)
 
     @contextmanager
     def registry(self) -> Iterator[RegistryClient]:
@@ -133,11 +143,17 @@ class Harness:
         self.out, self.err = io.StringIO(), io.StringIO()
         self.factory_calls = 0
         self.args_seen: list[Any] = []
+        self.before: dict[
+            str, Any
+        ] = {}  # un gancho por seccion, antes de crear el `Backend` (el operador que hace algo entre secciones)
 
     def factory(self, environment: guard.Environment, args: Any, clock: Any, prefix: str) -> WorldBackend:
         self.factory_calls += 1
         self.args_seen.append(args)
         assert self.backend is not None, "la prueba no esperaba un Backend"
+        self.backend.section = str(args.section)
+        if args.section in self.before:
+            self.before[args.section](self.backend.world)
         return self.backend
 
     @property
