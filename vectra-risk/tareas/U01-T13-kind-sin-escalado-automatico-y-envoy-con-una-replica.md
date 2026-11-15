@@ -14,6 +14,7 @@
 > 2. **Una prueba lo garantiza para todos, también los futuros:** en `platform/tests/test_kind_profile.py`, todo HPA del render de kind tiene `maxReplicas == minReplicas`, o el presupuesto lo cuenta a `maxReplicas`. Un HPA nuevo que pueda crecer sin estar contado hace fallar la prueba.
 > 3. **El data plane de Envoy corre con una réplica en kind.** Hoy el `EnvoyProxy` de kind pide 2 réplicas y HPA de 2 a 6 (`identity-edge/gateway/generated/kind/envoyproxies.yaml:64-74`): ≈ 0,30 GiB y 0,13 CPU por réplica. En kind pasa a 1 réplica fija (mínimo y máximo 1). Staging y prod no cambian.
 > 4. `BUDGET_GIB` y `CPU_BUDGET` bajan a lo medido, con el desglose en la bitácora (con Keycloak en 2 y en 1).
+> 5. **El README de system-verification dice la cifra del presupuesto.** `system-verification/tests/unit/test_demos_closed_world.py::test_readme_has_the_prerequisites…` compara la memoria que anuncia `system-verification/README.md` con `BUDGET_GIB`; cada vez que el presupuesto cambia, esa prueba se rompe en `main`. Actualiza esa cifra del README (y solo esa frase) al `BUDGET_GIB` que fijes, y deja que siga siendo verdad lo que dice de la máquina necesaria.
 
 **Antes de cambiar nada, comprueba y, si algo choca, PARA y devuélvelo como pregunta con las opciones:**
 
@@ -27,7 +28,7 @@
 - `identity-edge/keycloak/` salvo el `maxReplicas` de su HPA en kind; si eso choca con lo que U02-T23 cambia en la política de Keycloak, déjalo fuera y dilo (lo resuelvo yo al fusionar).
 - Código de las unidades, límites de memoria, M1 inactivo antes de M2, el request del Job de validación.
 - Staging y prod: su render no cambia ni un byte en ninguna unidad.
-- `system-verification/` y `DECISIONES-LOOP.md`.
+- `system-verification/` (salvo la frase del README del punto 5) y `DECISIONES-LOOP.md`.
 
 ---
 
@@ -67,6 +68,12 @@
   cd vectra-risk && uv run pytest platform/tests/test_kind_profile.py -q -p no:cacheprovider --rootdir=platform --import-mode=importlib
   ```
   Esperado: pasa entero. La bitácora da el pico de D2 con Keycloak en 2 y en 1, frente a 15 GiB.
+
+- [ ] **CA-6** — El README de system-verification anuncia el presupuesto nuevo.
+  ```bash
+  cd vectra-risk && uv run pytest system-verification/tests/unit/test_demos_closed_world.py -q -p no:cacheprovider -k "readme"
+  ```
+  Esperado: pasa; antes del cambio del README, falla. Si `main` trae otra cifra en el README cuando fusiones o rebases, la que vale es la de tu `BUDGET_GIB`.
 
 - [ ] **CA-5** — Todo sigue en verde.
   ```bash
