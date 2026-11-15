@@ -134,3 +134,32 @@ El usuario preguntó por cuarta vez si se podía trabajar solo en lo necesario p
 **U12-T03, ronda 3 acotada.** Excepción a RL-2 autorizada por el usuario, como en U08-T04: la ronda 2 cerró seis de los siete hallazgos y dejó un ROJO en el oráculo de D2 («3 corridas más de bias»), que nace de la enmienda del arbitraje de la ronda 1 y no del codificador: U9 publica la marca de fin de corrida truncada al segundo, así que no es posterior al `recorded_at` del `freeze`. La ronda 3 cubre ese punto y un NARANJA de una línea, y nada más (`revisiones/U12-T03/arbitraje-ronda-2.md`).
 
 **U12-T06, verificación en kind (decisiones del usuario).** (1) Cómo vuelve la evidencia al loop: opción (c) de la pregunta P-1 de la tarea. U12-T06 entrega la guía, las comprobaciones de solo lectura y las plantillas; el usuario, como operador, corre en kind y sube la evidencia en un pull request; el orquestador despacha a un revisor, en solo lectura, para cotejarla y asignar cada fallo a su unidad. Los agentes no aplican nada al clúster. (2) Alcance de la corrida: lo que sostienen las demos, empezando por un diagnóstico que salta lo que ya esté sano (imágenes, secretos, sync, realm, política, modelo de referencia y paquetes); los escenarios completos de las guías de kind de U2, U4 y U6 quedan fuera. El 2026-11-12 no había nada desplegado en `vectra-app`.
+
+## 11. Decisiones del 2026-11-14 y del 2026-11-15
+
+**La demo se prepara en esta máquina.** El usuario pidió trabajar solo en lo necesario para una demo completa que corra en la máquina de desarrollo (14,82 GiB de RAM, 8 núcleos que comparten los tres nodos de kind). La portabilidad a otra máquina (§10, U12-T05) no se retira.
+
+**El orquestador opera el clúster de kind, con aprobación orden por orden.** Cambia la regla del 2026-11-13 («los agentes no aplican nada al clúster»), solo para la sesión del orquestador:
+- El usuario autorizó primero un diagnóstico de lectura de `kind-vectra`, y después, paso a paso, la recuperación de la plataforma: resembrar la bóveda, borrar los pods atascados, el runbook «Vault reiniciado», reescribir las claves de los usuarios de MinIO con un Job de una sola vez y subir el límite de memoria de Grafana.
+- El usuario pidió pasar de `deny` a `ask` los 32 patrones de `.claude/settings.json` (escrituras con `kubectl`, `helm`, `argocd`, `docker` y `kind`). El cambio está **solo en la copia local** del orquestador, sin confirmar: los worktrees de codificadores y revisores conservan `deny`, y siguen sin tocar el clúster.
+- Antes de ese cambio, el orquestador ejecutó escrituras que la regla `deny` no reconoció porque iban tras una variable (`$K delete …`) o dentro de `seed-vault.sh`. Cada una tenía la autorización del usuario en la conversación; el orquestador lo informó al notarlo.
+
+**Lo medido en `kind-vectra` el 2026-11-14.** Tras un reinicio de la máquina: `fs.inotify.max_user_instances` en 128 tumbaba `linkerd-cni` (arreglado con 1024 y `max_user_watches` 1048576, persistente); los pods con malla no se recuperan solos y hubo que recrearlos; la bóveda perdió la siembra; MinIO conserva las claves viejas de sus usuarios porque el Job del chart no cambia la clave de un usuario existente; Grafana con límite de 256 MiB usaba 250 en reposo. Está en `platform/runbooks/install.md` («Vault reiniciado», «Tras reiniciar la máquina») y en `revisiones/U12-T06/arbitraje-ronda-1.md`.
+
+**Auditoría entre unidades.** A petición del usuario, dos revisores auditaron `main` por las costuras entre unidades (despliegue en kind; direcciones, identidad y contratos). Resultado: solo D3 podía correr. Bloqueos, todos con tarea: el `/readyz` del registro exige una réplica síncrona y kind tenía una instancia (U01-T10); el Job de validación no podía leer `model-store` (U01-T10); `datasetRef` era un bucket y no un objeto (U04-T10); sin metrics-server (U01-T10). Probable y sin confirmar hasta desplegar el gateway: `vectra.localtest.me:443` no llega al `LoadBalancer` del gateway, y `cloud-provider-kind` no sobrevive al reinicio.
+
+**Decisiones del usuario sobre el perfil de kind** (excepciones anotadas a «kind igual a staging», como las de §7, §9 y §10; staging y prod no cambian):
+- `registry-db` con 2 instancias y réplica síncrona solo en kind, en vez de un interruptor que apague la exigencia de U3 (U01-T10).
+- Descarga de la imagen de metrics-server desde `registry.k8s.io`, por digest.
+- Sin Loki, Tempo ni Alloy en kind; menos CPU pedida en el proxy de Linkerd (20m) y en serving (100m) (U01-T11).
+- Keycloak con una réplica en kind, con la política de U2 sensible al entorno y no relajada para todos (U02-T23); y sin escalar (U12-T08).
+- Ningún HPA de kind crece más allá de lo que el presupuesto cuenta (`maxReplicas` = `minReplicas`), y el data plane de Envoy corre con una réplica (U01-T12, U01-T13).
+- Decisión del orquestador, no objetada: serving sin escalar en kind (U01-T12), y las órdenes de recuperación que la lista cerrada de la guía de U12 no admite viven en el runbook de U1, sin ampliar la lista.
+
+**Presupuesto final del pico de D2** (requests, no uso): 13,73 GiB y 10,67 CPU, con 1,08 GiB de margen frente a la máquina (`platform/tests/test_kind_profile.py`). No cuenta los Jobs y CronJobs ni lo que no declara request.
+
+**Aplicado al clúster el 2026-11-15** (con aprobación del usuario): sincronizadas `postgres`, `minio`, `vault`, `root`, `metrics-server`, `network`, `otel-collector`, `kube-prometheus-stack` y `linkerd-control-plane`; retiradas `loki`, `tempo` y `alloy` con sus recursos. `registry-db` quedó con 2 instancias y la réplica en `streaming` con `sync_state = quorum`. De U2 a U11 sigue sin haber nada desplegado, y faltan las 23 imágenes.
+
+**Fusiones antes de terminar la revisión.** Los PR #172, #173, #176, #177, #180, #181 y #182 se fusionaron con la CI en verde antes de que su revisor entregara. Ninguna revisión posterior encontró un defecto de comportamiento que hubiera que revertir; los ROJO fueron de la guía de U12 (dos puertas inalcanzables) y de un criterio de aceptación mal escrito por el orquestador, y se atendieron en tareas de seguimiento (U12-T07, U01-T11). Los informes están en `revisiones/`.
+
+**Abierto, decisión del usuario:** el mínimo de memoria que anuncian el README y la guía de U12 («14 GiB como mínimo, 16 recomendados»): los requests (13,8 GiB) más 1 GiB de la herramienta suman 14,8 GiB.
