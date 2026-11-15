@@ -4,9 +4,10 @@
 # `lastState.terminated.exitCode == 0`: falta una variable o la llave, K-13), y los `ExternalSecret` que no estan `SecretSynced`; ademas, las Applications de Argo CD fuera de `Healthy`.
 # Siempre lee tambien `linkerd-cni` (aunque no se pida): su Application puede verse `Healthy` mientras sus pods fallan con `too many open files` (el limite de inotify no sobrevive a un reinicio; F-04),
 # y marca un pod de la boveda (`vault`) que se **reinicio y no se resembro despues**, con cualquier codigo de salida: un reinicio de la maquina la deja vacia (guarda todo en memoria) con un codigo que no es el 0 ni el OOM (K-05).
-# `restartCount` no baja nunca, asi que no sirve de puerta: la boveda cuenta como resembrada si el contenedor arranco (`state.running.startedAt`) **antes** de la ultima sincronizacion de **todos** los `ExternalSecret`
-# del cluster (`status.refreshTime`) y todos estan `Ready=True`/`SecretSynced`. Un `ExternalSecret` que se refresca solo por su intervalo contra una boveda vacia falla la lectura y pasa a `Ready=False`: sigue marcado.
-# Reiniciada y resembrada es un AVISO (sale 0); reiniciada y sin resembrar, FALLA (sale 1).
+# `restartCount` no baja nunca (y vuelve a 0 si el pod se recrea), asi que no sirve de puerta: **siempre**, con cualquier numero de reinicios, la boveda cuenta como resembrada si el contenedor arranco
+# (`state.running.startedAt`) **antes** de la ultima sincronizacion de **todos** los `ExternalSecret` del cluster (`status.refreshTime`) y todos estan `Ready=True`/`SecretSynced`. Un `ExternalSecret` que se
+# refresca solo por su intervalo contra una boveda vacia falla la lectura y pasa a `Ready=False`: sigue marcado. Un pod recreado (0 reinicios) y vacio, con ExternalSecret sincronizados antes de su arranque, FALLA.
+# Reiniciada y resembrada es un AVISO (sale 0); sin resembrar (con o sin reinicios), FALLA (sale 1); sin reinicios y resembrada, nada que decir. Sin ningun ExternalSecret con el que comparar, FALLA y lo dice.
 # Una Application `OutOfSync` es un AVISO (las cinco de U1 lo estan: `cierre-acotado.md`); con `--estricto` tambien falla.
 # Salida: 0 sin hallazgos, 1 con hallazgos, 2 no se pudo leer. Sin esperas.
 # shellcheck source=/dev/null
@@ -42,11 +43,13 @@ def instant(text):
 
 
 def vault_unseeded(started_at):
-    """Los ExternalSecret que no prueban una siembra posterior al arranque de la boveda (lista vacia: ninguno la prueba)."""
+    """(motivo, lista): `unreadable` (el arranque no se lee), `empty` (no hay ExternalSecret con que comparar), o `stale` con los ExternalSecret que no prueban una siembra posterior al arranque (vacia: resembrada)."""
     started = instant(started_at)
     items = json.load(open(es_path))["items"]
-    if started is None or not items:
-        return ["sin arranque legible o sin ExternalSecret que lo compare"]
+    if started is None:
+        return "unreadable", []
+    if not items:
+        return "empty", []
     stale = []
     for item in items:
         status = item.get("status", {})
@@ -55,7 +58,7 @@ def vault_unseeded(started_at):
         refreshed = instant(status.get("refreshTime"))
         if not synced or refreshed is None or refreshed < started:
             stale.append(item["metadata"]["namespace"] + "/" + item["metadata"]["name"])
-    return stale
+    return "stale", stale
 
 
 BAD_WAITING = {"ImagePullBackOff", "ErrImagePull", "CreateContainerConfigError", "CreateContainerError", "CrashLoopBackOff", "InvalidImageName"}
@@ -73,15 +76,24 @@ for pod in pods:
         if waiting in BAD_WAITING:
             findings.append(f"{namespace}/{name} [{container['name']}]: {waiting}")
         last = container.get("lastState", {}).get("terminated")
-        if namespace == "vault" and container.get("restartCount", 0) > 0:
-            stale = vault_unseeded(container.get("state", {}).get("running", {}).get("startedAt"))
-            what = f"{namespace}/{name} [{container['name']}]: la boveda se reinicio ({container['restartCount']} reinicios, ultimo codigo {(last or {}).get('exitCode', '?')})"
-            if stale:
-                findings.append(
-                    f"{what} y {len(stale)} ExternalSecret no se sincronizaron despues de su arranque ({', '.join(stale[:3])}{'...' if len(stale) > 3 else ''}): en kind guarda todo en memoria; "
-                    "vuelve a sembrar (`seed-vault.sh` y `seed-vault.sh identity`; K-05)"
-                )
+        if namespace == "vault":
+            restarts = container.get("restartCount", 0)
+            started_at = container.get("state", {}).get("running", {}).get("startedAt")
+            reason, stale = vault_unseeded(started_at)
+            if restarts > 0:
+                what = f"{namespace}/{name} [{container['name']}]: la boveda se reinicio ({restarts} reinicios, ultimo codigo {(last or {}).get('exitCode', '?')})"
             else:
+                what = f"{namespace}/{name} [{container['name']}]: la boveda arranco el {started_at or '?'} (0 reinicios)"
+            reseed = "en kind guarda todo en memoria; vuelve a sembrar (`seed-vault.sh` y `seed-vault.sh identity`; K-05)"
+            if reason == "unreadable":
+                findings.append(f"{what} y no se pudo leer su arranque para compararlo con la sincronizacion de los ExternalSecret: {reseed}")
+            elif reason == "empty":
+                findings.append(f"{what} y no hay ningun ExternalSecret en el cluster con el que comprobar que se resembro: {reseed}")
+            elif stale:
+                findings.append(
+                    f"{what} y {len(stale)} ExternalSecret no se sincronizaron despues de su arranque ({', '.join(stale[:3])}{'...' if len(stale) > 3 else ''}): {reseed}"
+                )
+            elif restarts > 0:
                 print(f"AVISO {what}, resembrada: todos los ExternalSecret se sincronizaron despues de su arranque (K-05)")
         if last and container.get("restartCount", 0) > 0:
             if last.get("exitCode") == 0:

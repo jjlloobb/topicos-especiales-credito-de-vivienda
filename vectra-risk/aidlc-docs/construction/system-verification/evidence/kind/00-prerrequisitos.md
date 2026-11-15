@@ -14,7 +14,7 @@ Entradas de esta fase: K-01, K-02, K-03, K-04, K-05.
 
 - Demo: Base. Fuentes: `platform/runbooks/install.md:20`, `platform/tests/test_kind_profile.py:34`, `DECISIONES-LOOP.md:78-86`, `tareas/U12-T05-imagen-y-documentacion.md:35`, `aidlc-docs/construction/model-serving/evidence/cierre-demo.md:34`.
 
-**Resultado esperado.** Memoria del host: al menos 8 GiB disponibles antes de instalar (14 GiB de RAM es el minimo; los requests del perfil de kind suman 11,8 GiB)
+**Resultado esperado.** Memoria del host: al menos 8 GiB disponibles antes de instalar (14 GiB de RAM es el minimo; los requests del perfil de kind suman 13,8 GiB)
 
 **Comando.** Previsto: `free -m`; `docker stats --no-stream`; `memoria.sh antes`.
 
@@ -30,7 +30,7 @@ _pendiente: la salida real, sin tokens_
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| Memoria del host: al menos 8 GiB disponibles antes de instalar (14 GiB de RAM es el minimo; los requests del perfil de kind suman 11,8 GiB) | _pendiente_ | _pendiente_ |
+| Memoria del host: al menos 8 GiB disponibles antes de instalar (14 GiB de RAM es el minimo; los requests del perfil de kind suman 13,8 GiB) | _pendiente_ | _pendiente_ |
 
 ### K-02 — U12-T03, T04 y T05, U02-T22 y U00-T04 en main; la reparacion del realm…
 

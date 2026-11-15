@@ -3,9 +3,12 @@ image:
   repository: kind-registry:5000/vectra/keycloak
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000001
 # U02-T23 (excepcion solo en kind a NFR-U2-01, decision del 2026-11-14): minimo 1 replica, para ahorrar 1,0195 GiB (1 GiB + 20 Mi del proxy) y 0,6 CPU (500m + 100m del proxy) pedidos en
-# la maquina de la demo. El maximo sigue en 4. La politica (`hpa-min-replicas`, set.rego) solo admite el 1 en kind.
+# la maquina de la demo.
+# U12-T08: y maximo 1 (el HPA queda 1-1). Era el unico HPA de kind que podia crecer sin estar contado: con 4 replicas el pico de la demo D2 pasaba de la
+# maquina. La politica (`hpa-min-replicas` y `hpa-max-replicas`, set.rego) solo admite el 1 y el 1 en kind; staging y prod siguen en 2 a 4.
 autoscaling:
   minReplicas: 1
+  maxReplicas: 1
 vectra:
   publicHostname: vectra.localtest.me
   tls:

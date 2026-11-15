@@ -651,7 +651,15 @@ def test_the_guide_is_written_for_any_machine() -> None:
     )
     found = [pattern for pattern in forbidden if re.search(pattern, GUIDE_TEXT)]
     assert found == []
-    for needle in ("14 GiB", "16 GiB", "11,8 GiB", "v0.33.0", "v4.3.0", "OOMKilled", "máquina limpia"):
+    for needle in (
+        "14 GiB",
+        "16 GiB",
+        f"{budget_gib()} GiB",
+        "v0.33.0",
+        "v4.3.0",
+        "OOMKilled",
+        "máquina limpia",
+    ):
         assert needle in GUIDE_TEXT, needle
 
 
@@ -1118,6 +1126,63 @@ def restart_steps(text: str) -> list[str]:
     return [body[a:b] for a, b in zip(starts, ends, strict=True)]
 
 
+# U12-T08 (F-06): cada paso de la guia cita pasos de «Vault reiniciado» (`install.md`) por numero; el numero tiene que ser el del paso del runbook que se llama como el tema. La guia pide los
+# titulos de la izquierda (todos) y admite los de la derecha; el numero sale del runbook, no se copia aqui: si el runbook renumera, la guia falla.
+RUNBOOK_TITLES_REQUIRED = {
+    1: {"Límites de inotify"},
+    2: {"Recrear los pods con malla"},
+    3: {"Resiembra"},
+    4: {"Claves de MinIO", "Tempo y Loki"},
+    5: {"Grafana"},
+    6: {"Identidad (Keycloak)", "PostgreSQL"},
+}
+RUNBOOK_TITLES_ALLOWED = {
+    4: {"Resiembra"}
+}  # el paso 4 de la guia remite al 3 del runbook («Vault reiniciado», paso 3) para la sincronizacion previa
+CITATION = (
+    r"pasos? (\d+)(?: y (\d+))? de \[«Vault reiniciado»\]"  # paso N de [«Vault reiniciado»](...) y pasos N y M
+    r"|«Vault reiniciado», paso (\d+)"  # («Vault reiniciado», paso N)
+    r"|paso (\d+) del runbook"  # (paso N del runbook: ...)
+)
+
+
+def runbook_step_numbers() -> dict[str, int]:
+    """El numero de cada paso de «Vault reiniciado» en `install.md`, por titulo (`N. **Titulo.**`)."""
+    runbook = RUNBOOK.read_text(encoding="utf-8")
+    body = runbook.split("### Vault reiniciado", 1)[1].split("\n### ", 1)[0]
+    return {title: int(n) for n, title in re.findall(r"^(\d+)\. \*\*(.+?)\.?\*\*", body, re.M)}
+
+
+def runbook_step_number_findings(text: str) -> list[str]:
+    found = []
+    numbers = runbook_step_numbers()
+    for guide_step, step in enumerate(restart_steps(text)[: len(RUNBOOK_TITLES_REQUIRED)], 1):
+        required = RUNBOOK_TITLES_REQUIRED[guide_step]
+        allowed = {title for title in required | RUNBOOK_TITLES_ALLOWED.get(guide_step, set())}
+        missing_titles = sorted(title for title in allowed if title not in numbers)
+        if missing_titles:
+            found.append(
+                f"paso {guide_step}: el runbook ya no tiene el paso «{missing_titles[0]}» en «Vault reiniciado»"
+            )
+            continue
+        cited = {int(n) for groups in re.findall(CITATION, step) for n in groups if n}
+        for n in re.findall(
+            r"«Vault reiniciado», paso (\d+)", step
+        ):  # la sincronizacion previa de MinIO es la resiembra
+            if int(n) != numbers["Resiembra"]:
+                found.append(
+                    f"paso {guide_step}: «Vault reiniciado», paso {n} no es la resiembra (paso {numbers['Resiembra']})"
+                )
+        wanted = {numbers[title] for title in required}
+        permitted = {numbers[title] for title in allowed}
+        if not wanted <= cited or not cited <= permitted:
+            found.append(
+                f"paso {guide_step} de «{RESTART}»: cita los pasos {sorted(cited)} del runbook; «{'» y «'.join(sorted(required))}» son los {sorted(wanted)}"
+                + (f" (y se admite {sorted(permitted - wanted)})" if permitted - wanted else "")
+            )
+    return found
+
+
 def runbook_findings(text: str) -> list[str]:
     """F-02: lo que la lista cerrada no admite son órdenes del operador y están en `platform/runbooks/install.md`; cada paso de la sección del reinicio remite a su sección con un enlace que resuelve, y la guía no contradice el inotify del runbook."""
     found = []
@@ -1157,7 +1222,7 @@ def runbook_findings(text: str) -> list[str]:
         )
     if "la lista de abajo" in body:
         found.append("«la lista de abajo» se refiere a la de arriba (el paso 7 está al final de la lista)")
-    return found
+    return found + runbook_step_number_findings(text)
 
 
 def test_f02_every_step_of_the_restart_points_to_the_runbook_of_u1_and_agrees_with_its_inotify() -> None:
@@ -1179,6 +1244,27 @@ RUNBOOK_MUTATIONS = {
         "../../platform/runbooks/otro.md#vault-reiniciado",
     ),
     "la lista de abajo": lambda t: t.replace("la lista de arriba", "la lista de abajo"),
+    # U12-T08, F-06: los numeros de paso del runbook que cita la guia estan atados al titulo del paso del runbook.
+    "Grafana cita el paso 5 (es Tempo y Loki)": lambda t: t.replace(
+        "están en el paso 6 de [«Vault reiniciado»]", "están en el paso 5 de [«Vault reiniciado»]"
+    ),
+    "Keycloak cita el paso 9": lambda t: t.replace(
+        "en el paso 8 de [«Vault reiniciado»]", "en el paso 9 de [«Vault reiniciado»]"
+    ),
+    "PostgreSQL cita el paso 6": lambda t: t.replace("(paso 7 del runbook:", "(paso 6 del runbook:"),
+    "MinIO cita los pasos 3 y 4": lambda t: t.replace(
+        "los pasos 4 y 5 de [«Vault reiniciado»]", "los pasos 3 y 4 de [«Vault reiniciado»]"
+    ),
+    "la resiembra cita el paso 2": lambda t: t.replace(
+        "(`platform/kind/seed-vault.sh` y `platform/kind/seed-vault.sh identity`, F0 paso 5; paso 3 de [«Vault reiniciado»]",
+        "(`platform/kind/seed-vault.sh` y `platform/kind/seed-vault.sh identity`, F0 paso 5; paso 2 de [«Vault reiniciado»]",
+    ),
+    "la sincronizacion de MinIO cita el paso 4": lambda t: t.replace(
+        "(«Vault reiniciado», paso 3)", "(«Vault reiniciado», paso 4)"
+    ),
+    "inotify cita el paso 2": lambda t: t.replace(
+        "el paso 1 de [«Vault reiniciado»]", "el paso 2 de [«Vault reiniciado»]"
+    ),
 }
 
 
@@ -1213,19 +1299,40 @@ def absent_from_kind() -> set[str]:
     return names - {p.stem for p in (GITOPS / "apps/kind").glob("*.yaml")}
 
 
+# Los verbos de `kubectl` y `argocd` con los que se le pide algo a un componente (solo en forma de orden; la prosa dice «reinicia», «sincroniza»: no son estos tokens).
+ORDER_VERBS = (
+    r"(?:sync|wait|get|logs|describe|port-forward|delete|rollout|exec|top|restart|status|history|diff)"
+)
+
+
+def asks_for(line: str, name: str) -> bool:
+    """¿La línea le pide algo al componente `name` (una orden, un recurso, un selector) y no solo lo nombra?
+
+    U12-T08 (F-02 de la revisión de U12-T07): se mira cada aparición, no la línea entera, y la exención histórica («ya no») no la salva. Es una petición si:
+    el nombre es un recurso (`svc/alloy`, `deploy/tempo`, `pod/loki-0`) o un valor de selector (`name=loki`, `instance=loki`); le sigue a un verbo de orden en la misma línea
+    (`sync loki`, `app wait loki`, `get app loki`, `logs ... tempo-0`, `port-forward ... loki-0`); o está dentro de un fragmento de código de varias palabras
+    (una orden o un selector: `` `-n vectra-observability get pods tempo` ``); un fragmento que es solo el nombre (`` `Tempo` ``) es una mención.
+    """
+    word = re.escape(name)
+    if re.search(rf"[/=]{word}\b", line, re.I):
+        return True
+    if re.search(rf"\b{ORDER_VERBS}\b(?:\s+\S+){{0,8}}?\s+[`\"']?{word}\b", line, re.I):
+        return True
+    spans = re.findall(r"`([^`]+)`", line)
+    return any(re.search(rf"\b{word}\b", span, re.I) and len(span.split()) > 1 for span in spans)
+
+
 def absent_component_findings(text: str, where: str) -> list[str]:
-    """Una línea que nombra un componente que kind no instala debe decirlo (histórico, «ya no»); nunca puede pedirle al operador un selector o un `sync` de él."""
+    """Una línea que nombra un componente que kind no instala debe decirlo (histórico, «ya no»); y nunca le pide nada al componente, lo diga o no (`asks_for`)."""
     found = []
     absent = absent_from_kind()
     for number_, line in enumerate(text.split("\n"), 1):
         for name in sorted(absent):
             if not re.search(rf"\b{re.escape(name)}\b", line, re.I):
                 continue
-            if re.search(
-                rf"name={re.escape(name)}\b|(?:sync|get app(?:lication)?s?) {re.escape(name)}\b", line
-            ):
+            if asks_for(line, name):
                 found.append(
-                    f"{where}:{number_}: pide un selector o un `sync` de `{name}`, que no está en `apps/kind/`"
+                    f"{where}:{number_}: le pide algo a `{name}` (orden, recurso o selector), que no está en `apps/kind/`"
                 )
             elif not any(marker in line.lower() for marker in HISTORICAL):
                 found.append(f"{where}:{number_}: nombra `{name}` sin decir que kind ya no lo instala")
@@ -1267,7 +1374,32 @@ CA5_MUTATIONS = {
     "12 usuarios": lambda t: t.replace(
         "los 10 usuarios de MinIO de kind", "los 12 usuarios de MinIO de kind"
     ),
+    # U12-T08, F-02 de la revision de U12-T07: las tres que sobrevivieron, inyectadas en la linea del paso 13 (que ya dice «kind no instala Loki»).
+    "port-forward a svc/alloy": lambda t: _in_step_13(
+        t, "`kubectl port-forward -n vectra-observability svc/alloy 12345`"
+    ),
+    "logs de deploy/tempo": lambda t: _in_step_13(t, "`kubectl logs -n vectra-observability deploy/tempo`"),
+    "argocd app wait loki": lambda t: _in_step_13(t, "`argocd app wait loki --health`"),
+    # y cada forma de orden con cada componente ausente, para que no dependa de una sola
+    "svc/loki": lambda t: _in_step_13(t, "`kubectl get svc/loki -n vectra-observability`"),
+    "deployment/tempo": lambda t: _in_step_13(t, "`kubectl rollout restart deployment/tempo`"),
+    "pod/alloy": lambda t: _in_step_13(t, "`kubectl describe pod/alloy-0`"),
+    "app wait alloy sin comillas": lambda t: _in_step_13(t, "Espera con argocd app wait alloy."),
+    "logs de tempo sin recurso": lambda t: _in_step_13(
+        t, "Mira `kubectl logs -n vectra-observability tempo-0`."
+    ),
+    "port-forward de loki": lambda t: _in_step_13(
+        t, "Abre `kubectl port-forward -n vectra-observability loki-0 3100`."
+    ),
+    "selector instance": lambda t: _in_step_13(t, "Usa `-l app.kubernetes.io/instance=loki`."),
 }
+
+
+def _in_step_13(text: str, injected: str) -> str:
+    """Pega `injected` al final de la linea del paso 13 («Observabilidad»), la que ya dice que kind no instala Loki."""
+    marker = "Si K-21 falla, es R-6."
+    assert text.count(marker) == 1
+    return text.replace(marker, f"{marker} {injected}")
 
 
 @pytest.mark.parametrize("name", sorted(CA5_MUTATIONS))
@@ -1275,3 +1407,75 @@ def test_red_ca5_each_break_is_found(name: str) -> None:
     mutated = CA5_MUTATIONS[name](GUIDE_TEXT)
     assert mutated != GUIDE_TEXT, name
     assert absent_component_findings(mutated, "guía") + minio_findings(mutated), name
+
+
+# --- U12-T08, punto 4: la cifra de requests de kind es `BUDGET_GIB` en todos los sitios donde se dice -------------------------------------------------
+
+KIND_PROFILE_TESTS = kd.VECTRA / "platform/tests/test_kind_profile.py"
+# (archivo, cuantas veces dice la cifra de requests): la guia (R-4, la regla de la memoria y K-01), el inventario (K-01), la plantilla de prerrequisitos
+# (el resultado esperado y la fila de la tabla), la tabla de `cierre-demo.md` y el README. Si alguien anade o quita una mencion, esta lista cambia con el.
+REQUEST_FIGURE_SITES = {
+    "docs/paso-18-kind.md": (kd.GUIDE, 3),
+    "docs/kind/inventario.yaml": (kd.INVENTORY, 1),
+    "evidence/kind/00-prerrequisitos.md": (kd.TEMPLATES / "00-prerrequisitos.md", 2),
+    "evidence/cierre-demo.md": (kd.CLOSURE, 1),
+    "README.md": (README, 1),
+}
+
+
+def budget_gib() -> str:
+    """`BUDGET_GIB` de `platform/tests/test_kind_profile.py`, escrito como lo escribe la guia: `13,8`."""
+    match = re.search(r"^BUDGET_GIB = ([0-9.]+)$", KIND_PROFILE_TESTS.read_text(encoding="utf-8"), re.M)
+    assert match is not None, "`BUDGET_GIB` ya no esta en test_kind_profile.py"
+    return match.group(1).replace(".", ",")
+
+
+def request_figures(text: str) -> list[str]:
+    """Las cifras que dicen cuanto piden los requests del perfil de kind: «suman X GiB» y «X GiB de requests»."""
+    return [
+        a or b
+        for a, b in re.findall(
+            r"requests del perfil de kind suman (\d+,\d+) GiB|(\d+,\d+) GiB de requests", text
+        )
+    ]
+
+
+def request_figure_findings(texts: dict[str, str], budget: str) -> list[str]:
+    found = []
+    for where, (_, count) in REQUEST_FIGURE_SITES.items():
+        figures = request_figures(texts[where])
+        if len(figures) != count:
+            found.append(f"{where}: dice la cifra de requests {len(figures)} veces y eran {count}")
+        found += [
+            f"{where}: dice {figure} GiB de requests y `BUDGET_GIB` es {budget}"
+            for figure in figures
+            if figure != budget
+        ]
+    return found
+
+
+def site_texts() -> dict[str, str]:
+    return {where: path.read_text(encoding="utf-8") for where, (path, _) in REQUEST_FIGURE_SITES.items()}
+
+
+def test_the_request_figure_of_kind_is_budget_gib_in_every_place_it_is_said() -> None:
+    assert request_figure_findings(site_texts(), budget_gib()) == []
+    assert "11,8" not in "".join(site_texts().values())
+    assert "línea 34" not in GUIDE_TEXT, (
+        "la guia cita BUDGET_GIB por una linea que cambia: sin numero de linea"
+    )
+
+
+@pytest.mark.parametrize("where", sorted(REQUEST_FIGURE_SITES))
+def test_red_the_old_figure_in_each_place_makes_it_fail(where: str) -> None:
+    """Un sitio con la cifra vieja (uno a la vez) con `BUDGET_GIB` al dia."""
+    texts = site_texts()
+    texts[where] = texts[where].replace(budget_gib(), "11,8", 1)
+    assert texts[where] != site_texts()[where], where
+    assert request_figure_findings(texts, budget_gib()), f"{where}: ninguna prueba lo detecta"
+
+
+def test_red_a_new_budget_gib_makes_every_place_fail() -> None:
+    """`BUDGET_GIB` cambia y ningun sitio: falla uno por cada archivo."""
+    findings = request_figure_findings(site_texts(), "15,3")
+    assert {f.split(":")[0] for f in findings} == set(REQUEST_FIGURE_SITES)

@@ -44,7 +44,7 @@ entradas:
   # ---- F0: prerrequisitos -------------------------------------------------------------------------------------------------------------------
   - id: K-01
     fase: F0
-    que: "Memoria del host: al menos 8 GiB disponibles antes de instalar (14 GiB de RAM es el minimo; los requests del perfil de kind suman 11,8 GiB)"
+    que: "Memoria del host: al menos 8 GiB disponibles antes de instalar (14 GiB de RAM es el minimo; los requests del perfil de kind suman 13,8 GiB)"
     fuentes: ["INST:20", "PERFIL:34", "DEC:78-86", "T05:35", "C-U6:34"]
     comprobacion: ["lectura:free -m", "lectura:docker stats --no-stream", "guion:memoria.sh antes"]
     plantilla: 00-prerrequisitos.md

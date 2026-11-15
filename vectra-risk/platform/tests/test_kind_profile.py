@@ -56,15 +56,18 @@ PLATFORM = Path(__file__).resolve().parents[1]
 # Baja a 14,8 en U01-T13 (cifra medida, redondeada hacia arriba a 0,1): (1) el data plane de Envoy corre con 1 replica en kind (decision del usuario 2026-11-14), -0,3008 GiB y -0,28 CPU;
 # (2) ningun HPA de kind crece mas alla de lo contado (`test_no_hpa_in_kind_can_grow_beyond_what_the_budget_counts`): los de U3, U4, U7 y U8 quedan de 2 a 2 como el de U10 y el de serving. Total 14,7539 GiB con Keycloak en 2
 # replicas (render 13,5977 + Job de validacion 1,0195 + kube-system 0,1367) y 13,7344 con 1 (U02-T23). Keycloak sigue pudiendo crecer a 4 (PENDING_UNBOUNDED): no entra en la cuenta.
-BUDGET_GIB = 14.8
-#: La memoria real de la maquina de la demo: `MemTotal` 15535356 kB = 14,8166 GiB (no los 15 que se decian; F-03 de la revision de U01-T12). El pico contado cabe aqui (`test_the_peak_fits_the_machine`).
+# Baja a 13,8 en U12-T08 (cifra medida, redondeada hacia arriba a 0,1): el HPA de Keycloak en kind queda de 1 a 1 (`maxReplicas` 1), asi que ya no hay HPA que crezca sin estar contado. Total 13,7344 GiB
+# (render 12,5781 + Job de validacion 1,0195 + kube-system 0,1367, con Keycloak en 1 y Envoy en 1); margen contra la maquina (MACHINE_GIB 14,8157): 1,08 GiB.
+BUDGET_GIB = 13.8
+#: La memoria real de la maquina de la demo: `MemTotal` 15535356 kB = 14,8157 GiB (no los 15 que se decian; F-03 de la revision de U01-T12). El pico contado cabe aqui (`test_the_peak_fits_the_machine`).
 MACHINE_GIB = 15535356 / 1024**2
 PROXY_GIB = 20 / 1024
 #: CPU pedida por todos los pods de kind en el pico de D2, con proxies (20m, sidecars nativos incluidos), el Job de validacion, `kube-system` (calico-node, CoreDNS) y serving a `maxReplicas`: 11,465
 #: con Keycloak en 2 replicas, redondeado hacia arriba a 0,5 (U01-T12; antes 10,5 con una cuenta que no veia los sidecars nativos). Baja a 11,2 en U01-T13: 11,185 medido (Envoy con 1 replica, -0,28), redondeado a 0,1. OJO (F-05): los tres nodos de kind comparten los 8 nucleos
 #: FISICOS del host, aunque cada worker anuncie 8; un request de CPU solo reparte pesos entre pods y no reserva nucleos, asi que 11,5 sobre 8 no es un fallo. El tope solo evita pods en `Pending`
 #: (REQUESTABLE_CPU: lo que los dos workers aceptan en `kubectl describe node`); no es capacidad de computo.
-CPU_BUDGET = 11.2
+# Baja a 10,7 en U12-T08: 10,665 medido con Keycloak en 1 (500m + 20m de proxy menos que con 2), redondeado hacia arriba a 0,1.
+CPU_BUDGET = 10.7
 PHYSICAL_CORES = 8.0
 REQUESTABLE_CPU = 16.0
 MESHED = {
@@ -228,9 +231,8 @@ def inference_service_cpu(document: dict) -> float:
 #: HPA (tipo, nombre) que el presupuesto cuenta a `maxReplicas` en vez de a `minReplicas` (U01-T13): un HPA de kind puede crecer mas alla de su minimo solo si esta aqui,
 #: y entonces `requested()` suma sus replicas MAXIMAS. Hoy ninguno: en kind todos quedan con `maxReplicas` = `minReplicas`.
 COUNTED_AT_MAX: set[tuple[str, str]] = set()
-#: HPA de kind que hoy pueden crecer sin estar contados y que esta tarea NO arregla (U01-T13, fuera de alcance): el `maxReplicas` de Keycloak lo fija `identity-edge/keycloak/`
-#: (`values/kind.yaml` y la regla `hpa` de `keycloak.rego`), que U02-T23 cambia en paralelo. La prueba exige que SIGAN pudiendo crecer: al cerrarse, este conjunto se vacia.
-PENDING_UNBOUNDED: set[tuple[str, str]] = {("StatefulSet", "keycloak")}
+# (U12-T08: el conjunto `PENDING_UNBOUNDED` desaparece. El `maxReplicas` de Keycloak en kind es 1, igual a su minimo, por `values/kind.yaml` y la regla `hpa-max-replicas`
+# de `identity-edge/keycloak/policy/set.rego`; ya no queda ningun HPA de kind que pueda crecer sin estar contado.)
 
 
 def kind_hpas() -> list[dict]:
@@ -419,7 +421,7 @@ def test_kind_serving_cannot_scale_beyond_what_the_budget_counts():
     assert (chart["predictor"]["maxReplicas"], chart["explainer"]["maxReplicas"]) == (4, 6)
 
 
-def test_kind_serving_render_passes_the_kyverno_hpa_bounds_policy():
+def test_kind_serving_hpa_shape_is_what_the_kyverno_hpa_bounds_check_receives():
     """La forma elegida (`maxReplicas` = 2) no relaja nada: `require-hpa-bounds` evalua el InferenceService de prod con los values de kind y no falla.
 
     Kyverno es un binario de `platform/.tools` que el job `tests` de la CI no tiene: la evaluacion vive en `platform/tests/kind_serving_kyverno.py`, que corre `make -C platform check-tools`
@@ -456,10 +458,10 @@ def test_no_hpa_in_kind_can_grow_beyond_what_the_budget_counts():
     Entran los HPA del render, el del data plane de Envoy (lo crea el controlador desde el `EnvoyProxy`) y, aparte, los de serving (`test_kind_serving_cannot_scale_beyond_what_the_budget_counts`).
     """
     assert any(d["metadata"]["name"] == "api-gateway-data-plane" for d in kind_hpas()), "el HPA del data plane de Envoy no entra en la cuenta"
-    pending = {(d["spec"]["scaleTargetRef"]["kind"], d["spec"]["scaleTargetRef"]["name"]) for d in growable_hpas(kind_hpas())}
-    uncounted = sorted(_hpa_label(d) for d in growable_hpas(kind_hpas()) if (d["spec"]["scaleTargetRef"]["kind"], d["spec"]["scaleTargetRef"]["name"]) not in PENDING_UNBOUNDED)
+    uncounted = sorted(_hpa_label(d) for d in growable_hpas(kind_hpas()))
     assert not uncounted, f"HPA de kind que pueden crecer mas alla de lo contado: {uncounted}"
-    assert pending == PENDING_UNBOUNDED, f"PENDING_UNBOUNDED ya no coincide con los HPA que crecen ({sorted(pending)}): vaciarlo si se arreglaron"
+    keycloak = next(d for d in kind_hpas() if d["metadata"]["name"] == "keycloak")["spec"]
+    assert (keycloak["minReplicas"], keycloak["maxReplicas"]) == (1, 1), "Keycloak en kind no escala (U12-T08)"
 
 
 def test_the_growth_check_sees_an_hpa_with_a_maximum_and_honours_counted_at_max():
@@ -482,7 +484,7 @@ def test_the_profile_requests_fit_the_budget():
 
 
 def test_the_peak_fits_the_machine():
-    """U01-T12 F-03: el pico de D2 contado cabe en la memoria real de la maquina (14,82 GiB), y el tope tambien. Con Keycloak en 2: 14,7539 (margen 0,06); con 1 (U02-T23): 13,7344 (margen 1,08)."""
+    """U01-T12 F-03: el pico de D2 contado cabe en la memoria real de la maquina (14,82 GiB), y el tope tambien. Con Keycloak en 2: 14,7539 (margen 0,06); con 1 (U02-T23 y U12-T08, que ademas lo fija en 1-1): 13,7344 (margen 1,08; el tope 13,8 deja 1,02)."""
     peak = requested_gib([*declared_inference_services(), *PEAK_INFERENCE_SERVICES])
     assert peak <= MACHINE_GIB, (peak, MACHINE_GIB)
     assert BUDGET_GIB <= MACHINE_GIB

@@ -302,9 +302,6 @@ def test_vault_restarted_after_the_last_sync_or_with_an_unsynced_secret_exits_1(
         "un ExternalSecret sin refreshTime": vault_state(
             started=VAULT_STARTED, secrets=[*synced, external_secret("es-e")], last_exit=exit_code
         ),
-        "ningun ExternalSecret que pruebe la siembra": vault_state(
-            started=VAULT_STARTED, secrets=[], last_exit=exit_code
-        ),
     }
     for name, state in cases.items():
         done = run("arranque.sh", ["vault"], tmp_path, state)
@@ -312,7 +309,51 @@ def test_vault_restarted_after_the_last_sync_or_with_an_unsynced_secret_exits_1(
         assert "FALLA vault/vault-0 [app]: la boveda se reinicio" in done.stdout, name
         assert "seed-vault.sh" in done.stdout, name
     healthy = vault_state(started=VAULT_STARTED, secrets=synced, restarts=0)
-    assert run("arranque.sh", ["vault"], tmp_path, healthy).returncode == 0
+    done = run("arranque.sh", ["vault"], tmp_path, healthy)
+    assert done.returncode == 0 and "AVISO vault" not in done.stdout, (
+        done.stdout
+    )  # sin reinicios y resembrada: nada que avisar
+
+
+@pytest.mark.parametrize("restarts", [21, 1, 0])
+def test_vault_with_no_externalsecret_to_compare_says_so_and_exits_1(tmp_path: Path, restarts: int) -> None:
+    """F-05 de la revision de U12-T07: con la lista vacia el mensaje no dice «1 ExternalSecret no se sincronizaron»; dice que no hay con que comparar."""
+    done = run(
+        "arranque.sh", ["vault"], tmp_path, vault_state(started=VAULT_STARTED, secrets=[], restarts=restarts)
+    )
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert (
+        "FALLA vault/vault-0 [app]:" in done.stdout
+        and "no hay ningun ExternalSecret en el cluster" in done.stdout
+    )
+    assert "1 ExternalSecret no se sincronizaron" not in done.stdout and "seed-vault.sh" in done.stdout
+
+
+def test_vault_recreated_with_zero_restarts_and_empty_is_compared_too_and_exits_1(tmp_path: Path) -> None:
+    """F-03 de la revision de U12-T07: un pod de la boveda recreado (0 reinicios) y vacio, con ExternalSecret `Ready=True` de antes de su arranque (se sincronizaron con el pod anterior), sale 1.
+    La comparacion con la sincronizacion no depende de `restartCount`."""
+    before = [external_secret(f"es-{n}", refreshed="2026-11-14T09:00:00Z") for n in range(3)]
+    done = run(
+        "arranque.sh",
+        ["vault"],
+        tmp_path,
+        vault_state(started=VAULT_STARTED, secrets=before, restarts=0, last_exit=0),
+    )
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert "FALLA vault/vault-0 [app]: la boveda arranco" in done.stdout and "(0 reinicios)" in done.stdout
+    assert (
+        "3 ExternalSecret no se sincronizaron despues de su arranque" in done.stdout
+        and "seed-vault.sh" in done.stdout
+    )
+    # y recreado y ya resembrado (sincronizacion posterior al arranque): 0, sin aviso de reinicio
+    after = [external_secret(f"es-{n}", refreshed=SEEDED) for n in range(3)]
+    done = run(
+        "arranque.sh",
+        ["vault"],
+        tmp_path,
+        vault_state(started=VAULT_STARTED, secrets=after, restarts=0, last_exit=0),
+    )
+    assert done.returncode == 0 and "FALLA" not in done.stdout, done.stdout
 
 
 def test_vault_an_externalsecret_that_refreshed_by_interval_against_an_empty_vault_does_not_pass(
@@ -821,3 +862,66 @@ def test_estado_final_an_unreadable_f22_resource_is_2_not_a_missing_one(
     )
     done = run("estado-final.sh", ["--modelos", str(file)], tmp_path, gone)
     assert done.returncode == 1 and "FALLA F22: falta" in done.stdout
+
+
+# --- U12-T08, F-03 y punto 9: ningun ExternalSecret sin refresco -------------------------------------------------------------------------------------
+# La puerta de la boveda (`arranque.sh vault`) exige que TODOS los ExternalSecret del cluster tengan `status.refreshTime` posterior al arranque de la boveda. Un `ExternalSecret` con
+# `refreshPolicy: CreatedOnce` (se sincroniza una vez al crearse) u `OnChange` (solo si cambia su `spec`) no se refresca nunca por el tiempo: tras reiniciar la boveda quedaria con un `refreshTime`
+# viejo y la puerta no tendria salida. Eleccion (U12-T08): **la prueba falla si aparecen** (el guion no los excluye: excluirlos taparia justo el caso que la puerta debe ver). El valor por
+# omision de ESO (`Periodic`) y el `Periodic` explicito pasan.
+REFRESH_POLICY = re.compile(r"""refreshPolicy["']?\s*[:=]\s*["']?([^\s"',}]*)""")
+SKIPPED_DIRS = {
+    "node_modules", ".venv", ".git", ".tools", ".charts", "tests", "bitacoras", "revisiones", "tareas", "__pycache__", "aidlc-docs", ".pytest_cache", ".ruff_cache", ".mypy_cache",
+}  # fmt: skip
+MANIFEST_SUFFIXES = {".yaml", ".yml", ".tpl", ".json", ".py"}
+
+
+def refresh_policy_findings(root: Path) -> list[str]:
+    """Las apariciones de `refreshPolicy` con un valor que no es `Periodic` en lo que se versiona (manifiestos, plantillas de chart y los generadores en Python): `CreatedOnce`, `OnChange` o un valor que no se lee (plantilla)."""
+    found = []
+    for directory, subdirs, names in os.walk(root):
+        subdirs[:] = [d for d in subdirs if d not in SKIPPED_DIRS]
+        for name in names:
+            path = Path(directory) / name
+            if path.suffix not in MANIFEST_SUFFIXES:
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if "refreshPolicy" not in text:
+                continue
+            for number, line in enumerate(text.split("\n"), 1):
+                for match in REFRESH_POLICY.finditer(line):
+                    if match.group(1) != "Periodic":
+                        found.append(
+                            f"{path.relative_to(root)}:{number}: refreshPolicy {match.group(1) or '?'}"
+                        )
+    return found
+
+
+def test_no_externalsecret_in_the_repository_has_a_refresh_policy_the_vault_gate_cannot_pass() -> None:
+    assert refresh_policy_findings(kd.VECTRA) == []
+    # y la busqueda ve ExternalSecret de verdad (no recorre un arbol vacio)
+    assert any(
+        "kind: ExternalSecret" in p.read_text(encoding="utf-8")
+        for p in (kd.VECTRA / "identity-edge/keycloak/rendered/kind").glob("*.yaml")
+    )
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "  refreshPolicy: CreatedOnce",
+        "  refreshPolicy: OnChange",
+        "  refreshPolicy: 'CreatedOnce'",
+        '  "refreshPolicy": "OnChange",',
+        "  refreshPolicy: {{ .Values.policy }}",
+        "refresh_policy = dict(refreshPolicy='OnChange')",
+    ],
+)
+def test_red_an_externalsecret_that_never_refreshes_is_found(tmp_path: Path, line: str) -> None:
+    (tmp_path / "chart").mkdir()
+    (tmp_path / "chart" / "es.yaml").write_text(f"kind: ExternalSecret\nspec:\n{line}\n", encoding="utf-8")
+    (tmp_path / "chart" / "ok.yaml").write_text(
+        "kind: ExternalSecret\nspec:\n  refreshPolicy: Periodic\n  refreshInterval: 1h\n", encoding="utf-8"
+    )
+    found = refresh_policy_findings(tmp_path)
+    assert len(found) == 1 and found[0].startswith("chart/es.yaml:3"), found

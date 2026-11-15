@@ -95,7 +95,7 @@ deny contains msg if {
 # NFR-U2-01: 2 a 4 replicas. Excepcion solo en kind (U02-T23, decision del 2026-11-14): minimo 1 para que quepa en la maquina de la demo.
 # Se reconoce kind por `is_kind` (el KC_HOSTNAME del StatefulSet es el publico de kind), la misma senal que ya obliga a kind a llevar la CA
 # interna y el Job de `keycloak-config-cli`, y a staging y prod a no llevarlos: un render de staging o prod que se hiciera pasar por kind
-# fallaria esas reglas aunque este aceptara el 1. El maximo (4) no cambia.
+# fallaria esas reglas aunque este aceptara el 1.
 min_replicas := 1 if is_kind
 
 min_replicas := 2 if not is_kind
@@ -106,6 +106,22 @@ deny contains msg if {
 	document.metadata.name == "keycloak"
 	object.get(document.spec, "minReplicas", 0) != min_replicas
 	msg := sprintf("hpa-min-replicas: minReplicas distinto de %d (%s)", [min_replicas, env_label])
+}
+
+# regla: hpa-max-replicas
+# NFR-U2-01: 2 a 4 replicas. Excepcion solo en kind (U12-T08): maximo 1, igual al minimo, porque Keycloak es el unico HPA de kind que podia crecer
+# sin estar contado en el presupuesto de la demo (con 4 replicas el pico de D2 pasaba de la maquina). Misma senal `is_kind` que el minimo;
+# exacta en los dos casos (kind 1, staging y prod 4) y un HPA sin `maxReplicas` falla en los tres (`object.get(..., 0)` nunca iguala a 1 ni a 4).
+max_replicas := 1 if is_kind
+
+max_replicas := 4 if not is_kind
+
+deny contains msg if {
+	some document in documents
+	document.kind == "HorizontalPodAutoscaler"
+	document.metadata.name == "keycloak"
+	object.get(document.spec, "maxReplicas", 0) != max_replicas
+	msg := sprintf("hpa-max-replicas: maxReplicas distinto de %d (%s)", [max_replicas, env_label])
 }
 
 # regla: replicas
