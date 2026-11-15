@@ -7,12 +7,16 @@ inferenceServices: []
 # chart/values.yaml (test_kind_profile.py lo comprueba). Los limits tampoco cambian: el modelo de referencia usa menos de 256 Mi, y el
 # escenario de memoria del Paso 11 (kubectl top) lo confirma en kind. `promotion-tool` no toca esta clave.
 # U01-T11 (decision del usuario 2026-11-14, solo kind): el request de CPU baja a 100m en todos los pods de serving (500m en prod e inactive, 250m el predictor de staging): el pico de D2 son
-# 9 pods de serving y 500m cada uno reservaban 4,5 de los 16 nucleos programables. Los limits no bajan (el modelo puede usar hasta 1 o 2 nucleos) y `cpuUtilization` del HPA sigue en 60 %,
+# 9 pods de serving y 500m cada uno reservaban 4,5 nucleos de requests (los workers de kind comparten los 8 nucleos fisicos del host: el request reparte pesos, no capacidad). Los limits no bajan (el modelo puede usar hasta 1 o 2 nucleos) y `cpuUtilization` del HPA sigue en 60 %,
 # que ahora se mide sobre 100m: bajo carga el HPA sube antes hacia `maxReplicas` (a vigilar en el Paso 11).
+# U01-T12 (F-03 de la revision de U01-T11, solo kind): con el request en 100m el umbral del 60 % son ~72m por pod (con 500m era ~360m), y casi cualquier trafico de D2 llevaria al predictor
+# de 2 a 4 y al explicador de 2 a 6 pods: +3,23 GiB y +1,44 CPU que el presupuesto de kind no cuenta y que no caben. En kind `maxReplicas` es igual a `minReplicas` (2 y 2): el HPA de KServe
+# queda con minimo = maximo y serving no crece mas alla de lo contado; `test_kind_profile.py` cuenta `maxReplicas`. Los limits y las 2 replicas minimas (NFR-U1-04) no cambian, ni la
+# politica `require-hpa-bounds` (solo exige `minReplicas >= 2`) ni el esquema (`maxReplicas >= 2`). Costo: en kind no hay escalado real; el escalado de serving se prueba en staging y prod.
 profiles:
   prod:
-    predictor: { resources: { requests: { cpu: 100m, memory: 256Mi } } }
-    explainer: { resources: { requests: { cpu: 100m, memory: 256Mi } } }
+    predictor: { maxReplicas: 2, resources: { requests: { cpu: 100m, memory: 256Mi } } }
+    explainer: { maxReplicas: 2, resources: { requests: { cpu: 100m, memory: 256Mi } } }
   inactive:
     predictor: { resources: { requests: { cpu: 100m, memory: 256Mi } } }
     explainer: { resources: { requests: { cpu: 100m, memory: 256Mi } } }
