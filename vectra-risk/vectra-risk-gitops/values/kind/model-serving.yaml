@@ -6,12 +6,15 @@ inferenceServices: []
 # 512 Mi de INF-U6-01, solo aqui. Replicas, HPA y PDB no cambian (require-hpa-bounds; el activo nunca baja de 2). Staging y prod siguen en
 # chart/values.yaml (test_kind_profile.py lo comprueba). Los limits tampoco cambian: el modelo de referencia usa menos de 256 Mi, y el
 # escenario de memoria del Paso 11 (kubectl top) lo confirma en kind. `promotion-tool` no toca esta clave.
+# U01-T11 (decision del usuario 2026-11-14, solo kind): el request de CPU baja a 100m en todos los pods de serving (500m en prod e inactive, 250m el predictor de staging): el pico de D2 son
+# 9 pods de serving y 500m cada uno reservaban 4,5 de los 16 nucleos programables. Los limits no bajan (el modelo puede usar hasta 1 o 2 nucleos) y `cpuUtilization` del HPA sigue en 60 %,
+# que ahora se mide sobre 100m: bajo carga el HPA sube antes hacia `maxReplicas` (a vigilar en el Paso 11).
 profiles:
   prod:
-    predictor: { resources: { requests: { memory: 256Mi } } }
-    explainer: { resources: { requests: { memory: 256Mi } } }
+    predictor: { resources: { requests: { cpu: 100m, memory: 256Mi } } }
+    explainer: { resources: { requests: { cpu: 100m, memory: 256Mi } } }
   inactive:
-    predictor: { resources: { requests: { memory: 256Mi } } }
-    explainer: { resources: { requests: { memory: 256Mi } } }
+    predictor: { resources: { requests: { cpu: 100m, memory: 256Mi } } }
+    explainer: { resources: { requests: { cpu: 100m, memory: 256Mi } } }
   staging:
-    predictor: { resources: { requests: { memory: 256Mi } } }
+    predictor: { resources: { requests: { cpu: 100m, memory: 256Mi } } }

@@ -1,3 +1,4 @@
+# U01-T11: sin Loki ni Tempo en kind, tampoco sus buckets, politicas, usuarios ni reglas de ciclo de vida (siguen en values.yaml, para staging y prod).
 # Solo en kind. Los buckets WORM de U3 y U4 (F118) y los backups (no hay S3 del banco que simular) viven aqui;
 # en staging y prod, en el S3 del banco. Helm reemplaza las listas: `buckets`, `policies`, `users` y `customCommands`
 # repiten lo de values.yaml. `standard` es la StorageClass que kind trae de fabrica; no cifra (fuera de NFR-U1-23).
@@ -11,8 +12,6 @@ resources:
 buckets:
   - { name: model-store, policy: none, purge: false, versioning: true, objectlocking: false }
   - { name: validation-datasets, policy: none, purge: false, versioning: true, objectlocking: false }
-  - { name: loki, policy: none, purge: false, versioning: true, objectlocking: true }
-  - { name: tempo, policy: none, purge: false, versioning: false, objectlocking: false }
   - { name: vectra-registry-checkpoints, policy: none, purge: false, versioning: true, objectlocking: true }
   - { name: vectra-registry-archive, policy: none, purge: false, versioning: true, objectlocking: true }
   - { name: vectra-model-archive, policy: none, purge: false, versioning: true, objectlocking: true }
@@ -21,8 +20,6 @@ policies:
   - { name: model-store-read, statements: [{ actions: ["s3:GetObject", "s3:ListBucket"], resources: ["arn:aws:s3:::model-store", "arn:aws:s3:::model-store/*"] }] }
   # U01-T10: el Job de validacion de U4 lee del model-store (manifiesto, explicador, spec, envolvente, artefacto) y de validation-datasets.
   - { name: validation-read, statements: [{ actions: ["s3:GetObject", "s3:ListBucket"], resources: ["arn:aws:s3:::validation-datasets", "arn:aws:s3:::validation-datasets/*", "arn:aws:s3:::model-store", "arn:aws:s3:::model-store/*"] }] }
-  - { name: loki-write, statements: [{ actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"], resources: ["arn:aws:s3:::loki", "arn:aws:s3:::loki/*"] }] }
-  - { name: tempo-write, statements: [{ actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"], resources: ["arn:aws:s3:::tempo", "arn:aws:s3:::tempo/*"] }] }
   - { name: governance-read, statements: [{ actions: ["s3:GetObject", "s3:ListBucket"], resources: ["arn:aws:s3:::model-store", "arn:aws:s3:::model-store/*"] }] }
   - { name: model-store-upload, statements: [{ actions: ["s3:GetObject", "s3:PutObject", "s3:ListBucket"], resources: ["arn:aws:s3:::model-store", "arn:aws:s3:::model-store/*"] }] }
   # F101 mas, solo en kind, el destino que en otros entornos es el S3 del banco (INF-U4-02).
@@ -40,8 +37,6 @@ policies:
 users:
   - { accessKey: kserve-readonly, existingSecret: minio-kserve, existingSecretKey: secretKey, policy: model-store-read }
   - { accessKey: validation-readonly, existingSecret: minio-validation, existingSecretKey: secretKey, policy: validation-read }
-  - { accessKey: loki-writer, existingSecret: minio-loki, existingSecretKey: secretKey, policy: loki-write }
-  - { accessKey: tempo-writer, existingSecret: minio-tempo, existingSecretKey: secretKey, policy: tempo-write }
   - { accessKey: governance-readonly, existingSecret: minio-governance, existingSecretKey: secretKey, policy: governance-read }
   - { accessKey: model-archive-writer, existingSecret: minio-model-archive, existingSecretKey: secretKey, policy: model-archive }
   - { accessKey: risk-engineer-upload, existingSecret: minio-engineer-upload, existingSecretKey: secretKey, policy: model-store-upload }
@@ -52,11 +47,6 @@ users:
   - { accessKey: postgres-backup, existingSecret: minio-postgres-backup, existingSecretKey: secretKey, policy: postgres-backup-write }
 # Corren en cada sync; ver la nota sobre `ilm rule add` en values.yaml.
 customCommands:
-  - { command: "retention set --default GOVERNANCE 90d myminio/loki" }
-  - { command: "ilm rule rm --all --force myminio/loki || true" }
-  - { command: "ilm rule add --expire-days 90 --noncurrent-expire-days 1 myminio/loki" }
-  - { command: "ilm rule rm --all --force myminio/tempo || true" }
-  - { command: "ilm rule add --expire-days 7 myminio/tempo" }
   - { command: "retention set --default COMPLIANCE 3650d myminio/vectra-registry-checkpoints" }
   - { command: "retention set --default COMPLIANCE 3650d myminio/vectra-registry-archive" }
   - { command: "retention set --default COMPLIANCE 3650d myminio/vectra-model-archive" }

@@ -44,7 +44,6 @@ def test_the_chart_templates_are_rendered_and_cover_expected_paths(refs):
         ("postgres/roles/keycloak", "username"),
         ("postgres/backup", "secretKey"),
         ("minio/root", "password"),
-        ("minio/loki", "accessKey"),
         ("minio/governance", "secretKey"),
         ("minio/model-archive", "secretKey"),
         ("minio/engineer-upload", "secretKey"),
@@ -87,12 +86,20 @@ def test_each_minio_user_has_its_secret_in_vectra_data_and_its_access_key_seeded
             assert planned[path][prop] == user["accessKey"], user
 
 
+#: U01-T11: kind no instala Loki ni Tempo, y MinIO de kind no les da bucket, politica ni usuario.
+NOT_IN_KIND = {"loki", "tempo", "loki-write", "tempo-write", "loki-writer", "tempo-writer"}
+
+
+def test_kind_seeds_nothing_for_loki_or_tempo(refs):
+    assert not {"minio/loki", "minio/tempo"} & refs.keys()
+
+
 def test_every_minio_user_of_the_base_values_is_also_in_kind():
     base = yaml.safe_load((PLATFORM / "data/minio/values.yaml").read_text(encoding="utf-8"))
     kind = yaml.safe_load(vp.MINIO_VALUES.read_text(encoding="utf-8"))
-    assert {u["accessKey"] for u in base["users"]} <= {u["accessKey"] for u in kind["users"]}
-    assert {p["name"] for p in base["policies"]} <= {p["name"] for p in kind["policies"]}
-    assert {b["name"] for b in base["buckets"]} | {"vectra-backups"} <= {b["name"] for b in kind["buckets"]}
+    assert {u["accessKey"] for u in base["users"]} - NOT_IN_KIND <= {u["accessKey"] for u in kind["users"]}
+    assert {p["name"] for p in base["policies"]} - NOT_IN_KIND <= {p["name"] for p in kind["policies"]}
+    assert ({b["name"] for b in base["buckets"]} | {"vectra-backups"}) - NOT_IN_KIND <= {b["name"] for b in kind["buckets"]}
 
 
 def test_every_generated_secret_is_different(documents, refs):

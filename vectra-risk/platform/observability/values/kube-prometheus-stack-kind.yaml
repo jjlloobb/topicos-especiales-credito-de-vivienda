@@ -24,6 +24,8 @@ kube-state-metrics:
     requests: { cpu: 10m, memory: 64Mi }
     limits: { cpu: 100m, memory: 128Mi }
 grafana:
+  # U01-T11: kind no instala Loki ni Tempo. Las dos fuentes de datos de `kube-prometheus-stack.yaml` quedarian apuntando a Services que no existen; en kind Grafana solo lee Prometheus.
+  additionalDataSources: []
   resources:
     requests: { cpu: 50m, memory: 128Mi }
     limits: { cpu: 500m, memory: 512Mi } # 256Mi no basta: 250 MiB en reposo y OOMKilled al arrancar y con `grafana cli` (medido en kind, 2026-11-14)

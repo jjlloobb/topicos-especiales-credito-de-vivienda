@@ -1,0 +1,9 @@
+# Simulacro de failover de zona (Paso 20), solo con `kind/cluster-ha.yaml` (>= 32 GiB): 3 instancias y la restriccion de zona en los cuatro clusters.
+# `values-kind.yaml` fija `instances` por cluster y ese valor gana sobre el global, por eso el override es por cluster. Se copia a
+# `vectra-risk-gitops/values/kind/postgres.yaml` (Argo CD lo agrega solo) y se quita al terminar el simulacro; ver install.md.
+zoneConstraint: true
+clusters:
+  registry-db: { instances: 3 }
+  case-db: { instances: 3 }
+  governance-db: { instances: 3 }
+  keycloak-db: { instances: 3 }

@@ -14,7 +14,6 @@ spec:
   - https://charts.min.io
   - https://cloudnative-pg.github.io/charts
   - https://github.com/jjlloobb/topicos-especiales-credito-de-vivienda.git
-  - https://grafana.github.io/helm-charts
   - https://helm.linkerd.io/edge
   - https://helm.releases.hashicorp.com
   - https://kubernetes-sigs.github.io/metrics-server
