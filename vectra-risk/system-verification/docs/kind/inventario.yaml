@@ -181,9 +181,9 @@ entradas:
     demo: [D1, D3, D4]
   - id: K-20
     fase: F2
-    que: "Selectores y puertos de partida: Prometheus (app.kubernetes.io/name=prometheus, 9090), Loki (loki, 3100) y el registro (decision-registry-service, 8080)"
+    que: "Selectores y puertos de partida: Prometheus (app.kubernetes.io/name=prometheus, 9090) y el registro (decision-registry-service, 8080)"
     fuentes: ["CAND:671", "T04:141", "T05:367"]
-    comprobacion: ["lectura:kubectl --context kind-vectra get pods -l app.kubernetes.io/name=prometheus -n vectra-observability", "lectura:kubectl --context kind-vectra get pods -l app.kubernetes.io/name=loki -n vectra-observability", "lectura:kubectl --context kind-vectra get pods -l app.kubernetes.io/name=decision-registry-service -n vectra-app"]
+    comprobacion: ["lectura:kubectl --context kind-vectra get pods -l app.kubernetes.io/name=prometheus -n vectra-observability", "lectura:kubectl --context kind-vectra get pods -l app.kubernetes.io/name=decision-registry-service -n vectra-app"]
     plantilla: 02-sync-y-arranque.md
     demo: [Base]
   - id: K-21

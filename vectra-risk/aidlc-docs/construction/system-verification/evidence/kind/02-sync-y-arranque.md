@@ -234,9 +234,9 @@ _pendiente: la salida real, sin tokens_
 
 - Demo: Base. Fuentes: `CANDIDATAS.md:671`, `tareas/U12-T04-demos-cli-y-manifiesto.md:141`, `tareas/U12-T05-imagen-y-documentacion.md:367`.
 
-**Resultado esperado.** Selectores y puertos de partida: Prometheus (app.kubernetes.io/name=prometheus, 9090), Loki (loki, 3100) y el registro (decision-registry-service, 8080)
+**Resultado esperado.** Selectores y puertos de partida: Prometheus (app.kubernetes.io/name=prometheus, 9090) y el registro (decision-registry-service, 8080)
 
-**Comando.** Previsto: `kubectl --context kind-vectra get pods -l app.kubernetes.io/name=prometheus -n vectra-observability`; `kubectl --context kind-vectra get pods -l app.kubernetes.io/name=loki -n vectra-observability`; `kubectl --context kind-vectra get pods -l app.kubernetes.io/name=decision-registry-service -n vectra-app`.
+**Comando.** Previsto: `kubectl --context kind-vectra get pods -l app.kubernetes.io/name=prometheus -n vectra-observability`; `kubectl --context kind-vectra get pods -l app.kubernetes.io/name=decision-registry-service -n vectra-app`.
 
 ```bash
 _pendiente: el comando exacto que se ejecutó_
@@ -250,7 +250,7 @@ _pendiente: la salida real, sin tokens_
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| Selectores y puertos de partida: Prometheus (app.kubernetes.io/name=prometheus, 9090), Loki (loki, 3100) y el registro (decision-registry-service, 8080) | _pendiente_ | _pendiente_ |
+| Selectores y puertos de partida: Prometheus (app.kubernetes.io/name=prometheus, 9090) y el registro (decision-registry-service, 8080) | _pendiente_ | _pendiente_ |
 
 ### K-21 — Proxy de Linkerd en vectra-mock
 
