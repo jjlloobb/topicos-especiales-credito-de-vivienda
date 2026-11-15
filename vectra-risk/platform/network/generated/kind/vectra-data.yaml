@@ -1904,13 +1904,7 @@ metadata:
   namespace: vectra-data
 spec:
   ingress:
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: vectra-observability
-      podSelector:
-        matchLabels:
-          app.kubernetes.io/name: loki
+  - from: []
     ports:
     - port: 9000
       protocol: TCP
@@ -1919,30 +1913,6 @@ spec:
       app: minio
   policyTypes:
   - Ingress
----
-apiVersion: policy.linkerd.io/v1alpha1
-kind: MeshTLSAuthentication
-metadata:
-  name: f66-minio-9000-mtls
-  namespace: vectra-data
-spec:
-  identities:
-  - loki.vectra-observability.serviceaccount.identity.linkerd.cluster.local
----
-apiVersion: policy.linkerd.io/v1alpha1
-kind: AuthorizationPolicy
-metadata:
-  name: f66-minio-9000
-  namespace: vectra-data
-spec:
-  requiredAuthenticationRefs:
-  - group: policy.linkerd.io
-    kind: MeshTLSAuthentication
-    name: f66-minio-9000-mtls
-  targetRef:
-    group: policy.linkerd.io
-    kind: Server
-    name: minio-9000
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -1953,13 +1923,7 @@ metadata:
   namespace: vectra-data
 spec:
   ingress:
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: vectra-observability
-      podSelector:
-        matchLabels:
-          app.kubernetes.io/name: tempo
+  - from: []
     ports:
     - port: 9000
       protocol: TCP
@@ -1968,30 +1932,6 @@ spec:
       app: minio
   policyTypes:
   - Ingress
----
-apiVersion: policy.linkerd.io/v1alpha1
-kind: MeshTLSAuthentication
-metadata:
-  name: f67-minio-9000-mtls
-  namespace: vectra-data
-spec:
-  identities:
-  - tempo.vectra-observability.serviceaccount.identity.linkerd.cluster.local
----
-apiVersion: policy.linkerd.io/v1alpha1
-kind: AuthorizationPolicy
-metadata:
-  name: f67-minio-9000
-  namespace: vectra-data
-spec:
-  requiredAuthenticationRefs:
-  - group: policy.linkerd.io
-    kind: MeshTLSAuthentication
-    name: f67-minio-9000-mtls
-  targetRef:
-    group: policy.linkerd.io
-    kind: Server
-    name: minio-9000
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

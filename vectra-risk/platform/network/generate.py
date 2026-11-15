@@ -492,6 +492,8 @@ def build(
                             )
     for key, subject in sorted(data["k_egress"].items()):
         workload = data["workloads"][subject] if isinstance(subject, str) else subject
+        if env not in workload.get("envs", ENVS):
+            continue  # U01-T11: Alloy (K13) no existe en kind
         docs[workload["ns"]].append(
             network_policy(
                 f"allow-k8s-api-{key.lower()}",
