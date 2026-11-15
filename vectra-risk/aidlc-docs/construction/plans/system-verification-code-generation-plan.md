@@ -182,23 +182,23 @@ vectra-risk/system-verification/
 
 ### Bloque F — Imagen, CI y documentación
 
-- [ ] **Paso 14 — Repositorio, migraciones, frontend y despliegue en el clúster: N/A**
+- [x] **Paso 14 — Repositorio, migraciones, frontend y despliegue en el clúster: N/A** (U12-T05; N/A comprobado: sin `chart/` ni `migrations/`, sin entrada en `components.yaml`)
   - U12 no tiene base de datos, interfaz ni recursos de Kubernetes.
   - **Aceptación**: `test ! -d system-verification/chart && test ! -d system-verification/migrations`; la imagen no contiene manifiestos de Kubernetes.
 
-- [ ] **Paso 15 — Imagen**
+- [x] **Paso 15 — Imagen** (U12-T05; sin escaneo, SBOM ni firma (T1))
   - Python oficial por digest, sin privilegios; incluye `kubectl`, Playwright y su Chromium por versión fijada (el Chromium sin interfaz del login del Paso 5). **k6 no va en esta imagen** (pendientes posteriores al cierre, 2026-10-10): corre en su propio contenedor (`grafana/k6` por digest), con límites de 2 CPU y 2 GiB, que **el operador** lanza en la red de kind con el comando que imprime la sección `load` (Paso 11, INF-U12-05; pendientes consolidados, segunda tanda, 2026-10-10);
   - **sandbox de Chromium** (pendientes posteriores al cierre, 2026-10-10): el contenedor corre como usuario no root con el perfil `seccomp` que publica Playwright para Chromium (`chrome.json`) y espacios de nombres de usuario sin privilegios; **nunca** con `--no-sandbox`. Si el host no los permite, la sección que necesita login termina con un error claro;
   - la imagen se construye, se escanea, lleva SBOM y se firma con `sign-image.yml` de U1 (frase separada, pendientes consolidados, 2026-10-10).
   - Diseño: INF-U12-01.
   - **Aceptación**: `hadolint system-verification/Dockerfile`; el SBOM lista `kubectl`, Playwright y Chromium con su versión y **no** `k6`; prueba de humo: Chromium arranca con el sandbox activo bajo el perfil `seccomp` (`chrome://sandbox` sin errores).
 
-- [ ] **Paso 16 — Workflow de CI**
+- [ ] (diferido por la demo: enmienda §3 U12) **Paso 16 — Workflow de CI**
   - `.github/workflows/system-verification.yml`, en cada PR que toca `system-verification/`: `uv sync --frozen`, ruff, mypy, import-linter, pruebas con perfil `ci` y semilla impresa, cobertura (100 % en `report` y `sampler`; ≥ 85 % en el resto, NFR-U12-40), prueba de verbos de `kubectl`, `shellcheck`, `k6 inspect` de los scripts en el contenedor `grafana/k6` por digest (pendientes consolidados, 2026-10-10); `test_rt5_promql.py` con el contenedor de Prometheus (pendientes abiertos, 2026-10-10); perfil `nightly` y `mutmut` en el nocturno.
   - **AUTONOMIA-01**: ningún paso ejecuta la verificación contra un clúster.
   - **Aceptación**: `uv run pytest system-verification/tests --cov=vectra_verification --cov-branch --cov-fail-under=85` (pendientes consolidados, 2026-10-10); `actionlint .github/workflows/system-verification.yml`; `! grep -E "kubectl|helm (install|upgrade)|terraform apply|argocd" .github/workflows/system-verification.yml`.
 
-- [ ] **Paso 17 — Documentación y trazabilidad**
+- [x] **Paso 17 — Documentación y trazabilidad** (U12-T05; README de lo que entra; trazabilidad con lista)
   - `system-verification/README.md`: cómo ejecutar cada sección, requisitos (K16, PRs preparados, `runId` de los Jobs en formato `AAAAMMDD-HHMM` y el sync manual de las **tres Applications** `bias-monitoring`, `decision-registry-rebuild` y `case-management`; pendientes consolidados, 2026-10-10), presupuesto de tiempo (con las esperas de PRs aparte), cómo leer el informe y su límite.
   - El README dice también cómo llegan al contenedor el kubeconfig, el certificado raíz y la sesión de Vault **sin escribirse en disco** (montajes de solo lectura del kubeconfig y del certificado; token de Vault como variable de entorno; sistema de archivos de solo lectura salvo el directorio de evidencias y un `tmpfs`; deployment-architecture §2b), y cómo lanzar el contenedor de k6 con sus límites (pendientes posteriores al cierre, 2026-10-10).
   - Trazabilidad de cada BR-U12 a una prueba.

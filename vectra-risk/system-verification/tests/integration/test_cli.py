@@ -247,6 +247,19 @@ def test_exit_codes_pasa_is_0_falla_is_1_and_no_ejecutado_is_2_with_three_differ
     world.close()
 
 
+def test_rt5_and_u11_do_not_build_the_simulator_so_they_do_not_need_the_u5_delivery(
+    tmp_path: Path,
+) -> None:
+    """U12-T05: la imagen revelo que `rt5` pedia `reference-model/.out/test.parquet` aunque solo lee `kubectl` y Prometheus: el simulador se arma al usarlo (`decisions`, `rt3`, `rt2`)."""
+    world = Rt2World()
+    h = Harness(tmp_path / "v", clock=world.clock)
+    assert h.prepare() == 0
+    h.backend = rt5_world(world)
+    assert h.run("rt5") == 0
+    assert not [event for event in h.backend.events if event.startswith("simulator:")]
+    world.close()
+
+
 def test_exit_the_three_results_and_the_refusal_have_four_different_texts() -> None:
     assert len(set(cli.RESULT_TEXT.values())) == 4 and cli.code_of(["pasa"]) == 0
     assert (
@@ -442,6 +455,18 @@ def test_prepare_makes_the_manifest_the_run_id_and_the_patch_without_a_single_re
         and "case-management-runid.patch" in manifest["files"]
     )
     assert sorted(p.name for p in h.dir.iterdir()) == ["case-management-runid.patch", "manifest.json"]
+
+
+def test_prepare_in_a_directory_that_cannot_be_written_is_refused_with_3_and_a_clear_message(
+    tmp_path: Path, world: Rt2World
+) -> None:
+    """U12-T05: en la imagen (`--read-only`) sin el montaje de `evidence/`, `mkdir` falla con `EROFS`: un codigo estable y el codigo 3, no una traza."""
+    blocker = tmp_path / "no-es-un-directorio"
+    blocker.write_text("x", encoding="utf-8")
+    h = Harness(blocker / "evidence", None)
+    assert h.prepare() == 3
+    assert "store_unwritable" in h.err.getvalue() and "Traceback" not in h.err.getvalue()
+    assert blocker.read_text(encoding="utf-8") == "x"
 
 
 def test_prepare_a_started_at_of_2026_10_12_at_14_07_31_gives_the_run_id_20261012_1407(
@@ -1362,3 +1387,93 @@ def test_f09_without_a_delivery_anywhere_the_paths_are_asked_for_and_nothing_is_
     ):
         assert h.run(section) == 3, section
         assert "ruta_faltante" in h.err.getvalue() and option in h.err.getvalue(), (section, h.err.getvalue())
+
+
+# --- U12-T05, ronda 2, F-01: un fallo de infraestructura es `no ejecutado` (2) en cualquier seccion, nunca una traza con codigo 1 -------------------------
+
+
+class Exploding(WorldBackend):
+    """Un `Backend` cuyo mundo falla: Chromium no arranca, la boveda no responde, el `port-forward` se cae o el contexto de `kubectl` no existe."""
+
+    def __init__(self, world: Rt2World, error: Exception, *, from_k8s: bool) -> None:
+        super().__init__(world)
+        self.error, self.from_k8s = error, from_k8s
+
+    def _boom(self) -> None:
+        raise self.error
+
+    def k8s(self) -> object:  # type: ignore[override]
+        if self.from_k8s:
+            self._boom()
+        return super().k8s()
+
+    def prom(self) -> object:  # type: ignore[override]
+        self._boom()
+        return super().prom()
+
+    def registry(self) -> object:  # type: ignore[override]
+        self._boom()
+        return super().registry()
+
+    def sessions(self) -> object:  # type: ignore[override]
+        self._boom()
+        return super().sessions()
+
+    def bff(self) -> object:  # type: ignore[override]
+        self._boom()
+        return super().bff()
+
+    def simulator(self, run_prefix: str) -> object:  # type: ignore[override]
+        self._boom()
+        return super().simulator(run_prefix)
+
+    def driver(self, seed: int) -> object:  # type: ignore[override]
+        self._boom()
+        return super().driver(seed)
+
+
+def _infra_errors() -> list[Exception]:
+    from vectra_verification.clients.k8s_read import K8sError
+    from vectra_verification.clients.oidc import OidcError
+
+    return [
+        OidcError("browser_launch_error"),
+        OidcError("vault_unreachable"),
+        K8sError("port_forward_exited:9090"),
+        K8sError('kubectl_failed:context "kind-vectra" does not exist'),
+    ]
+
+
+@pytest.mark.parametrize("from_k8s", [False, True], ids=["later", "from-kubectl"])
+@pytest.mark.parametrize("error_index", range(4))
+@pytest.mark.parametrize("section", ["decisions", "rt5", "rt3", "rt2-setup", "rt2", "u11"])
+def test_f01_an_infrastructure_failure_in_any_section_is_not_executed_code_2_without_a_traceback(
+    pipe: Pipeline, section: str, error_index: int, from_k8s: bool
+) -> None:
+    error = _infra_errors()[error_index]
+    order = ["decisions", "rt5", "rt3", "rt2-setup", "rt2", "u11"]
+    assert pipe.h.prepare() == 0
+    for before in order[: order.index(section)]:
+        assert pipe.run(before) == 0, before
+    world = pipe.world
+    pipe.h.factory = lambda *args: Exploding(world, error, from_k8s=from_k8s)  # type: ignore[method-assign,assignment]
+    code = pipe.run(section)
+    text = pipe.h.out.getvalue() + pipe.h.err.getvalue()
+    assert code == 2, (code, text[-600:])
+    assert f"seccion {section}: no ejecutado (2)" in text and "Traceback" not in text, text[-600:]
+    assert pipe.h.manifest()["sections"][section]["state"] in ("interrumpida", "terminada")
+
+
+def test_f01_the_closing_of_rt3_with_an_infrastructure_failure_is_not_executed_and_leaves_rt3_as_it_was(
+    pipe: Pipeline,
+) -> None:
+    from vectra_verification.clients.oidc import OidcError
+
+    assert pipe.h.prepare() == 0
+    assert pipe.run("decisions") == 0 and pipe.run("rt5") == 0 and pipe.run("rt3") == 0
+    before = rt3_record(pipe)
+    world = pipe.world
+    pipe.h.factory = lambda *args: Exploding(world, OidcError("browser_launch_error"), from_k8s=False)  # type: ignore[method-assign,assignment]
+    assert pipe.run("rt3", "--closing") == 2
+    assert "Traceback" not in pipe.h.out.getvalue() + pipe.h.err.getvalue()
+    assert rt3_record(pipe) == before and "closing_rt3" not in pipe.h.manifest()

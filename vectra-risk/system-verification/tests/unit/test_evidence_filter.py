@@ -423,12 +423,13 @@ def test_f07_the_walk_has_a_bounded_cost_on_runs_of_escaped_quotes_and_brackets(
     import time
 
     for text in (shape, f"x\n{shape}\ny", stored(shape)):
-        started = time.perf_counter()
+        started = time.process_time()
         evidence.scrub(text)
-        assert time.perf_counter() - started < 1.0, (shape[:12], len(text))
+        assert time.process_time() - started < 1.0, (shape[:12], len(text))
 
 
 def test_f07_a_megabyte_of_real_json_and_200_kb_of_quotes_stay_in_seconds() -> None:
+    """El tiempo es de CPU del proceso (`process_time`), no de pared: con la maquina cargada la pared pasaba de 8 s (11,6 s medidos) sin que el coste cambiara; el coste cuadratico sigue fallando (200 KB tardaban minutos de CPU)."""
     import json
     import time
 
@@ -436,10 +437,10 @@ def test_f07_a_megabyte_of_real_json_and_200_kb_of_quotes_stay_in_seconds() -> N
         {"rows": [{"name": f"c{i}", "value": f"v{i}", "x": {"y": [1, 2, i]}} for i in range(12000)]}
     )
     assert len(big) > 600_000
-    started = time.perf_counter()
+    started = time.process_time()
     assert evidence.scrub(big) == big
     assert evidence.scrub(stored(big)) == stored(big)
-    assert time.perf_counter() - started < 8.0
-    started = time.perf_counter()
+    assert time.process_time() - started < 8.0
+    started = time.process_time()
     evidence.scrub('\\"' * 100_000)
-    assert time.perf_counter() - started < 2.0
+    assert time.process_time() - started < 2.0
