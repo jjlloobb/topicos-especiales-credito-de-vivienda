@@ -82,7 +82,7 @@ _pendiente: la salida real, sin tokens_
 
 **Resultado esperado.** El iss de los tokens del navegador es el que valida el BFF y cada destino (F10 a F14): 200 en bandeja, detalle, modelos y congelamientos, ningun 401
 
-**Comando.** Previsto: `humo flujo`.
+**Comando.** Previsto: `humo flujo --delivery /verification/reference-model/.out`.
 
 ```bash
 _pendiente: el comando exacto que se ejecutó_
@@ -104,7 +104,7 @@ _pendiente: la salida real, sin tokens_
 
 **Resultado esperado.** La aud de la asercion de servicio la acepta el Keycloak del cluster (nunca medido en kind con el realm real)
 
-**Comando.** Previsto: `kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=case-worker`; `humo flujo`.
+**Comando.** Previsto: `kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=case-worker`; `humo flujo --delivery /verification/reference-model/.out`.
 
 ```bash
 _pendiente: el comando exacto que se ejecutó_
@@ -214,7 +214,7 @@ _pendiente: la salida real, sin tokens_
 
 **Resultado esperado.** CASE_ALLOW_TEST_SCENARIOS activo en kind (la cabecera de escenario de U12 se acepta)
 
-**Comando.** Previsto: `humo flujo`.
+**Comando.** Previsto: `humo flujo --delivery /verification/reference-model/.out`.
 
 ```bash
 _pendiente: el comando exacto que se ejecutó_

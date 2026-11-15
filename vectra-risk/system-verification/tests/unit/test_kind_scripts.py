@@ -12,6 +12,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -92,6 +93,10 @@ def healthy_state(**over: Any) -> dict[str, Any]:
             {
                 "match": ["get", "applications.argoproj.io"],
                 "stdout": listing([application("case-management"), application("kyverno", sync="OutOfSync")]),
+            },
+            {
+                "match": ["get", "pods", "-n", "linkerd-cni", "-o", "json"],
+                "stdout": listing([pod("linkerd-cni-a", namespace="linkerd-cni")]),
             },
         ],
     }
@@ -216,6 +221,42 @@ def test_arranque_reports_an_externalsecret_that_is_not_synced_and_an_unhealthy_
     }
     done = run("arranque.sh", ["vectra-app"], tmp_path, state)
     assert done.returncode == 1 and "Application governance: salud Degraded" in done.stdout
+
+
+def test_arranque_always_reads_linkerd_cni_and_points_to_the_inotify_limit(tmp_path: Path) -> None:
+    """F-04 (1): la Application `linkerd-cni` puede verse `Healthy` mientras sus pods fallan por `too many open files`; el guion los lee aunque el operador no pida el namespace."""
+    state = healthy_state()
+    state["rules"].insert(
+        0,
+        {
+            "match": ["get", "pods", "-n", "linkerd-cni", "-o", "json"],
+            "stdout": listing(
+                [pod("linkerd-cni-x", namespace="linkerd-cni", restarts=840, waiting="CrashLoopBackOff")]
+            ),
+        },
+    )
+    done = run("arranque.sh", ["vectra-app"], tmp_path, state)
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert "linkerd-cni/linkerd-cni-x [app]: CrashLoopBackOff" in done.stdout and "inotify" in done.stdout
+    assert run("arranque.sh", ["vectra-app", "linkerd-cni"], tmp_path, healthy_state()).returncode == 0
+
+
+@pytest.mark.parametrize("exit_code", [0, 137, 255])
+def test_arranque_flags_a_restarted_vault_pod_whatever_its_exit_code(tmp_path: Path, exit_code: int) -> None:
+    """F-04 (2): un reinicio de la máquina deja la bóveda (que guarda todo en memoria) vacía y un código de salida cualquiera: el diagnóstico de K-05 la marca por el reinicio, no por el código."""
+    state = healthy_state()
+    state["rules"].insert(
+        0,
+        {
+            "match": ["get", "pods", "-n", "vault", "-o", "json"],
+            "stdout": listing([pod("vault-0", namespace="vault", restarts=1, last_exit=exit_code)]),
+        },
+    )
+    done = run("arranque.sh", ["vault"], tmp_path, state)
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert "vault/vault-0 [app]: la boveda se reinicio" in done.stdout and "seed-vault.sh" in done.stdout
+    state["rules"][0]["stdout"] = listing([pod("vault-0", namespace="vault")])
+    assert run("arranque.sh", ["vault"], tmp_path, state).returncode == 0
 
 
 def arranque_exit_with_kubectl_down(where: Path, tmp_path: Path) -> int:
@@ -525,6 +566,21 @@ def test_identidad_a_dead_vault_port_forward_is_a_clear_error(tmp_path: Path) ->
     assert done.returncode == 2 and "el port-forward a la boveda cayo" in done.stderr
 
 
+def test_identidad_waits_for_a_port_forward_that_takes_half_a_second(tmp_path: Path) -> None:
+    """F-01: un `kubectl port-forward` real tarda más de 0,2 s en imprimir `Forwarding from`; el sondeo espera (con plazo) y no se rinde en 100 ms."""
+    done = run("identidad.sh", [], tmp_path, identity_state(pf_delay=0.5), env={"VAULT_TOKEN": "root"})
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "sin hallazgos" in done.stdout
+
+
+def test_identidad_gives_up_with_2_by_its_deadline_when_the_port_forward_never_opens(tmp_path: Path) -> None:
+    started = time.monotonic()
+    done = run("identidad.sh", [], tmp_path, identity_state(pf_never=True), env={"VAULT_TOKEN": "root"})
+    elapsed = time.monotonic() - started
+    assert done.returncode == 2 and "el port-forward a la boveda no abrio" in done.stderr, done.stderr
+    assert 5 < elapsed < 60, f"el plazo es de ≈ 10 s, no {elapsed:.1f} s"
+
+
 # --- estado-final.sh ----------------------------------------------------------------------------------------------------------------------------------
 
 F22_RESOURCES = (
@@ -651,3 +707,30 @@ def test_estado_final_without_models_or_with_garbage_exits_2(tmp_path: Path) -> 
         ).returncode
         == 2
     )
+
+
+@pytest.mark.parametrize("resource", F22_RESOURCES)
+def test_estado_final_an_unreadable_f22_resource_is_2_not_a_missing_one(
+    tmp_path: Path, resource: str
+) -> None:
+    """F-05: solo un `NotFound` es «falta» (1); una API caída en cualquiera de las cinco lecturas de F22 es «no se pudo leer» (2)."""
+    file = tmp_path / "m.json"
+    file.write_text(GOOD_MODELS, encoding="utf-8")
+    down = final_state()
+    down["rules"].insert(
+        0,
+        {
+            "match": ["get", resource],
+            "stderr": "Unable to connect to the server: connection refused\n",
+            "rc": 1,
+        },
+    )
+    done = run("estado-final.sh", ["--modelos", str(file)], tmp_path, down)
+    assert done.returncode == 2, done.stdout + done.stderr
+    assert "NO SE PUDO LEER" in done.stderr and "FALLA F22" not in done.stdout
+    gone = final_state()
+    gone["rules"].insert(
+        0, {"match": ["get", resource], "stderr": "Error from server (NotFound): not found\n", "rc": 1}
+    )
+    done = run("estado-final.sh", ["--modelos", str(file)], tmp_path, gone)
+    assert done.returncode == 1 and "FALLA F22: falta" in done.stdout

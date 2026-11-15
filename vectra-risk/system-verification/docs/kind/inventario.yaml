@@ -148,7 +148,7 @@ entradas:
     fase: F2
     que: "U7 arranca con la raiz de solo lectura y sin emptyDir; los hosts <isvc>-predictor.vectra-serving y -explainer resuelven desde vectra-app"
     fuentes: ["C-U7:43", "C-U7:45", "CAND:520"]
-    comprobacion: ["guion:arranque.sh vectra-app", "guion:humo.py flujo"]
+    comprobacion: ["guion:arranque.sh vectra-app", "guion:humo.py flujo --delivery /verification/reference-model/.out"]
     plantilla: 02-sync-y-arranque.md
     demo: [Base]
   - id: K-16
@@ -197,7 +197,7 @@ entradas:
     fase: F2
     que: "Politica activa y modelo de referencia activo: serving-config trae policy_version_id y la version"
     fuentes: ["C-U4:27", "C-U4:28", "ENM:43-51", "ENM:401", "T05:362"]
-    comprobacion: ["guion:humo.py flujo", "manual:plantillas 03 y 04 de U4 (governance/evidence/kind)"]
+    comprobacion: ["guion:humo.py flujo --delivery /verification/reference-model/.out", "manual:plantillas 03 y 04 de U4 (governance/evidence/kind)"]
     plantilla: 02-sync-y-arranque.md
     demo: [Base]
   - id: K-23
@@ -225,7 +225,7 @@ entradas:
     fase: F2
     que: "Flujos negados (suite X01 a X10, casos bloqueados de INF-U10-04, X04): no se comprueban porque network y el Paso 9 estan diferidos; los permitidos se ven por el flujo base y las demos"
     fuentes: ["C-U1:23", "C-U1:25", "C-U8:70", "C-U9:36", "C-U10:68", "C-U11:49"]
-    comprobacion: ["guion:humo.py flujo"]
+    comprobacion: ["guion:humo.py flujo --delivery /verification/reference-model/.out"]
     plantilla: 02-sync-y-arranque.md
     demo: []
 
@@ -255,14 +255,14 @@ entradas:
     fase: F3
     que: "El iss de los tokens del navegador es el que valida el BFF y cada destino (F10 a F14): 200 en bandeja, detalle, modelos y congelamientos, ningun 401"
     fuentes: ["C-U10:69", "CAND:692", "CAND:702", "EMISOR:64-66"]
-    comprobacion: ["guion:humo.py flujo"]
+    comprobacion: ["guion:humo.py flujo --delivery /verification/reference-model/.out"]
     plantilla: 03-identidad-y-acceso.md
     demo: [Base]
   - id: K-31
     fase: F3
     que: "La aud de la asercion de servicio la acepta el Keycloak del cluster (nunca medido en kind con el realm real)"
     fuentes: ["EMISOR:81", "CAND:65", "CAND:703", "T05:359"]
-    comprobacion: ["lectura:kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=case-worker", "guion:humo.py flujo"]
+    comprobacion: ["lectura:kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=case-worker", "guion:humo.py flujo --delivery /verification/reference-model/.out"]
     plantilla: 03-identidad-y-acceso.md
     demo: [Base]
   - id: K-32
@@ -297,7 +297,7 @@ entradas:
     fase: F3
     que: "CASE_ALLOW_TEST_SCENARIOS activo en kind (la cabecera de escenario de U12 se acepta)"
     fuentes: ["CASE-KIND:3", "T05:368"]
-    comprobacion: ["guion:humo.py flujo"]
+    comprobacion: ["guion:humo.py flujo --delivery /verification/reference-model/.out"]
     plantilla: 03-identidad-y-acceso.md
     demo: [Base]
   - id: K-37
@@ -313,7 +313,7 @@ entradas:
     fase: F4
     que: "Humo de punta a punta: una solicitud por el gateway llega a listo con registry_entry_id; la explicacion por el BFF; una decision de analista-1; el append con ack"
     fuentes: ["C-U7:40", "C-U3:73", "ENM:52-71"]
-    comprobacion: ["guion:humo.py flujo"]
+    comprobacion: ["guion:humo.py flujo --delivery /verification/reference-model/.out"]
     plantilla: 04-flujo-base.md
     demo: [Base]
 
@@ -417,7 +417,7 @@ entradas:
     fase: F7
     que: "La reversion devuelve el flujo a listo; cuantos casos no_disponible quedan y si la alerta sigue activa durante D2 y D4"
     fuentes: ["T05:374", "ENM:382-384", "ENM:410"]
-    comprobacion: ["guion:humo.py flujo", "guion:estado-final.sh"]
+    comprobacion: ["guion:humo.py flujo --delivery /verification/reference-model/.out", "guion:estado-final.sh"]
     plantilla: 07-d1-rt3.md
     demo: [D1, D2]
 

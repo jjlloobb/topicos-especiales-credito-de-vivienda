@@ -16,7 +16,7 @@ Entradas de esta fase: K-38.
 
 **Resultado esperado.** Humo de punta a punta: una solicitud por el gateway llega a listo con registry_entry_id; la explicacion por el BFF; una decision de analista-1; el append con ack
 
-**Comando.** Previsto: `humo flujo`.
+**Comando.** Previsto: `humo flujo --delivery /verification/reference-model/.out`.
 
 ```bash
 _pendiente: el comando exacto que se ejecutó_

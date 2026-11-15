@@ -126,7 +126,7 @@ _pendiente: la salida real, sin tokens_
 
 **Resultado esperado.** U7 arranca con la raiz de solo lectura y sin emptyDir; los hosts <isvc>-predictor.vectra-serving y -explainer resuelven desde vectra-app
 
-**Comando.** Previsto: `arranque.sh vectra-app`; `humo flujo`.
+**Comando.** Previsto: `arranque.sh vectra-app`; `humo flujo --delivery /verification/reference-model/.out`.
 
 ```bash
 _pendiente: el comando exacto que se ejecutó_
@@ -280,7 +280,7 @@ _pendiente: la salida real, sin tokens_
 
 **Resultado esperado.** Politica activa y modelo de referencia activo: serving-config trae policy_version_id y la version
 
-**Comando.** Previsto: `humo flujo`; a mano: plantillas 03 y 04 de U4 (governance/evidence/kind).
+**Comando.** Previsto: `humo flujo --delivery /verification/reference-model/.out`; a mano: plantillas 03 y 04 de U4 (governance/evidence/kind).
 
 ```bash
 _pendiente: el comando exacto que se ejecutó_
@@ -368,7 +368,7 @@ _pendiente: la salida real, sin tokens_
 
 **Resultado esperado.** Flujos negados (suite X01 a X10, casos bloqueados de INF-U10-04, X04): no se comprueban porque network y el Paso 9 estan diferidos; los permitidos se ven por el flujo base y las demos
 
-**Comando.** Previsto: `humo flujo`.
+**Comando.** Previsto: `humo flujo --delivery /verification/reference-model/.out`.
 
 ```bash
 _pendiente: el comando exacto que se ejecutó_

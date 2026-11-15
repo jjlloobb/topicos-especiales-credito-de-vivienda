@@ -40,15 +40,17 @@ if [ -s "$TMP_DIR/staging" ]; then say "FALLA quedan InferenceService en vectra-
 kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get inferenceservices.serving.kserve.io -n vectra-serving -o name > "$TMP_DIR/serving" 2> "$TMP_DIR/err" || cannot_read "no se pudo leer los InferenceService de vectra-serving: $(head -c 200 "$TMP_DIR/err")"
 if [ -s "$TMP_DIR/serving" ]; then say "OK   InferenceService en vectra-serving: $(tr '\n' ' ' < "$TMP_DIR/serving")"; else say "FALLA no hay InferenceService en vectra-serving"; FAIL=1; fi
 
-# Los cinco recursos de F22 (demos/prs/f22-apagado/README.md): si falta alguno, la reversion no se sincronizo con prune.
+# Los cinco recursos de F22 (demos/prs/f22-apagado/README.md): si falta alguno, la reversion no se sincronizo con prune. `f22 <codigo> <recurso>` (el codigo es el de la lectura): solo un `NotFound` es «falta» (1);
+# cualquier otro fallo de la lectura (la API caida, un permiso, un tiempo agotado) es «no se pudo leer» (2), no una reversion que no se sincronizo (F-05).
 f22() {
-  if [ -s "$TMP_DIR/f22" ]; then say "OK   F22: $(head -n 1 "$TMP_DIR/f22")"; else say "FALLA F22: falta $1 (K-49)"; FAIL=1; fi
+  if [ "$1" -ne 0 ] && ! grep -q "NotFound" "$TMP_DIR/err"; then cannot_read "no se pudo leer $2: $(head -c 200 "$TMP_DIR/err")"; fi
+  if [ "$1" -eq 0 ] && [ -s "$TMP_DIR/f22" ]; then say "OK   F22: $(head -n 1 "$TMP_DIR/f22")"; else say "FALLA F22: falta $2 (K-49)"; FAIL=1; fi
 }
-kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get networkpolicy allow-f22-explainability-service-to-explainer-egress -n vectra-app -o name > "$TMP_DIR/f22" 2>/dev/null; f22 "NetworkPolicy allow-f22-explainability-service-to-explainer-egress"
-kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get networkpolicy allow-f22-to-explainer-ingress -n vectra-serving -o name > "$TMP_DIR/f22" 2>/dev/null; f22 "NetworkPolicy allow-f22-to-explainer-ingress"
-kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get authorizationpolicy.policy.linkerd.io f22-explainer-8080 -n vectra-serving -o name > "$TMP_DIR/f22" 2>/dev/null; f22 "AuthorizationPolicy f22-explainer-8080"
-kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get meshtlsauthentication.policy.linkerd.io f22-explainer-8080-mtls -n vectra-serving -o name > "$TMP_DIR/f22" 2>/dev/null; f22 "MeshTLSAuthentication f22-explainer-8080-mtls"
-kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get server.policy.linkerd.io explainer-8080 -n vectra-serving -o name > "$TMP_DIR/f22" 2>/dev/null; f22 "Server explainer-8080"
+kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get networkpolicy allow-f22-explainability-service-to-explainer-egress -n vectra-app -o name > "$TMP_DIR/f22" 2> "$TMP_DIR/err"; f22 "$?" "NetworkPolicy allow-f22-explainability-service-to-explainer-egress"
+kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get networkpolicy allow-f22-to-explainer-ingress -n vectra-serving -o name > "$TMP_DIR/f22" 2> "$TMP_DIR/err"; f22 "$?" "NetworkPolicy allow-f22-to-explainer-ingress"
+kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get authorizationpolicy.policy.linkerd.io f22-explainer-8080 -n vectra-serving -o name > "$TMP_DIR/f22" 2> "$TMP_DIR/err"; f22 "$?" "AuthorizationPolicy f22-explainer-8080"
+kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get meshtlsauthentication.policy.linkerd.io f22-explainer-8080-mtls -n vectra-serving -o name > "$TMP_DIR/f22" 2> "$TMP_DIR/err"; f22 "$?" "MeshTLSAuthentication f22-explainer-8080-mtls"
+kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get server.policy.linkerd.io explainer-8080 -n vectra-serving -o name > "$TMP_DIR/f22" 2> "$TMP_DIR/err"; f22 "$?" "Server explainer-8080"
 
 open_prom
 prom_api /api/v1/query 'query=max(vectra_cases_failclosed_persistent)' > "$TMP_DIR/gauge.json" || exit 2

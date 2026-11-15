@@ -4,7 +4,7 @@
 #  2. El Job `keycloak-config-cli`: terminado, y sus avisos (el de la politica de contrasenas es esperado; K-27).
 #  3. Los **nombres** de las claves de `identity/synthetic-users` en la boveda (nunca los valores): deben estar las de los usuarios de las demos, incluidos analista-2, cro-2 y cumplimiento-2 (K-33).
 #     Necesita `VAULT_TOKEN` (en kind, el token de desarrollo) y un `port-forward` al pod de la boveda con ese kubeconfig.
-# Salida: 0 todo bien, 1 hallazgos, 2 no se pudo leer. Sin esperas.
+# Salida: 0 todo bien, 1 hallazgos, 2 no se pudo leer. La unica espera es el sondeo del `port-forward` con plazo de 10 s (`wait_forward`, de `lib.sh`).
 # shellcheck source=/dev/null
 . "$(dirname "$0")/lib.sh"
 
@@ -49,15 +49,8 @@ VAULT_POD="$(kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get pods -n vault 
 [ -n "$VAULT_POD" ] || cannot_read "no hay pod vault-0 en el namespace vault: $(head -c 200 "$TMP_DIR/err")"
 kubectl --context "${KUBE_CONTEXT:-kind-vectra}" port-forward -n vault --address=127.0.0.1 "$VAULT_POD" :8200 > "$TMP_DIR/vault-pf.log" 2>&1 &
 PF_PID=$!
-VAULT_PORT=""
-TRIES=0
-while [ "$TRIES" -lt 50 ]; do
-  VAULT_PORT="$(sed -n 's/.*127\.0\.0\.1:\([0-9]*\) ->.*/\1/p' "$TMP_DIR/vault-pf.log" | head -n 1)"
-  [ -n "$VAULT_PORT" ] && break
-  kill -0 "$PF_PID" 2>/dev/null || cannot_read "el port-forward a la boveda cayo: $(head -c 200 "$TMP_DIR/vault-pf.log")"
-  TRIES=$((TRIES + 1))
-done
-[ -n "$VAULT_PORT" ] || { kill "$PF_PID" 2>/dev/null; cannot_read "el port-forward a la boveda no abrio"; }
+wait_forward "$TMP_DIR/vault-pf.log" "$PF_PID" "la boveda"
+VAULT_PORT="$FORWARD_PORT"
 python3 - "$VAULT_PORT" <<'PY'
 import json, os, sys, urllib.request
 

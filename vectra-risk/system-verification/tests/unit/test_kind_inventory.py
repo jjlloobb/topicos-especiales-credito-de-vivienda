@@ -263,3 +263,17 @@ def test_red_a_template_with_an_invented_output_a_missing_row_or_a_filled_header
     )
     dated = text.replace("- Fecha: _pendiente_.", "- Fecha: 2026-11-14.", 1)
     assert any("«Fecha» ya trae un valor" in f for f in template_findings("04", dated, entries_here))
+
+
+def test_humo_flujo_always_carries_the_delivery_in_the_inventory_and_its_copies() -> None:
+    """F-06: `humo flujo` sin `--delivery` usa una ruta relativa que no existe en la imagen (código 2); el inventario y las 13 plantillas lo llevan siempre."""
+    delivery = "--delivery /verification/reference-model/.out"
+    texts = {"inventario.yaml": kd.INVENTORY.read_text(encoding="utf-8")}
+    texts |= {p.name: p.read_text(encoding="utf-8") for p in sorted(kd.TEMPLATES.glob("*.md"))}
+    bare = [
+        f"{name}: {m.group(0)}"
+        for name, text in texts.items()
+        for m in re.finditer(rf"humo(?:\.py)? flujo(?! {re.escape(delivery)})", text)
+    ]
+    assert bare == []
+    assert any("humo.py flujo " + delivery in text for text in texts.values())

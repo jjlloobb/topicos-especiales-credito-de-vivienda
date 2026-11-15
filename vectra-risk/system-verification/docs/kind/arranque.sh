@@ -2,6 +2,8 @@
 # Diagnostico de arranque (K-05, K-06, K-08, K-10 a K-17, K-23): `arranque.sh [--estricto] <namespace>...`. Solo lectura. Por cada namespace pedido informa los pods que no estan `Running` o `Completed`,
 # los `ImagePullBackOff`/`ErrImagePull`/`CreateContainerConfigError`/`CrashLoopBackOff`, los `OOMKilled`, los contenedores que **salieron con codigo 0 y sin mensaje** (un reinicio con
 # `lastState.terminated.exitCode == 0`: falta una variable o la llave, K-13), y los `ExternalSecret` que no estan `SecretSynced`; ademas, las Applications de Argo CD fuera de `Healthy`.
+# Siempre lee tambien `linkerd-cni` (aunque no se pida): su Application puede verse `Healthy` mientras sus pods fallan con `too many open files` (el limite de inotify no sobrevive a un reinicio; F-04),
+# y marca un pod de la boveda (`vault`) que se **reinicio**, con cualquier codigo de salida: un reinicio de la maquina la deja vacia (guarda todo en memoria) con un codigo que no es el 0 ni el OOM (K-05).
 # Una Application `OutOfSync` es un AVISO (las cinco de U1 lo estan: `cierre-acotado.md`); con `--estricto` tambien falla.
 # Salida: 0 sin hallazgos, 1 con hallazgos, 2 no se pudo leer. Sin esperas.
 # shellcheck source=/dev/null
@@ -13,7 +15,10 @@ if [ "${1:-}" = "--estricto" ]; then STRICT=1; shift; fi
 
 FAIL=0
 
-for NS in "$@"; do
+NAMESPACES="$*"
+case " $NAMESPACES " in *" linkerd-cni "*) ;; *) NAMESPACES="$NAMESPACES linkerd-cni" ;; esac
+# shellcheck disable=SC2086 # los namespaces no llevan espacios: se parte la lista a proposito
+for NS in $NAMESPACES; do
   kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get pods -n "$NS" -o json > "$TMP_DIR/pods.json" 2> "$TMP_DIR/err" || cannot_read "no se pudo leer los pods de $NS: $(head -c 200 "$TMP_DIR/err")"
   python3 - "$NS" "$TMP_DIR/pods.json" <<'PY' || FAIL=1
 import json, sys
@@ -34,6 +39,11 @@ for pod in pods:
         if waiting in BAD_WAITING:
             findings.append(f"{namespace}/{name} [{container['name']}]: {waiting}")
         last = container.get("lastState", {}).get("terminated")
+        if namespace == "vault" and container.get("restartCount", 0) > 0:
+            findings.append(
+                f"{namespace}/{name} [{container['name']}]: la boveda se reinicio ({container['restartCount']} reinicios, ultimo codigo {(last or {}).get('exitCode', '?')}): en kind guarda todo en memoria; "
+                "si no la resembraste despues, vuelve a sembrar (`seed-vault.sh` y `seed-vault.sh identity`; K-05)"
+            )
         if last and container.get("restartCount", 0) > 0:
             if last.get("exitCode") == 0:
                 findings.append(
@@ -48,6 +58,8 @@ for pod in pods:
             findings.append(f"{namespace}/{name}: contenedores no listos {', '.join(not_ready)}")
 for line in findings:
     print("FALLA " + line)
+if namespace == "linkerd-cni" and findings:
+    print("linkerd-cni: si el log dice `too many open files`, es el limite de inotify del host (F0): vuelve a aplicarlo y sigue `Despues de reiniciar la maquina`, de la guia")
 print(f"{namespace}: {len(pods)} pods, {len(findings)} hallazgos")
 sys.exit(1 if findings else 0)
 PY

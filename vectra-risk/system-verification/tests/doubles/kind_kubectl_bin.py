@@ -1,6 +1,6 @@
 """Un `kubectl`, un `free` y un `docker` de mentira como **ejecutables** para los guiones de `docs/kind/` (U12-T06, CA-5). Nunca llegan al `kubectl` real ni a un cluster.
 
-`kubectl`: responde segun una lista de reglas (`rules`): la primera cuyas palabras (`match`) estan **todas** en los argumentos da su `stdout`, `stderr` y `rc`; sin regla, falla con el mensaje
+`kubectl`: (`pf_delay`: segundos antes de imprimir `Forwarding`; `pf_never`: nunca lo imprime; `pf_fails`: cae) responde segun una lista de reglas (`rules`): la primera cuyas palabras (`match`) estan **todas** en los argumentos da su `stdout`, `stderr` y `rc`; sin regla, falla con el mensaje
 `sin regla` (asi un guion que pide algo no previsto se nota). `port-forward` abre un servidor HTTP local y escribe `Forwarding from 127.0.0.1:<puerto> -> N` como el real: sirve la API de lectura
 de Prometheus (`prom_query`: una subcadena de la consulta y su resultado; `prom_rules`, `prom_targets`, `prom_series`) o, si el namespace es `vault`, la lectura de `identity/synthetic-users` (`vault_keys`: nombres y valores). Cada llamada
 queda en un archivo de registro (un JSON por linea) para comprobar los verbos. `free` y `docker` imprimen lo que diga `free_text` y `docker_text`.
@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 KUBECTL = r"""#!{python}
-import http.server, json, os, sys, threading, urllib.parse
+import http.server, json, os, sys, threading, time, urllib.parse
 state = json.load(open(os.environ["KIND_FAKE_STATE"]))
 args = sys.argv[1:]
 with open(os.environ["KIND_FAKE_LOG"], "a") as log:
@@ -28,6 +28,9 @@ if verb == "port-forward":
     namespace = args[args.index("-n") + 1] if "-n" in args else ""
     if state.get("pf_fails"):
         sys.stderr.write("error: lost connection to pod\n")
+        sys.exit(1)
+    if state.get("pf_never"):
+        time.sleep(600)  # un port-forward que nunca imprime `Forwarding from`: el guion tiene que rendirse por su plazo
         sys.exit(1)
 
     class Handler(http.server.BaseHTTPRequestHandler):
@@ -65,6 +68,7 @@ if verb == "port-forward":
             return self.reply(404, {{}})
 
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    time.sleep(state.get("pf_delay", 0))  # lo que tarda un kubectl real en imprimir `Forwarding from`
     print(f"Forwarding from 127.0.0.1:{{server.server_address[1]}} -> 9090", flush=True)
     server.serve_forever()
 for rule in state.get("rules", []):

@@ -11,12 +11,13 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 
 import kind_docs as kd
 import pytest
-from vectra_verification import cli
+from vectra_verification import cli, guard
 
 README = kd.SYSTEM / "README.md"
 MARKER = "POR CONFIRMAR contra el README de U12-T05"
@@ -31,7 +32,7 @@ LABELS = ("Plantilla:", "Duración:", "**Puerta de")
 # Nombres de `vectra-*` que no son namespaces (nodos de Docker, recursos y la propia herramienta).
 NOT_NAMESPACES = {
     "vectra-verification", "vectra-risk", "vectra-risk-gitops", "vectra-control-plane", "vectra-worker", "vectra-worker2", "vectra-internal-ca", "vectra-spa-route", "vectra-verification-operators",
-    "vectra-verification-operator", "vectra-producto-panel", "vectra-console", "vectra-e2e-keys", "vectra-risk-gitops", "vectra-payload",
+    "vectra-verification-operator", "vectra-normal", "vectra-producto-panel", "vectra-console", "vectra-e2e-keys", "vectra-risk-gitops", "vectra-payload",
 }  # fmt: skip
 GENERATED = (
     "reference-model/.out",
@@ -127,6 +128,75 @@ def readme_exists() -> bool:
 # --- el mundo cerrado --------------------------------------------------------------------------------------------------------------------------------
 
 
+@cache
+def option_catalogue() -> dict[str, list[object]]:
+    """Cada opcion de la CLI y de `humo`: sus acciones (con `choices` y `type`), para comprobar **los valores** que la guia les da."""
+    found: dict[str, list[object]] = {}
+    for parsers in (cli_parsers(), humo_parsers()):
+        for sub in parsers.values():
+            for action in sub._actions:  # noqa: SLF001
+                for option in action.option_strings:
+                    found.setdefault(option, []).append(action)
+    return found
+
+
+@cache
+def cli_parsers() -> dict[str, object]:
+    action = next(a for a in cli.build_parser({})._actions if a.dest == "section")  # noqa: SLF001
+    return dict(action.choices)
+
+
+@cache
+def humo_parsers() -> dict[str, object]:
+    humo_options()  # carga el modulo
+    import sys
+
+    top = sys.modules["humo_kind"].parser({})
+    return dict(next(a for a in top._actions if a.dest == "command").choices)  # noqa: SLF001
+
+
+def option_value_findings(where: str, line: str) -> list[str]:
+    """`--opcion valor` o `--opcion=valor`: si la opcion tiene `choices`, el valor es uno de ellos; si tiene `type`, el valor lo convierte (ni `--reactivation presentador` ni `--operator-timeout abc`)."""
+    found = []
+    for option, value in re.findall(r"(--[a-z][a-z-]*)[ =]([^\s`'\")(,;|<$-][^\s`'\")(,;|]*)", line):
+        actions = option_catalogue().get(option, [])
+        choices = [set(a.choices) for a in actions if getattr(a, "choices", None)]  # type: ignore[attr-defined]
+        if choices and not any(value in c for c in choices):
+            found.append(
+                f"{where}: el valor {value} de {option} no es ninguno de {sorted(set().union(*choices))}"
+            )
+        types = [a.type for a in actions if getattr(a, "type", None)]  # type: ignore[attr-defined]
+        if types and not any(_converts(kind, value) for kind in types):
+            found.append(f"{where}: el valor {value} de {option} no es un número")
+    return found
+
+
+def _converts(kind: object, value: str) -> bool:
+    try:
+        kind(value)  # type: ignore[operator]
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+@cache
+def pod_names_in_the_repository() -> str:
+    """Los nombres de pod que el repositorio mismo usa (`pod/vault-0` en `seed-vault.sh`, `vault_paths.py`, los charts)."""
+    chunks = [kd.corpus()]
+    for path in (kd.VECTRA / "platform").rglob("*.sh"):
+        chunks.append(path.read_text(encoding="utf-8", errors="ignore"))
+    return "\n".join(chunks)
+
+
+def pod_name_findings(where: str, line: str) -> list[str]:
+    """Un `pod/<nombre>-<n>` (de un StatefulSet) de la guia o de un guion es el que el repositorio nombra: `pod/vault-0`, no `pod/vault-1`."""
+    return [
+        f"{where}: el pod {name} no lo nombra ningún guion ni chart del repositorio"
+        for name in re.findall(r"\bpod/([a-z][a-z0-9-]*-\d+)\b", line)
+        if not re.search(rf"\b{re.escape(name)}\b", pod_names_in_the_repository())
+    ]
+
+
 def closed_world_findings(text: str) -> list[str]:
     """Todo lo que el texto de la guia nombra y no existe, con su linea."""
     found: list[str] = []
@@ -211,8 +281,12 @@ def closed_world_findings(text: str) -> list[str]:
                 if int(number_text) > lines_of(target):
                     found.append(f"{where}: `{path}` no tiene la línea {number_text}")
         for key, value in re.findall(r"-l ([\w./-]+)=([\w.-]+)", line):
-            if value not in corpus or key not in corpus:
-                found.append(f"{where}: el selector {key}={value} no está en ningún chart ni cliente")
+            if not kd.label_exists(key, value):
+                found.append(
+                    f"{where}: el selector {key}={value} no es la etiqueta `{key}: {value}` de ningún chart ni cliente"
+                )
+        found += option_value_findings(where, line)
+        found += pod_name_findings(where, line)
         for name in re.findall(r"alertname=\"([A-Za-z]+)\"", line) + re.findall(
             r"alerta `([A-Za-z]+)`", line
         ):
@@ -227,6 +301,114 @@ def closed_world_findings(text: str) -> list[str]:
         for route in re.findall(r"`ruta (/[^`\s]*)`", line):
             if route not in routes:
                 found.append(f"{where}: la ruta de la consola {route} no existe")
+    return found
+
+
+# --- las cifras: cada una en el sitio donde se usa, contra lo que las fija -------------------------------------------------------------------------------
+
+
+def to_minutes(clock: str) -> int:
+    hours, minutes = clock.split(":")
+    return int(hours) * 60 + int(minutes)
+
+
+def exit_code_findings(text: str) -> list[str]:
+    """Los códigos de salida que la guía da, contra las constantes de la CLI (`cli.EXIT_*`) y de `demos/verify/lib.sh`; todo «código N» de la guía está en esta lista de hechos."""
+    found = []
+    read = re.search(r"\*\*Cómo leer el código de salida\*\*[^\n]*|Cómo leer el código de salida[^\n]*", text)
+    sentence = read.group(0) if read else ""
+    for code, words in (
+        (cli.EXIT_PASS, "todo `pasa`"),
+        (cli.EXIT_FAIL, "algo `falla`"),
+        (cli.EXIT_NOT_RUN, "`no ejecutado`"),
+        (cli.EXIT_REFUSED, "la herramienta se negó"),
+    ):
+        if f"`{code}` {words}" not in sentence:
+            found.append(f"«Cómo leer el código de salida»: falta «`{code}` {words}» (la CLI da {code})")
+    lib = (kd.SYSTEM / "demos/verify/lib.sh").read_text(encoding="utf-8")
+    verify = {
+        "expected": int(re.search(r"expected\(\) \{[^}]*exit (\d)", lib).group(1)),  # type: ignore[union-attr]
+        "not_expected": int(re.search(r"not_expected\(\) \{[^}]*exit (\d)", lib).group(1)),  # type: ignore[union-attr]
+        "cannot_read": int(re.search(r"cannot_read\(\) \{[^}]*exit (\d)", lib).group(1)),  # type: ignore[union-attr]
+    }
+    for code, words in (
+        (verify["expected"], "`0` lo esperado"),
+        (verify["not_expected"], "`1` no es lo esperado"),
+        (verify["cannot_read"], "`2` no se pudo leer"),
+    ):
+        if not words.startswith(f"`{code}`") or words not in sentence:
+            found.append(
+                f"«Cómo leer el código de salida»: los `verify` dan {code} y la guía no dice «{words}»"
+            )
+    facts = (
+        (r"código (\d) y `ruta_faltante`", cli.EXIT_REFUSED),
+        (r"repetirlo se niega \(código (\d)\)", cli.EXIT_REFUSED),
+        (r"`browser_launch_error` \(código (\d)\)", cli.EXIT_NOT_RUN),
+        (r"que no existe da código (\d)", cli.EXIT_NOT_RUN),
+        (r"código (\d) sin mensaje", cli.EXIT_PASS),
+        (r"código (\d) y sin mensaje", cli.EXIT_PASS),
+        (r"Esperado: código (\d) \(modelo", cli.EXIT_PASS),
+        (r"`OOMKilled` \(código (\d+)\)", 137),
+    )
+    covered = set()
+    for pattern, expected in facts:
+        for match in re.finditer(pattern, text):
+            covered.add(match.start(1) - len("código "))
+            if int(match.group(1)) != expected:
+                found.append(f"«{match.group(0)}»: el código es {expected}, no {match.group(1)}")
+    for pattern, _ in facts[:4] + facts[7:]:
+        if not re.search(pattern, text):
+            found.append(f"la guía ya no dice «{pattern}»")
+    for match in re.finditer(r"código (\d+)", text):
+        if not any(abs(match.start() - at) <= 1 for at in covered):
+            found.append(f"«{match.group(0)}» no es ningún hecho conocido de la CLI ni de los guiones")
+    return found
+
+
+def time_findings(text: str) -> list[str]:
+    """Las horas y los minutos de `decisions`, derivados de `guard` (la estimación y la hora límite) y de U11 (02:30 UTC más 10 min): cada cifra, en el sitio donde se usa. Toda hora UTC de la guía es una de ellas y las de Colombia son su UTC menos 5 h."""
+    found = []
+    estimate = guard.estimated_duration(2000, 10.0)
+    minutes = round(estimate.total_seconds() / 60)
+    limit = datetime(2026, 1, 1, guard.CUTOFF.hour, guard.CUTOFF.minute, tzinfo=UTC) - estimate
+    limit_text, cutoff_text = (
+        f"{limit.hour:02d}:{limit.minute:02d}",
+        f"{guard.CUTOFF.hour:02d}:{guard.CUTOFF.minute:02d}",
+    )
+    if re.findall(r"2 000 × 1 s \+ 300 s ≈ (\d+) min", text) != [str(minutes)]:
+        found.append(f"la estimación de `decisions` (2 000 / 10 + 2 000 × 1 s + 300 s) es ≈ {minutes} min")
+    utc_ok = {cutoff_text, limit_text, "21:45", "00:00", "02:30", "02:40", "17:00"}
+    for number, line in enumerate(text.split("\n"), 1):
+        for clock in re.findall(r"(\d\d:\d\d) UTC", line):
+            if clock not in utc_ok:
+                found.append(
+                    f"{number}: la hora {clock} UTC no es la de `guard` ni la de U11 ({sorted(utc_ok)})"
+                )
+        for clock in re.findall(r"(\d\d:\d\d) de Colombia", line):
+            utc = (to_minutes(clock) + 5 * 60) % (24 * 60)
+            if f"{utc // 60:02d}:{utc % 60:02d}" not in utc_ok:
+                found.append(f"{number}: la hora {clock} de Colombia no es una de las UTC menos 5 h")
+        for clock in re.findall(
+            r"[Ll]anza antes de ≈? ?(\d\d:\d\d) UTC|se lanza antes de ≈? ?(\d\d:\d\d) UTC", line
+        ):
+            if limit_text not in clock:
+                found.append(
+                    f"{number}: `decisions` se lanza antes de {limit_text} UTC, no de {''.join(clock)}"
+                )
+        for clock in re.findall(r"antes de las (\d\d:\d\d) UTC", line):
+            if "decisions" in line and clock != cutoff_text and "12:00" not in line:
+                found.append(f"{number}: la hora límite de `decisions` es {cutoff_text} UTC, no {clock}")
+    if len(re.findall(r"[Ll]anza antes de ≈? ?\d\d:\d\d UTC|se lanza antes de ≈? ?\d\d:\d\d UTC", text)) < 3:
+        found.append(f"la hora de lanzamiento (≈ {limit_text} UTC) falta de F6, del calendario o de K-04")
+    if to_minutes("21:45") >= to_minutes(limit_text):
+        found.append("la holgura de ≈ 21:45 UTC debe ser anterior a la hora límite")
+    dashboard = (kd.SYSTEM / "demos/dashboard.md").read_text(encoding="utf-8")
+    if (
+        "02:30 UTC" not in dashboard
+        or "10 min de desfase" not in dashboard
+        or "02:30 UTC más hasta 10 min" not in text
+    ):
+        found.append("la pasada de U11 es a las 02:30 UTC más hasta 10 min (≈ 02:40 UTC)")
     return found
 
 
@@ -273,6 +455,37 @@ def test_closed_world_the_guide_names_nothing_that_does_not_exist() -> None:
     assert closed_world_findings(GUIDE_TEXT) == []
 
 
+def test_the_figures_of_the_guide_are_the_ones_of_the_cli_the_guard_and_the_scripts() -> None:
+    """F-02: los códigos de salida, las horas y los minutos de la guía coinciden, cada uno en su sitio, con `cli.EXIT_*`, con `guard` y con `demos/verify/lib.sh`."""
+    assert exit_code_findings(GUIDE_TEXT) == []
+    assert time_findings(GUIDE_TEXT) == []
+
+
+# Las seis mentiras que la ronda 1 dejó vivas (revisiones/U12-T06/ronda-1.md, F-02): cada una tiene que hacer fallar una prueba.
+SURVIVORS = {
+    "el código 3 cambiado a 4": lambda t: t.replace(
+        "`3` la herramienta se negó", "`4` la herramienta se negó"
+    ),
+    "prepare repetido da 1": lambda t: t.replace(
+        "repetirlo se niega (código 3)", "repetirlo se niega (código 1)"
+    ),
+    "pod/vault-1": lambda t: t.replace("pod/vault-0", "pod/vault-1"),
+    "--reactivation presentador": lambda t: t.replace(
+        "--reactivation presenter", "--reactivation presentador"
+    ),
+    "la hora límite 23:58": lambda t: t.replace("antes de ≈ 22:18 UTC", "antes de ≈ 23:58 UTC"),
+    "≈ 10 min": lambda t: t.replace("≈ 42 min", "≈ 10 min"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(SURVIVORS))
+def test_red_each_mutation_the_round_1_review_left_alive_now_dies(name: str) -> None:
+    mutated = SURVIVORS[name](GUIDE_TEXT)
+    assert mutated != GUIDE_TEXT, name
+    found = closed_world_findings(mutated) + exit_code_findings(mutated) + time_findings(mutated)
+    assert found, f"{name}: ninguna prueba la detecta"
+
+
 def test_closed_world_f2_keeps_the_order_policy_before_the_console_and_product_metrics_last() -> None:
     assert f2_order_findings(GUIDE_TEXT) == []
 
@@ -311,6 +524,16 @@ def test_closed_world_f2_keeps_the_order_policy_before_the_console_and_product_m
             "el namespace vectra-inventado",
         ),
         (lambda t: t + "\nUsa demos/prs/no-existe y rt-5.sh 9.\n", "no tiene el paso 9"),
+        (
+            lambda t: t + "\nBorra con `kubectl get pods -l app.kubernetes.io/name=keycloakx`.\n",
+            "no es la etiqueta `app.kubernetes.io/name: keycloakx`",
+        ),
+        (
+            lambda t: t + "\nCorre `vectra-verification rt2 --reactivation presentador`.\n",
+            "el valor presentador",
+        ),
+        (lambda t: t + "\nCorre `vectra-verification rt2 --operator-timeout abc`.\n", "no es un número"),
+        (lambda t: t + "\nAbre pod/vault-1 con `kubectl get`.\n", "el pod vault-1"),
     ],
 )
 def test_red_closed_world_each_invented_name_makes_it_fail(mutate: object, needle: str) -> None:
@@ -667,11 +890,11 @@ def test_coherence_the_times_are_the_ones_of_the_demo_scripts() -> None:
 
 def test_coherence_the_scripts_name_what_exists() -> None:
     """Los selectores y las alertas de los guiones de `docs/kind/` salen del repositorio (K-20), y las alertas que `observabilidad.sh reglas` pide por omision existen."""
-    corpus, alerts = kd.corpus(), set(re.findall(r"alert:\s*([A-Za-z]+)", kd.corpus()))
+    alerts = set(re.findall(r"alert:\s*([A-Za-z]+)", kd.corpus()))
     for script in sorted(kd.KIND_DOCS.glob("*.sh")):
         text = script.read_text(encoding="utf-8")
         for key, value in re.findall(r"-l ([\w./-]+)=([\w.-]+)", text):
-            assert value in corpus and key in corpus, f"{script.name}: {key}={value}"
+            assert kd.label_exists(key, value), f"{script.name}: {key}={value}"
     default = re.search(
         r"wanted = wanted or \[([^\]]*)\]", (kd.KIND_DOCS / "observabilidad.sh").read_text(encoding="utf-8")
     )
@@ -682,3 +905,128 @@ def test_coherence_the_scripts_name_what_exists() -> None:
 def test_the_deferred_k6_and_network_are_not_something_the_operator_runs() -> None:
     assert not re.search(r"\bk6 (run|cloud)", GUIDE_TEXT)
     assert "x04-probe" not in GUIDE_TEXT
+
+
+# --- la ronda 2: lo que la ronda 1 encontró leyendo y ejecutando (F-03, F-04 y F-06) ------------------------------------------------------------------
+
+RESTART = "Después de reiniciar la máquina"
+DELIVERY = "--delivery /verification/reference-model/.out"
+
+
+def restart_section(text: str) -> str:
+    match = re.search(rf"^## {RESTART}.*?(?=^## |\Z)", text, re.M | re.S)
+    assert match is not None, f"falta la sección «{RESTART}»"
+    return match.group(0)
+
+
+def test_f03_the_partial_batch_is_not_in_the_evidence_and_the_operator_notes_the_cut_time() -> None:
+    """F-03: un Ctrl-C **durante** el lote deja el envío parcial fuera del manifiesto (`rows_sent` solo trae el lote que terminó): la guía no puede decir que «la evidencia trae dos lotes»."""
+    f8 = section(GUIDE_TEXT, "F8")
+    first = re.search(r"> \*\*Advertencia 1[^\n]*(?:\n>[^\n]*)*", f8)
+    assert first is not None
+    text = first.group(0).replace("\n> ", " ")
+    assert "dos lotes" not in text, "el envío parcial no queda en la evidencia: no hay «dos lotes» que ver"
+    for needle in ("no queda en la evidencia", "hora del corte", "casos repetidos", "se reenvía entero"):
+        assert needle in text, needle
+
+
+def test_f06_two_humo_of_the_same_user_wait_30_s_in_f4_and_humo_flujo_always_carries_the_delivery() -> None:
+    f4 = section(GUIDE_TEXT, "F4")
+    step3 = f4[f4.index("3. **Los modelos que hay**") :]
+    assert all(
+        word in step3.split("\n")[0] for word in ("30 s", "ingeniero-1", "login_rejected", "bloqueo")
+    ), step3[:600]
+    assert f4.index("humo flujo --delivery") < f4.index("humo modelos")
+    bare = [
+        (number, line.strip()[:100])
+        for number, line in enumerate(GUIDE_TEXT.split("\n"), 1)
+        if re.search(rf"humo flujo(?! {re.escape(DELIVERY)})", line)
+    ]
+    assert bare == [], "`humo flujo` sin --delivery da código 2: la ruta relativa no existe en la imagen"
+
+
+def test_f04_the_restart_of_the_machine_has_one_place_that_f0_f5_the_risk_and_the_symptoms_point_to() -> None:
+    restart_section(GUIDE_TEXT)
+    assert GUIDE_TEXT.index(f"## {RESTART}") < GUIDE_TEXT.index("## F0 ")
+    f0, f5 = section(GUIDE_TEXT, "F0"), section(GUIDE_TEXT, "F5")
+    symptoms = GUIDE_TEXT[GUIDE_TEXT.index("## Si algo falla") : GUIDE_TEXT.index("## Cómo dejar el clúster")]
+    risk7 = next(line for line in GUIDE_TEXT.split("\n") if line.startswith("| **R-7**"))
+    for where, text in (("F0", f0), ("F5", f5), ("síntomas", symptoms), ("R-7", risk7)):
+        assert RESTART in text, f"{where} no remite a «{RESTART}»"
+    assert "arranque.sh vault linkerd-cni" in f0 or "linkerd-cni" in f0, (
+        "el diagnóstico de F0 lee linkerd-cni"
+    )
+    assert "sysctl fs.inotify.max_user_instances" in f0 and "tras un reinicio" in f0.replace(
+        "después de un reinicio", "tras un reinicio"
+    )
+
+
+def test_f04_the_restart_section_has_what_was_measured_in_order_and_says_what_was_not() -> None:
+    body = restart_section(GUIDE_TEXT)
+    flat = " ".join(body.split())
+    for needle in (
+        # 1. inotify
+        "sysctl fs.inotify.max_user_instances",
+        "128",
+        "1024",
+        "`linkerd-cni`",
+        "couldn't initialize inotify: too many open files",
+        "`max_user_watches`",
+        "1048576",
+        "`/etc/sysctl.d/`",
+        "arranque.sh linkerd-cni",
+        # 2. los pods con malla no se recuperan solos
+        "no se recuperan solos",
+        "Failed to validate networking configuration",
+        "linkerd-network-validator",
+        "`Unknown`",
+        # 3. bóveda vacía
+        "could not get secret data from provider",
+        "seed-vault.sh identity",
+        "claves nuevas",
+        # 4. MinIO
+        "User already exists",
+        "`minio-post-job`",
+        "no cambia la clave",
+        "The request signature we calculated does not match",
+        "`priorityClassName: vectra-normal`",
+        "reinicia los pods de Tempo",
+        # 5. Grafana
+        "250 MiB",
+        "256 MiB",
+        "`OOMKilled`",
+        "512 MiB",
+        "reset-admin-password",
+        "seed-vault.sh grafana-token",
+        "`grafana-config`",
+        "deriva",
+        # 6. lo no medido y lo que la lista cerrada no admite
+        "no está medido",
+        "lista cerrada",
+    ):
+        assert needle in flat, f"«{RESTART}» no dice «{needle}»"
+    pods = flat[flat.index("no se recuperan solos") :]
+    order = [pods.find(f"`{ns}`") for ns in ("linkerd", "vectra-data", "vectra-observability")]
+    assert all(at >= 0 for at in order) and order == sorted(order), (
+        "los pods se recrean en el orden medido: linkerd, vectra-data, vectra-observability"
+    )
+    assert "Keycloak" in flat and re.search(r"Keycloak[^.]*no está medido|no está medido[^.]*Keycloak", flat)
+    assert len(re.findall(r"\*\*(?:[Oo]rden|[Óó]rdenes) del operador\*\*", body)) >= 5, (
+        "cada paso con una escritura la marca como del operador"
+    )
+
+
+def test_f04_the_symptoms_table_has_the_rows_of_the_restart() -> None:
+    symptoms = GUIDE_TEXT[GUIDE_TEXT.index("## Si algo falla") : GUIDE_TEXT.index("## Cómo dejar el clúster")]
+    rows = [line for line in symptoms.split("\n") if line.startswith("| ")]
+    for needles in (
+        ("`Unknown`", "`ContainerCreating`", "`linkerd-cni`", "too many open files"),
+        ("Tempo", "Loki", "403", "MinIO"),
+        ("Grafana", "401", "`admin`"),
+        ("bóveda", "se reinició", "restartCount"),
+    ):
+        assert any(all(n in row for n in needles) for row in rows), f"falta la fila de síntomas con {needles}"
+    r7 = next(line for line in GUIDE_TEXT.split("\n") if line.startswith("| **R-7**"))
+    assert "reinicia lo que lee esas claves" not in r7, (
+        "no basta: Keycloak y MinIO conservan las claves viejas"
+    )

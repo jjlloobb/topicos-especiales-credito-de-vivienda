@@ -545,7 +545,7 @@ OPERATOR_ANY_PHASE = (
 )
 OPERATOR_ONLY_F11 = (
     re.compile(rf"^{CONTEXT}rollout restart deploy/case-worker -n vectra-app$"),
-    re.compile(rf"^{CONTEXT}delete pod -n vectra-identity -l app\.kubernetes\.io/name=keycloakx$"),
+    re.compile(rf"^{CONTEXT}delete pod -n vectra-identity -l app\.kubernetes\.io/name=keycloak$"),
 )
 GUIDE_FORBIDDEN = re.compile(
     r"\bhelm +(?:install|upgrade|uninstall)\b|\bterraform +apply\b|\bkind +(?:create|delete)\b|\bdocker +(?:push|build|rm|kill|stop|prune|rmi)\b"
@@ -710,7 +710,7 @@ def test_red_guide_a_write_outside_the_closed_list_or_outside_a_marked_block_fai
 
 
 def test_guide_the_f11_commands_pass_only_in_f11() -> None:
-    block = "```bash operador\nkubectl --context kind-vectra rollout restart deploy/case-worker -n vectra-app\nkubectl --context kind-vectra delete pod -n vectra-identity -l app.kubernetes.io/name=keycloakx\n```\n"
+    block = "```bash operador\nkubectl --context kind-vectra rollout restart deploy/case-worker -n vectra-app\nkubectl --context kind-vectra delete pod -n vectra-identity -l app.kubernetes.io/name=keycloak\n```\n"
     assert scan_guide("## F11 Opcionales\n\n" + block, "guia.md") == []
     assert len(scan_guide("## F10 Informe\n\n" + block, "guia.md")) == 2
 

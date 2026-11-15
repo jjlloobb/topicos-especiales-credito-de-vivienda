@@ -164,6 +164,12 @@ def corpus() -> str:
     return _corpus[0]
 
 
+def label_exists(key: str, value: str) -> bool:
+    """`key: value` como una **etiqueta** de un manifiesto o chart (YAML o JSON), no como una subcadena: `keycloakx` aparece en `helm.sh/chart: keycloakx-7.4.0` y no es el valor de ninguna `app.kubernetes.io/name`."""
+    pattern = rf"""(?m)^[ \t]*(?:-[ \t]+)?["']?{re.escape(key)}["']?[ \t]*:[ \t]*["']?{re.escape(value)}["']?[ \t]*,?[ \t]*(?:\#.*)?$"""
+    return re.search(pattern, corpus()) is not None
+
+
 # --- lo que sale del inventario: las tablas de cada fase de la guia -----------------------------------------------------------------------------------
 
 
