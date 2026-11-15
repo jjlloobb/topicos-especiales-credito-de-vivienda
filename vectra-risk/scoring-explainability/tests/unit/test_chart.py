@@ -9,8 +9,10 @@ Necesita `platform/install-tools.sh` (helm y conftest en `platform/.tools/bin`):
 
 import copy
 import importlib.util
+import json
 import re
 import subprocess
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -63,20 +65,27 @@ def render(env: str = "kind", *extra: str) -> list[Doc]:
     return [d for d in yaml.safe_load_all(out) if d]
 
 
-def conftest(docs: list[Doc], *extra: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(  # noqa: S603
-        [tool("conftest"), "test", "--policy", str(POLICIES), *extra, "-"],
-        input=yaml.safe_dump_all(docs, sort_keys=False),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+def conftest(docs: list[Doc], *extra: str, env: str | None = "kind") -> subprocess.CompletedProcess[str]:
+    """`conftest` con el entorno de los documentos como `--data` (U01-T13: `hpa-doc` admite el maximo 2 solo en kind; por omision el render es el de kind). `env=None`: sin dato."""
+    with tempfile.TemporaryDirectory() as folder:
+        data: list[str] = []
+        if env is not None:
+            path = Path(folder) / "data.json"
+            path.write_text(json.dumps({"env": env}), encoding="utf-8")
+            data = ["--data", str(path)]
+        return subprocess.run(  # noqa: S603
+            [tool("conftest"), "test", "--policy", str(POLICIES), *data, *extra, "-"],
+            input=yaml.safe_dump_all(docs, sort_keys=False),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
 
 
-def failures(docs: list[Doc]) -> str:
+def failures(docs: list[Doc], env: str | None = "kind") -> str:
     """Los mensajes de las dos pasadas: por documento (`main`) y con todos juntos (`chart_set`)."""
-    single = conftest(docs)
-    combined = conftest(docs, "--combine", "--namespace", "chart_set")
+    single = conftest(docs, env=env)
+    combined = conftest(docs, "--combine", "--namespace", "chart_set", env=env)
     return single.stdout + single.stderr + combined.stdout + combined.stderr
 
 
@@ -112,8 +121,8 @@ def edit(docs: list[Doc], change: Callable[[list[Doc]], None]) -> list[Doc]:
 @pytest.mark.parametrize("env", ENVS)
 def test_the_chart_as_is_passes_both_conftest_passes_in_every_environment(env: str) -> None:
     docs = render(env)
-    assert conftest(docs).returncode == 0, conftest(docs).stdout
-    assert conftest(docs, "--combine", "--namespace", "chart_set").returncode == 0
+    assert conftest(docs, env=env).returncode == 0, conftest(docs, env=env).stdout
+    assert conftest(docs, "--combine", "--namespace", "chart_set", env=env).returncode == 0
     assert len(docs) == 14
 
 
@@ -138,7 +147,7 @@ def test_each_service_follows_inf_u7_01_and_03(env: str, name: str) -> None:
     assert "startupProbe" not in c
     assert (p["securityContext"]["runAsUser"], p["securityContext"]["runAsGroup"]) == (65532, 65532)
     hpa = of_kind(docs, "HorizontalPodAutoscaler", name)["spec"]
-    assert (hpa["minReplicas"], hpa["maxReplicas"]) == (2, 6)
+    assert (hpa["minReplicas"], hpa["maxReplicas"]) == (2, 2 if env == "kind" else 6)  # U01-T13: en kind el HPA no crece mas alla del presupuesto
     assert hpa["metrics"][0]["resource"]["target"]["averageUtilization"] == 70
     assert hpa["behavior"]["scaleUp"]["stabilizationWindowSeconds"] == 60
     assert hpa["behavior"]["scaleDown"]["stabilizationWindowSeconds"] == 300
@@ -762,11 +771,41 @@ def test_the_application_entry_is_wave_5_in_vectra_app_with_env_values() -> None
     assert COMPONENT["wave"] == 5 and COMPONENT["namespace"] == "vectra-app"
     assert COMPONENT["path"] == "scoring-explainability/chart" and COMPONENT.get("env_values") is True
     for env in ENVS:
+        # U01-T13: en kind entra antes el `values-kind.yaml` del chart (el HPA de 2 a 2)
         assert GENERATE.value_files(COMPONENT, env) == [
-            f"vectra-risk-gitops/values/{env}/scoring-explainability.yaml"
+            *(["scoring-explainability/chart/values-kind.yaml"] if env == "kind" else []),
+            f"vectra-risk-gitops/values/{env}/scoring-explainability.yaml",
         ]
         app = yaml.safe_load(
             (GITOPS / "apps" / env / "scoring-explainability.yaml").read_text(encoding="utf-8")
         )
         assert "automated" not in app["spec"].get("syncPolicy", {})
         assert app["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"] == "5"
+
+
+# --- U01-T13: el maximo del HPA depende del entorno (kind 2, staging y prod 6) --------------------------------------------------------------
+
+
+def _hpa_max(docs: list[Doc], maximum: int) -> list[Doc]:
+    copied = copy.deepcopy(docs)
+    for d in copied:
+        if d["kind"] == "HorizontalPodAutoscaler":
+            d["spec"]["maxReplicas"] = maximum
+    return copied
+
+
+@pytest.mark.parametrize(
+    ("env", "maximum", "expected"),
+    [("kind", 6, "maxReplicas es 2, no 6"), ("kind", 3, "maxReplicas es 2, no 3"), ("staging", 2, "maxReplicas es 6, no 2"), ("prod", 2, "maxReplicas es 6, no 2"), (None, 2, "maxReplicas es 6, no 2")],
+    ids=["kind-with-6", "kind-with-3", "staging-with-2", "prod-with-2", "no-data-with-2"],
+)
+def test_the_hpa_maximum_is_2_only_in_kind(env: str | None, maximum: int, expected: str) -> None:
+    """U01-T13: la excepcion es solo de kind y la activa el entorno que el invocador pasa en `--data`; sin dato rige el diseno (6)."""
+    docs = _hpa_max(render(env or "prod"), maximum)
+    assert expected in failures(docs, env=env)
+
+
+def test_every_environment_keeps_the_hpa_minimum_of_two() -> None:
+    for env in ENVS:
+        for name in SERVICES:
+            assert of_kind(render(env), "HorizontalPodAutoscaler", name)["spec"]["minReplicas"] == 2

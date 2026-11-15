@@ -54,13 +54,14 @@ policy-chart:
 	cd $(ROOT) && rm -rf $(U1)/render $(U1)/rt5 && mkdir -p $(U1)/render $(U1)/rt5
 	for env in $(ENVS); do \
 		cd $(ROOT) && uv run python platform/tests/integration.py --chart case-management/chart --namespace vectra-app --env $$env --out $(U1)/render/$$env && \
+		printf '{"env": "%s"}\n' $$env > $(U1)/render/data-$$env.json && \
 		$(TOOLS)/kubeconform -strict -summary -schema-location default -schema-location '$(CRDS)/{{.ResourceKind}}.json' $(U1)/render/$$env/*.yaml && \
-		$(TOOLS)/conftest test --policy $(POLICIES) $(U1)/render/$$env/*.yaml && \
-		$(TOOLS)/conftest test --combine --namespace chart_set --policy $(POLICIES) $(U1)/render/$$env/*.yaml || exit 1; \
+		$(TOOLS)/conftest test --policy $(POLICIES) --data $(U1)/render/data-$$env.json $(U1)/render/$$env/*.yaml && \
+		$(TOOLS)/conftest test --combine --namespace chart_set --policy $(POLICIES) --data $(U1)/render/data-$$env.json $(U1)/render/$$env/*.yaml || exit 1; \
 	done
 	cd $(ROOT) && $(TOOLS)/helm template case-management case-management/chart -n vectra-app -f vectra-risk-gitops/envs/kind/values.yaml -f case-management/chart/values-kind.yaml -f vectra-risk-gitops/values/kind/case-management.yaml --set probes.runId=20261112-0900 > $(U1)/rt5/kind.yaml
 	cd $(ROOT) && test "$$(grep -c 'name: rt5-demo-20261112-0900' $(U1)/rt5/kind.yaml)" = 1 && ! grep -n ttlSecondsAfterFinished $(U1)/rt5/kind.yaml
-	cd $(ROOT) && $(TOOLS)/conftest test --policy $(POLICIES) $(U1)/rt5/kind.yaml && $(TOOLS)/conftest test --combine --namespace chart_set --policy $(POLICIES) $(U1)/rt5/kind.yaml
+	cd $(ROOT) && printf '{"env": "kind"}\n' > $(U1)/rt5/data.json && $(TOOLS)/conftest test --policy $(POLICIES) --data $(U1)/rt5/data.json $(U1)/rt5/kind.yaml && $(TOOLS)/conftest test --combine --namespace chart_set --policy $(POLICIES) --data $(U1)/rt5/data.json $(U1)/rt5/kind.yaml
 	cd $(ROOT) && ! $(TOOLS)/helm template case-management case-management/chart -n vectra-app -f vectra-risk-gitops/envs/kind/values.yaml -f case-management/chart/values-kind.yaml --set probes.runId=manual > /dev/null 2>&1
 	cd $(ROOT) && for env in kind staging prod; do test -s vectra-risk-gitops/values/$$env/case-management.yaml || { echo "falta $$env"; exit 1; }; done
 	cd $(ROOT) && $(TOOLS)/conftest test --policy $(POLICIES) --namespace values.prod vectra-risk-gitops/values/prod/case-management.yaml

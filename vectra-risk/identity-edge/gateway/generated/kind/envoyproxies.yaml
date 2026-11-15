@@ -61,9 +61,9 @@ spec:
             maxSkew: 1
             topologyKey: topology.kubernetes.io/zone
             whenUnsatisfiable: DoNotSchedule
-        replicas: 2
+        replicas: 1
       envoyHpa:
-        maxReplicas: 6
+        maxReplicas: 1
         metrics:
         - resource:
             name: cpu
@@ -71,7 +71,7 @@ spec:
               averageUtilization: 70
               type: Utilization
           type: Resource
-        minReplicas: 2
+        minReplicas: 1
       envoyPDB:
         minAvailable: 1
       envoyService:

@@ -154,6 +154,18 @@ def runtime_documents() -> tuple[dict, ...]:
                     *(c["resources"] for c in sidecars),
                 )
             )
+            hpa = provider["envoyHpa"]  # el HPA lo crea el controlador a partir del `EnvoyProxy`: se arma igual que el Deployment
+            documents.append(
+                {
+                    "kind": "HorizontalPodAutoscaler",
+                    "metadata": {"name": f"{proxy['metadata']['name']}-data-plane", "namespace": proxy["metadata"]["namespace"]},
+                    "spec": {
+                        "scaleTargetRef": {"kind": "Deployment", "name": f"{proxy['metadata']['name']}-data-plane"},
+                        "minReplicas": hpa["minReplicas"],
+                        "maxReplicas": hpa["maxReplicas"],
+                    },
+                }
+            )
     gateway = yaml.safe_load((PLATFORM / "operators/envoy-gateway.yaml").read_text(encoding="utf-8"))
     ratelimit = gateway["config"]["envoyGateway"]["provider"]["kubernetes"]["rateLimitDeployment"]
     documents.append(deployment("envoy-ratelimit", "envoy-gateway-system", ratelimit["replicas"], ratelimit["container"]["resources"]))
@@ -208,13 +220,29 @@ def inference_service_cpu(document: dict) -> float:
     return total
 
 
+#: HPA (tipo, nombre) que el presupuesto cuenta a `maxReplicas` en vez de a `minReplicas` (U01-T13): un HPA de kind puede crecer mas alla de su minimo solo si esta aqui,
+#: y entonces `requested()` suma sus replicas MAXIMAS. Hoy ninguno: en kind todos quedan con `maxReplicas` = `minReplicas`.
+COUNTED_AT_MAX: set[tuple[str, str]] = set()
+#: HPA de kind que hoy pueden crecer sin estar contados y que esta tarea NO arregla (U01-T13, fuera de alcance): el `maxReplicas` de Keycloak lo fija `identity-edge/keycloak/`
+#: (`values/kind.yaml` y la regla `hpa` de `keycloak.rego`), que U02-T23 cambia en paralelo. La prueba exige que SIGAN pudiendo crecer: al cerrarse, este conjunto se vacia.
+PENDING_UNBOUNDED: set[tuple[str, str]] = {("StatefulSet", "keycloak")}
+
+
+def kind_hpas() -> list[dict]:
+    return [d for d in rendered() if d["kind"] == "HorizontalPodAutoscaler"]
+
+
 def hpa_minimums() -> dict[tuple[str, str], int]:
-    """`minReplicas` de cada HPA por (tipo, nombre) de lo que escala. Sin HPA que lo suba, el workload cuenta sus `replicas`."""
+    """Replicas que el presupuesto cuenta por HPA, por (tipo, nombre) de lo que escala: `minReplicas`, o `maxReplicas` si esta en `COUNTED_AT_MAX`.
+
+    Sin HPA que lo suba, el workload cuenta sus `replicas`.
+    """
     result: dict[tuple[str, str], int] = {}
-    for document in rendered():
-        if document["kind"] == "HorizontalPodAutoscaler":
-            target = document["spec"]["scaleTargetRef"]
-            result[(target["kind"], target["name"])] = int(document["spec"].get("minReplicas", 1))
+    for document in kind_hpas():
+        target = document["spec"]["scaleTargetRef"]
+        key = (target["kind"], target["name"])
+        field = "maxReplicas" if key in COUNTED_AT_MAX else "minReplicas"
+        result[key] = int(document["spec"].get(field, 1))
     return result
 
 
@@ -378,6 +406,48 @@ def test_kind_serving_render_passes_the_kyverno_hpa_bounds_policy():
         kyverno = shutil.which("kyverno") or str(PLATFORM / ".tools/bin/kyverno")
         result = subprocess.run([kyverno, "apply", str(policy), "--resource", str(resource)], capture_output=True, text=True, check=False)  # noqa: S603
     assert "fail: 0, warn: 0, error: 0" in result.stdout + result.stderr, result.stdout + result.stderr
+
+
+def _hpa_label(document: dict) -> str:
+    spec = document["spec"]
+    return f"{document['metadata'].get('namespace', '')}/{document['metadata']['name']} min {spec.get('minReplicas', 1)} max {spec['maxReplicas']}"
+
+
+def growable_hpas(documents: list[dict]) -> list[dict]:
+    """Los HPA que pueden crecer mas alla de lo que el presupuesto cuenta: `maxReplicas` > `minReplicas` y no contados a `maxReplicas`."""
+    return [
+        d
+        for d in documents
+        if d["kind"] == "HorizontalPodAutoscaler"
+        and d["spec"]["maxReplicas"] > d["spec"].get("minReplicas", 1)
+        and (d["spec"]["scaleTargetRef"]["kind"], d["spec"]["scaleTargetRef"]["name"]) not in COUNTED_AT_MAX
+    ]
+
+
+def test_no_hpa_in_kind_can_grow_beyond_what_the_budget_counts():
+    """U01-T13: en kind todo HPA tiene `maxReplicas` = `minReplicas`, o el presupuesto lo cuenta a `maxReplicas` (`COUNTED_AT_MAX`). Un HPA nuevo que pueda crecer sin estar contado falla aqui.
+
+    Entran los HPA del render, el del data plane de Envoy (lo crea el controlador desde el `EnvoyProxy`) y, aparte, los de serving (`test_kind_serving_cannot_scale_beyond_what_the_budget_counts`).
+    """
+    assert any(d["metadata"]["name"] == "api-gateway-data-plane" for d in kind_hpas()), "el HPA del data plane de Envoy no entra en la cuenta"
+    pending = {(d["spec"]["scaleTargetRef"]["kind"], d["spec"]["scaleTargetRef"]["name"]) for d in growable_hpas(kind_hpas())}
+    uncounted = sorted(_hpa_label(d) for d in growable_hpas(kind_hpas()) if (d["spec"]["scaleTargetRef"]["kind"], d["spec"]["scaleTargetRef"]["name"]) not in PENDING_UNBOUNDED)
+    assert not uncounted, f"HPA de kind que pueden crecer mas alla de lo contado: {uncounted}"
+    assert pending == PENDING_UNBOUNDED, f"PENDING_UNBOUNDED ya no coincide con los HPA que crecen ({sorted(pending)}): vaciarlo si se arreglaron"
+
+
+def test_the_growth_check_sees_an_hpa_with_a_maximum_and_honours_counted_at_max():
+    """Mutacion: un HPA de kind con maximo 6 falla; contado a `maxReplicas` por el presupuesto, no (y la cuenta sube)."""
+    hpa = {"kind": "HorizontalPodAutoscaler", "metadata": {"name": "x"}, "spec": {"minReplicas": 2, "maxReplicas": 6, "scaleTargetRef": {"kind": "Deployment", "name": "x"}}}
+    assert growable_hpas([hpa]) == [hpa]
+    hpa["spec"]["maxReplicas"] = 2
+    assert growable_hpas([hpa]) == []
+    hpa["spec"]["maxReplicas"] = 6
+    COUNTED_AT_MAX.add(("Deployment", "x"))
+    try:
+        assert growable_hpas([hpa]) == []
+    finally:
+        COUNTED_AT_MAX.discard(("Deployment", "x"))
 
 
 def test_the_profile_requests_fit_the_budget():

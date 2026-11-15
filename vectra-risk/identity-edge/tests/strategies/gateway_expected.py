@@ -658,6 +658,8 @@ def envoyproxies(env: str) -> list[dict[str, Any]]:
     name = gd.gateway_ref()[0]
     repos, digest, _, _ = gd.envoy_images()
     low, high, cpu, pdb = gd.scaling()
+    if env == "kind":
+        low = high = 1  # U01-T13 (decision del 2026-11-14): en kind el data plane corre con una replica fija; el diseno (2 a 6) rige en staging y prod
     service_type, traffic_policy, service_labels = gd.service_spec()
     service, namespace, port, sampling = gd.tracing()
     pod_labels = dict(gd.infrastructure_labels())  # Z1: sin `app.kubernetes.io/name`; la identidad es `owning-gateway-name`

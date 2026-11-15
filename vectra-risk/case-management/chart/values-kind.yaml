@@ -1,8 +1,8 @@
 # Lo que `render_env("kind")` de U1 debe ver (P-1 y P-2 de U08-T05; components.yaml `kind_values`). `render_env` solo pasa los values del entorno y estos, no
 # `vectra-risk-gitops/values/kind/case-management.yaml` (C-9): sin esto `test_kind_profile.py` no contaria el mock ni el request de kind.
 # P-1 = (b), decision del usuario (2026-11-12): request de memoria de 128 MiB SOLO en kind para case-service y case-worker. Se aparta de «kind igual a staging»
-# (INF-U8-04: 256 MiB) por esa decision, como U6 (DECISIONES-LOOP.md §7, opcion c) y U11 (U11-T03, P-1 b). Las replicas, el HPA, el PDB y los limits (512 MiB)
-# no cambian; staging y produccion siguen en el diseno. El mock ya pide 64 MiB.
+# (INF-U8-04: 256 MiB) por esa decision, como U6 (DECISIONES-LOOP.md §7, opcion c) y U11 (U11-T03, P-1 b). Las replicas, el PDB y los limits (512 MiB)
+# no cambian (el maximo del HPA si, mas abajo); staging y produccion siguen en el diseno. El mock ya pide 64 MiB.
 core:
   enabled: true
 coreMock:
@@ -15,3 +15,8 @@ caseWorker:
   resources:
     requests:
       memory: 128Mi
+# U01-T13 (decision del usuario, 2026-11-14): el HPA de case-service y case-worker de 2 a 2 solo en kind (ningun HPA de kind crece mas alla de lo que cuenta el presupuesto de
+# `platform/tests/test_kind_profile.py`). `minReplicas` (2) no cambia; staging y produccion siguen de 2 a 6. La politica `hpa-doc` solo admite el 2 en kind.
+common:
+  hpa:
+    maxReplicas: 2
