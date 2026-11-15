@@ -1,7 +1,8 @@
 # Solo kind (F118): MinIO hace de S3 del banco. Recursos reducidos para un portatil de 14 GiB (ver install.md).
 # `standard` es la StorageClass que kind trae de fabrica. Sin cifrado de volumen: NFR-U1-23 no aplica en kind (INF-U1-02).
 storageClass: standard
-# Perfil liviano: una instancia por base, sin replica sincrona (cabe en 14 GiB). El simulacro de failover de zona (Paso 20)
+# Perfil liviano: una instancia por base (cabe en 14 GiB), salvo `registry-db`, que tiene 2 con `minSyncReplicas: 1`: el /readyz de
+# decision-registry-service exige un standby sincrono transmitiendo y su pool `projections` lee de `registry-db-ro` (U01-T10). El simulacro de failover de zona (Paso 20)
 # necesita 3: con `cluster-ha.yaml`, en `vectra-risk-gitops/values/kind/postgres.yaml` se fija `instances: 3` y `zoneConstraint: true`.
 instances: 1
 zoneConstraint: false
@@ -11,14 +12,15 @@ backup:
   encryption: ""
 clusters:
   registry-db: &small
+    instances: 2
     storage: 2Gi
     wal: 1Gi
     resources:
       requests: { cpu: 100m, memory: 256Mi }
       limits: { cpu: "1", memory: 1Gi }
-  case-db: *small
-  governance-db: *small
-  keycloak-db: *small
+  case-db: { <<: *small, instances: 1 }
+  governance-db: { <<: *small, instances: 1 }
+  keycloak-db: { <<: *small, instances: 1 }
 # Los usuarios de MinIO exclusivos de kind (values-kind.yaml de MinIO). En staging y prod estas identidades son del
 # S3 del banco. `accessKey` en la boveda es el `accessKey` del usuario en MinIO (lo garantiza platform/kind/seed-vault.sh).
 extraSecrets:

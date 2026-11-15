@@ -1,0 +1,18 @@
+# Solo kind (U01-T10): sin metrics-server los HPA de nueve workloads no leen metricas. Staging y prod lo traen en su distribucion de Kubernetes.
+# Imagen por digest (indice multi-arquitectura de v0.8.0, el appVersion del chart 3.13.0; consultado con platform/resolve_digest.py, sin descargarla).
+image: { tag: "v0.8.0@sha256:89258156d0e9af60403eafd44da9676fd66f600c7934d468ccc17e42b199aee2" }
+# Va en kube-system porque el chart y la APIService `v1beta1.metrics.k8s.io` lo esperan alli; las politicas de Kyverno solo miran vectra-*, pero
+# se cumplen igual (priorityClassName, criticidad, recursos, usuario no root, raiz de solo lectura). `vectra-normal` llega en la wave 1.
+priorityClassName: vectra-normal
+commonLabels: { vectra.io/criticality: medium } # las etiquetas del Deployment y del pod
+podLabels: { vectra.io/criticality: medium }
+replicas: 1
+# Los kubelets de kind sirven con un certificado autofirmado: sin esta bandera metrics-server no los puede leer (solo kind).
+args: [--kubelet-insecure-tls]
+# La imagen corre con el usuario 1000 sin escritura en `/`; el chart ya deja `--cert-dir=/tmp` sobre un emptyDir.
+podSecurityContext: { runAsNonRoot: true, runAsUser: 1000, seccompProfile: { type: RuntimeDefault } }
+securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, runAsNonRoot: true, runAsUser: 1000, seccompProfile: { type: RuntimeDefault }, capabilities: { drop: [ALL] } }
+# Justificado, no medido: metrics-server pide del orden de 1 mCPU y 2-3 MiB por nodo (kubernetes-sigs/metrics-server, «Scaling»); kind tiene 3 nodos.
+resources:
+  requests: { cpu: 25m, memory: 64Mi }
+  limits: { cpu: 100m, memory: 128Mi }

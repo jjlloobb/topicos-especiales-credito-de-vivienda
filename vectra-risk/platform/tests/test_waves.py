@@ -74,6 +74,7 @@ SAME_WAVE_OK = {
     ("namespaces", "quotas"),
     ("namespaces", "network"),
     ("priority-classes", "linkerd-control-plane"),
+    ("priority-classes", "metrics-server"),
     ("mesh-certificates", "linkerd-control-plane"),
     ("kube-prometheus-stack", "observability-rules"),
     ("kube-prometheus-stack", "grafana-config"),

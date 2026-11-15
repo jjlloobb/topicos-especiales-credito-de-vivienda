@@ -17,6 +17,7 @@ spec:
   - https://grafana.github.io/helm-charts
   - https://helm.linkerd.io/edge
   - https://helm.releases.hashicorp.com
+  - https://kubernetes-sigs.github.io/metrics-server
   - https://kyverno.github.io/kyverno
   - https://open-telemetry.github.io/opentelemetry-helm-charts
   - https://prometheus-community.github.io/helm-charts
@@ -33,6 +34,8 @@ spec:
     namespace: external-secrets
   - server: https://kubernetes.default.svc
     namespace: kserve
+  - server: https://kubernetes.default.svc
+    namespace: kube-system
   - server: https://kubernetes.default.svc
     namespace: kyverno
   - server: https://kubernetes.default.svc
