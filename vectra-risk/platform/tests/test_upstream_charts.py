@@ -141,7 +141,10 @@ def test_minio_ilm_rules_are_replaced_not_accumulated(overlay):
     documents = render("minio", *overlay, "--set-string", "rootUser=x,rootPassword=y")
     data = next(d for d in of(documents, "ConfigMap") if "initialize" in d.get("data", {}))["data"]
     lines = [line.strip() for line in data["custom-command"].splitlines() if line.startswith("runCommand ilm rule ")]
-    for bucket in ("loki", "tempo"):
+    # U01-T11: kind no instala Loki ni Tempo, y MinIO de kind ya no tiene sus buckets ni reglas.
+    buckets = () if overlay else ("loki", "tempo")
+    assert bool(buckets) or not [line for line in lines if "myminio/loki" in line or "myminio/tempo" in line], lines
+    for bucket in buckets:
         mine = [line for line in lines if line.endswith(f"myminio/{bucket}") or line.endswith(f"myminio/{bucket} || true")]
         assert [line.split()[3] for line in mine] == ["rm", "add"], mine
         assert mine[0] == f"runCommand ilm rule rm --all --force myminio/{bucket} || true"
@@ -164,7 +167,7 @@ def rendered_user_policy(user, *overlay):
 
 
 @pytest.mark.parametrize("overlay", [[], ["-f", str(ROOT / "platform/data/minio/values-kind.yaml")]], ids=["base", "kind"])
-def test_validation_readonly_reads_model_store_and_validation_datasets_but_writes_nowhere(overlay):
+def test_minio_validation_readonly_reads_model_store_and_validation_datasets_but_writes_nowhere(overlay):
     """U01-T10: el Job de U4 lee el manifiesto y el artefacto del model-store con `validation-readonly`."""
     _, policy = rendered_user_policy("validation-readonly", *overlay)
     granted = {

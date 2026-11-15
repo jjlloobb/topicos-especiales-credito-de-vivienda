@@ -2,3 +2,9 @@
 controllerReplicas: 1
 enablePodAntiAffinity: false
 enablePodDisruptionBudget: false
+# U01-T11: el request de CPU del proxy baja de 100m a 20m solo en kind. 100m por pod en ≈ 48 pods reservaban ≈ 4,8 de los 16 nucleos programables de la maquina de la demo
+# (2 workers x 8); la auditoria entre unidades propuso 10m a 20m, y un proxy en reposo gasta unos pocos milicores. El limit (500m) y la memoria no cambian: un pico se atiende
+# igual y solo pierde la reserva. Valor sin medir en kind (esta tarea no toca el clúster); si `kubectl top` lo desmiente, se sube aqui.
+proxy:
+  resources:
+    cpu: { request: 20m }

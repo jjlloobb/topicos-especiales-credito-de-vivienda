@@ -1,6 +1,8 @@
 """El perfil liviano de kind cabe en una maquina de 14 GiB, y conserva lo que los simulacros necesitan."""
 
+import re
 import tempfile
+from functools import cache
 from pathlib import Path
 
 import integration
@@ -35,8 +37,20 @@ PLATFORM = Path(__file__).resolve().parents[1]
 # 1,6016 GiB: la 2.a instancia de `registry-db` (256 Mi + 20 Mi de proxy = 0,2695), la 2.a replica de Keycloak que pide su HPA y el StatefulSet no declaraba
 # (1.000 Mi + 20 Mi = 1,0195; antes contaba 1), metrics-server (64 Mi, kube-system sin proxy = 0,0625) y la boveda de kind (256 Mi = 0,25). 13,4 supera el tope
 # de parada de 13,0 que se habia fijado para U12: los recortes de memoria de kind son otra tarea; ver la bitacora de U01-T10.
-BUDGET_GIB = 13.4
+# Cambia en U01-T11 a 13,9 (cifra medida, no una decision de recorte): (1) F-03 de la revision de U01-T10: la prueba ahora cuenta lo que el planificador reserva y `render_env` no
+# renderiza, leido de sus archivos de origen (`runtime_documents()`): data plane de Envoy 0,6016, controlador de Envoy Gateway 0,25, `envoy-ratelimit` 0,125 y controlador de KServe
+# 0,5859 GiB; la cuenta de U01-T10 (13,3672) pasa a 14,9297. (2) Sin Loki, Tempo ni Alloy en kind (decision del usuario 2026-11-14): -0,4336 -0,4102 -0,2266 = -1,0703 GiB. Total 13,8594
+# GiB, redondeado hacia arriba a 0,1. Sigue sin contar los Jobs (`model-validation-job` 1 GiB de request en D2, config-cli 0,25, `minio-post-job` 0,375) ni `kube-system`.
+BUDGET_GIB = 13.9
 PROXY_GIB = 20 / 1024
+#: CPU pedida por todos los pods de kind en el pico de D2, con proxies (20m), Job de validacion y replicas minimas de los HPA: 10,475 medido tras los recortes de U01-T11 (antes 19,57 = 18,25 +
+#: 1,32 de lo que ahora entra por `runtime_documents()`), redondeado hacia arriba a 0,5. Los dos workers de kind programan 8 nucleos cada uno (SCHEDULABLE_CPU).
+CPU_BUDGET = 10.5
+SCHEDULABLE_CPU = 16.0
+#: Lo que la prueba sigue sin contar y el planificador si reserva (estimado, no medido; U01-T11). El data plane de Envoy, el controlador de Envoy Gateway, `envoy-ratelimit`
+#: y el controlador de KServe ya entran (`runtime_documents()`). Faltan: kindnet y CoreDNS de `kube-system` ≈ 0,4 y los Jobs que coinciden (config-cli de Keycloak 0,15,
+#: `minio-post-job`, el aggregator del registro) ≈ 0,3; con 20 % de holgura, 1,0. (`model-validation-job` si entra: `VALIDATION_JOB_CPU`.)
+UNCOUNTED_CPU = 1.0
 MESHED = {
     "vectra-edge", "vectra-app", "vectra-serving", "vectra-staging", "vectra-data", "vectra-identity", "vectra-mock",
     "vectra-observability", "vectra-restore-drill",
@@ -52,14 +66,72 @@ def gib(value: object) -> float:
     return float(text) / 1024**3 if text.isdigit() else 0.0
 
 
+def cores(value: object) -> float:
+    text = str(value)
+    return float(text.removesuffix("m")) / 1000 if text.endswith("m") else float(text)
+
+
 def pod_memory(spec: dict) -> float:
     return sum(
         gib(c.get("resources", {}).get("requests", {}).get("memory", 0)) for c in spec.get("containers", [])
     )
 
 
+def pod_cpu(spec: dict) -> float:
+    return sum(cores(c.get("resources", {}).get("requests", {}).get("cpu", 0)) for c in spec.get("containers", []))
+
+
+def proxy_cpu() -> float:
+    """El request de CPU del proxy de Linkerd: el de staging y prod (`linkerd-values.yaml`) con lo que kind le sobrescribe (`linkerd-kind.yaml`)."""
+    request = yaml.safe_load((PLATFORM / "mesh/linkerd-values.yaml").read_text(encoding="utf-8"))["proxy"]["resources"]["cpu"]["request"]
+    kind = yaml.safe_load((PLATFORM / "mesh/linkerd-kind.yaml").read_text(encoding="utf-8"))
+    return cores(kind.get("proxy", {}).get("resources", {}).get("cpu", {}).get("request", request))
+
+
+def deployment(name: str, namespace: str, replicas: int, *containers: dict) -> dict:
+    return {
+        "kind": "Deployment",
+        "metadata": {"name": name, "namespace": namespace},
+        "spec": {"replicas": replicas, "template": {"spec": {"containers": [{"resources": {"requests": c["requests"]}} for c in containers]}}},
+    }
+
+
+@cache
+def runtime_documents() -> tuple[dict, ...]:
+    """U01-T10 F-03: lo que el planificador reserva y `render_env` no ve, leido de los archivos de origen (si cambian, cambia la cuenta).
+
+    Los charts OCI (controlador de Envoy Gateway, controlador de KServe) se renderizan con sus values; el data plane de Envoy (lo crea el
+    controlador a partir del `EnvoyProxy` de kind) y `envoy-ratelimit` (lo crea el controlador desde `rateLimitDeployment`) se arman con los
+    requests y las replicas que esos archivos declaran. Quedan fuera los Jobs y CronJobs: ver `UNCOUNTED_CPU` y la bitacora de U01-T11.
+    """
+    documents: list[dict] = []
+    for component in integration.CONFIG["components"]:
+        if "kind" in component.get("envs", ("kind", "staging", "prod")) and "chart" in component and not integration.is_chart(component):
+            files = [integration.ROOT / f for f in [*component.get("values", []), *component.get("kind_values", [])]]
+            chart = integration.CHARTS / component["name"] / component["chart"]
+            documents += integration.helm(component["name"], chart, component["namespace"], files)
+    for proxy in yaml.safe_load_all((PLATFORM.parent / "identity-edge/gateway/generated/kind/envoyproxies.yaml").read_text(encoding="utf-8")):
+        if proxy and proxy["kind"] == "EnvoyProxy":
+            provider = proxy["spec"]["provider"]["kubernetes"]
+            envoy = provider["envoyDeployment"]
+            sidecars = envoy["patch"]["value"]["spec"]["template"]["spec"]["containers"]
+            documents.append(
+                deployment(
+                    f"{proxy['metadata']['name']}-data-plane",
+                    proxy["metadata"]["namespace"],
+                    max(provider["envoyHpa"]["minReplicas"], envoy["replicas"]),
+                    envoy["container"]["resources"],
+                    *(c["resources"] for c in sidecars),
+                )
+            )
+    gateway = yaml.safe_load((PLATFORM / "operators/envoy-gateway.yaml").read_text(encoding="utf-8"))
+    ratelimit = gateway["config"]["envoyGateway"]["provider"]["kubernetes"]["rateLimitDeployment"]
+    documents.append(deployment("envoy-ratelimit", "envoy-gateway-system", ratelimit["replicas"], ratelimit["container"]["resources"]))
+    return tuple(documents)
+
+
 def rendered() -> list[dict]:
-    return [d for _, group in integration.render_env("kind") for d in group]
+    return [*(d for _, group in integration.render_env("kind") for d in group), *runtime_documents()]
 
 
 GITOPS = PLATFORM.parent / "vectra-risk-gitops"
@@ -98,6 +170,14 @@ def inference_service_gib(document: dict) -> float:
     return total
 
 
+def inference_service_cpu(document: dict) -> float:
+    total = 0.0
+    for component in document["spec"].values():
+        containers = {"containers": component.get("containers", [])}
+        total += component["minReplicas"] * (pod_cpu(containers) + proxy_cpu())
+    return total
+
+
 def hpa_minimums() -> dict[tuple[str, str], int]:
     """`minReplicas` de cada HPA por (tipo, nombre) de lo que escala. Sin HPA que lo suba, el workload cuenta sus `replicas`."""
     result: dict[tuple[str, str], int] = {}
@@ -113,26 +193,37 @@ def workload_replicas(document: dict, minimums: dict[tuple[str, str], int]) -> i
     return max(declared, minimums.get((document["kind"], document["metadata"]["name"]), 0))
 
 
-def requested_gib(services: list[dict] | None = None) -> float:
+def requested(pod_value, proxy: float, cluster_request, services: list[dict] | None, isv_value) -> float:
+    """Lo que el planificador reserva por replica minima: workloads, un pod por nodo de trabajo de los DaemonSet, instancias de CNPG, Prometheus y Alertmanager."""
     total = 0.0
     minimums = hpa_minimums()
     for document in rendered():
         namespace = document["metadata"].get("namespace", "")
-        proxy = PROXY_GIB if namespace in MESHED else 0.0
+        proxied = proxy if namespace in MESHED else 0.0
         kind = document["kind"]
         if kind in {"Deployment", "StatefulSet"}:
-            total += workload_replicas(document, minimums) * (
-                pod_memory(document["spec"]["template"]["spec"]) + proxy
-            )
+            total += workload_replicas(document, minimums) * (pod_value(document["spec"]["template"]["spec"]) + proxied)
         elif kind == "DaemonSet":
-            total += 2 * (pod_memory(document["spec"]["template"]["spec"]) + proxy)  # dos nodos de trabajo
+            total += 2 * (pod_value(document["spec"]["template"]["spec"]) + proxied)  # dos nodos de trabajo
         elif kind == "Cluster":
-            memory = gib(document["spec"]["resources"]["requests"]["memory"])
-            total += document["spec"]["instances"] * (memory + proxy)
+            total += document["spec"]["instances"] * (cluster_request(document["spec"]["resources"]["requests"]) + proxied)
         elif kind in {"Prometheus", "Alertmanager"}:
-            memory = gib(document["spec"]["resources"]["requests"]["memory"])
-            total += document["spec"].get("replicas", 1) * (memory + proxy)
-    return total + sum(inference_service_gib(d) for d in inference_services(services))
+            total += document["spec"].get("replicas", 1) * (cluster_request(document["spec"]["resources"]["requests"]) + proxied)
+    return total + sum(isv_value(d) for d in inference_services(services))
+
+
+def requested_gib(services: list[dict] | None = None) -> float:
+    return requested(pod_memory, PROXY_GIB, lambda r: gib(r["memory"]), services, inference_service_gib)
+
+
+#: El Job de validacion de U4 (`governance/src/vectra_governance/k8s_jobs.py`, `JOB_RESOURCES`): 500m de CPU pedidos, con proxy, en `vectra-staging`.
+VALIDATION_JOB_CPU = 0.5
+
+
+def requested_cpu(services: list[dict] | None = None) -> float:
+    """CPU pedida en el pico de D2: lo renderizado, los `InferenceService` de `services` y el Job de validacion (que `governance-service` crea al vuelo)."""
+    base = requested(pod_cpu, proxy_cpu(), lambda r: cores(r["cpu"]), services, inference_service_cpu)
+    return base + VALIDATION_JOB_CPU + proxy_cpu()
 
 
 def test_budget_counts_the_minimum_replicas_of_statefulset_hpas():
@@ -144,6 +235,23 @@ def test_budget_counts_the_minimum_replicas_of_statefulset_hpas():
     assert workload_replicas(keycloak, minimums) == 2
     plain = next(d for d in rendered() if d["kind"] == "StatefulSet" and ("StatefulSet", d["metadata"]["name"]) not in minimums)
     assert workload_replicas(plain, minimums) == plain["spec"].get("replicas", 1)
+
+
+def test_budget_counts_envoy_data_plane_envoy_gateway_ratelimit_and_kserve():
+    """U01-T10 F-03: lo que el planificador reserva y `render_env` no renderiza (runtime y charts OCI) entra en la cuenta, leido de sus archivos de origen."""
+    by_name = {d["metadata"]["name"]: d for d in runtime_documents() if d["kind"] == "Deployment"}
+    assert {"api-gateway-data-plane", "envoy-gateway", "envoy-ratelimit", "kserve-controller-manager"} <= by_name.keys()
+    assert by_name["api-gateway-data-plane"]["spec"]["replicas"] == 2 and len(by_name["api-gateway-data-plane"]["spec"]["template"]["spec"]["containers"]) == 2
+    assert by_name["envoy-ratelimit"]["spec"]["replicas"] == 2
+    extra = {
+        name: workload_replicas(d, {}) * (pod_memory(d["spec"]["template"]["spec"]) + (PROXY_GIB if d["metadata"]["namespace"] in MESHED else 0.0))
+        for name, d in by_name.items()
+    }
+    assert extra["api-gateway-data-plane"] == 2 * ((256 + 32) / 1024 + PROXY_GIB)  # envoy + shutdown-manager + proxy, vectra-edge esta mallado
+    assert extra["envoy-gateway"] == 2 * 128 / 1024 and extra["envoy-ratelimit"] == 2 * 64 / 1024  # envoy-gateway-system no lleva proxy
+    assert sum(extra.values()) > 1.5
+    # y la cuenta total los incluye
+    assert requested_gib([]) >= sum(extra.values())
 
 
 def test_the_profile_requests_fit_the_budget():
@@ -233,3 +341,130 @@ def test_linkerd_loses_ha_only_in_kind():
         ]
         == 3
     )
+
+
+def test_linkerd_cpu_request_drops_only_in_kind():
+    """U01-T11: 100m por pod en unos 48 pods son 4,8 nucleos de reserva; el limit (500m) no baja y staging y prod siguen en 100m."""
+    kind = yaml.safe_load((PLATFORM / "mesh/linkerd-kind.yaml").read_text(encoding="utf-8"))["proxy"]["resources"]
+    assert cores(kind["cpu"]["request"]) <= 0.02, kind
+    assert "limit" not in kind["cpu"] and "memory" not in kind, "kind solo baja el request de CPU: el limit y la memoria no cambian"
+    staging = yaml.safe_load((PLATFORM / "mesh/linkerd-values.yaml").read_text(encoding="utf-8"))["proxy"]["resources"]
+    assert staging == {"cpu": {"request": "100m", "limit": "500m"}, "memory": {"request": "20Mi", "limit": "128Mi"}}
+    assert proxy_cpu() == cores(kind["cpu"]["request"])
+
+
+def test_kind_serving_cpu_requests_are_100m_and_staging_and_prod_keep_inf_u6_01():
+    """U01-T11: 500m (250m el predictor de staging) por pod de serving reservan casi la mitad de la CPU del pico de D2; los limits no bajan."""
+    chart = yaml.safe_load((SERVING_CHART / "values.yaml").read_text(encoding="utf-8"))["profiles"]
+    assert chart["prod"]["predictor"]["resources"]["requests"]["cpu"] == "500m"
+    assert chart["prod"]["explainer"]["resources"]["requests"]["cpu"] == "500m"
+    assert chart["inactive"]["predictor"]["resources"]["requests"]["cpu"] == "500m"
+    assert chart["staging"]["predictor"]["resources"]["requests"]["cpu"] == "250m"
+    kind = yaml.safe_load(KIND_SERVING_VALUES.read_text(encoding="utf-8"))["profiles"]
+    for profile, components in {"prod": ("predictor", "explainer"), "inactive": ("predictor", "explainer"), "staging": ("predictor",)}.items():
+        for component in components:
+            resources = kind[profile][component]["resources"]
+            assert resources["requests"]["cpu"] == "100m", (profile, component)
+            assert "limits" not in resources, (profile, component)
+    for isvc in inference_services(PEAK_INFERENCE_SERVICES):
+        for component in isvc["spec"].values():
+            for container in component["containers"]:
+                assert container["resources"]["requests"]["cpu"] == "100m"
+                assert cores(container["resources"]["limits"]["cpu"]) >= 1
+
+
+def test_the_profile_cpu_requests_fit_the_budget_at_the_d2_peak():
+    """U01-T11: dos InferenceService en `vectra-serving`, uno en `vectra-staging` y el Job de validacion, con las replicas minimas de los HPA."""
+    peak = requested_cpu([*declared_inference_services(), *PEAK_INFERENCE_SERVICES])
+    assert peak <= CPU_BUDGET, peak
+
+
+def test_the_cpu_budget_leaves_room_for_what_the_render_does_not_count():
+    """El tope no es el de la maquina: lo que la prueba no ve (UNCOUNTED_CPU) tambien cabe en los 16 nucleos programables (2 workers x 8)."""
+    assert CPU_BUDGET + UNCOUNTED_CPU <= SCHEDULABLE_CPU
+
+
+# ---- U01-T11: sin Loki, Tempo ni Alloy en kind, y nada en kind los referencia ----------------------------------------------------------------
+#: Decision del usuario (2026-11-14): kind no instala estos tres. Ninguna demo ni U12 los lee (bitacoras/U01-T11.md).
+REMOVED_FROM_KIND = {"loki", "tempo", "alloy"}
+REMOVED_NAME = re.compile(r"\b(" + "|".join(sorted(REMOVED_FROM_KIND)) + r")\b")
+
+
+def components_not_in_kind() -> set[str]:
+    return {c["name"] for c in integration.CONFIG["components"] if "kind" not in c.get("envs", ("kind", "staging", "prod"))}
+
+
+def kind_services() -> set[tuple[str, str]]:
+    return {(d["metadata"]["namespace"], d["metadata"]["name"]) for d in rendered() if d["kind"] == "Service"}
+
+
+def service_of(url: str) -> tuple[str, str] | None:
+    """`(namespace, servicio)` de una URL o un `host:puerto` de la forma `<servicio>.<namespace>[.svc...]`."""
+    match = re.match(r"^(?:[a-z]+://)?([a-z0-9-]+)\.([a-z0-9-]+)(?:\.svc[a-z.]*)?(?::\d+)?(?:/.*)?$", url)
+    return (match.group(2), match.group(1)) if match else None
+
+
+def kind_configmap(name: str, key: str) -> dict:
+    document = next(d for d in rendered() if d["kind"] == "ConfigMap" and d["metadata"]["name"] == name)
+    return yaml.safe_load(document["data"][key])
+
+
+def test_kind_does_not_install_loki_tempo_or_alloy_and_staging_and_prod_do():
+    assert REMOVED_FROM_KIND <= components_not_in_kind()
+    for env in ("staging", "prod"):
+        assert all((GITOPS / f"apps/{env}/{name}.yaml").is_file() for name in REMOVED_FROM_KIND), env
+    assert not any((GITOPS / f"apps/kind/{name}.yaml").exists() for name in REMOVED_FROM_KIND)
+
+
+def test_kind_grafana_datasources_point_only_to_services_kind_installs():
+    """Una fuente de datos que apunta a un Service que kind no rinde deja el panel en rojo."""
+    datasources = kind_configmap("kube-prometheus-stack-grafana-datasource", "datasource.yaml")["datasources"]
+    assert datasources, "Grafana sin Prometheus"
+    services = kind_services()
+    for datasource in datasources:
+        assert service_of(datasource["url"]) in services, (datasource["name"], datasource["url"])
+        assert datasource["type"] not in {"loki", "tempo"}, datasource["name"]
+
+
+def test_kind_otel_collector_exports_only_to_services_kind_installs():
+    relay = kind_configmap("otel-collector", "relay")
+    services = kind_services()
+    used = {e for pipeline in relay["service"]["pipelines"].values() for e in pipeline["exporters"]}
+    assert used, "un pipeline sin exportadores no arranca"
+    for name in used:
+        endpoint = relay["exporters"].get(name, {}).get("endpoint")
+        if endpoint:
+            assert service_of(endpoint) in services, (name, endpoint)
+    for pipeline_name, pipeline in relay["service"]["pipelines"].items():
+        assert pipeline["exporters"], pipeline_name
+
+
+def test_kind_network_flows_do_not_mention_removed_components():
+    """F62, F63, F65 a F67, F120, F121 y K13 siguen en staging y prod; en kind ni una NetworkPolicy ni una autorizacion de Linkerd nombran a esos pods."""
+    for path in sorted((PLATFORM / "network/generated/kind").glob("*.yaml")):
+        text = path.read_text(encoding="utf-8")
+        assert not REMOVED_NAME.search(text), (path.name, REMOVED_NAME.findall(text)[:3])
+    # Grafana sigue llegando a Prometheus, y solo al 9090: los 3100 y 3200 eran de Loki y Tempo.
+    observability = (PLATFORM / "network/generated/kind/vectra-observability.yaml").read_text(encoding="utf-8")
+    ingress = [d for d in yaml.safe_load_all(observability) if d and d["metadata"]["name"] == "allow-f65-to-prometheus-ingress"]
+    assert len(ingress) == 1 and [p["port"] for p in ingress[0]["spec"]["ingress"][0]["ports"]] == [9090]
+
+
+def test_kind_secrets_and_minio_have_nothing_left_for_loki_or_tempo():
+    names = {d["metadata"]["name"] for d in rendered() if d["kind"] == "ExternalSecret"}
+    assert not {n for n in names if REMOVED_NAME.search(n) or n.endswith(("-loki", "-tempo", "loki-s3", "tempo-s3"))}, names
+    values = (PLATFORM / "data/minio/values-kind.yaml").read_text(encoding="utf-8")
+    assert not re.search(r"\b(loki|tempo)\b", re.sub(r"^\s*#.*$", "", values, flags=re.M)), "buckets, politicas, usuarios o comandos de Loki o Tempo en MinIO de kind"
+
+
+def test_the_failover_drill_override_gives_three_instances_to_the_four_clusters():
+    """U01-T10 F-02: `values-kind.yaml` fija `instances` por cluster y este gana sobre el global, asi que el override del simulacro (Paso 20) tiene que ser por cluster."""
+    override = PLATFORM / "kind/postgres-failover.yaml"
+    values = [GITOPS / "envs/kind/values.yaml", PLATFORM / "data/chart/values-kind.yaml", override]
+    clusters = {d["metadata"]["name"]: d["spec"] for d in integration.helm("data", PLATFORM / "data/chart", "vectra-data", values) if d["kind"] == "Cluster"}
+    assert set(clusters) == {"registry-db", "case-db", "governance-db", "keycloak-db"}
+    for name, spec in clusters.items():
+        assert spec["instances"] == 3 and spec["minSyncReplicas"] == 1 and spec["maxSyncReplicas"] == 2, name
+    # sin el override, kind sigue liviano
+    base = {d["metadata"]["name"]: d["spec"]["instances"] for d in integration.helm("data", PLATFORM / "data/chart", "vectra-data", values[:2]) if d["kind"] == "Cluster"}
+    assert base == {"registry-db": 2, "case-db": 1, "governance-db": 1, "keycloak-db": 1}

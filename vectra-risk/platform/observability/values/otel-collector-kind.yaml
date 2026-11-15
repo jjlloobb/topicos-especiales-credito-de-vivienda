@@ -3,3 +3,10 @@ replicaCount: 1
 resources:
   requests: { cpu: 25m, memory: 64Mi }
   limits: { cpu: 200m, memory: 256Mi }
+# U01-T11: kind no instala Tempo. El pipeline de trazas termina en `debug` (cuenta los spans en el log del pod, sin enviarlos a ninguna parte): la ingesta del colector (F61) sigue
+# viva y ningun pipeline apunta a un Service que falte. La definicion del exportador `otlp/tempo` queda en la config de kind sin uso: Helm no deja borrar con `null` una clave
+# que viene de otro archivo de values (`rewriteDeprecatedComponentNames` falla con el nulo), y el colector solo arranca los exportadores que algun pipeline usa.
+config:
+  service:
+    pipelines:
+      traces: { exporters: [debug] }
