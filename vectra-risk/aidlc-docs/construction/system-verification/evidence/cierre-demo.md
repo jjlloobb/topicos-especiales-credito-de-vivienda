@@ -30,7 +30,7 @@ Cada entrada del inventario (`system-verification/docs/kind/inventario.yaml`, K-
 
 | Id | Qué | Plantilla | Estado | Fila del cierre de origen que responde |
 |---|---|---|---|---|
-| K-01 | Memoria del host: al menos 8 GiB disponibles antes de instalar (14 GiB de RAM es el minimo; los requests del perfil de kind suman 11,8 GiB) | `00-prerrequisitos.md` | pendiente del operador | C-U6:34 |
+| K-01 | Memoria del host: al menos 8 GiB disponibles antes de instalar (14 GiB de RAM es el minimo; los requests del perfil de kind suman 13,8 GiB) | `00-prerrequisitos.md` | pendiente del operador | C-U6:34 |
 | K-02 | U12-T03, T04 y T05, U02-T22 y U00-T04 en main; la reparacion del realm retirada de tests/doubles/keycloak_tc.py | `00-prerrequisitos.md` | pendiente del operador | — |
 | K-03 | Paquetes de U5 generados (base, proxy/run-1, adversarial/rt3) y la vigencia de reference-policy.json cubre los dos dias de la corrida | `00-prerrequisitos.md` | pendiente del operador | — |
 | K-04 | Calendario: decisions se lanza antes de 22:18 UTC; el dia D + 1 no es dia 1 del mes; F5 a F10 caben en 3 dias (retencion de Prometheus) | `00-prerrequisitos.md` | pendiente del operador | — |

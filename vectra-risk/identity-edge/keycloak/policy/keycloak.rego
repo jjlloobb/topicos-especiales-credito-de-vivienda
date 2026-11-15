@@ -106,8 +106,8 @@ deny contains msg if {
 }
 
 # regla: replicas
-# Las `replicas` del StatefulSet (si las fija) y el `minReplicas` del HPA dependen del entorno (kind: 1; staging y prod: 2, NFR-U2-01):
-# esas dos reglas viven en `set.rego` (`replicas` y `hpa-min-replicas`), porque solo ahi se ve el StatefulSet con el HPA.
+# Las `replicas` del StatefulSet (si las fija) y el `minReplicas` y el `maxReplicas` del HPA dependen del entorno (kind: 1 y 1; staging y prod: 2 y 4, NFR-U2-01):
+# esas reglas viven en `set.rego` (`replicas`, `hpa-min-replicas` y `hpa-max-replicas`), porque solo ahi se ve el StatefulSet con el HPA.
 
 # regla: hpa
 deny contains msg if {
@@ -118,11 +118,6 @@ deny contains msg if {
 is_keycloak_hpa if {
 	input.kind == "HorizontalPodAutoscaler"
 	input.metadata.name == "keycloak"
-}
-
-hpa_problem contains "maxReplicas distinto de 4" if {
-	is_keycloak_hpa
-	object.get(input.spec, "maxReplicas", 0) != 4
 }
 
 hpa_problem contains "no apunta al StatefulSet keycloak" if {
@@ -137,13 +132,12 @@ hpa_problem contains "las metricas son exactamente una: CPU, utilizacion del 70 
 
 hpa_problem contains "el spec debe ser exactamente el esperado (con el behavior del render)" if {
 	is_keycloak_hpa
-	object.remove(input.spec, ["minReplicas"]) != expected_hpa_spec
+	object.remove(input.spec, ["minReplicas", "maxReplicas"]) != expected_hpa_spec
 }
 
-# Sin `minReplicas`: lo fija el entorno (`hpa-min-replicas`, set.rego).
+# Sin `minReplicas` ni `maxReplicas`: los fija el entorno (`hpa-min-replicas` y `hpa-max-replicas`, set.rego).
 expected_hpa_spec := {
 	"scaleTargetRef": {"apiVersion": "apps/v1", "kind": "StatefulSet", "name": "keycloak"},
-	"maxReplicas": 4,
 	"metrics": [{"type": "Resource", "resource": {"name": "cpu", "target": {"type": "Utilization", "averageUtilization": 70}}}],
 	"behavior": {"scaleDown": {"stabilizationWindowSeconds": 300, "policies": [{"type": "Pods", "value": 1, "periodSeconds": 300}]}},
 }

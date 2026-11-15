@@ -173,7 +173,7 @@ spec:
     kind: StatefulSet
     name: keycloak
   minReplicas: 1
-  maxReplicas: 4
+  maxReplicas: 1
   metrics:
     - resource:
         name: cpu

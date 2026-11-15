@@ -298,8 +298,10 @@ MUTATIONS: list[tuple[str, str, Callable[[Docs], None]]] = [
     ("replicas", "1 replica", _sts_set(["spec", "replicas"], 1)),
     ("replicas", "3 replicas", _sts_set(["spec", "replicas"], 3)),
     ("hpa-min-replicas", "minimo 1 en prod", _set("HorizontalPodAutoscaler", "keycloak", ["spec", "minReplicas"], 1)),
-    ("hpa", "maximo 5", _set("HorizontalPodAutoscaler", "keycloak", ["spec", "maxReplicas"], 5)),
-    ("hpa", "maximo 3", _set("HorizontalPodAutoscaler", "keycloak", ["spec", "maxReplicas"], 3)),
+    ("hpa-max-replicas", "maximo 5", _set("HorizontalPodAutoscaler", "keycloak", ["spec", "maxReplicas"], 5)),
+    ("hpa-max-replicas", "maximo 3", _set("HorizontalPodAutoscaler", "keycloak", ["spec", "maxReplicas"], 3)),
+    ("hpa-max-replicas", "maximo 1 en prod", _set("HorizontalPodAutoscaler", "keycloak", ["spec", "maxReplicas"], 1)),
+    ("hpa-max-replicas", "sin maximo", _spec_del("HorizontalPodAutoscaler", "keycloak", "maxReplicas")),
     ("hpa", "metrica de memoria", _hpa_metric_memory),
     ("hpa", "apunta a un Deployment", _set("HorizontalPodAutoscaler", "keycloak", ["spec", "scaleTargetRef", "kind"], "Deployment")),
     ("zone-spread", "sin reparto", _sts_del(["spec", "template", "spec", "topologySpreadConstraints"])),
@@ -596,6 +598,62 @@ def test_min_replicas_by_environment(env, value):
         assert code != 0 and "hpa-min-replicas: " in output, f"{env} con minReplicas {value}: {output}"
 
 
+# U12-T08: el maximo tambien depende del entorno (kind 1, igual a su minimo: el HPA de Keycloak no crece en la maquina de la demo; staging y prod 4).
+# Exacto en los dos casos, con la misma senal `is_kind` que el minimo.
+MAX_REPLICAS = {"kind": 1, "staging": 4, "prod": 4}
+
+
+def _max_replicas(value: int) -> Callable[[Docs], None]:
+    return _set("HorizontalPodAutoscaler", "keycloak", ["spec", "maxReplicas"], value)
+
+
+@pytest.mark.parametrize("env", kd.ENVS)
+@pytest.mark.parametrize("value", [0, 1, 2, 3, 4, 5])
+def test_max_replicas_by_environment(env, value):
+    docs = copy.deepcopy(kd.load(env))
+    _max_replicas(value)(docs)
+    code, output = kd.conftest(docs)
+    if value == MAX_REPLICAS[env]:
+        assert code == 0, output
+    else:
+        assert code != 0 and "hpa-max-replicas: " in output, f"{env} con maxReplicas {value}: {output}"
+
+
+@pytest.mark.parametrize("env", kd.ENVS)
+def test_an_hpa_without_max_replicas_fails_in_every_environment(env):
+    docs = copy.deepcopy(kd.load(env))
+    _spec_del("HorizontalPodAutoscaler", "keycloak", "maxReplicas")(docs)
+    code, output = kd.conftest(docs)
+    assert code != 0 and "hpa-max-replicas: " in output, f"{env}: {output}"
+
+
+@pytest.mark.parametrize("env", ["staging", "prod"])
+def test_staging_or_prod_posing_as_kind_does_not_pass_with_max_one(env):
+    # El descuido: el hostname de kind en un render de staging o prod y el HPA 1-1. No pasa por el issuer o por el Job de config-cli.
+    docs = copy.deepcopy(kd.load(env))
+    _env_value("KC_HOSTNAME", "https://vectra.localtest.me/auth")(docs)
+    _min_replicas(1)(docs)
+    _max_replicas(1)(docs)
+    code, output = kd.conftest(docs)
+    assert code != 0
+    assert "issuer-per-environment: " in output or "config-cli-only-kind: " in output, output
+
+
+def test_kind_posing_as_staging_loses_the_max_of_one():
+    docs = copy.deepcopy(kd.load("kind"))
+    _env_value("KC_HOSTNAME", "https://vectra.banco.internal/auth")(docs)
+    code, output = kd.conftest(docs)
+    assert code != 0 and "hpa-max-replicas: " in output, output
+
+
+@pytest.mark.parametrize("env", ["staging", "prod"])
+def test_the_staging_and_prod_values_do_not_set_the_kind_maximum(env):
+    # Solo kind.yaml baja el maximo; common.yaml y los de staging y prod no.
+    assert yaml.safe_load((kd.VALUES / f"{env}.yaml").read_text(encoding="utf-8")).get("autoscaling", {}).get("maxReplicas") is None
+    assert yaml.safe_load((kd.VALUES / "common.yaml").read_text(encoding="utf-8"))["autoscaling"]["maxReplicas"] == kd.design_replicas()[1]
+    assert yaml.safe_load((kd.VALUES / "kind.yaml").read_text(encoding="utf-8"))["autoscaling"]["maxReplicas"] == 1
+
+
 @pytest.mark.parametrize("env", kd.ENVS)
 @pytest.mark.parametrize("value", [1, 2, 3])
 def test_statefulset_never_fixes_replicas_in_any_environment(env, value):
@@ -732,9 +790,8 @@ def test_event_metrics_user_tags_mutations_are_detected(env, case):
 @pytest.mark.parametrize("env", kd.ENVS)
 def test_design_replicas_hpa_and_pdb(env):
     docs = kd.load(env)
-    _, high = kd.design_replicas()
     spec = kd.find(docs, "HorizontalPodAutoscaler", "keycloak")["spec"]
-    low = MIN_REPLICAS[env]  # U02-T23: el diseno dice 2; kind lo baja a 1 (excepcion solo en kind)
+    low, high = MIN_REPLICAS[env], MAX_REPLICAS[env]  # el diseno dice 2 a 4; kind lo baja a 1 a 1 (U02-T23 y U12-T08, excepcion solo en kind)
     assert (spec["minReplicas"], spec["maxReplicas"]) == (low, high)
     assert "replicas" not in _sts(docs)["spec"]
     assert kd.find(docs, "PodDisruptionBudget", "keycloak")["spec"]["minAvailable"] == kd.design_pdb_min_available()
@@ -794,8 +851,7 @@ def test_design_certificate_and_policy_specs_are_complete(env):
         "secretName": "keycloak-tls", "duration": cert["duration"], "renewBefore": cert["renewBefore"],
         "dnsNames": cert["sans"], "issuerRef": {"name": issuer["name"], "kind": "ClusterIssuer"},
     }  # fmt: skip
-    _, high = kd.design_replicas()
-    low = MIN_REPLICAS[env]  # U02-T23: kind 1; staging y prod, el del diseno
+    low, high = MIN_REPLICAS[env], MAX_REPLICAS[env]  # kind 1 a 1; staging y prod, el del diseno
     hpa = kd.find(docs, "HorizontalPodAutoscaler", "keycloak")["spec"]
     assert {k: hpa[k] for k in ("minReplicas", "maxReplicas")} == {"minReplicas": low, "maxReplicas": high}
     assert kd.find(docs, "PodDisruptionBudget", "keycloak")["spec"] == {

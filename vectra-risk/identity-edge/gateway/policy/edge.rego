@@ -18,7 +18,10 @@ criticality := {"vectra.io/criticality": "high"}
 gateway_label := {"app.kubernetes.io/name": "api-gateway"}
 
 # restrict-registries (U1): registro permitido; disallow-latest: digest.
-allowed_registries := {"registro.vectra.internal/", "registro.banco.internal/vectra/", "kind-registry:5000/"}
+# El registro local de kind, en un solo sitio (U12-T08): lo usan `allowed_registries` y `envoy_is_kind`.
+kind_registry := "kind-registry:5000/"
+
+allowed_registries := {"registro.vectra.internal/", "registro.banco.internal/vectra/", kind_registry}
 
 envoy_digest := "sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0"
 
@@ -346,7 +349,7 @@ deny contains msg if {
 # Excepcion solo en kind (U01-T13, decision del usuario del 2026-11-14): UNA replica fija (`replicas: 1`, HPA de 1 a 1) para que el pico de D2 quepa en la maquina de la demo.
 # Se reconoce kind por la imagen de Envoy: la del registro `kind-registry:5000/`, la misma senal que `environment-issuer` (set.rego) ata al entorno kind: un render de staging
 # o prod con esa imagen falla alli, y uno con la imagen del banco falla aqui si lleva 1 replica o un HPA de 1 a 1. Staging y prod siguen en 2 y de 2 a 6.
-envoy_is_kind if startswith(envoy_image, "kind-registry:5000/")
+envoy_is_kind if startswith(envoy_image, kind_registry)
 
 deny contains msg if {
 	input.kind == "EnvoyProxy"
