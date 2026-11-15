@@ -91,6 +91,38 @@ deny contains msg if {
 	msg := sprintf("issuer-per-environment: staging y prod no usan %s", [internal_ca])
 }
 
+# regla: hpa-min-replicas
+# NFR-U2-01: 2 a 4 replicas. Excepcion solo en kind (U02-T23, decision del 2026-11-14): minimo 1 para que quepa en la maquina de la demo.
+# Se reconoce kind por `is_kind` (el KC_HOSTNAME del StatefulSet es el publico de kind), la misma senal que ya obliga a kind a llevar la CA
+# interna y el Job de `keycloak-config-cli`, y a staging y prod a no llevarlos: un render de staging o prod que se hiciera pasar por kind
+# fallaria esas reglas aunque este aceptara el 1. El maximo (4) no cambia.
+min_replicas := 1 if is_kind
+
+min_replicas := 2 if not is_kind
+
+deny contains msg if {
+	some document in documents
+	document.kind == "HorizontalPodAutoscaler"
+	document.metadata.name == "keycloak"
+	object.get(document.spec, "minReplicas", 0) != min_replicas
+	msg := sprintf("hpa-min-replicas: minReplicas distinto de %d (%s)", [min_replicas, env_label])
+}
+
+# regla: replicas
+# Con HPA el StatefulSet no fija `replicas`; si lo fija, es el minimo del entorno.
+deny contains msg if {
+	some document in documents
+	document.kind == "StatefulSet"
+	document.metadata.name == "keycloak"
+	"replicas" in object.keys(document.spec)
+	document.spec.replicas != min_replicas
+	msg := sprintf("replicas: %v replicas, no %d (%s)", [document.spec.replicas, min_replicas, env_label])
+}
+
+env_label := "kind" if is_kind
+
+env_label := "staging o prod" if not is_kind
+
 # regla: documents-exact
 # El render es exactamente esta lista de (tipo, nombre, namespace): nada de mas y nada de menos. kind suma la excepcion de
 # `keycloak-config-cli` (`kind_only_documents`, U02-T19); staging y prod no.
