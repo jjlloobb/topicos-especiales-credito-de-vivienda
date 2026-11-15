@@ -1,0 +1,6 @@
+# Solo kind (U01-T13, decision del usuario del 2026-11-14; `DECISIONES-LOOP.md` §7): el HPA de 2 a 2, para que ningun HPA de kind crezca mas alla de lo que el presupuesto de
+# `platform/tests/test_kind_profile.py` cuenta (a `minReplicas`; con el maximo del chart, 6, el pico de D2 subiria hasta +1,5 GiB solo con este servicio). `minReplicas` (2), las replicas,
+# los limits, el PDB y la estrategia no cambian; staging y prod siguen de 2 a 6. Entra por `kind_values` de `components.yaml`. La politica `hpa-doc` del chart solo admite el 2 en kind.
+service:
+  hpa:
+    maxReplicas: 2

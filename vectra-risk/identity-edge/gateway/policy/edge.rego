@@ -343,17 +343,39 @@ deny contains msg if {
 
 # regla: envoy-scaling
 # NFR-U2-03, W5: al menos 2 replicas, HPA de 2 a 6 con CPU al 70 %, PDB `minAvailable: 1` y reparto por zona.
+# Excepcion solo en kind (U01-T13, decision del usuario del 2026-11-14): UNA replica fija (`replicas: 1`, HPA de 1 a 1) para que el pico de D2 quepa en la maquina de la demo.
+# Se reconoce kind por la imagen de Envoy: la del registro `kind-registry:5000/`, la misma senal que `environment-issuer` (set.rego) ata al entorno kind: un render de staging
+# o prod con esa imagen falla alli, y uno con la imagen del banco falla aqui si lleva 1 replica o un HPA de 1 a 1. Staging y prod siguen en 2 y de 2 a 6.
+envoy_is_kind if startswith(envoy_image, "kind-registry:5000/")
+
 deny contains msg if {
 	input.kind == "EnvoyProxy"
+	not envoy_is_kind
 	input.spec.provider.kubernetes.envoyDeployment.replicas < 2
 	msg := sprintf("envoy-scaling: %s tiene menos de 2 replicas", [label(input)])
 }
 
 deny contains msg if {
 	input.kind == "EnvoyProxy"
+	envoy_is_kind
+	input.spec.provider.kubernetes.envoyDeployment.replicas != 1
+	msg := sprintf("envoy-scaling: %s tiene %v replicas y en kind es 1", [label(input), input.spec.provider.kubernetes.envoyDeployment.replicas])
+}
+
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	not envoy_is_kind
 	hpa := input.spec.provider.kubernetes.envoyHpa
 	not {hpa.minReplicas, hpa.maxReplicas} == {2, 6}
 	msg := sprintf("envoy-scaling: %s no escala de 2 a 6 replicas", [label(input)])
+}
+
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	envoy_is_kind
+	hpa := input.spec.provider.kubernetes.envoyHpa
+	not {hpa.minReplicas, hpa.maxReplicas} == {1}
+	msg := sprintf("envoy-scaling: %s no escala de 1 a 1 replica en kind", [label(input)])
 }
 
 deny contains msg if {

@@ -3,7 +3,7 @@
 storageClass: standard
 # Perfil liviano: una instancia por base (cabe en 14 GiB), salvo `registry-db`, que tiene 2 con `minSyncReplicas: 1`: el /readyz de
 # decision-registry-service exige un standby sincrono transmitiendo y su pool `projections` lee de `registry-db-ro` (U01-T10). El simulacro de failover de zona (Paso 20)
-# necesita 3 en los cuatro: con `cluster-ha.yaml`, se copia `platform/kind/postgres-failover.yaml` a `vectra-risk-gitops/values/kind/postgres.yaml` (el `instances` por cluster de abajo gana sobre el global, asi que el override es por cluster).
+# necesita 3 en los cuatro: con `cluster-ha.yaml`, se sigue el procedimiento de install.md (copiar `platform/kind/postgres-failover.yaml` a `vectra-risk-gitops/values/kind/postgres.yaml`, regenerar con `generate.py` y llevarlo a `main`; el `instances` por cluster de abajo gana sobre el global, asi que el override es por cluster).
 instances: 1
 zoneConstraint: false
 backup:

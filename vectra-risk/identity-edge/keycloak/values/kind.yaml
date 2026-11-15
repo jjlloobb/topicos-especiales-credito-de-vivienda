@@ -2,6 +2,10 @@
 image:
   repository: kind-registry:5000/vectra/keycloak
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000001
+# U02-T23 (excepcion solo en kind a NFR-U2-01, decision del 2026-11-14): minimo 1 replica, para ahorrar 1,0195 GiB (1 GiB + 20 Mi del proxy) y 0,6 CPU (500m + 100m del proxy) pedidos en
+# la maquina de la demo. El maximo sigue en 4. La politica (`hpa-min-replicas`, set.rego) solo admite el 1 en kind.
+autoscaling:
+  minReplicas: 1
 vectra:
   publicHostname: vectra.localtest.me
   tls:

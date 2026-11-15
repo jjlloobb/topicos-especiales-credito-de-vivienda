@@ -596,7 +596,11 @@ def sidecar_patch(sidecar: dict[str, Any]) -> dict[str, Any]:
 
 def envoy_proxies(ctx: Ctx) -> list[dict[str, Any]]:
     e = ctx.routes["envoy_proxy"]
-    hpa, svc, spread = e["hpa"], e["service"], e["spread"]
+    # U01-T13: kind (y solo kind) fija una replica; los values del entorno pueden traer `envoy_scaling` ({replicas, hpa: {min, max}}) y pisan lo de `routes.yaml`.
+    scaling = ctx.values.get("envoy_scaling") or {}
+    replicas = scaling.get("replicas", e["replicas"])
+    hpa = {**e["hpa"], **scaling.get("hpa", {})}
+    svc, spread = e["service"], e["spread"]
     log, tracing = ctx.routes["access_log"], ctx.routes["tracing"]
     return [
         {
@@ -609,7 +613,7 @@ def envoy_proxies(ctx: Ctx) -> list[dict[str, Any]]:
                     "kubernetes": {
                         "envoyServiceAccount": {"name": e["service_account"]},
                         "envoyDeployment": {
-                            "replicas": e["replicas"],
+                            "replicas": replicas,
                             "container": {"image": ctx.image, "resources": e["resources"], "securityContext": e["container_security_context"]},
                             "patch": sidecar_patch(e["shutdown_manager"]),
                             "pod": {

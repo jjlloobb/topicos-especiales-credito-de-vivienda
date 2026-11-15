@@ -45,6 +45,7 @@ check-tools:
 	cd $(ROOT)/platform/observability/rules/tests && $(TOOLS)/promtool test rules *.yaml
 	$(TOOLS)/promtool check rules $(ROOT)/platform/observability/rules/platform-rules.yaml
 	cd $(ROOT) && uv run python platform/tests/rego_fixtures.py
+	cd $(ROOT) && uv run python platform/tests/kind_serving_kyverno.py
 	$(TOOLS)/conftest test --policy $(ROOT)/platform/policies/rego $(ROOT)/platform/rendered/prod
 	$(TOOLS)/conftest test --combine --namespace hpa --policy $(ROOT)/platform/policies/rego $(ROOT)/platform/rendered/prod
 	$(TOOLS)/conftest test --policy $(ROOT)/platform/policies/rego $(ROOT)/vectra-risk-gitops/apps/prod
