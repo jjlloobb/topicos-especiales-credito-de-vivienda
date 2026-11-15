@@ -26,14 +26,16 @@ from vectra_reference.features import (
 from vectra_reference.generate import build_rows, load_config, with_overrides
 from vectra_reference.train import encode
 from vectra_validation.confidence import distances
+from vectra_governance.k8s_jobs import JOB_READ_BUCKETS, MINIO_ACCESS_KEY
 from vectra_validation.config import JobConfig
+from vectra_validation.errors import ValidationJobError
 from vectra_validation.features import Dataset, build_dataset
 
 VERSION = "mv-2026-11-09-0badc0de"
 OTHER_VERSION = "mv-2026-11-09-deadbeef"
 EVALUATED_ON = date(2026, 11, 9)
 MANIFEST = "s3://model-store/mv/manifest.json"
-DATASET = "s3://validation-datasets/mv/validation.parquet"
+DATASET = "s3://validation-datasets/validation.parquet"  # un solo dataset (U5 domain-entities §2), el `datasetRef` del chart
 CONFIG = load_config()
 
 
@@ -153,13 +155,23 @@ def manifest_bytes(predictor_name: str, version: str = VERSION, predictor_versio
     return json.dumps({"model_version_id": version, "files": files}).encode()
 
 
+# Que buckets puede leer cada usuario de MinIO. `validation-readonly` necesita los de `JOB_READ_BUCKETS` (U01-T10 los pone en su politica).
+USER_GRANTS: dict[str, frozenset[str]] = {MINIO_ACCESS_KEY: JOB_READ_BUCKETS}
+
+
 class MemoryStore:
-    def __init__(self, objects: dict[str, bytes]) -> None:
+    """Un store en memoria que, como MinIO, responde `object_unreadable` a un bucket que la politica del usuario no cubre."""
+
+    def __init__(self, objects: dict[str, bytes], user: str = MINIO_ACCESS_KEY, grants: frozenset[str] | None = None) -> None:
         self.objects = objects
+        self.user = user
+        self.grants = USER_GRANTS[user] if grants is None else grants
         self.reads: list[str] = []
 
     def read(self, uri: str) -> bytes:
         self.reads.append(uri)
+        if uri.removeprefix("s3://").split("/")[0] not in self.grants:
+            raise ValidationJobError("object_unreadable")
         return self.objects[uri]
 
 
@@ -182,7 +194,7 @@ def job_config(artifact_uri: str, **over: Any) -> JobConfig:
         "dataset_ref": DATASET,
         "governance_url": "http://governance-service.vectra-app.svc:8080",
         "s3_endpoint": "http://minio:9000",
-        "s3_access_key": "validation-readonly",
+        "s3_access_key": MINIO_ACCESS_KEY,
         "s3_secret_key": "s3cret",
         "token_url": "https://keycloak/token",
         "assertion_audience": "https://issuer.example/realms/vectra",

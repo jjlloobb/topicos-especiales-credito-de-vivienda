@@ -49,15 +49,16 @@ validation:
     digest: sha256:<64 hex>
 ```
 
-**PR de digests (T1: sin firma).** Con ese trozo crea `vectra-risk-gitops/values/kind/governance.yaml`, regenera la Application y comprueba:
+**PR de digests (T1: sin firma).** `vectra-risk-gitops/values/kind/governance.yaml` **ya existe** y lleva `keycloak.issuer` (U02-T21: el hostname público de Keycloak, que es el `iss` que firma). **Añade** al archivo las claves `image.digest` y `validation.image.digest` del trozo de arriba, **sin reemplazar el archivo ni tocar `keycloak.issuer`**: sin él governance vuelve al emisor interno y todo token da 401. Hazlo como con las claves de U7 y U8 en sus archivos: edita en su sitio y revisa el diff. No añadas `validation.datasetRef`: kind usa el del chart (`s3://validation-datasets/validation.parquet`, el objeto al que `reference-model/docs/release.md` sube el dataset). La Application ya lista el archivo en `valueFiles`, así que no cambia. Regenera y comprueba:
 
 ```bash
 uv run python vectra-risk-gitops/generate.py
 uv run python vectra-risk-gitops/generate.py --check
 git diff --stat
+git diff vectra-risk-gitops/values/kind/governance.yaml
 ```
 
-Esperado: el diff trae `values/kind/governance.yaml` (nuevo) y `apps/kind/governance.yaml` (una línea `valueFiles`), y `--check` termina en 0. Abre el PR, fusiónalo (lo revisa una persona) y sigue con el sync. Si el digest que publica `docker push` no es el que quedó en el archivo, el pod queda en `ImagePullBackOff`.
+Esperado: el diff trae solo `values/kind/governance.yaml` (modificado: líneas `+` con los dos digests y ninguna línea `-`), `apps/kind/governance.yaml` no cambia, `keycloak.issuer` sigue en el archivo y `--check` termina en 0. Abre el PR, fusiónalo (lo revisa una persona) y sigue con el sync. Si el digest que publica `docker push` no es el que quedó en el archivo, el pod queda en `ImagePullBackOff`.
 
 ## 3. Sync de la wave 5 y comprobación
 

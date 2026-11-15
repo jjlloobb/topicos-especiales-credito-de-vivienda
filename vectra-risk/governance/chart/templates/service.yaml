@@ -67,7 +67,7 @@ spec:
               valueFrom: { secretKeyRef: { name: {{ .Values.modelStore.secretName | quote }}, key: secretKey } }
             # Lo que el servicio entrega al model-validation-job (`ApiConfig` y `JobSpec`): imagen, dataset, informe, S3 y token.
             - { name: GOVERNANCE_VALIDATION_IMAGE, value: {{ printf "%s@%s" $validation .Values.validation.image.digest | quote }} }
-            - { name: GOVERNANCE_VALIDATION_DATASET, value: {{ .Values.validation.datasetRef | quote }} }
+            - { name: GOVERNANCE_VALIDATION_DATASET, value: {{ include "governance.datasetRef" . | quote }} }
             - { name: GOVERNANCE_CALLBACK_URL, value: {{ .Values.validation.callbackUrl | quote }} }
             - { name: GOVERNANCE_JOB_S3_ENDPOINT, value: {{ .Values.validation.s3Endpoint | quote }} }
             - { name: GOVERNANCE_JOB_TOKEN_URL, value: {{ .Values.keycloak.tokenUrl | quote }} }

@@ -51,7 +51,8 @@ validation:
   image:
     repository: kind-registry:5000/vectra/model-validation-job
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000003
-  datasetRef: s3://validation-datasets
+  # Un objeto, no el bucket: el Job lo lee tal cual (`s3://bucket/clave`). Es el dataset unico de U5 (`reference-model/docs/release.md` lo sube aqui).
+  datasetRef: s3://validation-datasets/validation.parquet
   callbackUrl: http://governance-service.vectra-app.svc.cluster.local:8080
   s3Endpoint: http://minio.vectra-data.svc.cluster.local:9000
 # Deployment `governance-service` (INF-U4-01; NFR-U4-03): 8080 con el contrato y 8081 con /metrics, /healthz y /readyz.
