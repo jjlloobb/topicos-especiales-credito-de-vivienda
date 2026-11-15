@@ -10,7 +10,11 @@ JOB="rt5-demo-$RUN_ID"
 case "${1:-}" in
   1)
     # Tras el PR de runId y su sync existe el Job rt5-demo-<runId> en vectra-app.
-    kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get "job/$JOB" -n vectra-app -o name > "$TMP_DIR/job" 2>/dev/null || not_expected "no existe job/$JOB en vectra-app"
+    # Solo NotFound es «no es lo esperado» (1); cualquier otro error de la lectura (otro contexto, sin conexion) es «no se pudo leer» (2).
+    kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get "job/$JOB" -n vectra-app -o name > "$TMP_DIR/job" 2> "$TMP_DIR/job.err" || {
+      grep -q 'NotFound' "$TMP_DIR/job.err" || cannot_read "lectura de job/$JOB: $(head -c 200 "$TMP_DIR/job.err")"
+      not_expected "no existe job/$JOB en vectra-app"
+    }
     expected "existe job/$JOB"
     ;;
   2)

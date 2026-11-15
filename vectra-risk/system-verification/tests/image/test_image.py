@@ -275,6 +275,19 @@ def test_content_every_download_has_a_fixed_version_and_a_sha256() -> None:
         ), line
     requirements = (UNIT / "image" / "requirements.txt").read_text(encoding="utf-8")
     assert "playwright==1.64.0" in requirements and requirements.count("--hash=sha256:") > 20
+    build = (UNIT / "image" / "build-requirements.txt").read_text(
+        encoding="utf-8"
+    )  # F-03 (ronda 2): hatchling y sus dependencias, con version y hash
+    pins = re.findall(r"^([a-z-]+)==\S+ \\\n    --hash=sha256:[0-9a-f]{64}$", build, flags=re.M)
+    assert {"hatchling", "packaging", "pathspec", "pluggy", "trove-classifiers", "editables"} <= set(pins), (
+        pins
+    )
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+    assert "--no-build-isolation" in dockerfile and "build-requirements.txt" in dockerfile
+    assert not re.search(
+        r"pip install(?![^\n]*(--require-hashes|--no-build-isolation))[^\n]*(/src/|/opt/system-verification)",
+        dockerfile,
+    )
 
 
 def _build_fails(*arguments: str) -> subprocess.CompletedProcess[str]:
@@ -421,6 +434,35 @@ def test_run_a_section_with_data_and_no_delivery_ends_with_ruta_faltante_code_3(
     assert "ruta_faltante" in done.stdout + done.stderr and "Traceback" not in done.stdout + done.stderr
 
 
+def test_run_an_infrastructure_failure_is_not_executed_code_2_with_a_stable_code_and_no_traceback(
+    work: Path,
+) -> None:
+    """F-01 (ronda 2), dentro del contenedor y con la orden del README: la boveda que no responde (`decisions`) y un contexto de `kubectl` que no existe (`u11`, `rt5`, `rt2`) terminan en `no ejecutado` (2), no en una traza con codigo 1."""
+    evidence = evidence_dir(work)
+    assert docker(*prepare_command(evidence)).returncode == 0
+
+    def section(name: str, *extra: str) -> subprocess.CompletedProcess[str]:
+        return docker(
+            "run", *base_options(user=TEST_USER, network_host=True),
+            *mount(evidence, "/verification/evidence", read_only=False),
+            "-e", "VAULT_ADDR=http://127.0.0.1:9", "-e", "VAULT_TOKEN=token-de-prueba", "-e", "KUBE_CONTEXT=no-existe",
+            *extra, IMAGE, name,
+        )  # fmt: skip
+
+    for name, code in (
+        ("decisions", "decisions_sesion_oidc_no_disponible"),
+        ("u11", "u11_kubectl_no_responde"),
+        ("rt5", "rt5_kubectl_no_responde"),
+        ("rt2", "rt2_kubectl_no_responde"),
+    ):
+        done = section(name)
+        text = done.stdout + done.stderr
+        assert done.returncode == 2, (name, done.returncode, text[-400:])
+        assert f"seccion {name}: no ejecutado (2)" in text and code in text and "Traceback" not in text, text[
+            -400:
+        ]
+
+
 def test_run_entrada_py_travels_in_the_image_and_builds_the_patch_read_only(work: Path) -> None:
     """`demos/prs/entrada.py` (D1 y D2) corre con el `python3` de la imagen, de solo lectura y sin escribir nada; las plantillas de parche fijas ya no existen."""
     values = work / "model-serving.yaml"
@@ -513,6 +555,62 @@ def test_sandbox_chromium_starts_sandboxed_under_the_seccomp_profile_and_never_w
     ]  # la linea de ordenes de ningun proceso trae `--no-sandbox`
     sandboxed = [p for p in processes if p["user_ns"] != seen["own_user_ns"] and p["no_new_privs"] == "1"]
     assert sandboxed, f"ningun proceso corre en su propio espacio de nombres de usuario: {processes}"
+
+
+SYSCALL_PROBE = (
+    "import ctypes, platform, sys\n"
+    "libc = ctypes.CDLL(None, use_errno=True)\n"
+    "numbers = {'keyctl': 250, 'mount': 165, 'pivot_root': 155}\n"
+    "if platform.machine() != 'x86_64':\n"
+    "    print('SKIP'); sys.exit(0)\n"
+    "out = {}\n"
+    "for name, number in numbers.items():\n"
+    "    ctypes.set_errno(0)\n"
+    "    libc.syscall(number, ctypes.c_long(0), ctypes.c_long(-4), ctypes.c_long(0), ctypes.c_long(0), ctypes.c_long(0))\n"
+    "    out[name] = ctypes.get_errno()\n"
+    "print(out)\n"
+)
+
+
+def test_sandbox_the_trimmed_profile_denies_keyctl_mount_and_pivot_root_with_eperm_and_the_sandbox_still_starts() -> (
+    None
+):
+    """F-02 (ronda 2): el perfil es el de Docker/Podman **menos** lo que Chromium no necesita (`keyctl`, la familia de `mount`, `pivot_root`, `syslog`, `reboot`, ...). `keyctl(GET_KEYRING_ID, @u)` con el perfil anterior devolvia un id (el llavero del usuario del host)."""
+    done = in_image(["-c", SYSCALL_PROBE], extra=["--security-opt", f"seccomp={image_run.SECCOMP}"])
+    assert done.returncode == 0, done.stderr
+    if done.stdout.strip() == "SKIP":
+        pytest.skip("la sonda de syscalls es de x86_64")
+    import ast
+
+    errno = ast.literal_eval(done.stdout.strip().splitlines()[-1])
+    assert errno == {"keyctl": 1, "mount": 1, "pivot_root": 1}, errno  # EPERM, no ENOSYS ni exito
+    profile = json.loads(image_run.SECCOMP.read_text(encoding="utf-8"))
+    allowed = {
+        n
+        for b in profile["syscalls"]
+        if b["action"] == "SCMP_ACT_ALLOW" and not b.get("includes")
+        for n in b["names"]
+    }
+    assert not allowed & {
+        "keyctl",
+        "mount",
+        "umount2",
+        "pivot_root",
+        "fsopen",
+        "open_tree",
+        "move_mount",
+        "syslog",
+        "reboot",
+        "name_to_handle_at",
+        "fanotify_init",
+        "mbind",
+        "set_mempolicy",
+        "get_mempolicy",
+    }
+    assert {"clone", "unshare", "setns"} <= allowed  # lo que el sandbox de Chromium necesita
+    assert profile["defaultErrno"] == "EPERM"
+    sandbox = test_sandbox_chromium_starts_sandboxed_under_the_seccomp_profile_and_never_with_no_sandbox
+    sandbox()  # y con este mismo perfil el sandbox arranca
 
 
 def test_sandbox_without_the_profile_the_login_ends_with_a_clear_error_and_not_a_hang() -> None:
