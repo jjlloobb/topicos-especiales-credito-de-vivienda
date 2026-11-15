@@ -475,6 +475,7 @@ def test_coherence_the_docker_run_is_the_one_of_the_readme() -> None:
         "--memory",
         "--security-opt",
         "-e VAULT_TOKEN",
+        "-e KUBE_CONTEXT",
         "seccomp",
     }
     assert readme - guide == set(), (
@@ -552,8 +553,19 @@ def test_coherence_the_known_limits_of_the_tool_are_warned_where_the_operator_me
     assert first is not None and second is not None, "D2: faltan los avisos visibles (blockquote) 1 y 2"
     assert all(
         word in first.group(0)
-        for word in ("Ctrl-C", "comando de parada de Docker", "SIGKILL", "reenvía el lote")
+        for word in (
+            "Ctrl-C",
+            "parada del contenedor",
+            "SIGKILL",
+            "está corregido",
+            "antes** de guardar",
+            "mientras se envía el lote",
+            "se reenvía entero",
+        )
     ), first.group(0)
+    assert "llega una fase tarde" not in first.group(0).replace("llegaba una fase tarde", ""), (
+        "N-1 esta corregido (U12-T05, ronda 2): la guia no puede decir que el guardado aun llega tarde"
+    )
     assert all(
         word in second.group(0)
         for word in ("--operator-timeout", "3 600 s", "no hay forma de retomar solo el cierre")
@@ -567,10 +579,24 @@ def test_coherence_the_known_limits_of_the_tool_are_warned_where_the_operator_me
         "cópiala allí",
         "`--memory 1g` no está medido",
         "containers-common",
+        "recortado",
+        "no Docker Desktop (tampoco en Linux)",
+        "`make`, `python3` y `git`",
+        "`kind-vectra`",
+        "`KUBE_CONTEXT=<contexto>`",
+        "Cómo leer el código de salida",
+        "no es un fallo del sistema",
+        "`browser_launch_error`",
+        "solo un `NotFound` es «no existe»",
         "La ventana TOTP no se comparte entre procesos",
         "30 s",
     ):
         assert needle in f0, needle
+    assert "el resultado esperado es el mismo" not in f0, "el README ya no afirma equivalencias no medidas"
+    f1 = section(GUIDE_TEXT, "F1")
+    assert all(word in f1 for word in ("`docker save`", "`docker load`", "apt.lock")), (
+        "F1: el camino fiable hacia otra maquina es llevar la imagen construida"
+    )
     f6 = section(GUIDE_TEXT, "F6")
     assert "no cuenta la espera" in f6 and "1 800 s" in f6, (
         "F6: la estimacion de `decisions` no cuenta la espera a `listo`"
