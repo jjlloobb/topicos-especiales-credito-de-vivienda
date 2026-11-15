@@ -6,3 +6,7 @@ f09: { enabled: false } # V7: F09 deshabilitada por defecto
 # U02-T10 (Paso 8): issuer del Certificate (INF-U2-01) e imagen de Envoy con su digest (W4, INF-U2-02); sin digest, route-gen falla.
 issuer: vectra-internal-ca
 envoy_image: { repository: kind-registry:5000/vectra/envoy, digest: sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0 }
+# U01-T13 (decision del usuario, 2026-11-14): en kind el data plane de Envoy corre con UNA replica fija (HPA de 1 a 1), para que el pico de D2 quepa en la maquina de la demo
+# (cada replica pide 0,30 GiB y 0,13 CPU). Es la excepcion solo de kind a NFR-U2-03: la regla `envoy-scaling` de `policy/edge.rego` solo la admite con la imagen de `kind-registry`.
+# Staging y prod siguen en 2 replicas y HPA de 2 a 6.
+envoy_scaling: { replicas: 1, hpa: { min: 1, max: 1 } }

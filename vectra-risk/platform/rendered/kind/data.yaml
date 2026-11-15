@@ -872,20 +872,6 @@ spec:
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: loki-s3
-  namespace: vectra-observability
-spec:
-  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
-  target: { name: loki-s3 }
-  data:
-    - { secretKey: AWS_ACCESS_KEY_ID, remoteRef: { key: minio/loki, property: accessKey } }
-    - { secretKey: AWS_SECRET_ACCESS_KEY, remoteRef: { key: minio/loki, property: secretKey } }
-
----
-# Source: vectra-data/templates/clusters.yaml
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
   name: minio-engineer-upload
   namespace: vectra-data
 spec:
@@ -970,20 +956,6 @@ spec:
     - { secretKey: AWS_SECRET_ACCESS_KEY, remoteRef: { key: minio/kserve, property: secretKey } }
     - { secretKey: accessKey, remoteRef: { key: minio/kserve, property: accessKey } }
     - { secretKey: secretKey, remoteRef: { key: minio/kserve, property: secretKey } }
-
----
-# Source: vectra-data/templates/clusters.yaml
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: minio-loki
-  namespace: vectra-data
-spec:
-  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
-  target: { name: minio-loki }
-  data:
-    - { secretKey: accessKey, remoteRef: { key: minio/loki, property: accessKey } }
-    - { secretKey: secretKey, remoteRef: { key: minio/loki, property: secretKey } }
 
 ---
 # Source: vectra-data/templates/clusters.yaml
@@ -1142,20 +1114,6 @@ spec:
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: minio-tempo
-  namespace: vectra-data
-spec:
-  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
-  target: { name: minio-tempo }
-  data:
-    - { secretKey: accessKey, remoteRef: { key: minio/tempo, property: accessKey } }
-    - { secretKey: secretKey, remoteRef: { key: minio/tempo, property: secretKey } }
-
----
-# Source: vectra-data/templates/clusters.yaml
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
   name: minio-validation
   namespace: vectra-data
 spec:
@@ -1192,20 +1150,6 @@ spec:
   data:
     - { secretKey: ACCESS_KEY_ID, remoteRef: { key: postgres/backup, property: accessKey } }
     - { secretKey: SECRET_ACCESS_KEY, remoteRef: { key: postgres/backup, property: secretKey } }
-
----
-# Source: vectra-data/templates/clusters.yaml
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: tempo-s3
-  namespace: vectra-observability
-spec:
-  secretStoreRef: { name: vectra-store, kind: ClusterSecretStore }
-  target: { name: tempo-s3 }
-  data:
-    - { secretKey: AWS_ACCESS_KEY_ID, remoteRef: { key: minio/tempo, property: accessKey } }
-    - { secretKey: AWS_SECRET_ACCESS_KEY, remoteRef: { key: minio/tempo, property: secretKey } }
 
 ---
 # Source: vectra-data/templates/clusters.yaml

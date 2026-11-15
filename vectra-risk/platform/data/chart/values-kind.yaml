@@ -3,7 +3,7 @@
 storageClass: standard
 # Perfil liviano: una instancia por base (cabe en 14 GiB), salvo `registry-db`, que tiene 2 con `minSyncReplicas: 1`: el /readyz de
 # decision-registry-service exige un standby sincrono transmitiendo y su pool `projections` lee de `registry-db-ro` (U01-T10). El simulacro de failover de zona (Paso 20)
-# necesita 3: con `cluster-ha.yaml`, en `vectra-risk-gitops/values/kind/postgres.yaml` se fija `instances: 3` y `zoneConstraint: true`.
+# necesita 3 en los cuatro: con `cluster-ha.yaml`, se sigue el procedimiento de install.md (copiar `platform/kind/postgres-failover.yaml` a `vectra-risk-gitops/values/kind/postgres.yaml`, regenerar con `generate.py` y llevarlo a `main`; el `instances` por cluster de abajo gana sobre el global, asi que el override es por cluster).
 instances: 1
 zoneConstraint: false
 backup:
@@ -24,6 +24,11 @@ clusters:
 # Los usuarios de MinIO exclusivos de kind (values-kind.yaml de MinIO). En staging y prod estas identidades son del
 # S3 del banco. `accessKey` en la boveda es el `accessKey` del usuario en MinIO (lo garantiza platform/kind/seed-vault.sh).
 extraSecrets:
+  # U01-T11: Loki y Tempo no se instalan en kind; `null` quita de `values.yaml` sus Secret de MinIO y los de S3 de `vectra-observability`.
+  minio-loki: null
+  minio-tempo: null
+  loki-s3: null
+  tempo-s3: null
   minio-registry-checkpoint: { path: minio/registry-checkpoint, namespaces: [vectra-data, vectra-app], keys: { secretKey: secretKey, accessKey: accessKey } }
   minio-registry-archive: { path: minio/registry-archive, namespaces: [vectra-data, vectra-app], keys: { secretKey: secretKey, accessKey: accessKey } }
   minio-registry-verify: { path: minio/registry-verify, namespaces: [vectra-data, vectra-app], keys: { secretKey: secretKey, accessKey: accessKey } }

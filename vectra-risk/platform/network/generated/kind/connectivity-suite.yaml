@@ -369,18 +369,6 @@ allowed:
   ports:
   - 10250
   to: kubelet
-- flow: F120
-  from: loki
-  ports:
-  - 7946
-  - 9095
-  to: loki
-- flow: F121
-  from: tempo
-  ports:
-  - 7946
-  - 9095
-  to: tempo
 - flow: F122
   from: prometheus
   ports:
@@ -594,21 +582,6 @@ allowed:
   from: rate-limit
   ports: *id015
   to: opentelemetry-collector
-- flow: F62
-  from: opentelemetry-collector
-  ports: &id016
-  - 4317
-  - 3100
-  to: tempo
-- flow: F62
-  from: opentelemetry-collector
-  ports: *id016
-  to: loki
-- flow: F63
-  from: alloy
-  ports:
-  - 3100
-  to: loki
 - flow: F64
   from: prometheus
   ports:
@@ -616,45 +589,25 @@ allowed:
   to: alertmanager
 - flow: F65
   from: grafana
-  ports: &id017
+  ports:
   - 9090
-  - 3100
-  - 3200
   to: prometheus
-- flow: F65
-  from: grafana
-  ports: *id017
-  to: loki
-- flow: F65
-  from: grafana
-  ports: *id017
-  to: tempo
-- flow: F66
-  from: loki
-  ports:
-  - 9000
-  to: minio
-- flow: F67
-  from: tempo
-  ports:
-  - 9000
-  to: minio
 - flow: F70
   from: case-db
-  ports: &id018
+  ports: &id016
   - 9000
   to: minio
 - flow: F70
   from: governance-db
-  ports: *id018
+  ports: *id016
   to: minio
 - flow: F70
   from: registry-db
-  ports: *id018
+  ports: *id016
   to: minio
 - flow: F70
   from: keycloak-db
-  ports: *id018
+  ports: *id016
   to: minio
 - flow: F71
   from: argocd-repo-server
@@ -679,25 +632,25 @@ allowed:
   to: registro
 - flow: F80
   from: cloudnative-pg
-  ports: &id019
+  ports: &id017
   - 8000
   - 5432
   to: case-db
 - flow: F80
   from: cloudnative-pg
-  ports: *id019
+  ports: *id017
   to: governance-db
 - flow: F80
   from: cloudnative-pg
-  ports: *id019
+  ports: *id017
   to: registry-db
 - flow: F80
   from: cloudnative-pg
-  ports: *id019
+  ports: *id017
   to: keycloak-db
 - flow: F80
   from: cloudnative-pg
-  ports: *id019
+  ports: *id017
   to: restore-cluster
 - flow: F81
   from: kube-apiserver
@@ -711,42 +664,42 @@ allowed:
   to: webhook
 - flow: F83
   from: vectra-edge
-  ports: &id020
+  ports: &id018
   - 8086
   - 8080
   - 8090
   to: linkerd-control
 - flow: F83
   from: vectra-app
-  ports: *id020
+  ports: *id018
   to: linkerd-control
 - flow: F83
   from: vectra-serving
-  ports: *id020
+  ports: *id018
   to: linkerd-control
 - flow: F83
   from: vectra-staging
-  ports: *id020
+  ports: *id018
   to: linkerd-control
 - flow: F83
   from: vectra-data
-  ports: *id020
+  ports: *id018
   to: linkerd-control
 - flow: F83
   from: vectra-identity
-  ports: *id020
+  ports: *id018
   to: linkerd-control
 - flow: F83
   from: vectra-mock
-  ports: *id020
+  ports: *id018
   to: linkerd-control
 - flow: F83
   from: vectra-observability
-  ports: *id020
+  ports: *id018
   to: linkerd-control
 - flow: F83
   from: vectra-restore-drill
-  ports: *id020
+  ports: *id018
   to: linkerd-control
 - flow: F84
   from: kube-apiserver
@@ -765,20 +718,20 @@ allowed:
   to: vault
 - flow: F98
   from: registry-checkpoint
-  ports: &id021
+  ports: &id019
   - 8200
   to: vault
 - flow: F98
   from: registry-archive
-  ports: *id021
+  ports: *id019
   to: vault
 - flow: F98
   from: registry-verify
-  ports: *id021
+  ports: *id019
   to: vault
 - flow: F98
   from: restore-drill
-  ports: *id021
+  ports: *id019
   to: vault
 - flow: F87
   from: restore-drill
@@ -802,13 +755,13 @@ allowed:
   to: rate-limit
 - flow: F91
   from: rate-limit
-  ports: &id022
+  ports: &id020
   - 26379
   - 6379
   to: valkey
 - flow: F91
   from: rate-limit
-  ports: *id022
+  ports: *id020
   to: sentinel
 - flow: F92
   from: valkey
@@ -822,26 +775,26 @@ allowed:
   to: sentinel
 - flow: F93
   from: sentinel
-  ports: &id023
+  ports: &id021
   - 6379
   - 26379
   to: valkey
 - flow: F93
   from: sentinel
-  ports: *id023
+  ports: *id021
   to: sentinel
 - flow: F94
   from: keycloak-config-cli
-  ports: &id024
+  ports: &id022
   - 8443
   to: keycloak
 - flow: F94
   from: realm-drift
-  ports: *id024
+  ports: *id022
   to: keycloak
 - flow: F94
   from: signing-key-age
-  ports: *id024
+  ports: *id022
   to: keycloak
 - flow: F95
   from: api-gateway

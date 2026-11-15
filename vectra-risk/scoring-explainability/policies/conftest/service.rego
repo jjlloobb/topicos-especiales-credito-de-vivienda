@@ -347,6 +347,12 @@ deny contains msg if {
 
 # regla: hpa-doc
 # INF-U7-01: de 2 a 6 replicas por CPU al 70 %, con estabilizacion de 60 s hacia arriba y 300 s hacia abajo.
+# U01-T13 (decision del 2026-11-14): en kind el maximo es 2 (de 2 a 2), para que el HPA no crezca mas alla de lo que cuenta el presupuesto de kind. El entorno lo pasa quien invoca
+# (`--data` con `{"env": "<entorno>"}`: el mismo que renderiza, como en U10); sin dato rige el diseno (6), asi que staging y prod no relajan nada por omision.
+hpa_max := 2 if data.env == "kind"
+
+hpa_max := 6 if not data.env == "kind"
+
 deny contains msg if {
 	input.kind == "HorizontalPodAutoscaler"
 	not input.spec.scaleTargetRef.name in services
@@ -361,8 +367,8 @@ deny contains msg if {
 
 deny contains msg if {
 	input.kind == "HorizontalPodAutoscaler"
-	input.spec.maxReplicas != 6
-	msg := sprintf("hpa-doc: maxReplicas es 6, no %v", [input.spec.maxReplicas])
+	input.spec.maxReplicas != hpa_max
+	msg := sprintf("hpa-doc: maxReplicas es %d, no %v", [hpa_max, input.spec.maxReplicas])
 }
 
 deny contains msg if {

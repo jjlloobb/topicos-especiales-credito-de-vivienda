@@ -128,10 +128,10 @@ workloads:
   grafana: { ns: vectra-observability, sa: grafana, name: grafana }
   grafana-folder-permissions: { ns: vectra-observability, sa: grafana-folder-permissions, name: grafana-folder-permissions }
   grafana-folder-check: { ns: vectra-observability, sa: grafana-folder-permissions, name: grafana-folder-check }
-  loki: { ns: vectra-observability, sa: loki, name: loki }
-  tempo: { ns: vectra-observability, sa: tempo, name: tempo }
+  loki: { ns: vectra-observability, sa: loki, name: loki, envs: [staging, prod] }
+  tempo: { ns: vectra-observability, sa: tempo, name: tempo, envs: [staging, prod] }
   otel-collector: { ns: vectra-observability, sa: otel-collector, name: opentelemetry-collector }
-  alloy: { ns: vectra-observability, sa: alloy, name: alloy }
+  alloy: { ns: vectra-observability, sa: alloy, name: alloy, envs: [staging, prod] }
   pushgateway: { ns: vectra-observability, sa: pushgateway, name: prometheus-pushgateway }
   kube-state-metrics: { ns: vectra-observability, sa: kube-state-metrics, name: kube-state-metrics }
   restore-drill: { ns: vectra-restore-drill, sa: restore-drill, name: restore-drill }
@@ -231,7 +231,9 @@ flows:
   - { id: F62, from: [otel-collector], to: [tempo, loki], ports: [4317, 3100] }
   - { id: F63, from: [alloy], to: [loki], port: 3100 }
   - { id: F64, from: [prometheus], to: [alertmanager], port: 9093 }
-  - { id: F65, from: [grafana], to: [prometheus, loki, tempo], ports: [9090, 3100, 3200] }
+  - { id: F65, from: [grafana], to: [prometheus, loki, tempo], ports: [9090, 3100, 3200], envs: [staging, prod] }
+  # U01-T11: en kind no hay Loki ni Tempo; Grafana solo lee Prometheus y no se abren el 3100 ni el 3200.
+  - { id: F65, from: [grafana], to: [prometheus], port: 9090, envs: [kind] }
   - { id: F66, from: [loki], to: [minio], port: 9000 }
   - { id: F67, from: [tempo], to: [minio], port: 9000 }
   - { id: F70, from: [case-db, governance-db, registry-db, keycloak-db], to: [external:backups], port: 443, envs: [staging, prod] }
