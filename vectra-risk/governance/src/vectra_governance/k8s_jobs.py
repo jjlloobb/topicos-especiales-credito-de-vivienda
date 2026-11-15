@@ -44,6 +44,9 @@ LINKERD_NATIVE_SIDECAR: Final = {"config.alpha.linkerd.io/proxy-enable-native-si
 # privada la materializa el `ExternalSecret` del chart de U4, Paso 13).
 MINIO_SECRET: Final = "minio-validation"  # noqa: S105
 MINIO_ACCESS_KEY: Final = "validation-readonly"
+# Los buckets que el Job lee con `MINIO_ACCESS_KEY`: el paquete (manifiesto, artefacto, explicador, spec y envolvente) en `model-store` y el
+# dataset en `validation-datasets`. La politica `validation-read` de U1 debe cubrir los dos (U01-T10); una prueba ata esta lista a lo que el Job lee.
+JOB_READ_BUCKETS: Final = frozenset({"model-store", "validation-datasets"})
 CLIENT_SECRET: Final = "model-validation-job-client"  # noqa: S105
 CLIENT_KEY_DIR: Final = "/var/run/vectra/client"
 # La CA interna (ConfigMap `vectra-internal-ca` de U1, el mismo que montan los demas clientes con `private_key_jwt`, p. ej.

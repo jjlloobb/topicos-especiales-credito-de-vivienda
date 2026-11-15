@@ -67,10 +67,10 @@ Dataset de validación al bucket `validation-datasets`. **Atención:** la polít
 
 ```bash
 export MC_HOST_kind="http://$(kubectl --context kind-vectra exec -n vault vault-0 -- env VAULT_TOKEN=root vault kv get -field=user secret/minio/root):$(kubectl --context kind-vectra exec -n vault vault-0 -- env VAULT_TOKEN=root vault kv get -field=password secret/minio/root)@127.0.0.1:9000"
-mc cp /out/datasets/validation.parquet "kind/validation-datasets/${MV}/validation.parquet"
+mc cp /out/datasets/validation.parquet "kind/validation-datasets/validation.parquet"
 ```
 
-La ruta `<bucket>/<model_version_id>/<archivo>` es la convención de este procedimiento; U4 no fija todavía un diseño de rutas **[PENDIENTE U4: confirmar la ruta de `artifact_uri`, `explainer_uri` y `manifest_uri`]**.
+El dataset de validación es **uno solo** (el diseño de U5 lo define como `validation`, 18 000 filas deterministas, y U4 lo entrega igual a toda validación): va en `validation-datasets/validation.parquet`, la misma ruta que `validation.datasetRef` del chart de `governance` (la prueba `governance/tests/unit/test_dataset_ref.py` las ata). Una versión nueva sobrescribe el objeto con el mismo contenido; si algún día hay un dataset por versión, `datasetRef` deja de ser un value fijo y eso cambia el contrato de U4. La ruta `<bucket>/<model_version_id>/<archivo>` es la convención del **model-store**; U4 no fija todavía un diseño de rutas **[PENDIENTE U4: confirmar la ruta de `artifact_uri`, `explainer_uri` y `manifest_uri`]**.
 
 ### 4. Registrar la versión en U4 (US-201)
 
@@ -102,7 +102,7 @@ done
 
 1. El paquete base está completo en el model-store: `mc ls "kind/model-store/${MV}/"` lista los 7 archivos (`predictor.json`, `explainer.json`, `background.csv`, `domain_envelope.json`, `feature_dictionary.json`, `feature_spec.json` y `manifest.json`).
 2. Lo subido es lo verificado: `mc cat "kind/model-store/${MV}/manifest.json" | sha256sum` da el mismo valor que `sha256sum reference-model/.out/package/manifest.json`.
-3. El dataset llegó íntegro: `mc cat "kind/validation-datasets/${MV}/validation.parquet" | sha256sum` da el valor anotado en el paso 2.
+3. El dataset llegó íntegro: `mc cat "kind/validation-datasets/validation.parquet" | sha256sum` da el valor anotado en el paso 2.
 4. Las 5 corridas proxy están en el model-store: `mc ls kind/model-store/` muestra 6 prefijos `mv-…` (el base y las 5 corridas).
 5. El procedimiento sigue la plantilla: `uv run python platform/tests/test_runbooks.py --operational --root reference-model/docs`.
 
