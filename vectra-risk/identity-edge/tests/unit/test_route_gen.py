@@ -1137,6 +1137,44 @@ def test_conftest_tells_the_environments_apart(docs_env, dir_env, docs_by_env):
     assert code != 0 and "environment-values: " in output, output
 
 
+def _scaling(docs: gc.Docs, replicas: int, low: int, high: int) -> None:
+    _kube(docs)["envoyDeployment"]["replicas"] = replicas
+    _kube(docs)["envoyHpa"].update(minReplicas=low, maxReplicas=high)
+
+
+@pytest.mark.parametrize(("env", "shape"), [("kind", (1, 1, 1)), ("staging", (2, 2, 6)), ("prod", (2, 2, 6))])
+def test_the_data_plane_runs_one_replica_only_in_kind(env, shape, docs_by_env):
+    """U01-T13: kind pide una replica fija (HPA de 1 a 1); staging y prod siguen en 2 y de 2 a 6."""
+    kube = _kube(docs_by_env[env])
+    assert (kube["envoyDeployment"]["replicas"], kube["envoyHpa"]["minReplicas"], kube["envoyHpa"]["maxReplicas"]) == shape
+
+
+@pytest.mark.parametrize(
+    ("env", "mutate", "message"),
+    [
+        # kind: solo 1 y de 1 a 1
+        ("kind", lambda d: _scaling(d, 2, 1, 1), "en kind es 1"),
+        ("kind", lambda d: _scaling(d, 1, 1, 6), "no escala de 1 a 1 replica en kind"),
+        ("kind", lambda d: _scaling(d, 1, 2, 2), "no escala de 1 a 1 replica en kind"),
+        ("kind", lambda d: _scaling(d, 2, 2, 6), "en kind es 1"),
+        # staging y prod: la senal de kind (imagen de `kind-registry`) no se activa por descuido, y sin ella el 1 no pasa
+        ("prod", lambda d: _scaling(d, 1, 1, 1), "envoy-scaling: EnvoyProxy api-gateway tiene menos de 2 replicas"),
+        ("staging", lambda d: _scaling(d, 2, 1, 1), "no escala de 2 a 6 replicas"),
+        ("prod", lambda d: (_scaling(d, 1, 1, 1), _container(d).update(image=KIND_IMAGE)), "environment-issuer: el EnvoyProxy de prod usa la imagen"),
+        ("staging", lambda d: (_scaling(d, 1, 1, 1), _container(d).update(image=KIND_IMAGE)), "environment-issuer: el EnvoyProxy de staging usa la imagen"),
+    ],
+    ids=["kind-two-replicas", "kind-hpa-1-6", "kind-hpa-2-2", "kind-as-prod", "prod-one-replica", "staging-hpa-1-1", "prod-with-kind-image", "staging-with-kind-image"],
+)
+def test_the_one_replica_exception_is_only_for_kind(env, mutate, message, docs_by_env):
+    docs = copy.deepcopy(docs_by_env[env])
+    mutate(docs)
+    code, output = gc.conftest(docs, env)
+    assert code != 0 and message in output, output
+
+
+KIND_IMAGE = "kind-registry:5000/vectra/envoy@sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0"
+
+
 @pytest.mark.parametrize(("rule", "case", "mutate"), MUTATIONS, ids=[f"{r}-{c}" for r, c, _ in MUTATIONS])
 def test_rule_fails_on_an_altered_document(rule, case, mutate, docs_by_env):
     docs = copy.deepcopy(docs_by_env["prod"])

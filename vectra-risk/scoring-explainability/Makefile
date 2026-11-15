@@ -48,6 +48,7 @@ image-scoring:
 image-explainability:
 	cd $(ROOT) && docker build -t localhost:5001/vectra/explainability-service:dev -f scoring-explainability/explainability/Dockerfile .
 
+# U01-T13: `--data` pasa el entorno (la politica `hpa-doc` admite el maximo 2 solo en kind).
 # Paso 15: el render de cada entorno con los values que usa Argo CD (`components.yaml`: los del entorno y `values/<env>/scoring-explainability.yaml`),
 # `kubeconform -strict` con los CRD de `ExternalSecret` y `ServiceMonitor` (tests/fixtures/crds/) y `conftest` de `policies/conftest/` (por
 # documento y con todo el render junto). `tests/unit/test_chart.py` tiene un caso que falla por cada regla. Necesita platform/install-tools.sh y
@@ -59,9 +60,10 @@ policy-chart:
 	cd $(ROOT) && rm -rf $(U1)/render && mkdir -p $(U1)/render
 	for env in $(ENVS); do \
 		cd $(ROOT) && uv run python platform/tests/integration.py --chart scoring-explainability/chart --namespace vectra-app --env $$env --out $(U1)/render/$$env && \
+		printf '{"env": "%s"}\n' $$env > $(U1)/render/data-$$env.json && \
 		$(TOOLS)/kubeconform -strict -summary -schema-location default -schema-location '$(CRDS)/{{.ResourceKind}}.json' $(U1)/render/$$env/*.yaml && \
-		$(TOOLS)/conftest test --policy $(POLICIES) $(U1)/render/$$env/*.yaml && \
-		$(TOOLS)/conftest test --combine --namespace chart_set --policy $(POLICIES) $(U1)/render/$$env/*.yaml || exit 1; \
+		$(TOOLS)/conftest test --policy $(POLICIES) --data $(U1)/render/data-$$env.json $(U1)/render/$$env/*.yaml && \
+		$(TOOLS)/conftest test --combine --namespace chart_set --policy $(POLICIES) --data $(U1)/render/data-$$env.json $(U1)/render/$$env/*.yaml || exit 1; \
 	done
 
 # Las politicas de U1 (Kyverno y rego) sobre el render de cada entorno. `platform check-chart` rinde los tres entornos en un mismo directorio y
