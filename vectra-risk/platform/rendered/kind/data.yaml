@@ -266,7 +266,9 @@ metadata:
     vectra.io/criticality: critical
 spec:
   imageName: ghcr.io/cloudnative-pg/postgresql:17.9-system-trixie@sha256:8fd8db26090e602458269741849e5c9cd7aff577a22af53c8a402c580fd1e729
-  instances: 1
+  instances: 2
+  minSyncReplicas: 1
+  maxSyncReplicas: 1
   primaryUpdateStrategy: unsupervised
   bootstrap:
     initdb:

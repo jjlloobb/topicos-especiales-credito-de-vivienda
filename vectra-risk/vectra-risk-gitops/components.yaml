@@ -5,7 +5,7 @@ git:
   staging: https://git.banco.internal/vectra/vectra-risk.git # POR CONFIRMAR con el banco
   prod: https://git.banco.internal/vectra/vectra-risk.git # POR CONFIRMAR con el banco
 chart_mirror: https://charts.banco.internal/vectra # POR CONFIRMAR con el banco; staging y prod
-system_namespaces: [cert-manager, cnpg-system, external-secrets, kyverno, linkerd, linkerd-cni, envoy-gateway-system, kserve, argocd, vault]
+system_namespaces: [kube-system, cert-manager, cnpg-system, external-secrets, kyverno, linkerd, linkerd-cni, envoy-gateway-system, kserve, argocd, vault]
 # Valores de una unidad: `vectra-risk-gitops/values/<env>/<componente>.yaml` se agrega solo; `generate.py` no lo borra.
 # U2 no los usa (decision V1-a): se renderiza en el repositorio desde los values de `identity-edge/`.
 components:
@@ -25,6 +25,8 @@ components:
   - { name: kserve, wave: 0, namespace: kserve, repo: "ghcr.io/kserve/charts", chart: kserve-resources, version: v0.21.0, values: [platform/operators/kserve.yaml] }
   - { name: argo-cd, wave: 0, namespace: argocd, repo: "https://argoproj.github.io/argo-helm", chart: argo-cd, version: 10.11.6, values: [platform/operators/argo-cd.yaml], kind_values: [platform/operators/argo-cd-kind.yaml] }
   - { name: vault, wave: 0, namespace: vault, envs: [kind], repo: "https://helm.releases.hashicorp.com", chart: vault, version: 0.34.1, values: [platform/operators/vault-kind.yaml] }
+  # Solo kind: alimenta los HPA. Wave 1 porque usa la PriorityClass `vectra-normal` (misma wave que priority-classes, como linkerd-control-plane).
+  - { name: metrics-server, wave: 1, namespace: kube-system, envs: [kind], repo: "https://kubernetes-sigs.github.io/metrics-server", chart: metrics-server, version: 3.13.0, values: [platform/operators/metrics-server-kind.yaml] }
   - { name: mesh-certificates, wave: 1, namespace: linkerd, path: platform/mesh, include: certificates.yaml }
   - { name: linkerd-control-plane, wave: 1, namespace: linkerd, repo: "https://helm.linkerd.io/edge", chart: linkerd-control-plane, version: 2026.10.2, values: [platform/mesh/linkerd-values.yaml], kind_values: [platform/mesh/linkerd-kind.yaml] }
   - { name: kyverno-context-rbac, wave: 1, namespace: kyverno, path: platform/policies/rbac, include: kyverno-context.yaml }

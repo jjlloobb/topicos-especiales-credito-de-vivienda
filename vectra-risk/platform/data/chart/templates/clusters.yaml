@@ -9,10 +9,13 @@ metadata:
     vectra.io/criticality: {{ $c.criticality }}
 spec:
   imageName: {{ $.Values.imageName }}
-  instances: {{ $.Values.instances }}
-  {{- if gt (int $.Values.instances) 1 }}
+  {{- /* `instances` de un cluster, si lo declara, gana sobre el global (kind: solo registry-db tiene replica). */}}
+  {{- $instances := int ($c.instances | default $.Values.instances) }}
+  instances: {{ $instances }}
+  {{- if gt $instances 1 }}
   minSyncReplicas: 1
-  maxSyncReplicas: 2
+  {{- /* CloudNativePG exige maxSyncReplicas < instances. */}}
+  maxSyncReplicas: {{ min 2 (sub $instances 1) }}
   {{- end }}
   primaryUpdateStrategy: unsupervised
   bootstrap:

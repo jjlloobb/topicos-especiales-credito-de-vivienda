@@ -278,7 +278,7 @@ COMPONENTS = yaml.safe_load((GITOPS / "components.yaml").read_text(encoding="utf
 # P-U1-12: cada componente en su wave.
 EXPECTED_WAVES = {
     0: {"cert-manager", "trust-manager", "cloudnative-pg", "external-secrets-rbac", "external-secrets-rbac-kind", "external-secrets", "kyverno", "linkerd-crds", "linkerd-cni", "prometheus-operator-crds", "envoy-gateway", "kserve-crd", "kserve", "argo-cd", "vault"},
-    1: {"mesh-certificates", "linkerd-control-plane", "kyverno-context-rbac", "kyverno-policies", "priority-classes", "namespaces", "quotas", "network", "secret-store", "secret-store-env", "verification-operator", "verify-images"},
+    1: {"mesh-certificates", "linkerd-control-plane", "kyverno-context-rbac", "kyverno-policies", "priority-classes", "namespaces", "quotas", "network", "secret-store", "secret-store-env", "verification-operator", "verify-images", "metrics-server"},
     2: {"postgres", "minio", "valkey"},
     3: {"grafana-secrets", "keycloak", "gateway", "ratelimit"},
     4: {"observability-monitors", "kube-prometheus-stack", "loki", "tempo", "alloy", "pushgateway", "otel-collector", "observability-rules", "grafana-config", "grafana-dashboards", "identity-jobs", "identity-rules", "identity-monitors"},

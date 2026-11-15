@@ -52,7 +52,7 @@ def chart_repo(component: Doc, env: str, config: Doc) -> str:
 
 
 def project(env: str, config: Doc, components: list[Doc]) -> Doc:
-    namespaces = [n for n in [*MESHED, *config["system_namespaces"]] if n != "vault" or env == "kind"]
+    namespaces = [n for n in [*MESHED, *config["system_namespaces"]] if n not in {"vault", "kube-system"} or env == "kind"]
     if env != "prod":
         namespaces.append("vectra-mock")
     repos = {config["git"][env], *(chart_repo(c, env, config) for c in components if "chart" in c)}

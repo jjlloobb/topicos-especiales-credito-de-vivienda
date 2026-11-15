@@ -31,7 +31,11 @@ PLATFORM = Path(__file__).resolve().parents[1]
 # (`case-management/chart/values-kind.yaml`; INF-U8-04 dice 256 Mi) y el mock 64 Mi: 2 x (128 + 20) + 2 x (128 + 20) + 2 x (64 + 20) Mi = 760 Mi = 0,7422 GiB. La rama midio 10,3438 -> 11,0859 GiB
 # sobre una base sin U11 ni U10; al fusionar con las dos (11,0234 GiB) el total pasa a 11,7656 GiB, redondeado hacia arriba a 0,1 GiB. Con 256 Mi (opcion a) habria sido 1,2422 GiB.
 # Con esto estan todas las unidades de aplicacion menos U12 (tope de parada, 13,0).
-BUDGET_GIB = 11.8
+# Subido a 13,4 en U01-T10 (cifra medida, no una decision de recorte): el total pasa de 11,7656 a 13,3672 GiB, redondeado hacia arriba a 0,1 GiB. Suma
+# 1,6016 GiB: la 2.a instancia de `registry-db` (256 Mi + 20 Mi de proxy = 0,2695), la 2.a replica de Keycloak que pide su HPA y el StatefulSet no declaraba
+# (1.000 Mi + 20 Mi = 1,0195; antes contaba 1), metrics-server (64 Mi, kube-system sin proxy = 0,0625) y la boveda de kind (256 Mi = 0,25). 13,4 supera el tope
+# de parada de 13,0 que se habia fijado para U12: los recortes de memoria de kind son otra tarea; ver la bitacora de U01-T10.
+BUDGET_GIB = 13.4
 PROXY_GIB = 20 / 1024
 MESHED = {
     "vectra-edge", "vectra-app", "vectra-serving", "vectra-staging", "vectra-data", "vectra-identity", "vectra-mock",
@@ -94,14 +98,30 @@ def inference_service_gib(document: dict) -> float:
     return total
 
 
+def hpa_minimums() -> dict[tuple[str, str], int]:
+    """`minReplicas` de cada HPA por (tipo, nombre) de lo que escala. Sin HPA que lo suba, el workload cuenta sus `replicas`."""
+    result: dict[tuple[str, str], int] = {}
+    for document in rendered():
+        if document["kind"] == "HorizontalPodAutoscaler":
+            target = document["spec"]["scaleTargetRef"]
+            result[(target["kind"], target["name"])] = int(document["spec"].get("minReplicas", 1))
+    return result
+
+
+def workload_replicas(document: dict, minimums: dict[tuple[str, str], int]) -> int:
+    declared = document["spec"].get("replicas", 1)
+    return max(declared, minimums.get((document["kind"], document["metadata"]["name"]), 0))
+
+
 def requested_gib(services: list[dict] | None = None) -> float:
     total = 0.0
+    minimums = hpa_minimums()
     for document in rendered():
         namespace = document["metadata"].get("namespace", "")
         proxy = PROXY_GIB if namespace in MESHED else 0.0
         kind = document["kind"]
         if kind in {"Deployment", "StatefulSet"}:
-            total += document["spec"].get("replicas", 1) * (
+            total += workload_replicas(document, minimums) * (
                 pod_memory(document["spec"]["template"]["spec"]) + proxy
             )
         elif kind == "DaemonSet":
@@ -113,6 +133,17 @@ def requested_gib(services: list[dict] | None = None) -> float:
             memory = gib(document["spec"]["resources"]["requests"]["memory"])
             total += document["spec"].get("replicas", 1) * (memory + proxy)
     return total + sum(inference_service_gib(d) for d in inference_services(services))
+
+
+def test_budget_counts_the_minimum_replicas_of_statefulset_hpas():
+    """U01-T10: el HPA de Keycloak pide 2 y el StatefulSet declara 1; el planificador reserva las 2 (`replicas` lo fija el HPA, no el chart)."""
+    minimums = hpa_minimums()
+    keycloak = next(d for d in rendered() if d["kind"] == "StatefulSet" and d["metadata"]["name"] == "keycloak")
+    assert keycloak["spec"].get("replicas", 1) == 1
+    assert minimums[("StatefulSet", "keycloak")] == 2
+    assert workload_replicas(keycloak, minimums) == 2
+    plain = next(d for d in rendered() if d["kind"] == "StatefulSet" and ("StatefulSet", d["metadata"]["name"]) not in minimums)
+    assert workload_replicas(plain, minimums) == plain["spec"].get("replicas", 1)
 
 
 def test_the_profile_requests_fit_the_budget():
@@ -155,13 +186,33 @@ def test_kind_serving_halves_memory_requests_and_staging_and_prod_keep_inf_u6_01
     assert rendered_prod["predictor"]["minReplicas"] == rendered_prod["explainer"]["minReplicas"] == 2
 
 
-def test_kind_has_no_synchronous_replica_but_production_does():
-    clusters = {
-        e: [d for d in integration.render_env(e) for d in d[1] if d["kind"] == "Cluster"]
-        for e in ("kind", "prod")
+def clusters_of(env: str) -> dict[str, dict]:
+    return {
+        d["metadata"]["name"]: d["spec"]
+        for _, group in integration.render_env(env)
+        for d in group
+        if d["kind"] == "Cluster"
     }
-    assert all(c["spec"]["instances"] == 1 and "minSyncReplicas" not in c["spec"] for c in clusters["kind"])
-    assert all(c["spec"]["instances"] == 3 and c["spec"]["minSyncReplicas"] == 1 for c in clusters["prod"])
+
+
+def test_only_registry_db_has_a_synchronous_replica_in_kind():
+    """U01-T10: el /readyz del registro exige un standby sincrono y `registry-db-ro` lee de una replica; los otros tres siguen en 1."""
+    kind = clusters_of("kind")
+    assert set(kind) == {"registry-db", "case-db", "governance-db", "keycloak-db"}
+    assert kind["registry-db"]["instances"] == 2 and kind["registry-db"]["minSyncReplicas"] == 1
+    # CloudNativePG exige maxSyncReplicas < instances: con 2 instancias, 1.
+    assert kind["registry-db"]["maxSyncReplicas"] == 1
+    for name in ("case-db", "governance-db", "keycloak-db"):
+        assert kind[name]["instances"] == 1 and "minSyncReplicas" not in kind[name], name
+        assert "maxSyncReplicas" not in kind[name], name
+
+
+def test_staging_and_production_keep_three_instances_with_one_synchronous_replica():
+    for env in ("staging", "prod"):
+        clusters = clusters_of(env)
+        assert len(clusters) == 4
+        for name, spec in clusters.items():
+            assert spec["instances"] == 3 and spec["minSyncReplicas"] == 1 and spec["maxSyncReplicas"] == 2, (env, name)
 
 
 def test_minio_keeps_several_drives_for_object_lock():

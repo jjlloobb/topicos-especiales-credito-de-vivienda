@@ -1,4 +1,11 @@
 # Vault en modo dev: solo kind (INF-U1-10). Guarda todo en memoria: al reiniciarse hay que volver a sembrarlo
 # (platform/kind/seed-vault.sh; runbook install.md). ESO lee con token, asi que el inyector no se usa.
-server: { dev: { enabled: true, devRootToken: root } }
 injector: { enabled: false }
+# U01-T10: sin `resources` el pod era BestEffort, lo primero que mata el OOM, y al reiniciarse la boveda en modo dev pierde todo.
+# Requests = limits (QoS Guaranteed: el ultimo que el kernel elige). Cifras: el pod usaba ~150 MiB medidos el 2026-11-14; 256 Mi deja ~70 %
+# de holgura sobre eso (la boveda de kind guarda unas decenas de secretos, no crece con la carga). CPU: reposo casi nulo, 100m cubren el sellado y las lecturas de ESO.
+server:
+  dev: { enabled: true, devRootToken: root }
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 100m, memory: 256Mi }

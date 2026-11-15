@@ -3,6 +3,7 @@
 Si faltan los charts, la prueba falla: `make -C platform charts` los descarga.
 """
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -146,6 +147,42 @@ def test_minio_ilm_rules_are_replaced_not_accumulated(overlay):
         assert mine[0] == f"runCommand ilm rule rm --all --force myminio/{bucket} || true"
 
 
+WRITE_PREFIXES = ("s3:Put", "s3:Delete", "s3:*", "s3:Abort", "s3:Restore", "s3:Replicate", "s3:Bypass", "admin:")
+
+
+def rendered_user_policy(user, *overlay):
+    """Lo que el chart rinde para el usuario `user`: el JSON de la politica que su `createUser` asigna (el render, no los values)."""
+    documents = render("minio", *overlay, "--set-string", "rootUser=x,rootPassword=y")
+    data = {}
+    for document in of(documents, "ConfigMap"):
+        data.update(document.get("data", {}))
+    users = data["add-user"]
+    block = users.split(f"echo {user} >")[1].split("createUser ")[1].split()[0]
+    script = data["add-policy"]
+    slot = next(line.split()[2] for line in script.splitlines() if line.strip().startswith(f"createPolicy {block} "))
+    return block, json.loads(data[f"{slot}.json"])
+
+
+@pytest.mark.parametrize("overlay", [[], ["-f", str(ROOT / "platform/data/minio/values-kind.yaml")]], ids=["base", "kind"])
+def test_validation_readonly_reads_model_store_and_validation_datasets_but_writes_nowhere(overlay):
+    """U01-T10: el Job de U4 lee el manifiesto y el artefacto del model-store con `validation-readonly`."""
+    _, policy = rendered_user_policy("validation-readonly", *overlay)
+    granted = {
+        (action, resource)
+        for statement in policy["Statement"]
+        if statement["Effect"] == "Allow"
+        for action in statement["Action"]
+        for resource in statement["Resource"]
+    }
+    for bucket in ("model-store", "validation-datasets"):
+        for action in ("s3:GetObject", "s3:ListBucket"):
+            for resource in (f"arn:aws:s3:::{bucket}", f"arn:aws:s3:::{bucket}/*"):
+                assert (action, resource) in granted, (action, resource)
+    assert {action for action, _ in granted} == {"s3:GetObject", "s3:ListBucket"}, granted
+    assert not [action for action, _ in granted if action.startswith(WRITE_PREFIXES)]
+    assert {resource.removeprefix("arn:aws:s3:::").split("/")[0] for _, resource in granted} == {"model-store", "validation-datasets"}
+
+
 def test_minio_kind_has_worm_buckets():
     documents = render("minio", "-f", str(ROOT / "platform/data/minio/values-kind.yaml"), "--set-string", "rootUser=x,rootPassword=y")
     data = next(d for d in of(documents, "ConfigMap") if "initialize" in d.get("data", {}))["data"]
@@ -162,6 +199,23 @@ def test_operators_are_ha(name, kind, expected):
 def test_kyverno_admission_has_three_replicas():
     deployment = next(d for d in of(render("kyverno"), "Deployment") if "admission" in d["metadata"]["name"])
     assert deployment["spec"]["replicas"] == 3
+
+
+def test_metrics_server_only_in_kind_by_digest_and_within_the_kyverno_rules():
+    """U01-T10: los HPA de nueve workloads necesitan metrics-server en kind. Los kubelets de kind tienen certificado autofirmado."""
+    assert COMPONENTS["metrics-server"]["envs"] == ["kind"]
+    documents = render("metrics-server")
+    deployment = of(documents, "Deployment")[0]
+    pod = deployment["spec"]["template"]["spec"]
+    container = pod["containers"][0]
+    assert "@sha256:" in container["image"] and not container["image"].endswith(":latest")
+    assert "--kubelet-insecure-tls" in container["args"]
+    assert pod["priorityClassName"].startswith("vectra-")
+    assert deployment["metadata"]["labels"]["vectra.io/criticality"] == "medium"
+    assert pod["securityContext"]["runAsNonRoot"] is True
+    assert container["securityContext"]["readOnlyRootFilesystem"] is True
+    assert {"cpu", "memory"} <= container["resources"]["requests"].keys() & container["resources"]["limits"].keys()
+    assert [d["spec"]["service"]["name"] for d in of(documents, "APIService")] == ["metrics-server"]
 
 
 def test_vault_dev_only_in_kind():

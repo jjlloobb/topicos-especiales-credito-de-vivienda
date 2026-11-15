@@ -19,7 +19,8 @@ buckets:
   - { name: vectra-backups, policy: none, purge: false, versioning: false, objectlocking: false }
 policies:
   - { name: model-store-read, statements: [{ actions: ["s3:GetObject", "s3:ListBucket"], resources: ["arn:aws:s3:::model-store", "arn:aws:s3:::model-store/*"] }] }
-  - { name: validation-read, statements: [{ actions: ["s3:GetObject", "s3:ListBucket"], resources: ["arn:aws:s3:::validation-datasets", "arn:aws:s3:::validation-datasets/*"] }] }
+  # U01-T10: el Job de validacion de U4 lee del model-store (manifiesto, explicador, spec, envolvente, artefacto) y de validation-datasets.
+  - { name: validation-read, statements: [{ actions: ["s3:GetObject", "s3:ListBucket"], resources: ["arn:aws:s3:::validation-datasets", "arn:aws:s3:::validation-datasets/*", "arn:aws:s3:::model-store", "arn:aws:s3:::model-store/*"] }] }
   - { name: loki-write, statements: [{ actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"], resources: ["arn:aws:s3:::loki", "arn:aws:s3:::loki/*"] }] }
   - { name: tempo-write, statements: [{ actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"], resources: ["arn:aws:s3:::tempo", "arn:aws:s3:::tempo/*"] }] }
   - { name: governance-read, statements: [{ actions: ["s3:GetObject", "s3:ListBucket"], resources: ["arn:aws:s3:::model-store", "arn:aws:s3:::model-store/*"] }] }
