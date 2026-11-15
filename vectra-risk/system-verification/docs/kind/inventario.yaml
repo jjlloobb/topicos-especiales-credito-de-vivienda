@@ -1,0 +1,528 @@
+# El inventario unico de lo que solo se puede comprobar en kind (U12-T06, Paso 18). La guia `docs/paso-18-kind.md`, las plantillas de
+# `aidlc-docs/construction/system-verification/evidence/kind/` y la tabla de `evidence/cierre-demo.md` salen de aqui y las ata
+# `tests/unit/test_kind_inventory.py`.
+#
+# `fuentes`: `<abreviatura>:<linea>` o `<abreviatura>:<desde>-<hasta>`; la abreviatura es una clave de `abreviaturas` o una ruta desde `vectra-risk/`.
+# `comprobacion`: al menos un elemento que no sea `manual`. Tipos: `guion:<nombre>` (un guion de `docs/kind/`), `seccion:<s>` (una de las 8 secciones
+# de la CLI), `verify:<nombre>` (`demos/verify/`), `lectura:<orden>` (solo `kubectl get`, `logs`, `auth can-i`, `port-forward`, `free`, `docker stats`,
+# `git log`, `grep`, `ls`, `date`, `make -C case-management policy-chart`) y `manual:<texto>` (lo que se mira a mano, ademas de lo anterior).
+# `demo`: lista con `Base` (flujo base, que sostiene las cuatro), `D1` a `D4`; vacia = ninguna demo depende de ella.
+# Los numeros de linea son los de la rama `tarea/U12-T06`; `test_kind_inventory.py` comprueba que cada uno cae dentro del archivo.
+
+abreviaturas:
+  C-U1: aidlc-docs/construction/platform-foundation/evidence/cierre-acotado.md
+  C-U3: aidlc-docs/construction/decision-registry/evidence/cierre-demo.md
+  C-U4: aidlc-docs/construction/governance/evidence/cierre-demo.md
+  C-U6: aidlc-docs/construction/model-serving/evidence/cierre-demo.md
+  C-U7: aidlc-docs/construction/scoring-explainability/evidence/cierre-demo.md
+  C-U8: aidlc-docs/construction/case-management/evidence/cierre-demo.md
+  C-U9: aidlc-docs/construction/bias-monitoring/evidence/cierre-demo.md
+  C-U10: aidlc-docs/construction/console/evidence/cierre-demo.md
+  C-U11: aidlc-docs/construction/product-metrics/evidence/cierre-demo.md
+  CAND: CANDIDATAS.md
+  DEC: DECISIONES-LOOP.md
+  ENM: aidlc-docs/construction/plans/demo-recorte-funcional.md
+  PLAN: aidlc-docs/construction/plans/system-verification-code-generation-plan.md
+  BR: aidlc-docs/construction/system-verification/functional-design/business-rules.md
+  T04: tareas/U12-T04-demos-cli-y-manifiesto.md
+  T05: tareas/U12-T05-imagen-y-documentacion.md
+  REALM: identity-edge/docs/realm-importacion.md
+  EMISOR: identity-edge/docs/emisor-de-tokens.md
+  P16: identity-edge/docs/paso-16-kind.md
+  INST: platform/runbooks/install.md
+  PS11: model-serving/docs/paso-11-kind.md
+  PERFIL: platform/tests/test_kind_profile.py
+  ROUTES: identity-edge/gateway/routes.yaml
+  K16: platform/rbac/verification-operator/k16.yaml
+  PROM-KIND: platform/observability/values/kube-prometheus-stack-kind.yaml
+  GRAFANA-ES: platform/observability/grafana/external-secrets.yaml
+  CASE-KIND: vectra-risk-gitops/values/kind/case-management.yaml
+  REV-U02T22: revisiones/U02-T22/ronda-1.md
+  REV-U08T05: revisiones/U08-T05/ronda-1.md
+
+entradas:
+  # ---- F0: prerrequisitos -------------------------------------------------------------------------------------------------------------------
+  - id: K-01
+    fase: F0
+    que: "Memoria del host: al menos 8 GiB disponibles antes de instalar (14 GiB de RAM es el minimo; los requests del perfil de kind suman 11,8 GiB)"
+    fuentes: ["INST:20", "PERFIL:34", "DEC:78-86", "T05:35", "C-U6:34"]
+    comprobacion: ["lectura:free -m", "lectura:docker stats --no-stream", "guion:memoria.sh antes"]
+    plantilla: 00-prerrequisitos.md
+    demo: [Base]
+  - id: K-02
+    fase: F0
+    que: "U12-T03, T04 y T05, U02-T22 y U00-T04 en main; la reparacion del realm retirada de tests/doubles/keycloak_tc.py"
+    fuentes: ["T05:358-359", "T04:583", "REALM:34", "CAND:711"]
+    comprobacion: ["lectura:git log --oneline origin/main", "lectura:grep -c repair_shared_authenticator_configs system-verification/tests/doubles/keycloak_tc.py"]
+    plantilla: 00-prerrequisitos.md
+    demo: [Base]
+  - id: K-03
+    fase: F0
+    que: "Paquetes de U5 generados (base, proxy/run-1, adversarial/rt3) y la vigencia de reference-policy.json cubre los dos dias de la corrida"
+    fuentes: ["ENM:388", "CAND:401", "governance/docs/paso-20-kind.md:11-20"]
+    comprobacion: ["lectura:ls reference-model/.out", "manual:la vigencia normativa de reference-policy.json cubre los dos dias de la corrida"]
+    plantilla: 00-prerrequisitos.md
+    demo: [Base]
+  - id: K-04
+    fase: F0
+    que: "Calendario: decisions se lanza antes de 22:18 UTC; el dia D + 1 no es dia 1 del mes; F5 a F10 caben en 3 dias (retencion de Prometheus)"
+    fuentes: ["ENM:385", "T04:170", "T05:374", "PROM-KIND:5"]
+    comprobacion: ["lectura:date -u", "guion:observabilidad.sh consulta prometheus_tsdb_lowest_timestamp_seconds"]
+    plantilla: 00-prerrequisitos.md
+    demo: [D3, D4]
+  - id: K-05
+    fase: F0
+    que: "La boveda de kind esta sembrada y no se ha reiniciado desde la siembra (guarda todo en memoria)"
+    fuentes: ["INST:146-152", "P16:62-68"]
+    comprobacion: ["lectura:kubectl --context kind-vectra get pods -n vault", "lectura:kubectl --context kind-vectra get externalsecret -A", "guion:arranque.sh vault"]
+    plantilla: 00-prerrequisitos.md
+    demo: [Base]
+
+  # ---- F1: imagenes y digests ---------------------------------------------------------------------------------------------------------------
+  - id: K-06
+    fase: F1
+    que: "Imagenes de U3 a U11 publicadas en kind-registry y digests reales en los values de kind, por PR (hoy son de ejemplo: ImagePullBackOff)"
+    fuentes: ["C-U7:41", "C-U8:72", "C-U9:39", "C-U10:70", "C-U11:50", "CAND:701", "CAND:288", "T05:360", "T04:121"]
+    comprobacion: ["lectura:grep -rn sha256:0000 vectra-risk-gitops/values/kind", "guion:arranque.sh vectra-app"]
+    plantilla: 01-imagenes.md
+    demo: [Base]
+  - id: K-07
+    fase: F1
+    que: "Governance, scoring, explainability y casos construidas del mismo commit, con sus digests en un solo PR"
+    fuentes: ["C-U7:42", "C-U8:72", "CAND:484"]
+    comprobacion: ["lectura:git log --oneline origin/main", "manual:el commit de cada imagen en la plantilla y un solo PR de digests"]
+    plantilla: 01-imagenes.md
+    demo: [Base]
+  - id: K-08
+    fase: F1
+    que: "Imagenes de U2 (Keycloak, identity-jobs, config-cli, Envoy, Valkey) publicadas, si U2 no esta instalado"
+    fuentes: ["P16:15", "P16:33-57"]
+    comprobacion: ["guion:arranque.sh vectra-identity vectra-edge"]
+    plantilla: 01-imagenes.md
+    demo: [Base]
+  - id: K-09
+    fase: F1
+    que: "Imagen de U12 publicada y corrida por digest; su memoria en el host frente a --memory 1g"
+    fuentes: ["T05:363", "T05:375", "T05:188"]
+    comprobacion: ["lectura:docker stats --no-stream", "guion:memoria.sh durante"]
+    plantilla: 01-imagenes.md
+    demo: [Base]
+
+  # ---- F2: sync y arranque de cada unidad ---------------------------------------------------------------------------------------------------
+  - id: K-10
+    fase: F2
+    que: "U2 arranca: Envoy con la raiz de solo lectura, las sondas de Valkey contestan, el Job keycloak-config-cli termina"
+    fuentes: ["CAND:95", "CAND:111", "CAND:115", "P16:87-100"]
+    comprobacion: ["guion:arranque.sh vectra-edge vectra-identity", "lectura:kubectl --context kind-vectra get job keycloak-config-cli -n vectra-identity"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [Base]
+  - id: K-11
+    fase: F2
+    que: "decision-registry: Application Synced y Healthy; /readyz responde 200"
+    fuentes: ["C-U3:71", "C-U3:72"]
+    comprobacion: ["lectura:kubectl --context kind-vectra get applications.argoproj.io decision-registry -n argocd", "guion:arranque.sh vectra-app"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [Base]
+  - id: K-12
+    fase: F2
+    que: "ESO materializa las llaves de cada unidad (scoring, explainability, case-service, case-worker, las dos de bias, product-metrics) y existen los cuatro pg-role-case-*"
+    fuentes: ["C-U7:44", "C-U8:73", "C-U9:40", "C-U11:51", "T05:370"]
+    comprobacion: ["lectura:kubectl --context kind-vectra get externalsecret -n vectra-app", "guion:arranque.sh vectra-app"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [Base]
+  - id: K-13
+    fase: F2
+    que: "Ningun contenedor sale con codigo 0 y sin mensaje (falta una variable o la llave private_key_jwt)"
+    fuentes: ["CAND:616", "CAND:624", "REV-U08T05:66"]
+    comprobacion: ["guion:arranque.sh vectra-app", "lectura:kubectl --context kind-vectra logs --previous -n vectra-app"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [Base]
+  - id: K-14
+    fase: F2
+    que: "U8: el hook de migracion corre antes de que los Deployment queden Ready; sslmode=verify-full conecta de verdad con case-db"
+    fuentes: ["C-U8:74", "CAND:625", "CAND:236"]
+    comprobacion: ["lectura:kubectl --context kind-vectra get jobs -n vectra-app", "lectura:kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=case-service"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [Base]
+  - id: K-15
+    fase: F2
+    que: "U7 arranca con la raiz de solo lectura y sin emptyDir; los hosts <isvc>-predictor.vectra-serving y -explainer resuelven desde vectra-app"
+    fuentes: ["C-U7:43", "C-U7:45", "CAND:520"]
+    comprobacion: ["guion:arranque.sh vectra-app", "guion:humo.py flujo --delivery /verification/reference-model/.out"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [Base]
+  - id: K-16
+    fase: F2
+    que: "vectra-internal-ca existe en vectra-app y el JWKS responde por https"
+    fuentes: ["C-U10:72"]
+    comprobacion: ["lectura:kubectl --context kind-vectra get configmap vectra-internal-ca -n vectra-app", "lectura:kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=console-bff"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [Base]
+  - id: K-17
+    fase: F2
+    que: "El eco de U2 y la ServiceAccount temporal console-bff de U4 no existen antes del sync de U10"
+    fuentes: ["C-U10:71", "CAND:402", "CAND:412", "CAND:259", "T05:361"]
+    comprobacion: ["lectura:kubectl --context kind-vectra get deploy,sa -n vectra-app", "lectura:kubectl --context kind-vectra get sa console-bff -n vectra-app"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [Base]
+  - id: K-18
+    fase: F2
+    que: "product-metrics arranca despues del registro; si no, 503 hasta 30 min y dashboard vacio"
+    fuentes: ["C-U11:54", "CAND:598"]
+    comprobacion: ["lectura:kubectl --context kind-vectra get pods -l app.kubernetes.io/name=product-metrics -n vectra-app", "lectura:kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=product-metrics"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [D4]
+  - id: K-19
+    fase: F2
+    que: "Prometheus carga las PrometheusRule de U8 y U11 y raspa los ServiceMonitor de U8 (tres), del BFF y de U11; Grafana descubre el ConfigMap del dashboard en Vectra / Producto"
+    fuentes: ["C-U8:75", "C-U10:73", "C-U11:52", "T05:372"]
+    comprobacion: ["guion:observabilidad.sh reglas", "guion:observabilidad.sh targets"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [D1, D3, D4]
+  - id: K-20
+    fase: F2
+    que: "Selectores y puertos de partida: Prometheus (app.kubernetes.io/name=prometheus, 9090), Loki (loki, 3100) y el registro (decision-registry-service, 8080)"
+    fuentes: ["CAND:671", "T04:141", "T05:367"]
+    comprobacion: ["lectura:kubectl --context kind-vectra get pods -l app.kubernetes.io/name=prometheus -n vectra-observability", "lectura:kubectl --context kind-vectra get pods -l app.kubernetes.io/name=loki -n vectra-observability", "lectura:kubectl --context kind-vectra get pods -l app.kubernetes.io/name=decision-registry-service -n vectra-app"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [Base]
+  - id: K-21
+    fase: F2
+    que: "Proxy de Linkerd en vectra-mock: el target linkerd-proxy en up == 1 (no 403) y los pods Ready con el Server del 4191 (las sondas /live y /ready pasan)"
+    fuentes: ["C-U1:28", "C-U8:69", "DEC:118", "T05:369"]
+    comprobacion: ["guion:observabilidad.sh consulta up{namespace=\"vectra-mock\"}", "lectura:kubectl --context kind-vectra get pods -n vectra-mock"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [D3]
+  - id: K-22
+    fase: F2
+    que: "Politica activa y modelo de referencia activo: serving-config trae policy_version_id y la version"
+    fuentes: ["C-U4:27", "C-U4:28", "ENM:43-51", "ENM:401", "T05:362"]
+    comprobacion: ["guion:humo.py flujo --delivery /verification/reference-model/.out", "manual:plantillas 03 y 04 de U4 (governance/evidence/kind)"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [Base]
+  - id: K-23
+    fase: F2
+    que: "Con 256 MiB por pod bastan el predictor y el explicador del modelo de referencia (sin OOMKilled)"
+    fuentes: ["DEC:82-84", "C-U6:34"]
+    comprobacion: ["guion:arranque.sh vectra-serving", "guion:memoria.sh antes"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [Base]
+  - id: K-24
+    fase: F2
+    que: "Paquetes proxy y RT-3 en el model-store, para D1 y D2"
+    fuentes: ["PS11:42-58", "T05:362"]
+    comprobacion: ["manual:la salida de mc ls de model-serving/docs/paso-11-kind.md, seccion 2", "guion:arranque.sh vectra-data"]
+    plantilla: 02-sync-y-arranque.md
+    demo: [D1, D2]
+  - id: K-25
+    fase: F2
+    que: "Watchdog recibido, no solo disparado"
+    fuentes: ["C-U1:27", "T05:369"]
+    comprobacion: ["guion:observabilidad.sh consulta ALERTS{alertname=\"Watchdog\"}"]
+    plantilla: 02-sync-y-arranque.md
+    demo: []
+  - id: K-26
+    fase: F2
+    que: "Flujos negados (suite X01 a X10, casos bloqueados de INF-U10-04, X04): no se comprueban porque network y el Paso 9 estan diferidos; los permitidos se ven por el flujo base y las demos"
+    fuentes: ["C-U1:23", "C-U1:25", "C-U8:70", "C-U9:36", "C-U10:68", "C-U11:49"]
+    comprobacion: ["guion:humo.py flujo --delivery /verification/reference-model/.out"]
+    plantilla: 02-sync-y-arranque.md
+    demo: []
+
+  # ---- F3: identidad y acceso ---------------------------------------------------------------------------------------------------------------
+  - id: K-27
+    fase: F3
+    que: "Si el kind tiene el realm viejo: tras resincronizar U2 quedan 26 de 26 ejecuciones enlazadas; config-cli avisa que no reaplica contrasenas y anade una segunda credencial OTP con la misma semilla"
+    fuentes: ["REALM:23-29", "CAND:712", "CAND:715", "REV-U02T22:50", "REV-U02T22:68", "T05:358"]
+    comprobacion: ["guion:identidad.sh", "guion:humo.py login"]
+    plantilla: 03-identidad-y-acceso.md
+    demo: [Base]
+  - id: K-28
+    fase: F3
+    que: "Bloqueos por fuerza bruta: el login fallido por el error interno del realm viejo no cuenta (numFailures 0); si cuentan las contrasenas mal tecleadas (60 s al quinto fallo, permanente al 20)"
+    fuentes: ["DEC:122", "DEC:128", "CAND:715", "REALM:29"]
+    comprobacion: ["guion:humo.py login"]
+    plantilla: 03-identidad-y-acceso.md
+    demo: [Base]
+  - id: K-29
+    fase: F3
+    que: "Login por rol por el gateway real, con el emisor publico: analista-1, analista-2, ingeniero-1, cro-1 y cumplimiento-1; cada token con acr = mfa, amr, aud con console-bff y su rol"
+    fuentes: ["C-U10:65", "CAND:42", "CAND:44", "CAND:48", "DEC:110", "T05:367", "T05:373"]
+    comprobacion: ["guion:humo.py login"]
+    plantilla: 03-identidad-y-acceso.md
+    demo: [Base]
+  - id: K-30
+    fase: F3
+    que: "El iss de los tokens del navegador es el que valida el BFF y cada destino (F10 a F14): 200 en bandeja, detalle, modelos y congelamientos, ningun 401"
+    fuentes: ["C-U10:69", "CAND:692", "CAND:702", "EMISOR:64-66"]
+    comprobacion: ["guion:humo.py flujo --delivery /verification/reference-model/.out"]
+    plantilla: 03-identidad-y-acceso.md
+    demo: [Base]
+  - id: K-31
+    fase: F3
+    que: "La aud de la asercion de servicio la acepta el Keycloak del cluster (nunca medido en kind con el realm real)"
+    fuentes: ["EMISOR:81", "CAND:65", "CAND:703", "T05:359"]
+    comprobacion: ["lectura:kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=case-worker", "guion:humo.py flujo --delivery /verification/reference-model/.out"]
+    plantilla: 03-identidad-y-acceso.md
+    demo: [Base]
+  - id: K-32
+    fase: F3
+    que: "Camino a la boveda desde la estacion (no lo da K16): lectura de las 5 credenciales y las 2 llaves; el token root de kind no rompe el filtro de evidencias"
+    fuentes: ["CAND:640", "CAND:647", "CAND:673", "CAND:678", "T05:365"]
+    comprobacion: ["guion:humo.py login", "seccion:prepare"]
+    plantilla: 03-identidad-y-acceso.md
+    demo: [Base]
+  - id: K-33
+    fase: F3
+    que: "Credenciales de los usuarios -2 (analista-2 o cro-2 en D1; cumplimiento-2 en D2) en la boveda, y sus semillas TOTP en el telefono del presentador"
+    fuentes: ["T05:365", "T05:374", "T04:585", "P16:67", "P16:75"]
+    comprobacion: ["guion:identidad.sh", "manual:login manual de cumplimiento-2 en la consola"]
+    plantilla: 03-identidad-y-acceso.md
+    demo: [D1, D2]
+  - id: K-34
+    fase: F3
+    que: "K16 de verdad: lo que cada verify lee lo permite el grupo vectra-verification-operators; que pasa en vectra-staging y vectra-mock (K16 no da nada)"
+    fuentes: ["T05:366", "T04:127-135", "K16:1-20"]
+    comprobacion: ["guion:identidad.sh"]
+    plantilla: 03-identidad-y-acceso.md
+    demo: [D1, D2, D3]
+  - id: K-35
+    fase: F3
+    que: "Consola en el navegador por el gateway real: redireccion, /callback, recarga con prompt=none; cero securitypolicyviolation con la CSP real; la cookie vectra-spa-route llega a los pods"
+    fuentes: ["C-U10:65", "C-U10:66", "C-U10:73", "CAND:631", "CAND:659", "T05:371"]
+    comprobacion: ["guion:humo.py consola", "manual:la consola del navegador del presentador"]
+    plantilla: 03-identidad-y-acceso.md
+    demo: [Base]
+  - id: K-36
+    fase: F3
+    que: "CASE_ALLOW_TEST_SCENARIOS activo en kind (la cabecera de escenario de U12 se acepta)"
+    fuentes: ["CASE-KIND:3", "T05:368"]
+    comprobacion: ["guion:humo.py flujo --delivery /verification/reference-model/.out"]
+    plantilla: 03-identidad-y-acceso.md
+    demo: [Base]
+  - id: K-37
+    fase: F3
+    que: "Limites del gateway con el volumen real: 30/s para el simulador, 20/s por usuario en /api/console, 600/min en auth-login y auth-token (cero 429)"
+    fuentes: ["ROUTES:87-107", "T05:368"]
+    comprobacion: ["seccion:decisions"]
+    plantilla: 03-identidad-y-acceso.md
+    demo: [D2, D4]
+
+  # ---- F4: flujo base -----------------------------------------------------------------------------------------------------------------------
+  - id: K-38
+    fase: F4
+    que: "Humo de punta a punta: una solicitud por el gateway llega a listo con registry_entry_id; la explicacion por el BFF; una decision de analista-1; el append con ack"
+    fuentes: ["C-U7:40", "C-U3:73", "ENM:52-71"]
+    comprobacion: ["guion:humo.py flujo --delivery /verification/reference-model/.out"]
+    plantilla: 04-flujo-base.md
+    demo: [Base]
+
+  # ---- F5: prepare y D3 ---------------------------------------------------------------------------------------------------------------------
+  - id: K-39
+    fase: F5
+    que: "prepare fija runId y started_at; con el PR de runId fusionado, make -C case-management policy-chart sigue en verde sobre main"
+    fuentes: ["T04:584", "ENM:376", "ENM:407"]
+    comprobacion: ["seccion:prepare", "lectura:make -C case-management policy-chart"]
+    plantilla: 05-prepare-y-d3.md
+    demo: [D3]
+  - id: K-40
+    fase: F5
+    que: "El Job rt5-demo-<runId> termina despues de started_at; su log trae el 403 del proxy y el valor real de l5d-proxy-error"
+    fuentes: ["C-U8:68", "T05:370"]
+    comprobacion: ["verify:rt-5.sh", "lectura:kubectl --context kind-vectra get jobs -n vectra-app"]
+    plantilla: 05-prepare-y-d3.md
+    demo: [D3]
+  - id: K-41
+    fase: F5
+    que: "La serie inbound_http_authz_deny_total existe con sus etiquetas reales (namespace vectra-mock, route_name core-mock-catch-all; la prueba de U1 declara otras)"
+    fuentes: ["C-U1:28", "C-U8:69", "CAND:719", "T05:369"]
+    comprobacion: ["guion:observabilidad.sh serie inbound_http_authz_deny_total"]
+    plantilla: 05-prepare-y-d3.md
+    demo: [D3]
+  - id: K-42
+    fase: F5
+    que: "CoreWriteAttempt llega a firing y cuanto dura (no tiene for:; la expresion mira 5 min)"
+    fuentes: ["T04:143", "T04:169", "T05:370", "T05:374"]
+    comprobacion: ["guion:observabilidad.sh consulta ALERTS{alertname=\"CoreWriteAttempt\"}", "verify:rt-5.sh"]
+    plantilla: 05-prepare-y-d3.md
+    demo: [D3]
+  - id: K-43
+    fase: F5
+    que: "vectra_core_write_attempts_total en 0 desde el arranque"
+    fuentes: ["C-U8:68", "DEC:100"]
+    comprobacion: ["seccion:rt5", "verify:rt-5.sh", "guion:observabilidad.sh consulta sum(vectra_core_write_attempts_total)"]
+    plantilla: 05-prepare-y-d3.md
+    demo: [D3]
+
+  # ---- F6: decisions (D4, dia D) ------------------------------------------------------------------------------------------------------------
+  - id: K-44
+    fase: F6
+    que: "2 000 casos: accepted = sent; cada uno en listo o en un fail-closed documentado; los ultimos no quedan en not_ready sin decidir"
+    fuentes: ["CAND:676", "PLAN:107", "PLAN:147"]
+    comprobacion: ["seccion:decisions"]
+    plantilla: 06-decisions-d4.md
+    demo: [D4]
+  - id: K-45
+    fase: F6
+    que: "Las constantes de la estimacion de guard (1 s por caso, 300 s) frente al tiempo real; el ritmo real frente a 10/s"
+    fuentes: ["CAND:634", "T05:375"]
+    comprobacion: ["seccion:decisions"]
+    plantilla: 06-decisions-d4.md
+    demo: [D4]
+  - id: K-46
+    fase: F6
+    que: "registry-aggregator con atraso 0 y POST /v1/monitoring/daily:query con resultado mayor que 0 tras los 2 000 casos"
+    fuentes: ["C-U3:74", "C-U3:75"]
+    comprobacion: ["lectura:kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=registry-aggregator", "guion:observabilidad.sh consulta vectra_bias_last_run_ok"]
+    plantilla: 06-decisions-d4.md
+    demo: [D2]
+  - id: K-47
+    fase: F6
+    que: "Memoria real con 2 000 decisiones frente a los 128 MiB de request de kind: case-service, case-worker, el BFF y product-metrics"
+    fuentes: ["C-U8:76", "C-U10:74", "C-U11:53", "CAND:619", "CAND:696", "DEC:102", "DEC:104", "DEC:108"]
+    comprobacion: ["guion:memoria.sh despues"]
+    plantilla: 06-decisions-d4.md
+    demo: [D4]
+
+  # ---- F7: D1 (RT-3, journey-7-3) -----------------------------------------------------------------------------------------------------------
+  - id: K-48
+    fase: F7
+    que: "RT3-a, c y d: 422 de U4 y serving-config sin cambio. RT3-b y 'a y d desplegados' se informan y pueden quedar no ejecutado"
+    fuentes: ["DEC:124", "ENM:79-81"]
+    comprobacion: ["seccion:rt3"]
+    plantilla: 07-d1-rt3.md
+    demo: [D1]
+  - id: K-49
+    fase: F7
+    que: "Con el PR de F22 fusionado y network sincronizada con prune, desaparecen los cinco recursos de F22; con la reversion, vuelven"
+    fuentes: ["T04:115", "T04:587", "ENM:82", "ENM:413"]
+    comprobacion: ["seccion:rt3", "guion:estado-final.sh"]
+    plantilla: 07-d1-rt3.md
+    demo: [D1]
+  - id: K-50
+    fase: F7
+    que: "Que last_cause da F22 apagado (timeout o explainer_unavailable); el caso pasa de en_sincronizacion a no_disponible entre 12,4 y 19,3 min; cero recommendation"
+    fuentes: ["T05:374", "T04:167", "ENM:382"]
+    comprobacion: ["seccion:rt3", "verify:journey-7-3.sh"]
+    plantilla: 07-d1-rt3.md
+    demo: [D1]
+  - id: K-51
+    fase: F7
+    que: "vectra_cases_failclosed_persistent raspado y FailClosedPersistente en firing unos minutos despues del primer caso en no_disponible (la herramienta la sondea hasta 5 min tras la escalada)"
+    fuentes: ["C-U8:75", "T04:143", "T04:167"]
+    comprobacion: ["guion:observabilidad.sh consulta vectra_cases_failclosed_persistent", "guion:observabilidad.sh consulta ALERTS{alertname=\"FailClosedPersistente\"}"]
+    plantilla: 07-d1-rt3.md
+    demo: [D1]
+  - id: K-52
+    fase: F7
+    que: "La reversion devuelve el flujo a listo; cuantos casos no_disponible quedan y si la alerta sigue activa durante D2 y D4"
+    fuentes: ["T05:374", "ENM:382-384", "ENM:410"]
+    comprobacion: ["guion:humo.py flujo --delivery /verification/reference-model/.out", "guion:estado-final.sh"]
+    plantilla: 07-d1-rt3.md
+    demo: [D1, D2]
+
+  # ---- F8: D2 (RT-2, journey-7-4) -----------------------------------------------------------------------------------------------------------
+  - id: K-53
+    fase: F8
+    que: "rt2-setup: el proxy queda aprobado, con initial_disparity no vacia, tras el PR proxy-staging"
+    fuentes: ["ENM:91", "T04:118", "T04:119"]
+    comprobacion: ["seccion:rt2-setup"]
+    plantilla: 08-d2-rt2.md
+    demo: [D2]
+  - id: K-54
+    fase: F8
+    que: "Promocion con trafico: 0 version_mismatch; el activo nunca baja de 2 replicas; los requests de memoria durante la promocion caben"
+    fuentes: ["C-U7:38", "C-U6:32", "DEC:80"]
+    comprobacion: ["guion:arranque.sh vectra-serving", "guion:memoria.sh durante", "lectura:kubectl --context kind-vectra get inferenceservices,pods -n vectra-serving"]
+    plantilla: 08-d2-rt2.md
+    demo: [D2]
+  - id: K-55
+    fase: F8
+    que: "Las celdas de RT-2: rt2 se niega solo por una celda alcanzable corta; las inalcanzables se informan"
+    fuentes: ["DEC:116", "CAND:333"]
+    comprobacion: ["seccion:rt2"]
+    plantilla: 08-d2-rt2.md
+    demo: [D2]
+  - id: K-56
+    fase: F8
+    que: "U3 no responde 504 al cron de U9 con la maquina cargada; las metricas de bias llegan por el Pushgateway"
+    fuentes: ["DEC:94", "CAND:254", "T05:374"]
+    comprobacion: ["lectura:kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=bias-monitoring-job", "guion:observabilidad.sh consulta vectra_bias_last_run_ok"]
+    plantilla: 08-d2-rt2.md
+    demo: [D2]
+  - id: K-57
+    fase: F8
+    que: "El proxy congela con una corrida real del CronJob; rt2_latency a 1 800 s o menos (una medicion); el paquete completo (FreezeContext, data_sources, initial_disparity)"
+    fuentes: ["C-U9:37", "ENM:99", "CAND:641"]
+    comprobacion: ["seccion:rt2"]
+    plantilla: 08-d2-rt2.md
+    demo: [D2]
+  - id: K-58
+    fase: F8
+    que: "FailClosed(model_frozen) en 6 s o menos tras el freeze; los casos nuevos quedan modelo_congelado"
+    fuentes: ["C-U7:39", "C-U4:32"]
+    comprobacion: ["seccion:rt2", "verify:journey-7-4.sh"]
+    plantilla: 08-d2-rt2.md
+    demo: [D2]
+  - id: K-59
+    fase: F8
+    que: "Duracion y pico de memoria de una corrida de bias, bajo los 256 MiB del limite"
+    fuentes: ["C-U9:38"]
+    comprobacion: ["lectura:kubectl --context kind-vectra get jobs -n vectra-app", "guion:memoria.sh durante"]
+    plantilla: 08-d2-rt2.md
+    demo: [D2]
+  - id: K-60
+    fase: F8
+    que: "Los dos modos de reactivacion: el de la herramienta con cumplimiento-1, y --reactivation presenter con cumplimiento-2 en la consola (ventana emergente, /stepup-callback, acr = mfa, ResolveFrozenDialog)"
+    fuentes: ["C-U10:67", "DEC:132", "T04:585", "T05:374"]
+    comprobacion: ["seccion:rt2", "manual:la consola, con cumplimiento-2"]
+    plantilla: 08-d2-rt2.md
+    demo: [D2]
+  - id: K-61
+    fase: F8
+    que: "Tras reactivar no se recongela; el barrido de U8 devuelve los modelo_congelado; el rollback deja el modelo de referencia activo; la duracion real frente a mas de 75 min"
+    fuentes: ["ENM:98", "ENM:100", "T04:168", "T05:374"]
+    comprobacion: ["seccion:rt2", "guion:estado-final.sh"]
+    plantilla: 08-d2-rt2.md
+    demo: [D2]
+
+  # ---- F9: D4 (dia D + 1 UTC) ---------------------------------------------------------------------------------------------------------------
+  - id: K-62
+    fase: F9
+    que: "North Star, sostenida, tasa de consulta y ProductMetricsStale con datos reales, tras las 02:40 UTC"
+    fuentes: ["C-U11:47", "C-U11:48", "ENM:117", "T05:372", "T05:374"]
+    comprobacion: ["seccion:u11", "verify:dashboard.sh"]
+    plantilla: 09-d4-u11-y-grafana.md
+    demo: [D4]
+  - id: K-63
+    fase: F9
+    que: "Grafana por port-forward con grafana-admin; el dashboard Producto carga con sus cuatro paneles. Los permisos por carpeta y rol no se ensenan"
+    fuentes: ["DEC:132", "C-U11:48", "T04:161", "T04:586", "T05:373", "GRAFANA-ES:31-36", "CAND:82"]
+    comprobacion: ["lectura:kubectl --context kind-vectra port-forward -n vectra-observability", "manual:el navegador, en el dashboard Producto"]
+    plantilla: 09-d4-u11-y-grafana.md
+    demo: [D4]
+
+  # ---- F10: informe y estado final ----------------------------------------------------------------------------------------------------------
+  - id: K-64
+    fase: F10
+    que: "El informe lista cada RT, demo e historia; salen no ejecutado US-106, 109, 603, 305, 604, 608, 609 y 610, RT3-b y 'a y d desplegados'; ninguno sale pasa sin evidencia"
+    fuentes: ["CAND:641", "T05:113", "PLAN:209"]
+    comprobacion: ["seccion:report"]
+    plantilla: 10-informe-y-estado-final.md
+    demo: [Base]
+  - id: K-65
+    fase: F10
+    que: "El cluster queda como estaba: modelo de referencia activo, ninguna version congelado, sin InferenceService de staging, F22 encendido"
+    fuentes: ["BR:130", "T04:587"]
+    comprobacion: ["guion:estado-final.sh"]
+    plantilla: 10-informe-y-estado-final.md
+    demo: [D1, D2]
+
+  # ---- F11: opcionales ----------------------------------------------------------------------------------------------------------------------
+  - id: K-66
+    fase: F11
+    que: "(a) El login de la herramienta con Keycloak caido a mitad: se cuelga o termina con error. (b) El apagado del worker con trabajo en vuelo (34 s frente a 40 s de gracia). (c) PBT-U8-07 abreviado contra el registro real"
+    fuentes: ["CAND:684", "C-U8:77", "CAND:625", "CAND:613", "C-U8:71"]
+    comprobacion: ["lectura:kubectl --context kind-vectra get pods -n vectra-app", "lectura:kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=case-worker"]
+    plantilla: 11-opcionales.md
+    demo: []

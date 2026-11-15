@@ -110,3 +110,7 @@ Defectos que la imagen reveló en `src/` (U12-T04), corregidos con su rojo en `b
   La tabla de arriba es la fuente del README.
 - **U12-T06:** `cumplimiento-2` (contraseña y semilla) en la bóveda de kind y en el teléfono del presentador; `analista-2` o `cro-2` igual; `grafana-admin`; el PR de `runId` fusionado deja `make -C case-management policy-chart` en verde; el modo `presenter` ensayado de verdad; los cinco recursos de F22 desaparecen con el sync con prune y vuelven con la reversión;
   RT3-b da 409 con los paquetes del modelo de referencia (se genera desde `proxy/run-5`); `CoreWriteAttempt` dura ≈ 5 min en `firing` y no se ensaya dos veces sin reiniciar el proxy de Linkerd de `vectra-mock`; `FailClosedPersistente` no distingue un ensayo anterior.
+
+## La verificación en kind (U12-T06)
+
+La guía del operador es `system-verification/docs/paso-18-kind.md`: once fases (F0 a F11) con sus comandos, salidas esperadas, puertas y tabla de síntomas por unidad. Los guiones de lectura (`system-verification/docs/kind/*.sh`), el humo (`humo.py`: `login`, `flujo`, `consola`, `modelos`) y el inventario de lo que solo se ve en kind (`docs/kind/inventario.yaml`, K-01 a K-66) son suyos; las plantillas de evidencia están en `aidlc-docs/construction/system-verification/evidence/kind/`. Las secciones de la CLI no cambian.

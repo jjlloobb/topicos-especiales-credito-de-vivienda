@@ -45,6 +45,7 @@ PROGRAMS = ("kubectl", "argocd")
 _PROGRAM_WORD = re.compile(r"\b(kubectl|argocd)\b")
 _REFERENCE = re.compile(r"[/:@]|https://")
 _SEPARATORS = re.compile(r"&&|\|\||[;|&)`\n]")
+_NAMESPACE_VALUE = re.compile(r"(?:^|\s)(?:-n|--namespace)(?:\s+|=)$")
 
 
 @dataclass(frozen=True)
@@ -152,6 +153,8 @@ def scan_text(text: str, name: str, base_line: int = 1) -> list[Finding]:
             cut = _SEPARATORS.search(tail)
             tokens, quoted = _split(tail[: cut.start()] if cut else tail)
             if program == "argocd":
+                if _NAMESPACE_VALUE.search(line[: match.start()]):
+                    continue  # U12-T06: `-n argocd` es el namespace de Argo CD (`kubectl get applications.argoproj.io -n argocd`), no el binario
                 if tail.strip():
                     findings.append(Finding(name, number, "argocd"))
                 continue
@@ -258,9 +261,10 @@ def scan_file(path: Path, name: str | None = None) -> list[Finding]:
 
 
 def scan_tree(root: Path) -> list[Finding]:
-    """Todo archivo de texto de `src/` y `demos/` (cualquier extension o ninguna), el `Makefile`, `README.md` y `Dockerfile`."""
+    """Todo archivo de texto de `src/`, `demos/` y `docs/` (cualquier extension o ninguna), el `Makefile`, `README.md` y `Dockerfile`. Un Markdown de `docs/` (la guia de kind, U12-T06) se juzga con
+    `scan_guide`: sus bloques «orden del operador» solo admiten la lista cerrada."""
     files: list[Path] = []
-    for sub in ("src", "demos"):
+    for sub in ("src", "demos", "docs"):
         if (root / sub).is_dir():
             files += sorted(
                 p
@@ -268,7 +272,14 @@ def scan_tree(root: Path) -> list[Finding]:
                 if p.is_file() and "__pycache__" not in p.parts and ".pyc" != p.suffix
             )
     files += [root / name for name in ("Makefile", "README.md", "Dockerfile") if (root / name).is_file()]
-    return [f for path in files for f in scan_file(path, str(path.relative_to(root)))]
+    found: list[Finding] = []
+    for path in files:
+        label = str(path.relative_to(root))
+        if path.suffix == ".md" and "docs" in path.relative_to(root).parts[:1]:
+            found += scan_guide(path.read_text(encoding="utf-8"), label, root)
+        else:
+            found += scan_file(path, label)
+    return found
 
 
 def test_real_files_have_no_findings() -> None:
@@ -511,3 +522,204 @@ def test_red_u12_t04_an_exec_in_a_verify_and_the_sync_of_argo_cd_in_a_script_fai
     guion = (DEMOS_DIR / "journey-7-3.md").read_text(encoding="utf-8")
     assert scan_text(guion, "journey-7-3.md") == []
     assert [f.verb for f in scan_text(guion + "\nargocd app sync network\n", "journey-7-3.md")] == ["argocd"]
+
+
+# --- U12-T06: la guia de kind y sus bloques «orden del operador» (P-4, lista cerrada) ------------------------------------------------------------------
+
+OPERATOR_FENCE = re.compile(r"^\s*```bash operador\s*$")
+FENCE = re.compile(r"^\s*```")
+PHASE_HEADING = re.compile(r"^## (F\d+) ")
+CONTEXT = r"(?:kubectl(?: --context kind-vectra)? )"
+APP = r"[a-z0-9][a-z0-9-]*"
+# La lista cerrada. `sync` es la funcion de `platform/runbooks/install.md` (linea 98); lo demas, la orden literal. Cada Application nombrada tiene que existir en `vectra-risk-gitops/apps/kind/`.
+OPERATOR_ANY_PHASE = (
+    re.compile(rf"^sync (?P<apps>{APP}(?: {APP})*)$"),
+    re.compile(
+        rf"^argocd app sync (?P<apps>{APP})(?: --prune)?(?: && argocd app wait (?P<wait>{APP}) --health(?: --timeout \d+)?)?$"
+    ),
+    re.compile(rf"^argocd app wait (?P<apps>{APP}) --health(?: --timeout \d+)?$"),
+    re.compile(rf"^{CONTEXT}delete -f identity-edge/tests/e2e/echo/manifests\.yaml$"),
+    re.compile(
+        r"^docker (?:push|inspect --format '\{\{index \.RepoDigests 0\}\}') localhost:5001/vectra/system-verification:[\w.-]+$"
+    ),
+)
+OPERATOR_ONLY_F11 = (
+    re.compile(rf"^{CONTEXT}rollout restart deploy/case-worker -n vectra-app$"),
+    re.compile(rf"^{CONTEXT}delete pod -n vectra-identity -l app\.kubernetes\.io/name=keycloak$"),
+)
+GUIDE_FORBIDDEN = re.compile(
+    r"\bhelm +(?:install|upgrade|uninstall)\b|\bterraform +apply\b|\bkind +(?:create|delete)\b|\bdocker +(?:push|build|rm|kill|stop|prune|rmi)\b"
+)
+
+
+def kind_applications(root: Path) -> set[str]:
+    return {p.stem for p in (root.parent / "vectra-risk-gitops" / "apps" / "kind").glob("*.yaml")}
+
+
+def operator_block_findings(
+    lines: list[tuple[int, str]], phase: str, name: str, apps: set[str]
+) -> list[Finding]:
+    """Cada orden de un bloque «orden del operador»: de la lista cerrada, con Applications que existen, y la de F11 solo en F11."""
+    found: list[Finding] = []
+    commands: list[tuple[int, str]] = []
+    pending, start = "", 0
+    for number, raw in lines:
+        text = raw.strip()
+        if not text or text.startswith("#"):
+            continue
+        if not pending:
+            start = number
+        if text.endswith("\\"):
+            pending += text[:-1].strip() + " "
+            continue
+        commands.append((start, (pending + text).strip()))
+        pending = ""
+    for number, command in commands:
+        matched = None
+        for pattern in OPERATOR_ANY_PHASE + (OPERATOR_ONLY_F11 if phase == "F11" else ()):
+            matched = pattern.match(command)
+            if matched:
+                break
+        if matched is None:
+            found.append(
+                Finding(
+                    name,
+                    number,
+                    f"operador: {command.split(' ', 2)[0]} {command.split(' ', 2)[1] if ' ' in command else ''}".strip()
+                    + " (fuera de la lista cerrada)",
+                )
+            )
+            continue
+        groups = matched.groupdict()
+        named = (groups.get("apps") or "").split() + ([groups["wait"]] if groups.get("wait") else [])
+        found += [
+            Finding(name, number, f"operador: Application {app} no existe en apps/kind")
+            for app in named
+            if app not in apps
+        ]
+    return found
+
+
+def scan_guide(text: str, name: str, root: Path = UNIT) -> list[Finding]:
+    """La guia de kind. Fuera de un bloque marcado `bash operador`, solo los cuatro verbos de lectura (`scan_text`) y ninguna orden de escritura de otras herramientas; dentro, solo la lista cerrada."""
+    apps = kind_applications(root)
+    visible: list[str] = []
+    found: list[Finding] = []
+    inside, operator, phase, block = False, False, "", []
+    block_start = 0
+    for number, line in enumerate(text.split("\n"), 1):
+        if (heading := PHASE_HEADING.match(line)) and not inside:
+            phase = heading.group(1)
+        if FENCE.match(line):
+            if not inside:
+                inside, operator, block, block_start = True, bool(OPERATOR_FENCE.match(line)), [], number
+            else:
+                if operator:
+                    found += operator_block_findings(block, phase, name, apps)
+                inside, operator = False, False
+            visible.append("")
+            continue
+        if inside and operator:
+            block.append((number, line))
+            visible.append("")
+        else:
+            visible.append(line)
+    if inside:
+        found.append(Finding(name, block_start, "<fence sin cerrar>"))
+    clean = "\n".join(visible)
+    found += scan_text(clean, name)
+    for number, line in enumerate(visible, 1):
+        if (match := GUIDE_FORBIDDEN.search(line)) is not None:
+            found.append(Finding(name, number, f"fuera de un bloque del operador: {match.group(0)}"))
+    return found
+
+
+def test_the_guide_has_no_findings() -> None:
+    guide = UNIT / "docs" / "paso-18-kind.md"
+    assert scan_guide(guide.read_text(encoding="utf-8"), "docs/paso-18-kind.md") == []
+
+
+def test_scan_tree_reaches_docs_scripts_and_the_guide(tmp_path: Path) -> None:
+    (tmp_path / "docs" / "kind").mkdir(parents=True)
+    (tmp_path / "docs" / "kind" / "x.sh").write_text("kubectl --context kind-vectra delete pod x\n")
+    (tmp_path / "docs" / "kind" / "y.sh").write_text("kubectl get pods\nkubectl top pods\n")
+    (tmp_path / "docs" / "guia.md").write_text(
+        "Corre `kubectl get pods` y\n\n```bash\nkubectl --context kind-vectra scale deploy x --replicas=0\n```\n"
+    )
+    assert sorted(f.verb for f in scan_tree(tmp_path)) == ["delete", "scale", "top"]
+
+
+GUIDE_OK = """## F2 Sync
+
+```bash operador
+sync decision-registry governance
+argocd app sync case-management --prune && argocd app wait case-management --health --timeout 900
+kubectl --context kind-vectra delete -f identity-edge/tests/e2e/echo/manifests.yaml
+docker push localhost:5001/vectra/system-verification:dev
+```
+
+Lee con `kubectl --context kind-vectra get pods -n argocd` y `kubectl get applications.argoproj.io -n argocd`.
+"""
+
+
+def test_guide_the_closed_list_passes_and_reading_in_prose_passes() -> None:
+    assert scan_guide(GUIDE_OK, "guia.md") == []
+
+
+@pytest.mark.parametrize(
+    ("snippet", "needle"),
+    [
+        (
+            "```bash\nkubectl --context kind-vectra delete pod x -n vectra-app\n```\n",
+            "delete",
+        ),  # rojo de CA-3: borrar un pod fuera de un bloque marcado
+        (
+            "```bash operador\nkubectl --context kind-vectra delete deploy case-service -n vectra-app\n```\n",
+            "fuera de la lista cerrada",
+        ),  # rojo de CA-3: una orden que no es de la lista, dentro de uno
+        (
+            "```bash operador\nkubectl --context kind-vectra apply -f x.yaml\n```\n",
+            "fuera de la lista cerrada",
+        ),
+        ("```bash operador\nsync aplicacion-inventada\n```\n", "Application aplicacion-inventada no existe"),
+        (
+            "```bash operador\nargocd app sync network --prune && argocd app wait inventada --health\n```\n",
+            "Application inventada no existe",
+        ),
+        (
+            "```bash operador\nkubectl --context kind-vectra rollout restart deploy/case-worker -n vectra-app\n```\n",
+            "fuera de la lista cerrada",
+        ),  # la de F11, fuera de F11
+        ("```bash operador\nsync governance; kubectl delete pod x\n```\n", "fuera de la lista cerrada"),
+        ("```bash operador\ndocker push otra-imagen:dev\n```\n", "fuera de la lista cerrada"),
+        (
+            "```bash\ndocker push localhost:5001/vectra/system-verification:dev\n```\n",
+            "fuera de un bloque del operador",
+        ),
+        ("```bash\nhelm install x y\n```\n", "fuera de un bloque del operador"),
+        ("```bash\nargocd app sync network\n```\n", "argocd"),
+        ("Corre `kubectl exec -it x -- sh` aqui.\n", "exec"),
+        ("```bash operador\nsync governance\n", "<fence sin cerrar>"),
+    ],
+)
+def test_red_guide_a_write_outside_the_closed_list_or_outside_a_marked_block_fails(
+    snippet: str, needle: str
+) -> None:
+    findings = scan_guide(snippet, "guia.md")
+    assert findings and any(needle in f.verb for f in findings), findings
+
+
+def test_guide_the_f11_commands_pass_only_in_f11() -> None:
+    block = "```bash operador\nkubectl --context kind-vectra rollout restart deploy/case-worker -n vectra-app\nkubectl --context kind-vectra delete pod -n vectra-identity -l app.kubernetes.io/name=keycloak\n```\n"
+    assert scan_guide("## F11 Opcionales\n\n" + block, "guia.md") == []
+    assert len(scan_guide("## F10 Informe\n\n" + block, "guia.md")) == 2
+
+
+def test_the_namespace_argocd_is_not_the_binary_but_the_binary_after_it_still_fails() -> None:
+    assert (
+        scan_text("kubectl --context kind-vectra get applications.argoproj.io -n argocd -o json\n", "x.sh")
+        == []
+    )
+    assert scan_text("kubectl get applications --namespace argocd\n", "x.sh") == []
+    assert [f.verb for f in scan_text("kubectl get x -n argocd && argocd app sync a\n", "x.sh")] == ["argocd"]
+    assert [f.verb for f in scan_text("argocd -n x app sync a\n", "x.sh")] == ["argocd"]

@@ -206,7 +206,7 @@ vectra-risk/system-verification/
 
 ### Bloque G — Verificación en kind (con aprobación humana)
 
-- [ ] **Paso 18 — Primera verificación completa en kind**
+- [ ] **Paso 18 — Primera verificación completa en kind** (U12-T06: guía lista, pendiente del operador; `system-verification/docs/paso-18-kind.md`)
   - **Requisito previo**: un PR con los Pasos 1–17 aprobado por un humano, con U1–U11 instalados en kind, el modelo de referencia activo y el binding K16 presente.
   - **Orden** (revisión del plan de tareas de U12, 2026-10-10):
     1. el operador ejecuta `prepare`, que fija el `runId` y el `started_at`;
@@ -218,7 +218,7 @@ vectra-risk/system-verification/
 
 ### Bloque H — Cierre
 
-- [ ] **Paso 19 — Cierre de la unidad**
+- [x] **Paso 19 — Cierre de la unidad** (U12-T06, acotado a la demo)
   - **Aceptación**: `make -C system-verification check`, que corre en orden las verificaciones estáticas, las propiedades y las pruebas con dobles de los Pasos 1–17 y termina en 0. La verificación en kind (Paso 18) se revisa como el PR de verificación.
 
 ---
