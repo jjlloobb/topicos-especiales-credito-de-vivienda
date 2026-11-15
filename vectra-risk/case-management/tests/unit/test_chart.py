@@ -926,7 +926,10 @@ def test_each_process_follows_inf_u8_04_and_06(env: str, name: str) -> None:
     assert "startupProbe" not in c
     assert (p["securityContext"]["runAsUser"], p["securityContext"]["runAsGroup"]) == (65532, 65532)
     hpa = of_kind(docs, "HorizontalPodAutoscaler", name)["spec"]
-    assert (hpa["minReplicas"], hpa["maxReplicas"]) == (2, 2 if env == "kind" else 6)  # U01-T13: en kind el HPA no crece mas alla del presupuesto
+    assert (hpa["minReplicas"], hpa["maxReplicas"]) == (
+        2,
+        2 if env == "kind" else 6,
+    )  # U01-T13: en kind el HPA no crece mas alla del presupuesto
     assert hpa["metrics"][0]["resource"]["target"]["averageUtilization"] == 70
     assert (
         hpa["behavior"]["scaleUp"]["stabilizationWindowSeconds"],
@@ -1842,7 +1845,13 @@ def _hpa_max(docs: list[Doc], maximum: int) -> list[Doc]:
 
 @pytest.mark.parametrize(
     ("env", "maximum", "expected"),
-    [("kind", 6, "maxReplicas es 2, no 6"), ("kind", 3, "maxReplicas es 2, no 3"), ("staging", 2, "maxReplicas es 6, no 2"), ("prod", 2, "maxReplicas es 6, no 2"), (None, 2, "maxReplicas es 6, no 2")],
+    [
+        ("kind", 6, "maxReplicas es 2, no 6"),
+        ("kind", 3, "maxReplicas es 2, no 3"),
+        ("staging", 2, "maxReplicas es 6, no 2"),
+        ("prod", 2, "maxReplicas es 6, no 2"),
+        (None, 2, "maxReplicas es 6, no 2"),
+    ],
     ids=["kind-with-6", "kind-with-3", "staging-with-2", "prod-with-2", "no-data-with-2"],
 )
 def test_the_hpa_maximum_is_2_only_in_kind(env: str | None, maximum: int, expected: str) -> None:

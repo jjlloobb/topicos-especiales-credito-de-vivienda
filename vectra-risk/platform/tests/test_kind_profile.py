@@ -2,6 +2,7 @@
 
 import ast
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -52,14 +53,18 @@ PLATFORM = Path(__file__).resolve().parents[1]
 # `values/kind/model-serving.yaml`: sin ese cambio la cuenta seria 18,29); (3) el Job de validacion (1 Gi + proxy 20 Mi, leido de `k8s_jobs.py`) y `kube-system` (`KUBE_SYSTEM`: CoreDNS, 0,1368;
 # calico-node no pide memoria). Total 15,0547 GiB con Keycloak en 2 replicas (14,0352 con 1: U02-T23). La maquina de la demo tiene 15 GiB (MACHINE_GIB): con Keycloak en 2 faltan 0,06 GiB
 # y no cabe; con 1 sobran 0,96. Es un presupuesto de requests, no de uso real (plataforma sola ~7,6 GiB reales).
-BUDGET_GIB = 15.1
-MACHINE_GIB = 15.0
+# Baja a 14,8 en U01-T13 (cifra medida, redondeada hacia arriba a 0,1): (1) el data plane de Envoy corre con 1 replica en kind (decision del usuario 2026-11-14), -0,3008 GiB y -0,28 CPU;
+# (2) ningun HPA de kind crece mas alla de lo contado (`test_no_hpa_in_kind_can_grow_beyond_what_the_budget_counts`): los de U3, U4, U7 y U8 quedan de 2 a 2 como el de U10 y el de serving. Total 14,7539 GiB con Keycloak en 2
+# replicas (render 13,5977 + Job de validacion 1,0195 + kube-system 0,1367) y 13,7344 con 1 (U02-T23). Keycloak sigue pudiendo crecer a 4 (PENDING_UNBOUNDED): no entra en la cuenta.
+BUDGET_GIB = 14.8
+#: La memoria real de la maquina de la demo: `MemTotal` 15535356 kB = 14,8166 GiB (no los 15 que se decian; F-03 de la revision de U01-T12). El pico contado cabe aqui (`test_the_peak_fits_the_machine`).
+MACHINE_GIB = 15535356 / 1024**2
 PROXY_GIB = 20 / 1024
 #: CPU pedida por todos los pods de kind en el pico de D2, con proxies (20m, sidecars nativos incluidos), el Job de validacion, `kube-system` (calico-node, CoreDNS) y serving a `maxReplicas`: 11,465
-#: con Keycloak en 2 replicas, redondeado hacia arriba a 0,5 (U01-T12; antes 10,5 con una cuenta que no veia los sidecars nativos). OJO (F-05): los tres nodos de kind comparten los 8 nucleos
+#: con Keycloak en 2 replicas, redondeado hacia arriba a 0,5 (U01-T12; antes 10,5 con una cuenta que no veia los sidecars nativos). Baja a 11,2 en U01-T13: 11,185 medido (Envoy con 1 replica, -0,28), redondeado a 0,1. OJO (F-05): los tres nodos de kind comparten los 8 nucleos
 #: FISICOS del host, aunque cada worker anuncie 8; un request de CPU solo reparte pesos entre pods y no reserva nucleos, asi que 11,5 sobre 8 no es un fallo. El tope solo evita pods en `Pending`
 #: (REQUESTABLE_CPU: lo que los dos workers aceptan en `kubectl describe node`); no es capacidad de computo.
-CPU_BUDGET = 11.5
+CPU_BUDGET = 11.2
 PHYSICAL_CORES = 8.0
 REQUESTABLE_CPU = 16.0
 MESHED = {
@@ -132,7 +137,7 @@ def runtime_documents() -> tuple[dict, ...]:
 
     Los charts OCI (controlador de Envoy Gateway, controlador de KServe) se renderizan con sus values; el data plane de Envoy (lo crea el
     controlador a partir del `EnvoyProxy` de kind) y `envoy-ratelimit` (lo crea el controlador desde `rateLimitDeployment`) se arman con los
-    requests y las replicas que esos archivos declaran. Quedan fuera los Jobs y CronJobs: ver `UNCOUNTED_CPU` y la bitacora de U01-T11.
+    requests y las replicas que esos archivos declaran. Quedan fuera los Jobs y CronJobs: ver `uncounted_cpu()` y la bitacora de U01-T11.
     """
     documents: list[dict] = []
     for component in integration.CONFIG["components"]:
@@ -292,12 +297,28 @@ KUBE_SYSTEM = {
     "calico-node": {"pods": 3, "cpu": 0.25, "memory_gib": 0.0},
     "coredns": {"pods": 2, "cpu": 0.1, "memory_gib": 70 / 1024},
 }
-#: Lo que el planificador reserva y la prueba sigue sin contar (estimado). Los pods estaticos del plano de control de kubeadm (apiserver 250m, controller-manager 200m, scheduler
-#: 100m, etcd 100m = 0,65 de CPU y 100Mi de memoria) corren en el nodo `control-plane`, que no programa cargas, y los Jobs de instalacion y migracion (minio-post-job 0,15, config-cli 0,1,
-#: tres migraciones 0,3) terminan y dejan de reservar. Suma 1,2.
+#: Lo que el planificador reserva y la prueba sigue sin contar. Los pods estaticos del plano de control de kubeadm (apiserver 250m, controller-manager 200m, scheduler 100m, etcd 100m = 0,65
+#: de CPU y 100Mi de memoria) corren en el nodo `control-plane`, que no programa cargas (estimado). Los Jobs y CronJobs terminan y dejan de reservar, pero en un momento dado pueden coincidir:
+#: se leen del render de kind (`job_cpu()`, U01-T12 F-04), no de una lista a mano.
 CONTROL_PLANE_CPU = 0.65
-INSTALL_JOBS_CPU = 0.55
-UNCOUNTED_CPU = CONTROL_PLANE_CPU + INSTALL_JOBS_CPU
+
+
+def job_cpu() -> float:
+    """CPU pedida si todos los CronJob y Job del render de kind corrieran a la vez (cada uno con el proxy si su namespace esta mallado)."""
+    total = 0.0
+    for document in rendered():
+        if document["kind"] == "CronJob":
+            spec = document["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+        elif document["kind"] == "Job":
+            spec = document["spec"]["template"]["spec"]
+        else:
+            continue
+        total += pod_cpu(spec) + (proxy_cpu() if document["metadata"].get("namespace", "") in MESHED else 0.0)
+    return total
+
+
+def uncounted_cpu() -> float:
+    return CONTROL_PLANE_CPU + job_cpu()
 
 
 def kube_system_gib() -> float:
@@ -368,15 +389,16 @@ def test_budget_counts_envoy_data_plane_envoy_gateway_ratelimit_and_kserve():
     """U01-T10 F-03: lo que el planificador reserva y `render_env` no renderiza (runtime y charts OCI) entra en la cuenta, leido de sus archivos de origen."""
     by_name = {d["metadata"]["name"]: d for d in runtime_documents() if d["kind"] == "Deployment"}
     assert {"api-gateway-data-plane", "envoy-gateway", "envoy-ratelimit", "kserve-controller-manager"} <= by_name.keys()
-    assert by_name["api-gateway-data-plane"]["spec"]["replicas"] == 2 and len(by_name["api-gateway-data-plane"]["spec"]["template"]["spec"]["containers"]) == 2
+    # U01-T13: una replica fija en kind
+    assert by_name["api-gateway-data-plane"]["spec"]["replicas"] == 1 and len(by_name["api-gateway-data-plane"]["spec"]["template"]["spec"]["containers"]) == 2
     assert by_name["envoy-ratelimit"]["spec"]["replicas"] == 2
     extra = {
         name: workload_replicas(d, {}) * (pod_memory(d["spec"]["template"]["spec"]) + (PROXY_GIB if d["metadata"]["namespace"] in MESHED else 0.0))
         for name, d in by_name.items()
     }
-    assert extra["api-gateway-data-plane"] == 2 * ((256 + 32) / 1024 + PROXY_GIB)  # envoy + shutdown-manager + proxy, vectra-edge esta mallado
+    assert extra["api-gateway-data-plane"] == 1 * ((256 + 32) / 1024 + PROXY_GIB)  # envoy + shutdown-manager + proxy, vectra-edge esta mallado
     assert extra["envoy-gateway"] == 2 * 128 / 1024 and extra["envoy-ratelimit"] == 2 * 64 / 1024  # envoy-gateway-system no lleva proxy
-    assert sum(extra.values()) > 1.5
+    assert sum(extra.values()) > 1.2  # 1,26 GiB con 1 replica de Envoy en kind (U01-T13; con 2 eran 1,56)
     # y la cuenta total los incluye
     assert requested_gib([]) >= sum(extra.values())
 
@@ -398,14 +420,18 @@ def test_kind_serving_cannot_scale_beyond_what_the_budget_counts():
 
 
 def test_kind_serving_render_passes_the_kyverno_hpa_bounds_policy():
-    """La forma elegida (`maxReplicas` = 2) no relaja nada: `require-hpa-bounds` evalua el InferenceService de prod con los values de kind y no falla."""
-    with tempfile.TemporaryDirectory() as folder:
-        resource = Path(folder) / "inference-services.yaml"
-        resource.write_text(yaml.safe_dump_all(inference_services(PEAK_INFERENCE_SERVICES)), encoding="utf-8")
-        policy = PLATFORM / "policies/kyverno/require-hpa-bounds.yaml"
-        kyverno = shutil.which("kyverno") or str(PLATFORM / ".tools/bin/kyverno")
-        result = subprocess.run([kyverno, "apply", str(policy), "--resource", str(resource)], capture_output=True, text=True, check=False)  # noqa: S603
-    assert "fail: 0, warn: 0, error: 0" in result.stdout + result.stderr, result.stdout + result.stderr
+    """La forma elegida (`maxReplicas` = 2) no relaja nada: `require-hpa-bounds` evalua el InferenceService de prod con los values de kind y no falla.
+
+    Kyverno es un binario de `platform/.tools` que el job `tests` de la CI no tiene: la evaluacion vive en `platform/tests/kind_serving_kyverno.py`, que corre `make -C platform check-tools`
+    (con herramientas, en el job `platform` de la CI y en `make check`). Aqui se comprueba que ese paso existe y se alcanza, y lo que se le pasa (los InferenceService del pico, con `minReplicas` >= 2)."""
+    recipe = subprocess.run(["make", "-C", str(PLATFORM), "-n", "check-tools"], capture_output=True, text=True, check=True).stdout
+    assert "platform/tests/kind_serving_kyverno.py" in recipe
+    assert (PLATFORM / "tests/kind_serving_kyverno.py").is_file()
+    documents = inference_services(PEAK_INFERENCE_SERVICES)
+    assert {d["metadata"]["namespace"] for d in documents} == {"vectra-serving", "vectra-staging"}
+    for document in documents:
+        for component in document["spec"].values():
+            assert component["minReplicas"] >= 1 and component["maxReplicas"] == component["minReplicas"]
 
 
 def _hpa_label(document: dict) -> str:
@@ -453,6 +479,21 @@ def test_the_growth_check_sees_an_hpa_with_a_maximum_and_honours_counted_at_max(
 def test_the_profile_requests_fit_the_budget():
     peak = requested_gib([*declared_inference_services(), *PEAK_INFERENCE_SERVICES])
     assert peak <= BUDGET_GIB, peak
+
+
+def test_the_peak_fits_the_machine():
+    """U01-T12 F-03: el pico de D2 contado cabe en la memoria real de la maquina (14,82 GiB), y el tope tambien. Con Keycloak en 2: 14,7539 (margen 0,06); con 1 (U02-T23): 13,7344 (margen 1,08)."""
+    peak = requested_gib([*declared_inference_services(), *PEAK_INFERENCE_SERVICES])
+    assert peak <= MACHINE_GIB, (peak, MACHINE_GIB)
+    assert BUDGET_GIB <= MACHINE_GIB
+
+
+def test_job_cpu_is_read_from_the_render_and_covers_the_cronjobs_and_the_jobs_the_old_estimate_missed():
+    """U01-T12 F-04: los CronJob y los Job del render de kind (kyverno, `grafana-folder-permissions`, migraciones, minio, config-cli...) entran en `uncounted_cpu()`, sin lista a mano."""
+    names = {d["metadata"]["name"] for d in rendered() if d["kind"] in {"Job", "CronJob"}}
+    assert {"grafana-folder-permissions", "kyverno-migrate-resources", "minio-post-job", "keycloak-config-cli", "realm-drift", "restore-drill", "bias-monitoring-job"} <= names
+    assert sum(1 for d in rendered() if d["kind"] == "CronJob") >= 6
+    assert job_cpu() > 1.18  # 0,55 de la estimacion vieja + 0,55 de los CronJob + 0,08 de los dos Jobs, sin proxies
 
 
 def test_inference_services_in_kind_values_are_counted():
@@ -580,8 +621,8 @@ def test_the_profile_cpu_requests_fit_the_budget_at_the_d2_peak():
 
 
 def test_the_cpu_budget_leaves_room_for_what_the_render_does_not_count():
-    """El tope evita pods en `Pending` y nada mas: lo que la prueba no ve (UNCOUNTED_CPU) tambien cabe en lo que los dos workers aceptan (2 x 8, que no son nucleos reales; F-05 de U01-T11)."""
-    assert CPU_BUDGET + UNCOUNTED_CPU <= REQUESTABLE_CPU
+    """El tope evita pods en `Pending` y nada mas: lo que la prueba no ve (`uncounted_cpu()`) tambien cabe en lo que los dos workers aceptan (2 x 8, que no son nucleos reales; F-05 de U01-T11)."""
+    assert CPU_BUDGET + uncounted_cpu() <= REQUESTABLE_CPU
     assert REQUESTABLE_CPU == 2 * PHYSICAL_CORES, "cada worker anuncia los 8 nucleos del host: los tres nodos comparten los mismos 8"
 
 
@@ -681,8 +722,15 @@ def failover_procedure() -> dict[str, str]:
 
 
 def run_in(folder: Path, script: str) -> subprocess.CompletedProcess[str]:
-    """Corre el bloque con `bash -e` desde la carpeta `vectra-risk/` de una copia; `python3` es el interprete de las pruebas (tiene PyYAML)."""
-    return subprocess.run(["bash", "-ec", script.replace("python3 ", f"{sys.executable} ")], cwd=folder, capture_output=True, text=True, check=False)  # noqa: S603, S607
+    """Corre el bloque de `install.md` TAL CUAL con `bash -e` desde la carpeta `vectra-risk/` de una copia (U01-T12 F-02: el texto no se reescribe).
+
+    El procedimiento invoca `uv run python`; una copia en `/tmp` no tiene el workspace de `uv` (ni su entorno), asi que `uv` es un doble en el PATH que ejecuta el interprete de las pruebas (tiene PyYAML)
+    con lo que sigue a `run python`. Lo unico que cambia es el binario `uv`, no el texto del procedimiento."""
+    shim = folder.parent / "bin"
+    shim.mkdir(exist_ok=True)
+    (shim / "uv").write_text(f'#!/bin/bash\n[ "$1 $2" = "run python" ] || {{ echo "uv: solo se admite `uv run python`" >&2; exit 2; }}\nshift 2\nexec {sys.executable} "$@"\n', encoding="utf-8")
+    (shim / "uv").chmod(0o755)
+    return subprocess.run(["bash", "-ec", script], cwd=folder, capture_output=True, text=True, check=False, env={**os.environ, "PATH": f"{shim}:{os.environ['PATH']}"})  # noqa: S603, S607
 
 
 def application_value_files(folder: Path, name: str) -> list[Path]:
@@ -696,6 +744,7 @@ def test_the_failover_drill_procedure_as_written_gives_three_instances_in_the_fo
     """U01-T12 F-02: copiar el archivo no basta («Argo CD lo agrega solo» era falso: `valueFiles` sale de `generate.py`); el procedimiento de `install.md` se ejecuta tal cual en una copia."""
     steps = failover_procedure()
     assert steps.keys() == {"aplicar", "deshacer"}, "install.md debe traer los bloques `# simulacro-failover: aplicar` y `deshacer`"
+    assert all("python3" not in body and "uv run python vectra-risk-gitops/generate.py" in body for body in steps.values()), "el procedimiento invoca `uv run python` como el resto del repositorio"
     work = tmp_path / "vectra-risk"
     shutil.copytree(GITOPS, work / "vectra-risk-gitops", ignore=shutil.ignore_patterns("__pycache__"))
     (work / "platform/kind").mkdir(parents=True)
@@ -728,6 +777,22 @@ def test_the_failover_drill_procedure_as_written_gives_three_instances_in_the_fo
 
 def kind_datasource_uids() -> set[str]:
     return {d["uid"] for d in kind_configmap("kube-prometheus-stack-grafana-datasource", "datasource.yaml")["datasources"]}
+
+
+def kind_dashboards() -> list[tuple[str, dict]]:
+    """Los dashboards que Grafana de kind carga (U01-T12 F-01): los ConfigMap con la etiqueta del sidecar (`sidecar.dashboards.label` de kube-prometheus-stack) del render de kind, de cualquier namespace
+    (`product.json` de U11 entra asi), mas los de `platform/observability/dashboards`, que `kustomize` convierte en ConfigMap con esa misma etiqueta y `render_env` no rinde."""
+    values = yaml.safe_load((PLATFORM / "observability/values/kube-prometheus-stack.yaml").read_text(encoding="utf-8"))
+    label = values["grafana"]["sidecar"]["dashboards"]["label"]
+    boards = [
+        (key, json.loads(text))
+        for d in rendered()
+        if d["kind"] == "ConfigMap" and d["metadata"].get("labels", {}).get(label) is not None
+        for key, text in d["data"].items()
+        if key.endswith(".json")
+    ]
+    boards += [(path.name, json.loads(path.read_text(encoding="utf-8"))) for path in sorted((PLATFORM / "observability/dashboards").glob("*.json"))]
+    return boards
 
 
 def dangling_in_rules(documents: list[dict]) -> list[str]:
@@ -786,10 +851,10 @@ def test_kind_dangling_references_rules_monitors_and_dashboards_name_nothing_kin
     assert [d for d in documents if d["kind"] == "PrometheusRule"] and [d for d in documents if d["kind"] in {"ServiceMonitor", "PodMonitor"}]
     assert dangling_in_rules(documents) == []
     assert dangling_in_monitors(documents) == []
-    boards = sorted((PLATFORM / "observability/dashboards").glob("*.json"))
-    assert boards
-    for board in boards:
-        assert dangling_in_dashboard(json.loads(board.read_text(encoding="utf-8")), kind_datasource_uids()) == [], board.name
+    boards = kind_dashboards()
+    assert {"slo.json", "product.json"} <= {name for name, _ in boards}, [name for name, _ in boards]
+    for name, board in boards:
+        assert dangling_in_dashboard(board, kind_datasource_uids()) == [], name
 
 
 def test_kind_dangling_references_are_detected_by_a_mutation():
