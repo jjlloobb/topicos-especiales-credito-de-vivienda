@@ -1023,7 +1023,7 @@ def test_f04_the_symptoms_table_has_the_rows_of_the_restart() -> None:
     rows = [line for line in symptoms.split("\n") if line.startswith("| ")]
     for needles in (
         ("`Unknown`", "`ContainerCreating`", "`linkerd-cni`", "too many open files"),
-        ("Tempo", "Loki", "403", "MinIO"),
+        ("Tempo", "Loki", "403", "MinIO", "de cuando estaban instalados"),
         ("Grafana", "401", "`admin`"),
         ("bóveda", "se reinició", "restartCount"),
     ):
@@ -1130,9 +1130,11 @@ def runbook_findings(text: str) -> list[str]:
         found.append(f"«{RESTART}» tiene {len(steps)} pasos numerados, no 7")
     for number_, step in enumerate(steps, 1):
         links = re.findall(r"\]\(((?:\.\./)+platform/runbooks/install\.md)(?:#([^)\s]+))?\)", step)
-        if not links and number_ != 7:  # el 7 es la puerta de salida: no ejecuta nada del runbook
+        if (
+            not any(anchor for _, anchor in links) and number_ != 7
+        ):  # el 7 es la puerta de salida: no ejecuta nada del runbook
             found.append(
-                f"paso {number_} de «{RESTART}»: no remite a `platform/runbooks/install.md` con un enlace"
+                f"paso {number_} de «{RESTART}»: no remite a una sección de `platform/runbooks/install.md` con un enlace a su ancla"
             )
         for path, anchor in links:
             if not (kd.GUIDE.parent / path).resolve() == RUNBOOK.resolve():
@@ -1166,8 +1168,8 @@ RUNBOOK_MUTATIONS = {
     "pregunta abierta": lambda t: t.replace("y la lista no se amplió", "y queda como pregunta abierta"),
     "inotify 512": lambda t: t.replace("el del runbook, **1024**", "el del runbook, **512**"),
     "paso 4 sin enlace": lambda t: t.replace(
-        "están en los pasos 4 y 5 de [«Vault reiniciado»](../../platform/runbooks/install.md#vault-reiniciado)",
-        "están en los pasos 4 y 5 del runbook",
+        "(solo si lo reactivaste) están en los pasos 4 y 5 de [«Vault reiniciado»](../../platform/runbooks/install.md#vault-reiniciado)",
+        "(solo si lo reactivaste) están en los pasos 4 y 5 del runbook",
     ),
     "ancla inexistente": lambda t: t.replace(
         "install.md#tras-reiniciar-la-máquina", "install.md#tras-reiniciar"
@@ -1185,3 +1187,91 @@ def test_red_f02_each_break_of_the_runbook_reference_makes_the_guide_fail(name: 
     mutated = RUNBOOK_MUTATIONS[name](GUIDE_TEXT)
     assert mutated != GUIDE_TEXT, name
     assert runbook_findings(mutated), f"{name}: ninguna prueba la detecta"
+
+
+# --- U12-T07, punto 4: kind ya no instala Loki, Tempo ni Alloy (U01-T11) --------------------------------------------------------------------------
+
+GITOPS = kd.VECTRA / "vectra-risk-gitops"
+MINIO_KIND = kd.VECTRA / "platform/data/minio/values-kind.yaml"
+HISTORICAL = (
+    "ya no",
+    "no se instala",
+    "no instala",
+    "entonces",
+    "de cuando",
+    "solo si los reactivaste",
+    "no está en kind",
+    "no están en kind",
+    "no están instalados",
+)
+
+
+def absent_from_kind() -> set[str]:
+    """Los componentes de `components.yaml` cuya Application no está en `apps/kind/` (hoy Loki, Tempo y Alloy)."""
+    components = yaml.safe_load((GITOPS / "components.yaml").read_text(encoding="utf-8"))
+    names = {c["name"] for c in (components["components"] if isinstance(components, dict) else components)}
+    return names - {p.stem for p in (GITOPS / "apps/kind").glob("*.yaml")}
+
+
+def absent_component_findings(text: str, where: str) -> list[str]:
+    """Una línea que nombra un componente que kind no instala debe decirlo (histórico, «ya no»); nunca puede pedirle al operador un selector o un `sync` de él."""
+    found = []
+    absent = absent_from_kind()
+    for number_, line in enumerate(text.split("\n"), 1):
+        for name in sorted(absent):
+            if not re.search(rf"\b{re.escape(name)}\b", line, re.I):
+                continue
+            if re.search(
+                rf"name={re.escape(name)}\b|(?:sync|get app(?:lication)?s?) {re.escape(name)}\b", line
+            ):
+                found.append(
+                    f"{where}:{number_}: pide un selector o un `sync` de `{name}`, que no está en `apps/kind/`"
+                )
+            elif not any(marker in line.lower() for marker in HISTORICAL):
+                found.append(f"{where}:{number_}: nombra `{name}` sin decir que kind ya no lo instala")
+    return found
+
+
+def minio_users_in_kind() -> int:
+    return len(yaml.safe_load(MINIO_KIND.read_text(encoding="utf-8"))["users"])
+
+
+def minio_findings(text: str) -> list[str]:
+    users = minio_users_in_kind()
+    step = next((s for s in restart_steps(text) if s.startswith("4. ")), "")
+    counts = {int(n) for n in re.findall(r"los (\d+) usuarios de MinIO de kind", step)}
+    return (
+        []
+        if counts == {users}
+        else [f"el paso 4 dice {sorted(counts)} usuarios de MinIO; `values-kind.yaml` tiene {users}"]
+    )
+
+
+def test_ca5_the_guide_and_the_inventory_ask_for_nothing_kind_no_longer_installs() -> None:
+    assert {"loki", "tempo", "alloy"} <= absent_from_kind(), "U01-T11: kind no instala Loki, Tempo ni Alloy"
+    inventory = kd.INVENTORY.read_text(encoding="utf-8")
+    assert absent_component_findings(GUIDE_TEXT, "paso-18-kind.md") == []
+    assert absent_component_findings(inventory, "inventario.yaml") == []
+    assert minio_findings(GUIDE_TEXT) == []
+    for text in (GUIDE_TEXT, inventory):
+        assert "name=loki" not in text
+
+
+CA5_MUTATIONS = {
+    "K-20 vuelve a pedir Loki": lambda t: t.replace(
+        "Selectores y puertos de partida: Prometheus",
+        "Selectores y puertos de partida: Loki (app.kubernetes.io/name=loki, 3100), Prometheus",
+        1,
+    ),
+    "el síntoma de Tempo sin su aviso": lambda t: t.replace("de cuando estaban instalados", ""),
+    "12 usuarios": lambda t: t.replace(
+        "los 10 usuarios de MinIO de kind", "los 12 usuarios de MinIO de kind"
+    ),
+}
+
+
+@pytest.mark.parametrize("name", sorted(CA5_MUTATIONS))
+def test_red_ca5_each_break_is_found(name: str) -> None:
+    mutated = CA5_MUTATIONS[name](GUIDE_TEXT)
+    assert mutated != GUIDE_TEXT, name
+    assert absent_component_findings(mutated, "guía") + minio_findings(mutated), name

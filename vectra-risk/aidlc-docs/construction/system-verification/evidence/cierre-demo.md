@@ -49,7 +49,7 @@ Cada entrada del inventario (`system-verification/docs/kind/inventario.yaml`, K-
 | K-17 | El eco de U2 y la ServiceAccount temporal console-bff de U4 no existen antes del sync de U10 | `02-sync-y-arranque.md` | pendiente del operador | C-U10:71 |
 | K-18 | product-metrics arranca despues del registro; si no, 503 hasta 30 min y dashboard vacio | `02-sync-y-arranque.md` | pendiente del operador | C-U11:54 |
 | K-19 | Prometheus carga las PrometheusRule de U8 y U11 y raspa los ServiceMonitor de U8 (tres), del BFF y de U11; Grafana descubre el ConfigMap del dashboard en Vectra / Producto | `02-sync-y-arranque.md` | pendiente del operador | C-U8:75, C-U10:73, C-U11:52 |
-| K-20 | Selectores y puertos de partida: Prometheus (app.kubernetes.io/name=prometheus, 9090), Loki (loki, 3100) y el registro (decision-registry-service, 8080) | `02-sync-y-arranque.md` | pendiente del operador | — |
+| K-20 | Selectores y puertos de partida: Prometheus (app.kubernetes.io/name=prometheus, 9090) y el registro (decision-registry-service, 8080) | `02-sync-y-arranque.md` | pendiente del operador | — |
 | K-21 | Proxy de Linkerd en vectra-mock: el target linkerd-proxy en up == 1 (no 403) y los pods Ready con el Server del 4191 (las sondas /live y /ready pasan) | `02-sync-y-arranque.md` | pendiente del operador | C-U1:28, C-U8:69 |
 | K-22 | Politica activa y modelo de referencia activo: serving-config trae policy_version_id y la version | `02-sync-y-arranque.md` | pendiente del operador | C-U4:27, C-U4:28 |
 | K-23 | Con 256 MiB por pod bastan el predictor y el explicador del modelo de referencia (sin OOMKilled) | `02-sync-y-arranque.md` | pendiente del operador | C-U6:34 |
