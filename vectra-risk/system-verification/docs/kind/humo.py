@@ -6,11 +6,12 @@ contrasena ni una semilla; de la cookie solo dice si esta y de los claims, solo 
 Lo ejecuta el operador **desde la imagen de U12** (lleva Chromium y las dependencias); ver `docs/paso-18-kind.md`.
 
     humo.py login                  los cinco usuarios de `credentials.USERS` entran por el gateway real: iss, aud, acr, amr, roles y auth_time (K-27 a K-29)
-    humo.py flujo                  una solicitud `normal` por el gateway llega a `listo` con `registry_entry_id`; el detalle y la explicacion por el BFF; una decision de analista-1;
+    humo.py flujo --delivery D     una solicitud `normal` por el gateway llega a `listo` con `registry_entry_id`; el detalle y la explicacion por el BFF; una decision de analista-1;
                                    `/api/console/models` con ingeniero-1 y `/api/console/freezes` con cumplimiento-1. Informa el estado HTTP de cada llamada (K-30, K-31, K-36, K-38)
     humo.py consola                la SPA real en Chromium sin interfaz: login por redireccion completa, recarga, eventos `securitypolicyviolation` y la cookie de afinidad (K-35)
     humo.py modelos                el JSON `[{model_version_id, state}]` de `/api/console/models` (con ingeniero-1), para `estado-final.sh --modelos -`
 
+`flujo --delivery D`: D es la entrega de U5; dentro de la imagen, `/verification/reference-model/.out` (la ruta relativa por omision no existe alli y da 2).
 Opciones comunes: `--issuer`, `--gateway-host` y `--ca-file` (o `VERIFICATION_ISSUER`, `VERIFICATION_GATEWAY_HOST` y `VERIFICATION_CA_FILE`), como la CLI. La boveda, por `VAULT_ADDR` y
 `VAULT_TOKEN`. Salida: 0 bien, 1 hallazgos, 2 no se pudo (falta un prerrequisito o una lectura), 3 la herramienta se nego (la barrera de entorno).
 
@@ -415,7 +416,9 @@ def parser(environ: Mapping[str, str]) -> argparse.ArgumentParser:
     sub.add_parser("login", parents=[common])
     flow = sub.add_parser("flujo", parents=[common])
     flow.add_argument(
-        "--delivery", default="reference-model/.out", help="la entrega de U5 (datasets/test.parquet)"
+        "--delivery",
+        default="reference-model/.out",
+        help="la entrega de U5 (datasets/test.parquet); dentro de la imagen, /verification/reference-model/.out (la ruta por omision es relativa)",
     )
     flow.add_argument(
         "--timeout", type=float, default=DEFAULT_TIMEOUT, help="segundos hasta que el caso llegue a listo"

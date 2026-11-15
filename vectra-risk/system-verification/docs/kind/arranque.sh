@@ -3,7 +3,10 @@
 # los `ImagePullBackOff`/`ErrImagePull`/`CreateContainerConfigError`/`CrashLoopBackOff`, los `OOMKilled`, los contenedores que **salieron con codigo 0 y sin mensaje** (un reinicio con
 # `lastState.terminated.exitCode == 0`: falta una variable o la llave, K-13), y los `ExternalSecret` que no estan `SecretSynced`; ademas, las Applications de Argo CD fuera de `Healthy`.
 # Siempre lee tambien `linkerd-cni` (aunque no se pida): su Application puede verse `Healthy` mientras sus pods fallan con `too many open files` (el limite de inotify no sobrevive a un reinicio; F-04),
-# y marca un pod de la boveda (`vault`) que se **reinicio**, con cualquier codigo de salida: un reinicio de la maquina la deja vacia (guarda todo en memoria) con un codigo que no es el 0 ni el OOM (K-05).
+# y marca un pod de la boveda (`vault`) que se **reinicio y no se resembro despues**, con cualquier codigo de salida: un reinicio de la maquina la deja vacia (guarda todo en memoria) con un codigo que no es el 0 ni el OOM (K-05).
+# `restartCount` no baja nunca, asi que no sirve de puerta: la boveda cuenta como resembrada si el contenedor arranco (`state.running.startedAt`) **antes** de la ultima sincronizacion de **todos** los `ExternalSecret`
+# del cluster (`status.refreshTime`) y todos estan `Ready=True`/`SecretSynced`. Un `ExternalSecret` que se refresca solo por su intervalo contra una boveda vacia falla la lectura y pasa a `Ready=False`: sigue marcado.
+# Reiniciada y resembrada es un AVISO (sale 0); reiniciada y sin resembrar, FALLA (sale 1).
 # Una Application `OutOfSync` es un AVISO (las cinco de U1 lo estan: `cierre-acotado.md`); con `--estricto` tambien falla.
 # Salida: 0 sin hallazgos, 1 con hallazgos, 2 no se pudo leer. Sin esperas.
 # shellcheck source=/dev/null
@@ -15,15 +18,46 @@ if [ "${1:-}" = "--estricto" ]; then STRICT=1; shift; fi
 
 FAIL=0
 
+# Se leen antes que los pods: la puerta de la boveda compara el arranque de su contenedor con la sincronizacion de los ExternalSecret.
+kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get externalsecret -A -o json > "$TMP_DIR/es.json" 2> "$TMP_DIR/err" || cannot_read "no se pudo leer los ExternalSecret: $(head -c 200 "$TMP_DIR/err")"
+
 NAMESPACES="$*"
 case " $NAMESPACES " in *" linkerd-cni "*) ;; *) NAMESPACES="$NAMESPACES linkerd-cni" ;; esac
 # shellcheck disable=SC2086 # los namespaces no llevan espacios: se parte la lista a proposito
 for NS in $NAMESPACES; do
   kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get pods -n "$NS" -o json > "$TMP_DIR/pods.json" 2> "$TMP_DIR/err" || cannot_read "no se pudo leer los pods de $NS: $(head -c 200 "$TMP_DIR/err")"
-  python3 - "$NS" "$TMP_DIR/pods.json" <<'PY' || FAIL=1
+  python3 - "$NS" "$TMP_DIR/pods.json" "$TMP_DIR/es.json" <<'PY' || FAIL=1
 import json, sys
+from datetime import datetime, timezone
 
-namespace, path = sys.argv[1:3]
+namespace, path, es_path = sys.argv[1:4]
+
+
+def instant(text):
+    try:
+        moment = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+
+
+def vault_unseeded(started_at):
+    """Los ExternalSecret que no prueban una siembra posterior al arranque de la boveda (lista vacia: ninguno la prueba)."""
+    started = instant(started_at)
+    items = json.load(open(es_path))["items"]
+    if started is None or not items:
+        return ["sin arranque legible o sin ExternalSecret que lo compare"]
+    stale = []
+    for item in items:
+        status = item.get("status", {})
+        ready = [c for c in status.get("conditions", []) if c.get("type") == "Ready"]
+        synced = bool(ready) and ready[0].get("status") == "True" and ready[0].get("reason") == "SecretSynced"
+        refreshed = instant(status.get("refreshTime"))
+        if not synced or refreshed is None or refreshed < started:
+            stale.append(item["metadata"]["namespace"] + "/" + item["metadata"]["name"])
+    return stale
+
+
 BAD_WAITING = {"ImagePullBackOff", "ErrImagePull", "CreateContainerConfigError", "CreateContainerError", "CrashLoopBackOff", "InvalidImageName"}
 findings = []
 pods = json.load(open(path))["items"]
@@ -40,10 +74,15 @@ for pod in pods:
             findings.append(f"{namespace}/{name} [{container['name']}]: {waiting}")
         last = container.get("lastState", {}).get("terminated")
         if namespace == "vault" and container.get("restartCount", 0) > 0:
-            findings.append(
-                f"{namespace}/{name} [{container['name']}]: la boveda se reinicio ({container['restartCount']} reinicios, ultimo codigo {(last or {}).get('exitCode', '?')}): en kind guarda todo en memoria; "
-                "si no la resembraste despues, vuelve a sembrar (`seed-vault.sh` y `seed-vault.sh identity`; K-05)"
-            )
+            stale = vault_unseeded(container.get("state", {}).get("running", {}).get("startedAt"))
+            what = f"{namespace}/{name} [{container['name']}]: la boveda se reinicio ({container['restartCount']} reinicios, ultimo codigo {(last or {}).get('exitCode', '?')})"
+            if stale:
+                findings.append(
+                    f"{what} y {len(stale)} ExternalSecret no se sincronizaron despues de su arranque ({', '.join(stale[:3])}{'...' if len(stale) > 3 else ''}): en kind guarda todo en memoria; "
+                    "vuelve a sembrar (`seed-vault.sh` y `seed-vault.sh identity`; K-05)"
+                )
+            else:
+                print(f"AVISO {what}, resembrada: todos los ExternalSecret se sincronizaron despues de su arranque (K-05)")
         if last and container.get("restartCount", 0) > 0:
             if last.get("exitCode") == 0:
                 findings.append(
@@ -65,7 +104,6 @@ sys.exit(1 if findings else 0)
 PY
 done
 
-kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get externalsecret -A -o json > "$TMP_DIR/es.json" 2> "$TMP_DIR/err" || cannot_read "no se pudo leer los ExternalSecret: $(head -c 200 "$TMP_DIR/err")"
 python3 - "$TMP_DIR/es.json" "$@" <<'PY' || FAIL=1
 import json, sys
 

@@ -34,7 +34,8 @@ SEED = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
 def pod(name: str, **kw: Any) -> dict[str, Any]:
     ready = kw.get("ready", True)
     waiting = kw.get("waiting")
-    state: dict[str, Any] = {"waiting": {"reason": waiting}} if waiting else {"running": {}}
+    running: dict[str, Any] = {"startedAt": kw["started"]} if "started" in kw else {}
+    state: dict[str, Any] = {"waiting": {"reason": waiting}} if waiting else {"running": running}
     container: dict[str, Any] = {
         "name": "app",
         "ready": ready and not waiting,
@@ -63,12 +64,17 @@ def listing(items: list[dict[str, Any]]) -> str:
     return json.dumps({"items": items})
 
 
-def external_secret(name: str, namespace: str = "vectra-app", reason: str = "SecretSynced") -> dict[str, Any]:
+def external_secret(
+    name: str, namespace: str = "vectra-app", reason: str = "SecretSynced", refreshed: str | None = None
+) -> dict[str, Any]:
     status = "True" if reason == "SecretSynced" else "False"
-    return {
+    result: dict[str, Any] = {
         "metadata": {"name": name, "namespace": namespace},
         "status": {"conditions": [{"type": "Ready", "status": status, "reason": reason}]},
     }
+    if refreshed:
+        result["status"]["refreshTime"] = refreshed
+    return result
 
 
 def application(name: str, sync: str = "Synced", health: str = "Healthy") -> dict[str, Any]:
@@ -241,22 +247,103 @@ def test_arranque_always_reads_linkerd_cni_and_points_to_the_inotify_limit(tmp_p
     assert run("arranque.sh", ["vectra-app", "linkerd-cni"], tmp_path, healthy_state()).returncode == 0
 
 
-@pytest.mark.parametrize("exit_code", [0, 137, 255])
-def test_arranque_flags_a_restarted_vault_pod_whatever_its_exit_code(tmp_path: Path, exit_code: int) -> None:
-    """F-04 (2): un reinicio de la máquina deja la bóveda (que guarda todo en memoria) vacía y un código de salida cualquiera: el diagnóstico de K-05 la marca por el reinicio, no por el código."""
+SEEDED = "2026-11-14T10:30:00Z"  # la ultima sincronizacion de los ExternalSecret tras la siembra
+VAULT_STARTED = (
+    "2026-11-14T10:00:00Z"  # el arranque del contenedor de la boveda tras el reinicio de la maquina
+)
+
+
+def vault_state(
+    *, started: str, secrets: list[dict[str, Any]], restarts: int = 21, last_exit: int = 255
+) -> dict[str, Any]:
     state = healthy_state()
     state["rules"].insert(
         0,
         {
             "match": ["get", "pods", "-n", "vault", "-o", "json"],
-            "stdout": listing([pod("vault-0", namespace="vault", restarts=1, last_exit=exit_code)]),
+            "stdout": listing(
+                [pod("vault-0", namespace="vault", restarts=restarts, last_exit=last_exit, started=started)]
+            ),
         },
     )
-    done = run("arranque.sh", ["vault"], tmp_path, state)
+    state["rules"][3] = {"match": ["get", "externalsecret", "-A"], "stdout": listing(secrets)}
+    return state
+
+
+def test_vault_restarted_and_reseeded_is_a_warning_that_exits_0(tmp_path: Path) -> None:
+    """F-01 (U12-T06 ronda 2): `restartCount` no baja nunca; tras resembrar, la puerta del paso 7 tiene que poder pasarse. El caso medido el 2026-11-14: `vault-0` con 21 reinicios y todos los ExternalSecret sincronizados."""
+    secrets = [external_secret(f"es-{n}", refreshed=SEEDED) for n in range(3)]
+    done = run("arranque.sh", ["vault"], tmp_path, vault_state(started=VAULT_STARTED, secrets=secrets))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "AVISO vault/vault-0 [app]: la boveda se reinicio (21 reinicios" in done.stdout
+    assert "FALLA" not in done.stdout and "resembrada" in done.stdout
+
+
+@pytest.mark.parametrize("exit_code", [0, 137, 255])
+def test_vault_restarted_after_the_last_sync_or_with_an_unsynced_secret_exits_1(
+    tmp_path: Path, exit_code: int
+) -> None:
+    """F-04 de la ronda 1 de U12-T06: se marca por el reinicio, no por el codigo. Cada forma de «no resembrada» da 1."""
+    synced = [external_secret("es-a", refreshed=SEEDED), external_secret("es-b", refreshed=SEEDED)]
+    cases = {
+        "el contenedor arranco despues de la ultima sincronizacion": vault_state(
+            started="2026-11-14T11:00:00Z", secrets=synced, last_exit=exit_code
+        ),
+        "un ExternalSecret sin sincronizar": vault_state(
+            started=VAULT_STARTED,
+            secrets=[*synced, external_secret("es-c", reason="SecretSyncedError", refreshed=SEEDED)],
+            last_exit=exit_code,
+        ),
+        "un ExternalSecret sincronizado antes del arranque (la siembra no lo alcanzo)": vault_state(
+            started=VAULT_STARTED,
+            secrets=[*synced, external_secret("es-d", refreshed="2026-11-14T09:00:00Z")],
+            last_exit=exit_code,
+        ),
+        "un ExternalSecret sin refreshTime": vault_state(
+            started=VAULT_STARTED, secrets=[*synced, external_secret("es-e")], last_exit=exit_code
+        ),
+        "ningun ExternalSecret que pruebe la siembra": vault_state(
+            started=VAULT_STARTED, secrets=[], last_exit=exit_code
+        ),
+    }
+    for name, state in cases.items():
+        done = run("arranque.sh", ["vault"], tmp_path, state)
+        assert done.returncode == 1, f"{name}: {done.stdout}{done.stderr}"
+        assert "FALLA vault/vault-0 [app]: la boveda se reinicio" in done.stdout, name
+        assert "seed-vault.sh" in done.stdout, name
+    healthy = vault_state(started=VAULT_STARTED, secrets=synced, restarts=0)
+    assert run("arranque.sh", ["vault"], tmp_path, healthy).returncode == 0
+
+
+def test_vault_an_externalsecret_that_refreshed_by_interval_against_an_empty_vault_does_not_pass(
+    tmp_path: Path,
+) -> None:
+    """El ExternalSecret se refresca solo por su intervalo contra la boveda vacia: la lectura falla y su `Ready` pasa a `False` aunque `refreshTime` sea posterior al arranque. Cuenta como sin sincronizar."""
+    secrets = [
+        external_secret("es-a", refreshed=SEEDED),
+        external_secret("es-b", reason="SecretSyncedError", refreshed="2026-11-14T10:45:00Z"),
+    ]
+    done = run("arranque.sh", ["vault"], tmp_path, vault_state(started=VAULT_STARTED, secrets=secrets))
     assert done.returncode == 1, done.stdout + done.stderr
-    assert "vault/vault-0 [app]: la boveda se reinicio" in done.stdout and "seed-vault.sh" in done.stdout
-    state["rules"][0]["stdout"] = listing([pod("vault-0", namespace="vault")])
-    assert run("arranque.sh", ["vault"], tmp_path, state).returncode == 0
+    assert "FALLA vault/vault-0" in done.stdout
+
+
+def test_vault_an_unreadable_pod_or_externalsecret_list_exits_2(tmp_path: Path) -> None:
+    secrets = [external_secret("es-a", refreshed=SEEDED)]
+    for failing in (["get", "pods", "-n", "vault"], ["get", "externalsecret", "-A"]):
+        state = vault_state(started=VAULT_STARTED, secrets=secrets)
+        state["rules"].insert(0, {"match": failing, "stderr": "Unable to connect\n", "rc": 1})
+        done = run("arranque.sh", ["vault"], tmp_path, state)
+        assert done.returncode == 2, f"{failing}: {done.stdout}{done.stderr}"
+        assert "NO SE PUDO LEER" in done.stderr
+
+
+def test_humo_help_names_the_delivery_option_of_flujo() -> None:
+    """F-05 (U12-T06 ronda 2): `humo.py flujo` sin `--delivery` da 2 dentro de la imagen (la ruta por omision es relativa); la ayuda lo nombra y dice que la ruta es la de la imagen."""
+    source = (KIND / "humo.py").read_text(encoding="utf-8")
+    assert re.search(r"humo\.py flujo\s+--delivery ", source.split('"""')[1])
+    assert "/verification/reference-model/.out" in source.split('"""')[1]
+    assert "dentro de la imagen" in source[source.index("flow.add_argument(") :][:400]
 
 
 def arranque_exit_with_kubectl_down(where: Path, tmp_path: Path) -> int:

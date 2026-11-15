@@ -17,7 +17,9 @@ from pathlib import Path
 
 import kind_docs as kd
 import pytest
-from vectra_verification import cli, guard
+import yaml
+from vectra_verification import cli, driver, guard, rt2_latency
+from vectra_verification.scenarios import rt2
 
 README = kd.SYSTEM / "README.md"
 MARKER = "POR CONFIRMAR contra el README de U12-T05"
@@ -1030,3 +1032,156 @@ def test_f04_the_symptoms_table_has_the_rows_of_the_restart() -> None:
     assert "reinicia lo que lee esas claves" not in r7, (
         "no basta: Keycloak y MinIO conservan las claves viejas"
     )
+
+
+# --- U12-T07: la remisión al runbook de U1 y las cuatro cifras que sobrevivieron a las mutaciones (F-02 y F-04 de la ronda 2) --------------------------
+
+RUNBOOK = kd.VECTRA / "platform/runbooks/install.md"
+BIAS_POLICY = kd.VECTRA / "bias-monitoring/chart/values-monitoring-policy.yaml"
+
+
+def number(text: str) -> int:
+    return int(re.sub(r"\D", "", text))
+
+
+def figure_findings(text: str) -> list[str]:
+    """Las cuatro cifras que la ronda 2 de U12-T06 encontró sin atar: cada una contra su origen."""
+    found = []
+    latency = int(rt2_latency.LIMIT.total_seconds())
+    limits = [number(m) for m in re.findall(r"rt2_latency`? (?:≤|a) ([\d  ]+) s", text)]
+    if len(limits) < 2 or set(limits) != {latency}:
+        found.append(f"`rt2_latency` ≤ {latency} s (`rt2_latency.LIMIT`), en la guía: {limits}")
+    parts = re.findall(r"(\d[\d ]*) / (\d+) \+ (\d[\d ]*) × (\d+) s \+ (\d+) s ≈ (\d+) min", text)
+    want = (
+        driver.DEMO_VOLUME,
+        int(cli.build_parser({}).parse_args(["decisions"]).rate),
+        driver.DEMO_VOLUME,
+        int(guard.DECISION_SECONDS_PER_CASE),
+        int(guard.MARGIN_SECONDS),
+    )
+    if not parts or any(tuple(number(x) for x in part[:5]) != want for part in parts):
+        found.append(
+            f"la fórmula de `decisions` es volumen / ritmo + volumen × s + margen = {want}; la guía: {parts}"
+        )
+    batch = re.findall(r"\(≈ (\d+) s a (\d+) solicitudes por segundo\)", text)
+    rate = int(rt2.Rt2Params.__dataclass_fields__["rate"].default)
+    if batch != [(str(rt2.BATCH_VOLUME // rate), str(rate))]:
+        found.append(
+            f"el lote de `rt2` son {rt2.BATCH_VOLUME} / {rate} = {rt2.BATCH_VOLUME // rate} s; la guía: {batch}"
+        )
+    schedule = str(yaml.safe_load(BIAS_POLICY.read_text(encoding="utf-8"))["schedule"]).split()[0]
+    minutes = [int(m) for m in schedule.split(",")]
+    interval = minutes[1] - minutes[0]
+    cron = re.findall(r"bias cada (\d+) min, minutos ([\d, y]+?);", text)
+    if cron != [(str(interval), ", ".join(map(str, minutes[:-1])) + f" y {minutes[-1]}")]:
+        found.append(
+            f"bias corre en los minutos {minutes} (cada {interval} min, `values-monitoring-policy.yaml`); la guía: {cron}"
+        )
+    return found
+
+
+def all_findings(text: str) -> list[str]:
+    return (
+        closed_world_findings(text) + exit_code_findings(text) + time_findings(text) + figure_findings(text)
+    )
+
+
+def test_the_four_figures_the_round_2_review_found_loose_are_tied_to_their_origin() -> None:
+    assert figure_findings(GUIDE_TEXT) == []
+
+
+# Las cuatro mutaciones de la ronda 2 (revisiones/U12-T06/ronda-2.md, F-04): cada una tiene que hacer fallar una prueba.
+SURVIVORS_2 = {
+    "rt2_latency ≤ 900 s": lambda t: t.replace("`rt2_latency` ≤ 1 800 s", "`rt2_latency` ≤ 900 s"),
+    "2 000 / 20": lambda t: t.replace("2 000 / 10 + 2 000 × 1 s", "2 000 / 20 + 2 000 × 1 s"),
+    "≈ 15 s el lote": lambda t: t.replace("(≈ 150 s a 10 solicitudes", "(≈ 15 s a 10 solicitudes"),
+    "bias cada 5 min": lambda t: t.replace("bias cada 15 min", "bias cada 5 min"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(SURVIVORS_2))
+def test_red_each_mutation_the_round_2_review_left_alive_now_dies(name: str) -> None:
+    mutated = SURVIVORS_2[name](GUIDE_TEXT)
+    assert mutated != GUIDE_TEXT, name
+    assert all_findings(mutated), f"{name}: ninguna prueba la detecta"
+
+
+def github_anchor(heading: str) -> str:
+    return re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
+
+
+def restart_steps(text: str) -> list[str]:
+    """Los pasos numerados de «Después de reiniciar la máquina»: cada uno hasta el siguiente número (el 7 llega hasta el párrafo en negrita que cierra la sección)."""
+    body = restart_section(text)
+    starts = [m.start() for m in re.finditer(r"^\d+\. \*\*", body, re.M)]
+    ends = starts[1:] + [len(body)]
+    return [body[a:b] for a, b in zip(starts, ends, strict=True)]
+
+
+def runbook_findings(text: str) -> list[str]:
+    """F-02: lo que la lista cerrada no admite son órdenes del operador y están en `platform/runbooks/install.md`; cada paso de la sección del reinicio remite a su sección con un enlace que resuelve, y la guía no contradice el inotify del runbook."""
+    found = []
+    if re.search(r"pregunta abierta", text, re.I):
+        found.append("la guía dice «pregunta abierta»: la decisión es remitir al runbook de U1")
+    runbook = RUNBOOK.read_text(encoding="utf-8")
+    headings = {github_anchor(h) for h in re.findall(r"^#+ (.+)$", runbook, re.M)}
+    steps = restart_steps(text)
+    if len(steps) != 7:
+        found.append(f"«{RESTART}» tiene {len(steps)} pasos numerados, no 7")
+    for number_, step in enumerate(steps, 1):
+        links = re.findall(r"\]\(((?:\.\./)+platform/runbooks/install\.md)(?:#([^)\s]+))?\)", step)
+        if not links and number_ != 7:  # el 7 es la puerta de salida: no ejecuta nada del runbook
+            found.append(
+                f"paso {number_} de «{RESTART}»: no remite a `platform/runbooks/install.md` con un enlace"
+            )
+        for path, anchor in links:
+            if not (kd.GUIDE.parent / path).resolve() == RUNBOOK.resolve():
+                found.append(f"paso {number_}: el enlace {path} no es el runbook")
+            if anchor and anchor not in headings:
+                found.append(f"paso {number_}: el runbook no tiene la sección #{anchor}")
+    body = restart_section(text)
+    for section_name in ("Vault reiniciado", "Tras reiniciar la máquina"):
+        if f"«{section_name}»" not in body or f"#{github_anchor(section_name)})" not in body:
+            found.append(f"«{RESTART}» no enlaza la sección «{section_name}» del runbook")
+    wanted = re.search(r"max_user_instances=(\d+)", runbook)
+    watches = re.search(r"max_user_watches=(\d+)", runbook)
+    assert wanted is not None and watches is not None, "el runbook ya no dice el valor de inotify"
+    first = steps[0] if steps else ""
+    allowed = {128, 840, int(wanted.group(1)), int(watches.group(1))}
+    numbers = {number(n) for n in re.findall(r"\d[\d ]{2,}", first.replace("`/etc/sysctl.d/`", ""))}
+    if not numbers <= allowed or f"**{wanted.group(1)}**" not in first:
+        found.append(
+            f"paso 1: el valor de inotify es el del runbook (**{wanted.group(1)}**); la guía dice {sorted(numbers - allowed)}"
+        )
+    if "la lista de abajo" in body:
+        found.append("«la lista de abajo» se refiere a la de arriba (el paso 7 está al final de la lista)")
+    return found
+
+
+def test_f02_every_step_of_the_restart_points_to_the_runbook_of_u1_and_agrees_with_its_inotify() -> None:
+    assert runbook_findings(GUIDE_TEXT) == []
+
+
+RUNBOOK_MUTATIONS = {
+    "pregunta abierta": lambda t: t.replace("y la lista no se amplió", "y queda como pregunta abierta"),
+    "inotify 512": lambda t: t.replace("el del runbook, **1024**", "el del runbook, **512**"),
+    "paso 4 sin enlace": lambda t: t.replace(
+        "están en los pasos 4 y 5 de [«Vault reiniciado»](../../platform/runbooks/install.md#vault-reiniciado)",
+        "están en los pasos 4 y 5 del runbook",
+    ),
+    "ancla inexistente": lambda t: t.replace(
+        "install.md#tras-reiniciar-la-máquina", "install.md#tras-reiniciar"
+    ),
+    "enlace a otro archivo": lambda t: t.replace(
+        "../../platform/runbooks/install.md#vault-reiniciado",
+        "../../platform/runbooks/otro.md#vault-reiniciado",
+    ),
+    "la lista de abajo": lambda t: t.replace("la lista de arriba", "la lista de abajo"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(RUNBOOK_MUTATIONS))
+def test_red_f02_each_break_of_the_runbook_reference_makes_the_guide_fail(name: str) -> None:
+    mutated = RUNBOOK_MUTATIONS[name](GUIDE_TEXT)
+    assert mutated != GUIDE_TEXT, name
+    assert runbook_findings(mutated), f"{name}: ninguna prueba la detecta"
