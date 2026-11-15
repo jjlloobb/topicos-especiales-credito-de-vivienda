@@ -501,3 +501,34 @@ def test_assertion_audience_missing_in_the_job_environment_fails_with_its_name()
     del env["VECTRA_ASSERTION_AUDIENCE"]
     with pytest.raises(ValidationJobError, match="missing_env:VECTRA_ASSERTION_AUDIENCE"):
         from_env(env)
+
+
+# --- permisos por bucket (U04-T10, CA-5): el doble no deja leer lo que la politica del usuario no cubre --------------------------
+
+
+def test_the_store_double_denies_a_bucket_the_user_policy_does_not_cover() -> None:
+    from validation_support import MemoryStore
+
+    store = MemoryStore({MANIFEST: b"m", DATASET: b"d"}, grants=frozenset({"validation-datasets"}))
+    assert store.read(DATASET) == b"d"
+    with pytest.raises(ValidationJobError, match="object_unreadable"):
+        store.read(MANIFEST)
+
+
+def test_a_run_whose_user_cannot_read_model_store_fails_like_minio_would() -> None:
+    uri, store = package("predictor.json", xgboost_bytes(DATA), DATA)
+    store.grants = frozenset({"validation-datasets"})  # la politica `validation-read` de hoy (U01-T10 la amplia)
+    with pytest.raises(ValidationJobError, match="object_unreadable"):
+        validate(job_config(uri), store, CapturingSender(), EVALUATED_ON)
+
+
+def test_the_buckets_the_job_reads_are_exactly_the_constant_u1_must_grant() -> None:
+    from validation_support import USER_GRANTS
+    from vectra_governance.k8s_jobs import JOB_READ_BUCKETS, MINIO_ACCESS_KEY
+
+    uri, store = package("predictor.json", xgboost_bytes(DATA), DATA)
+    validate(job_config(uri), store, CapturingSender(), EVALUATED_ON)
+    read = {u.removeprefix("s3://").split("/")[0] for u in store.reads}
+    assert read == set(JOB_READ_BUCKETS) == {"model-store", "validation-datasets"}
+    assert USER_GRANTS[MINIO_ACCESS_KEY] == JOB_READ_BUCKETS
+    assert store.user == MINIO_ACCESS_KEY

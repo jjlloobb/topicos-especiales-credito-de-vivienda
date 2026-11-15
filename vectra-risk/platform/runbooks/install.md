@@ -15,7 +15,7 @@ Sin plataforma no se puede desplegar ninguna unidad.
 Todos los comandos corren desde la carpeta `vectra-risk/` del repositorio, salvo donde se indica, y con `--context kind-vectra` implícito: `kubectl config use-context kind-vectra` tras el paso 2. Otros clústeres de kind del equipo no se tocan.
 
 ## Antes de instalar: memoria y Docker
-`kind/cluster.yaml` y los `*-kind.yaml` forman un perfil liviano para una máquina de 14 GiB: dos nodos, una instancia de PostgreSQL por base y nada en HA. Sin réplica síncrona no sirve para el simulacro de failover de zona (Paso 20): ese va en una máquina de al menos 32 GiB con `kind/cluster-ha.yaml`, y `instances: 3` y `zoneConstraint: true` en `vectra-risk-gitops/values/kind/postgres.yaml`.
+`kind/cluster.yaml` y los `*-kind.yaml` forman un perfil liviano para una máquina de 14 GiB: dos nodos, una instancia de PostgreSQL por base (salvo `registry-db`, que lleva 2 con una réplica síncrona porque el `/readyz` del registro la exige) y nada más en HA. Para el simulacro de failover de zona (Paso 20) no sirve para el simulacro de failover de zona (Paso 20): ese va en una máquina de al menos 32 GiB con `kind/cluster-ha.yaml`, y `instances: 3` y `zoneConstraint: true` en `vectra-risk-gitops/values/kind/postgres.yaml`.
 
 - **Memoria:** `free -h` debe mostrar al menos 8 GiB disponibles, y la swap sin llenar. Cierra navegadores, Teams y máquinas virtuales de otros laboratorios. Con menos, la instalación puede matar pods o congelar el escritorio.
 - **Docker:** usa Docker Engine nativo (`docker-ce`). Corre sin VM, y en 14 GiB la VM de Docker Desktop, con los 10 GiB que necesitaría, deja poco al sistema. Sin VM tampoco hay límite que proteja el escritorio: el mínimo de `free -h` de arriba es la protección. Docker Desktop también sirve en una máquina más grande, con al menos 10 GiB de memoria en su configuración. kind sobre Podman sin root no sirve aquí: no puede abrir el puerto 443 ni darle a Calico lo que necesita.
@@ -28,7 +28,7 @@ Todos los comandos corren desde la carpeta `vectra-risk/` del repositorio, salvo
   ```
   Para comprobarlo: `docker context use default`; `docker version --format '{{.Server.Version}}'` debe dar la misma versión que `dpkg-query -W -f='${Version}' docker-ce`, y `ss -ltn | grep ':5001 '` no debe mostrar nada. Si `ip -br addr | grep fc00:f853` muestra un puente, es la red `kind` que dejó el motor de snap: usa la misma subred IPv6 que kind por omisión y podría chocar al crear la red (no se ha probado). Con el snap ya desactivado, se quita con `sudo ip link delete <puente>`.
 - **Credenciales de Docker:** si `~/.docker/config.json` conserva `"credsStore": "desktop"` de una instalación de Docker Desktop, las descargas pueden fallar con `docker-credential-desktop` y un error de `gpg`. Haz una copia del archivo y quita esa clave.
-- **Límites de inotify:** con tres nodos, el valor por omisión de `fs.inotify.max_user_instances` (128) no alcanza: `linkerd-cni` falla con `too many open files`. Antes de crear el clúster: `sudo sysctl fs.inotify.max_user_instances=512`. No sobrevive a un reinicio.
+- **Límites de inotify:** con tres nodos, el valor por omisión de `fs.inotify.max_user_instances` (128) no alcanza: `linkerd-cni` falla en los workers con `couldn't initialize inotify: too many open files`. Medido el 2026-11-14: con 1024 (y `fs.inotify.max_user_watches` en 1048576) arranca. Antes de crear el clúster, y de forma persistente: `printf 'fs.inotify.max_user_instances=1024\nfs.inotify.max_user_watches=1048576\n' | sudo tee /etc/sysctl.d/99-vectra-kind.conf && sudo sysctl --system`. Un `sysctl` suelto no sobrevive a un reinicio.
 - **Otro clúster:** Docker puede levantar el clúster `kind` que ya exista. Antes de instalar, `kind get clusters`: si `kind` aparece y no lo necesitas, elimínalo con `kind delete cluster --name kind`; si lo necesitas, detén sus contenedores. Compruebas el contexto antes de cada comando: `kubectl config current-context` debe decir `kind-vectra`.
 - **Si se queda sin memoria:** detente y no sigas con la siguiente wave. Puedes dejar para el final `loki`, `tempo` y `alloy`.
 
@@ -102,6 +102,7 @@ sync cert-manager trust-manager prometheus-operator-crds linkerd-crds linkerd-cn
      external-secrets-rbac external-secrets-rbac-kind external-secrets kyverno envoy-gateway kserve-crd kserve vault
 # Wave 1
 sync namespaces priority-classes quotas mesh-certificates
+sync metrics-server                                            # solo kind; lo necesitan los HPA
 kubectl get configmap linkerd-identity-trust-roots -n linkerd   # debe existir antes del plano de control
 sync linkerd-control-plane
 platform/kind/seed-vault.sh                                    # paso 8
@@ -144,12 +145,18 @@ El Job crea los equipos que falten, pero no sus miembros.
 - Para subir modelos (NFR-U5-03), el ingeniero lee `minio/engineer-upload` en la bóveda y llega a MinIO con `kubectl port-forward -n vectra-data svc/minio 9000`.
 
 ### Vault reiniciado
-Vault dev guarda todo en memoria. Si el pod se reinicia, lo sembrado se pierde y `seed-vault.sh` genera **claves nuevas**, que ya no coinciden con las que usan PostgreSQL, MinIO y Grafana. Hay que volver a sincronizarlas:
-1. `platform/kind/seed-vault.sh`, que crea las rutas y fuerza el refresco de los `ExternalSecret`.
-2. PostgreSQL: CloudNativePG aplica las nuevas contraseñas de los roles gestionados al cambiar sus Secret. Reinicia los pods que las leen.
-3. MinIO: `kubectl rollout restart statefulset/minio -n vectra-data` para la raíz y `argocd app sync minio`, cuyo Job vuelve a crear los usuarios.
-4. Grafana: la base de Grafana conserva la clave vieja de `admin`. Fíjala con `kubectl exec -n vectra-observability deploy/kube-prometheus-stack-grafana -c grafana -- grafana cli admin reset-admin-password "$(kubectl get secret grafana-admin -n vectra-observability -o jsonpath='{.data.admin-password}' | base64 -d)"`.
-5. Paso 9, `seed-vault.sh grafana-token`, y `argocd app sync grafana-config`.
+Vault dev guarda todo en memoria. Si el pod se reinicia, lo sembrado se pierde y `seed-vault.sh` genera **claves nuevas**, que ya no coinciden con las que usan PostgreSQL, MinIO y Grafana. Desde U01-T10 el pod declara requests y limits iguales (256 Mi, QoS Guaranteed): ya no es lo primero que mata el OOM, pero un reinicio sigue borrando todo. Lo de abajo es lo que se **midió en `kind-vectra` el 2026-11-14**, en este orden; lo que no se midió lo dice. Si la máquina también se reinició, empieza por «Tras reiniciar la máquina».
+1. **Límites de inotify.** Si `linkerd-cni` falla en los workers con `couldn't initialize inotify: too many open files`, mira `sysctl fs.inotify.max_user_instances` (era 128). Con 1024 (y `max_user_watches` 1048576, persistente en `/etc/sysctl.d/`) arrancó; ver «Antes de instalar».
+2. **Recrear los pods con malla.** Los pods con proxy creados antes del arreglo no se recuperan solos: `linkerd-network-validator` falla con «Failed to validate networking configuration». Se borran, en este orden: primero los de `linkerd`, luego los de `vectra-data` y luego los de `vectra-observability` (`kubectl delete pod -n <namespace> --all`, esperando a que cada namespace vuelva a `Running`). Para el resto de los namespaces con malla no se midió.
+3. **Resiembra.** `platform/kind/seed-vault.sh` y, después, `platform/kind/seed-vault.sh identity`. Devolvieron los `ExternalSecret` a sincronizados, con claves **nuevas**. Los pasos 4 a 6 existen por esas claves nuevas.
+4. **Claves de MinIO.** `argocd app sync minio` termina bien y **no cambia nada**: el Job `minio-post-job` solo crea un usuario si no existe («User already exists»), así que MinIO sigue con las claves viejas. Síntomas: Tempo en `CrashLoopBackOff` con «signature does not match» y Loki con 403. Lo que lo arregló fue un Job de una sola vez, en `vectra-data`, que corre el script `add-user` del chart forzando `mc admin user add` para los 12 usuarios de MinIO, con `priorityClassName: vectra-normal` (Kyverno lo exige en ese namespace). **Decisión: va como procedimiento y no como manifiesto versionado.** Ese Job no se conservó, no hay clúster para volver a probarlo en esta tarea, y un manifiesto sin probar en `platform/` entraría en lo que renderizan y evalúan las pruebas. Pasos: (a) toma el script de `kubectl get configmap minio -n vectra-data -o jsonpath='{.data.add-user}'`; (b) crea un Job con la imagen `mc` del chart (`mcImage` de `platform/data/minio/values-kind.yaml` o `values.yaml`), `priorityClassName: vectra-normal`, los volúmenes y Secret de ese script (los `existingSecret` de los usuarios) y los `resources` y `securityContext` de `makePolicyJob`; (c) cambia en una copia del script la creación de cada usuario por `mc admin user add` incondicional. Es el único paso de esta lista que hay que rehacer a mano, y no está medido cuánto del script se puede reutilizar sin cambios. Candidata: versionar este Job (ver el informe de U01-T10).
+5. **Tempo y Loki.** Después del paso 4, reinicia los pods de Tempo (`kubectl rollout restart` de sus Deployments y StatefulSets en `vectra-observability`). Loki se midió con 403 antes del paso 4; que se recupere solo con las claves nuevas no se midió, comprueba sus logs.
+6. **Grafana.** La clave de `admin` del Secret daba 401 (la base de Grafana conserva la vieja). Fíjala con `kubectl exec -n vectra-observability deploy/kube-prometheus-stack-grafana -c grafana -- grafana cli admin reset-admin-password "$(kubectl get secret grafana-admin -n vectra-observability -o jsonpath='{.data.admin-password}' | base64 -d)"`. Luego `platform/kind/seed-vault.sh grafana-token` y `argocd app sync grafana-config`. (Con 256 MiB de límite el `grafana cli` no cabía; ya está en 512 MiB.)
+7. **PostgreSQL.** CloudNativePG aplica las contraseñas nuevas de los roles gestionados al cambiar sus Secret; reinicia los pods que las leen. **No se midió** en la sesión del 2026-11-14.
+8. **Identidad (Keycloak).** **No medido.** Keycloak no estaba instalado el 2026-11-14. Tras `seed-vault.sh identity` puede hacer falta la clave de `keycloak-admin`, las llaves de cliente y `keycloak-config-cli`; no se sabe en qué orden ni cuáles, y este runbook no lo adivina. Se mide cuando se instale.
+
+### Tras reiniciar la máquina
+Una máquina reiniciada pierde, además de la bóveda: (1) los `sysctl` que no estaban en `/etc/sysctl.d/` (ver el paso 1 de arriba); (2) `cloud-provider-kind`, que se lanza con `--rm` y **no sobrevive al reinicio**: hay que volver a lanzarlo (paso 4 de «Mitigación», en otra terminal) o los `LoadBalancer` quedan sin dirección; (3) la bóveda, porque su pod se recrea: sigue en «Vault reiniciado». Orden: `sysctl`, contenedores de kind y del registro (`docker ps`), `cloud-provider-kind`, y luego los pasos 2 a 8 de «Vault reiniciado». No se midió cuánto tarda el clúster en volver a `Ready` tras un reinicio.
 
 **Espera de `product-metrics` en la wave 5:** su readiness exige una instantánea, y cada réplica hace una pasada completa antes de quedar lista. Con 10 veces el volumen esperado, el rollout puede tardar hasta unas 2,5 h, y Argo CD no pasa a la wave 6 hasta entonces. Es una espera y no una falla si `vectra_product_full_pass_in_progress = 1` y `vectra_product_entries_read_total` crece. Con U3 caído, la réplica queda lista enseguida.
 
@@ -159,6 +166,7 @@ Si una wave no llega a `Healthy`, detén la instalación y abre un issue con la 
 ## Verificación
 - `argocd app list -o json`: todas `Synced` y `Healthy`, ninguna con `automated`.
 - `linkerd check`.
-- `kubectl get clusters.postgresql.cnpg.io -A`.
+- `kubectl get clusters.postgresql.cnpg.io -A`: `registry-db` con 2 instancias y una réplica síncrona; las otras con 1.
+- `kubectl top nodes` responde (metrics-server, solo kind; los HPA lo necesitan).
 - `kubectl get externalsecrets.external-secrets.io -A`: todos `SecretSynced`.
 - `curl -s localhost:5001/v2/_catalog`: las cuatro imágenes propias.

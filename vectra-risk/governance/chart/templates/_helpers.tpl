@@ -8,3 +8,13 @@
 {{- required (printf "el repositorio de %s es obligatorio" $name) $fallback -}}
 {{- end -}}
 {{- end -}}
+
+{{- /* El dataset de validacion que el servicio entrega al Job: `s3://bucket/clave`. Un bucket solo (`s3://validation-datasets`) lo rechaza el lector
+del Job en plena validacion con `object_uri_invalid`; aqui falla el render. Uso: include "governance.datasetRef" . */ -}}
+{{- define "governance.datasetRef" -}}
+{{- $ref := required "validation.datasetRef es obligatorio" .Values.validation.datasetRef -}}
+{{- if not (regexMatch "^s3://[^/]+/.*[^/]$" $ref) -}}
+{{- fail (printf "validation.datasetRef debe ser un objeto s3://<bucket>/<clave> y no un bucket ni otro esquema: %q" $ref) -}}
+{{- end -}}
+{{- $ref -}}
+{{- end -}}
