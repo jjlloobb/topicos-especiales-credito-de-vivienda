@@ -47,7 +47,7 @@ Las ocho secciones, en el orden en que se corren (`vectra-verification <sección
 | kind | v0.33.0 | el clúster (`platform/kind/cluster.yaml`, Kubernetes 1.37) |
 | `kubectl` | cliente 1.37.x | reenviar la bóveda y exportar el kubeconfig; la imagen trae el suyo para las secciones |
 | `helm` | v4.3.0 | instalar las unidades (U1 a U11) |
-| Memoria | **14 GiB como mínimo, 16 recomendados** | los requests del perfil de kind suman 11,8 GiB (`platform/tests/test_kind_profile.py`, `BUDGET_GIB`); la herramienta usa 1 GiB más (`--memory 1g`) y Chromium corre dentro de ese límite |
+| Memoria | **14 GiB como mínimo, 16 recomendados** | los requests del perfil de kind suman 13,9 GiB (`platform/tests/test_kind_profile.py`, `BUDGET_GIB`); la herramienta usa 1 GiB más (`--memory 1g`) y Chromium corre dentro de ese límite |
 | Kernel | espacios de nombres de usuario sin privilegios (`kernel.unprivileged_userns_clone=1`, `user.max_user_namespaces` > 0) | el sandbox de Chromium |
 
 **En el clúster:**
