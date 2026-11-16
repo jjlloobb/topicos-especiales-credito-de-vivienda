@@ -50,6 +50,42 @@ spec:
   policyTypes:
   - Ingress
 ---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: api-gateway-10443
+  namespace: vectra-edge
+spec:
+  podSelector:
+    matchLabels:
+      gateway.envoyproxy.io/owning-gateway-name: api-gateway
+  port: 10443
+  proxyProtocol: opaque
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: api-gateway-10443-external
+  namespace: vectra-edge
+spec:
+  networks:
+  - cidr: 0.0.0.0/32
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: api-gateway-10443-external
+  namespace: vectra-edge
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: NetworkAuthentication
+    name: api-gateway-10443-external
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: api-gateway-10443
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
