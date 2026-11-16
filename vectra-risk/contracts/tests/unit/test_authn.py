@@ -105,3 +105,27 @@ async def test_authenticator_from_env_uses_url(monkeypatch):
     monkeypatch.setattr("vectra_common.deps.fetch_json_once", fake)
     assert await auth.jwks.get_key(a.KID)
     assert calls == [("http://keycloak/certs", 2.0)]
+
+
+def _keycloak_authenticator():
+    async def fetch():
+        return a.keycloak_jwks_document()
+
+    return a.authenticator(fetch)
+
+
+async def test_jwks_keycloak_shape_token_verifies():
+    principal = await _keycloak_authenticator().authenticate(f"Bearer {a.token()}")
+    assert principal.subject == "user-1"
+
+
+async def test_jwks_keycloak_shape_token_with_encryption_kid_is_401():
+    auth = _keycloak_authenticator()
+    await auth.authenticate(f"Bearer {a.token()}")
+    with pytest.raises(Unauthenticated):
+        await auth.authenticate(f"Bearer {a.token(key=a.OTHER_KEY, kid=a.ENC_KID)}")
+
+
+async def test_jwks_keycloak_shape_disallowed_algorithm_still_rejected():
+    with pytest.raises(Unauthenticated):
+        await _keycloak_authenticator().authenticate(f"Bearer {a.token(alg='RS512')}")

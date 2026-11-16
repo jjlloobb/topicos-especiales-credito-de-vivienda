@@ -27,6 +27,15 @@ def jwks_document(kid: str = KID, key: Any = KEY) -> dict[str, Any]:
     return {"keys": [{**jwk, "kid": kid, "alg": "RS256", "use": "sig"}]}
 
 
+ENC_KID = "enc1"
+
+
+def keycloak_jwks_document(sig_kid: str = KID, enc_kid: str = ENC_KID) -> dict[str, Any]:
+    """Forma real del JWKS de Keycloak 26: la llave de firma y una de cifrado (`RSA-OAEP`, `use: enc`)."""
+    enc = json.loads(RSAAlgorithm.to_jwk(OTHER_KEY.public_key()))
+    return {"keys": [*jwks_document(sig_kid)["keys"], {**enc, "kid": enc_kid, "alg": "RSA-OAEP", "use": "enc"}]}
+
+
 def claims(**over: Any) -> dict[str, Any]:
     now = int(time.time())
     base = {"sub": "user-1", "iss": ISSUER, "aud": AUDIENCE, "exp": now + 300, "roles": ["analista"], "acr": "mfa", "auth_time": now}

@@ -14,6 +14,27 @@ CACHE_TTL: Final = 600.0
 MIN_REFRESH_INTERVAL: Final = 30.0
 
 
+def _signing_keys(items: list[dict[str, Any]]) -> dict[str, jwt.PyJWK]:
+    """Las llaves de firma legibles del documento, por `kid`.
+
+    Keycloak publica tambien una llave de cifrado (`use: enc`, `RSA-OAEP`) que PyJWT no sabe leer: se ignora, igual que
+    cualquier llave que la libreria no pueda leer (se cuenta como `key_skipped`, sin volcar su contenido), para que
+    no invalide las demas. Sin ninguna llave de firma legible el refresco es un error.
+    """
+    keys: dict[str, jwt.PyJWK] = {}
+    for item in items:
+        key_id = item.get("kid")
+        if not key_id or item.get("use", "sig") != "sig":
+            continue
+        try:
+            keys[key_id] = jwt.PyJWK.from_dict(item)
+        except jwt.PyJWTError:
+            JWKS_REFRESH.labels(result="key_skipped").inc()
+    if not keys:
+        raise jwt.PyJWTError("no readable signing key in the JWKS")
+    return keys
+
+
 class JwksCache:
     def __init__(
         self, fetch: Callable[[], Awaitable[Any]], clock: Callable[[], float] = time.monotonic
@@ -56,11 +77,7 @@ class JwksCache:
             self._last_refresh = self._clock()
             try:
                 document = await self._fetch()
-                keys = {
-                    key_id: jwt.PyJWK.from_dict(item)
-                    for item in document["keys"]
-                    if (key_id := item.get("kid"))
-                }
+                keys = _signing_keys(document["keys"])
             except (DependencyUnavailable, KeyError, TypeError, jwt.PyJWTError) as exc:
                 JWKS_REFRESH.labels(result="error").inc()
                 if isinstance(exc, DependencyUnavailable) or not self._valid():
