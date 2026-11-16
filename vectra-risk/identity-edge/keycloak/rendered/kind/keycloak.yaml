@@ -231,7 +231,7 @@ spec:
             readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 1000
-          image: "kind-registry:5000/vectra/keycloak@sha256:0000000000000000000000000000000000000000000000000000000000000001"
+          image: "kind-registry:5000/vectra/keycloak@sha256:1604d2943e1e26f8085c112912e783e074feafac9eec233e9b4fe298a76dbe8a"
           imagePullPolicy: IfNotPresent
           args:
             - start
