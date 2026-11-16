@@ -1078,6 +1078,9 @@ MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("envoy-resources", "patches-envoy-image", lambda d: _envoy_patch(d).update(image="otra")),
     ("envoy-container-port", "missing", lambda d: _envoy_patch(d).pop("ports")),
     ("envoy-container-port", "other-port", lambda d: _envoy_patch(d)["ports"][0].update(containerPort=8443)),
+    ("envoy-container-port", "duplicated-envoy", lambda d: _kube(d)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"].insert(1, copy.deepcopy(_envoy_patch(d)))),
+    ("envoy-container-port", "udp", lambda d: _envoy_patch(d)["ports"][0].update(protocol="UDP")),
+    ("envoy-container-port", "sidecar-first", lambda d: _kube(d)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"].reverse()),
     ("envoy-container-port", "envoy-not-patched", lambda d: _kube(d)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"].remove(_envoy_patch(d))),
     ("envoy-resources", "memory", lambda d: _container(d)["resources"]["requests"].update(memory="1Gi")),
     ("envoy-priority", "class", lambda d: _pod(d).update(priorityClassName="system-cluster-critical")),
@@ -1480,12 +1483,3 @@ def test_the_envoy_container_declares_the_port_external_traffic_enters_by(env, d
     """Linkerd precarga la politica de los puertos que el pod declara (`LINKERD2_PROXY_INBOUND_PORTS`); uno no declarado cae en `deny`
     cuando la politica se descarta tras un rato sin trafico y la primera conexion falla."""
     assert external_target_ports() <= declared_envoy_ports(docs_by_env[env])
-
-
-@pytest.mark.parametrize("env", ENVS)
-def test_dropping_the_declared_port_is_seen(env, docs_by_env):
-    docs = copy.deepcopy(docs_by_env[env])
-    containers = _kube(docs)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"]
-    for c in containers:
-        c.pop("ports", None)
-    assert not external_target_ports() <= declared_envoy_ports(docs)

@@ -313,6 +313,38 @@ deny contains msg if {
 	msg := sprintf("envoy-container-port: %s no declara el puerto 10443 en el contenedor envoy", [label(input)])
 }
 
+# Una sola entrada `envoy` y solo TCP (la malla precarga por numero de puerto, pero un UDP no es el listener HTTPS).
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	entries := [c |
+		some c in input.spec.provider.kubernetes.envoyDeployment.patch.value.spec.template.spec.containers
+		c.name == "envoy"
+	]
+	count(entries) != 1
+	msg := sprintf("envoy-container-port: %s debia parchar el contenedor envoy una sola vez y lo parcha %d veces", [label(input), count(entries)])
+}
+
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	some c in input.spec.provider.kubernetes.envoyDeployment.patch.value.spec.template.spec.containers
+	c.name == "envoy"
+	some p in c.ports
+	object.get(p, "protocol", "TCP") != "TCP"
+	msg := sprintf("envoy-container-port: %s declara el puerto %d de envoy con protocolo %s y debia ser TCP", [label(input), p.containerPort, p.protocol])
+}
+
+# El orden de `containers` del parche es el del pod: con `shutdown-manager` antes que `envoy`, la mezcla estrategica reordena los contenedores del
+# Deployment (comprobado con `kubectl patch --local --type strategic`) y rota el pod en cada reconciliacion.
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	containers := input.spec.provider.kubernetes.envoyDeployment.patch.value.spec.template.spec.containers
+	some i, j
+	containers[i].name == "shutdown-manager"
+	containers[j].name == "envoy"
+	i < j
+	msg := sprintf("envoy-container-port: %s parcha shutdown-manager antes que envoy y el orden de los contenedores cambiaria", [label(input)])
+}
+
 # regla: client-tls
 # NFR-U2-22 (Y4): TLS 1.2 como minimo y 1.3 como maximo en el borde.
 deny contains msg if {

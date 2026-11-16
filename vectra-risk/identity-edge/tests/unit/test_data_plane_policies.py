@@ -291,3 +291,64 @@ def test_the_simulation_sees_a_service_without_the_gateway_label():
     gc.find(docs, "EnvoyProxy", "api-gateway")["spec"]["provider"]["kubernetes"]["envoyService"]["labels"] = {"app.kubernetes.io/name": "envoy"}
     code, output = apply_policies([service(docs)])
     assert code != 0 and "restrict-loadbalancer" in output, output
+
+
+# --- U02-T25 (F-03): el parche del EnvoyProxy aplicado a un Deployment con la forma del de Envoy Gateway v1.9.3 --------------------
+
+MERGE_KEYS = {"containers": "name", "ports": "containerPort"}
+
+
+def strategic_merge(base: Any, patch: Any, field: str = "") -> Any:
+    """`StrategicMerge` de Kubernetes para lo que usa el parche: diccionarios recursivos y listas de objetos unidas por su clave de mezcla
+    (`containers` por `name`, `ports` por `containerPort`), conservando el orden de la base y agregando al final lo nuevo."""
+    if isinstance(base, dict) and isinstance(patch, dict):
+        return {**base, **{k: strategic_merge(base[k], v, k) if k in base else v for k, v in patch.items()}}
+    if isinstance(base, list) and isinstance(patch, list) and field in MERGE_KEYS:
+        key = MERGE_KEYS[field]
+        merged = copy.deepcopy(base)
+        for item in patch:
+            hits = [i for i, b in enumerate(merged) if b[key] == item[key]]
+            if hits:
+                merged[hits[0]] = strategic_merge(merged[hits[0]], item)
+            else:
+                merged.append(copy.deepcopy(item))
+        return merged
+    return copy.deepcopy(patch)
+
+
+def envoy_gateway_deployment() -> dict[str, Any]:
+    """La forma de `expectedProxyContainers` de v1.9.3: `envoy` primero (imagen, args, sondas, recursos, puertos 19001 y 19003) y `shutdown-manager`."""
+    envoy = {
+        "name": "envoy",
+        "image": "registry.example/envoy@sha256:" + "a" * 64,
+        "args": ["--service-cluster vectra-edge", "--log-level warn"],
+        "resources": {"requests": {"cpu": "250m", "memory": "256Mi"}, "limits": {"cpu": "1", "memory": "512Mi"}},
+        "ports": [{"name": "metrics", "containerPort": 19001, "protocol": "TCP"}, {"name": "readiness", "containerPort": 19003, "protocol": "TCP"}],
+        "readinessProbe": {"httpGet": {"path": "/ready", "port": 19003}},
+    }
+    shutdown = {"name": "shutdown-manager", "image": "registry.example/envoy-gateway@sha256:" + "b" * 64, "resources": {"requests": {"cpu": "10m", "memory": "32Mi"}}}
+    return {"spec": {"template": {"spec": {"containers": [envoy, shutdown]}}}}
+
+
+@pytest.mark.parametrize("env", gc.ENVS)
+def test_the_envoy_proxy_patch_adds_the_external_port_and_keeps_the_rest_of_the_pod(env):
+    docs = gc.load_env(env)
+    patch = gc.find(docs, "EnvoyProxy", "api-gateway")["spec"]["provider"]["kubernetes"]["envoyDeployment"]["patch"]
+    assert patch["type"] == "StrategicMerge"
+    base = envoy_gateway_deployment()
+    merged = strategic_merge(base, patch["value"])
+    before = base["spec"]["template"]["spec"]["containers"]
+    after = merged["spec"]["template"]["spec"]["containers"]
+    assert [c["name"] for c in after] == [c["name"] for c in before] == ["envoy", "shutdown-manager"]
+    envoy, shutdown = after
+    assert sorted(p["containerPort"] for p in envoy["ports"]) == [10443, 19001, 19003]
+    assert {k: v for k, v in envoy.items() if k != "ports"} == {k: v for k, v in before[0].items() if k != "ports"}  # imagen, args, sondas y recursos intactos
+    assert [p for p in envoy["ports"] if p["containerPort"] != 10443] == before[0]["ports"]
+    assert shutdown["resources"] == {"requests": {"cpu": "10m", "memory": "32Mi"}, "limits": {"cpu": "50m", "memory": "64Mi"}}
+    assert {k: v for k, v in shutdown.items() if k != "resources"} == {k: v for k, v in before[1].items() if k != "resources"}
+
+
+def test_the_merge_helper_follows_strategic_merge_by_name_and_port():
+    merged = strategic_merge(envoy_gateway_deployment(), {"spec": {"template": {"spec": {"containers": [{"name": "envoy", "ports": [{"containerPort": 19001, "name": "stats"}]}]}}}})
+    envoy = merged["spec"]["template"]["spec"]["containers"][0]
+    assert [(p["containerPort"], p["name"]) for p in envoy["ports"]] == [(19001, "stats"), (19003, "readiness")]  # misma clave: se mezcla, no se duplica
