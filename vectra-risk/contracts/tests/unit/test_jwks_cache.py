@@ -3,7 +3,7 @@
 import asyncio
 
 import pytest
-from strategies.auth import KID, jwks_document
+from strategies.auth import ENC_KID, KID, jwks_document, keycloak_jwks_document
 
 from vectra_common.errors import DependencyUnavailable, Unauthenticated
 from vectra_common.jwks_cache import JwksCache
@@ -97,3 +97,44 @@ async def test_malformed_document_is_503_without_cache():
 
     with pytest.raises(DependencyUnavailable):
         await JwksCache(bad, Clock()).get_key(KID)
+
+
+async def _keycloak_fetch():
+    return keycloak_jwks_document()
+
+
+async def test_jwks_keycloak_shape_encryption_key_does_not_break_the_cache():
+    cache = JwksCache(_keycloak_fetch, Clock())
+    assert (await cache.get_key(KID)).key is not None
+    assert cache._valid()
+
+
+async def test_jwks_encryption_kid_is_unauthenticated():
+    cache = JwksCache(_keycloak_fetch, Clock())
+    await cache.get_key(KID)
+    with pytest.raises(Unauthenticated):
+        await cache.get_key(ENC_KID)
+
+
+async def test_jwks_unreadable_signing_key_is_skipped_and_others_load():
+    broken = {"kid": "bad", "kty": "RSA", "alg": "RSA-OAEP", "use": "sig", "n": "AQAB", "e": "AQAB"}
+
+    async def fetch():
+        doc = keycloak_jwks_document()
+        return {"keys": [broken, *doc["keys"]]}
+
+    cache = JwksCache(fetch, Clock())
+    assert (await cache.get_key(KID)).key is not None
+    with pytest.raises(Unauthenticated):
+        await cache.get_key("bad")
+
+
+async def test_jwks_without_any_readable_signing_key_is_a_refresh_error():
+    async def fetch():
+        return {"keys": [k for k in keycloak_jwks_document()["keys"] if k["use"] == "enc"]}
+
+    cache = JwksCache(fetch, Clock())
+    with pytest.raises(DependencyUnavailable):
+        await cache.get_key(KID)
+    with pytest.raises(DependencyUnavailable):
+        await cache.get_key(ENC_KID)

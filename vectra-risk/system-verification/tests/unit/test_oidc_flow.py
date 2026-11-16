@@ -255,3 +255,18 @@ def test_the_service_assertion_audience_is_the_environment_issuer(
     assert idp.last_assertion_claims["aud"] == dynamic_environment.issuer
     assert idp.last_assertion_claims["aud"] != client.token_url
     assert service.claims["azp"] == "channel-simulator" and "intake:submit" in service.claims["scope"]
+
+
+def test_a_jwks_with_an_encryption_key_does_not_break_the_signing_key_and_its_kid_is_an_oidc_error(
+    dynamic_environment: guard.Environment,
+) -> None:
+    """Forma real del JWKS de Keycloak: una llave de firma y una `RSA-OAEP`/`enc` que PyJWT no sabe leer (U0-T05)."""
+    from oidc_double import jwk_of
+
+    _, idp, _, client, _ = _world(dynamic_environment)
+    enc = {"kty": "RSA", "alg": "RSA-OAEP", "use": "enc", "kid": "enc1", "n": "AQAB", "e": "AQAB"}
+    client._jwks = {"keys": [enc, jwk_of(idp.key, "sig1")]}
+    assert client._key_for("sig1") is not None
+    with pytest.raises(OidcError) as error:
+        client._key_for("enc1")
+    assert str(error.value) == "token_key_unknown"
