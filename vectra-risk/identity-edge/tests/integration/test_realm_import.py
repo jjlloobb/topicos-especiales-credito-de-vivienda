@@ -4,6 +4,7 @@ Keycloak y keycloak-config-cli reales (`realm_stack.py`); el realm entra **sin e
 los de lectura y login primero; la idempotencia y la migracion al final (borran y reimportan el realm).
 """
 
+import json
 import re
 import time
 from typing import Any
@@ -144,6 +145,39 @@ def test_brute_force_locks_the_ephemeral_user_at_the_failure_factor(stack: rs.St
         rs.measure(f"fuerza bruta: bloqueado en el fallo {factor}: {status}")
     finally:
         stack.delete_user(account.user_id)
+
+
+# --- U02-T24: el documento de descubrimiento y el resto de lo publico del realm no dan 500 --------------------------------
+
+
+def _public_get(stack: rs.Stack, path: str) -> Any:
+    client = stack.client()
+    try:
+        return client.get(f"/auth/realms/{rs.REALM}{path}")
+    finally:
+        client.close()
+
+
+def test_discovery_document_responds_with_the_realm_issuer(stack: rs.Stack) -> None:
+    response = _public_get(stack, "/.well-known/openid-configuration")
+    rs.measure(f"descubrimiento: HTTP {response.status_code}; {response.text[:160]!r}")
+    assert response.status_code == 200, f"HTTP {response.status_code}: {response.text[:300]}; log: {stack.keycloak_log_lines('Uncaught server error')[-1:]}"
+    document = response.json()
+    assert document["issuer"] == f"{stack.base_url}/auth/realms/{rs.REALM}"
+    assert document["authorization_endpoint"].startswith(document["issuer"] + "/protocol/openid-connect/")
+    assert document["token_endpoint"].startswith(document["issuer"] + "/protocol/openid-connect/")
+    assert document["jwks_uri"].startswith(document["issuer"] + "/protocol/openid-connect/")
+    acr = document["acr_values_supported"]
+    rs.measure(f"descubrimiento: acr_values_supported={acr}")
+    assert set(acr) == set(json.loads(realm_yaml()["attributes"]["acr.loa.map"])), acr  # `pwd` y `mfa`: los del mapa del realm
+
+
+def test_no_public_endpoint_of_the_realm_answers_500(stack: rs.Stack) -> None:
+    paths = ["/", "/.well-known/openid-configuration", "/protocol/openid-connect/certs", "/protocol/openid-connect/auth?client_id=vectra-console&response_type=code&scope=openid&redirect_uri=" + f"{stack.base_url}/callback"]
+    statuses = {path.split("?")[0]: _public_get(stack, path).status_code for path in paths}
+    rs.measure(f"endpoints publicos del realm: {statuses}")
+    assert all(status < 500 for status in statuses.values()), statuses
+    assert not stack.keycloak_log_lines("Uncaught server error"), stack.keycloak_log_lines("Uncaught server error")[-1:]
 
 
 # --- CA-8: idempotencia y migracion ------------------------------------------------------------------------------------
