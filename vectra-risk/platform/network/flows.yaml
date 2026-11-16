@@ -12,6 +12,16 @@ api_server_cidr: { kind: 172.18.0.0/16, staging: 0.0.0.0/32, prod: 0.0.0.0/32 }
 #: Origen de las sondas del kubelet, que Linkerd no autoriza solo en un `Server` con rutas.
 #: Tambien se admite pod_cidr: kubelet puede salir con la IP de tunl0 de Calico (issue 7).
 node_cidr: { kind: 172.18.0.0/16, staging: 0.0.0.0/32, prod: 0.0.0.0/32 }
+#: U01-T14. Rango del que llega el trafico de los origenes `external:` a un pod mallado (F01, F07 y F08 al 10443 del gateway). Linkerd no ve ahi
+#: una identidad: el `Server` del puerto los admite por red (la autenticacion del puerto la hacen Envoy, con TLS y JWT, y la NetworkPolicy).
+#: En kind el origen es el balanceador de `cloud-provider-kind`, en la red de Docker (medido: 172.18.0.7). 0.0.0.0/32 no autoriza a nadie
+#: hasta que el banco entregue el rango.
+external_cidr: { kind: 172.18.0.0/16, staging: 0.0.0.0/32, prod: 0.0.0.0/32 }
+#: U01-T14. Workloads mallados que el kubelet sonda por HTTPS o TCP: el proxy no ve la ruta, y sin autorizacion al origen del kubelet
+#: (`node_cidr` y `pod_cidr`) el `Server` del puerto la rechaza. La prueba `test_mesh_admission` los coteja con los manifiestos versionados.
+#: keycloak: `/auth/health` por HTTPS en el 9000 (`startupProbe`, `livenessProbe` y `readinessProbe` del chart de U2).
+probed_ports:
+  keycloak: [9000]
 #: Operadores de la plataforma: dentro del namespace se hablan libremente (F125), todos llegan a la API (F126)
 #: y la API llega a sus webhooks (F127). No llevan datos de negocio ni estan mallados.
 system_internal:
