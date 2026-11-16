@@ -97,6 +97,15 @@ async def test_discovery_and_jwks(http: httpx.AsyncClient) -> None:
     assert [k["kid"] for k in keys] == ["k1"] and keys[0]["alg"] == "RS256"
 
 
+async def test_discovery_can_be_made_to_fail_like_the_kind_realm_and_is_counted() -> None:
+    """U10-T06: `discovery_status=500` reproduce el 500 del realm de kind; el resto del emisor sigue respondiendo."""
+    server = build_server(ORIGIN, discovery_status=500)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server), base_url=ORIGIN) as client:
+        assert (await client.get(f"{REALM_PATH}/.well-known/openid-configuration")).status_code == 500
+        assert (await client.get(f"{OIDC_PATH}/certs")).status_code == 200
+        assert (await client.get("/auth/__e2e/stats")).json()["discovery"] == 1
+
+
 async def test_code_flow_with_pkce_returns_the_nonce_and_a_token_for_the_user(
     http: httpx.AsyncClient,
 ) -> None:

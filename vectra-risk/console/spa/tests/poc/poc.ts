@@ -1,6 +1,7 @@
 // PoC del Paso 10 (puerta de los Pasos 11 a 15): el step-up en una ventana emergente con `OidcClient` de bajo nivel, usando el
 // mismo `StepUpFlow` que usara la SPA. La pagina deja en `window.__poc` lo que la prueba necesita para afirmar.
 import { InMemoryWebStorage, OidcClient, WebStorageStateStore } from "oidc-client-ts";
+import { issuerMetadata } from "../../src/auth/issuer-metadata";
 import { StepUpFlow, browserTimers } from "../../src/stepup/flow";
 import { FILTER_PROTOCOL_CLAIMS, createOidcBackend } from "../../src/stepup/oidc";
 
@@ -42,6 +43,7 @@ const stepupRedirectUri = `${origin}/stepup-callback`;
 const store = new WebStorageStateStore({ store: new InMemoryWebStorage() });
 const client = new OidcClient({
   authority: `${origin}/auth/realms/vectra`,
+  metadata: issuerMetadata(`${origin}/auth/realms/vectra`),
   client_id: "vectra-console",
   redirect_uri: stepupRedirectUri,
   response_type: "code",

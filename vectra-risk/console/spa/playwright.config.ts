@@ -14,7 +14,8 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SPA_PORT = process.env["VECTRA_E2E_SPA_PORT"] ?? "47173";
 const DOUBLES_PORT = process.env["VECTRA_E2E_PORT"] ?? "47180";
 const ORIGIN = `http://127.0.0.1:${SPA_PORT}`;
-const env = { VECTRA_E2E_SPA_PORT: SPA_PORT, VECTRA_E2E_PORT: DOUBLES_PORT, VECTRA_E2E_ORIGIN: ORIGIN };
+// U10-T06: en los dos pares el emisor responde 500 al documento de descubrimiento (como el realm de kind): la SPA no debe depender de el.
+const env = { VECTRA_E2E_SPA_PORT: SPA_PORT, VECTRA_E2E_PORT: DOUBLES_PORT, VECTRA_E2E_ORIGIN: ORIGIN, VECTRA_E2E_DISCOVERY_STATUS: "500" };
 const APP_PORT = process.env["VECTRA_E2E_APP_PORT"] ?? "47174";
 const APP_DOUBLES_PORT = process.env["VECTRA_E2E_APP_DOUBLES_PORT"] ?? "47181";
 const APP_ORIGIN = `http://127.0.0.1:${APP_PORT}`;
@@ -23,6 +24,7 @@ process.env["VECTRA_E2E_APP_ORIGIN"] = APP_ORIGIN;
 // `VECTRA_E2E_DEMO=1`: el mundo del recorrido de U10-T04 (casos en cada estado, congelamiento con paquete, modelos con informe).
 const appEnv = {
   VECTRA_E2E_DEMO: "1",
+  VECTRA_E2E_DISCOVERY_STATUS: "500",
   VECTRA_E2E_PORT: APP_DOUBLES_PORT,
   VECTRA_E2E_ORIGIN: APP_ORIGIN,
   VECTRA_E2E_APP_PORT: APP_PORT,
@@ -46,7 +48,7 @@ export default defineConfig({
       command: "uv run python console/bff/tests/doubles/bff_e2e_server.py",
       cwd: REPO,
       env,
-      url: `http://127.0.0.1:${DOUBLES_PORT}/auth/realms/vectra/.well-known/openid-configuration`,
+      url: `http://127.0.0.1:${DOUBLES_PORT}/auth/realms/vectra/protocol/openid-connect/certs`,
       reuseExistingServer: false,
       timeout: 120_000,
     },
@@ -62,7 +64,7 @@ export default defineConfig({
       command: "uv run python console/bff/tests/doubles/bff_e2e_server.py",
       cwd: REPO,
       env: appEnv,
-      url: `http://127.0.0.1:${APP_DOUBLES_PORT}/auth/realms/vectra/.well-known/openid-configuration`,
+      url: `http://127.0.0.1:${APP_DOUBLES_PORT}/auth/realms/vectra/protocol/openid-connect/certs`,
       reuseExistingServer: false,
       timeout: 120_000,
     },

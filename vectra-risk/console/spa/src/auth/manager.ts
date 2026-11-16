@@ -9,6 +9,7 @@
 import { InMemoryWebStorage, UserManager, type UserManagerSettings, WebStorageStateStore } from "oidc-client-ts";
 import type { AppConfig } from "../config/load";
 import { FILTER_PROTOCOL_CLAIMS } from "../stepup/oidc";
+import { issuerMetadata } from "./issuer-metadata";
 
 export const SCOPE = "openid";
 
@@ -22,6 +23,8 @@ export function createUserManager(
   return new UserManager(
     {
       authority: config.oidc.authority,
+      // U10-T06: sin `metadata` la libreria pide `.well-known/openid-configuration` (500 en kind). Ver `issuer-metadata.ts`.
+      metadata: issuerMetadata(config.oidc.authority),
       client_id: config.oidc.client_id,
       redirect_uri: config.redirect_uri,
       // Vacios a proposito: `oidc-client-ts` los iguala a `redirect_uri` si faltan, y con `""` `signinPopup` y `signinSilent` sin refresh
