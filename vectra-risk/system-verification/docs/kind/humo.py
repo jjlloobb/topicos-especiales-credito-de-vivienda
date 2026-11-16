@@ -9,7 +9,7 @@ Lo ejecuta el operador **desde la imagen de U12** (lleva Chromium y las dependen
     humo.py flujo --delivery D     una solicitud `normal` por el gateway llega a `listo` con `registry_entry_id`; el detalle y la explicacion por el BFF; una decision de analista-1;
                                    `/api/console/models` con ingeniero-1 y `/api/console/freezes` con cumplimiento-1. Informa el estado HTTP de cada llamada (K-30, K-31, K-36, K-38)
     humo.py consola                la SPA real en Chromium sin interfaz: login por redireccion completa, recarga, eventos `securitypolicyviolation` y la cookie de afinidad (K-35)
-    humo.py modelos                el JSON `[{model_version_id, state}]` de `/api/console/models` (con ingeniero-1), para `estado-final.sh --modelos -`
+    humo.py modelos                el JSON `[{model_version_id, state}]` de `/api/console/models` (con ingeniero-1), para `estado-final.sh --modelos - --referencia <model_version_id>`
 
 `flujo --delivery D`: D es la entrega de U5; dentro de la imagen, `/verification/reference-model/.out` (la ruta relativa por omision no existe alli y da 2).
 Opciones comunes: `--issuer`, `--gateway-host` y `--ca-file` (o `VERIFICATION_ISSUER`, `VERIFICATION_GATEWAY_HOST` y `VERIFICATION_CA_FILE`), como la CLI. La boveda, por `VAULT_ADDR` y

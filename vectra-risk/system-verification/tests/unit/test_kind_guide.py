@@ -119,6 +119,19 @@ def resolve(path: str) -> Path | None:
     return None
 
 
+# Lo que otra tarea en paralelo entrega y la guia nombra desde ya (U12-T09: `platform/kind/gateway-address.sh` es de U01-T16). La excepcion solo rige **mientras el archivo no exista**: en cuanto
+# llega a `main`, la prueba de mundo cerrado lo exige como a cualquier otro y esta entrada ya no hace nada.
+PENDING = {"platform/kind/gateway-address.sh": "U01-T16"}
+
+
+def pending(path: str) -> bool:
+    return path in PENDING and not (kd.VECTRA / path).exists()
+
+
+def pending_script(name: str) -> bool:
+    return any(pending(path) and path.rsplit("/", 1)[-1] == name for path in PENDING)
+
+
 def lines_of(path: Path) -> int:
     return len(path.read_text(encoding="utf-8", errors="ignore").splitlines())
 
@@ -243,7 +256,7 @@ def closed_world_findings(text: str) -> list[str]:
                 if o not in humo[match.group(1)]
             ]
         for script in re.findall(r"\b([\w-]+\.(?:sh|py))\b", line):
-            if script not in names:
+            if script not in names and not pending_script(script):
                 found.append(f"{where}: el guion {script} no existe")
         for script, step in re.findall(r"\b((?:journey-7-3|journey-7-4|rt-5|dashboard)\.sh) (\d+)", line):
             steps = set(
@@ -261,6 +274,7 @@ def closed_world_findings(text: str) -> list[str]:
                 re.fullmatch(r"[\w.@-][\w./@-]*/[\w./@-]*", span)
                 and not span.startswith(KUBE_PREFIXES)
                 and span not in NOT_REPO_PATHS
+                and not pending(span)
             ):
                 if (
                     span.startswith(GENERATED)
@@ -715,6 +729,9 @@ def test_coherence_the_docker_run_is_the_one_of_the_readme() -> None:
         f"la orden docker run de la guía no trae {sorted(readme - guide)} del README"
     )
     assert guide - readme <= {"--name", "--entrypoint"}, sorted(guide - readme)
+    assert "--add-host" in readme and "--add-host" in guide, (
+        "U12-T09: `vv` lleva `--add-host vectra.localtest.me:<dirección>` (la de `guard.KIND.host`)"
+    )
     assert "VAULT_TOKEN=" not in GUIDE_TEXT.replace("export VAULT_TOKEN=root", ""), (
         "el token va como variable, no como valor ni archivo"
     )
@@ -739,6 +756,7 @@ def test_coherence_the_functions_of_the_guide_build_the_docker_command_of_the_re
         "VERIFICATION_IMAGE": "img@sha256:x",
         "VAULT_ADDR": "http://127.0.0.1:8200",
         "VAULT_TOKEN": "t",
+        "GATEWAY_ADDRESS": "172.18.0.7",
     }
     script = f"{functions}\nvv prepare --commit abc\nhumo flujo --delivery /d\nvectra-verification report\n"
     done = subprocess.run(
@@ -1479,3 +1497,391 @@ def test_red_a_new_budget_gib_makes_every_place_fail() -> None:
     """`BUDGET_GIB` cambia y ningun sitio: falla uno por cada archivo."""
     findings = request_figure_findings(site_texts(), "15,3")
     assert {f.split(":")[0] for f in findings} == set(REQUEST_FIGURE_SITES)
+
+
+# --- U12-T09: el árbol limpio de `promotion-tool`, `EVID` fijo, la máquina llega al gateway y lo que hoy era falso -------------------------------------------------------------------
+# Cada prueba ata una afirmación de la guía al código que la hace cierta (leído, no medido en kind) y trae su rojo: la mutación que la devuelve a lo que decía `main`.
+
+GITOPS_PY = kd.VECTRA / "governance/promotion_tool/vectra_promotion/gitops.py"
+INSTALL_MD = kd.VECTRA / "platform/runbooks/install.md"
+PROMOTION_ORDER = re.compile(
+    r"promotion-tool (?:create-promotion-pr|post-activation-pr|rollback-pr|mark-active)"
+)
+
+
+def f0_evid_block(text: str) -> str:
+    """Las líneas del bloque de F0 que fijan `EVID` (de la guarda de `$VERIF_HOME/evid` a `VERIFICATION_DIR`), sin comentarios."""
+    block = next(body for _, _, body in code_blocks(text) if '"$VERIF_HOME/evid"' in body)
+    lines = [line.strip() for line in block.split("\n")]
+    first = next(i for i, line in enumerate(lines) if "$VERIF_HOME/evid" in line and not line.startswith("#"))
+    last = next(i for i, line in enumerate(lines) if line.startswith("export VERIFICATION_DIR="))
+    return "\n".join(line for line in lines[first : last + 1] if not line.startswith("#"))
+
+
+def run_evid_block(text: str, tmp_path: Path, date: str, commit: str, home: str = "h") -> str:
+    """Corre el bloque de `EVID` en una terminal nueva con una fecha y un commit dados (`date` y `git` de mentira) y devuelve el `EVID` que queda."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    (bin_dir / "date").write_text('#!/bin/sh\necho "$FAKE_DATE"\n', encoding="utf-8")
+    (bin_dir / "git").write_text('#!/bin/sh\necho "$FAKE_COMMIT"\n', encoding="utf-8")
+    for name in ("date", "git"):
+        (bin_dir / name).chmod(0o755)
+    script = f'export VERIF_HOME="{tmp_path / home}"; mkdir -p "$VERIF_HOME"\n{f0_evid_block(text)}\necho "$EVID"\n'
+    done = subprocess.run(
+        ["bash", "-c", script],
+        env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "FAKE_DATE": date, "FAKE_COMMIT": commit},
+        capture_output=True, text=True, check=False,
+    )  # fmt: skip
+    assert done.returncode == 0, done.stderr
+    return done.stdout.strip().split("\n")[-1]
+
+
+def evid_findings(text: str, tmp_path: Path) -> list[str]:
+    found = []
+    first = run_evid_block(text, tmp_path, "20261116", "aaaaaaa")
+    later = run_evid_block(
+        text, tmp_path, "20261117", "bbbbbbb"
+    )  # una terminal nueva tras las 00:00 UTC y tras un `git pull`
+    if first != later:
+        found.append(f"EVID cambió entre terminales: {first} y {later}")
+    if not first.endswith("20261116-aaaaaaa"):
+        found.append(f"EVID no sale de la fecha y el commit de la primera vez: {first}")
+    if (tmp_path / "h").resolve() not in Path(first).resolve().parents:
+        found.append(f"EVID no vive en $VERIF_HOME (fuera del repositorio): {first}")
+    return found
+
+
+def dirty_tree_findings(text: str) -> list[str]:
+    """Lo que ensucia el árbol en que corre `promotion-tool`: la evidencia o un parche dentro del repositorio, y una orden de `promotion-tool` sin `git pull` antes."""
+    found = []
+    source = GITOPS_PY.read_text(encoding="utf-8")
+    if "working_tree_dirty" not in source or '"git", "status", "--porcelain"' not in source:
+        found.append("`gitops.py` ya no exige el árbol limpio: la guía explica un motivo que no existe")
+    if 'self._run(["git", "switch", "-c", branch, self.base])' not in source:
+        found.append(
+            "`gitops.py` ya no crea la rama desde el `main` local: el `git pull` de la guía ya no tiene motivo"
+        )
+    for number, _, body in code_blocks(text):
+        for line in body.split("\n"):
+            if re.search(r"EVID=\"?\$PWD|EVID=\"?\./|EVID=\"?system-verification", line):
+                found.append(f"{number}: EVID dentro del repositorio: {line.strip()[:80]}")
+            for target in re.findall(r">\s*([^\s&|)>]+\.patch)", line):
+                if not target.startswith(("$", '"$', "/")):
+                    found.append(f"{number}: un parche escrito en el directorio de trabajo: {target}")
+    for number, line in enumerate(text.split("\n"), 1):
+        if re.match(r"^\d+\. ", line) and PROMOTION_ORDER.search(line) and "pull --ff-only" not in line:
+            found.append(f"{number}: una orden de `promotion-tool` sin `git pull --ff-only` antes")
+    for needle in (
+        'export PROMO="$VERIF_HOME/promocion"',
+        "git clone",
+        'git -C "$PROMO" switch main && git -C "$PROMO" pull --ff-only',
+        "ingeniero-2",
+    ):
+        if needle not in text:
+            found.append(f"falta «{needle}»")
+    return found
+
+
+def test_t09_the_guide_keeps_promotion_tool_in_a_clean_up_to_date_clone_and_the_evidence_out_of_the_tree() -> (
+    None
+):
+    assert dirty_tree_findings(GUIDE_TEXT) == []
+
+
+T09_DIRTY_MUTATIONS = {
+    "EVID dentro del repositorio": lambda t: t.replace(
+        "printf '%s\\n' \"$VERIF_HOME/evidence/", "printf '%s\\n' \"$PWD/system-verification/evidence/"
+    ).replace('export EVID="$(cat "$VERIF_HOME/evid")"', 'export EVID="$PWD/system-verification/evidence/x"'),
+    "proxy.patch en el directorio de trabajo": lambda t: t.replace(
+        '> "$VERIF_HOME/proxy.patch"', "> proxy.patch"
+    ),
+    "promotion-tool sin pull": lambda t: t.replace(
+        '(con `git -C "$PROMO" switch main && git -C "$PROMO" pull --ff-only` antes, como en el paso 3)',
+        "(como en el paso 3)",
+    ).replace("la invocación completa está en", "la invocación completa está en"),
+    "sin el clon de promoción": lambda t: t.replace('export PROMO="$VERIF_HOME/promocion"', "export PROMO=."),
+}
+
+
+@pytest.mark.parametrize("name", sorted(T09_DIRTY_MUTATIONS))
+def test_t09_red_each_return_to_the_dirty_tree_is_found(name: str) -> None:
+    mutated = T09_DIRTY_MUTATIONS[name](GUIDE_TEXT)
+    assert mutated != GUIDE_TEXT, name
+    assert dirty_tree_findings(mutated), f"{name}: ninguna prueba lo detecta"
+
+
+def test_t09_evid_is_fixed_once_and_every_new_terminal_reads_it(tmp_path: Path) -> None:
+    assert evid_findings(GUIDE_TEXT, tmp_path) == []
+
+
+def test_t09_red_evid_computed_again_in_each_terminal_points_to_another_directory(tmp_path: Path) -> None:
+    """Rojo: el `EVID` de `main` (se calcula con `date -u` y `git rev-parse` en cada terminal) cambia tras las 00:00 UTC o tras un `git pull`."""
+    mutated = GUIDE_TEXT.replace('[ -s "$VERIF_HOME/evid" ] || printf', "printf")
+    assert mutated != GUIDE_TEXT
+    assert any("cambió entre terminales" in f for f in evid_findings(mutated, tmp_path))
+
+
+def test_t09_the_machine_reaches_the_gateway_vv_carries_add_host_and_f0_and_f5_run_the_script() -> None:
+    readme = README.read_text(encoding="utf-8")
+    for where, text in (("guía", GUIDE_TEXT), ("README", readme)):
+        assert re.search(r'--add-host "vectra\.localtest\.me:\$\{GATEWAY_ADDRESS:\?', text), (
+            f"{where}: `vv` no lleva --add-host con la dirección del gateway"
+        )
+        assert "llega al gateway de kind" not in text, (
+            f"{where}: dice que `vectra.localtest.me` llega al gateway de kind"
+        )
+    host = guard.KIND.host
+    assert host == "vectra.localtest.me", (
+        "`guard.KIND.host` cambió: --add-host y /etc/hosts nombran otro host"
+    )
+    assert "gateway-address.sh" in section(GUIDE_TEXT, "F0") and "gateway-address.sh" in section(
+        GUIDE_TEXT, "F5"
+    )
+    assert "/etc/hosts" in section(GUIDE_TEXT, "F0") and "/etc/hosts" in readme
+    assert "Etiqueta" not in GUIDE_TEXT and kd.label_exists("app.kubernetes.io/name", "api-gateway"), (
+        "la dirección se lee por la etiqueta que el repositorio fija en el Service del gateway, no por un nombre de Service que no fija"
+    )
+
+
+def test_t09_vv_refuses_to_start_without_the_gateway_address(tmp_path: Path) -> None:
+    block = vv_block(GUIDE_TEXT)
+    functions = block[block.index("vv() {") :]
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "docker").write_text('#!/bin/sh\necho ran > "$DOCKER_OUT"\n', encoding="utf-8")
+    (fake / "docker").chmod(0o755)
+    env = {
+        **os.environ,
+        "PATH": f"{fake}:{os.environ['PATH']}",
+        "DOCKER_OUT": str(tmp_path / "ran"),
+        "VERIF_HOME": "/h",
+        "EVID": "/e",
+        "VERIFICATION_IMAGE": "i",
+    }
+    env.pop("GATEWAY_ADDRESS", None)
+    done = subprocess.run(
+        ["bash", "-c", f"{functions}\nvv report"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=tmp_path,
+    )
+    assert done.returncode != 0 and not (tmp_path / "ran").exists(), (
+        "`vv` arrancó el contenedor sin la dirección del gateway"
+    )
+    assert "gateway-address.sh" in done.stderr
+
+
+def test_t09_the_add_host_value_is_the_address_the_operator_exports(tmp_path: Path) -> None:
+    block = vv_block(GUIDE_TEXT)
+    functions = block[block.index("vv() {") :]
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "docker").write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DOCKER_OUT"\n', encoding="utf-8")
+    (fake / "docker").chmod(0o755)
+    env = {
+        **os.environ,
+        "PATH": f"{fake}:{os.environ['PATH']}",
+        "DOCKER_OUT": str(tmp_path / "argv"),
+        "VERIF_HOME": "/h",
+        "EVID": "/e",
+        "VERIFICATION_IMAGE": "i",
+        "GATEWAY_ADDRESS": "172.18.0.2",
+    }
+    done = subprocess.run(
+        ["bash", "-c", f"{functions}\nvv report"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=tmp_path,
+    )
+    assert done.returncode == 0, done.stderr
+    argv = (tmp_path / "argv").read_text(encoding="utf-8").split("\n")
+    assert argv[argv.index("--add-host") + 1] == "vectra.localtest.me:172.18.0.2"
+
+
+FALSE_STATEMENTS = (
+    "Nada de esto se ha ejecutado aún en kind",
+    "todos los charts llevan el digest de ejemplo",
+    "llega al gateway de kind",
+    "install.md` pide 512",
+    "No sobrevive a un reinicio**: vuelve a aplicarlo",
+    "(hoy son de ejemplo: ImagePullBackOff)",
+    "el runbook no pide reaplicar el límite",
+)
+
+
+def false_statement_findings(guide: str, readme: str, inventory: str) -> list[str]:
+    """Las afirmaciones que el código o el repositorio desmienten hoy (U12-T09, punto 14), cada una contra su origen."""
+    found = [f"dice «{s}»" for s in FALSE_STATEMENTS if s in guide or s in readme or s in inventory]
+    leftovers = [
+        p
+        for p in (kd.VECTRA / "vectra-risk-gitops/values/kind").rglob("*.yaml")
+        if "sha256:0000" in p.read_text(encoding="utf-8")
+    ]
+    if leftovers:
+        found.append(f"los values de kind aún traen un digest de ejemplo: {leftovers[0].name}")
+    runbook = INSTALL_MD.read_text(encoding="utf-8")
+    if "max_user_instances=1024" not in runbook or "/etc/sysctl.d/" not in runbook:
+        found.append("`install.md` ya no pide 1024 persistente: la guía dice lo contrario de lo que cita")
+    if "pide **1024**" not in guide:
+        found.append("la guía no dice que `install.md` pide 1024")
+    for number, line in enumerate(guide.split("\n"), 1):
+        for match in re.finditer(r"install\.md`?,? (?:línea|líneas) [\d, ay]+", line):
+            found.append(f"{number}: cita `install.md` por número de línea: {match.group(0)}")
+    if (
+        "wave: 6" not in (kd.VECTRA / "vectra-risk-gitops/components.yaml").read_text(encoding="utf-8")
+        or "líneas 63 a 96" in guide
+    ):
+        found.append("la cita de `components.yaml` por números de línea")
+    for needle in ("Tras suspender la máquina",):
+        if needle not in guide or needle not in runbook:
+            found.append(f"«{needle}» no está en la guía y en `install.md`")
+    symptoms = guide[guide.index("## Si algo falla") : guide.index("## Cómo dejar el clúster")]
+    rows = [line for line in symptoms.split("\n") if line.startswith("| ")]
+    for needles in (
+        ("JWKS", "`use: enc`", "U00-T05"),
+        ("≈ 90 s", "PortSkipped"),
+        ("calico", "Unauthorized"),
+        ("`sync keycloak`", "`Failed`", "segundo sync"),
+        ("certificate expired", "Tras suspender la máquina"),
+        ("127.0.0.1:443", "gateway-address.sh"),
+        ("decisions_lectura_agotada",),
+    ):
+        if not any(all(n in row for n in needles) for row in rows):
+            found.append(f"falta la fila de síntomas con {needles}")
+    return found
+
+
+def test_t09_the_guide_says_nothing_the_repository_contradicts() -> None:
+    inventory = kd.INVENTORY.read_text(encoding="utf-8")
+    assert false_statement_findings(GUIDE_TEXT, README.read_text(encoding="utf-8"), inventory) == []
+
+
+T09_FALSE_MUTATIONS = {
+    "Nada de esto se ha ejecutado": lambda t: t.replace(
+        "Esta guía solo se ha ejecutado **en parte** en kind", "Nada de esto se ha ejecutado aún en kind"
+    ),
+    "digest de ejemplo en R-2": lambda t: t.replace(
+        "una imagen sin publicar o un digest de los values que no es el que se publicó",
+        "todos los charts llevan el digest de ejemplo",
+    ),
+    "inotify 512": lambda t: t.replace("`install.md` pide **1024**", "`install.md` pide 512"),
+    "install.md línea 150": lambda t: t.replace(
+        "`platform/runbooks/install.md`, «Vault reiniciado» |",
+        "`platform/runbooks/install.md`, líneas 150 a 163 |",
+        1,
+    ),
+    "sin la fila del certificado": lambda t: t.replace("certificate expired", "certificado vencido"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(T09_FALSE_MUTATIONS))
+def test_t09_red_each_false_statement_that_comes_back_is_found(name: str) -> None:
+    mutated = T09_FALSE_MUTATIONS[name](GUIDE_TEXT)
+    assert mutated != GUIDE_TEXT, name
+    assert false_statement_findings(
+        mutated, README.read_text(encoding="utf-8"), kd.INVENTORY.read_text(encoding="utf-8")
+    ), name
+
+
+def test_t09_rt3_c_is_uploaded_to_the_model_store_and_the_inventory_says_so() -> None:
+    from vectra_verification.scenarios import rt3
+
+    assert "RT3-c" in rt3.REGISTRY_CASES, "`rt3` ya no exige RT3-c"
+    owner = (kd.VECTRA / "model-serving/docs/paso-11-kind.md").read_text(encoding="utf-8")
+    assert "for case in RT3-a RT3-b RT3-c RT3-d;" in owner and "adversarial/rt3/RT3-c/" in owner
+    k24 = next(e for e in kd.entries() if e["id"] == "K-24")
+    assert "RT3-c" in " ".join([k24["que"], *k24["comprobacion"]])
+    assert "RT3-a, c y d en el model-store (K-24)" in section(GUIDE_TEXT, "F7")
+
+
+def test_t09_the_windows_of_time_say_what_the_code_says() -> None:
+    """D4 vive en el día D + 1 UTC, el proxy no se recongela el mismo día UTC y el cron de bias evalúa también el modelo de referencia."""
+    compute = (kd.VECTRA / "product-metrics/src/vectra_product/compute.py").read_text(encoding="utf-8")
+    assert 'periods[PeriodKey("day")] = _period(*over(yesterday, yesterday))' in compute, (
+        "`period=day` ya no es el «ayer»"
+    )
+    assert 'period="day"' in (kd.SYSTEM / "src/vectra_verification/scenarios/u11.py").read_text(
+        encoding="utf-8"
+    )
+    window = (kd.VECTRA / "bias-monitoring/src/vectra_bias/window.py").read_text(encoding="utf-8")
+    assert (
+        "reactivated_at.astimezone(UTC).date() + timedelta(days=1)" in window
+        and "v.last_day >= today - timedelta(days=1)" in window
+    )
+    f9, f6, calendar = (
+        section(GUIDE_TEXT, "F9"),
+        section(GUIDE_TEXT, "F6"),
+        GUIDE_TEXT[: GUIDE_TEXT.index("## Documentos dueños")],
+    )
+    assert "hasta las 00:00 UTC de D + 2" in f9 and "no está medido en kind" in f9
+    assert (
+        "no se recongela el mismo día UTC" in calendar
+        and "otro día UTC" in calendar
+        and "otro paquete" in calendar
+    )
+    assert "`humo modelos`" in f6 and "evaluated_versions" in f6 and "sigue `activo`" in f6
+    for where in (
+        (kd.SYSTEM / "demos/dashboard.md").read_text(encoding="utf-8"),
+        (kd.INVENTORY).read_text(encoding="utf-8"),
+    ):
+        assert "00:00 UTC de D + 2" in where
+
+
+def test_t09_repeating_d3_and_d2_after_a_partial_failure_has_commands_for_each_case() -> None:
+    manifest = (kd.SYSTEM / "src/vectra_verification/manifest.py").read_text(encoding="utf-8")
+    chart = (kd.VECTRA / "case-management/chart/templates/rt5-demo-job.yaml").read_text(encoding="utf-8")
+    values = (kd.VECTRA / "governance/promotion_tool/vectra_promotion/values.py").read_text(encoding="utf-8")
+    fsm = (kd.VECTRA / "governance/src/vectra_governance/model_fsm.py").read_text(encoding="utf-8")
+    assert (
+        "values_already_have_runid" in manifest
+        and "backoffLimit: 0" in chart
+        and "ttlSecondsAfterFinished" in chart
+    )
+    assert (
+        '"already_declared"' in values
+        and "active_version_frozen" in fsm
+        and 'f"promotion/{kind}-{isvc}-{self.env}"' in GITOPS_PY.read_text(encoding="utf-8")
+    )
+    d3 = (kd.SYSTEM / "demos/prs/rt5-run-id/README.md").read_text(encoding="utf-8")
+    d2 = (kd.SYSTEM / "demos/journey-7-4.md").read_text(encoding="utf-8")
+    f5, f8 = section(GUIDE_TEXT, "F5"), section(GUIDE_TEXT, "F8")
+    for where, text, needles in (
+        ("F5", f5, ("values_already_have_runid", "apply -R", "con prune", "rt5 --redo")),
+        (
+            "rt5-run-id/README.md",
+            d3,
+            ("values_already_have_runid", "apply -R", "prune", "rt5 --redo", "Repetir D3"),
+        ),
+        ("F8", f8, ("already_declared", "active_version_frozen", "nombre fijo", "reactivar")),
+        ("journey-7-4.md", d2, ("already_declared", "active_version_frozen", "nombre fijo", "reactivar")),
+    ):
+        for needle in needles:
+            assert needle in text, f"{where} no dice «{needle}»"
+
+
+def test_t09_the_users_are_split_between_the_tool_the_promotion_tool_and_the_presenter() -> None:
+    f3 = section(GUIDE_TEXT, "F3")
+    table = re.search(r"\| Quién \| Usuario \| Dónde \|\n\s*\|---\|---\|---\|\n((?:\s*\|.*\n){3})", f3)
+    assert table is not None, "F3 no trae el reparto de usuarios"
+    owners = []
+    for row in table.group(1).strip().split("\n"):
+        cell = row.split("|")[2]
+        if (
+            not row.split("|")[1].strip().startswith("La herramienta")
+        ):  # lo que va entre paréntesis dice de quién es el otro usuario: no es el dueño
+            cell = re.sub(r"\([^)]*\)", "", cell)
+        owners.append(set(re.findall(r"`((?:analista|ingeniero|cro|cumplimiento)-\d)`", cell)))
+    tool, promotion, presenter = owners
+    assert tool & promotion == set() and tool & presenter == set() and promotion & presenter == set(), owners
+    assert promotion == {"ingeniero-2"} and "analista-2" in tool and presenter == {"cro-2", "cumplimiento-2"}
+    assert (owners[0] | owners[1] | owners[2]) <= set(kd.realm_users()), (
+        "un usuario del reparto no está en el realm de kind"
+    )
+    assert "Una sola pestaña por usuario" in f3 and "bloqueo por fuerza bruta" in f3
+    assert "ANALYSTS" in f3 and 'ANALYSTS: Final = ("analista-1", "analista-2")' in (
+        kd.SYSTEM / "src/vectra_verification/driver.py"
+    ).read_text(encoding="utf-8")

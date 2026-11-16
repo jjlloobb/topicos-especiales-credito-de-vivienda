@@ -318,13 +318,13 @@ _pendiente: la salida real, sin tokens_
 |---|---|---|
 | Con 256 MiB por pod bastan el predictor y el explicador del modelo de referencia (sin OOMKilled) | _pendiente_ | _pendiente_ |
 
-### K-24 — Paquetes proxy y RT-3 en el model-store, para D1 y D2
+### K-24 — Paquetes proxy y RT-3 (a, b, c y d) en el model-store, para D1 y D2
 
 - Demo: D1, D2. Fuentes: `model-serving/docs/paso-11-kind.md:42-58`, `tareas/U12-T05-imagen-y-documentacion.md:362`.
 
-**Resultado esperado.** Paquetes proxy y RT-3 en el model-store, para D1 y D2
+**Resultado esperado.** Paquetes proxy y RT-3 (a, b, c y d) en el model-store, para D1 y D2
 
-**Comando.** Previsto: a mano: la salida de mc ls de model-serving/docs/paso-11-kind.md, seccion 2; `arranque.sh vectra-data`.
+**Comando.** Previsto: a mano: la salida de mc ls de model-serving/docs/paso-11-kind.md, seccion 2, con RT3-a, RT3-c y RT3-d (rt3 exige los tres); `arranque.sh vectra-data`.
 
 ```bash
 _pendiente: el comando exacto que se ejecutó_
@@ -338,7 +338,7 @@ _pendiente: la salida real, sin tokens_
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| Paquetes proxy y RT-3 en el model-store, para D1 y D2 | _pendiente_ | _pendiente_ |
+| Paquetes proxy y RT-3 (a, b, c y d) en el model-store, para D1 y D2 | _pendiente_ | _pendiente_ |
 
 ### K-25 — Watchdog recibido, no solo disparado
 

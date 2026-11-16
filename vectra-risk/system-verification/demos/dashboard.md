@@ -21,13 +21,15 @@ Grafana no tiene OIDC ni `root_url`: el presentador entra por `port-forward` al 
 |---|---|---|---|---|
 | 1 | operador | Día D, antes de las 22:18 UTC: corre `vectra-verification decisions`. | SIM-NORMAL en la salida. | `dashboard.sh 5` |
 | 2 | operador | Comprueba que Grafana está arriba. | — | `dashboard.sh 1` |
-| 3 | operador | Día D + 1, tras las 02:40 UTC: corre `vectra-verification u11`. | `dashboard` en la salida. | `dashboard.sh 2` |
+| 3 | operador | Día D + 1 (antes de las 00:00 UTC de D + 2, ver «Qué deja sucio»), tras las 02:40 UTC: corre `vectra-verification u11`. | `dashboard` en la salida. | `dashboard.sh 2` |
 | 4 | presentador | Abre Grafana por `port-forward` con `grafana-admin`; muestra el dashboard `Producto` (uid `vectra-producto-panel`) en la carpeta `Vectra / Producto`. | Paneles: panel `North Star de ayer`, panel `Recomendaciones sostenidas (aproximación)`, panel `Tasa de consulta de la explicación y piso F` y panel `Días bajo el piso`. | `dashboard.sh 3` |
 | 5 | operador | Comprueba la evidencia. | — | `dashboard.sh 4` |
 
 ## Qué deja sucio y cómo se limpia
 
 Nada en el clúster. Las series de U11 se alimentan solas cada día.
+
+**Ventana.** D4 solo pasa durante el día D + 1 UTC: `u11` lee `period="day"`, el «ayer» de `product-metrics` (`product-metrics/src/vectra_product/compute.py`, `compute`). Desde las 00:00 UTC de D + 2 (las 19:00 de Colombia de D + 1) el «ayer» es D + 1, sin decisiones, y su razón no se emite; hay que leer el dashboard antes. La espera hasta las 02:40 UTC no la exigen las series (el planificador de `product-metrics` publica tras cada lectura incremental, cada 5 min, y al cambiar el día): es la hora desde la que la herramienta trata una serie ausente como `falla` y no como `no ejecutado`.
 
 ## Qué saldrá `no ejecutado`
 

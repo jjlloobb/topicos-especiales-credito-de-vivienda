@@ -125,9 +125,11 @@ Una sola orden, con una función de shell para no repetirla. Se corre desde un d
 mkdir -p evidence && chmod 755 evidence
 export VAULT_ADDR=http://127.0.0.1:18200   # la bóveda, reenviada por el operador
 export VAULT_TOKEN=...                      # la sesión del operador: solo como variable
+export GATEWAY_ADDRESS="$(kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get svc -n vectra-edge -l app.kubernetes.io/name=api-gateway -o 'jsonpath={.items[0].status.loadBalancer.ingress[0].ip}')"   # el gateway de kind (ver «Red»)
 vv() {
   docker run --rm --read-only --tmpfs /tmp --network host \
     --user "$(id -u):$(id -g)" --memory 1g \
+    --add-host "vectra.localtest.me:${GATEWAY_ADDRESS:?exporta la dirección del gateway (platform/kind/gateway-address.sh)}" \
     --security-opt seccomp=chrome.json \
     --mount type=bind,source="$HOME/.kube/config",target=/kube/config,readonly -e KUBECONFIG=/kube/config \
     --mount type=bind,source="$PWD/vectra-ca.pem",target=/certs/ca.pem,readonly -e VERIFICATION_CA_FILE=/certs/ca.pem \
@@ -145,6 +147,7 @@ vv() {
 | `--user "$(id -u):$(id -g)"` | el usuario del host, sin root: los archivos de `evidence/` quedan con su dueño y se pueden borrar. La imagen funciona con cualquier uid sin root (por omisión, 65532) |
 | `--network host` | en Linux, `vectra.localtest.me`, la API de Kubernetes del kubeconfig y los `port-forward` son `127.0.0.1` del host: el contenedor tiene que compartir su red |
 | `--memory 1g` | límite de memoria de la herramienta con su Chromium (valor de partida; U12-T06 lo mide) |
+| `--add-host "vectra.localtest.me:$GATEWAY_ADDRESS"` | el nombre del gateway apunta a su `LoadBalancer`, no a `127.0.0.1` (ver «Red»); sin `GATEWAY_ADDRESS`, `vv` se niega a arrancar |
 | `--security-opt seccomp=chrome.json` | el perfil del sandbox de Chromium (arriba) |
 | `--mount` del kubeconfig (`readonly`) y `-e KUBECONFIG` | el kubeconfig, de solo lectura, sin copiarlo a la imagen ni a disco |
 | `--mount` de `vectra-ca.pem` (`readonly`) y `-e VERIFICATION_CA_FILE` | el certificado raíz, de solo lectura. Lo reciben los **dos** caminos TLS: Node por `NODE_EXTRA_CA_CERTS` y Chromium por la huella SPKI del certificado que verifica esa CA. Nada más: sin `ignore_https_errors`, sin `--ignore-certificate-errors`, sin instalar la CA en el almacén del sistema |
@@ -157,7 +160,7 @@ El emisor del login es solo el público: `https://vectra.localtest.me/auth/realm
 
 ### Red: Linux, macOS y Windows
 
-- **Linux (probado):** `--network host` comparte la red del host: el contenedor ve `127.0.0.1:<puerto>` de cada `port-forward` y de la API del kubeconfig, y `vectra.localtest.me` (que resuelve a `127.0.0.1`) llega al gateway de kind.
+- **Linux:** `--network host` comparte la red del host: el contenedor ve `127.0.0.1:<puerto>` de cada `port-forward` y de la API del kubeconfig. **El gateway de kind no está en `127.0.0.1`:** `vectra.localtest.me` resuelve a `127.0.0.1` y ahí no escucha nada en el 443 (`platform/kind/cluster.yaml` mapea ese puerto al nodo de control; medido el 2026-11-15, `platform/runbooks/install.md`, «Lo medido el 2026-11-15 al desplegar U2 en kind»). El gateway responde en la dirección del `LoadBalancer` que le asigna `cloud-provider-kind` (y que Docker puede reasignar al reiniciar): `vv` la recibe con `--add-host vectra.localtest.me:<dirección>` (la lee del Service con la etiqueta `app.kubernetes.io/name=api-gateway` en `vectra-edge`; `platform/kind/gateway-address.sh`, de U01-T16, comprueba que responde) y el navegador y `promotion-tool` la reciben por una línea de `/etc/hosts` del operador. **No está medido** que Docker aplique `--add-host` junto con `--network host`; si no lo hace, esa línea de `/etc/hosts` cumple el mismo papel.
 - **macOS y Windows con Docker Desktop (no probado):** `--network host` comparte la red de la **máquina virtual** de Docker, no la del Mac o del Windows; `127.0.0.1` dentro del contenedor no es el `127.0.0.1` del equipo y ni el gateway de kind ni los `port-forward` llegan. Con esta orden no hay camino comprobado; el operador debe correr la demo en una máquina Linux (o en una VM Linux con Docker y kind). Comprobar una alternativa queda **pendiente en U12-T06**.
 
 ### Los guiones, los `verify` y los PR

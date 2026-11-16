@@ -47,14 +47,15 @@ Procedimiento de `reference-model/docs/release.md` (pasos 1 a 3 y 5): `make -C r
 |---|---|---|
 | M1 | `reference-model/.out/package/` (el base, RT-1) | `model-store/<M1>/` (U04-T07 lo sube y lo registra) |
 | M2 (promoción y rollback) | `reference-model/.out/proxy/run-1/` (u otra corrida `proxy/run-N`, solo kind y staging) | `model-store/<M2>/` |
-| RT3-a, b, d | `reference-model/.out/adversarial/rt3/RT3-a`, `RT3-b`, `RT3-d` | `model-store/adversarial/rt3/RT3-a/` etc. (el segmento `adversarial/` solo es válido en `staging`, P-U6-03) |
+| RT3-a, b, c, d | `reference-model/.out/adversarial/rt3/RT3-a`, `RT3-b`, `RT3-c`, `RT3-d` | `model-store/adversarial/rt3/RT3-a/` etc. (el segmento `adversarial/` solo es válido en `staging`, P-U6-03) |
 
 ```bash
 export MV2="$(python3 -c 'import json; print(json.load(open("reference-model/.out/proxy/run-1/manifest.json"))["model_version_id"])')"
 mc cp --recursive /out/proxy/run-1/ "kind/model-store/${MV2}/"
-for case in RT3-a RT3-b RT3-d; do mc cp --recursive "/out/adversarial/rt3/${case}/" "kind/model-store/adversarial/rt3/${case}/"; done
+for case in RT3-a RT3-b RT3-c RT3-d; do mc cp --recursive "/out/adversarial/rt3/${case}/" "kind/model-store/adversarial/rt3/${case}/"; done
 mc ls "kind/model-store/${MV2}/"                       # 7 archivos
 mc ls kind/model-store/adversarial/rt3/RT3-a/           # 7 archivos
+mc ls kind/model-store/adversarial/rt3/RT3-c/           # 7 archivos (la sección `rt3` de U12 exige RT3-a, RT3-c y RT3-d)
 ```
 
 - **Registro de M2 en governance:** como en `reference-model/docs/release.md` §4 y la guía de U04-T07 (`POST /v1/models`, validación, informe y `…/approval`); los RT-3 **no** se registran (governance rechaza a, c y d con 422: ese es el caso del escenario 3). Si governance rechaza `proxy/run-1`, prueba otra `proxy/run-N` y **anota cuál** (la tarea pide registrar la elección).

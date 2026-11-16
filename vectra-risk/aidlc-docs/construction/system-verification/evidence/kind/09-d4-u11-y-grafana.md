@@ -14,7 +14,7 @@ Entradas de esta fase: K-62, K-63.
 
 - Demo: D4. Fuentes: `aidlc-docs/construction/product-metrics/evidence/cierre-demo.md:47`, `aidlc-docs/construction/product-metrics/evidence/cierre-demo.md:48`, `aidlc-docs/construction/plans/demo-recorte-funcional.md:117`, `tareas/U12-T05-imagen-y-documentacion.md:372`, `tareas/U12-T05-imagen-y-documentacion.md:374`.
 
-**Resultado esperado.** North Star, sostenida, tasa de consulta y ProductMetricsStale con datos reales, tras las 02:40 UTC
+**Resultado esperado.** North Star, sostenida, tasa de consulta y ProductMetricsStale con datos reales, dentro del dia D + 1 UTC (la herramienta espera hasta las 02:40 UTC; desde las 00:00 UTC de D + 2 el ayer no tiene decisiones)
 
 **Comando.** Previsto: `vectra-verification u11`; `dashboard.sh`.
 
@@ -30,7 +30,7 @@ _pendiente: la salida real, sin tokens_
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| North Star, sostenida, tasa de consulta y ProductMetricsStale con datos reales, tras las 02:40 UTC | _pendiente_ | _pendiente_ |
+| North Star, sostenida, tasa de consulta y ProductMetricsStale con datos reales, dentro del dia D + 1 UTC (la herramienta espera hasta las 02:40 UTC; desde las 00:00 UTC de D + 2 el ayer no tiene decisiones) | _pendiente_ | _pendiente_ |
 
 ### K-63 — Grafana por port-forward con grafana-admin; el dashboard Producto carg…
 

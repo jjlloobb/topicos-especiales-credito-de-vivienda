@@ -33,9 +33,9 @@ Cada entrada del inventario (`system-verification/docs/kind/inventario.yaml`, K-
 | K-01 | Memoria del host: al menos 8 GiB disponibles antes de instalar (14 GiB de RAM es el minimo; los requests del perfil de kind suman 13,8 GiB) | `00-prerrequisitos.md` | pendiente del operador | C-U6:34 |
 | K-02 | U12-T03, T04 y T05, U02-T22 y U00-T04 en main; la reparacion del realm retirada de tests/doubles/keycloak_tc.py | `00-prerrequisitos.md` | pendiente del operador | — |
 | K-03 | Paquetes de U5 generados (base, proxy/run-1, adversarial/rt3) y la vigencia de reference-policy.json cubre los dos dias de la corrida | `00-prerrequisitos.md` | pendiente del operador | — |
-| K-04 | Calendario: decisions se lanza antes de 22:18 UTC; el dia D + 1 no es dia 1 del mes; F5 a F10 caben en 3 dias (retencion de Prometheus) | `00-prerrequisitos.md` | pendiente del operador | — |
+| K-04 | Calendario: decisions se lanza antes de 22:18 UTC; el dia D + 1 no es dia 1 del mes; D4 solo pasa durante el dia D + 1 UTC (hasta las 00:00 UTC de D + 2); F5 a F10 caben en 3 dias (retencion de Prometheus) | `00-prerrequisitos.md` | pendiente del operador | — |
 | K-05 | La boveda de kind esta sembrada y no se ha reiniciado desde la siembra (guarda todo en memoria) | `00-prerrequisitos.md` | pendiente del operador | — |
-| K-06 | Imagenes de U3 a U11 publicadas en kind-registry y digests reales en los values de kind, por PR (hoy son de ejemplo: ImagePullBackOff) | `01-imagenes.md` | pendiente del operador | C-U7:41, C-U8:72, C-U9:39, C-U10:70, C-U11:50 |
+| K-06 | Imagenes de U3 a U11 publicadas en kind-registry y digests reales en los values de kind, por PR (un digest que no es el publicado da ImagePullBackOff; ya no queda ninguno de ejemplo) | `01-imagenes.md` | pendiente del operador | C-U7:41, C-U8:72, C-U9:39, C-U10:70, C-U11:50 |
 | K-07 | Governance, scoring, explainability y casos construidas del mismo commit, con sus digests en un solo PR | `01-imagenes.md` | pendiente del operador | C-U7:42, C-U8:72 |
 | K-08 | Imagenes de U2 (Keycloak, identity-jobs, config-cli, Envoy, Valkey) publicadas, si U2 no esta instalado | `01-imagenes.md` | pendiente del operador | — |
 | K-09 | Imagen de U12 publicada y corrida por digest; su memoria en el host frente a --memory 1g | `01-imagenes.md` | pendiente del operador | — |
@@ -53,7 +53,7 @@ Cada entrada del inventario (`system-verification/docs/kind/inventario.yaml`, K-
 | K-21 | Proxy de Linkerd en vectra-mock: el target linkerd-proxy en up == 1 (no 403) y los pods Ready con el Server del 4191 (las sondas /live y /ready pasan) | `02-sync-y-arranque.md` | pendiente del operador | C-U1:28, C-U8:69 |
 | K-22 | Politica activa y modelo de referencia activo: serving-config trae policy_version_id y la version | `02-sync-y-arranque.md` | pendiente del operador | C-U4:27, C-U4:28 |
 | K-23 | Con 256 MiB por pod bastan el predictor y el explicador del modelo de referencia (sin OOMKilled) | `02-sync-y-arranque.md` | pendiente del operador | C-U6:34 |
-| K-24 | Paquetes proxy y RT-3 en el model-store, para D1 y D2 | `02-sync-y-arranque.md` | pendiente del operador | — |
+| K-24 | Paquetes proxy y RT-3 (a, b, c y d) en el model-store, para D1 y D2 | `02-sync-y-arranque.md` | pendiente del operador | — |
 | K-25 | Watchdog recibido, no solo disparado | `02-sync-y-arranque.md` | pendiente del operador | C-U1:27 |
 | K-26 | Flujos negados (suite X01 a X10, casos bloqueados de INF-U10-04, X04): no se comprueban porque network y el Paso 9 estan diferidos; los permitidos se ven por el flujo base y las demos | `02-sync-y-arranque.md` | pendiente del operador | C-U1:23, C-U1:25, C-U8:70, C-U9:36, C-U10:68, C-U11:49 |
 | K-27 | Si el kind tiene el realm viejo: tras resincronizar U2 quedan 26 de 26 ejecuciones enlazadas; config-cli avisa que no reaplica contrasenas y anade una segunda credencial OTP con la misma semilla | `03-identidad-y-acceso.md` | pendiente del operador | — |
@@ -91,7 +91,7 @@ Cada entrada del inventario (`system-verification/docs/kind/inventario.yaml`, K-
 | K-59 | Duracion y pico de memoria de una corrida de bias, bajo los 256 MiB del limite | `08-d2-rt2.md` | pendiente del operador | C-U9:38 |
 | K-60 | Los dos modos de reactivacion: el de la herramienta con cumplimiento-1, y --reactivation presenter con cumplimiento-2 en la consola (ventana emergente, /stepup-callback, acr = mfa, ResolveFrozenDialog) | `08-d2-rt2.md` | pendiente del operador | C-U10:67 |
 | K-61 | Tras reactivar no se recongela; el barrido de U8 devuelve los modelo_congelado; el rollback deja el modelo de referencia activo; la duracion real frente a mas de 75 min | `08-d2-rt2.md` | pendiente del operador | — |
-| K-62 | North Star, sostenida, tasa de consulta y ProductMetricsStale con datos reales, tras las 02:40 UTC | `09-d4-u11-y-grafana.md` | pendiente del operador | C-U11:47, C-U11:48 |
+| K-62 | North Star, sostenida, tasa de consulta y ProductMetricsStale con datos reales, dentro del dia D + 1 UTC (la herramienta espera hasta las 02:40 UTC; desde las 00:00 UTC de D + 2 el ayer no tiene decisiones) | `09-d4-u11-y-grafana.md` | pendiente del operador | C-U11:47, C-U11:48 |
 | K-63 | Grafana por port-forward con grafana-admin; el dashboard Producto carga con sus cuatro paneles. Los permisos por carpeta y rol no se ensenan | `09-d4-u11-y-grafana.md` | pendiente del operador | C-U11:48 |
 | K-64 | El informe lista cada RT, demo e historia; salen no ejecutado US-106, 109, 603, 305, 604, 608, 609 y 610, RT3-b y 'a y d desplegados'; ninguno sale pasa sin evidencia | `10-informe-y-estado-final.md` | pendiente del operador | — |
 | K-65 | El cluster queda como estaba: modelo de referencia activo, ninguna version congelado, sin InferenceService de staging, F22 encendido | `10-informe-y-estado-final.md` | pendiente del operador | — |

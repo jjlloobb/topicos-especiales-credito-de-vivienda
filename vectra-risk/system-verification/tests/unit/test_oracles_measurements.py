@@ -154,7 +154,9 @@ def test_sim_normal_the_bff_not_responding_is_no_ejecutado(world: Rt2World) -> N
     ids = cases(world, 2)
     world.bff.doubles.case.fail(503)
     result = measure(world, report_of(ids))
-    assert result.result == "no ejecutado" and result.missing == ("sim_normal_bff_no_responde",)
+    assert result.result == "no ejecutado" and result.missing == (
+        "sim_normal_lectura_agotada",
+    )  # U12-T09: un 503 sostenido se reintenta durante el tope y termina con su causa propia, no con la traza
 
 
 def test_sim_normal_the_result_has_counts_by_state_and_cause_and_no_applicant_data(world: Rt2World) -> None:

@@ -14,7 +14,7 @@ Entradas de esta fase: K-06, K-07, K-08, K-09.
 
 - Demo: Base. Fuentes: `aidlc-docs/construction/scoring-explainability/evidence/cierre-demo.md:41`, `aidlc-docs/construction/case-management/evidence/cierre-demo.md:72`, `aidlc-docs/construction/bias-monitoring/evidence/cierre-demo.md:39`, `aidlc-docs/construction/console/evidence/cierre-demo.md:70`, `aidlc-docs/construction/product-metrics/evidence/cierre-demo.md:50`, `CANDIDATAS.md:701`, `CANDIDATAS.md:288`, `tareas/U12-T05-imagen-y-documentacion.md:360`, `tareas/U12-T04-demos-cli-y-manifiesto.md:121`.
 
-**Resultado esperado.** Imagenes de U3 a U11 publicadas en kind-registry y digests reales en los values de kind, por PR (hoy son de ejemplo: ImagePullBackOff)
+**Resultado esperado.** Imagenes de U3 a U11 publicadas en kind-registry y digests reales en los values de kind, por PR (un digest que no es el publicado da ImagePullBackOff; ya no queda ninguno de ejemplo)
 
 **Comando.** Previsto: `grep -rn sha256:0000 vectra-risk-gitops/values/kind`; `arranque.sh vectra-app`.
 
@@ -30,7 +30,7 @@ _pendiente: la salida real, sin tokens_
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| Imagenes de U3 a U11 publicadas en kind-registry y digests reales en los values de kind, por PR (hoy son de ejemplo: ImagePullBackOff) | _pendiente_ | _pendiente_ |
+| Imagenes de U3 a U11 publicadas en kind-registry y digests reales en los values de kind, por PR (un digest que no es el publicado da ImagePullBackOff; ya no queda ninguno de ejemplo) | _pendiente_ | _pendiente_ |
 
 ### K-07 — Governance, scoring, explainability y casos construidas del mismo comm…
 
