@@ -1,7 +1,7 @@
 # kind: el digest es de ejemplo mientras ningun workflow construya la imagen (INF-U2-09, decision R3).
 image:
   repository: kind-registry:5000/vectra/identity-jobs
-  digest: sha256:22242b740f18fadd3ee77dc3a8ffbc718e67e2769421eb96af40343ea6600069
+  digest: sha256:a7e5f1f0c6f256724b7e3fcaf6007082b6a73ced9e3af5e004b44e1ee2045aab
 # Emisor de los tokens de kind: el hostname publico de Keycloak. Es la `aud` de la aserción de servicio (U00-T04).
 keycloak:
   issuer: https://vectra.localtest.me/auth/realms/vectra

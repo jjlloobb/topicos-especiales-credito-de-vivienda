@@ -22,9 +22,9 @@ profiles:
     explainer: { resources: { requests: { cpu: 100m, memory: 256Mi } } }
   staging:
     predictor: { resources: { requests: { cpu: 100m, memory: 256Mi } } }
-# Digests reales de las imagenes publicadas en kind-registry (F1 de la verificacion en kind, 2026-11-15; construidas del commit ed0dd0f).
+# Digests reales de las imagenes publicadas en kind-registry (F1 de la verificacion en kind, 2026-11-16; construidas del commit 565ff2c).
 images:
   predictor:
-    digest: sha256:42e36a603df506718291da0c152e95a1733bf5fd27d5a18c58aa12a03cf9e2bc
+    digest: sha256:e6000b82731ca04a3e14d102a3b188c0263011f6d4297c0a3cef8ada150d1e02
   explainer:
-    digest: sha256:28ed529a8fbcdb3cc260076321549d7501552fe82fc844d1b374c9c5b06d110a
+    digest: sha256:119b17afa3557304468656abf76a6d493b9034064a4908f14e78d004195943fb

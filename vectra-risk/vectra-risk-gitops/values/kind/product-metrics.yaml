@@ -2,6 +2,6 @@
 # Emisor de los tokens de kind (U02-T21): el hostname publico de Keycloak, que es el `iss` que firma y la `aud` de la aserción de servicio (U00-T04; identity-edge/docs/emisor-de-tokens.md).
 keycloak:
   issuer: https://vectra.localtest.me/auth/realms/vectra
-# Digests reales de las imagenes publicadas en kind-registry (F1 de la verificacion en kind, 2026-11-15; construidas del commit ed0dd0f).
+# Digests reales de las imagenes publicadas en kind-registry (F1 de la verificacion en kind, 2026-11-16; construidas del commit 565ff2c).
 image:
-  digest: sha256:e5ea5fffe7e09126afbcdeaaf0ed716af2aae22fe3ef49dc2f6e9e2f27446c4a
+  digest: sha256:090062f2ba1b9e56d4584cc525733b05b980b56fe74c37da8e4ff2302b3c2c1d
