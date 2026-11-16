@@ -28,6 +28,7 @@ HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
 import vault_paths as vp  # noqa: E402
 
+REAL_CLUSTER_SECRETS = vp.ClusterSecrets
 SEED_VAULT = Path(os.environ.get("SEED_VAULT_SCRIPT", HERE / "seed-vault.sh"))
 REALM = yaml.safe_load(vp.REALM_KIND.read_text(encoding="utf-8"))
 SERVICE_CLIENTS = sorted(c["clientId"] for c in REALM["clients"] if c.get("serviceAccountsEnabled"))
@@ -372,6 +373,7 @@ def test_no_secret_appears_in_the_standard_output_of_the_cli(keys_dir: Path, mon
     vault = FakeVault()
     monkeypatch.setattr(vp, "Vault", lambda *_: vault)
     monkeypatch.setattr(vp, "ca_from_cluster", lambda *_: lambda: CA_PEM)
+    monkeypatch.setattr(vp, "ClusterSecrets", lambda context: REAL_CLUSTER_SECRETS(context, lambda *_: SimpleNamespace(returncode=0, stdout="", stderr="")))  # un cluster sin ExternalSecret: nunca kubectl real
     assert vp.main(["vault_paths.py", "seed-identity", "kind-vectra", "root", str(keys_dir)]) == 0
     out = capsys.readouterr()
     assert out.out and secret_values(vault)
@@ -385,6 +387,7 @@ def test_the_cli_second_run_says_nothing_changes(keys_dir: Path, monkeypatch, ca
     vault = FakeVault()
     monkeypatch.setattr(vp, "Vault", lambda *_: vault)
     monkeypatch.setattr(vp, "ca_from_cluster", lambda *_: lambda: CA_PEM)
+    monkeypatch.setattr(vp, "ClusterSecrets", lambda context: REAL_CLUSTER_SECRETS(context, lambda *_: SimpleNamespace(returncode=0, stdout="", stderr="")))  # un cluster sin ExternalSecret: nunca kubectl real
     vp.main(["vault_paths.py", "seed-identity", "kind-vectra", "root", str(keys_dir)])
     capsys.readouterr()
     vp.main(["vault_paths.py", "seed-identity", "kind-vectra", "root", str(keys_dir)])

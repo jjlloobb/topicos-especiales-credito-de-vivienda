@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # Siembra Vault dev de kind y crea el Secret `vault-token` que lee ESO (INF-U1-10). Lo corre un operador; nunca CI.
 #
-#   seed-vault.sh                sembrar: conserva lo que exista y genera el resto al azar. Se puede repetir.
+#   seed-vault.sh                sembrar: conserva lo que exista en la boveda, recupera del cluster (los Secret que dejo ESO) lo que le falte y
+#                                genera al azar solo lo que no se pueda recuperar. Informa por ruta, sin valores. Se puede repetir.
 #   seed-vault.sh grafana-token  crear la cuenta de servicio de Grafana y guardar su token (F110). Con Grafana arriba.
 #   seed-vault.sh identity       sembrar las rutas `identity/` y `edge/valkey` de U2 (U02-T19): pares ES256 por cliente, la CA interna,
 #                                contrasenas y semillas TOTP de los usuarios sinteticos, break-glass y el administrador de arranque.
-#                                Conserva lo que exista y nunca regenera un par de llaves. Necesita la CA (`vectra-internal-ca`, cert-manager)
+#                                Conserva lo que exista, recupera lo que falte del cluster y nunca regenera un par de llaves que se pueda recuperar.
+#                                Despues fuerza el refresco de los ExternalSecret de todos los namespaces que leen esas rutas. Necesita la CA (`vectra-internal-ca`, cert-manager)
 #                                y haber corrido antes `seed-vault.sh`. Escribe las llaves para las pruebas e2e en
 #                                ${VECTRA_E2E_KEYS_DIR:-${XDG_RUNTIME_DIR:-/tmp}/vectra-e2e-keys} (0700; archivos 0600) y no imprime secretos.
 #
-# Vault dev guarda todo en memoria: si se reinicia hay que sembrar de nuevo, y las claves cambian (install.md, "Vault
-# reiniciado"). Requiere kubectl, helm y uv. Solo escribe en el contexto de kind indicado.
+# Vault dev guarda todo en memoria: si se reinicia hay que sembrar de nuevo. Los Secret que ESO ya dejo (`deletionPolicy: Retain`) son la
+# copia de lo sembrado: de ellos salen los valores, y solo lo que no estaba alli es una clave nueva (install.md, "Vault reiniciado").
+# Requiere kubectl, helm y uv. Solo escribe en el contexto de kind indicado.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 context="${VECTRA_KIND_CONTEXT:-kind-vectra}"
@@ -35,8 +38,13 @@ identity() {
   kube wait -n vault pod/vault-0 --for=condition=Ready --timeout=180s
   (cd "$here/../.." && uv run python platform/kind/vault_paths.py seed-identity "$context" "$token" ${VECTRA_E2E_KEYS_DIR:+"$VECTRA_E2E_KEYS_DIR"})
   if kube get crd externalsecrets.external-secrets.io >/dev/null 2>&1; then
-    for namespace in vectra-identity vectra-edge envoy-gateway-system; do
-      kube annotate externalsecrets.external-secrets.io --all -n "$namespace" "force-sync=$(date +%s)" --overwrite 2>/dev/null || true
+    # Todos los namespaces con un ExternalSecret que lee `identity/` o `edge/valkey` (los `*-client` de U3 a U11 refrescan cada hora), sacados del cluster.
+    local namespace namespaces listing
+    listing="$(cd "$here/../.." && uv run python platform/kind/vault_paths.py identity-namespaces "$context")" # si falla, set -e detiene el guion
+    mapfile -t namespaces <<<"$listing"
+    for namespace in "${namespaces[@]}"; do
+      [ -n "$namespace" ] || continue
+      kube annotate externalsecrets.external-secrets.io --all -n "$namespace" "force-sync=$(date +%s)" --overwrite
     done
   fi
 }
