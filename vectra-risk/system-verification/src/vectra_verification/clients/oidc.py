@@ -602,7 +602,9 @@ class OidcClient:
         for attempt in (0, 1):
             keys = self._jwks.get("keys", [])
             for jwk in keys:
-                if jwk.get("kid") == kid and jwk.get("use", "sig") == "sig":  # la llave de cifrado de Keycloak no firma
+                if (
+                    jwk.get("kid") == kid and jwk.get("use", "sig") == "sig"
+                ):  # la llave de cifrado de Keycloak no firma
                     try:
                         return jwt.PyJWK(jwk).key
                     except jwt.PyJWTError:

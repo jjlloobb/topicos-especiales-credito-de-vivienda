@@ -25,6 +25,7 @@ from vectra_verification.clients.k8s_read import K8sError
 from vectra_verification.clients.oidc import OidcError
 from vectra_verification.clock import Clock
 from vectra_verification.guard import Environment
+from vectra_verification.retry import ReadUnavailable
 
 MFA_FRESH: Final = 800.0  # el BFF acepta 900 s: se renueva antes de que venza
 PAGE_SIZE: Final = 50
@@ -147,12 +148,16 @@ def check_section(environment: Environment, section: str) -> None:
     guard.check_section(environment, section)
 
 
-INFRA_ERRORS: Final = (K8sError, OidcError)
+INFRA_ERRORS: Final = (K8sError, OidcError, ReadUnavailable)
 
 
 def infra_failure(error: Exception, prefix: str) -> tuple[str, str]:
     """El codigo estable y el detalle de un fallo de infraestructura que **no** es un incumplimiento del sistema (F-05, ronda 2): un `port-forward` caido o un `kubectl` que no responde (`K8sError`) y un login que no se pudo
     hacer o renovar (`OidcError`). El resultado es `no ejecutado`; el detalle trae el codigo del error, que nunca lleva credenciales."""
+    if isinstance(
+        error, ReadUnavailable
+    ):  # U12-T09: el BFF no respondio bien durante todo el tope de la lectura
+        return f"{prefix}_{error.code}", str(error)[:200]
     if isinstance(error, K8sError):
         forward = str(error).startswith("port_forward")
         return f"{prefix}_{'port_forward_caido' if forward else 'kubectl_no_responde'}", str(error)[:200]

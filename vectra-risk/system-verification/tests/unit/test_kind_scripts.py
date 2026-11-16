@@ -723,6 +723,9 @@ GOOD_MODELS = json.dumps(
 )
 
 
+REF = ("--referencia", "mv-ref")  # U12-T09: el `model_version_id` del modelo de referencia
+
+
 def final_state(**over: Any) -> dict[str, Any]:
     state: dict[str, Any] = {
         "rules": [
@@ -746,7 +749,7 @@ def final_state(**over: Any) -> dict[str, Any]:
 def test_estado_final_as_it_was_is_0_and_reports_what_stays(tmp_path: Path) -> None:
     models = tmp_path / "modelos.json"
     models.write_text(GOOD_MODELS, encoding="utf-8")
-    done = run("estado-final.sh", ["--modelos", str(models)], tmp_path, final_state())
+    done = run("estado-final.sh", ["--modelos", str(models), *REF], tmp_path, final_state())
     assert done.returncode == 0, done.stdout + done.stderr
     assert (
         "como estaba" in done.stdout
@@ -762,7 +765,7 @@ def test_estado_final_reads_the_models_from_stdin(tmp_path: Path) -> None:
         bin_dir, final_state(), free_text=FREE.format(available=1), docker_text=""
     )
     done = subprocess.run(
-        ["sh", str(KIND / "estado-final.sh"), "--modelos", "-"],
+        ["sh", str(KIND / "estado-final.sh"), "--modelos", "-", *REF],
         input=GOOD_MODELS,
         env={**os.environ, **variables},
         capture_output=True,
@@ -799,8 +802,38 @@ def test_estado_final_a_frozen_or_missing_active_model_fails(
 ) -> None:
     file = tmp_path / "m.json"
     file.write_text(models, encoding="utf-8")
-    done = run("estado-final.sh", ["--modelos", str(file)], tmp_path, final_state())
+    done = run("estado-final.sh", ["--modelos", str(file), *REF], tmp_path, final_state())
     assert done.returncode == 1 and needle in done.stdout
+
+
+def test_estado_final_the_proxy_active_instead_of_the_reference_fails_with_the_reason(tmp_path: Path) -> None:
+    """U12-T09: con el proxy `activo` (un solo activo, pero no el de referencia) el guion salia 0."""
+    file = tmp_path / "m.json"
+    file.write_text(
+        json.dumps(
+            [
+                {"model_version_id": "mv-ref", "state": "inactivo"},
+                {"model_version_id": "mv-proxy", "state": "activo"},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    done = run("estado-final.sh", ["--modelos", str(file), *REF], tmp_path, final_state())
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert "el modelo activo es mv-proxy y el de referencia es mv-ref" in done.stdout
+
+
+def test_estado_final_without_the_reference_option_is_a_usage_error_and_a_different_reference_fails(
+    tmp_path: Path,
+) -> None:
+    file = tmp_path / "m.json"
+    file.write_text(GOOD_MODELS, encoding="utf-8")
+    done = run("estado-final.sh", ["--modelos", str(file)], tmp_path, final_state())
+    assert done.returncode == 2 and "--referencia" in done.stderr
+    done = run(
+        "estado-final.sh", ["--modelos", str(file), "--referencia", "mv-otro"], tmp_path, final_state()
+    )
+    assert done.returncode == 1 and "el de referencia es mv-otro" in done.stdout
 
 
 def test_estado_final_staging_leftovers_and_a_missing_f22_resource_fail(tmp_path: Path) -> None:
@@ -814,13 +847,13 @@ def test_estado_final_staging_leftovers_and_a_missing_f22_resource_fail(tmp_path
             "stdout": "inferenceservice.serving.kserve.io/isvc-proxy\n",
         },
     )
-    done = run("estado-final.sh", ["--modelos", str(file)], tmp_path, left)
+    done = run("estado-final.sh", ["--modelos", str(file), *REF], tmp_path, left)
     assert done.returncode == 1 and "quedan InferenceService en vectra-staging" in done.stdout
     gone = final_state()
     gone["rules"].insert(
         0, {"match": ["get", "server.policy.linkerd.io", "explainer-8080"], "stderr": "NotFound\n", "rc": 1}
     )
-    done = run("estado-final.sh", ["--modelos", str(file)], tmp_path, gone)
+    done = run("estado-final.sh", ["--modelos", str(file), *REF], tmp_path, gone)
     assert done.returncode == 1 and "FALLA F22: falta Server explainer-8080" in done.stdout
 
 
@@ -828,10 +861,10 @@ def test_estado_final_without_models_or_with_garbage_exits_2(tmp_path: Path) -> 
     assert run("estado-final.sh", [], tmp_path, final_state()).returncode == 2
     junk = tmp_path / "j.json"
     junk.write_text("no es json", encoding="utf-8")
-    assert run("estado-final.sh", ["--modelos", str(junk)], tmp_path, final_state()).returncode == 2
+    assert run("estado-final.sh", ["--modelos", str(junk), *REF], tmp_path, final_state()).returncode == 2
     assert (
         run(
-            "estado-final.sh", ["--modelos", str(tmp_path / "no-existe.json")], tmp_path, final_state()
+            "estado-final.sh", ["--modelos", str(tmp_path / "no-existe.json"), *REF], tmp_path, final_state()
         ).returncode
         == 2
     )
@@ -853,14 +886,14 @@ def test_estado_final_an_unreadable_f22_resource_is_2_not_a_missing_one(
             "rc": 1,
         },
     )
-    done = run("estado-final.sh", ["--modelos", str(file)], tmp_path, down)
+    done = run("estado-final.sh", ["--modelos", str(file), *REF], tmp_path, down)
     assert done.returncode == 2, done.stdout + done.stderr
     assert "NO SE PUDO LEER" in done.stderr and "FALLA F22" not in done.stdout
     gone = final_state()
     gone["rules"].insert(
         0, {"match": ["get", resource], "stderr": "Error from server (NotFound): not found\n", "rc": 1}
     )
-    done = run("estado-final.sh", ["--modelos", str(file)], tmp_path, gone)
+    done = run("estado-final.sh", ["--modelos", str(file), *REF], tmp_path, gone)
     assert done.returncode == 1 and "FALLA F22: falta" in done.stdout
 
 
