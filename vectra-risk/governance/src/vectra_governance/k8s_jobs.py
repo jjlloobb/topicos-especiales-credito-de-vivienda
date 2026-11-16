@@ -162,7 +162,9 @@ def job_manifest(spec: JobSpec) -> dict[str, Any]:
                     "serviceAccountName": JOB_SERVICE_ACCOUNT,
                     "automountServiceAccountToken": False,  # sin token de Kubernetes (INF-U4-01)
                     "priorityClassName": JOB_PRIORITY_CLASS,
-                    "securityContext": {"runAsNonRoot": True},
+                    # PodSecurity `restricted` (enforce en `vectra-staging`): sin `seccompProfile` el Job se crea pero el pod se rechaza
+                    # (U04-T11). A nivel de pod cubre tambien a los contenedores que la malla agrega.
+                    "securityContext": {"runAsNonRoot": True, "seccompProfile": {"type": "RuntimeDefault"}},
                     "containers": [
                         {
                             "name": "model-validation-job",
