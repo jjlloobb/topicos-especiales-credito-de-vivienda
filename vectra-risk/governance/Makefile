@@ -2,7 +2,7 @@
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 UV := cd $(ROOT) && uv run
 
-.PHONY: lint test rules image image-validation check render-chart policy-chart policy-chart-u1 policy-runbook shellcheck coverage
+.PHONY: lint test rules image image-validation check render-chart policy-chart policy-chart-u1 policy-job policy-runbook shellcheck coverage
 
 lint:
 	$(UV) ruff check governance
@@ -64,6 +64,21 @@ policy-chart-u1:
 		$(TOOLS)/conftest test --combine --namespace hpa --policy $(ROOT)/platform/policies/rego $(U1)/$$env/resources || exit 1; \
 	done
 
+# U04-T11: el Job de validacion no sale de un chart sino de `job_manifest` (la API de Kubernetes, en tiempo de ejecucion), asi que
+# `policy-chart-u1` no lo ve. Se renderiza con el codigo real (Job y su Pod) y pasa las mismas politicas de kind que el resto de U4
+# (aplican a `vectra-staging`; sin `verify-images`, que solo es del clúster). `pass: 0` no aprueba. La admision PodSecurity
+# `restricted` la comprueba pytest (`test_validation_job_template.py`): Kyverno no la evalua.
+JOB := $(ROOT)/platform/.tools/integration/u4-job
+
+policy-job:
+	cd $(ROOT) && rm -rf $(JOB) && mkdir -p $(JOB)/policies $(JOB)/resources
+	cd $(ROOT)/platform/policies/kyverno && cp $(STATIC_POLICIES) $(JOB)/policies/
+	cd $(ROOT) && uv run python governance/tests/render_validation_job.py $(JOB)/resources
+	{ $(TOOLS)/kyverno apply $(JOB)/policies --resource $(JOB)/resources > $(JOB)/report.txt 2>&1 || true; }
+	cat $(JOB)/report.txt
+	grep -E '$(KYVERNO_OK)' $(JOB)/report.txt || { grep -E 'fail:|FAIL|error|panic' $(JOB)/report.txt | head -40; exit 1; }
+	cd $(ROOT) && $(TOOLS)/conftest test --policy $(ROOT)/platform/policies/rego $(JOB)/resources
+
 # CA-7 de U04-T07: lo que crea el runbook de la politica en kind (el pod efimero de `llamar.sh` y la ServiceAccount `console-bff`) pasa las
 # politicas de kind de U1 (las mismas de arriba, sin `verify-images`, que Kyverno solo aplica al clúster). `llamar.sh --dry-run` rinde el Pod
 # con `kubectl run --dry-run=client` (sin servidor). Sin `kubectl` en el PATH se omite (lo corre el CI).
@@ -92,5 +107,5 @@ coverage:
 
 # Verificaciones estaticas (AUTONOMIA-01). `coverage` corre las pruebas de `test` con la medicion (NFR-U4-41); la trazabilidad usa la lista
 # «Diferido por la demo» de evidence/cierre-demo.md (P-4).
-check: lint rules shellcheck coverage policy-chart policy-chart-u1 policy-runbook
+check: lint rules shellcheck coverage policy-chart policy-chart-u1 policy-job policy-runbook
 	cd $(ROOT) && uv run python platform/tests/test_traceability.py --unit governance --all

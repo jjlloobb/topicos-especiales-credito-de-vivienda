@@ -1,8 +1,10 @@
 """Plantilla del Job de validacion que crea el lanzador (K01) y chart minimo de U4 (Paso 13; INF-U4-01, U1 P-U1-05)."""
 
+import copy
 import re
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -75,6 +77,106 @@ def test_the_manifest_is_the_staging_job_with_the_batch_guarantees_and_security(
     assert container["securityContext"]["readOnlyRootFilesystem"] is True
     assert container["securityContext"]["allowPrivilegeEscalation"] is False
     assert container["securityContext"]["capabilities"] == {"drop": ["ALL"]}
+
+
+# --- U04-T11: el Pod del Job pasa la admision PodSecurity `restricted` del namespace `vectra-staging` -----------------------------
+# Lista: Pod Security Standards, perfil Restricted (https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted),
+# que incluye el perfil Baseline. Es la que aplica el admission controller con `pod-security.kubernetes.io/enforce: restricted`.
+# Por que no la veia `test_the_manifest_is_the_staging_job_...`: comprobaba solo los tres campos que la plantilla ya traia (NFR-U4-23), no
+# la lista del estandar; `seccompProfile` no estaba en ninguna aserción y el clúster lo rechazo (2026-11-16).
+
+RESTRICTED_VOLUMES = {"configMap", "csi", "downwardAPI", "emptyDir", "ephemeral", "persistentVolumeClaim", "projected", "secret"}
+SAFE_SYSCTLS = {
+    "kernel.shm_rmid_forced", "net.ipv4.ip_local_port_range", "net.ipv4.ip_unprivileged_port_start", "net.ipv4.tcp_syncookies",
+    "net.ipv4.ping_group_range", "net.ipv4.ip_local_reserved_ports", "net.ipv4.tcp_keepalive_time", "net.ipv4.tcp_fin_timeout",
+    "net.ipv4.tcp_keepalive_intvl", "net.ipv4.tcp_keepalive_probes",
+}
+
+
+def restricted_violations(pod_spec: dict[str, Any], annotations: dict[str, str] | None = None) -> list[str]:
+    """Las violaciones de Baseline + Restricted en un `PodSpec` (los mismos controles y mensajes cortos que el admission controller)."""
+    found: list[str] = []
+    pod_sc = pod_spec.get("securityContext") or {}
+    for field in ("hostNetwork", "hostPID", "hostIPC"):
+        if pod_spec.get(field):
+            found.append(f"host namespaces ({field})")
+    for volume in pod_spec.get("volumes") or []:
+        kinds = set(volume) - {"name"}
+        if not kinds <= RESTRICTED_VOLUMES:
+            found.append(f"volume types ({volume['name']}: {sorted(kinds - RESTRICTED_VOLUMES)})")
+    for sysctl in pod_sc.get("sysctls") or []:
+        if sysctl["name"] not in SAFE_SYSCTLS:
+            found.append(f"forbidden sysctls ({sysctl['name']})")
+    if pod_sc.get("seLinuxOptions", {}).keys() - {"level", "role"} or pod_sc.get("seLinuxOptions", {}).get("type") not in (None, "container_t", "container_init_t", "container_kvm_t", "container_engine_t"):
+        found.append("seLinuxOptions")
+    if pod_sc.get("windowsOptions", {}).get("hostProcess"):
+        found.append("hostProcess")
+    for key, value in (annotations or {}).items():
+        if key.startswith("container.apparmor.security.beta.kubernetes.io/") and value not in ("runtime/default",) and not value.startswith("localhost/"):
+            found.append(f"AppArmor ({key})")
+    pod_seccomp = (pod_sc.get("seccompProfile") or {}).get("type")
+    if pod_seccomp not in (None, "RuntimeDefault", "Localhost"):
+        found.append(f"seccompProfile (pod: {pod_seccomp})")
+    containers = [*(pod_spec.get("initContainers") or []), *(pod_spec.get("containers") or []), *(pod_spec.get("ephemeralContainers") or [])]
+    for container in containers:
+        name, sc = container["name"], container.get("securityContext") or {}
+        if sc.get("privileged"):
+            found.append(f"privileged ({name})")
+        added = set((sc.get("capabilities") or {}).get("add") or [])
+        if added - {"NET_BIND_SERVICE"}:
+            found.append(f"unrestricted capabilities ({name}: add {sorted(added)})")
+        if "ALL" not in ((sc.get("capabilities") or {}).get("drop") or []):
+            found.append(f"unrestricted capabilities ({name} must drop ALL)")
+        if any(port.get("hostPort") for port in container.get("ports") or []):
+            found.append(f"hostPort ({name})")
+        if sc.get("procMount") not in (None, "Default"):
+            found.append(f"procMount ({name})")
+        if sc.get("allowPrivilegeEscalation") is not False:
+            found.append(f"allowPrivilegeEscalation != false ({name})")
+        seccomp = (sc.get("seccompProfile") or {}).get("type", pod_seccomp)
+        if seccomp not in ("RuntimeDefault", "Localhost"):
+            found.append(f"seccompProfile ({name} must set type to RuntimeDefault or Localhost)")
+        if sc.get("runAsUser") == 0 or (sc.get("runAsUser") is None and pod_sc.get("runAsUser") == 0):
+            found.append(f"runAsUser=0 ({name})")
+        if sc.get("runAsNonRoot", pod_sc.get("runAsNonRoot")) is not True:
+            found.append(f"runAsNonRoot != true ({name})")
+        for sysctl_owner in (sc,):
+            if sysctl_owner.get("windowsOptions", {}).get("hostProcess"):
+                found.append(f"hostProcess ({name})")
+    return found
+
+
+def pod_template() -> tuple[dict[str, Any], dict[str, str]]:
+    template = pod()["spec"]["template"]
+    return copy.deepcopy(template["spec"]), template["metadata"].get("annotations", {})
+
+
+def test_the_job_pod_meets_pod_security_restricted_as_the_staging_namespace_enforces_it() -> None:
+    pod_spec, annotations = pod_template()
+    assert restricted_violations(pod_spec, annotations) == []
+    assert pod_spec["securityContext"]["seccompProfile"] == {"type": "RuntimeDefault"}  # lo que el clúster pidio (2026-11-16)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "expected"),
+    [
+        (lambda p: p["securityContext"].pop("seccompProfile", None), "seccompProfile"),
+        (lambda p: p["securityContext"].update(seccompProfile={"type": "Unconfined"}), "seccompProfile"),
+        (lambda p: p["securityContext"].pop("runAsNonRoot"), "runAsNonRoot"),
+        (lambda p: p["containers"][0]["securityContext"].pop("allowPrivilegeEscalation"), "allowPrivilegeEscalation"),
+        (lambda p: p["containers"][0]["securityContext"]["capabilities"].pop("drop"), "drop ALL"),
+        (lambda p: p["containers"][0]["securityContext"].update(runAsUser=0), "runAsUser=0"),
+        (lambda p: p["containers"][0]["securityContext"].update(privileged=True), "privileged"),
+        (lambda p: p["containers"][0]["securityContext"]["capabilities"].update(add=["NET_ADMIN"]), "unrestricted capabilities"),
+        (lambda p: p["volumes"].append({"name": "h", "hostPath": {"path": "/"}}), "volume types"),
+        (lambda p: p.update(hostNetwork=True), "host namespaces"),
+    ],
+)
+def test_pod_security_check_rejects_each_removed_or_added_field(mutate: Callable[[dict[str, Any]], object], expected: str) -> None:
+    """La comprobacion no es decorativa: cada mutacion que el admission controller rechazaria la hace fallar."""
+    pod_spec, annotations = pod_template()
+    mutate(pod_spec)
+    assert any(expected in violation for violation in restricted_violations(pod_spec, annotations))
 
 
 def test_the_job_mounts_the_bucket_credential_and_the_client_key_without_literal_secrets() -> None:
