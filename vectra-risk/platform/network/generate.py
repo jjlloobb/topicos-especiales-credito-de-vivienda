@@ -340,6 +340,43 @@ def probe_routes(
     ]
 
 
+def external_origin_policy(dest: dict[str, Any], port: int, external_cidr: str) -> list[dict[str, Any]]:
+    """U01-T14: el origen `external:` de un flujo hacia un pod mallado no presenta identidad; el `Server` lo admite por red.
+
+    El puerto lleva TLS de Envoy (F01, F07, F08 al 10443): el proxy no lo interpreta (`opaque`).
+    """
+    server = f"{dest['name']}-{port}"
+    name = f"{server}-external"
+    return [
+        server_of(dest, port, protocol="opaque"),
+        network_authentication(name, dest["ns"], [external_cidr]),
+        authorization(name, dest["ns"], "NetworkAuthentication", name, server=server),
+    ]
+
+
+def probed_port_policy(
+    dest: dict[str, Any], port: int, node_cidr: str, pod_cidr: str
+) -> list[dict[str, Any]]:
+    """U01-T14: sondas del kubelet por HTTPS o TCP: sin ruta HTTP que autorizar, se admite al origen del kubelet en el `Server`."""
+    server = f"{dest['name']}-{port}"
+    name = f"{server}-probes"
+    return [
+        server_of(dest, port),
+        # kubelet puede salir con la IP de tunl0 de Calico, dentro de la red de pods.
+        network_authentication(f"{name}-nodes", dest["ns"], list(dict.fromkeys([node_cidr, pod_cidr]))),
+        authorization(name, dest["ns"], "NetworkAuthentication", f"{name}-nodes", server=server),
+    ]
+
+
+def network_authentication(name: str, ns: str, cidrs: list[str]) -> dict[str, Any]:
+    return {
+        "apiVersion": "policy.linkerd.io/v1alpha1",
+        "kind": "NetworkAuthentication",
+        "metadata": {"name": name, "namespace": ns},
+        "spec": {"networks": [{"cidr": c} for c in cidrs]},
+    }
+
+
 def namespace_metrics_policy(
     flow: dict[str, Any], dest: dict[str, Any], sources: list[dict[str, Any]], port: int, pod_cidr: str
 ) -> list[dict[str, Any]]:
@@ -445,6 +482,11 @@ def build(
                         flow["id"],
                     )
                 )
+                if dest["kind"] == "workload" and dest["ns"] in meshed and len(internal) < len(sources):
+                    for port in ports:
+                        docs[dest["ns"]].extend(
+                            external_origin_policy(dest, port, data["external_cidr"][env])
+                        )
                 if dest["kind"] == "ns" and dest["ns"] in meshed and internal:
                     for port in ports:
                         docs[dest["ns"]].extend(
@@ -490,6 +532,13 @@ def build(
                                     data["pod_cidr"][env],
                                 )
                             )
+    for name, probed in sorted(data["probed_ports"].items()):
+        dest = endpoint(name, data)
+        if exists_in(dest, env) and dest["ns"] in meshed:
+            for port in probed:
+                docs[dest["ns"]].extend(
+                    probed_port_policy(dest, port, data["node_cidr"][env], data["pod_cidr"][env])
+                )
     for key, subject in sorted(data["k_egress"].items()):
         workload = data["workloads"][subject] if isinstance(subject, str) else subject
         if env not in workload.get("envs", ENVS):

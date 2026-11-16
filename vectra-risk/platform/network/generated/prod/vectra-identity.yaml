@@ -692,3 +692,27 @@ spec:
     group: policy.linkerd.io
     kind: Server
     name: keycloak-8443
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: keycloak-9000-probes-nodes
+  namespace: vectra-identity
+spec:
+  networks:
+  - cidr: 0.0.0.0/32
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: keycloak-9000-probes
+  namespace: vectra-identity
+spec:
+  requiredAuthenticationRefs:
+  - group: policy.linkerd.io
+    kind: NetworkAuthentication
+    name: keycloak-9000-probes-nodes
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: keycloak-9000
