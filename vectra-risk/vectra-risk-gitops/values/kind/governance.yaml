@@ -4,7 +4,7 @@ keycloak:
   issuer: https://vectra.localtest.me/auth/realms/vectra
 # Digests reales de las imagenes publicadas en kind-registry (F1 de la verificacion en kind, 2026-11-16; construidas del commit 565ff2c).
 image:
-  digest: sha256:2f731b2219f795c81db3dffc17db2a174c44dfdcf4e7b030afafd4aa91a2ef17
+  digest: sha256:cc6c54511bd1dc70c646ace6982292b15675cc889ae6165d0db2f6d98bf7429d
 validation:
   image:
     digest: sha256:1bbd46d2f2d8a17410a820f3a7f47a27cd0046e35db1d9498c7f35885959f442
