@@ -76,7 +76,7 @@ TOKEN_PENDING = "pendiente-de-bootstrap"  # noqa: S105
 RELAY_KIND = "http://127.0.0.1:9/sin-relay-en-kind"
 NOT_FOUND = 2  # codigo de salida de `vault kv get` cuando la ruta no existe
 #: Una plantilla de ESO que copia el valor entero (`{{ .clave }}`): el `Secret` guarda el mismo valor que la boveda.
-LITERAL_TEMPLATE = re.compile(r"^\s*\{\{\s*\.(\w+)\s*\}\}\s*$")
+LITERAL_TEMPLATE = re.compile(r"\{\{\s*\.(\w+)\s*\}\}")  # con `fullmatch`: ESO conserva todo texto alrededor, y ese texto acabaria en el valor
 EXTERNAL_SECRETS = "externalsecrets.external-secrets.io"
 Refs = dict[str, set[str]]
 Runner = Callable[[list[str], str | None], "subprocess.CompletedProcess[str]"]
@@ -172,6 +172,8 @@ class PathReport:
     generated: list[str] = field(default_factory=list)
     #: propiedad generada -> `namespace/Secret` donde solo existe dentro de una plantilla (no se pudo copiar)
     templated: dict[str, list[str]] = field(default_factory=dict)
+    #: ningun `ExternalSecret` la lee (`IDENTITY_EXTRA`): lo generado aqui no deja nada que realinear
+    unread: bool = False
 
 
 class Report:
@@ -189,15 +191,17 @@ class Report:
             text = f"{path}: conservadas {line.kept}, recuperadas {line.recovered}, generadas {len(line.generated)}"
             if line.generated:
                 text += f" ({', '.join(line.generated)})"
+            if line.unread:
+                text += ", nadie la lee"
             if line.fixed:
                 text += f", fijas {line.fixed}"
             if line.derived:
                 text += f", derivadas de lo que ya existe {line.derived}"
             out.append(text)
             out += [f"  {prop}: solo vive dentro de una plantilla ({', '.join(places)}); no se copia, se generó" for prop, places in sorted(line.templated.items())]
-        generated = {path: line.generated for path, line in self.paths.items() if line.generated}
+        generated = {path: line.generated for path, line in self.paths.items() if line.generated and not line.unread}
         if generated:
-            out.append(f"Se generaron valores nuevos en {len(generated)} ruta(s): lo que los guardaba (Keycloak, MinIO, Grafana, PostgreSQL, Valkey) hay que realinearlo (install.md, «Vault reiniciado»).")
+            out.append(f"Se generaron valores nuevos en {len(generated)} ruta(s) que algo lee: lo que los guardaba (Keycloak, MinIO, Grafana, PostgreSQL, Valkey) hay que realinearlo (install.md, «Vault reiniciado»).")
         else:
             out.append("Todo se conservó o se recuperó: nada que realinear.")
         return out
@@ -237,13 +241,20 @@ class ClusterSecrets:
             raise kubectl_error(result, "los ExternalSecret")
         return json.loads(result.stdout)["items"] if result.stdout.strip() else []
 
+    @staticmethod
+    def text(namespace: str, name: str, key: str, encoded: str) -> str:
+        try:
+            return base64.b64decode(encoded).decode()
+        except UnicodeDecodeError:
+            raise RuntimeError(f"El Secret {namespace}/{name}, clave {key}, no es texto UTF-8: no es una copia que se pueda recuperar; se detiene la siembra (el valor no se muestra).") from None
+
     def secret(self, namespace: str, name: str) -> dict[str, str] | None:
         """Los valores de un `Secret`, o None si no existe. Una lectura por `Secret`, con cache."""
         if (namespace, name) not in self._secrets:
             result = self.run(["kubectl", "--context", self.context, "get", "secret", name, "-n", namespace, "-o", "json"], None)
             if result.returncode == 0:
                 data = json.loads(result.stdout).get("data") or {}
-                self._secrets[(namespace, name)] = {key: base64.b64decode(value).decode() for key, value in data.items()}
+                self._secrets[(namespace, name)] = {key: self.text(namespace, name, key, value) for key, value in data.items()}
             elif "NotFound" in result.stderr or "not found" in result.stderr:
                 self._secrets[(namespace, name)] = None
             else:
@@ -272,7 +283,7 @@ class Recoverer:
                     if not template_data and not template.get("templateFrom"):
                         literal.setdefault(ref, []).append(Origin(namespace, name, item["secretKey"]))
                         continue
-                    copies = [key for key, text in template_data.items() if (m := LITERAL_TEMPLATE.match(str(text))) and m.group(1) == item["secretKey"]]
+                    copies = [key for key, text in template_data.items() if (m := LITERAL_TEMPLATE.fullmatch(str(text))) and m.group(1) == item["secretKey"]]
                     if copies:
                         literal.setdefault(ref, []).extend(Origin(namespace, name, key) for key in copies)
                     else:
@@ -492,6 +503,8 @@ def plan_identity(
     for path, properties in sorted(refs.items()):
         data = dict(current(path))
         line = report.path(path) if report else None
+        if line:
+            line.unread = path in IDENTITY_EXTRA
         if path.startswith(CLIENTS_PREFIX):
             wants_private = path.removeprefix(CLIENTS_PREFIX) in signing or "private-key" in properties
             before = set(data)

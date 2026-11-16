@@ -39,9 +39,11 @@ identity() {
   (cd "$here/../.." && uv run python platform/kind/vault_paths.py seed-identity "$context" "$token" ${VECTRA_E2E_KEYS_DIR:+"$VECTRA_E2E_KEYS_DIR"})
   if kube get crd externalsecrets.external-secrets.io >/dev/null 2>&1; then
     # Todos los namespaces con un ExternalSecret que lee `identity/` o `edge/valkey` (los `*-client` de U3 a U11 refrescan cada hora), sacados del cluster.
-    local namespace namespaces
-    mapfile -t namespaces < <(cd "$here/../.." && uv run python platform/kind/vault_paths.py identity-namespaces "$context")
+    local namespace namespaces listing
+    listing="$(cd "$here/../.." && uv run python platform/kind/vault_paths.py identity-namespaces "$context")" # si falla, set -e detiene el guion
+    mapfile -t namespaces <<<"$listing"
     for namespace in "${namespaces[@]}"; do
+      [ -n "$namespace" ] || continue
       kube annotate externalsecrets.external-secrets.io --all -n "$namespace" "force-sync=$(date +%s)" --overwrite
     done
   fi

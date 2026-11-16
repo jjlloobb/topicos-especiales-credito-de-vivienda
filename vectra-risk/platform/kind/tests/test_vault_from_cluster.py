@@ -218,14 +218,43 @@ def test_recover_a_failing_kubectl_stops_but_a_cluster_without_the_crd_just_has_
 # --- CA-1: U2 (identity), el flujo completo y los pares de llaves -------------------------------------------------------------
 
 
+VECTRA = HERE.parents[1]
+CHART_VALUES = ("bias-monitoring", "case-management", "governance", "product-metrics", "scoring-explainability")
+
+
+def declared_clients() -> set[str]:
+    """Los clientes de U3 a U11 que un chart declara con su `ExternalSecret` de `private-key` (`clientId:` o `vaultKey: identity/clients/<id>` en sus `values.yaml`), sacados del repositorio."""
+    found: set[str] = set()
+    for chart in CHART_VALUES:
+        text = (VECTRA / chart / "chart/values.yaml").read_text(encoding="utf-8")
+        found |= set(re.findall(r"clientId:\s*([a-z][a-z-]+)", text)) | set(re.findall(r"vaultKey:\s*identity/clients/([a-z][a-z-]+)", text))
+    return found
+
+
+#: Clientes con cuenta de servicio cuya privada ningun `Secret` guarda: `identity-edge` solo declara `keycloak-config-cli` y `keycloak-reader`, y los charts los de arriba (F-01).
+NEVER_IN_A_SECRET = {"channel", "channel-simulator", "verification-reader"}
+
+
 def identity_cluster(old: FakeVault) -> FakeCluster:
-    """Los ExternalSecret reales de U2 mas los `*-client` de U3 a U11 (que viven en charts: aqui, uno por cliente que firma), con los Secret que dejaron."""
+    """Los ExternalSecret reales de U2 mas los `*-client` que los charts de U3 a U11 declaran de verdad (uno en `vectra-app` por cliente declarado), con los Secret que dejaron."""
     values = {(path, prop): value for path, data in old.store.items() for prop, value in data.items()}
     documents = vp.identity_external_secrets()
-    for client in vp.service_account_clients():
+    for client in sorted(declared_clients() & set(vp.service_account_clients())):
         path = f"{vp.CLIENTS_PREFIX}{client}"
         documents.append(external_secret("vectra-app", f"{client}-client", [("private-key", path, "private-key")]))
     return cluster_of(documents, values)
+
+
+def test_recover_the_clients_without_a_secret_are_exactly_the_three_the_charts_never_declare():
+    """F-01: la prueba no inventa un `*-client` por cliente: los que ningun chart ni identity-edge declaran se quedan sin Secret."""
+    in_identity_edge = {
+        item["remoteRef"]["key"].removeprefix(vp.CLIENTS_PREFIX)
+        for document in vp.identity_external_secrets()
+        for item in document["spec"]["data"]
+        if item["remoteRef"]["key"].startswith(vp.CLIENTS_PREFIX) and item["remoteRef"]["property"] == "private-key"
+    }
+    with_secret = declared_clients() | in_identity_edge
+    assert set(vp.service_account_clients()) - with_secret == NEVER_IN_A_SECRET
 
 
 def run_identity(vault: FakeVault, cluster: FakeCluster, keys_dir: Path, report: "vp.Report | None" = None) -> list[str]:
@@ -241,7 +270,7 @@ def test_recover_identity_with_an_empty_vault_gives_back_the_same_pairs_and_secr
     run_identity(new, cluster, tmp_path / "despues", report)
     for path, data in old.store.items():
         for prop, value in data.items():
-            if (path, prop) in {("identity/clients/grafana", "jwks"), ("identity/break-glass", "BREAK_GLASS_PASSWORD")}:
+            if (path, prop) in {("identity/clients/grafana", "jwks"), ("identity/break-glass", "BREAK_GLASS_PASSWORD")} or path.removeprefix(vp.CLIENTS_PREFIX) in NEVER_IN_A_SECRET:
                 continue  # el primero solo vive dentro de una plantilla (`| toJson`); el segundo no lo lee ningun ExternalSecret: se generan y se informan, abajo
             if path == "edge/valkey" and prop not in {"exporter", "sentinel-ratelimit"}:
                 continue  # solo viven dentro de archivos compuestos
@@ -249,9 +278,12 @@ def test_recover_identity_with_an_empty_vault_gives_back_the_same_pairs_and_secr
     generated = {path: line.generated for path, line in report.paths.items() if line.generated}
     assert generated == {
         "identity/break-glass": ["BREAK_GLASS_PASSWORD"],
+        "identity/clients/channel": ["jwks", "private-key"],
+        "identity/clients/channel-simulator": ["jwks", "private-key"],
         "identity/clients/grafana": ["jwks"],
+        "identity/clients/verification-reader": ["jwks", "private-key"],
         "edge/valkey": ["ratelimit", "replication", "sentinel", "sentinel-peer"],
-    }
+    }  # las seis rutas que el operador debe esperar
 
 
 def test_recover_identity_the_private_key_and_its_jwks_stay_the_same_pair(tmp_path):
@@ -262,7 +294,8 @@ def test_recover_identity_the_private_key_and_its_jwks_stay_the_same_pair(tmp_pa
     for client in vp.service_account_clients():
         data = new.store[f"{vp.CLIENTS_PREFIX}{client}"]
         assert json.loads(data["jwks"]) == json.loads(vp.jwks_text(vp.load_private(data["private-key"])))
-        assert data == old.store[f"{vp.CLIENTS_PREFIX}{client}"]
+        if client not in NEVER_IN_A_SECRET:  # esos tres no tienen Secret: par nuevo, pero entero (arriba)
+            assert data == old.store[f"{vp.CLIENTS_PREFIX}{client}"]
 
 
 def test_recover_identity_a_client_without_its_private_key_gets_a_whole_new_pair_and_it_is_reported(tmp_path):
@@ -270,7 +303,7 @@ def test_recover_identity_a_client_without_its_private_key_gets_a_whole_new_pair
     old = FakeVault()
     run_identity(old, FakeCluster([], {}), tmp_path / "antes")
     cluster = identity_cluster(old)
-    del cluster.secrets[("vectra-app", "channel-client")]
+    assert ("vectra-app", "channel-client") not in cluster.secrets  # ningun chart lo declara (F-01)
     new, report = FakeVault(), vp.Report()
     run_identity(new, cluster, tmp_path / "despues", report)
     path = "identity/clients/channel"
@@ -404,7 +437,7 @@ echo "$*" >> "$FAKE_DIR/kubectl.log"
 all="$*"
 case "$all" in
   *"get crd"*) exit 0 ;;
-  *"get externalsecrets"*) cat "$FAKE_DIR/externalsecrets.json" ;;
+  *"get externalsecrets"*) if [ -f "$FAKE_DIR/es-falla" ]; then echo "Unable to connect to the server" >&2; exit 1; fi; cat "$FAKE_DIR/externalsecrets.json" ;;
   *"get secret vectra-internal-ca"*) base64 -w0 < "$FAKE_DIR/ca.pem" ;;
   *"get secret "*) echo 'Error from server (NotFound): secrets not found' >&2; exit 1 ;;
   *"kv get"*)
@@ -422,3 +455,85 @@ esac
 def test_namespaces_do_not_come_from_a_hand_written_list_in_the_script():
     text = SEED_VAULT.read_text(encoding="utf-8")
     assert "vectra-identity vectra-edge envoy-gateway-system" not in text and "identity-namespaces" in text
+
+
+# --- ronda 2 ------------------------------------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("text", ["{{ .pw }}\n", "  {{ .pw }}", "{{ .pw }} ", "x{{ .pw }}", "{{ .pw }}{{ .pw }}", "{{ .pw | toJson }}"])
+def test_recover_a_template_with_anything_around_the_value_is_not_a_literal_copy(text):
+    """F-02: ESO conserva el texto que rodea a `{{ }}`: el valor del Secret no seria el de la boveda. Solo `{{ .clave }}` exacto es copia."""
+    refs = {"minio/root": {"password"}}
+    documents = [external_secret("vectra-data", "minio-root", [("pw", "minio/root", "password")], {"data": {"CLAVE": text}})]
+    cluster = FakeCluster(documents, {("vectra-data", "minio-root"): {"CLAVE": "VALOR-" + text}})
+    assert cluster.recoverer().find("minio/root", "password") is None
+    report = vp.Report()
+    vp.plan(refs, {}, lambda _path: {}, cluster.recoverer(), report)
+    assert report.paths["minio/root"].generated == ["password"] and report.paths["minio/root"].templated
+
+
+def test_recover_a_template_with_only_the_value_inside_the_braces_is_a_literal_copy():
+    documents = [external_secret("vectra-data", "minio-root", [("pw", "minio/root", "password")], {"data": {"CLAVE": "{{ .pw }}"}})]
+    assert FakeCluster(documents, {("vectra-data", "minio-root"): {"CLAVE": FAKE_SAME}}).recoverer().find("minio/root", "password") == FAKE_SAME
+
+
+def test_recover_a_secret_that_is_not_utf8_stops_with_a_message_that_quotes_no_byte():
+    """F-05: el error nombra el Secret y la clave, nunca un byte del valor."""
+    documents = [external_secret("vectra-data", "minio-root", [("pw", "minio/root", "password")])]
+    cluster = FakeCluster(documents, {})
+
+    def run(command, stdin):
+        if "externalsecrets.external-secrets.io" in command:
+            return ok(json.dumps({"items": documents}))
+        return ok(json.dumps({"data": {"pw": base64.b64encode(b"\xff\xfe0x41").decode()}}))
+
+    with pytest.raises(RuntimeError) as raised:
+        vp.Recoverer(vp.ClusterSecrets("kind-vectra", run)).find("minio/root", "password")
+    message = str(raised.value)
+    assert "vectra-data/minio-root" in message and "pw" in message and "UTF-8" in message
+    assert "0xff" not in message and "byte" not in message.replace("bytes de", "") and raised.value.__cause__ is None and cluster.calls == []
+
+
+def test_report_a_generated_path_nobody_reads_does_not_stop_the_closing_from_saying_nothing_to_realign():
+    """F-05: `identity/break-glass` no lo lee ningun ExternalSecret (el realm de kind no lo usa): se informa, pero no hay nada que realinear."""
+    report = vp.Report()
+    report.path("a/b").recovered = 1
+    line = report.path("identity/break-glass")
+    line.generated.append("BREAK_GLASS_PASSWORD")
+    line.unread = True
+    lines = report.lines()
+    assert any("identity/break-glass" in text and "nadie la lee" in text for text in lines)
+    assert any("nada que realinear" in text for text in lines) and not any("Se generaron valores nuevos" in text for text in lines)
+
+
+def test_report_identity_counts_the_five_paths_that_something_reads_and_not_break_glass(tmp_path, monkeypatch, capsys):
+    old = FakeVault()
+    run_identity(old, FakeCluster([], {}), tmp_path / "antes")
+    cluster = identity_cluster(old)
+    monkeypatch.setattr(vp, "Vault", lambda *_: FakeVault())
+    monkeypatch.setattr(vp, "ClusterSecrets", lambda context: REAL_CLUSTER_SECRETS(context, cluster.run))
+    monkeypatch.setattr(vp, "ca_from_cluster", lambda *_: lambda: CA_PEM)
+    assert vp.main(["vault_paths.py", "seed-identity", "kind-vectra", "root", str(tmp_path / "llaves")]) == 0
+    text = capsys.readouterr().out
+    assert "Se generaron valores nuevos en 5 ruta(s)" in text, text
+    for path in ("identity/clients/channel", "identity/clients/channel-simulator", "identity/clients/verification-reader"):
+        assert f"{path}: conservadas 0, recuperadas 0, generadas 2 (jwks, private-key)" in text
+
+
+def test_namespaces_a_failure_listing_them_fails_the_script_instead_of_refreshing_nothing(tmp_path: Path):
+    """F-03: si `identity-namespaces` falla, `identity` no termina en 0 con cero namespaces refrescados."""
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "kubectl").write_text(FAKE_KUBECTL, encoding="utf-8")
+    (fake / "kubectl").chmod(0o755)
+    (tmp_path / "ca.pem").write_text(CA_PEM, encoding="utf-8")
+    (tmp_path / "externalsecrets.json").write_text(json.dumps({"items": live_external_secrets()}), encoding="utf-8")
+    uv = shutil.which("uv")
+    assert uv
+    env = {**os.environ, "PATH": f"{fake}:{Path(uv).parent}:/usr/bin:/bin", "FAKE_DIR": str(tmp_path), "VECTRA_E2E_KEYS_DIR": str(tmp_path / "llaves")}
+    assert subprocess.run([str(SEED_VAULT), "identity"], env=env, capture_output=True, text=True, timeout=180, check=False).returncode == 0
+    (tmp_path / "kubectl.log").unlink()
+    (tmp_path / "es-falla").write_text("", encoding="utf-8")  # ahora la boveda esta completa (no lee el clúster) pero listar los ExternalSecret falla
+    result = subprocess.run([str(SEED_VAULT), "identity"], env=env, capture_output=True, text=True, timeout=180, check=False)
+    assert result.returncode != 0 and "Unable to connect" in result.stderr
+    assert not [line for line in (tmp_path / "kubectl.log").read_text(encoding="utf-8").splitlines() if "annotate" in line]
