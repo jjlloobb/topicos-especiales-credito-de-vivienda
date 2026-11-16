@@ -191,6 +191,8 @@ Una máquina reiniciada pierde, además de la bóveda: (1) los `sysctl` que no e
 
 **Espera de `product-metrics` en la wave 5:** su readiness exige una instantánea, y cada réplica hace una pasada completa antes de quedar lista. Con 10 veces el volumen esperado, el rollout puede tardar hasta unas 2,5 h, y Argo CD no pasa a la wave 6 hasta entonces. Es una espera y no una falla si `vectra_product_full_pass_in_progress = 1` y `vectra_product_entries_read_total` crece. Con U3 caído, la réplica queda lista enseguida.
 
+**Tras suspender la máquina (medido el 2026-11-16):** si un pod nuevo se queda en `Init:1/2` y su `linkerd-proxy` registra `invalid peer certificate: certificate expired` al hablar con `linkerd-identity-headless` o `linkerd-dst-headless`, el plano de control de la malla tiene su propio certificado vencido (vive 24 h; tras ≈ 19 h de suspensión no se había renovado; la causa exacta no está confirmada). Comprueba la edad de los pods de `linkerd` (`kubectl --context kind-vectra get pods -n linkerd`) y reinícialos, la identidad primero: `kubectl --context kind-vectra rollout restart deployment/linkerd-identity -n linkerd`, espera al rollout, y después `kubectl --context kind-vectra rollout restart deployment/linkerd-destination deployment/linkerd-proxy-injector -n linkerd`. Los pods atascados arrancan solos en el siguiente reinicio de su proxy. Un pod de datos con el proxy de más de 24 h necesita lo mismo.
+
 ## Escalamiento
 Si una wave no llega a `Healthy`, detén la instalación y abre un issue con la evidencia.
 
