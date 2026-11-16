@@ -23,6 +23,7 @@ const AUTHORIZE = "/protocol/openid-connect/auth";
 test.use({ baseURL: ORIGIN });
 
 interface Stats {
+  discovery: number;
   authorize: number;
   token: number;
   end_session: number;
@@ -125,6 +126,7 @@ test("login por redireccion, recarga con prompt=none y recarga con la sesion del
   expect((await stats(page)).authorize).toBe(authorizeRequests.length);
   expect(await expectStorage(page, context, 0)).toMatchObject({ url: "/" });
   await expect(page.getByRole("alert")).toHaveCount(0);
+  expect((await stats(page)).discovery).toBe(0); // U10-T06: el emisor responde 500 al descubrimiento y la SPA no lo pidio nunca
 });
 
 test("logout: end_session, sin sesion en el emisor y de vuelta al login", async ({ page, context }) => {
@@ -138,4 +140,5 @@ test("logout: end_session, sin sesion en el emisor y de vuelta al login", async 
   expect((await stats(page)).end_session).toBe(1);
   expect(await expectStorage(page, context, 0)).toMatchObject({ url: "/" });
   expect((await context.cookies()).map((cookie) => cookie.name)).not.toContain(ISSUER_COOKIE);
+  expect((await stats(page)).discovery).toBe(0); // U10-T06
 });

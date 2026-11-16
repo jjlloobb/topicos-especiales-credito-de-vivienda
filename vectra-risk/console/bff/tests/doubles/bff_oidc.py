@@ -88,6 +88,8 @@ class OidcIssuer:
     origin: str
     clock: Callable[[], float] = time.time
     access_ttl: int = 300
+    # U10-T06: el realm de kind responde 500 al descubrimiento (Keycloak 26.8.1, `Duplicate key 2`); `discovery_status=500` lo reproduce.
+    discovery_status: int = 200
     sessions: dict[str, Session] = field(default_factory=dict)
     codes: dict[str, IssuedCode] = field(default_factory=dict)
     refresh_tokens: dict[str, RefreshRecord] = field(default_factory=dict)
@@ -135,6 +137,8 @@ class OidcIssuer:
     # ---- endpoints ----------------------------------------------------------------------------------------------------
     async def discovery(self, _: Request) -> Response:
         self.stats.discovery += 1
+        if self.discovery_status != 200:
+            return _json({"error": "discovery_unavailable"}, self.discovery_status)
         base = f"{self.origin}{OIDC_PATH}"
         return _json(
             {

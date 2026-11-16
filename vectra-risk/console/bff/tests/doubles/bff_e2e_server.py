@@ -127,10 +127,12 @@ class Server:
         return JSONResponse({"count": count})
 
 
-def build_server(origin: str, *, access_ttl: int = 300, demo: bool = False) -> Server:
+def build_server(
+    origin: str, *, access_ttl: int = 300, demo: bool = False, discovery_status: int = 200
+) -> Server:
     """El BFF real (30 rutas, dobles en los cinco destinos) validando los tokens del emisor de prueba."""
     doubles = Doubles()
-    issuer = OidcIssuer(origin=origin, access_ttl=access_ttl)
+    issuer = OidcIssuer(origin=origin, access_ttl=access_ttl, discovery_status=discovery_status)
 
     async def jwks() -> Any:
         return u0.jwks_document()
@@ -146,7 +148,11 @@ def main() -> None:
     port = int(os.environ["VECTRA_E2E_PORT"])
     if port in FORBIDDEN_PORTS:
         raise SystemExit(f"el puerto {port} es de run_service: elige otro")
-    server = build_server(os.environ["VECTRA_E2E_ORIGIN"], demo=os.environ.get("VECTRA_E2E_DEMO") == "1")
+    server = build_server(
+        os.environ["VECTRA_E2E_ORIGIN"],
+        demo=os.environ.get("VECTRA_E2E_DEMO") == "1",
+        discovery_status=int(os.environ.get("VECTRA_E2E_DISCOVERY_STATUS", "200")),
+    )
     uvicorn.run(server, host="127.0.0.1", port=port, log_level="warning")
 
 

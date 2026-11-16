@@ -6,6 +6,7 @@ import { type ApiClient, createApi } from "./api/client";
 import { createQueryClient } from "./api/queryClient";
 import { type SessionInfo, getMe } from "./api/endpoints";
 import { type AuthManager, type AuthPage, browserPage, createTokenStore, type TokenStore } from "./auth/AuthProvider";
+import { issuerMetadata } from "./auth/issuer-metadata";
 import { createLoginStateStorage } from "./auth/loginStateStorage";
 import { createUserManager, SCOPE } from "./auth/manager";
 import type { AppConfig } from "./config/load";
@@ -58,6 +59,7 @@ export function createWiring(config: AppConfig, win: Window = window): Wiring {
   const stepUpStore = new WebStorageStateStore({ store: new InMemoryWebStorage() });
   const stepUpClient = new OidcClient({
     authority: config.oidc.authority,
+    metadata: issuerMetadata(config.oidc.authority), // sin descubrimiento (U10-T06)
     client_id: config.oidc.client_id,
     redirect_uri: config.stepup_redirect_uri,
     response_type: "code",

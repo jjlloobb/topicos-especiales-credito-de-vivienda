@@ -23,13 +23,18 @@ const jwt = (claims: Record<string, unknown>): string => `${b64({ alg: "RS256", 
 
 interface Server {
   tokenCalls: URLSearchParams[];
+  /** Peticiones al documento de descubrimiento (que aqui responde 500): tienen que ser cero. */
+  discoveryCalls: number;
   refreshIssued: string[];
   /** El `nonce` de la ultima solicitud de autorizacion: el ID token lo devuelve, como un emisor real. */
   nonce: string | null;
 }
 
+let lastServer: Server | null = null;
+
 function fakeServer(): Server {
-  const server: Server = { tokenCalls: [], refreshIssued: [], nonce: null };
+  const server: Server = { tokenCalls: [], discoveryCalls: 0, refreshIssued: [], nonce: null };
+  lastServer = server;
   let counter = 0;
   const authTime = Math.floor(Date.now() / 1000); // como en un IdP: `auth_time` es de la sesion y no cambia con cada token
   vi.stubGlobal(
@@ -37,14 +42,10 @@ function fakeServer(): Server {
     vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input instanceof Request ? input.url : input);
       const json = (data: unknown) => new Response(JSON.stringify(data), { headers: { "content-type": "application/json" } });
+      // U10-T06: el realm de kind responde 500 al documento de descubrimiento; la SPA no debe depender de el (ni pedirlo).
       if (url.endsWith("/.well-known/openid-configuration")) {
-        return json({
-          issuer: AUTHORITY,
-          authorization_endpoint: `${AUTHORITY}/protocol/openid-connect/auth`,
-          token_endpoint: `${AUTHORITY}/protocol/openid-connect/token`,
-          end_session_endpoint: `${AUTHORITY}/protocol/openid-connect/logout`,
-          jwks_uri: `${AUTHORITY}/protocol/openid-connect/certs`,
-        });
+        server.discoveryCalls += 1;
+        return new Response("boom", { status: 500 });
       }
       const body = new URLSearchParams(String(init?.body));
       server.tokenCalls.push(body);
@@ -114,6 +115,8 @@ beforeEach(() => {
   localStorage.clear();
 });
 afterEach(() => {
+  expect(lastServer?.discoveryCalls ?? 0).toBe(0); // CA-1: ninguna peticion a `.well-known/openid-configuration`
+  lastServer = null;
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
