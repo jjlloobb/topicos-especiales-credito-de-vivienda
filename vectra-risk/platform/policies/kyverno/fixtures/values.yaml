@@ -9,6 +9,12 @@ policies:
   - name: kserve-predictor
     values:
       hpas: 1
+  - name: kserve-prod-no-replicas
+    values:
+      hpas: 1
+  - name: kserve-prod-one-replica
+    values:
+      hpas: 1
   - name: envoy-proxy
     values:
       hpas: 1
@@ -51,6 +57,12 @@ policies:
     values:
       pdbs: 1
   - name: kserve-predictor
+    values:
+      pdbs: 1
+  - name: kserve-prod-no-replicas
+    values:
+      pdbs: 1
+  - name: kserve-prod-one-replica
     values:
       pdbs: 1
   - name: envoy-proxy

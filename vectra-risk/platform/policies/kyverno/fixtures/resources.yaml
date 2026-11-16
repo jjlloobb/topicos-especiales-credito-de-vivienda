@@ -861,3 +861,232 @@ spec:
       containers:
       - name: a
         image: r/a@sha256:0000000000000000000000000000000000000000000000000000000000000000
+# U01-T15: el Deployment que KServe v0.21.0 crea para el predictor del perfil `prod` de kind (`k.kserve_deployment` sobre el render real de `model-serving/chart`).
+# Con HPA, KServe no fija `spec.replicas` (deployment_reconciler.go, linea 173): sin el campo, o con el 1 que deja el apiserver, `require-min-replicas` lo rechazaba.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kserve-prod-no-replicas
+  namespace: vectra-serving
+  labels:
+    app.kubernetes.io/name: isvc-26300247-predictor
+    app.kubernetes.io/part-of: vectra-risk
+    vectra.io/criticality: high
+    vectra.io/component: predictor
+    vectra.io/inference-service: isvc-26300247
+    serving.kserve.io/inferenceservice: isvc-26300247
+    component: predictor
+  annotations:
+    vectra.io/model-version-id: mv-2026-01-01-26300247
+    vectra.io/profile: prod
+spec:
+  selector:
+    matchLabels:
+      app: isvc.isvc-26300247-predictor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: isvc-26300247-predictor
+        app.kubernetes.io/part-of: vectra-risk
+        vectra.io/criticality: high
+        vectra.io/component: predictor
+        vectra.io/inference-service: isvc-26300247
+        serving.kserve.io/inferenceservice: isvc-26300247
+        component: predictor
+        app: isvc.isvc-26300247-predictor
+      annotations:
+        vectra.io/model-version-id: mv-2026-01-01-26300247
+        vectra.io/profile: prod
+    spec:
+      serviceAccountName: kserve-model
+      automountServiceAccountToken: false
+      priorityClassName: vectra-high
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: isvc-26300247-predictor
+      volumes:
+      - name: kserve-provision-location
+        emptyDir:
+          sizeLimit: 1Gi
+      containers:
+      - name: kserve-container
+        image: kind-registry:5000/vectra/model-predictor@sha256:e6000b82731ca04a3e14d102a3b188c0263011f6d4297c0a3cef8ada150d1e02
+        command:
+        - python
+        - -m
+        - vectra_predictor
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 8081
+          protocol: TCP
+        env:
+        - name: MODEL_VERSION_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['vectra.io/model-version-id']
+        - name: MODEL_DIR
+          value: /mnt/models
+        - name: STORAGE_URI
+          value: s3://model-store/mv-2026-01-01-26300247/
+        resources:
+          limits:
+            cpu: '1'
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: kserve-provision-location
+          mountPath: /mnt/models
+          readOnly: true
+        startupProbe:
+          httpGet:
+            path: /readyz
+            port: metrics
+          periodSeconds: 5
+          failureThreshold: 30
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: metrics
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          periodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kserve-prod-one-replica
+  namespace: vectra-serving
+  labels:
+    app.kubernetes.io/name: isvc-26300247-predictor
+    app.kubernetes.io/part-of: vectra-risk
+    vectra.io/criticality: high
+    vectra.io/component: predictor
+    vectra.io/inference-service: isvc-26300247
+    serving.kserve.io/inferenceservice: isvc-26300247
+    component: predictor
+  annotations:
+    vectra.io/model-version-id: mv-2026-01-01-26300247
+    vectra.io/profile: prod
+spec:
+  selector:
+    matchLabels:
+      app: isvc.isvc-26300247-predictor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: isvc-26300247-predictor
+        app.kubernetes.io/part-of: vectra-risk
+        vectra.io/criticality: high
+        vectra.io/component: predictor
+        vectra.io/inference-service: isvc-26300247
+        serving.kserve.io/inferenceservice: isvc-26300247
+        component: predictor
+        app: isvc.isvc-26300247-predictor
+      annotations:
+        vectra.io/model-version-id: mv-2026-01-01-26300247
+        vectra.io/profile: prod
+    spec:
+      serviceAccountName: kserve-model
+      automountServiceAccountToken: false
+      priorityClassName: vectra-high
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: isvc-26300247-predictor
+      volumes:
+      - name: kserve-provision-location
+        emptyDir:
+          sizeLimit: 1Gi
+      containers:
+      - name: kserve-container
+        image: kind-registry:5000/vectra/model-predictor@sha256:e6000b82731ca04a3e14d102a3b188c0263011f6d4297c0a3cef8ada150d1e02
+        command:
+        - python
+        - -m
+        - vectra_predictor
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 8081
+          protocol: TCP
+        env:
+        - name: MODEL_VERSION_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['vectra.io/model-version-id']
+        - name: MODEL_DIR
+          value: /mnt/models
+        - name: STORAGE_URI
+          value: s3://model-store/mv-2026-01-01-26300247/
+        resources:
+          limits:
+            cpu: '1'
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: kserve-provision-location
+          mountPath: /mnt/models
+          readOnly: true
+        startupProbe:
+          httpGet:
+            path: /readyz
+            port: metrics
+          periodSeconds: 5
+          failureThreshold: 30
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: metrics
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          periodSeconds: 10
+  replicas: 1

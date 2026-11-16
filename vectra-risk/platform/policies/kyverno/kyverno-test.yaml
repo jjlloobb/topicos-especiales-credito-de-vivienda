@@ -442,3 +442,32 @@ results:
   - impostor
   kind: Deployment
   result: fail
+# U01-T15: el Deployment del perfil `prod` que KServe crea con HPA (sin `spec.replicas`, o con el 1 que deja el apiserver) se admite; el minimo de 2 lo vigila
+# `active-inference-service-needs-two-replicas` sobre el InferenceService (casos `serving-one` y `serving-two` de require-hpa-bounds).
+- policy: require-spread-and-pdb
+  rule: require-min-replicas
+  resources:
+  - kserve-prod-no-replicas
+  - kserve-prod-one-replica
+  kind: Deployment
+  result: skip
+- policy: require-spread-and-pdb
+  rule: require-zone-spread
+  resources:
+  - kserve-prod-no-replicas
+  - kserve-prod-one-replica
+  kind: Deployment
+  result: pass
+- policy: require-spread-and-pdb
+  rule: require-pdb
+  resources:
+  - kserve-prod-no-replicas
+  - kserve-prod-one-replica
+  kind: Deployment
+  result: pass
+- policy: require-criticality-label
+  rule: require-criticality-label
+  resources:
+  - kserve-prod-no-replicas
+  kind: Deployment
+  result: pass
