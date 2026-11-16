@@ -354,9 +354,9 @@ def kubectl_runner(command: list[str], stdin: str | None) -> "subprocess.Complet
 class Vault:
     """Vault dev dentro del pod. Los valores van por stdin: no aparecen en la linea de comandos."""
 
-    def __init__(self, context: str, token: str, run: Runner = kubectl_runner) -> None:
+    def __init__(self, context: str, token: str, run: Runner | None = None) -> None:
         self.prefix = ["kubectl", "--context", context, "exec", "-i", "-n", "vault", "vault-0", "--", "env", f"VAULT_TOKEN={token}", "vault", "kv"]
-        self.run = run
+        self.run = run or kubectl_runner  # buscado al llamar, no al definir: una prueba puede sustituirlo (conftest.py)
 
     def read(self, path: str) -> dict[str, str]:
         result = self.run([*self.prefix, "get", "-format=json", f"secret/{path}"], None)
@@ -527,13 +527,13 @@ def plan_identity(
     return result
 
 
-def ca_from_cluster(context: str, run: Runner = kubectl_runner) -> Callable[[], str]:
+def ca_from_cluster(context: str, run: Runner | None = None) -> Callable[[], str]:
     """El certificado publico (`tls.crt`) de `vectra-internal-ca`. Nunca lee ni imprime `tls.key`."""
 
     def read() -> str:
         namespace, name = CA_SECRET
         command = ["kubectl", "--context", context, "get", "secret", name, "-n", namespace, "-o", r"jsonpath={.data.tls\.crt}"]
-        result = run(command, None)
+        result = (run or kubectl_runner)(command, None)
         if result.returncode != 0 or not result.stdout:
             raise RuntimeError(f"No se pudo leer el certificado de {namespace}/{name}: {result.stderr}")
         pem = base64.b64decode(result.stdout).decode()

@@ -537,3 +537,23 @@ def test_namespaces_a_failure_listing_them_fails_the_script_instead_of_refreshin
     result = subprocess.run([str(SEED_VAULT), "identity"], env=env, capture_output=True, text=True, timeout=180, check=False)
     assert result.returncode != 0 and "Unable to connect" in result.stderr
     assert not [line for line in (tmp_path / "kubectl.log").read_text(encoding="utf-8").splitlines() if "annotate" in line]
+
+
+# --- CI-01: ninguna prueba ejecuta kubectl real ------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "attempt",
+    [
+        lambda: vp.ClusterSecrets("kind-vectra").external_secrets(),
+        lambda: vp.ClusterSecrets("kind-vectra").secret("vectra-data", "minio-root"),
+        lambda: vp.Vault("kind-vectra", "root").read("minio/root"),
+        lambda: vp.ca_from_cluster("kind-vectra")(),
+        lambda: vp.main(["vault_paths.py", "identity-namespaces", "kind-vectra"]),
+        lambda: vp.kubectl_runner(["kubectl", "get", "pods"], None),
+    ],
+    ids=["externalsecrets", "secret", "vault", "ca", "main-identity-namespaces", "runner"],
+)
+def test_no_real_kubectl_the_default_runner_is_refused_with_a_clear_message(attempt):
+    with pytest.raises(RuntimeError, match="intento ejecutar kubectl real"):
+        attempt()
