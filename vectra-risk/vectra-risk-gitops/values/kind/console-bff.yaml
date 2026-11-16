@@ -4,6 +4,6 @@
 # Digest: el operador lo fija en U12 Paso 18, tras publicar la imagen (console/README.md, seccion «Imagenes»). Hasta entonces rige el digest de ejemplo del chart.
 oidc:
   issuer: https://vectra.localtest.me/auth/realms/vectra
-# Digests reales de las imagenes publicadas en kind-registry (F1 de la verificacion en kind, 2026-11-15; construidas del commit ed0dd0f).
+# Digests reales de las imagenes publicadas en kind-registry (F1 de la verificacion en kind, 2026-11-16; construidas del commit 565ff2c).
 image:
-  digest: sha256:97f7a8b2ae098e91bc21a069dd6bb97d2a2766fa506d3ebb38ff1c02d9f0e875
+  digest: sha256:fd1ec322e70c77c7d3907a47f9d2671cf468fa2065964ac55c604cfef8163fef
