@@ -59,7 +59,7 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: realm-drift
-              image: "kind-registry:5000/vectra/identity-jobs@sha256:0000000000000000000000000000000000000000000000000000000000000001"
+              image: "kind-registry:5000/vectra/identity-jobs@sha256:22242b740f18fadd3ee77dc3a8ffbc718e67e2769421eb96af40343ea6600069"
               imagePullPolicy: IfNotPresent
               command: [python, "/app/realm_drift.py"]
               env:
@@ -131,7 +131,7 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: signing-key-age
-              image: "kind-registry:5000/vectra/identity-jobs@sha256:0000000000000000000000000000000000000000000000000000000000000001"
+              image: "kind-registry:5000/vectra/identity-jobs@sha256:22242b740f18fadd3ee77dc3a8ffbc718e67e2769421eb96af40343ea6600069"
               imagePullPolicy: IfNotPresent
               command: [python, "/app/signing_key_age.py"]
               env:

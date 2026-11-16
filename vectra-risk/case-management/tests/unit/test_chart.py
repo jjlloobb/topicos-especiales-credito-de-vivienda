@@ -1412,6 +1412,16 @@ def test_values_prod_writes_the_three_switches_and_staging_and_kind_enable_them(
         "keycloak": {"issuer": PUBLIC_ISSUER["staging"]},
     }
     kind = values_file("kind")
+    # F1 de la verificacion en kind (docs/imagenes.md): el operador escribe aqui, por PR, el digest real de las dos imagenes publicadas en
+    # kind-registry. Si la clave esta, trae solo esos dos digests y ninguno es de ejemplo.
+    images = kind.pop("images", None)
+    if images is not None:
+        assert set(images) == {"caseManagement", "coreMock"}
+        for image in images.values():
+            assert set(image) == {"digest"}
+            assert re.fullmatch(r"sha256:[0-9a-f]{64}", image["digest"]) and not image["digest"].startswith(
+                "sha256:0000"
+            )
     assert kind == {
         "allowTestScenarios": True,
         "probes": {"enabled": True},
@@ -1466,9 +1476,10 @@ def test_kind_values_only_the_memory_request_changes_in_kind_and_staging_and_pro
         for docs in (kind, staging):
             c = copy.deepcopy(container(docs, name))
             c["resources"]["requests"]["memory"] = "x"
-            c["image"] = c["image"].split("@")[
-                1
-            ]  # diferencia declarada: el registro lo pone `imageRegistry` de cada entorno
+            # diferencia declarada: el registro lo pone `imageRegistry` de cada entorno, y el digest lo fija cada entorno en sus values
+            # (en kind, el real de la imagen publicada en kind-registry: docs/imagenes.md)
+            assert re.fullmatch(r"sha256:[0-9a-f]{64}", c["image"].split("@")[1])
+            c["image"] = "imagen"
             for e in c["env"]:
                 if e["name"] in {"VECTRA_OIDC_ISSUER", "VECTRA_ASSERTION_AUDIENCE"}:
                     e["value"] = (
