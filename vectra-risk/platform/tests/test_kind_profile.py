@@ -134,6 +134,26 @@ def deployment(name: str, namespace: str, replicas: int, *containers: dict) -> d
     }
 
 
+def patch_resources(containers: list[dict]) -> list[dict]:
+    """Los `resources` de los contenedores que el `envoyDeployment.patch` del `EnvoyProxy` agrega al pod (U02-T25).
+
+    La entrada `envoy` del parche solo declara `ports` (la malla precarga la politica de los puertos declarados): se mezcla con el contenedor
+    `envoy`, cuyos recursos salen de `envoyDeployment.container`, y no cuenta como un contenedor mas. Cualquier otro contenedor del parche
+    debe traer `resources`: uno sin ellos no se cuenta en silencio, la prueba falla.
+    """
+    counted = []
+    for container in containers:
+        if container["name"] == "envoy":
+            extra = set(container) - {"name", "ports"}
+            if extra:
+                raise ValueError(f"el parche de `envoy` solo puede declarar `ports`, trae {sorted(extra)}")
+            continue
+        if "resources" not in container:
+            raise ValueError(f"el contenedor {container['name']} del parche del EnvoyProxy no trae `resources` y no se contaria")
+        counted.append(container["resources"])
+    return counted
+
+
 @cache
 def runtime_documents() -> tuple[dict, ...]:
     """U01-T10 F-03: lo que el planificador reserva y `render_env` no ve, leido de los archivos de origen (si cambian, cambia la cuenta).
@@ -159,7 +179,7 @@ def runtime_documents() -> tuple[dict, ...]:
                     proxy["metadata"]["namespace"],
                     max(provider["envoyHpa"]["minReplicas"], envoy["replicas"]),
                     envoy["container"]["resources"],
-                    *(c["resources"] for c in sidecars),
+                    *patch_resources(sidecars),
                 )
             )
             hpa = provider["envoyHpa"]  # el HPA lo crea el controlador a partir del `EnvoyProxy`: se arma igual que el Deployment
@@ -476,6 +496,17 @@ def test_the_growth_check_sees_an_hpa_with_a_maximum_and_honours_counted_at_max(
         assert growable_hpas([hpa]) == []
     finally:
         COUNTED_AT_MAX.discard(("Deployment", "x"))
+
+
+def test_the_envoy_patch_ports_entry_is_merged_not_counted_and_a_container_without_resources_is_refused():
+    """U02-T25: `envoy` con solo `ports` no suma un contenedor; uno nuevo sin `resources` (o `envoy` con recursos propios) no pasa en silencio."""
+    sidecar = {"name": "shutdown-manager", "resources": {"requests": {"cpu": "10m", "memory": "32Mi"}}}
+    assert patch_resources([{"name": "envoy", "ports": [{"containerPort": 10443}]}, sidecar]) == [sidecar["resources"]]
+    for bad in ({"name": "otro"}, {"name": "otro", "ports": [{"containerPort": 1}]}, {"name": "envoy", "resources": {}}):
+        with pytest.raises(ValueError):
+            patch_resources([bad, sidecar])
+    patched = yaml.safe_load((PLATFORM.parent / "identity-edge/gateway/generated/kind/envoyproxies.yaml").read_text(encoding="utf-8"))
+    assert [c["name"] for c in patched["spec"]["provider"]["kubernetes"]["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"]] == ["envoy", "shutdown-manager"]
 
 
 def test_the_profile_requests_fit_the_budget():

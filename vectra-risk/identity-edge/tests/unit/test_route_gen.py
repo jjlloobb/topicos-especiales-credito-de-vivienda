@@ -906,6 +906,11 @@ def _sidecar(docs: gc.Docs) -> dict[str, Any]:
     return found
 
 
+def _envoy_patch(docs: gc.Docs) -> dict[str, Any]:
+    (found,) = [c for c in _kube(docs)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"] if c["name"] == "envoy"]
+    return found
+
+
 def _telemetry(docs: gc.Docs) -> dict[str, Any]:
     return gc.find(docs, "EnvoyProxy", "api-gateway")["spec"]["telemetry"]
 
@@ -1070,6 +1075,13 @@ MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("client-tls", "min-1.0", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"]["tls"].update(minVersion="1.0")),
     ("client-tls", "max-auto", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"]["tls"].update(maxVersion="Auto")),
     ("client-tls", "missing", lambda d: gc.find(d, "ClientTrafficPolicy", "edge-client")["spec"].pop("tls")),
+    ("envoy-resources", "patches-envoy-image", lambda d: _envoy_patch(d).update(image="otra")),
+    ("envoy-container-port", "missing", lambda d: _envoy_patch(d).pop("ports")),
+    ("envoy-container-port", "other-port", lambda d: _envoy_patch(d)["ports"][0].update(containerPort=8443)),
+    ("envoy-container-port", "duplicated-envoy", lambda d: _kube(d)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"].insert(1, copy.deepcopy(_envoy_patch(d)))),
+    ("envoy-container-port", "udp", lambda d: _envoy_patch(d)["ports"][0].update(protocol="UDP")),
+    ("envoy-container-port", "sidecar-first", lambda d: _kube(d)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"].reverse()),
+    ("envoy-container-port", "envoy-not-patched", lambda d: _kube(d)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"].remove(_envoy_patch(d))),
     ("envoy-resources", "memory", lambda d: _container(d)["resources"]["requests"].update(memory="1Gi")),
     ("envoy-priority", "class", lambda d: _pod(d).update(priorityClassName="system-cluster-critical")),
     ("envoy-priority", "missing", lambda d: _pod(d).pop("priorityClassName")),
@@ -1440,3 +1452,34 @@ def test_the_generator_fails_without_an_issuer():
 @pytest.mark.parametrize("env", ENVS)
 def test_the_gateway_carries_the_criticality_label_the_deployment_gets(env, docs_by_env):
     assert gc.find(docs_by_env[env], "Gateway", "api-gateway")["spec"]["infrastructure"]["labels"] == gd.infrastructure_labels()
+
+
+# --- U02-T25: el puerto por el que entra el trafico externo lo declara el contenedor `envoy` -------------------------------
+
+FLOWS = Path(__file__).resolve().parents[3] / "platform" / "network" / "flows.yaml"
+
+
+def external_target_ports() -> set[int]:
+    """Los `target_port` de los flujos que llegan al gateway desde fuera del clúster (F01, F07, F08, F09), tal como los fija U1."""
+    flows = yaml.safe_load(FLOWS.read_text())["flows"]
+    ports = {f["target_port"] for f in flows if f["to"] == ["api-gateway"] and any(o.startswith("external:") for o in f["from"])}
+    assert ports, "flows.yaml ya no tiene flujos externos al gateway con target_port"
+    return ports
+
+
+def declared_envoy_ports(docs: gc.Docs) -> set[int]:
+    """Los `containerPort` que el patch del `EnvoyProxy` le declara al contenedor `envoy`."""
+    containers = _kube(docs)["envoyDeployment"]["patch"]["value"]["spec"]["template"]["spec"]["containers"]
+    return {p["containerPort"] for c in containers if c["name"] == "envoy" for p in c.get("ports", [])}
+
+
+def test_the_external_port_is_the_target_port_of_f01():
+    """El Server de U1 (`api-gateway-10443`) sale de aqui: si F01 cambiara de puerto, esta prueba y la siguiente lo verian."""
+    assert external_target_ports() == {10443}
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_the_envoy_container_declares_the_port_external_traffic_enters_by(env, docs_by_env):
+    """Linkerd precarga la politica de los puertos que el pod declara (`LINKERD2_PROXY_INBOUND_PORTS`); uno no declarado cae en `deny`
+    cuando la politica se descarta tras un rato sin trafico y la primera conexion falla."""
+    assert external_target_ports() <= declared_envoy_ports(docs_by_env[env])

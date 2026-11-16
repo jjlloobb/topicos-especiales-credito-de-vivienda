@@ -38,6 +38,10 @@ spec:
               template:
                 spec:
                   containers:
+                  - name: envoy
+                    ports:
+                    - containerPort: 10443
+                      protocol: TCP
                   - name: shutdown-manager
                     resources:
                       limits:

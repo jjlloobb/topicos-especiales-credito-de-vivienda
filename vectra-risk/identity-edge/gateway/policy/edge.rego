@@ -281,11 +281,68 @@ deny contains msg if {
 	msg := sprintf("envoy-resources: %s no fija los recursos del shutdown-manager de INF-U2-06", [label(input)])
 }
 
+# El patch solo toca `shutdown-manager` (recursos) y `envoy` (solo `ports`: los recursos y el contexto de Envoy van por `container`).
 deny contains msg if {
 	input.kind == "EnvoyProxy"
 	some c in input.spec.provider.kubernetes.envoyDeployment.patch.value.spec.template.spec.containers
-	not c.name == "shutdown-manager"
-	msg := sprintf("envoy-resources: %s parcha el contenedor %s y solo debia parchar el shutdown-manager", [label(input), c.name])
+	not c.name in {"shutdown-manager", "envoy"}
+	msg := sprintf("envoy-resources: %s parcha el contenedor %s y solo debia parchar el shutdown-manager y los puertos de envoy", [label(input), c.name])
+}
+
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	some c in input.spec.provider.kubernetes.envoyDeployment.patch.value.spec.template.spec.containers
+	c.name == "envoy"
+	some key, _ in c
+	not key in {"name", "ports"}
+	msg := sprintf("envoy-resources: %s parcha en envoy el campo %s y solo debia parchar ports", [label(input), key])
+}
+
+# regla: envoy-container-port
+# U02-T25: el contenedor `envoy` declara el puerto por el que entra el trafico externo (10443, el `target_port` de F01). Linkerd solo
+# precarga la politica de los puertos declarados; en uno no declarado la primera conexion tras un rato sin trafico cae en `deny`.
+envoy_ports := {p.containerPort |
+	some c in input.spec.provider.kubernetes.envoyDeployment.patch.value.spec.template.spec.containers
+	c.name == "envoy"
+	some p in c.ports
+}
+
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	not 10443 in envoy_ports
+	msg := sprintf("envoy-container-port: %s no declara el puerto 10443 en el contenedor envoy", [label(input)])
+}
+
+# Una sola entrada `envoy` y solo TCP (la malla precarga por numero de puerto, pero un UDP no es el listener HTTPS).
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	entries := [c |
+		some c in input.spec.provider.kubernetes.envoyDeployment.patch.value.spec.template.spec.containers
+		c.name == "envoy"
+	]
+	count(entries) != 1
+	msg := sprintf("envoy-container-port: %s debia parchar el contenedor envoy una sola vez y lo parcha %d veces", [label(input), count(entries)])
+}
+
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	some c in input.spec.provider.kubernetes.envoyDeployment.patch.value.spec.template.spec.containers
+	c.name == "envoy"
+	some p in c.ports
+	object.get(p, "protocol", "TCP") != "TCP"
+	msg := sprintf("envoy-container-port: %s declara el puerto %d de envoy con protocolo %s y debia ser TCP", [label(input), p.containerPort, p.protocol])
+}
+
+# El orden de `containers` del parche es el del pod: con `shutdown-manager` antes que `envoy`, la mezcla estrategica reordena los contenedores del
+# Deployment (comprobado con `kubectl patch --local --type strategic`) y rota el pod en cada reconciliacion.
+deny contains msg if {
+	input.kind == "EnvoyProxy"
+	containers := input.spec.provider.kubernetes.envoyDeployment.patch.value.spec.template.spec.containers
+	some i, j
+	containers[i].name == "shutdown-manager"
+	containers[j].name == "envoy"
+	i < j
+	msg := sprintf("envoy-container-port: %s parcha shutdown-manager antes que envoy y el orden de los contenedores cambiaria", [label(input)])
 }
 
 # regla: client-tls
