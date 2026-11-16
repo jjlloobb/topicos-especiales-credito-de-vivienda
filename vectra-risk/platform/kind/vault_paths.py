@@ -9,6 +9,13 @@ puede repetir. Lo ejecuta un operador por medio de `seed-vault.sh`; nunca CI.
 Nunca regenera un par de llaves que ya exista (romperia los tokens vigentes). Ademas escribe las llaves privadas y la CA en un
 directorio local fuera del repositorio, para las pruebas e2e y de carga.
 
+Recuperar antes de generar (U01-T16): un reinicio de la maquina vacia la boveda, pero los `Secret` que ESO dejo en el cluster siguen
+alli (`deletionPolicy: Retain`). Para cada propiedad que falte en la boveda, `seed` y `seed-identity` buscan su valor en esos `Secret`,
+y solo generan uno nuevo si no hay de donde recuperarlo. El cruce propiedad -> `Secret`/clave sale de los `ExternalSecret` VIVOS
+(`kubectl get externalsecrets -A`): cubre tambien los `*-client` de U3 a U11, que viven en charts y no estan entre las fuentes de abajo.
+Al terminar informan, por ruta, cuantas propiedades se conservaron, recuperaron y generaron (con los nombres de las generadas, nunca
+los valores).
+
 Las rutas salen de lo renderizado y no de una lista a mano: un ExternalSecret nuevo se siembra sin tocar este archivo,
 siempre que su manifiesto este en SOURCES (lo comprueba `tests/test_vault_paths.py`).
 """
@@ -17,12 +24,14 @@ import base64
 import hashlib
 import json
 import os
+import re
 import secrets
 import shlex
 import string
 import subprocess
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +75,9 @@ TOKEN_PENDING = "pendiente-de-bootstrap"  # noqa: S105
 #: El relay de notificaciones (F72) es del banco. En kind, una URL valida que no entrega nada.
 RELAY_KIND = "http://127.0.0.1:9/sin-relay-en-kind"
 NOT_FOUND = 2  # codigo de salida de `vault kv get` cuando la ruta no existe
+#: Una plantilla de ESO que copia el valor entero (`{{ .clave }}`): el `Secret` guarda el mismo valor que la boveda.
+LITERAL_TEMPLATE = re.compile(r"^\s*\{\{\s*\.(\w+)\s*\}\}\s*$")
+EXTERNAL_SECRETS = "externalsecrets.external-secrets.io"
 Refs = dict[str, set[str]]
 Runner = Callable[[list[str], str | None], "subprocess.CompletedProcess[str]"]
 
@@ -149,17 +161,177 @@ def fixed_value(path: str, prop: str, users: dict[str, str]) -> str | None:
     return None
 
 
-def plan(refs: Refs, users: dict[str, str], current: Callable[[str], dict[str, str]]) -> dict[str, dict[str, str]]:
+@dataclass
+class PathReport:
+    """Lo que paso con las propiedades de una ruta. Solo nombres y cuentas: ningun valor."""
+
+    kept: int = 0
+    recovered: int = 0
+    fixed: int = 0
+    derived: int = 0
+    generated: list[str] = field(default_factory=list)
+    #: propiedad generada -> `namespace/Secret` donde solo existe dentro de una plantilla (no se pudo copiar)
+    templated: dict[str, list[str]] = field(default_factory=dict)
+
+
+class Report:
+    """El informe de la siembra, por ruta."""
+
+    def __init__(self) -> None:
+        self.paths: dict[str, PathReport] = {}
+
+    def path(self, path: str) -> PathReport:
+        return self.paths.setdefault(path, PathReport())
+
+    def lines(self) -> list[str]:
+        out = []
+        for path, line in sorted(self.paths.items()):
+            text = f"{path}: conservadas {line.kept}, recuperadas {line.recovered}, generadas {len(line.generated)}"
+            if line.generated:
+                text += f" ({', '.join(line.generated)})"
+            if line.fixed:
+                text += f", fijas {line.fixed}"
+            if line.derived:
+                text += f", derivadas de lo que ya existe {line.derived}"
+            out.append(text)
+            out += [f"  {prop}: solo vive dentro de una plantilla ({', '.join(places)}); no se copia, se generó" for prop, places in sorted(line.templated.items())]
+        generated = {path: line.generated for path, line in self.paths.items() if line.generated}
+        if generated:
+            out.append(f"Se generaron valores nuevos en {len(generated)} ruta(s): lo que los guardaba (Keycloak, MinIO, Grafana, PostgreSQL, Valkey) hay que realinearlo (install.md, «Vault reiniciado»).")
+        else:
+            out.append("Todo se conservó o se recuperó: nada que realinear.")
+        return out
+
+
+class RecoveryConflict(RuntimeError):
+    """La misma propiedad esta sembrada en varios `Secret` con valores distintos: no se elige en silencio."""
+
+
+@dataclass(frozen=True)
+class Origin:
+    namespace: str
+    secret: str
+    key: str
+
+    def __str__(self) -> str:
+        return f"{self.namespace}/{self.secret}"
+
+
+def kubectl_error(result: "subprocess.CompletedProcess[str]", what: str) -> RuntimeError:
+    return RuntimeError(f"No se pudo leer {what}: {result.stderr.strip()}")
+
+
+class ClusterSecrets:
+    """Lo que el cluster guarda: los `ExternalSecret` (que dicen que propiedad de la boveda va a que `Secret`) y los `Secret` mismos. Solo `get`."""
+
+    def __init__(self, context: str, run: Runner | None = None) -> None:
+        self.context = context
+        self.run = run or kubectl_runner
+        self._secrets: dict[tuple[str, str], dict[str, str] | None] = {}
+
+    def external_secrets(self) -> list[dict[str, Any]]:
+        result = self.run(["kubectl", "--context", self.context, "get", EXTERNAL_SECRETS, "-A", "-o", "json"], None)
+        if result.returncode != 0:
+            if "resource type" in result.stderr or "NotFound" in result.stderr:  # sin el CRD (ESO todavia no esta): no hay nada que recuperar
+                return []
+            raise kubectl_error(result, "los ExternalSecret")
+        return json.loads(result.stdout)["items"] if result.stdout.strip() else []
+
+    def secret(self, namespace: str, name: str) -> dict[str, str] | None:
+        """Los valores de un `Secret`, o None si no existe. Una lectura por `Secret`, con cache."""
+        if (namespace, name) not in self._secrets:
+            result = self.run(["kubectl", "--context", self.context, "get", "secret", name, "-n", namespace, "-o", "json"], None)
+            if result.returncode == 0:
+                data = json.loads(result.stdout).get("data") or {}
+                self._secrets[(namespace, name)] = {key: base64.b64decode(value).decode() for key, value in data.items()}
+            elif "NotFound" in result.stderr or "not found" in result.stderr:
+                self._secrets[(namespace, name)] = None
+            else:
+                raise kubectl_error(result, f"el Secret {namespace}/{name}")
+        return self._secrets[(namespace, name)]
+
+
+class Recoverer:
+    """Busca en los `Secret` del cluster el valor de una propiedad de la boveda. Solo copias literales; lo demas se informa."""
+
+    def __init__(self, cluster: ClusterSecrets) -> None:
+        self.cluster = cluster
+        self._index: tuple[dict[tuple[str, str], list[Origin]], dict[tuple[str, str], list[str]]] | None = None
+
+    def index(self) -> tuple[dict[tuple[str, str], list[Origin]], dict[tuple[str, str], list[str]]]:
+        if self._index is None:
+            literal: dict[tuple[str, str], list[Origin]] = {}
+            templated: dict[tuple[str, str], list[str]] = {}
+            for document in self.cluster.external_secrets():
+                target = document["spec"].get("target") or {}
+                namespace, name = document["metadata"]["namespace"], target.get("name") or document["metadata"]["name"]
+                template = target.get("template") or {}
+                template_data = template.get("data") or {}
+                for item in document["spec"].get("data") or []:
+                    ref = (item["remoteRef"]["key"], item["remoteRef"].get("property", ""))
+                    if not template_data and not template.get("templateFrom"):
+                        literal.setdefault(ref, []).append(Origin(namespace, name, item["secretKey"]))
+                        continue
+                    copies = [key for key, text in template_data.items() if (m := LITERAL_TEMPLATE.match(str(text))) and m.group(1) == item["secretKey"]]
+                    if copies:
+                        literal.setdefault(ref, []).extend(Origin(namespace, name, key) for key in copies)
+                    else:
+                        templated.setdefault(ref, []).append(f"{namespace}/{name}")
+            self._index = (literal, templated)
+        return self._index
+
+    def find(self, path: str, prop: str) -> str | None:
+        """El valor de la propiedad en el cluster, o None. Dos `Secret` con valores distintos: `RecoveryConflict`."""
+        found: dict[str, list[Origin]] = {}
+        for origin in self.index()[0].get((path, prop), []):
+            content = self.cluster.secret(origin.namespace, origin.secret)
+            if content and content.get(origin.key):
+                found.setdefault(content[origin.key], []).append(origin)
+        if len(found) > 1:
+            places = "; ".join(f"{origin}[{origin.key}]" for origins in found.values() for origin in origins)
+            raise RecoveryConflict(f"{path} {prop}: los Secret {places} guardan valores distintos; no se elige en silencio. Decida cual es el vigente (borre o corrija el otro) y repita.")
+        return next(iter(found), None)
+
+    def templated(self, path: str, prop: str) -> list[str]:
+        return sorted(set(self.index()[1].get((path, prop), [])))
+
+    def identity_namespaces(self, paths: set[str]) -> list[str]:
+        """Los namespaces con algun ExternalSecret que lee una de `paths`."""
+        return sorted({d["metadata"]["namespace"] for d in self.cluster.external_secrets() if any(i["remoteRef"]["key"] in paths for i in d["spec"].get("data") or [])})
+
+
+def recover_or(recover: Recoverer | None, report: PathReport | None, path: str, prop: str, generate: Callable[[], str]) -> str:
+    """El valor de una propiedad que falta en la boveda: el del cluster si esta; si no, uno nuevo (y se informa)."""
+    value = recover.find(path, prop) if recover else None
+    if value is not None:
+        if report:
+            report.recovered += 1
+        return value
+    if report:
+        report.generated.append(prop)
+        places = recover.templated(path, prop) if recover else []
+        if places:
+            report.templated[prop] = places
+    return generate()
+
+
+def plan(refs: Refs, users: dict[str, str], current: Callable[[str], dict[str, str]], recover: Recoverer | None = None, report: Report | None = None) -> dict[str, dict[str, str]]:
     result: dict[str, dict[str, str]] = {}
     for path, properties in sorted(refs.items()):
         existing = current(path)
         data = dict(existing)
+        line = report.path(path) if report else None
         for prop in sorted(properties):
             fixed = fixed_value(path, prop, users)
             if fixed is not None:
                 data[prop] = fixed
-            elif prop not in data:
-                data[prop] = TOKEN_PENDING if path == "grafana/folder-permissions" else secrets.token_hex(24)
+                if line:
+                    line.fixed += 1
+            elif prop in data:
+                if line:
+                    line.kept += 1
+            else:
+                data[prop] = recover_or(recover, line, path, prop, lambda path=path: TOKEN_PENDING if path == "grafana/folder-permissions" else secrets.token_hex(24))
         result[path] = data
     return result
 
@@ -189,9 +361,9 @@ class Vault:
             raise RuntimeError(f"No se pudo escribir {path}: {result.stderr}")
 
 
-def seed(vault: Vault) -> list[str]:
+def seed(vault: Vault, recover: Recoverer | None = None, report: Report | None = None) -> list[str]:
     documents = platform_external_secrets()
-    planned = plan(collect(documents), minio_users(documents), vault.read)
+    planned = plan(collect(documents), minio_users(documents), vault.read, recover, report)
     for path, data in planned.items():
         vault.write(path, data)
     return list(planned)
@@ -270,18 +442,74 @@ def identity_value(path: str, prop: str) -> str:
     return secrets.token_hex(24)  # edge/valkey: no necesita forma
 
 
-def plan_identity(refs: Refs, current: Callable[[str], dict[str, str]], ca_certificate: Callable[[], str]) -> dict[str, dict[str, str]]:
-    """Lo que debe quedar en cada ruta de U2. Conserva todo lo que existe; `ca_certificate` solo se llama si falta `identity/ca`."""
+def recovered_pair(path: str, data: dict[str, str], wants_private: bool, recover: Recoverer | None) -> tuple[dict[str, str], set[str]]:
+    """Lo que los `Secret` del cluster devuelven de un par de cliente que la boveda no tiene: (datos, propiedades recuperadas).
+
+    Nunca la privada de un lado y el `jwks` de otro: sin la privada no se rescata el `jwks` suelto (la privada nueva no le correspondería)
+    y el par se genera entero. Con la privada, `client_pair` comprueba que el `jwks` recuperado sea el suyo.
+    """
+    if recover is None or "private-key" in data or "jwks" in data:
+        return data, set()
+    result = dict(data)
+    if wants_private:
+        private = recover.find(path, "private-key")
+        if private is None:
+            return result, set()
+        result["private-key"] = private
+        jwks = recover.find(path, "jwks")
+        if jwks is None:
+            return result, {"private-key"}
+        result["jwks"] = jwks
+        return result, {"private-key", "jwks"}
+    jwks = recover.find(path, "jwks")
+    if jwks is None:
+        return result, set()
+    result["jwks"] = jwks
+    return result, {"jwks"}
+
+
+def report_pair(line: PathReport, before: set[str], recovered: set[str], data: dict[str, str], recover: Recoverer | None, path: str) -> None:
+    """Cuenta un par de cliente: conservado, recuperado, derivado del par que ya habia, o generado."""
+    line.kept += len(before)
+    for prop in sorted(set(data) - before):
+        if prop in recovered:
+            line.recovered += 1
+        elif prop == "jwks" and "private-key" in before | recovered:
+            line.derived += 1
+        else:
+            line.generated.append(prop)
+            places = recover.templated(path, prop) if recover else []
+            if places:
+                line.templated[prop] = places
+
+
+def plan_identity(
+    refs: Refs, current: Callable[[str], dict[str, str]], ca_certificate: Callable[[], str], recover: Recoverer | None = None, report: Report | None = None
+) -> dict[str, dict[str, str]]:
+    """Lo que debe quedar en cada ruta de U2. Conserva todo lo que existe, recupera del cluster lo que falta y genera el resto; `ca_certificate` solo se llama si falta `identity/ca`."""
     signing = set(service_account_clients())
     result: dict[str, dict[str, str]] = {}
     for path, properties in sorted(refs.items()):
         data = dict(current(path))
+        line = report.path(path) if report else None
         if path.startswith(CLIENTS_PREFIX):
-            data = client_pair(path, data, wants_private=path.removeprefix(CLIENTS_PREFIX) in signing or "private-key" in properties)
+            wants_private = path.removeprefix(CLIENTS_PREFIX) in signing or "private-key" in properties
+            before = set(data)
+            data, recovered = recovered_pair(path, data, wants_private, recover)
+            data = client_pair(path, data, wants_private=wants_private)
+            if line:
+                report_pair(line, before, recovered, data, recover, path)
         else:
             for prop in sorted(properties):
-                if prop not in data:
-                    data[prop] = ca_certificate() if (path, prop) == ("identity/ca", "ca.crt") else identity_value(path, prop)
+                if prop in data:
+                    if line:
+                        line.kept += 1
+                elif (path, prop) == ("identity/ca", "ca.crt"):
+                    data[prop] = ca_certificate()  # la fuente viva (cert-manager), nunca una copia
+                    if line:
+                        line.derived += 1
+                else:
+                    data[prop] = recover_or(recover, line, path, prop, lambda path=path, prop=prop: identity_value(path, prop))
         result[path] = data
     return result
 
@@ -336,11 +564,13 @@ def local_files(keys_dir: Path, planned: dict[str, dict[str, str]]) -> list[str]
     return list(variables)
 
 
-def seed_identity(vault: Vault, ca_certificate: Callable[[], str], keys_dir: Path) -> tuple[list[str], list[str]]:
+def seed_identity(
+    vault: Vault, ca_certificate: Callable[[], str], keys_dir: Path, recover: Recoverer | None = None, report: Report | None = None
+) -> tuple[list[str], list[str]]:
     """Siembra las rutas de U2. Devuelve (rutas escritas, nombres de las variables del archivo `env`). Una segunda corrida no escribe nada."""
     refs = identity_refs(identity_external_secrets())
     current = {path: vault.read(path) for path in refs}
-    planned = plan_identity(refs, lambda path: current[path], ca_certificate)
+    planned = plan_identity(refs, lambda path: current[path], ca_certificate, recover, report)
     written = [path for path, data in planned.items() if data != current[path]]
     for path in written:
         vault.write(path, planned[path])
@@ -361,22 +591,30 @@ def main(argv: list[str]) -> int:
             for prop in sorted(properties):
                 print(path, prop)
         return 0
+    if len(argv) == 3 and argv[1] == "identity-namespaces":
+        for namespace in Recoverer(ClusterSecrets(argv[2])).identity_namespaces(set(identity_refs(identity_external_secrets()))):
+            print(namespace)
+        return 0
     if len(argv) == 4 and argv[1] == "seed":
-        for path in seed(Vault(argv[2], argv[3])):
+        report = Report()
+        for path in seed(Vault(argv[2], argv[3]), Recoverer(ClusterSecrets(argv[2])), report):
             print("sembrada", path)
+        print("\n".join(report.lines()))
         return 0
     if len(argv) in {4, 5} and argv[1] == "seed-identity":
         keys_dir = Path(argv[4]) if len(argv) == 5 else Path(os.environ.get("VECTRA_E2E_KEYS_DIR") or KEYS_DIR_DEFAULT)
-        written, names = seed_identity(Vault(argv[2], argv[3]), ca_from_cluster(argv[2]), keys_dir)
+        report = Report()
+        written, names = seed_identity(Vault(argv[2], argv[3]), ca_from_cluster(argv[2]), keys_dir, Recoverer(ClusterSecrets(argv[2])), report)
         for path in written:
             print("sembrada", path)
+        print("\n".join(report.lines()))
         if not written:
             print("Las rutas de U2 ya estaban sembradas: nada cambia.")
         print(f"Archivo de variables de las pruebas (0600, con valores secretos que no se imprimen): {keys_dir}/env")
         print(f"  source {keys_dir}/env")
         print("  define:", " ".join(n for n in names if not n.startswith("SYNTH_")), "y SYNTH_<USUARIO>_{PASSWORD,TOTP_SEED}")
         return 0
-    print("Uso: vault_paths.py list | seed <contexto> <token> | seed-identity <contexto> <token> [directorio-de-llaves]", file=sys.stderr)
+    print("Uso: vault_paths.py list | seed <contexto> <token> | seed-identity <contexto> <token> [directorio-de-llaves] | identity-namespaces <contexto>", file=sys.stderr)
     return 2
 
 
