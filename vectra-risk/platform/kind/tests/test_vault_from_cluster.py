@@ -23,6 +23,10 @@ from test_identity_seed import CA_PEM, FakeVault  # noqa: E402
 
 SEED_VAULT = Path(os.environ.get("SEED_VAULT_SCRIPT", HERE / "seed-vault.sh"))
 REAL_CLUSTER_SECRETS = vp.ClusterSecrets
+#: Valores de mentira, en constantes y no como literales junto a `["password"]` (la regla S105 de ruff).
+FAKE_ONE = "clave-de-mentira"
+FAKE_SAME = "valor-de-mentira"
+FAKE_THREE = "glsa-de-mentira"
 LITERAL = re.compile(r"^\s*\{\{\s*\.(\w+)\s*\}\}\s*$")
 
 
@@ -146,8 +150,8 @@ def test_recover_does_not_copy_a_value_that_goes_through_a_template_and_says_so(
 def test_recover_a_template_that_only_sets_the_type_is_still_a_literal_copy():
     refs = {"postgres/roles/app": {"password"}}
     documents = [external_secret("vectra-data", "pg-role-app", [("password", "postgres/roles/app", "password")], {"type": "kubernetes.io/basic-auth"})]
-    planned = vp.plan(refs, {}, lambda _path: {}, cluster_of(documents, {("postgres/roles/app", "password"): "clave-de-mentira"}).recoverer(), vp.Report())
-    assert planned["postgres/roles/app"]["password"] == "clave-de-mentira"
+    planned = vp.plan(refs, {}, lambda _path: {}, cluster_of(documents, {("postgres/roles/app", "password"): FAKE_ONE}).recoverer(), vp.Report())
+    assert planned["postgres/roles/app"]["password"] == FAKE_ONE
 
 
 def test_recover_two_secrets_with_different_values_stop_the_seed_without_choosing():
@@ -170,8 +174,8 @@ def test_recover_two_secrets_with_the_same_value_are_not_a_conflict():
         external_secret("vectra-data", "minio-root", [("rootPassword", "minio/root", "password")]),
         external_secret("vectra-app", "minio-root-copia", [("clave", "minio/root", "password")]),
     ]
-    cluster = FakeCluster(documents, {("vectra-data", "minio-root"): {"rootPassword": "valor-de-mentira"}, ("vectra-app", "minio-root-copia"): {"clave": "valor-de-mentira"}})
-    assert vp.plan(refs, {}, lambda _path: {}, cluster.recoverer(), vp.Report())["minio/root"]["password"] == "valor-de-mentira"
+    cluster = FakeCluster(documents, {("vectra-data", "minio-root"): {"rootPassword": FAKE_SAME}, ("vectra-app", "minio-root-copia"): {"clave": FAKE_SAME}})
+    assert vp.plan(refs, {}, lambda _path: {}, cluster.recoverer(), vp.Report())["minio/root"]["password"] == FAKE_SAME
 
 
 def test_recover_keeps_what_the_vault_has_and_reads_the_cluster_only_when_something_is_missing():
@@ -195,8 +199,8 @@ def test_recover_fixed_values_are_not_taken_from_the_cluster():
 def test_recover_the_grafana_token_comes_from_the_secret_and_the_placeholder_stays_without_it():
     refs = {"grafana/folder-permissions": {"token"}}
     documents = [external_secret("vectra-observability", "grafana-folder-permissions-token", [("GRAFANA_TOKEN", "grafana/folder-permissions", "token")])]
-    with_token = cluster_of(documents, {("grafana/folder-permissions", "token"): "glsa-de-mentira"})
-    assert vp.plan(refs, {}, lambda _path: {}, with_token.recoverer(), vp.Report())["grafana/folder-permissions"]["token"] == "glsa-de-mentira"
+    with_token = cluster_of(documents, {("grafana/folder-permissions", "token"): FAKE_THREE})
+    assert vp.plan(refs, {}, lambda _path: {}, with_token.recoverer(), vp.Report())["grafana/folder-permissions"]["token"] == FAKE_THREE
     report = vp.Report()
     without = FakeCluster(documents, {})
     assert vp.plan(refs, {}, lambda _path: {}, without.recoverer(), report)["grafana/folder-permissions"]["token"] == vp.TOKEN_PENDING
