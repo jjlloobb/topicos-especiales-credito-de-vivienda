@@ -648,10 +648,18 @@ def access_log_format() -> str:
     return gd.access_log_target()[0]
 
 
+def external_port() -> int:
+    """U02-T25: el `target_port` de F01 en `platform/network/flows.yaml` (U1), por donde entra el trafico externo."""
+    flows = yaml.safe_load((Path(__file__).resolve().parents[3] / "platform" / "network" / "flows.yaml").read_text())["flows"]
+    (port,) = {f["target_port"] for f in flows if f["id"] == "F01" and f["to"] == ["api-gateway"]}
+    return port
+
+
 def sidecar_patch() -> dict[str, Any]:
-    """Y1: los recursos del `shutdown-manager` (INF-U2-06) por `envoyDeployment.patch`."""
+    """Y1: los recursos del `shutdown-manager` (INF-U2-06) por `envoyDeployment.patch`; U02-T25: y el puerto de `envoy` para la malla."""
     name, resources = gd.sidecar_resources()
-    return {"type": "StrategicMerge", "value": {"spec": {"template": {"spec": {"containers": [{"name": name, "resources": resources}]}}}}}
+    containers = [{"name": "envoy", "ports": [{"containerPort": external_port(), "protocol": "TCP"}]}, {"name": name, "resources": resources}]
+    return {"type": "StrategicMerge", "value": {"spec": {"template": {"spec": {"containers": containers}}}}}
 
 
 def envoyproxies(env: str) -> list[dict[str, Any]]:

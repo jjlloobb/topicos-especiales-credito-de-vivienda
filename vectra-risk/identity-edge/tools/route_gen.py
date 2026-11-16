@@ -588,10 +588,21 @@ def certificates(ctx: Ctx) -> list[dict[str, Any]]:
     ]
 
 
-def sidecar_patch(sidecar: dict[str, Any]) -> dict[str, Any]:
-    """Y1: v1.9.3 deja al `shutdown-manager` sin limits y su unico mecanismo es el patch del Deployment (`MergeWithPatch`)."""
-    container = {"name": sidecar["container"], "resources": sidecar["resources"]}
-    return {"type": "StrategicMerge", "value": {"spec": {"template": {"spec": {"containers": [container]}}}}}
+def listener_container_port(listener_port: int) -> int:
+    """El puerto en el que escucha Envoy dentro del pod: v1.9.3 suma 10000 a los puertos privilegiados del `Gateway` (443 -> 10443)."""
+    return listener_port + 10000 if listener_port < 1024 else listener_port
+
+
+def deployment_patch(sidecar: dict[str, Any], listener: dict[str, Any]) -> dict[str, Any]:
+    """Y1: v1.9.3 deja al `shutdown-manager` sin limits y su unico mecanismo es el patch del Deployment (`MergeWithPatch`).
+
+    U02-T25: el mismo patch declara el puerto de escucha en el contenedor `envoy`. v1.9.3 solo declara los de sus sondas (19001, 19003), el
+    inyector de Linkerd arma `LINKERD2_PROXY_INBOUND_PORTS` con los puertos declarados, y un puerto fuera de esa lista pierde su politica tras
+    un rato sin trafico y la primera conexion cae en `deny`. La mezcla estrategica une `ports` por `containerPort`: no toca nada mas de `envoy`.
+    """
+    shutdown = {"name": sidecar["container"], "resources": sidecar["resources"]}
+    envoy = {"name": "envoy", "ports": [{"containerPort": listener_container_port(listener["port"]), "protocol": "TCP"}]}
+    return {"type": "StrategicMerge", "value": {"spec": {"template": {"spec": {"containers": [envoy, shutdown]}}}}}
 
 
 def envoy_proxies(ctx: Ctx) -> list[dict[str, Any]]:
@@ -615,7 +626,7 @@ def envoy_proxies(ctx: Ctx) -> list[dict[str, Any]]:
                         "envoyDeployment": {
                             "replicas": replicas,
                             "container": {"image": ctx.image, "resources": e["resources"], "securityContext": e["container_security_context"]},
-                            "patch": sidecar_patch(e["shutdown_manager"]),
+                            "patch": deployment_patch(e["shutdown_manager"], ctx.routes["listener"]),
                             "pod": {
                                 "labels": dict(sorted(e["pod_labels"].items())),
                                 "priorityClassName": e["priority_class"],
