@@ -160,9 +160,9 @@ entradas:
     demo: [Base]
   - id: K-17
     fase: F2
-    que: "El eco de U2 y la ServiceAccount temporal console-bff de U4 no existen antes del sync de U10"
+    que: "El eco de U2 (recursos con la etiqueta part-of identity-edge-e2e: comparten nombre con governance, case-service, console-bff y console-spa) se retira antes de sincronizar esas cuatro Applications; la ServiceAccount temporal console-bff de U4 no existe antes del sync de U10"
     fuentes: ["C-U10:71", "CAND:402", "CAND:412", "CAND:259", "T05:361"]
-    comprobacion: ["lectura:kubectl --context kind-vectra get deploy,sa -n vectra-app", "lectura:kubectl --context kind-vectra get sa console-bff -n vectra-app"]
+    comprobacion: ["lectura:kubectl --context kind-vectra get deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-app", "lectura:kubectl --context kind-vectra get sa console-bff -n vectra-app"]
     plantilla: 02-sync-y-arranque.md
     demo: [Base]
   - id: K-18

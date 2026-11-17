@@ -164,13 +164,13 @@ _pendiente: la salida real, sin tokens_
 |---|---|---|
 | vectra-internal-ca existe en vectra-app y el JWKS responde por https | _pendiente_ | _pendiente_ |
 
-### K-17 — El eco de U2 y la ServiceAccount temporal console-bff de U4 no existen…
+### K-17 — El eco de U2 (recursos con la etiqueta part-of identity-edge-e2e: compa…
 
 - Demo: Base. Fuentes: `aidlc-docs/construction/console/evidence/cierre-demo.md:71`, `CANDIDATAS.md:402`, `CANDIDATAS.md:412`, `CANDIDATAS.md:259`, `tareas/U12-T05-imagen-y-documentacion.md:361`.
 
-**Resultado esperado.** El eco de U2 y la ServiceAccount temporal console-bff de U4 no existen antes del sync de U10
+**Resultado esperado.** El eco de U2 (recursos con la etiqueta part-of identity-edge-e2e: comparten nombre con governance, case-service, console-bff y console-spa) se retira antes de sincronizar esas cuatro Applications; la ServiceAccount temporal console-bff de U4 no existe antes del sync de U10
 
-**Comando.** Previsto: `kubectl --context kind-vectra get deploy,sa -n vectra-app`; `kubectl --context kind-vectra get sa console-bff -n vectra-app`.
+**Comando.** Previsto: `kubectl --context kind-vectra get deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-app`; `kubectl --context kind-vectra get sa console-bff -n vectra-app`.
 
 ```bash
 _pendiente: el comando exacto que se ejecutó_

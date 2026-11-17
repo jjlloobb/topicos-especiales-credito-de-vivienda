@@ -6,7 +6,7 @@ Paso 18 del plan de U12 (`aidlc-docs/construction/plans/system-verification-code
 
 **Cómo está escrita.**
 - Todos los comandos corren desde `vectra-risk/` (la carpeta del repositorio que contiene `system-verification/`), con el contexto `kind-vectra`.
-- Todo comando propio de la guía es de **solo lectura**: `kubectl get`, `logs`, `auth can-i` y `port-forward`, `curl` a un `port-forward`, `free`, `docker stats` y la CLI de U12. Lo único que escribe va en un bloque marcado **orden del operador** (se reconoce porque el bloque dice `bash operador`) y es de una lista cerrada: sincronizar una Application de Argo CD, retirar el eco de U2, publicar la imagen de U12, y, solo en F11, reiniciar `case-worker` y borrar el pod de Keycloak. Las demás escrituras (publicar imágenes de otras unidades, políticas, modelos) las hacen los documentos dueños que la guía enlaza. Las órdenes de `git` de «El clon de promoción» (F0, paso 11: clonar y `git pull --ff-only`) solo escriben en ese clon, no en el clúster, y no amplían la lista.
+- Todo comando propio de la guía es de **solo lectura**: `kubectl get`, `logs`, `auth can-i` y `port-forward`, `curl` a un `port-forward`, `free`, `docker stats` y la CLI de U12. Lo único que escribe va en un bloque marcado **orden del operador** (se reconoce porque el bloque dice `bash operador`) y es de una lista cerrada: sincronizar una Application de Argo CD, retirar el eco de U2 (borrado por la etiqueta `part-of` del eco, nunca `delete -f`), publicar la imagen de U12, y, solo en F11, reiniciar `case-worker` y borrar el pod de Keycloak. Las demás escrituras (publicar imágenes de otras unidades, políticas, modelos) las hacen los documentos dueños que la guía enlaza. Las órdenes de `git` de «El clon de promoción» (F0, paso 11: clonar y `git pull --ff-only`) solo escriben en ese clon, no en el clúster, y no amplían la lista.
 - No repite lo que ya está escrito: remite por ruta y sección a cada documento dueño y dice **qué parte** de él entra (tabla de abajo). Si un documento dueño está mal, es un hallazgo de su unidad.
 - Cada fase termina con una **puerta**: lo que debe verse para seguir y a qué unidad apunta cada síntoma si no se ve. Cada espera dice cuánto dura y qué se mira mientras tanto; ninguna espera es fija sin una condición observable.
 - La evidencia de cada fase va en su plantilla de `aidlc-docs/construction/system-verification/evidence/kind/` (comando, salida sin secretos, esperado frente a obtenido). Lo que se pega en una plantilla nunca lleva un token, una cookie, una contraseña ni una semilla.
@@ -66,6 +66,7 @@ Un fallo en kind aparece en U12 y cuesta más ubicar su unidad (costo aceptado d
 | Casos en fail-closed con `serving_config_unavailable` | No hay política activa o governance no responde | U4 | `aidlc-docs/construction/plans/demo-recorte-funcional.md`, líneas 43 a 47 |
 | `case-service` no conecta con la base | `verify-full`: el certificado no cubre `case-db-rw.vectra-data.svc.cluster.local` | U8 y U1 | `aidlc-docs/construction/case-management/evidence/cierre-demo.md`, línea 74 |
 | `product-metrics` con `/readyz` en 503 y dashboard vacío | Arrancó antes que el registro: reintenta a los 15 min | U11 (esperar hasta 30 min) | `aidlc-docs/construction/product-metrics/evidence/cierre-demo.md`, línea 54 |
+| La SPA responde 500 por el gateway (`GET /` con `ResolvedRefs=False (BackendNotFound) service vectra-edge/console-spa not found`), o un HPA de `vectra-app` con `FailedGetScale … not found` | Falta el Deployment y el Service de un servicio que compartía nombre con el eco de U2 (lo borró un `delete -f` del eco, o el eco los pisó). Medido el 2026-11-17: tras sincronizar las cuatro Applications volvió a 200 | U12 (el orden de F2); resincronizar `governance`, `case-management`, `console-bff` y `console-spa` | `identity-edge/tests/e2e/echo/manifests.yaml` |
 | Los últimos casos de `decisions` quedan sin decidir | La bandeja se listó antes de que llegaran a `listo`; o siguen en `en_sincronizacion` (el worker los reintenta) al vencer `--settle-timeout`: la salida y el manifiesto los cuentan por separado (`undecided_after_wait` y `syncing_after_wait`) | U12; los `en_sincronizacion`, U8 | `CANDIDATAS.md`, línea 676 |
 | Un servicio de U0 no deja pasar ninguna petición con un token válido y registra `DependencyUnavailable` al refrescar el JWKS (Keycloak sí responde) | El JWKS del realm trae una llave de cifrado (`use: enc`, RSA-OAEP) y la caché de JWKS de una imagen anterior a U00-T05 no la salta: la imagen se construyó sin ese arreglo | U0 (rehacer la imagen en F1 con el commit que lo trae) | `bitacoras/U00-T05.md` |
 | La primera petición al gateway tras ≈ 90 s sin tráfico falla con un error de TLS; el `linkerd-proxy` del gateway registra `Connection denied server.name=deny tls=None(PortSkipped)` | El contenedor `envoy` no declara el 10443 como `containerPort` y, tras ≈ 90 s sin tráfico, el proxy de Linkerd deja de admitirlo (U02-T25 lo declara en `envoyDeployment.patch`) | U2 (`gateway` sincronizado con el parche) | `identity-edge/docs/adr-envoy-gateway.md`, «U02-T25» |
@@ -329,11 +330,22 @@ Entradas: K-10 a K-26. Plantilla: `02-sync-y-arranque.md`. Duración: 2 a 3 h (l
 
 **Prerrequisitos.** F1 completa. La CLI de Argo CD con sesión (`platform/runbooks/install.md`, §6) y la función `sync` de `install.md`, §7 «Sincronizar en orden»: cópiala en tu terminal. **Argo CD sincroniza lo que hay en `main`**, no tu rama.
 
-**El orden importa, y no es el de las waves** (todas en la 5): la política va **antes** de `console-bff` (el runbook de U4 crea y borra una `ServiceAccount` `console-bff` temporal y la del chart de U10 no debe existir aún); el eco de U2 no debe existir cuando se sincroniza U10; y `product-metrics` va **el último**: si arranca antes que el registro, el dashboard queda vacío hasta 30 min (`aidlc-docs/construction/product-metrics/evidence/cierre-demo.md`, línea 54). Después de cada sync, corre el diagnóstico del namespace y mira la puerta.
+**El orden importa, y no es el de las waves** (todas en la 5): la política va **antes** de `console-bff` (el runbook de U4 crea y borra una `ServiceAccount` `console-bff` temporal y la del chart de U10 no debe existir aún); el eco de U2 se retira **antes** de sincronizar `governance`, `case-management`, `console-bff` y `console-spa` (paso 1: crea Deployment, Service, ServiceAccount y PDB con los **mismos nombres** que esos servicios); y `product-metrics` va **el último**: si arranca antes que el registro, el dashboard queda vacío hasta 30 min (`aidlc-docs/construction/product-metrics/evidence/cierre-demo.md`, línea 54). Después de cada sync, corre el diagnóstico del namespace y mira la puerta.
 
 **Pasos.**
 
 1. **U2, si falta.** `identity-edge/docs/paso-16-kind.md`, §5 (valkey, keycloak, gateway, ratelimit, identity-jobs, identity-rules, identity-monitors; **salta** «Backend de eco»). Comprueba: `system-verification/docs/kind/arranque.sh vectra-edge vectra-identity` (K-10).
+   **Retira el eco de U2 ahora, antes de cualquier sync de `governance`, `case-management`, `console-bff` o `console-spa`** (K-17). `identity-edge/tests/e2e/echo/manifests.yaml` crea 16 recursos (Deployment, Service, ServiceAccount y PDB) con los **mismos nombres** que los servicios reales: `console-spa` en `vectra-edge` y `console-bff`, `case-service` y `governance-service` en `vectra-app`. Un `delete -f` de ese archivo borra **por nombre** y se lleva los reales si ya están desplegados (ocurrió en kind el 2026-11-16), y `kubectl get deploy -n vectra-app` no distingue uno del otro. Los 16 recursos del eco llevan `app.kubernetes.io/part-of: identity-edge-e2e` y ningún recurso que rinden los charts de `governance`, `case-management`, `console/chart/bff` y `console/chart/spa` con los values de kind la lleva (su `part-of` es `governance`, `case-management` o `console`): se pregunta y se borra **por esa etiqueta**, en los dos namespaces.
+   ```bash
+   kubectl --context kind-vectra get deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-app
+   kubectl --context kind-vectra get deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-edge
+   ```
+   Si no sale nada, no hay eco: sigue. Si sale, retíralo:
+   ```bash operador
+   kubectl --context kind-vectra delete deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-app
+   kubectl --context kind-vectra delete deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-edge
+   ```
+   **Si ya sincronizaste alguna de las cuatro** (o repites F2), esta retirada ya no hace daño (no toca recursos sin la etiqueta), pero el eco pudo haberse llevado los reales o haberlos pisado: comprueba que existen los cuatro (`kubectl --context kind-vectra get deploy -n vectra-app` y `-n vectra-edge`: `governance-service`, `case-service`, `console-bff` y `console-spa`, cada uno con 2 réplicas) y que las rutas del gateway resuelven (`kubectl --context kind-vectra get httproute -A -o yaml`: `ResolvedRefs` en `True`). Si falta alguno, resincroniza su Application (síntoma en la tabla de arriba).
 2. **`decision-registry`:**
    ```bash operador
    sync decision-registry
@@ -363,16 +375,12 @@ Entradas: K-10 a K-26. Plantilla: `02-sync-y-arranque.md`. Duración: 2 a 3 h (l
    ```bash operador
    sync bias-monitoring
    ```
-10. **Retira el eco de U2 y la `ServiceAccount` temporal `console-bff` de U4**, si el diagnóstico las muestra (K-17):
+10. **Comprueba que el eco de U2 ya no existe y que la `ServiceAccount` temporal `console-bff` de U4 tampoco** (K-17):
     ```bash
-    kubectl --context kind-vectra get deploy,sa -n vectra-app
+    kubectl --context kind-vectra get deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-app
     kubectl --context kind-vectra get sa console-bff -n vectra-app
     ```
-    Si el eco existe, retíralo; la `ServiceAccount` temporal la borra el propio runbook de U4 al terminar.
-    ```bash operador
-    kubectl --context kind-vectra delete -f identity-edge/tests/e2e/echo/manifests.yaml
-    ```
-    La segunda lectura debe dar `NotFound` **antes** del sync de U10.
+    La primera no debe traer nada (el eco se retiró en el paso 1). La `ServiceAccount` temporal la borra el propio runbook de U4 al terminar: la segunda lectura debe dar `NotFound` **antes** del sync de U10 (la del chart de U10 solo aparece después).
 11. **`console-bff` y `console-spa`:**
     ```bash operador
     sync console-bff console-spa
@@ -395,7 +403,7 @@ Entradas: K-10 a K-26. Plantilla: `02-sync-y-arranque.md`. Duración: 2 a 3 h (l
 | K-14 | U8: el hook de migracion corre antes de que los Deployment queden Ready; sslmode=verify-full conecta de verdad con case-db | `kubectl --context kind-vectra get jobs -n vectra-app`; `kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=case-service` | Base |
 | K-15 | U7 arranca con la raiz de solo lectura y sin emptyDir; los hosts <isvc>-predictor.vectra-serving y -explainer resuelven desde vectra-app | `arranque.sh vectra-app`; `humo flujo --delivery /verification/reference-model/.out` | Base |
 | K-16 | vectra-internal-ca existe en vectra-app y el JWKS responde por https | `kubectl --context kind-vectra get configmap vectra-internal-ca -n vectra-app`; `kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=console-bff` | Base |
-| K-17 | El eco de U2 y la ServiceAccount temporal console-bff de U4 no existen antes del sync de U10 | `kubectl --context kind-vectra get deploy,sa -n vectra-app`; `kubectl --context kind-vectra get sa console-bff -n vectra-app` | Base |
+| K-17 | El eco de U2 (recursos con la etiqueta part-of identity-edge-e2e: comparten nombre con governance, case-service, console-bff y console-spa) se retira antes de sincronizar esas cuatro Applications; la ServiceAccount temporal console-bff de U4 no existe antes del sync de U10 | `kubectl --context kind-vectra get deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-app`; `kubectl --context kind-vectra get sa console-bff -n vectra-app` | Base |
 | K-18 | product-metrics arranca despues del registro; si no, 503 hasta 30 min y dashboard vacio | `kubectl --context kind-vectra get pods -l app.kubernetes.io/name=product-metrics -n vectra-app`; `kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=product-metrics` | D4 |
 | K-19 | Prometheus carga las PrometheusRule de U8 y U11 y raspa los ServiceMonitor de U8 (tres), del BFF y de U11; Grafana descubre el ConfigMap del dashboard en Vectra / Producto | `observabilidad.sh reglas`; `observabilidad.sh targets` | D1, D3, D4 |
 | K-20 | Selectores y puertos de partida: Prometheus (app.kubernetes.io/name=prometheus, 9090) y el registro (decision-registry-service, 8080) | `kubectl --context kind-vectra get pods -l app.kubernetes.io/name=prometheus -n vectra-observability`; `kubectl --context kind-vectra get pods -l app.kubernetes.io/name=decision-registry-service -n vectra-app` | Base |

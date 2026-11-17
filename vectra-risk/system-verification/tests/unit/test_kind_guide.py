@@ -16,6 +16,7 @@ from functools import cache
 from pathlib import Path
 
 import kind_docs as kd
+from safe_shell import SENTINELS, UnsafeScript, command_words, disallowed, run_script, sandbox
 import pytest
 import yaml
 from vectra_verification import cli, driver, guard, rt2_latency
@@ -424,6 +425,12 @@ def f2_order_findings(text: str) -> list[str]:
     """El orden de F2: la politica y el eco retirado antes de `console-bff`, `product-metrics` el ultimo, el registro primero; y `decisions` antes de `rt2`."""
     body = section(text, "F2")
     marks = [
+        (
+            "eco retirado",
+            body.find(
+                "delete deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-app"
+            ),
+        ),
         ("decision-registry", body.find("sync decision-registry")),
         ("governance", body.find("sync governance")),
         ("política", body.find("**Política activa**")),
@@ -432,7 +439,6 @@ def f2_order_findings(text: str) -> list[str]:
         ("scoring-explainability", body.find("sync scoring-explainability")),
         ("case-management", body.find("sync case-management")),
         ("bias-monitoring", body.find("sync bias-monitoring")),
-        ("eco retirado", body.find("delete -f identity-edge/tests/e2e/echo/manifests.yaml")),
         ("console-bff", body.find("sync console-bff")),
         ("product-metrics", body.find("sync product-metrics")),
     ]
@@ -440,7 +446,7 @@ def f2_order_findings(text: str) -> list[str]:
     positions = [at for _, at in marks if at >= 0]
     if positions != sorted(positions):
         found.append(
-            "F2: el orden no es registro, governance, política, model-serving, modelo, scoring, casos, bias, eco, consola, product-metrics"
+            "F2: el orden no es eco, registro, governance, política, model-serving, modelo, scoring, casos, bias, consola, product-metrics"
         )
     sync_positions = [
         (at, name)
@@ -554,7 +560,7 @@ def test_red_f2_product_metrics_before_decision_registry_fails() -> None:
     """Rojo de CA-2: `product-metrics` antes de `decision-registry` hace fallar el orden de F2."""
     swapped = GUIDE_TEXT.replace("sync decision-registry\n", "sync product-metrics\n", 1)
     assert (
-        "F2: el orden no es registro, governance, política, model-serving, modelo, scoring, casos, bias, eco, consola, product-metrics"
+        "F2: el orden no es eco, registro, governance, política, model-serving, modelo, scoring, casos, bias, consola, product-metrics"
         in f2_order_findings(swapped)
     )
 
@@ -567,16 +573,44 @@ def test_red_f2_the_policy_after_console_bff_fails() -> None:
         "sync console-bff console-spa", "sync console-bff console-spa\n    **Política activa**", 1
     )
     assert any("el orden" in f for f in f2_order_findings(moved))
-    moved_echo = GUIDE_TEXT.replace(
-        "delete -f identity-edge/tests/e2e/echo/manifests.yaml",
-        "delete -f identity-edge/tests/e2e/echo/MOVIDO.yaml",
-        1,
-    ).replace(
-        "sync console-bff console-spa",
-        "sync console-bff console-spa\n    delete -f identity-edge/tests/e2e/echo/manifests.yaml",
-        1,
+    echo = "delete deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-app"
+    moved_echo = GUIDE_TEXT.replace(echo, "get deploy -n vectra-app", 1).replace(
+        "sync console-bff console-spa", f"sync console-bff console-spa\n    {echo}", 1
     )
     assert any("el orden" in f for f in f2_order_findings(moved_echo))
+
+
+def test_m03_the_echo_is_removed_by_label_before_the_four_services_it_shares_names_with_and_never_with_delete_f() -> (
+    None
+):
+    """M-03: el archivo del eco trae 16 recursos con la etiqueta, y los charts de U4, U8 y U10 no la llevan; la guía retira por etiqueta y antes de sincronizar las cuatro Applications."""
+    docs = [
+        d
+        for d in yaml.safe_load_all(
+            (kd.VECTRA / "identity-edge/tests/e2e/echo/manifests.yaml").read_text(encoding="utf-8")
+        )
+        if d
+    ]
+    assert len(docs) == 16 and all(
+        d["metadata"]["labels"]["app.kubernetes.io/part-of"] == "identity-edge-e2e" for d in docs
+    )
+    assert {(d["metadata"]["namespace"], d["metadata"]["name"]) for d in docs if d["kind"] == "Deployment"} == {
+        ("vectra-edge", "console-spa"), ("vectra-app", "console-bff"), ("vectra-app", "case-service"), ("vectra-app", "governance-service"),
+    }  # fmt: skip
+    for chart in ("governance/chart", "case-management/chart", "console/chart/bff", "console/chart/spa"):
+        text = "".join(p.read_text(encoding="utf-8") for p in (kd.VECTRA / chart / "templates").glob("*.*"))
+        assert "identity-edge-e2e" not in text, chart
+    assert "delete -f identity-edge/tests/e2e/echo/manifests.yaml" not in GUIDE_TEXT
+    f2 = section(GUIDE_TEXT, "F2")
+    delete = f2.index("delete deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-app")
+    for application in ("governance", "case-management", "console-bff"):
+        assert delete < f2.index(f"sync {application}"), application
+    assert "ResolvedRefs" in f2 and "2 réplicas" in f2
+    symptoms = GUIDE_TEXT[GUIDE_TEXT.index("## Si algo falla") : GUIDE_TEXT.index("## Cómo dejar el clúster")]
+    assert any(
+        "BackendNotFound" in row and "FailedGetScale" in row and "`console-spa`" in row
+        for row in symptoms.split("\n")
+    )
 
 
 def test_red_decisions_after_rt2_fails() -> None:
@@ -696,6 +730,18 @@ def vv_tokens(block: str) -> set[str]:
     return tokens
 
 
+VV_ALLOWED = frozenset(
+    {"vv", "humo", "vectra-verification", "docker", "id"}
+)  # lo unico que las funciones de la guia lanzan: `docker` es el doble de cada prueba
+
+
+def run_vv(tmp_path: Path, tail: str, fake_docker: str, env: dict[str, str]):  # type: ignore[no-untyped-def]
+    """Las funciones de la guia (`vv`, `humo`, `vectra-verification`) con un `docker` de mentira, en un entorno aislado (R-01: ni `PATH` ni entorno reales)."""
+    block = vv_block(GUIDE_TEXT)
+    functions = block[block.index("vv() {") :]
+    return run_script(f"{functions}\n{tail}", VV_ALLOWED, tmp_path, fakes={"docker": fake_docker}, env=env)
+
+
 def test_coherence_the_docker_run_is_the_one_of_the_readme() -> None:
     """La orden `docker run` de la guia es la funcion `vv` del README de la imagen (U12-T05): cada bandera, cada variable, cada montaje (su destino y si es de solo lectura) y el perfil seccomp del README estan en la de la guia.
     Las marcas «POR CONFIRMAR» ya no existen."""
@@ -733,15 +779,7 @@ def test_coherence_the_docker_run_is_the_one_of_the_readme() -> None:
 def test_coherence_the_functions_of_the_guide_build_the_docker_command_of_the_readme(tmp_path: Path) -> None:
     """Se corre el bloque real de la guia con un `docker` de mentira que escribe sus argumentos: `vv` y `humo` arman la orden del README (el punto de entrada de la imagen intacto en `vv`, `python` y el guion montado en `humo`),
     la imagen va justo antes de los argumentos y `VV_EXTRA` no se filtra de `humo` a la orden siguiente."""
-    block = vv_block(GUIDE_TEXT)
-    functions = block[block.index("vv() {") :]
-    fake = tmp_path / "bin"
-    fake.mkdir()
-    (fake / "docker").write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DOCKER_OUT.$$"\n', encoding="utf-8")
-    (fake / "docker").chmod(0o755)
     env = {
-        **os.environ,
-        "PATH": f"{fake}:{os.environ['PATH']}",
         "DOCKER_OUT": str(tmp_path / "argv"),
         "VERIF_HOME": "/h",
         "EVID": "/e",
@@ -750,9 +788,11 @@ def test_coherence_the_functions_of_the_guide_build_the_docker_command_of_the_re
         "VAULT_TOKEN": "t",
         "GATEWAY_ADDRESS": "172.18.0.7",
     }
-    script = f"{functions}\nvv prepare --commit abc\nhumo flujo --delivery /d\nvectra-verification report\n"
-    done = subprocess.run(
-        ["bash", "-c", script], env=env, capture_output=True, text=True, check=False, cwd=tmp_path
+    done = run_vv(
+        tmp_path,
+        "vv prepare --commit abc\nhumo flujo --delivery /d\nvectra-verification report\n",
+        '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DOCKER_OUT.$$"\n',
+        env,
     )
     assert done.returncode == 0, done.stderr
     runs = [
@@ -1510,20 +1550,23 @@ def f0_evid_block(text: str) -> str:
     return "\n".join(line for line in lines[first : last + 1] if not line.startswith("#"))
 
 
-def run_evid_block(text: str, tmp_path: Path, date: str, commit: str, home: str = "h") -> str:
-    """Corre el bloque de `EVID` en una terminal nueva con una fecha y un commit dados (`date` y `git` de mentira) y devuelve el `EVID` que queda."""
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir(exist_ok=True)
-    (bin_dir / "date").write_text('#!/bin/sh\necho "$FAKE_DATE"\n', encoding="utf-8")
-    (bin_dir / "git").write_text('#!/bin/sh\necho "$FAKE_COMMIT"\n', encoding="utf-8")
-    for name in ("date", "git"):
-        (bin_dir / name).chmod(0o755)
-    script = f'export VERIF_HOME="{tmp_path / home}"; mkdir -p "$VERIF_HOME"\n{f0_evid_block(text)}\necho "$EVID"\n'
-    done = subprocess.run(
-        ["bash", "-c", script],
-        env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "FAKE_DATE": date, "FAKE_COMMIT": commit},
-        capture_output=True, text=True, check=False,
-    )  # fmt: skip
+EVID_ALLOWED = frozenset(
+    {"[", "printf", "export", "mkdir", "chmod", "cat", "echo", "date", "git"}
+)  # R-01: lo unico que el bloque de `EVID` puede lanzar
+
+
+def run_evid_block(
+    text: str, tmp_path: Path, date: str, commit: str, home: str = "h", block: str | None = None
+) -> str:
+    """Corre el bloque de `EVID` en una terminal nueva con una fecha y un commit dados (`date` y `git` de mentira) y devuelve el `EVID` que queda. Aislado (`safe_shell`): si el texto trae otra orden, falla sin ejecutar nada."""
+    script = f'export VERIF_HOME="{tmp_path / home}"\nmkdir -p "$VERIF_HOME"\n{block if block is not None else f0_evid_block(text)}\necho "$EVID"\n'
+    done = run_script(
+        script,
+        EVID_ALLOWED,
+        tmp_path,
+        fakes={"date": '#!/bin/sh\necho "$FAKE_DATE"\n', "git": '#!/bin/sh\necho "$FAKE_COMMIT"\n'},
+        env={"FAKE_DATE": date, "FAKE_COMMIT": commit},
+    )
     assert done.returncode == 0, done.stderr
     return done.stdout.strip().split("\n")[-1]
 
@@ -1648,29 +1691,8 @@ def test_t09_the_machine_reaches_the_gateway_vv_carries_add_host_and_f0_and_f5_r
 
 
 def test_t09_vv_refuses_to_start_without_the_gateway_address(tmp_path: Path) -> None:
-    block = vv_block(GUIDE_TEXT)
-    functions = block[block.index("vv() {") :]
-    fake = tmp_path / "bin"
-    fake.mkdir()
-    (fake / "docker").write_text('#!/bin/sh\necho ran > "$DOCKER_OUT"\n', encoding="utf-8")
-    (fake / "docker").chmod(0o755)
-    env = {
-        **os.environ,
-        "PATH": f"{fake}:{os.environ['PATH']}",
-        "DOCKER_OUT": str(tmp_path / "ran"),
-        "VERIF_HOME": "/h",
-        "EVID": "/e",
-        "VERIFICATION_IMAGE": "i",
-    }
-    env.pop("GATEWAY_ADDRESS", None)
-    done = subprocess.run(
-        ["bash", "-c", f"{functions}\nvv report"],
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-        cwd=tmp_path,
-    )
+    env = {"DOCKER_OUT": str(tmp_path / "ran"), "VERIF_HOME": "/h", "EVID": "/e", "VERIFICATION_IMAGE": "i"}
+    done = run_vv(tmp_path, "vv report", '#!/bin/sh\necho ran > "$DOCKER_OUT"\n', env)
     assert done.returncode != 0 and not (tmp_path / "ran").exists(), (
         "`vv` arrancó el contenedor sin la dirección del gateway"
     )
@@ -1678,29 +1700,14 @@ def test_t09_vv_refuses_to_start_without_the_gateway_address(tmp_path: Path) -> 
 
 
 def test_t09_the_add_host_value_is_the_address_the_operator_exports(tmp_path: Path) -> None:
-    block = vv_block(GUIDE_TEXT)
-    functions = block[block.index("vv() {") :]
-    fake = tmp_path / "bin"
-    fake.mkdir()
-    (fake / "docker").write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DOCKER_OUT"\n', encoding="utf-8")
-    (fake / "docker").chmod(0o755)
     env = {
-        **os.environ,
-        "PATH": f"{fake}:{os.environ['PATH']}",
         "DOCKER_OUT": str(tmp_path / "argv"),
         "VERIF_HOME": "/h",
         "EVID": "/e",
         "VERIFICATION_IMAGE": "i",
         "GATEWAY_ADDRESS": "172.18.0.2",
     }
-    done = subprocess.run(
-        ["bash", "-c", f"{functions}\nvv report"],
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-        cwd=tmp_path,
-    )
+    done = run_vv(tmp_path, "vv report", '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DOCKER_OUT"\n', env)
     assert done.returncode == 0, done.stderr
     argv = (tmp_path / "argv").read_text(encoding="utf-8").split("\n")
     assert argv[argv.index("--add-host") + 1] == "vectra.localtest.me:172.18.0.2"
@@ -1988,3 +1995,60 @@ def test_r2_the_restart_section_and_r7_say_what_seed_vault_and_the_runbook_say_t
     r7 = next(line for line in GUIDE_TEXT.split("\n") if line.startswith("| **R-7**"))
     assert "recuperan de los `Secret` antes de generar" in r7 and "solo lo que el informe diga generado" in r7
     assert "pon al día lo que guardaba las claves viejas" not in r7
+
+
+# --- R-01: ninguna prueba ejecuta texto de un documento con el `PATH` ni el entorno reales ----------------------------------------------------------------------
+
+
+def old_evid_capture(text: str) -> str:
+    """Lo que capturaba la primera version de `f0_evid_block` (con `re.S`): de la linea de `EVID` hasta el final de la guia."""
+    match = re.search(
+        r"^\s*(?:\[ -s \"\$VERIF_HOME/evid\" \]|export EVID=).*?^\s*export VERIFICATION_DIR=.*$",
+        text,
+        re.M | re.S,
+    )
+    assert match is not None
+    return match.group(0)
+
+
+def test_r01_the_text_the_old_expression_captured_is_refused_before_bash_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured = old_evid_capture(GUIDE_TEXT)
+    assert len(captured.split("\n")) > 20, (
+        "la expresión vieja ya no se traga el resto de la guía: la prueba no representa el defecto"
+    )
+    assert disallowed(captured, EVID_ALLOWED), "el texto con `kubectl`, `argocd`... pasó la lista permitida"
+    launched: list[object] = []
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: launched.append(a))
+    with pytest.raises(UnsafeScript):
+        run_evid_block(GUIDE_TEXT, tmp_path, "20261116", "aaaaaaa", block=captured)
+    assert launched == [], "se lanzó un proceso antes de comprobar el texto"
+
+
+def test_r01_the_block_that_runs_today_has_only_allowed_commands() -> None:
+    assert disallowed(f0_evid_block(GUIDE_TEXT), EVID_ALLOWED) == set()
+    assert disallowed(vv_block(GUIDE_TEXT)[vv_block(GUIDE_TEXT).index("vv() {") :], VV_ALLOWED) == set()
+    assert {"kubectl", "argocd", "docker"} <= command_words(
+        "kubectl get pods\nx=$(docker ps) && argocd app sync a\n"
+    )
+
+
+def test_r01_the_cluster_tool_sentinels_leave_a_trace_when_called_and_the_sandbox_has_no_real_path(
+    tmp_path: Path,
+) -> None:
+    bin_dir, env, log = sandbox(tmp_path)
+    assert set(SENTINELS) == {"kubectl", "docker", "argocd", "helm", "gh"} and env["PATH"] == str(bin_dir)
+    assert not {"KUBECONFIG", "DOCKER_HOST", "ARGOCD_OPTS"} & set(env) and env["HOME"].startswith(
+        str(tmp_path)
+    )
+    with pytest.raises(AssertionError, match="herramienta del cluster fue llamada"):
+        run_script(
+            "kubectl get pods", {"kubectl"}, tmp_path
+        )  # el centinela dejó constancia y la prueba lo afirma
+    assert "kubectl get pods" in log.read_text(encoding="utf-8")
+
+
+def test_r01_running_the_evid_block_calls_no_cluster_tool(tmp_path: Path) -> None:
+    run_evid_block(GUIDE_TEXT, tmp_path, "20261116", "aaaaaaa")
+    assert (tmp_path / "sentinel.log").read_text(encoding="utf-8") == ""

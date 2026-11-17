@@ -538,7 +538,10 @@ OPERATOR_ANY_PHASE = (
         rf"^argocd app sync (?P<apps>{APP})(?: --prune)?(?: && argocd app wait (?P<wait>{APP}) --health(?: --timeout \d+)?)?$"
     ),
     re.compile(rf"^argocd app wait (?P<apps>{APP}) --health(?: --timeout \d+)?$"),
-    re.compile(rf"^{CONTEXT}delete -f identity-edge/tests/e2e/echo/manifests\.yaml$"),
+    # El eco de U2 comparte nombre con servicios reales: solo se borra **por su etiqueta** y en uno de los dos namespaces (M-03); `delete -f <archivo>` borra por nombre y se llevo los reales.
+    re.compile(
+        rf"^{CONTEXT}delete deploy,svc,sa,pdb -l app\.kubernetes\.io/part-of=identity-edge-e2e -n (?:vectra-app|vectra-edge)$"
+    ),
     re.compile(
         r"^docker (?:push|inspect --format '\{\{index \.RepoDigests 0\}\}') localhost:5001/vectra/system-verification:[\w.-]+$"
     ),
@@ -654,7 +657,7 @@ GUIDE_OK = """## F2 Sync
 ```bash operador
 sync decision-registry governance
 argocd app sync case-management --prune && argocd app wait case-management --health --timeout 900
-kubectl --context kind-vectra delete -f identity-edge/tests/e2e/echo/manifests.yaml
+kubectl --context kind-vectra delete deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-app
 docker push localhost:5001/vectra/system-verification:dev
 ```
 
@@ -723,3 +726,18 @@ def test_the_namespace_argocd_is_not_the_binary_but_the_binary_after_it_still_fa
     assert scan_text("kubectl get applications --namespace argocd\n", "x.sh") == []
     assert [f.verb for f in scan_text("kubectl get x -n argocd && argocd app sync a\n", "x.sh")] == ["argocd"]
     assert [f.verb for f in scan_text("argocd -n x app sync a\n", "x.sh")] == ["argocd"]
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "kubectl --context kind-vectra delete -f identity-edge/tests/e2e/echo/manifests.yaml",  # la forma vieja: borra por nombre (M-03)
+        "kubectl --context kind-vectra delete deploy,svc,sa,pdb -n vectra-app",  # sin etiqueta
+        "kubectl --context kind-vectra delete deploy,svc,sa,pdb -l app.kubernetes.io/part-of=governance -n vectra-app",  # otra etiqueta
+        "kubectl --context kind-vectra delete deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-data",  # otro namespace
+        "kubectl --context kind-vectra delete deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -A",
+    ],
+)
+def test_guide_m03_the_echo_is_only_removed_by_its_label_and_the_old_form_is_refused(command: str) -> None:
+    findings = scan_guide(f"## F2 Sync\n\n```bash operador\n{command}\n```\n", "guia.md")
+    assert findings, f"la lista cerrada admitió: {command}"

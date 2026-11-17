@@ -46,7 +46,7 @@ Cada entrada del inventario (`system-verification/docs/kind/inventario.yaml`, K-
 | K-14 | U8: el hook de migracion corre antes de que los Deployment queden Ready; sslmode=verify-full conecta de verdad con case-db | `02-sync-y-arranque.md` | pendiente del operador | C-U8:74 |
 | K-15 | U7 arranca con la raiz de solo lectura y sin emptyDir; los hosts <isvc>-predictor.vectra-serving y -explainer resuelven desde vectra-app | `02-sync-y-arranque.md` | pendiente del operador | C-U7:43, C-U7:45 |
 | K-16 | vectra-internal-ca existe en vectra-app y el JWKS responde por https | `02-sync-y-arranque.md` | pendiente del operador | C-U10:72 |
-| K-17 | El eco de U2 y la ServiceAccount temporal console-bff de U4 no existen antes del sync de U10 | `02-sync-y-arranque.md` | pendiente del operador | C-U10:71 |
+| K-17 | El eco de U2 (recursos con la etiqueta part-of identity-edge-e2e: comparten nombre con governance, case-service, console-bff y console-spa) se retira antes de sincronizar esas cuatro Applications; la ServiceAccount temporal console-bff de U4 no existe antes del sync de U10 | `02-sync-y-arranque.md` | pendiente del operador | C-U10:71 |
 | K-18 | product-metrics arranca despues del registro; si no, 503 hasta 30 min y dashboard vacio | `02-sync-y-arranque.md` | pendiente del operador | C-U11:54 |
 | K-19 | Prometheus carga las PrometheusRule de U8 y U11 y raspa los ServiceMonitor de U8 (tres), del BFF y de U11; Grafana descubre el ConfigMap del dashboard en Vectra / Producto | `02-sync-y-arranque.md` | pendiente del operador | C-U8:75, C-U10:73, C-U11:52 |
 | K-20 | Selectores y puertos de partida: Prometheus (app.kubernetes.io/name=prometheus, 9090) y el registro (decision-registry-service, 8080) | `02-sync-y-arranque.md` | pendiente del operador | — |
