@@ -40,12 +40,12 @@ case "${args[0]:-} ${args[1]:-}" in
   "auth can-i")
     [ "$FAKE_KUBECTL_FAILS" = si ] && { echo "Unable to connect to the server" >&2; exit 1; }
     # Como el kubectl real: un posicional `a/b` es TIPO/NOMBRE (se contesta por `a`, sin mirar `b`); el subrecurso solo llega con --subresource.
-    positional=(); subresource=""; rest=("${args[@]:2}")
+    positional=(); subresource=""; scope=cluster; rest=("${args[@]:2}")
     while [ "${#rest[@]}" -gt 0 ]; do
       case "${rest[0]}" in
         --subresource=*) subresource="${rest[0]#--subresource=}" ;;
         --subresource) subresource="${rest[1]:-}"; rest=("${rest[@]:1}") ;;
-        -n) rest=("${rest[@]:1}") ;;
+        -n) scope="${rest[1]:-}"; rest=("${rest[@]:1}") ;;
         -*) ;;
         *) positional+=("${rest[0]}") ;;
       esac
@@ -57,7 +57,8 @@ case "${args[0]:-} ${args[1]:-}" in
     case "$verb" in get|list|watch) answer=yes ;; esac
     case "$resource" in secrets|pods/exec|pods/portforward|pods/attach|nodes/proxy|pods/proxy|services/proxy|nodes/log|'*') answer=no ;; esac
     for override in $FAKE_OVERRIDES; do
-      [ "${override%%=*}" = "$verb:$resource" ] && answer="${override##*=}"
+      # `verbo:recurso=respuesta` vale en todos los ambitos; `verbo:recurso@ambito=respuesta` solo en ese (`cluster` es -A)
+      { [ "${override%%=*}" = "$verb:$resource" ] || [ "${override%%=*}" = "$verb:$resource@$scope" ]; } && answer="${override##*=}"
     done
     if [ "$answer" = no ] && [ "$FAKE_REASON" = si ]; then echo "no - RBAC: denied"; else echo "$answer"; fi
     [ "$answer" = yes ] ;;
@@ -197,24 +198,44 @@ def asked_rows(tmp_path: Path) -> set[tuple[str, str, str]]:
     return rows
 
 
-CLUSTER_SCOPED = {"nodes/proxy", "nodes/log", "clusterroles", "nodes"}
+# La tabla EXACTA que `check` debe preguntar y la respuesta que espera: (esperado, verbo, recurso con la forma `recurso/subrecurso`). Cambiar o quitar una fila del guion la hace fallar.
+EXPECTED_ROWS = [
+    ("yes", "get", "pods"), ("yes", "list", "deployments"), ("yes", "get", "pods/log"), ("yes", "list", "applications.argoproj.io"), ("yes", "list", "externalsecrets.external-secrets.io"),
+    ("no", "get", "secrets"), ("no", "list", "secrets"), ("no", "delete", "deployments"), ("no", "delete", "pods"), ("no", "delete", "*"), ("no", "create", "pods"),
+    ("no", "create", "deployments"), ("no", "patch", "deployments"), ("no", "update", "deployments"), ("no", "create", "pods/exec"), ("no", "create", "pods/portforward"),
+    ("no", "create", "pods/attach"), ("no", "impersonate", "users"), ("no", "get", "nodes/proxy"), ("no", "get", "pods/proxy"), ("no", "get", "services/proxy"),
+    ("no", "get", "nodes/log"), ("no", "create", "serviceaccounts/token"), ("no", "escalate", "clusterroles"), ("no", "bind", "clusterroles"),
+]  # fmt: skip
+NAMESPACES = ("vectra-app", "vectra-edge", "vectra-data")
+# Filas que solo se preguntan en `cluster` (sus peticiones reales van sin namespace). `bind clusterroles` NO: una RoleBinding la concede en su namespace.
+CLUSTER_ONLY = {("get", "nodes/proxy"), ("get", "nodes/log"), ("escalate", "clusterroles")}
 
 
-def test_readonly_kubeconfig_check_table_has_the_minimum_rows(tmp_path: Path, good_file: Path):
-    """Quitar una fila de la tabla del guion hace fallar esta prueba."""
-    run(tmp_path, "check", str(good_file))
-    asked = asked_rows(tmp_path)
-    must_say_no = ["get secrets", "delete deployments", "create pods", "patch deployments", "create pods/exec", "create pods/portforward", "delete *", "impersonate users", "get nodes/proxy", "get pods/proxy", "get services/proxy", "get nodes/log", "create serviceaccounts/token", "escalate clusterroles", "bind clusterroles"]
-    must_say_yes = ["get pods", "list deployments", "get pods/log", "list applications.argoproj.io", "list externalsecrets.external-secrets.io"]
-    for scope in ("vectra-app", "vectra-edge", "vectra-data", "cluster"):
-        for row in [*must_say_no, *must_say_yes]:
-            verb, resource = row.split(" ")
-            if resource in CLUSTER_SCOPED and scope != "cluster":
-                assert (verb, resource, scope) not in asked, (row, scope)  # un recurso de ambito de cluster solo se pregunta en `cluster`
-            else:
-                assert (verb, resource, scope) in asked, (row, scope)
-    assert ("get", "nodes", "cluster") in asked
-    assert len(asked) == 89
+def exact_table() -> set[tuple[str, str, str, str]]:
+    table = {(expected, scope, verb, resource) for scope in (*NAMESPACES, "cluster") for expected, verb, resource in EXPECTED_ROWS if scope == "cluster" or (verb, resource) not in CLUSTER_ONLY}
+    return {*table, ("yes", "cluster", "get", "nodes")}
+
+
+def test_readonly_kubeconfig_check_table_is_exactly_the_expected_rows(tmp_path: Path, good_file: Path):
+    """Quitar, cambiar o sustituir una fila del guion (incluida su respuesta esperada) hace fallar esta prueba: se compara con el conjunto exacto."""
+    result = run(tmp_path, "check", str(good_file))
+    printed = set()
+    for line in result.stdout.splitlines():
+        words = line.split()
+        if len(words) == 6 and words[5] == "ok":
+            printed.add((words[0], words[2], words[3], words[4]))
+    expected = exact_table()
+    assert len(expected) == 92
+    assert printed == expected, (sorted(expected - printed), sorted(printed - expected))
+    assert asked_rows(tmp_path) == {(verb, resource, scope) for _, scope, verb, resource in expected}
+
+
+def test_readonly_kubeconfig_check_sees_bind_clusterroles_granted_by_a_rolebinding_in_a_namespace(tmp_path: Path, good_file: Path):
+    """F-01: una RoleBinding a un ClusterRole concede `bind` solo en su namespace; con `-A` no se ve. Un `yes` solo con `-n vectra-app` debe dar rojo."""
+    result = run(tmp_path, "check", str(good_file), FAKE_OVERRIDES="bind:clusterroles@vectra-app=yes")
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "can-i bind clusterroles (vectra-app)" in result.stderr
+    assert "Filas: 92; distintas de lo esperado: 1" in result.stdout
 
 
 def test_readonly_kubeconfig_check_asks_for_subresources_with_the_flag_never_as_one_argument(tmp_path: Path, good_file: Path):

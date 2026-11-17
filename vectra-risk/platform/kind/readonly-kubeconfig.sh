@@ -118,7 +118,8 @@ ROWS=(
 )
 SCOPES=("vectra-app" "vectra-edge" "vectra-data" "cluster")
 CLUSTER_ROWS=("yes|get|nodes")
-# Recursos de ambito de cluster (sin namespace): sus filas solo se preguntan en el ambito `cluster`; en un namespace kubectl avisa (`resource 'nodes' is not namespace scoped`) y la respuesta no dice nada nuevo.
+# Recursos de ambito de cluster (sin namespace): sus filas solo se preguntan en el ambito `cluster`; en un namespace kubectl avisa (`resource 'nodes' is not namespace scoped`) y la peticion real va sin namespace.
+# Excepcion: `bind clusterroles` se pregunta tambien en cada namespace, porque una RoleBinding a un ClusterRole concede `bind` solo en el namespace del binding y con `-A` no se ve.
 CLUSTER_SCOPED=("nodes" "clusterroles")
 
 check_kubeconfig() {
@@ -159,7 +160,7 @@ check_kubeconfig() {
   for scope in "${SCOPES[@]}"; do
     for row in "${ROWS[@]}"; do
       IFS='|' read -r expected verb resource <<< "$row"
-      if [ "$scope" != cluster ] && [[ " ${CLUSTER_SCOPED[*]} " == *" ${resource%%/*} "* ]]; then continue; fi
+      if [ "$scope" != cluster ] && [ "$verb $resource" != "bind clusterroles" ] && [[ " ${CLUSTER_SCOPED[*]} " == *" ${resource%%/*} "* ]]; then continue; fi
       ask "$expected" "$verb" "$resource" "$scope"
     done
   done
