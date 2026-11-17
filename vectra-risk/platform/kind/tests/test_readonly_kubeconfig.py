@@ -17,7 +17,7 @@ import yaml
 HERE = Path(__file__).resolve().parents[1]
 REPO = HERE.parents[2]
 SCRIPT = HERE / "readonly-kubeconfig.sh"
-TOKEN = "fake-token-not-a-real-credential"
+TOKEN = "fake-token-not-a-real-credential"  # noqa: S105 - valor de mentira
 TOKEN_B64 = base64.b64encode(TOKEN.encode()).decode()
 CA_B64 = base64.b64encode(b"fake-ca-not-a-real-certificate").decode()
 HARMLESS = ["bash", "base64", "mktemp", "mv", "chmod", "stat", "dirname", "mkdir", "realpath", "tr", "head"]

@@ -8,6 +8,10 @@ Contratos del módulo 6: el orquestador despacha y arbitra, el codificador imple
 
 En este proyecto, `tareas/` reemplaza a `unidades-y-tareas.md`. Las tareas `U01-*` salen de los pendientes de U1, ya cerrada para kind; las `U02-*` salen del plan de U2.
 
+## Los agentes no escriben en el clúster
+
+El kubeconfig de administrador (`~/.kube/config`) no es de los agentes. El operador corre `platform/kind/readonly-kubeconfig.sh write` una vez (y otra tras recrear el clúster) y `check` para leerlo de vuelta; los agentes corren con `KUBECONFIG=~/.kube/kind-vectra-readonly`, un archivo con un solo contexto, `kind-vectra`, que no escribe ni lee un `Secret`. La sesión del orquestador usa el de administrador solo en las órdenes que el usuario aprueba, nombrándolo de forma explícita. No cubre `argocd` ni `docker`, ni a quien fije `KUBECONFIG` por su cuenta: ver [`platform/kind/readonly-kubeconfig.md`](../platform/kind/readonly-kubeconfig.md).
+
 ## Orden de despacho
 
 | Paso | Tareas | Por qué |
