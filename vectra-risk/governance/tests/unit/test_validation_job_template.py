@@ -4,6 +4,7 @@ import copy
 import re
 import shutil
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -186,8 +187,125 @@ def test_the_job_mounts_the_bucket_credential_and_the_client_key_without_literal
     assert env["VECTRA_S3_SECRET_KEY"]["valueFrom"]["secretKeyRef"] == {"name": "minio-validation", "key": "secretKey"}
     assert env["VECTRA_S3_ACCESS_KEY"]["value"] == "validation-readonly"
     assert env["VECTRA_CLIENT_KEY_PATH"]["value"] == "/var/run/vectra/client/private-key"
-    assert {"name": "client-key", "secret": {"secretName": CLIENT_SECRET, "defaultMode": 0o400}} in pod_spec["volumes"]
+    assert {"name": "client-key", "secret": {"secretName": CLIENT_SECRET, "defaultMode": 0o440}} in pod_spec["volumes"]
     assert "value" not in env["VECTRA_S3_SECRET_KEY"]
+
+
+# --- U04-T12: el usuario del contenedor PUEDE LEER lo que el pod monta --------------------------------------------------------------
+# Por que no lo vio nadie antes: `test_the_job_mounts_...` comprobaba que el volumen tuviera `defaultMode: 0o400`, es decir, el campo, no
+# que el usuario del contenedor (65532, el `USER` de la imagen) pudiera leer un archivo que Kubernetes crea de root con ese modo.
+# Medido en kind el 2026-11-17: `PermissionError: [Errno 13] ... '/var/run/vectra/client/private-key'`.
+
+DOCKERFILE = ROOT / "governance/validation_job/Dockerfile"
+R, W = 0o4, 0o2
+
+
+def image_user() -> tuple[int, int]:
+    """El `USER uid:gid` de la imagen del Job (la ultima instruccion `USER` del Dockerfile)."""
+    users = re.findall(r"^USER\s+(\d+):(\d+)\s*$", DOCKERFILE.read_text(encoding="utf-8"), flags=re.MULTILINE)
+    assert users, "el Dockerfile no fija `USER uid:gid` numerico"
+    return int(users[-1][0]), int(users[-1][1])
+
+
+def effective_identity(pod_spec: dict[str, Any], container: dict[str, Any]) -> tuple[int, set[int]]:
+    """uid y grupos del proceso: `runAsUser`/`runAsGroup` del contenedor, si no los del pod, si no los de la imagen; mas `fsGroup` y
+    `supplementalGroups` del pod (Kubernetes los agrega a los grupos del proceso)."""
+    pod_sc, sc = pod_spec.get("securityContext") or {}, container.get("securityContext") or {}
+    image_uid, image_gid = image_user()
+    uid = sc.get("runAsUser", pod_sc.get("runAsUser", image_uid))
+    gid = sc.get("runAsGroup", pod_sc.get("runAsGroup", image_gid))
+    groups = {gid, *(pod_sc.get("supplementalGroups") or [])}
+    if "fsGroup" in pod_sc:
+        groups.add(pod_sc["fsGroup"])
+    return uid, groups
+
+
+def permission_bits(mode: int, owner: int, group: int, uid: int, groups: set[int]) -> int:
+    """Los tres bits (rwx) que aplica el nucleo a `uid`/`groups` sobre un archivo de `owner`:`group` con `mode`."""
+    if uid == 0:
+        return 0o7
+    if uid == owner:
+        return (mode >> 6) & 0o7
+    if group in groups:
+        return (mode >> 3) & 0o7
+    return mode & 0o7
+
+
+def secret_file_owner(pod_spec: dict[str, Any]) -> tuple[int, int]:
+    """Dueno de los archivos de un Secret: root; el grupo es `fsGroup` si el pod lo fija (reglas de Kubernetes), si no root."""
+    return 0, (pod_spec.get("securityContext") or {}).get("fsGroup", 0)
+
+
+def unreadable_secret_files(pod_spec: dict[str, Any]) -> list[str]:
+    """Para cada volumen `secret` montado, los montajes cuyo archivo el usuario efectivo del contenedor no puede leer. No se acredita el
+    `|0440` que el kubelet agrega con `fsGroup`: el modo declarado debe bastar por si solo."""
+    problems = []
+    for container in pod_spec["containers"]:
+        uid, groups = effective_identity(pod_spec, container)
+        owner, group = secret_file_owner(pod_spec)
+        for mount in container["volumeMounts"]:
+            volume = next(v for v in pod_spec["volumes"] if v["name"] == mount["name"])
+            if "secret" in volume:
+                mode = volume["secret"].get("defaultMode", 0o644)
+                if not permission_bits(mode, owner, group, uid, groups) & R:
+                    problems.append(f"{mount['mountPath']} (modo {mode:#o}, dueno {owner}:{group}, proceso {uid} grupos {sorted(groups)})")
+    return problems
+
+
+def test_every_secret_the_container_mounts_is_readable_by_its_user() -> None:
+    assert unreadable_secret_files(pod()["spec"]["template"]["spec"]) == []
+
+
+def test_the_client_key_is_not_readable_by_others() -> None:
+    """El modo no se abre mas de lo necesario: la llave privada del cliente queda legible para dueno y grupo, no para `otros`."""
+    pod_spec = pod()["spec"]["template"]["spec"]
+    volume = next(v for v in pod_spec["volumes"] if v["name"] == "client-key")
+    assert volume["secret"]["defaultMode"] & 0o007 == 0
+
+
+def test_the_manifest_uid_is_the_one_of_the_dockerfile() -> None:
+    """El uid no se escribe en dos sitios sin una prueba que los ate: el manifiesto fija el `USER` del Dockerfile."""
+    uid, gid = image_user()
+    pod_sc = pod()["spec"]["template"]["spec"]["securityContext"]
+    assert (pod_sc["runAsUser"], pod_sc["runAsGroup"], pod_sc["fsGroup"]) == (uid, gid, gid)
+
+
+def test_tmp_is_writable_and_the_ca_configmap_is_readable_by_the_container_user() -> None:
+    """`emptyDir` lo crea el kubelet con 0777; `configMap` con 0644: el usuario del contenedor escribe `/tmp` y lee la CA."""
+    pod_spec = pod()["spec"]["template"]["spec"]
+    container = pod_spec["containers"][0]
+    uid, groups = effective_identity(pod_spec, container)
+    owner, group = secret_file_owner(pod_spec)
+    mounts = {m["name"]: m for m in container["volumeMounts"]}
+    assert "emptyDir" in next(v for v in pod_spec["volumes"] if v["name"] == "tmp")
+    assert permission_bits(0o777, 0, group, uid, groups) & W
+    assert not mounts["tmp"].get("readOnly")  # y no esta montado de solo lectura
+    assert permission_bits(0o644, owner, group, uid, groups) & R
+
+
+@pytest.mark.parametrize(
+    ("mutate", "expected"),
+    [
+        (lambda p: p["securityContext"].pop("fsGroup"), "/var/run/vectra/client"),  # sin grupo, 0440 es de root:root
+        (lambda p: p["volumes"][0]["secret"].update(defaultMode=0o400), "/var/run/vectra/client"),  # 0400: solo root
+        (lambda p: p["volumes"][0]["secret"].update(defaultMode=0o200), "/var/run/vectra/client"),  # sin bit de lectura
+    ],
+)
+def test_the_readability_check_rejects_each_change_that_locks_the_user_out(mutate: Callable[[dict[str, Any]], object], expected: str) -> None:
+    pod_spec = copy.deepcopy(pod()["spec"]["template"]["spec"])
+    assert pod_spec["volumes"][0]["name"] == "client-key"
+    mutate(pod_spec)
+    assert any(expected in problem for problem in unreadable_secret_files(pod_spec))
+
+
+def test_the_readability_check_follows_the_dockerfile_user(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Cambiar el `USER` del Dockerfile (sin tocar el manifiesto) rompe el vinculo uid-manifiesto."""
+    changed = tmp_path / "Dockerfile"
+    changed.write_text(DOCKERFILE.read_text(encoding="utf-8").replace("USER 65532:65532", "USER 1000:1000"), encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "DOCKERFILE", changed)
+    assert image_user() == (1000, 1000)
+    pod_sc = pod()["spec"]["template"]["spec"]["securityContext"]
+    assert (pod_sc["runAsUser"], pod_sc["runAsGroup"], pod_sc["fsGroup"]) != image_user()
 
 
 @pytest.mark.skipif(shutil.which("helm") is None, reason="helm no disponible")

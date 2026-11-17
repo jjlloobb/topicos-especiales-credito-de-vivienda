@@ -677,19 +677,8 @@ class Evidence:
 
     # --- fase 1 y 2 -------------------------------------------------------------------------------------------------------
 
-    def _begin(
-        self,
-        build: Callable[[Connection, datetime], list[NewTransition]],
-        *,
-        conn: Connection | None = None,
-    ) -> list[Row]:
-        """TX1: arma las transiciones (con las verificaciones de `model_fsm`), exige una sola pendiente por entidad e inserta.
-
-        Con `conn`, corre dentro de la transaccion de quien llama (el barrido, que reclama la corrida con `SKIP LOCKED`).
-        """
-        if conn is not None:
-            with conn.transaction():
-                return self._begin_in(conn, build)
+    def _begin(self, build: Callable[[Connection, datetime], list[NewTransition]]) -> list[Row]:
+        """TX1: arma las transiciones (con las verificaciones de `model_fsm`), exige una sola pendiente por entidad e inserta."""
         with self.pools.tx() as own, own.transaction():
             return self._begin_in(own, build)
 
@@ -1187,6 +1176,8 @@ class Evidence:
             "validacion_fallida",
             effect={"op": "run_result", "run_id": run_id, "run_state": run_state},
             details={"run_id": run_id, "reason": reason},
+            # U04-T12: la corrida debe seguir `lanzado` cuando se toma el candado global; si el informe llego primero, `ConflictState`.
+            after_check=lambda conn: self._require_run(conn, model_id, run_id),
         )
 
     def fail_validation(self, model_id: str, run_id: str, reason: str, *, run_state: str = "timeout") -> Result:
@@ -1194,10 +1185,14 @@ class Evidence:
         return self._complete(self._begin(self._fail_validation_build(model_id, run_id, reason, run_state)))
 
     def begin_fail_validation(
-        self, conn: Connection, model_id: str, run_id: str, reason: str, *, run_state: str = "timeout"
+        self, model_id: str, run_id: str, reason: str, *, run_state: str = "timeout"
     ) -> list[Row]:
-        """TX1 de `fail_validation` dentro de la transaccion `conn` del barrido; la fase 2 es `publish`."""
-        return self._begin(self._fail_validation_build(model_id, run_id, reason, run_state), conn=conn)
+        """TX1 de `fail_validation` en su propia transaccion; la fase 2 es `publish`.
+
+        El barrido (U04-T12) la llama sin `conn`: no retiene filas mientras lee el Job. El orden de candados es el de todo escritor (el
+        candado global y despues las filas); un `FOR UPDATE` sobre `validation_runs` antes del candado global se cruzaba con el `PUT` del
+        informe (`DeadlockDetected`, medido con una prueba de carrera)."""
+        return self._begin(self._fail_validation_build(model_id, run_id, reason, run_state))
 
     @staticmethod
     def _require_run(conn: Connection, model_id: str, run_id: str) -> None:
