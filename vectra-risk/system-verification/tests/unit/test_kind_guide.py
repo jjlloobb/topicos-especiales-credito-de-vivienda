@@ -44,7 +44,13 @@ GENERATED = (
     "platform/.charts",
 )
 KUBE_PREFIXES = ("deploy/", "job/", "pod/", "svc/", "sa/", "statefulset/")
-NOT_REPO_PATHS = {"identity/synthetic-users", "grafana/admin", "secret/data", "edge/valkey", "identity/break-glass"}  # rutas de la bóveda
+NOT_REPO_PATHS = {
+    "identity/synthetic-users",
+    "grafana/admin",
+    "secret/data",
+    "edge/valkey",
+    "identity/break-glass",
+}  # rutas de la bóveda
 # Series que no emite este repositorio: las del propio Prometheus y las de cAdvisor (las nombra la guia para medir la retencion y la memoria).
 EXTERNAL_SERIES = {"prometheus_tsdb_lowest_timestamp_seconds", "container_memory_working_set_bytes"}
 TIMES = {
