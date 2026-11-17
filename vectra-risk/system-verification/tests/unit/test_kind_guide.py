@@ -8,7 +8,6 @@ La prueba de mundo cerrado **no** demuestra que la guia funcione en kind: demues
 
 from __future__ import annotations
 
-import os
 import re
 import subprocess
 from datetime import UTC, datetime
