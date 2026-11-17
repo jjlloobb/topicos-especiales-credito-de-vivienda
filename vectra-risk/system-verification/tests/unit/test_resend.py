@@ -85,3 +85,23 @@ def test_resend_does_not_cover_a_definitive_rejection(
 
 def test_resend_statuses_are_the_ones_that_are_safe_with_the_idempotency_key() -> None:
     assert set(RESEND_STATUSES) == {0, 429, 502, 503, 504}
+
+
+def test_resend_an_invalid_idempotency_key_is_local_and_is_not_resent(
+    u5_delivery: Path, dynamic_environment: guard.Environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F-02 (c): `idempotency_key_invalid` es estado 0 pero es un error local; reenviar no lo arregla."""
+    from vectra_verification.clients._api import ApiError
+
+    simulator, _, _, _ = _world(dynamic_environment, u5_delivery, {})
+    calls: list[str] = []
+
+    def refuse(self: GatewayClient, application: object, key: str) -> None:
+        calls.append(key)
+        raise ApiError(0, "idempotency_key_invalid")
+
+    monkeypatch.setattr(GatewayClient, "submit_application", refuse)
+    report = simulator.run("normal", 2, 11).report
+    assert (
+        len(calls) == 2 and report.resends == 0 and report.rejected_by_code == {"idempotency_key_invalid": 2}
+    )

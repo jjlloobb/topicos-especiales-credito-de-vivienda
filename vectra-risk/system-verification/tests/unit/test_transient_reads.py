@@ -126,3 +126,18 @@ def test_transient_error_in_the_listing_of_the_driver_that_never_recovers_ends_w
     with pytest.raises(ReadUnavailable) as stop:
         driver.run(IDS)
     assert stop.value.code == "lectura_agotada"
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 409, 422])
+def test_transient_a_definitive_4xx_in_the_wait_is_not_retried(
+    dynamic_environment: guard.Environment, status: int
+) -> None:
+    """F-02 (a): solo 0, 429, 502, 503 y 504 se reintentan; un 4xx distinto de 429 llega a quien llama a la primera."""
+    from vectra_verification import retry
+
+    assert set(retry.READ_RETRY_STATUSES) == {0, 429, 502, 503, 504}
+    clock = FakeClock()
+    flaky = FlakyTransport(_light(clock), [status], match=reads_of_cases)
+    with pytest.raises(ApiError) as stop:
+        sim_normal.read_cases(_bff(dynamic_environment, flaky), clock, IDS)
+    assert stop.value.status == status and flaky.injected == 1 and not any(s >= 1.0 for s in clock.sleeps)

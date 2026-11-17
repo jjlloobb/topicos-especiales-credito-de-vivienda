@@ -1531,6 +1531,8 @@ def test_decisions_transient_errors_that_never_stop_end_not_run_with_their_own_c
     assert "decisions_lectura_agotada" in text and "Traceback" not in text
     record = h.manifest()["sections"]["decisions"]
     assert record["state"] == "interrumpida" and "decisions_lectura_agotada" in record["note"]
+    # F-02 (b): la espera interrumpida ya dejo en el manifiesto cuantas solicitudes se enviaron y se aceptaron
+    assert h.manifest()["decisions"] == {"sent": 20, "accepted": 20}
 
 
 def test_decisions_sincronizacion_cases_are_waited_for_and_decided(

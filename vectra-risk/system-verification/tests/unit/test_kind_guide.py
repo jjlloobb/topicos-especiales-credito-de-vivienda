@@ -44,7 +44,7 @@ GENERATED = (
     "platform/.charts",
 )
 KUBE_PREFIXES = ("deploy/", "job/", "pod/", "svc/", "sa/", "statefulset/")
-NOT_REPO_PATHS = {"identity/synthetic-users", "grafana/admin", "secret/data"}
+NOT_REPO_PATHS = {"identity/synthetic-users", "grafana/admin", "secret/data", "edge/valkey", "identity/break-glass"}  # rutas de la bóveda
 # Series que no emite este repositorio: las del propio Prometheus y las de cAdvisor (las nombra la guia para medir la retencion y la memoria).
 EXTERNAL_SERIES = {"prometheus_tsdb_lowest_timestamp_seconds", "container_memory_working_set_bytes"}
 TIMES = {
@@ -117,19 +117,6 @@ def resolve(path: str) -> Path | None:
         if (base / path).exists():
             return base / path
     return None
-
-
-# Lo que otra tarea en paralelo entrega y la guia nombra desde ya (U12-T09: `platform/kind/gateway-address.sh` es de U01-T16). La excepcion solo rige **mientras el archivo no exista**: en cuanto
-# llega a `main`, la prueba de mundo cerrado lo exige como a cualquier otro y esta entrada ya no hace nada.
-PENDING = {"platform/kind/gateway-address.sh": "U01-T16"}
-
-
-def pending(path: str) -> bool:
-    return path in PENDING and not (kd.VECTRA / path).exists()
-
-
-def pending_script(name: str) -> bool:
-    return any(pending(path) and path.rsplit("/", 1)[-1] == name for path in PENDING)
 
 
 def lines_of(path: Path) -> int:
@@ -256,7 +243,7 @@ def closed_world_findings(text: str) -> list[str]:
                 if o not in humo[match.group(1)]
             ]
         for script in re.findall(r"\b([\w-]+\.(?:sh|py))\b", line):
-            if script not in names and not pending_script(script):
+            if script not in names:
                 found.append(f"{where}: el guion {script} no existe")
         for script, step in re.findall(r"\b((?:journey-7-3|journey-7-4|rt-5|dashboard)\.sh) (\d+)", line):
             steps = set(
@@ -274,7 +261,6 @@ def closed_world_findings(text: str) -> list[str]:
                 re.fullmatch(r"[\w.@-][\w./@-]*/[\w./@-]*", span)
                 and not span.startswith(KUBE_PREFIXES)
                 and span not in NOT_REPO_PATHS
-                and not pending(span)
             ):
                 if (
                     span.startswith(GENERATED)
@@ -1638,8 +1624,20 @@ def test_t09_the_machine_reaches_the_gateway_vv_carries_add_host_and_f0_and_f5_r
         GUIDE_TEXT, "F5"
     )
     assert "/etc/hosts" in section(GUIDE_TEXT, "F0") and "/etc/hosts" in readme
-    assert "Etiqueta" not in GUIDE_TEXT and kd.label_exists("app.kubernetes.io/name", "api-gateway"), (
-        "la dirección se lee por la etiqueta que el repositorio fija en el Service del gateway, no por un nombre de Service que no fija"
+    operators = (kd.VECTRA / "platform/operators/envoy-gateway.yaml").read_text(encoding="utf-8")
+    assert "type: GatewayNamespace" in operators, "el Service ya no se nombra como el Gateway: `api-gateway`"
+    for where, text in (("guía", GUIDE_TEXT), ("README", readme)):
+        assert "get svc api-gateway -n vectra-edge" in text, (
+            f"{where}: la dirección se lee del Service `api-gateway`"
+        )
+        assert "-l app.kubernetes.io/name=api-gateway" not in text, (
+            f"{where}: lee el Service por etiqueta (F-04)"
+        )
+    assert (kd.VECTRA / "platform/kind/gateway-address.sh").is_file(), (
+        "U01-T16 está en `main`: sin excepción PENDING"
+    )
+    assert "pending_script" not in globals() and "PENDING" not in globals(), (
+        "la excepción de U01-T16 ya no existe"
     )
 
 
@@ -1885,3 +1883,102 @@ def test_t09_the_users_are_split_between_the_tool_the_promotion_tool_and_the_pre
     assert "ANALYSTS" in f3 and 'ANALYSTS: Final = ("analista-1", "analista-2")' in (
         kd.SYSTEM / "src/vectra_verification/driver.py"
     ).read_text(encoding="utf-8")
+
+
+# --- U12-T09, ronda 2 (F-01, F-03, F-05, F-06, M-01) -------------------------------------------------------------------------------------------------------
+
+
+def verification_pr_findings(text: str) -> list[str]:
+    """F-01: las plantillas se llenan fuera de los dos árboles y F10 las lleva al PR de verificación, con la evidencia, sin ensuciar el clon de `promotion-tool`."""
+    found = []
+    f0, f10 = section(text, "F0"), section(text, "F10")
+    for needle in ('"$VERIF_HOME/plantillas"', "se llenan en esa copia", "evidence/kind", "cierre-demo.md"):
+        if needle not in f0:
+            found.append(f"F0 paso 11 no dice «{needle}»")
+    step4 = f10[f10.index("4. **El PR de verificación**") :]
+    for needle in (
+        'cp -r "$EVID"', 'cp -r "$VERIF_HOME/plantillas/kind/."', 'cp "$VERIF_HOME/plantillas/cierre-demo.md"',
+        "system-verification-code-generation-plan.md", "`[x]`",
+    ):  # fmt: skip
+        if needle not in step4:
+            found.append(f"F10 paso 4 no dice «{needle}»")
+    if "evidence/<fecha>-<commit>/verification-report.md" in text:
+        found.append(
+            "F10 apunta al informe por una ruta del repositorio, y la evidencia está en `$EVID` hasta el paso 4"
+        )
+    if "`$EVID/verification-report.md`" not in f10:
+        found.append("F10 no lee el informe de `$EVID`")
+    return found
+
+
+def test_r2_the_verification_pr_carries_the_templates_and_the_evidence_without_dirtying_the_clone() -> None:
+    assert verification_pr_findings(GUIDE_TEXT) == []
+
+
+R2_MUTATIONS = {
+    "sin copiar las plantillas": lambda t: t.replace('   cp -r "$VERIF_HOME/plantillas/kind/." ', "   # ", 1),
+    "la ruta vieja del informe": lambda t: t.replace("`$EVID/verification-report.md`", "`system-verification/evidence/<fecha>-<commit>/verification-report.md`"),
+    "plantillas llenas en el clon": lambda t: t.replace("se llenan en esa copia", "se llenan en el clon"),
+}  # fmt: skip
+
+
+@pytest.mark.parametrize("name", sorted(R2_MUTATIONS))
+def test_r2_red_the_verification_pr_without_the_templates_is_found(name: str) -> None:
+    mutated = R2_MUTATIONS[name](GUIDE_TEXT)
+    assert mutated != GUIDE_TEXT, name
+    assert verification_pr_findings(mutated), name
+
+
+def test_r2_a_second_verification_has_written_commands_and_says_which_commit_names_the_directory() -> None:
+    f0 = section(GUIDE_TEXT, "F0")
+    for needle in (
+        'mv "$VERIF_HOME/evid" "$VERIF_HOME/evid.<fecha>"',
+        "git pull --ff-only",
+        "es solo una etiqueta",
+        "`prepare --commit`",
+    ):
+        assert needle in f0, needle
+    assert "guarda el `evid` anterior" in section(GUIDE_TEXT, "F5")
+
+
+def test_r2_deleting_a_remote_branch_is_a_named_operator_order_not_a_silent_step() -> None:
+    for where, text in (
+        ("F8", section(GUIDE_TEXT, "F8")),
+        ("journey-7-4.md", (kd.SYSTEM / "demos/journey-7-4.md").read_text(encoding="utf-8")),
+    ):
+        assert "local, y remota" not in text and "local y remota" not in text, where
+        assert (
+            "escritura en GitHub" in text
+            and "orden del operador" in text
+            and "git push origin --delete <rama>" in text
+        ), where
+
+
+def test_r2_scenarios_md_lists_every_sim_normal_code() -> None:
+    doc = (kd.VECTRA / "aidlc-docs/construction/system-verification/code/scenarios.md").read_text(
+        encoding="utf-8"
+    )
+    common = (kd.SYSTEM / "src/vectra_verification/scenarios/common.py").read_text(encoding="utf-8")
+    assert 'f"{prefix}_{error.code}"' in common and "sim_normal_lectura_agotada" in doc
+
+
+def test_r2_the_restart_section_and_r7_say_what_seed_vault_and_the_runbook_say_today() -> None:
+    runbook = INSTALL_MD.read_text(encoding="utf-8")
+    seed = (kd.VECTRA / "platform/kind/seed-vault.sh").read_text(encoding="utf-8")
+    assert (
+        "recupera antes de generar" in runbook
+        and "--restart=always" in runbook
+        and "nada que realinear" in runbook.lower()
+    )
+    assert "recover" in seed.lower() or "recuper" in seed.lower()
+    body = restart_section(GUIDE_TEXT)
+    flat = " ".join(body.split())
+    for needle in (
+        "`--restart=always`", "recupera antes de generar", "seis rutas", "nada que realinear", "ejecutores falsos",
+        "no se ha corrido aún en el clúster", "gateway-address.sh", "`envoy-ratelimit`", "juntos y enseguida",
+    ):  # fmt: skip
+        assert needle in flat, needle
+    assert "se lanza con `--rm` y no sobrevive al reinicio: sin él" not in flat
+    r7 = next(line for line in GUIDE_TEXT.split("\n") if line.startswith("| **R-7**"))
+    assert "recuperan de los `Secret` antes de generar" in r7 and "solo lo que el informe diga generado" in r7
+    assert "pon al día lo que guardaba las claves viejas" not in r7

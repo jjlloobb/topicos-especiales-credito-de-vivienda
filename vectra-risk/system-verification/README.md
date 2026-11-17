@@ -125,7 +125,7 @@ Una sola orden, con una función de shell para no repetirla. Se corre desde un d
 mkdir -p evidence && chmod 755 evidence
 export VAULT_ADDR=http://127.0.0.1:18200   # la bóveda, reenviada por el operador
 export VAULT_TOKEN=...                      # la sesión del operador: solo como variable
-export GATEWAY_ADDRESS="$(kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get svc -n vectra-edge -l app.kubernetes.io/name=api-gateway -o 'jsonpath={.items[0].status.loadBalancer.ingress[0].ip}')"   # el gateway de kind (ver «Red»)
+export GATEWAY_ADDRESS="$(kubectl --context "${KUBE_CONTEXT:-kind-vectra}" get svc api-gateway -n vectra-edge -o 'jsonpath={.status.loadBalancer.ingress[0].ip}')"   # el gateway de kind (ver «Red»)
 vv() {
   docker run --rm --read-only --tmpfs /tmp --network host \
     --user "$(id -u):$(id -g)" --memory 1g \
@@ -160,7 +160,7 @@ El emisor del login es solo el público: `https://vectra.localtest.me/auth/realm
 
 ### Red: Linux, macOS y Windows
 
-- **Linux:** `--network host` comparte la red del host: el contenedor ve `127.0.0.1:<puerto>` de cada `port-forward` y de la API del kubeconfig. **El gateway de kind no está en `127.0.0.1`:** `vectra.localtest.me` resuelve a `127.0.0.1` y ahí no escucha nada en el 443 (`platform/kind/cluster.yaml` mapea ese puerto al nodo de control; medido el 2026-11-15, `platform/runbooks/install.md`, «Lo medido el 2026-11-15 al desplegar U2 en kind»). El gateway responde en la dirección del `LoadBalancer` que le asigna `cloud-provider-kind` (y que Docker puede reasignar al reiniciar): `vv` la recibe con `--add-host vectra.localtest.me:<dirección>` (la lee del Service con la etiqueta `app.kubernetes.io/name=api-gateway` en `vectra-edge`; `platform/kind/gateway-address.sh`, de U01-T16, comprueba que responde) y el navegador y `promotion-tool` la reciben por una línea de `/etc/hosts` del operador. **No está medido** que Docker aplique `--add-host` junto con `--network host`; si no lo hace, esa línea de `/etc/hosts` cumple el mismo papel.
+- **Linux:** `--network host` comparte la red del host: el contenedor ve `127.0.0.1:<puerto>` de cada `port-forward` y de la API del kubeconfig. **El gateway de kind no está en `127.0.0.1`:** `vectra.localtest.me` resuelve a `127.0.0.1` y ahí no escucha nada en el 443 (`platform/kind/cluster.yaml` mapea ese puerto al nodo de control; medido el 2026-11-15, `platform/runbooks/install.md`, «Lo medido el 2026-11-15 al desplegar U2 en kind»). El gateway responde en la dirección del `LoadBalancer` que le asigna `cloud-provider-kind` (y que Docker puede reasignar al reiniciar): `vv` la recibe con `--add-host vectra.localtest.me:<dirección>` (la lee del Service `api-gateway` de `vectra-edge`; `platform/kind/gateway-address.sh`, de U01-T16, comprueba que responde) y el navegador y `promotion-tool` la reciben por una línea de `/etc/hosts` del operador. **No está medido** que Docker aplique `--add-host` junto con `--network host`; si no lo hace, esa línea de `/etc/hosts` cumple el mismo papel.
 - **macOS y Windows con Docker Desktop (no probado):** `--network host` comparte la red de la **máquina virtual** de Docker, no la del Mac o del Windows; `127.0.0.1` dentro del contenedor no es el `127.0.0.1` del equipo y ni el gateway de kind ni los `port-forward` llegan. Con esta orden no hay camino comprobado; el operador debe correr la demo en una máquina Linux (o en una VM Linux con Docker y kind). Comprobar una alternativa queda **pendiente en U12-T06**.
 
 ### Los guiones, los `verify` y los PR
