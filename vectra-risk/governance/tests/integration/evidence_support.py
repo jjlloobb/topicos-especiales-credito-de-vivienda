@@ -177,8 +177,13 @@ class FakeJobs:
 
     def __init__(self) -> None:
         self.infos: dict[str, JobInfo | None] = {}
+        self.calls: list[str] = []  # U04-T12: las lecturas del API de Kubernetes que hizo el barrido
+        self.on_get: Callable[[str], object] | None = None  # U04-T12: un gancho que corre mientras el barrido tiene la corrida reclamada
 
     def get(self, job_name: str) -> JobInfo | None:
+        self.calls.append(job_name)
+        if self.on_get is not None:
+            self.on_get(job_name)
         return self.infos.get(job_name)
 
 

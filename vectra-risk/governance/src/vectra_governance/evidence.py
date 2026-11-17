@@ -1187,6 +1187,8 @@ class Evidence:
             "validacion_fallida",
             effect={"op": "run_result", "run_id": run_id, "run_state": run_state},
             details={"run_id": run_id, "reason": reason},
+            # U04-T12: la corrida debe seguir `lanzado` cuando se toma el candado global; si el informe llego primero, `ConflictState`.
+            after_check=lambda conn: self._require_run(conn, model_id, run_id),
         )
 
     def fail_validation(self, model_id: str, run_id: str, reason: str, *, run_state: str = "timeout") -> Result:
@@ -1194,9 +1196,13 @@ class Evidence:
         return self._complete(self._begin(self._fail_validation_build(model_id, run_id, reason, run_state)))
 
     def begin_fail_validation(
-        self, conn: Connection, model_id: str, run_id: str, reason: str, *, run_state: str = "timeout"
+        self, model_id: str, run_id: str, reason: str, *, run_state: str = "timeout", conn: Connection | None = None
     ) -> list[Row]:
-        """TX1 de `fail_validation` dentro de la transaccion `conn` del barrido; la fase 2 es `publish`."""
+        """TX1 de `fail_validation` (en su propia transaccion, o en `conn`); la fase 2 es `publish`.
+
+        El barrido (U04-T12) la llama sin `conn`: no retiene filas mientras lee el Job. El orden de candados es el de todo escritor (el
+        candado global y despues las filas); un `FOR UPDATE` sobre `validation_runs` antes del candado global se cruzaba con el `PUT` del
+        informe (`DeadlockDetected`, medido con una prueba de carrera)."""
         return self._begin(self._fail_validation_build(model_id, run_id, reason, run_state), conn=conn)
 
     @staticmethod
