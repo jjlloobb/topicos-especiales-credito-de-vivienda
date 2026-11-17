@@ -1,6 +1,7 @@
 """U01-T17: la identidad de solo lectura de los agentes del loop. Se prueba el manifiesto real; las mutaciones se aplican a una copia en memoria de el."""
 
 import copy
+import re
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,37 @@ MANIFEST = PLATFORM / "rbac/readonly-agent/readonly-agent-kind.yaml"
 READ_ONLY = ["get", "list", "watch"]
 FORBIDDEN_RESOURCES = {"secrets", "pods/exec", "pods/portforward", "pods/attach", "pods/ephemeralcontainers", "serviceaccounts/token", "tokenreviews", "subjectaccessreviews"}
 FORBIDDEN_VERBS = {"create", "update", "patch", "delete", "deletecollection", "impersonate", "escalate", "bind", "*"}
+CHARTS = PLATFORM / ".charts"
+#: Lo que no es CRD: grupo -> recursos que existen en Kubernetes. Un nombre que no este aqui ni en un CRD de `platform/.charts` es un error de escritura.
+BUILTIN = {
+    "": {"pods", "pods/log", "services", "endpoints", "configmaps", "events", "namespaces", "nodes", "persistentvolumeclaims", "persistentvolumes", "resourcequotas", "limitranges", "serviceaccounts", "replicationcontrollers"},
+    "apps": {"deployments", "replicasets", "statefulsets", "daemonsets"},
+    "batch": {"jobs", "cronjobs"},
+    "autoscaling": {"horizontalpodautoscalers"},
+    "policy": {"poddisruptionbudgets"},
+    "networking.k8s.io": {"networkpolicies", "ingresses", "ingressclasses"},
+    "discovery.k8s.io": {"endpointslices"},
+    "events.k8s.io": {"events"},
+    "storage.k8s.io": {"storageclasses"},
+    "scheduling.k8s.io": {"priorityclasses"},
+    "rbac.authorization.k8s.io": {"roles", "rolebindings", "clusterroles", "clusterrolebindings"},
+    "apiextensions.k8s.io": {"customresourcedefinitions"},
+    "admissionregistration.k8s.io": {"validatingwebhookconfigurations", "mutatingwebhookconfigurations", "validatingadmissionpolicies", "validatingadmissionpolicybindings"},
+    "metrics.k8s.io": {"pods", "nodes"},
+}  # fmt: skip
 Doc = dict[str, Any]
+
+
+def crd_names() -> set[str]:
+    """`<plural>.<grupo>` de cada CRD que traen los charts de `platform/.charts` (CI y operador los tienen)."""
+    pattern = re.compile(r'^\s*name:\s*"?([a-z0-9-]+\.[a-z0-9.-]+)"?\s*$', re.MULTILINE)
+    found: set[str] = set()
+    for path in CHARTS.rglob("*"):
+        if path.is_file() and path.suffix in {".yaml", ".yml", ".tpl"}:
+            found |= set(pattern.findall(path.read_text(encoding="utf-8", errors="ignore")))
+    return found
+
+KNOWN_CRDS = crd_names()
 
 
 def load() -> list[Doc]:
@@ -38,6 +69,11 @@ def problems_in(role: Doc) -> list[str]:
         for resource in rule["resources"]:
             if resource.split("/")[0] == "secrets" or resource in FORBIDDEN_RESOURCES:
                 found.append(f"{where}: recurso prohibido {resource}")
+            if "/" in resource and resource != "pods/log":
+                found.append(f"{where}: subrecurso {resource} (solo se admite pods/log: proxy, exec, token y log de nodos abren caminos que `get` no cierra)")
+            for group in rule["apiGroups"]:
+                if resource not in BUILTIN.get(group, set()) and f"{resource}.{group}" not in KNOWN_CRDS:
+                    found.append(f"{where}: {resource} no existe en el grupo {group!r} (error de escritura o CRD que ningun chart trae)")
         if "nonResourceURLs" in rule:
             found.append(f"{where}: nonResourceURLs")
     return found
@@ -85,7 +121,7 @@ def test_readonly_agent_covers_what_the_read_only_scripts_read():
     assert needed <= covered, sorted(needed - covered)
 
 
-@pytest.mark.parametrize("name", ["add-delete", "add-secrets", "wildcard-resources", "wildcard-verbs", "wildcard-groups", "add-exec", "add-impersonate", "add-secrets-subresource"])
+@pytest.mark.parametrize("name", ["add-delete", "add-secrets", "wildcard-resources", "wildcard-verbs", "wildcard-groups", "add-exec", "add-impersonate", "add-secrets-subresource", "add-nodes-proxy", "add-services-proxy", "add-pods-proxy", "add-nodes-log", "add-sa-token", "typo-resource", "typo-group"])
 def test_readonly_agent_mutations_of_the_real_role_are_rejected(name: str):
     role = copy.deepcopy(role_of(load()))
     first = role["rules"][0]
@@ -105,6 +141,13 @@ def test_readonly_agent_mutations_of_the_real_role_are_rejected(name: str):
         role["rules"].append({"apiGroups": [""], "resources": ["users"], "verbs": ["impersonate"]})
     elif name == "add-secrets-subresource":
         first["resources"] = [*first["resources"], "secrets/status"]
+    elif name in {"add-nodes-proxy", "add-services-proxy", "add-pods-proxy", "add-nodes-log", "add-sa-token"}:
+        extra = {"add-nodes-proxy": "nodes/proxy", "add-services-proxy": "services/proxy", "add-pods-proxy": "pods/proxy", "add-nodes-log": "nodes/log", "add-sa-token": "serviceaccounts/token"}[name]
+        role["rules"].append({"apiGroups": [""], "resources": [extra], "verbs": READ_ONLY})
+    elif name == "typo-resource":
+        role["rules"].append({"apiGroups": [""], "resources": ["podz"], "verbs": READ_ONLY})
+    elif name == "typo-group":
+        role["rules"].append({"apiGroups": ["argoproj.iox"], "resources": ["applications"], "verbs": READ_ONLY})
     assert problems_in(role), name
 
 
@@ -126,3 +169,10 @@ def test_readonly_agent_kyverno_fixture_is_the_real_cluster_role():
     assert copy_in_fixture == role_of(load())
     cases = yaml.safe_load((PLATFORM / "policies/kyverno/kyverno-test.yaml").read_text(encoding="utf-8"))["results"]
     assert {"policy": "disallow-rbac-wildcards", "rule": "disallow-rbac-wildcards", "resources": ["vectra-readonly-agent"], "kind": "ClusterRole", "result": "pass"} in cases
+
+
+def test_readonly_agent_every_resource_pair_exists():
+    """F-02: el validador comprueba cada (grupo, recurso) contra el nucleo y los CRD de los charts; con `.charts` ausente no hay nada que comparar y fallaria."""
+    assert KNOWN_CRDS, "platform/.charts vacio: corre `make -C platform charts`"
+    assert "applications.argoproj.io" in KNOWN_CRDS and "certificates.cert-manager.io" in KNOWN_CRDS
+    assert problems_in(role_of(load())) == []

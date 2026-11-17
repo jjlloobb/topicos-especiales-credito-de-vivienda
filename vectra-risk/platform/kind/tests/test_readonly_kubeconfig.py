@@ -20,7 +20,7 @@ SCRIPT = HERE / "readonly-kubeconfig.sh"
 TOKEN = "fake-token-not-a-real-credential"  # noqa: S105 - valor de mentira
 TOKEN_B64 = base64.b64encode(TOKEN.encode()).decode()
 CA_B64 = base64.b64encode(b"fake-ca-not-a-real-certificate").decode()
-HARMLESS = ["bash", "base64", "mktemp", "mv", "chmod", "stat", "dirname", "mkdir", "realpath", "tr", "head"]
+HARMLESS = ["bash", "base64", "mktemp", "mv", "chmod", "stat", "dirname", "mkdir", "realpath", "tr", "head", "rm"]
 
 KUBECTL = r"""#!/usr/bin/env bash
 echo "kubectl $*" >> "$FAKE_DIR/calls.log"
@@ -42,11 +42,11 @@ case "${args[0]:-} ${args[1]:-}" in
     verb="${args[2]}"; resource="${args[3]}"
     answer=no
     case "$verb" in get|list|watch) answer=yes ;; esac
-    case "$resource" in secrets|pods/exec|pods/portforward|pods/attach|'*') answer=no ;; esac
+    case "$resource" in secrets|pods/exec|pods/portforward|pods/attach|nodes/proxy|pods/proxy|services/proxy|nodes/log|'*') answer=no ;; esac
     for override in $FAKE_OVERRIDES; do
       [ "${override%%=*}" = "$verb:$resource" ] && answer="${override##*=}"
     done
-    echo "$answer"
+    if [ "$answer" = no ] && [ "$FAKE_REASON" = si ]; then echo "no - RBAC: denied"; else echo "$answer"; fi
     [ "$answer" = yes ] ;;
   *) echo "$*" >> "$FAKE_DIR/unexpected"; echo "kubectl falso: orden inesperada: $*" >&2; exit 9 ;;
 esac
@@ -65,7 +65,7 @@ def environment(tmp_path: Path, **extra: str) -> dict[str, str]:
     (tmp_path / "home").mkdir(exist_ok=True)
     env = {
         "PATH": str(fake), "HOME": str(tmp_path / "home"), "FAKE_DIR": str(tmp_path), "FAKE_SERVER": "https://127.0.0.1:6443", "FAKE_CONTEXTS": "kind-vectra",
-        "FAKE_TOKEN_B64": TOKEN_B64, "FAKE_CA_B64": CA_B64, "FAKE_KUBECTL_FAILS": "no", "FAKE_OVERRIDES": "",
+        "FAKE_TOKEN_B64": TOKEN_B64, "FAKE_CA_B64": CA_B64, "FAKE_KUBECTL_FAILS": "no", "FAKE_OVERRIDES": "", "FAKE_REASON": "no",
     }  # fmt: skip
     return {**env, **extra}
 
@@ -174,7 +174,7 @@ def test_readonly_kubeconfig_check_table_has_the_minimum_rows(tmp_path: Path, go
     """Quitar una fila de la tabla del guion hace fallar esta prueba."""
     run(tmp_path, "check", str(good_file))
     asked = {line.split(" auth can-i ")[1] for line in calls(tmp_path) if " auth can-i " in line}
-    must_say_no = ["get secrets", "delete deployments", "create pods", "patch deployments", "create pods/exec", "create pods/portforward", "delete *", "impersonate users"]
+    must_say_no = ["get secrets", "delete deployments", "create pods", "patch deployments", "create pods/exec", "create pods/portforward", "delete *", "impersonate users", "get nodes/proxy", "get pods/proxy", "get services/proxy", "get nodes/log", "create serviceaccounts/token", "escalate clusterroles", "bind clusterroles"]
     must_say_yes = ["get pods", "list deployments", "get pods/log", "list applications.argoproj.io", "list externalsecrets.external-secrets.io"]
     for scope in ("-n vectra-app", "-n vectra-edge", "-n vectra-data", "-A"):
         for row in [*must_say_no, *must_say_yes]:
@@ -214,6 +214,48 @@ def test_readonly_kubeconfig_the_fake_records_any_verb_the_script_must_not_use(t
 
 def test_readonly_kubeconfig_tests_never_inherit_the_real_environment(tmp_path: Path):
     env = environment(tmp_path)
-    assert set(env) <= {"PATH", "HOME", "FAKE_DIR", "FAKE_SERVER", "FAKE_CONTEXTS", "FAKE_TOKEN_B64", "FAKE_CA_B64", "FAKE_KUBECTL_FAILS", "FAKE_OVERRIDES"}
+    assert set(env) <= {"PATH", "HOME", "FAKE_DIR", "FAKE_SERVER", "FAKE_CONTEXTS", "FAKE_TOKEN_B64", "FAKE_CA_B64", "FAKE_KUBECTL_FAILS", "FAKE_OVERRIDES", "FAKE_REASON"}
     assert "KUBECONFIG" not in env and os.pathsep not in env["PATH"]
     assert sorted(p.name for p in (tmp_path / "bin").iterdir()) == sorted(["kubectl", *HARMLESS])
+
+
+def test_readonly_kubeconfig_check_takes_the_first_word_of_a_no_with_a_reason(tmp_path: Path, good_file: Path):
+    """F-04: `kubectl auth can-i` imprime `no - <motivo>` cuando el SAR trae `reason`: sigue siendo un no."""
+    result = run(tmp_path, "check", str(good_file), FAKE_REASON="si")
+    assert result.returncode == 0, result.stdout + result.stderr
+    wrong = run(tmp_path, "check", str(good_file), FAKE_REASON="si", FAKE_OVERRIDES="get:pods=no")
+    assert wrong.returncode == 1 and "can-i get pods (" in wrong.stderr
+
+
+def test_readonly_kubeconfig_write_leaves_no_temporary_file_when_it_is_cut_short(tmp_path: Path):
+    """F-05: si `mv` falla (o el proceso muere) despues de `mktemp`, el temporal con el token no queda."""
+    env = environment(tmp_path)
+    (tmp_path / "bin/mv").unlink()
+    (tmp_path / "bin/mv").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    (tmp_path / "bin/mv").chmod(0o755)
+    result = subprocess.run([str(SCRIPT), "write", str(written(tmp_path))], env=env, capture_output=True, text=True, timeout=60, check=False)
+    assert result.returncode != 0 and list(written(tmp_path).parent.iterdir()) == []
+
+
+def test_readonly_kubeconfig_write_refuses_the_admin_kubeconfig(tmp_path: Path):
+    admin = tmp_path / "home/.kube/config"
+    admin.parent.mkdir(parents=True)
+    admin.write_text("admin\n", encoding="utf-8")
+    by_default = run(tmp_path, "write", str(admin))
+    assert by_default.returncode == 2 and admin.read_text(encoding="utf-8") == "admin\n"
+    elsewhere = tmp_path / "elsewhere/admin-kubeconfig"
+    elsewhere.parent.mkdir()
+    elsewhere.write_text("admin\n", encoding="utf-8")
+    from_env = run(tmp_path, "write", str(elsewhere), KUBECONFIG=f"{tmp_path}/otro:{elsewhere}")
+    assert from_env.returncode == 2 and elsewhere.read_text(encoding="utf-8") == "admin\n" and "administrador" in from_env.stderr
+
+
+def test_readonly_kubeconfig_write_only_overwrites_a_file_it_wrote_itself(tmp_path: Path):
+    stranger = written(tmp_path)
+    stranger.parent.mkdir()
+    stranger.write_text("apiVersion: v1\nkind: Config\nusers: [{name: otro}]\n", encoding="utf-8")
+    refused = run(tmp_path, "write", str(stranger))
+    assert refused.returncode == 2 and "otro" in stranger.read_text(encoding="utf-8")
+    stranger.unlink()
+    assert run(tmp_path, "write", str(stranger)).returncode == 0
+    assert run(tmp_path, "write", str(stranger)).returncode == 0  # el suyo, de una corrida anterior (tras recrear el cluster)
