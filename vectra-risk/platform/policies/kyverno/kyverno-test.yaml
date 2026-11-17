@@ -86,6 +86,12 @@ results:
   - vectra-verification-operator-nodes
   kind: ClusterRole
   result: pass
+- policy: disallow-rbac-wildcards
+  rule: disallow-rbac-wildcards
+  resources:
+  - vectra-readonly-agent
+  kind: ClusterRole
+  result: pass
 - policy: disallow-plain-secrets
   rule: disallow-plain-secrets
   resources:
