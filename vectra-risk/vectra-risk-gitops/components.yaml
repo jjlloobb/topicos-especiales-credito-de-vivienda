@@ -39,6 +39,8 @@ components:
   - { name: network, wave: 1, namespace: argocd, path: "platform/network/generated/{env}", exclude: connectivity-suite.yaml }
   - { name: secret-store, wave: 1, namespace: external-secrets, path: platform/secrets, include: "{cluster-secret-store-{env}.yaml,eso-rbac-k11.yaml}" }
   - { name: secret-store-env, wave: 1, namespace: external-secrets, envs: [kind, staging], path: platform/secrets, include: "eso-rbac-k11-{env}.yaml" }
+  # Solo kind (U01-T17): la identidad de solo lectura de los agentes del loop. Wave 1, la misma de `kyverno-policies`: puede sincronizar antes o despues que ellas. No importa: el ClusterRole no tiene comodines y la politica lo admite sin excepcion (caso `pass` de `kyverno-test.yaml`), y nada mas depende de esta Application. `argocd` existe y no tiene cuota ni pods que cuenten.
+  - { name: readonly-agent-rbac-kind, wave: 1, namespace: argocd, envs: [kind], path: platform/rbac/readonly-agent, include: readonly-agent-kind.yaml }
   - { name: verification-operator, wave: 1, namespace: argocd, envs: [kind, staging], path: platform/rbac/verification-operator, include: k16.yaml }
   - { name: postgres, wave: 2, namespace: vectra-data, path: platform/data/chart, env_values: true, kind_values: [platform/data/chart/values-kind.yaml] }
   - { name: valkey, wave: 2, namespace: vectra-edge, path: "identity-edge/charts/valkey/rendered/{env}" }

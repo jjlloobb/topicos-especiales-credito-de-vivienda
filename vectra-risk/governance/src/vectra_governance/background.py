@@ -8,9 +8,17 @@ Cada 10 s (`reconcile_once`):
 3. los gauges de las alertas: eventos `freeze` pendientes (`FreezeEventPending`), compensaciones pendientes
    (`CompensationEventPending`) y transiciones abandonadas (`GovernanceTransitionAbandoned`).
 
-Cada 60 s (`sweep_validations_once`): las `ValidationRun` con `deadline_at` vencido, en modo `validacion`, se reclaman con
-`SKIP LOCKED`; se consulta el Job para registrar el motivo (`failed`, `deadline`, `sin informe`) y la version pasa a
-`validacion_fallida` por una transicion del sistema (con evidencia, como cualquier otra).
+Cada 60 s (`sweep_validations_once`): las `ValidationRun` `lanzado` en modo `validacion` se leen (hasta
+`BATCH`, las de plazo vencido primero: son a lo mas `BATCH` lecturas del API de Kubernetes por barrido y replica); se consulta el Job
+(`sweep_verdict`) y la version pasa a `validacion_fallida` por una transicion del sistema (con evidencia, como cualquier otra):
+- plazo vencido: con el motivo del Job (`failed`, `deadline`, `sin informe`);
+- plazo vigente (U04-T12): solo si el Job ya termino `Failed` (no esperar dos horas a un pod que murio en un minuto) o si el Job no
+  existe pasado `MISSING_JOB_GRACE`. Un Job que corre, o `Complete` cuyo informe aun no llego, no se toca: el informe lo envia el propio
+  Job por `PUT`; si no llega, la corrida se cierra al vencer el plazo con `sin informe`.
+La carrera con el informe (y entre replicas) la resuelve el candado global de la evidencia: `receive_report` y `begin_fail_validation`
+exigen la corrida `lanzado` (`_require_run`) ya con el candado; el que llega segundo recibe `ConflictState` y el estado final es el del
+primero. El barrido ya no retiene filas con `FOR UPDATE SKIP LOCKED` mientras lee el Job (se cruzaba con el `PUT`: deadlock); a cambio dos
+replicas pueden leer el mismo Job (a lo mas `BATCH` lecturas cada una) y solo una cierra la corrida.
 
 **Diferido** (enmienda de recorte, US-306 / Q-6): la rama `source_comparison` del barrido. Esas corridas se ignoran.
 """
@@ -19,7 +27,7 @@ import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Final
 
 from prometheus_client import Gauge
@@ -27,7 +35,7 @@ from vectra_common.errors import DependencyUnavailable
 from vectra_common.metrics import REGISTRY
 
 from vectra_governance.evidence import ABANDON_AFTER, Evidence, is_freeze
-from vectra_governance.k8s_jobs import JobReader, reason_of
+from vectra_governance.k8s_jobs import JobInfo, JobReader, JobReason, reason_of
 from vectra_governance.model_fsm import ConflictState
 
 log = logging.getLogger(__name__)
@@ -35,6 +43,10 @@ log = logging.getLogger(__name__)
 RECONCILE_EVERY: Final = 10.0
 SWEEP_EVERY: Final = 60.0
 BATCH: Final = 20
+# U04-T12: `POST /validations` confirma la corrida (`started_at`) y SOLO DESPUES crea el Job (`api.py`, `begin` y luego `launch`, con un
+# timeout de 5 s por llamada a K01, NFR-U4-25): un Job ausente poco despues de `started_at` es lo normal. Cinco minutos = cinco barridos
+# de margen sobre esos 5 s; un Job ausente pasado el margen (y antes del plazo de 2 h; el TTL es de 24 h) lo borro alguien.
+MISSING_JOB_GRACE: Final = timedelta(minutes=5)
 
 FREEZE_PENDING: Final = Gauge(
     "vectra_governance_freeze_events_pending",
@@ -51,6 +63,15 @@ ABANDONED: Final = Gauge(
     "Transiciones en estado abandonada (GovernanceTransitionAbandoned)",
     registry=REGISTRY,
 )
+
+
+def sweep_verdict(info: JobInfo | None, expired: bool, age: timedelta) -> JobReason | None:
+    """El motivo con que el barrido cierra la corrida, o `None` si no se toca (U04-T12). `age` es el tiempo desde `started_at`."""
+    if expired:
+        return reason_of(info)
+    if info is None:
+        return "sin informe" if age >= MISSING_JOB_GRACE else None
+    return reason_of(info) if info.failed else None
 
 
 @dataclass
@@ -129,35 +150,39 @@ class Background:
         COMPENSATION_PENDING.set(row["compensation"])
         ABANDONED.set(row["abandoned"])
 
-    # --- barrido de validaciones vencidas ----------------------------------------------------------------------------------
+    # --- barrido de validaciones ----------------------------------------------------------------------------------
 
     def sweep_validations_once(self) -> int:
-        """Pasa a `validacion_fallida` las versiones de las `ValidationRun` `validacion` vencidas. Devuelve cuantas."""
+        """Pasa a `validacion_fallida` las versiones de las `ValidationRun` `validacion` vencidas o cuyo Job fallo. Devuelve cuantas."""
         assert self.jobs is not None, "el barrido necesita la lectura del Job"
         pool = self.evidence.pools.background
         now = self.clock()
-        created = []
+        # Sin candados mientras se lee el Job (hasta 5 s por lectura): un `FOR UPDATE` aqui retendria la fila de la corrida y se cruzaria
+        # con el `PUT` del informe, que toma el candado global y despues actualiza la corrida (deadlock). Quien decide es `begin_fail_validation`,
+        # que toma el candado global y comprueba que la corrida siga `lanzado`: el informe que llega primero gana y este ConflictState se omite.
         with pool() as conn:
-            with conn.transaction():
-                runs = conn.execute(
-                    "SELECT run_id, model_version_id, job_name FROM validation_runs WHERE state = 'lanzado' "
-                    "AND mode = 'validacion' AND deadline_at < %s ORDER BY deadline_at LIMIT %s FOR UPDATE SKIP LOCKED",
-                    (now, BATCH),
-                ).fetchall()
-                for run in runs:
-                    reason = reason_of(self.jobs.get(run["job_name"]))
-                    try:
-                        rows = self.evidence.begin_fail_validation(
-                            conn,
-                            run["model_version_id"],
-                            str(run["run_id"]),
-                            reason,
-                            run_state="fallido" if reason == "failed" else "timeout",
-                        )
-                    except ConflictState:
-                        continue  # la version ya no esta `en_validacion` o tiene otra transicion pendiente
-                    created.append(rows)
+            runs = conn.execute(
+                "SELECT run_id, model_version_id, job_name, started_at, deadline_at FROM validation_runs "
+                "WHERE state = 'lanzado' AND mode = 'validacion' ORDER BY (deadline_at < %s) DESC, started_at LIMIT %s",
+                (now, BATCH),
+            ).fetchall()
             conn.rollback()
+        created = []
+        for run in runs:
+            expired = run["deadline_at"] < now
+            reason = sweep_verdict(self.jobs.get(run["job_name"]), expired, now - run["started_at"])
+            if reason is None:
+                continue  # sigue corriendo, o `Complete` esperando su informe, o el API aun no devuelve el Job
+            try:
+                rows = self.evidence.begin_fail_validation(
+                    run["model_version_id"],
+                    str(run["run_id"]),
+                    reason,
+                    run_state="fallido" if reason == "failed" or (not expired and reason == "sin informe") else "timeout",
+                )
+            except ConflictState:
+                continue  # el informe llego primero, otra replica la cerro, o la version tiene otra transicion pendiente
+            created.append(rows)
         done = 0
         for rows in created:
             try:

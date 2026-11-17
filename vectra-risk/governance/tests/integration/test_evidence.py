@@ -19,6 +19,7 @@ from evidence_support import (
     CUM,
     ING,
     START,
+    VALIDATION_JOB,
     FakeJobs,
     FakeRegistry,
     SimClock,
@@ -27,6 +28,7 @@ from evidence_support import (
     new_model,
     normative,
     policy_draft,
+    report,
     rows_of,
     sql,
     state_of,
@@ -290,7 +292,7 @@ def test_compensacion_pendiente_mas_de_24_h_no_se_abandona_y_bloquea_la_resoluci
     ("info", "reason", "run_state"),
     [
         (JobInfo(deadline_exceeded=True), "deadline", "timeout"),
-        (JobInfo(failed=True), "failed", "fallido"),
+        (JobInfo(), "sin informe", "timeout"),  # el Job `Complete` (o corriendo) que nunca envio su informe
         (None, "sin informe", "timeout"),
     ],
 )
@@ -313,6 +315,221 @@ def test_validacion_vencida_pasa_a_validacion_fallida_con_el_motivo_del_job(
     assert event.entry["payload"]["details"]["reason"] == reason
     assert event.entry["actor"] == {"kind": "system", "id": "governance-service"}
     assert world.registry.names("mv-1").count("validacion_fallida") == 1
+
+
+def test_validacion_vencida_con_job_failed_registra_failed_y_corrida_fallida(world: World) -> None:
+    world.a.register(ING, new_model("mv-1"))
+    world.a.start_validation(ING, "mv-1", job_name="job-1")
+    world.jobs.infos["job-1"] = JobInfo(failed=True)
+    world.clock.advance(hours=2, minutes=1)
+    assert world.bg_a.sweep_validations_once() == 1
+    assert sql(world.a, "SELECT state FROM validation_runs") == [{"state": "fallido"}]
+    assert world.registry.events("mv-1")[-1].entry["payload"]["details"]["reason"] == "failed"
+
+
+# --- U04-T12: el fallo del Job se detecta sin esperar `deadline_at` ---------------------------------------------------------------
+
+
+def run_of(world: World, model_id: str) -> str:
+    return str(sql(world.a, "SELECT run_id FROM validation_runs WHERE model_version_id = %s", model_id)[0]["run_id"])
+
+
+def test_sweep_job_failed_before_the_deadline_closes_the_run_on_the_next_sweep(world: World) -> None:
+    world.a.register(ING, new_model("mv-1"))
+    world.a.start_validation(ING, "mv-1", job_name="job-1")
+    world.clock.advance(seconds=59)  # el Job murio a los 59 s (medido en kind), el plazo es de 2 h
+    world.jobs.infos["job-1"] = JobInfo(failed=True)
+    assert world.bg_a.sweep_validations_once() == 1
+    assert world.bg_b.sweep_validations_once() == 0  # la otra replica no la procesa otra vez
+    assert state_of(world.b, "mv-1") == "validacion_fallida"
+    assert sql(world.a, "SELECT state FROM validation_runs") == [{"state": "fallido"}]
+    event = world.registry.events("mv-1")[-1]
+    assert event.entry["payload"]["event"] == "validacion_fallida"
+    assert event.entry["payload"]["details"]["reason"] == "failed"
+    assert event.entry["actor"] == {"kind": "system", "id": "governance-service"}
+    world.a.retry_validation(ING, "mv-1", job_name="job-2")  # el operador puede volver a pedirla
+    assert state_of(world.a, "mv-1") == "en_validacion"
+
+
+def test_sweep_job_that_hit_its_active_deadline_before_ours_is_reason_deadline(world: World) -> None:
+    world.a.register(ING, new_model("mv-1"))
+    world.a.start_validation(ING, "mv-1", job_name="job-1")
+    world.clock.advance(minutes=10)
+    world.jobs.infos["job-1"] = JobInfo(failed=True, deadline_exceeded=True)
+    assert world.bg_a.sweep_validations_once() == 1
+    assert world.registry.events("mv-1")[-1].entry["payload"]["details"]["reason"] == "deadline"
+    assert sql(world.a, "SELECT state FROM validation_runs") == [{"state": "timeout"}]
+
+
+def test_sweep_job_still_running_is_not_touched(world: World) -> None:
+    world.a.register(ING, new_model("mv-1"))
+    world.a.start_validation(ING, "mv-1", job_name="job-1")
+    world.jobs.infos["job-1"] = JobInfo()  # existe, sin condicion `Failed`
+    for minutes in (1, 29, 30, 58):  # a 1, 30, 60 y 118 minutos de `started_at`
+        world.clock.advance(minutes=minutes)
+        assert world.bg_a.sweep_validations_once() == 0
+    assert state_of(world.a, "mv-1") == "en_validacion"
+    assert sql(world.a, "SELECT state FROM validation_runs") == [{"state": "lanzado"}]
+
+
+def test_sweep_job_complete_without_report_waits_for_its_deadline_then_sin_informe(world: World) -> None:
+    """El Job `Complete` no tiene condicion `Failed`: su informe lo trae el propio Job por `PUT`; si no llega, cierra el plazo."""
+    world.a.register(ING, new_model("mv-1"))
+    world.a.start_validation(ING, "mv-1", job_name="job-1")
+    world.jobs.infos["job-1"] = JobInfo()  # `Complete` y sin informe en la base
+    world.clock.advance(hours=1, minutes=59)
+    assert world.bg_a.sweep_validations_once() == 0
+    assert state_of(world.a, "mv-1") == "en_validacion"
+    world.clock.advance(minutes=2)
+    assert world.bg_a.sweep_validations_once() == 1
+    assert world.registry.events("mv-1")[-1].entry["payload"]["details"]["reason"] == "sin informe"
+
+
+def test_sweep_job_the_api_does_not_return_yet_is_not_given_up_until_the_grace_passes(world: World) -> None:
+    """`POST /validations` confirma la corrida y despues crea el Job: justo despues el API puede no devolverlo (404)."""
+    from vectra_governance.background import MISSING_JOB_GRACE
+
+    world.a.register(ING, new_model("mv-1"))
+    world.a.start_validation(ING, "mv-1", job_name="job-1")
+    world.jobs.infos["job-1"] = None
+    world.clock.advance(seconds=30)
+    assert world.bg_a.sweep_validations_once() == 0  # recien creado
+    world.clock.advance(seconds=MISSING_JOB_GRACE.total_seconds() - 31)
+    assert world.bg_a.sweep_validations_once() == 0  # a un segundo del margen
+    world.clock.advance(seconds=2)
+    assert world.bg_a.sweep_validations_once() == 1  # pasado el margen y sin Job: lo borraron
+    assert sql(world.a, "SELECT state FROM validation_runs") == [{"state": "fallido"}]
+    assert world.registry.events("mv-1")[-1].entry["payload"]["details"]["reason"] == "sin informe"
+
+
+def test_sweep_report_that_arrived_first_wins_and_the_sweep_leaves_the_version_alone(world: World) -> None:
+    world.a.register(ING, new_model("mv-1"))
+    world.a.start_validation(ING, "mv-1", job_name="job-1")
+    run_id = run_of(world, "mv-1")
+    world.a.receive_report(VALIDATION_JOB, "mv-1", run_id, report(True))
+    world.jobs.infos["job-1"] = JobInfo(failed=True)  # el Job termino `Failed` despues de enviar su informe (p. ej. el proxy)
+    world.clock.advance(minutes=1)
+    assert world.bg_a.sweep_validations_once() == 0  # la corrida ya no esta `lanzado`: ni se lee el Job
+    assert world.jobs.calls == []
+    assert state_of(world.a, "mv-1") == "lista_para_aprobacion"
+    assert sql(world.a, "SELECT state FROM validation_runs") == [{"state": "informe_recibido"}]
+
+
+def test_sweep_that_claimed_the_run_first_wins_and_the_late_report_gets_a_conflict(world: World) -> None:
+    world.a.register(ING, new_model("mv-1"))
+    world.a.start_validation(ING, "mv-1", job_name="job-1")
+    run_id = run_of(world, "mv-1")
+    world.jobs.infos["job-1"] = JobInfo(failed=True)
+    world.clock.advance(minutes=1)
+    assert world.bg_a.sweep_validations_once() == 1
+    with pytest.raises(ConflictState):
+        world.b.receive_report(VALIDATION_JOB, "mv-1", run_id, report(True))
+    assert state_of(world.a, "mv-1") == "validacion_fallida"
+    assert sql(world.a, "SELECT state FROM validation_runs") == [{"state": "fallido"}]
+    assert world.registry.names("mv-1").count("validacion_fallida") == 1
+
+
+def test_sweep_report_that_arrives_while_the_sweep_holds_the_run_leaves_a_single_coherent_winner(world: World) -> None:
+    """La carrera real: el informe llega (otra replica, otro hilo) mientras el barrido tiene reclamada la corrida y lee el Job."""
+    world.a.register(ING, new_model("mv-1"))
+    world.a.start_validation(ING, "mv-1", job_name="job-1")
+    run_id = run_of(world, "mv-1")
+    world.jobs.infos["job-1"] = JobInfo(failed=True)
+    world.clock.advance(minutes=1)
+    outcome: list[object] = []
+    threads: list[threading.Thread] = []
+
+    def late_report(_: str) -> None:
+        def put() -> None:
+            try:
+                outcome.append(world.b.receive_report(VALIDATION_JOB, "mv-1", run_id, report(True)))
+            except ConflictState as error:
+                outcome.append(error)
+
+        thread = threading.Thread(target=put)
+        threads.append(thread)
+        thread.start()
+        thread.join(timeout=1)  # si el informe esta bloqueado por el barrido, no esperamos: el barrido sigue y lo suelta
+
+    world.jobs.on_get = late_report
+    swept = world.bg_a.sweep_validations_once()
+    for thread in threads:
+        thread.join(timeout=30)
+    assert len(outcome) == 1
+    state = state_of(world.a, "mv-1")
+    run_state = sql(world.a, "SELECT state FROM validation_runs")[0]["state"]
+    if isinstance(outcome[0], ConflictState):  # gano el barrido
+        assert (swept, state, run_state) == (1, "validacion_fallida", "fallido")
+    else:  # gano el informe: el barrido no pudo cerrar la corrida
+        assert (swept, state, run_state) == (0, "lista_para_aprobacion", "informe_recibido")
+    assert (world.registry.names("mv-1").count("validacion_fallida") + world.registry.names("mv-1").count("informe_validacion")) == 1
+
+
+def test_sweep_decision_about_an_old_run_does_not_fail_the_version_of_a_newer_run(world: World) -> None:
+    """Mientras el barrido lee el Job de la corrida 1, llega su informe (fallido) y el operador pide otra validacion: la decision vieja
+    del barrido (Job `Failed`) no debe cerrar la corrida 2 ni la version, que ya esta `en_validacion` otra vez."""
+    world.a.register(ING, new_model("mv-1"))
+    world.a.start_validation(ING, "mv-1", job_name="job-1")
+    run_1 = run_of(world, "mv-1")
+    world.jobs.infos["job-1"] = JobInfo(failed=True)
+    world.clock.advance(minutes=1)
+
+    def meanwhile(_: str) -> None:
+        world.jobs.on_get = None
+        world.b.receive_report(VALIDATION_JOB, "mv-1", run_1, report(False))
+        world.b.retry_validation(ING, "mv-1", job_name="job-2")
+
+    world.jobs.on_get = meanwhile
+    assert world.bg_a.sweep_validations_once() == 0
+    assert state_of(world.a, "mv-1") == "en_validacion"
+    states = {r["job_name"]: r["state"] for r in sql(world.a, "SELECT job_name, state FROM validation_runs")}
+    assert states == {"job-1": "informe_recibido", "job-2": "lanzado"}
+
+
+def test_sweep_reads_the_kubernetes_api_at_most_batch_times_per_sweep(world: World) -> None:
+    from vectra_governance.background import BATCH
+
+    for i in range(BATCH + 5):
+        world.a.register(ING, new_model(f"mv-{i}"))
+        world.a.start_validation(ING, f"mv-{i}", job_name=f"job-{i}")
+        world.jobs.infos[f"job-{i}"] = JobInfo()  # todos corriendo
+    world.clock.advance(minutes=1)
+    assert world.bg_a.sweep_validations_once() == 0
+    assert len(world.jobs.calls) == BATCH
+
+
+def test_sweep_claims_the_expired_runs_before_the_running_ones_when_there_are_more_than_a_batch(world: World) -> None:
+    from vectra_governance.background import BATCH
+
+    world.a.register(ING, new_model("mv-old"))
+    world.a.start_validation(ING, "mv-old", job_name="job-old")
+    world.clock.advance(hours=2, minutes=1)  # el viejo ya vencio; los demas se lanzan despues
+    for i in range(BATCH + 5):
+        world.a.register(ING, new_model(f"mv-{i}"))
+        world.a.start_validation(ING, f"mv-{i}", job_name=f"job-{i}")
+        world.jobs.infos[f"job-{i}"] = JobInfo()
+    assert world.bg_a.sweep_validations_once() == 1
+    assert state_of(world.a, "mv-old") == "validacion_fallida"
+    assert len(world.jobs.calls) == BATCH
+
+
+def test_sweep_source_comparison_run_with_a_failed_job_is_not_touched_before_its_deadline(world: World) -> None:
+    world.a.register(ING, new_model("mv-2"))
+    world.a.register(ING, new_model("mv-1"))
+    with world.a.pools.tx() as conn, conn.transaction():
+        conn.execute(
+            "INSERT INTO data_sources (ds_id, name, owner, proposed_by, state) VALUES ('ds-1', 'n', 'o', 'p', 'en_evaluacion')"
+        )
+        conn.execute(
+            "INSERT INTO validation_runs (run_id, model_version_id, job_name, state, mode, source_id, baseline_version_id, "
+            "started_at, deadline_at) VALUES (%s, 'mv-2', 'job-sc', 'lanzado', 'source_comparison', 'ds-1', 'mv-1', %s, %s)",
+            (uuid.uuid4(), START, START + timedelta(hours=2)),
+        )
+    world.jobs.infos["job-sc"] = JobInfo(failed=True)
+    world.clock.advance(minutes=30)
+    assert world.bg_a.sweep_validations_once() == 0
+    assert world.jobs.calls == []  # ni siquiera se lee su Job
+    assert sql(world.a, "SELECT state FROM validation_runs") == [{"state": "lanzado"}]
 
 
 def test_el_barrido_ignora_las_corridas_source_comparison(world: World) -> None:

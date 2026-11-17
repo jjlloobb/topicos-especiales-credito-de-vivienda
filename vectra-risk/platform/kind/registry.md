@@ -28,3 +28,7 @@ El digest se reemplaza en Git, porque Argo CD despliega lo que hay en Git: un PR
 ## Sin verificar
 
 El montaje de `certs.d` y el espejo no se han probado en un clúster real: nadie ha creado este clúster todavía.
+
+## Un kubeconfig de solo lectura para los agentes
+
+Los agentes del loop no deben usar el contexto de administrador de `kind-vectra`: `platform/kind/readonly-kubeconfig.sh write` escribe un kubeconfig que lee y no escribe ni lee un `Secret`, y `check` lo comprueba. Cómo se usa, qué cubre y qué no resuelve: [`readonly-kubeconfig.md`](readonly-kubeconfig.md).
