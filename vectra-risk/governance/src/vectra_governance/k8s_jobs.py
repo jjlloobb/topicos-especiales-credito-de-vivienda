@@ -49,6 +49,12 @@ MINIO_ACCESS_KEY: Final = "validation-readonly"
 JOB_READ_BUCKETS: Final = frozenset({"model-store", "validation-datasets"})
 CLIENT_SECRET: Final = "model-validation-job-client"  # noqa: S105
 CLIENT_KEY_DIR: Final = "/var/run/vectra/client"
+# U04-T12: el usuario del contenedor. Debe ser el `USER` de `validation_job/Dockerfile` (una prueba lo lee y lo compara). Kubernetes crea los
+# archivos de un Secret de root; con `fsGroup` el grupo es el del proceso, asi que `defaultMode` 0440 (dueno y grupo leen, `otros` no) basta;
+# con 0400 (solo root) el proceso no lee su llave (`PermissionError`, medido en kind el 2026-11-17) y 0444 abriria la llave a `otros`.
+JOB_UID: Final = 65532
+JOB_GID: Final = 65532
+CLIENT_KEY_MODE: Final = 0o440
 # La CA interna (ConfigMap `vectra-internal-ca` de U1, el mismo que montan los demas clientes con `private_key_jwt`, p. ej.
 # `decision-registry/chart`): `vectra_common` exige `VECTRA_CA_BUNDLE` para hablar https con Keycloak y no desactiva la verificacion.
 CA_CONFIGMAP: Final = "vectra-internal-ca"
@@ -164,7 +170,13 @@ def job_manifest(spec: JobSpec) -> dict[str, Any]:
                     "priorityClassName": JOB_PRIORITY_CLASS,
                     # PodSecurity `restricted` (enforce en `vectra-staging`): sin `seccompProfile` el Job se crea pero el pod se rechaza
                     # (U04-T11). A nivel de pod cubre tambien a los contenedores que la malla agrega.
-                    "securityContext": {"runAsNonRoot": True, "seccompProfile": {"type": "RuntimeDefault"}},
+                    "securityContext": {
+                        "runAsNonRoot": True,
+                        "runAsUser": JOB_UID,
+                        "runAsGroup": JOB_GID,
+                        "fsGroup": JOB_GID,
+                        "seccompProfile": {"type": "RuntimeDefault"},
+                    },
                     "containers": [
                         {
                             "name": "model-validation-job",
@@ -190,7 +202,7 @@ def job_manifest(spec: JobSpec) -> dict[str, Any]:
                         }
                     ],
                     "volumes": [
-                        {"name": "client-key", "secret": {"secretName": CLIENT_SECRET, "defaultMode": 0o400}},
+                        {"name": "client-key", "secret": {"secretName": CLIENT_SECRET, "defaultMode": CLIENT_KEY_MODE}},
                         {
                             "name": "internal-ca",
                             "configMap": {"name": CA_CONFIGMAP, "items": [{"key": "ca.crt", "path": "ca.crt"}]},
