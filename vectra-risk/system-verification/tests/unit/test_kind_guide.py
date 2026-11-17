@@ -15,7 +15,7 @@ from functools import cache
 from pathlib import Path
 
 import kind_docs as kd
-from safe_shell import SENTINELS, UnsafeScript, command_words, disallowed, run_script, sandbox
+from vv_runner import SENTINELS, TAILS, VV_DEFINITION, NotAFixedCase, run_vv
 import pytest
 import yaml
 from vectra_verification import cli, driver, guard, rt2_latency
@@ -729,18 +729,6 @@ def vv_tokens(block: str) -> set[str]:
     return tokens
 
 
-VV_ALLOWED = frozenset(
-    {"vv", "humo", "vectra-verification", "docker", "id"}
-)  # lo unico que las funciones de la guia lanzan: `docker` es el doble de cada prueba
-
-
-def run_vv(tmp_path: Path, tail: str, fake_docker: str, env: dict[str, str]):  # type: ignore[no-untyped-def]
-    """Las funciones de la guia (`vv`, `humo`, `vectra-verification`) con un `docker` de mentira, en un entorno aislado (R-01: ni `PATH` ni entorno reales)."""
-    block = vv_block(GUIDE_TEXT)
-    functions = block[block.index("vv() {") :]
-    return run_script(f"{functions}\n{tail}", VV_ALLOWED, tmp_path, fakes={"docker": fake_docker}, env=env)
-
-
 def test_coherence_the_docker_run_is_the_one_of_the_readme() -> None:
     """La orden `docker run` de la guia es la funcion `vv` del README de la imagen (U12-T05): cada bandera, cada variable, cada montaje (su destino y si es de solo lectura) y el perfil seccomp del README estan en la de la guia.
     Las marcas «POR CONFIRMAR» ya no existen."""
@@ -787,12 +775,7 @@ def test_coherence_the_functions_of_the_guide_build_the_docker_command_of_the_re
         "VAULT_TOKEN": "t",
         "GATEWAY_ADDRESS": "172.18.0.7",
     }
-    done = run_vv(
-        tmp_path,
-        "vv prepare --commit abc\nhumo flujo --delivery /d\nvectra-verification report\n",
-        '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DOCKER_OUT.$$"\n',
-        env,
-    )
+    done = run_vv("three", tmp_path, '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DOCKER_OUT.$$"\n', env)
     assert done.returncode == 0, done.stderr
     runs = [
         p.read_text(encoding="utf-8").split("\n")[:-1]
@@ -1540,48 +1523,32 @@ PROMOTION_ORDER = re.compile(
 )
 
 
-def f0_evid_block(text: str) -> str:
-    """Las líneas del bloque de F0 que fijan `EVID` (de la guarda de `$VERIF_HOME/evid` a `VERIFICATION_DIR`), sin comentarios."""
-    block = next(body for _, _, body in code_blocks(text) if '"$VERIF_HOME/evid"' in body)
-    lines = [line.strip() for line in block.split("\n")]
-    first = next(i for i, line in enumerate(lines) if "$VERIF_HOME/evid" in line and not line.startswith("#"))
-    last = next(i for i, line in enumerate(lines) if line.startswith("export VERIFICATION_DIR="))
-    return "\n".join(line for line in lines[first : last + 1] if not line.startswith("#"))
+EVID_GUARD = '[ -s "$VERIF_HOME/evid" ] || printf \'%s\\n\' "$VERIF_HOME/evidence/$(date -u +%Y%m%d)-$(git rev-parse --short HEAD)" > "$VERIF_HOME/evid"'
+EVID_READ = 'export EVID="$(cat "$VERIF_HOME/evid")"'
 
 
-EVID_ALLOWED = frozenset(
-    {"[", "printf", "export", "mkdir", "chmod", "cat", "echo", "date", "git"}
-)  # R-01: lo unico que el bloque de `EVID` puede lanzar
-
-
-def run_evid_block(
-    text: str, tmp_path: Path, date: str, commit: str, home: str = "h", block: str | None = None
-) -> str:
-    """Corre el bloque de `EVID` en una terminal nueva con una fecha y un commit dados (`date` y `git` de mentira) y devuelve el `EVID` que queda. Aislado (`safe_shell`): si el texto trae otra orden, falla sin ejecutar nada."""
-    script = f'export VERIF_HOME="{tmp_path / home}"\nmkdir -p "$VERIF_HOME"\n{block if block is not None else f0_evid_block(text)}\necho "$EVID"\n'
-    done = run_script(
-        script,
-        EVID_ALLOWED,
-        tmp_path,
-        fakes={"date": '#!/bin/sh\necho "$FAKE_DATE"\n', "git": '#!/bin/sh\necho "$FAKE_COMMIT"\n'},
-        env={"FAKE_DATE": date, "FAKE_COMMIT": commit},
-    )
-    assert done.returncode == 0, done.stderr
-    return done.stdout.strip().split("\n")[-1]
-
-
-def evid_findings(text: str, tmp_path: Path) -> list[str]:
+def evid_findings(text: str) -> list[str]:
+    """`EVID` se fija una vez (analisis ESTATICO del texto de F0, sin ejecutarlo): la unica linea que calcula `date -u` y `git rev-parse` es la guardada por `$VERIF_HOME/evid`, que vive fuera del repositorio, y `EVID` solo se lee de ahi."""
     found = []
-    first = run_evid_block(text, tmp_path, "20261116", "aaaaaaa")
-    later = run_evid_block(
-        text, tmp_path, "20261117", "bbbbbbb"
-    )  # una terminal nueva tras las 00:00 UTC y tras un `git pull`
-    if first != later:
-        found.append(f"EVID cambió entre terminales: {first} y {later}")
-    if not first.endswith("20261116-aaaaaaa"):
-        found.append(f"EVID no sale de la fecha y el commit de la primera vez: {first}")
-    if (tmp_path / "h").resolve() not in Path(first).resolve().parents:
-        found.append(f"EVID no vive en $VERIF_HOME (fuera del repositorio): {first}")
+    block = [
+        line.strip()
+        for _, _, body in code_blocks(text)
+        if '"$VERIF_HOME/evid"' in body
+        for line in body.split("\n")
+    ]
+    code = [line for line in block if not line.startswith("#")]
+    if code.count(EVID_GUARD) != 1:
+        found.append("falta la linea guardada que calcula EVID una sola vez")
+    if code.count(EVID_READ) != 1:
+        found.append("EVID no se lee de $VERIF_HOME/evid")
+    computing = [line for line in code if "date -u" in line or "git rev-parse" in line]
+    if computing != [EVID_GUARD]:
+        found.append(f"EVID se calcula fuera de la guarda: {computing}")
+    assigned = [line for line in code if re.match(r"(export )?EVID=", line)]
+    if assigned != [EVID_READ]:
+        found.append(f"EVID se asigna de otra forma: {assigned}")
+    if any("$PWD" in line for line in code if "evid" in line.lower()):
+        found.append("EVID vive dentro del repositorio ($PWD)")
     return found
 
 
@@ -1644,15 +1611,15 @@ def test_t09_red_each_return_to_the_dirty_tree_is_found(name: str) -> None:
     assert dirty_tree_findings(mutated), f"{name}: ninguna prueba lo detecta"
 
 
-def test_t09_evid_is_fixed_once_and_every_new_terminal_reads_it(tmp_path: Path) -> None:
-    assert evid_findings(GUIDE_TEXT, tmp_path) == []
+def test_t09_evid_is_fixed_once_and_every_new_terminal_reads_it() -> None:
+    assert evid_findings(GUIDE_TEXT) == []
 
 
-def test_t09_red_evid_computed_again_in_each_terminal_points_to_another_directory(tmp_path: Path) -> None:
+def test_t09_red_evid_computed_again_in_each_terminal_points_to_another_directory() -> None:
     """Rojo: el `EVID` de `main` (se calcula con `date -u` y `git rev-parse` en cada terminal) cambia tras las 00:00 UTC o tras un `git pull`."""
     mutated = GUIDE_TEXT.replace('[ -s "$VERIF_HOME/evid" ] || printf', "printf")
     assert mutated != GUIDE_TEXT
-    assert any("cambió entre terminales" in f for f in evid_findings(mutated, tmp_path))
+    assert evid_findings(mutated)
 
 
 def test_t09_the_machine_reaches_the_gateway_vv_carries_add_host_and_f0_and_f5_run_the_script() -> None:
@@ -1691,7 +1658,7 @@ def test_t09_the_machine_reaches_the_gateway_vv_carries_add_host_and_f0_and_f5_r
 
 def test_t09_vv_refuses_to_start_without_the_gateway_address(tmp_path: Path) -> None:
     env = {"DOCKER_OUT": str(tmp_path / "ran"), "VERIF_HOME": "/h", "EVID": "/e", "VERIFICATION_IMAGE": "i"}
-    done = run_vv(tmp_path, "vv report", '#!/bin/sh\necho ran > "$DOCKER_OUT"\n', env)
+    done = run_vv("report", tmp_path, '#!/bin/sh\necho ran > "$DOCKER_OUT"\n', env)
     assert done.returncode != 0 and not (tmp_path / "ran").exists(), (
         "`vv` arrancó el contenedor sin la dirección del gateway"
     )
@@ -1706,7 +1673,7 @@ def test_t09_the_add_host_value_is_the_address_the_operator_exports(tmp_path: Pa
         "VERIFICATION_IMAGE": "i",
         "GATEWAY_ADDRESS": "172.18.0.2",
     }
-    done = run_vv(tmp_path, "vv report", '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DOCKER_OUT"\n', env)
+    done = run_vv("report", tmp_path, '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DOCKER_OUT"\n', env)
     assert done.returncode == 0, done.stderr
     argv = (tmp_path / "argv").read_text(encoding="utf-8").split("\n")
     assert argv[argv.index("--add-host") + 1] == "vectra.localtest.me:172.18.0.2"
@@ -1996,58 +1963,92 @@ def test_r2_the_restart_section_and_r7_say_what_seed_vault_and_the_runbook_say_t
     assert "pon al día lo que guardaba las claves viejas" not in r7
 
 
-# --- R-01: ninguna prueba ejecuta texto de un documento con el `PATH` ni el entorno reales ----------------------------------------------------------------------
+# --- R-01 y G-01: ninguna prueba ejecuta texto extraido de un documento ----------------------------------------------------------------------------------------
+
+# Los nueve textos adversos de la ronda 2 (G-01): ninguno puede llegar a ejecutarse porque `run_vv` solo acepta las claves de `TAILS`.
+ADVERSARIAL = (
+    "{ /snap/bin/kubectl delete ns x; }",
+    "( /snap/bin/kubectl delete ns x )",
+    "{ env PATH=/usr/bin docker exec vectra-control-plane kubectl delete ns x; }",
+    "echo `/snap/bin/kubectl delete ns x`",
+    "cat <(/snap/bin/kubectl delete ns x)",
+    "$( (/snap/bin/kubectl delete ns x) )",
+    'export PATH="/usr/bin:$PATH"\necho `docker exec vectra-control-plane kubectl delete ns x`',
+    "printf() { /snap/bin/kubectl delete ns x; }; printf",
+    "then /snap/bin/kubectl delete ns x",
+)
 
 
-def old_evid_capture(text: str) -> str:
-    """Lo que capturaba la primera version de `f0_evid_block` (con `re.S`): de la linea de `EVID` hasta el final de la guia."""
-    match = re.search(
-        r"^\s*(?:\[ -s \"\$VERIF_HOME/evid\" \]|export EVID=).*?^\s*export VERIFICATION_DIR=.*$",
-        text,
-        re.M | re.S,
-    )
-    assert match is not None
-    return match.group(0)
-
-
-def test_r01_the_text_the_old_expression_captured_is_refused_before_bash_runs(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("text", ADVERSARIAL)
+def test_r01_g01_no_adversarial_text_can_reach_a_process(
+    text: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    captured = old_evid_capture(GUIDE_TEXT)
-    assert len(captured.split("\n")) > 20, (
-        "la expresión vieja ya no se traga el resto de la guía: la prueba no representa el defecto"
-    )
-    assert disallowed(captured, EVID_ALLOWED), "el texto con `kubectl`, `argocd`... pasó la lista permitida"
     launched: list[object] = []
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: launched.append(a))
-    with pytest.raises(UnsafeScript):
-        run_evid_block(GUIDE_TEXT, tmp_path, "20261116", "aaaaaaa", block=captured)
-    assert launched == [], "se lanzó un proceso antes de comprobar el texto"
+    with pytest.raises(NotAFixedCase):
+        run_vv(text, tmp_path, "#!/bin/sh\nexit 0\n", {})
+    assert launched == [], "se lanzó un proceso con un texto que no es una cola fija"
+    assert not (tmp_path / "vv-bin").exists(), "ni siquiera se armó el entorno"
 
 
-def test_r01_the_block_that_runs_today_has_only_allowed_commands() -> None:
-    assert disallowed(f0_evid_block(GUIDE_TEXT), EVID_ALLOWED) == set()
-    assert disallowed(vv_block(GUIDE_TEXT)[vv_block(GUIDE_TEXT).index("vv() {") :], VV_ALLOWED) == set()
-    assert {"kubectl", "argocd", "docker"} <= command_words(
-        "kubectl get pods\nx=$(docker ps) && argocd app sync a\n"
-    )
+def test_r01_g01_the_environment_is_from_scratch_and_only_the_known_variables_pass(tmp_path: Path) -> None:
+    with pytest.raises(NotAFixedCase):
+        run_vv("report", tmp_path, "#!/bin/sh\nexit 0\n", {"KUBECONFIG": "/x"})
+    with pytest.raises(NotAFixedCase):
+        run_vv("report", tmp_path, "#!/bin/sh\nexit 0\n", {"PATH": "/usr/bin"})
 
 
-def test_r01_the_cluster_tool_sentinels_leave_a_trace_when_called_and_the_sandbox_has_no_real_path(
+def test_r01_g01_the_single_directory_path_has_no_interpreter_and_the_sentinels_leave_a_trace(
     tmp_path: Path,
 ) -> None:
-    bin_dir, env, log = sandbox(tmp_path)
-    assert set(SENTINELS) == {"kubectl", "docker", "argocd", "helm", "gh"} and env["PATH"] == str(bin_dir)
-    assert not {"KUBECONFIG", "DOCKER_HOST", "ARGOCD_OPTS"} & set(env) and env["HOME"].startswith(
-        str(tmp_path)
-    )
+    env = {
+        "DOCKER_OUT": str(tmp_path / "argv"),
+        "VERIF_HOME": "/h",
+        "EVID": "/e",
+        "VERIFICATION_IMAGE": "i",
+        "GATEWAY_ADDRESS": "1.2.3.4",
+    }
+    run_vv("report", tmp_path, "#!/bin/sh\nexit 0\n", env)
+    names = {p.name for p in (tmp_path / "vv-bin").iterdir()}
+    assert names == {"id", "docker", *SENTINELS}, names  # sin `env`, `bash` ni `sh`
+    assert set(TAILS) == {"report", "three"}
+    # un centinela llamado deja constancia y `run_vv` lo afirma: el `docker` falso de esta prueba llama a `kubectl`
     with pytest.raises(AssertionError, match="herramienta del cluster fue llamada"):
-        run_script(
-            "kubectl get pods", {"kubectl"}, tmp_path
-        )  # el centinela dejó constancia y la prueba lo afirma
-    assert "kubectl get pods" in log.read_text(encoding="utf-8")
+        run_vv("report", tmp_path, "#!/bin/sh\nkubectl get pods\n", env)
 
 
-def test_r01_running_the_evid_block_calls_no_cluster_tool(tmp_path: Path) -> None:
-    run_evid_block(GUIDE_TEXT, tmp_path, "20261116", "aaaaaaa")
-    assert (tmp_path / "sentinel.log").read_text(encoding="utf-8") == ""
+def test_r01_g01_the_fixed_definition_is_the_one_the_guide_brings_as_text() -> None:
+    """La definicion que se ejecuta vive en `tests/doubles/vv_runner.py`; la guia solo se compara como texto (sin ejecutarla)."""
+    block = vv_block(GUIDE_TEXT)
+    lines = [line.strip() for line in block[block.index("vv() {") :].split("\n")]
+    assert "\n".join(lines).strip() == "\n".join(line.strip() for line in VV_DEFINITION.strip().split("\n"))
+
+
+def test_r01_g01_no_test_runs_text_taken_from_a_document() -> None:
+    """Analisis estatico de las pruebas: ninguna llama a `bash -c` o `sh -c` con texto de la guia, y `safe_shell` ya no existe."""
+    root = Path(__file__).resolve().parents[1]
+    assert not (root / "doubles" / "safe_shell.py").exists()
+    offenders = []
+    for path in sorted((root / "unit").glob("test_kind_guide.py")):
+        text = path.read_text(encoding="utf-8")
+        for needle in ('["ba' + 'sh", "-c"', "['ba" + "sh', '-c'", "os.sys" + "tem(", "shell=" + "True"):
+            if needle in text:
+                offenders.append(f"{path.name}: {needle}")
+    assert offenders == []
+
+
+def test_g04_the_guide_and_the_readme_say_what_was_measured_about_network_host_and_etc_hosts() -> None:
+    for where, text in (("guía", GUIDE_TEXT), ("README", README.read_text(encoding="utf-8"))):
+        flat = " ".join(text.split())
+        for needle in (
+            "Medido por el orquestador el 2026-11-16",
+            "usa el `/etc/hosts` de la máquina",
+            "5 de 5",
+            "sin `--add-host`",
+            "no está medido",
+        ):
+            assert needle in flat, f"{where}: falta «{needle}»"
+        assert (
+            "No está medido** que Docker aplique `--add-host` con `--network host`: si la herramienta"
+            not in flat
+        )

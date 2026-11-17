@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-TOOLS = ("kubectl", "docker", "argocd", "gh")
+TOOLS = ("kubectl", "docker", "argocd", "helm", "gh")
 
 
 @pytest.fixture(autouse=True)
