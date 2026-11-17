@@ -1,0 +1,298 @@
+# Solo kind (U01-T17). La identidad con la que corren los agentes del loop: lee para diagnosticar y no escribe ni lee un Secret.
+# `platform/kind/readonly-kubeconfig.sh write` arma con su token un kubeconfig fuera del repositorio. Staging y prod no la tienen.
+# Sin comodines (disallow-rbac-wildcards, Enforce): el ClusterRole integrado `view` no sirve. Es un rol agregado, y lo que trae lo decide cualquier chart
+# que lo etiquete; ademas no cubre los nodos, las PersistentVolume, las CRD, las metricas ni los recursos propios (Argo CD, ESO, CNPG, Kyverno, Gateway,
+# KServe, Linkerd, Prometheus), que es lo que hace falta para diagnosticar. Aqui cada regla lista solo get, list y watch.
+# Ausente a proposito: secrets, pods/exec, pods/portforward, pods/attach, cualquier verbo de escritura, impersonate, escalate y bind.
+# El Secret de abajo es el token de larga vida de la ServiceAccount (el controlador de tokens lo llena). Es la unica copia: el valor no esta en Git.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vectra-readonly-agent
+  namespace: argocd
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vectra-readonly-agent-token
+  namespace: argocd
+  annotations:
+    kubernetes.io/service-account.name: vectra-readonly-agent
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vectra-readonly-agent
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  - pods/log
+  - services
+  - endpoints
+  - configmaps
+  - events
+  - namespaces
+  - nodes
+  - persistentvolumeclaims
+  - persistentvolumes
+  - resourcequotas
+  - limitranges
+  - serviceaccounts
+  - replicationcontrollers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - replicasets
+  - statefulsets
+  - daemonsets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  - cronjobs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  - ingresses
+  - ingressclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - scheduling.k8s.io
+  resources:
+  - priorityclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  - rolebindings
+  - clusterroles
+  - clusterrolebindings
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - validatingwebhookconfigurations
+  - mutatingwebhookconfigurations
+  - validatingadmissionpolicies
+  - validatingadmissionpolicybindings
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - metrics.k8s.io
+  resources:
+  - pods
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - argoproj.io
+  resources:
+  - applications
+  - applicationsets
+  - appprojects
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - external-secrets.io
+  resources:
+  - externalsecrets
+  - secretstores
+  - clustersecretstores
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - postgresql.cnpg.io
+  resources:
+  - clusters
+  - backups
+  - scheduledbackups
+  - poolers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kyverno.io
+  resources:
+  - clusterpolicies
+  - policies
+  - policyexceptions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - wgpolicyk8s.io
+  resources:
+  - policyreports
+  - clusterpolicyreports
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses
+  - gateways
+  - httproutes
+  - grpcroutes
+  - referencegrants
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.envoyproxy.io
+  resources:
+  - envoyproxies
+  - backendtrafficpolicies
+  - clienttrafficpolicies
+  - securitypolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - inferenceservices
+  - servingruntimes
+  - clusterservingruntimes
+  - inferencegraphs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - policy.linkerd.io
+  resources:
+  - servers
+  - authorizationpolicies
+  - meshtlsauthentications
+  - networkauthentications
+  - httproutes
+  - serverauthorizations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - servicemonitors
+  - podmonitors
+  - prometheusrules
+  - prometheuses
+  - alertmanagers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
+  - certificaterequests
+  - issuers
+  - clusterissuers
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vectra-readonly-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vectra-readonly-agent
+subjects:
+- kind: ServiceAccount
+  name: vectra-readonly-agent
+  namespace: argocd
