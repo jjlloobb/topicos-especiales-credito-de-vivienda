@@ -45,7 +45,7 @@ entradas:
   - id: K-01
     fase: F0
     que: "Memoria del host: al menos 8 GiB disponibles antes de instalar (14 GiB de RAM es el minimo; los requests del perfil de kind suman 13,8 GiB)"
-    fuentes: ["INST:20", "PERFIL:34", "DEC:78-86", "T05:35", "C-U6:34"]
+    fuentes: ["INST:20", "PERFIL:61", "DEC:78-86", "T05:35", "C-U6:34"]
     comprobacion: ["lectura:free -m", "lectura:docker stats --no-stream", "guion:memoria.sh antes"]
     plantilla: 00-prerrequisitos.md
     demo: [Base]
@@ -65,7 +65,7 @@ entradas:
     demo: [Base]
   - id: K-04
     fase: F0
-    que: "Calendario: decisions se lanza antes de 22:18 UTC; el dia D + 1 no es dia 1 del mes; F5 a F10 caben en 3 dias (retencion de Prometheus)"
+    que: "Calendario: decisions se lanza antes de 22:18 UTC; el dia D + 1 no es dia 1 del mes; D4 solo pasa durante el dia D + 1 UTC (hasta las 00:00 UTC de D + 2); F5 a F10 caben en 3 dias (retencion de Prometheus)"
     fuentes: ["ENM:385", "T04:170", "T05:374", "PROM-KIND:5"]
     comprobacion: ["lectura:date -u", "guion:observabilidad.sh consulta prometheus_tsdb_lowest_timestamp_seconds"]
     plantilla: 00-prerrequisitos.md
@@ -73,7 +73,7 @@ entradas:
   - id: K-05
     fase: F0
     que: "La boveda de kind esta sembrada y no se ha reiniciado desde la siembra (guarda todo en memoria)"
-    fuentes: ["INST:146-152", "P16:62-68"]
+    fuentes: ["INST:169-178", "P16:62-68"]
     comprobacion: ["lectura:kubectl --context kind-vectra get pods -n vault", "lectura:kubectl --context kind-vectra get externalsecret -A", "guion:arranque.sh vault"]
     plantilla: 00-prerrequisitos.md
     demo: [Base]
@@ -81,7 +81,7 @@ entradas:
   # ---- F1: imagenes y digests ---------------------------------------------------------------------------------------------------------------
   - id: K-06
     fase: F1
-    que: "Imagenes de U3 a U11 publicadas en kind-registry y digests reales en los values de kind, por PR (hoy son de ejemplo: ImagePullBackOff)"
+    que: "Imagenes de U3 a U11 publicadas en kind-registry y digests reales en los values de kind, por PR (un digest que no es el publicado da ImagePullBackOff; ya no queda ninguno de ejemplo)"
     fuentes: ["C-U7:41", "C-U8:72", "C-U9:39", "C-U10:70", "C-U11:50", "CAND:701", "CAND:288", "T05:360", "T04:121"]
     comprobacion: ["lectura:grep -rn sha256:0000 vectra-risk-gitops/values/kind", "guion:arranque.sh vectra-app"]
     plantilla: 01-imagenes.md
@@ -160,9 +160,9 @@ entradas:
     demo: [Base]
   - id: K-17
     fase: F2
-    que: "El eco de U2 y la ServiceAccount temporal console-bff de U4 no existen antes del sync de U10"
+    que: "El eco de U2 (recursos con la etiqueta part-of identity-edge-e2e: comparten nombre con governance, case-service, console-bff y console-spa) se retira antes de sincronizar esas cuatro Applications; la ServiceAccount temporal console-bff de U4 no existe antes del sync de U10"
     fuentes: ["C-U10:71", "CAND:402", "CAND:412", "CAND:259", "T05:361"]
-    comprobacion: ["lectura:kubectl --context kind-vectra get deploy,sa -n vectra-app", "lectura:kubectl --context kind-vectra get sa console-bff -n vectra-app"]
+    comprobacion: ["lectura:kubectl --context kind-vectra get deploy,svc,sa,pdb -l app.kubernetes.io/part-of=identity-edge-e2e -n vectra-app", "lectura:kubectl --context kind-vectra get sa console-bff -n vectra-app"]
     plantilla: 02-sync-y-arranque.md
     demo: [Base]
   - id: K-18
@@ -209,9 +209,9 @@ entradas:
     demo: [Base]
   - id: K-24
     fase: F2
-    que: "Paquetes proxy y RT-3 en el model-store, para D1 y D2"
+    que: "Paquetes proxy y RT-3 (a, b, c y d) en el model-store, para D1 y D2"
     fuentes: ["PS11:42-58", "T05:362"]
-    comprobacion: ["manual:la salida de mc ls de model-serving/docs/paso-11-kind.md, seccion 2", "guion:arranque.sh vectra-data"]
+    comprobacion: ["manual:la salida de mc ls de model-serving/docs/paso-11-kind.md, seccion 2, con RT3-a, RT3-c y RT3-d (rt3 exige los tres)", "guion:arranque.sh vectra-data"]
     plantilla: 02-sync-y-arranque.md
     demo: [D1, D2]
   - id: K-25
@@ -489,7 +489,7 @@ entradas:
   # ---- F9: D4 (dia D + 1 UTC) ---------------------------------------------------------------------------------------------------------------
   - id: K-62
     fase: F9
-    que: "North Star, sostenida, tasa de consulta y ProductMetricsStale con datos reales, tras las 02:40 UTC"
+    que: "North Star, sostenida, tasa de consulta y ProductMetricsStale con datos reales, dentro del dia D + 1 UTC (la herramienta espera hasta las 02:40 UTC; desde las 00:00 UTC de D + 2 el ayer no tiene decisiones)"
     fuentes: ["C-U11:47", "C-U11:48", "ENM:117", "T05:372", "T05:374"]
     comprobacion: ["seccion:u11", "verify:dashboard.sh"]
     plantilla: 09-d4-u11-y-grafana.md

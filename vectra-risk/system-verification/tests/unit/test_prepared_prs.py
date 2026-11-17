@@ -460,3 +460,86 @@ def test_promocion_readme_names_the_four_commands_as_they_are_in_the_cli_of_prom
     for command in ("create-promotion-pr", "post-activation-pr", "rollback-pr", "mark-active"):
         assert f"`{command}" in readme
     assert "kubectl" not in readme and "argocd" not in readme.lower().replace("argo cd", "")
+
+
+# --- U12-T09: `entrada.py --retirar` ---------------------------------------------------------------------------------------------------------------------
+
+
+def removal_patch(copy: Copy, version: str) -> subprocess.CompletedProcess[str]:
+    return run([sys.executable, str(ENTRY), "--version", version, "--retirar"], copy.v)
+
+
+def rewrite_like_promotion_tool(copy: Copy) -> None:
+    """Lo que hace `promotion-tool` en la siguiente orden: lee el bloque y lo vuelve a escribir entero en estilo de bloque (`values.edit`), con la entrada `staging` ya dentro."""
+    sys.path.insert(0, str(VECTRA / "governance" / "promotion_tool"))
+    try:
+        from vectra_promotion import values as promotion_values
+    finally:
+        sys.path.pop(0)
+    path = copy.v / "vectra-risk-gitops/values/kind/model-serving.yaml"
+    text = path.read_text(encoding="utf-8")
+    path.write_text(promotion_values.edit(text, promotion_values.parse(text)), encoding="utf-8")
+
+
+@pytest.mark.parametrize("promoted", [False, True], ids=["lista-vacia", "referencia-promovida"])
+def test_entry_retirar_removes_the_staging_entry_after_promotion_tool_rewrote_the_block_and_the_reverse_of_the_add_patch_no_longer_applies(
+    copy: Copy, promoted: bool
+) -> None:
+    if promoted:
+        promote_reference(copy)
+    path = copy.v / "vectra-risk-gitops/values/kind/model-serving.yaml"
+    original = path.read_text(encoding="utf-8")
+    made = entry_patch(copy, M1, RT3_A)
+    assert made.returncode == 0 and copy.apply(made.stdout).returncode == 0
+    rewrite_like_promotion_tool(copy)  # `promotion-tool` reescribe el bloque entero en su siguiente orden
+    assert "{ modelVersionId" not in path.read_text(encoding="utf-8")
+    assert (
+        copy.apply(made.stdout, "-R", "--check").returncode != 0
+    )  # el motivo: el parche inverso ya no aplica
+    gone = removal_patch(copy, M1)
+    assert gone.returncode == 0, gone.stderr
+    assert copy.apply(gone.stdout, "--check").returncode == 0 and copy.apply(gone.stdout).returncode == 0
+    after = path.read_text(encoding="utf-8")
+    assert M1 not in after
+    sys.path.insert(0, str(VECTRA / "governance" / "promotion_tool"))
+    try:
+        from vectra_promotion import values as promotion_values
+    finally:
+        sys.path.pop(0)
+    assert promotion_values.parse(after) == promotion_values.parse(
+        original
+    )  # las mismas entradas que antes del alta
+    done = render(copy)
+    assert done.returncode == 0, done.stderr
+    names = {
+        d["metadata"]["name"]
+        for d in yaml.safe_load_all(done.stdout)
+        if isinstance(d, dict)
+        and d.get("kind") == "InferenceService"
+        and d["metadata"].get("namespace") == "vectra-staging"
+    }
+    assert names == set()  # ya no hay InferenceService en `vectra-staging`
+
+
+def test_entry_retirar_also_reads_the_one_line_entry_it_added_and_keeps_the_other_entries(copy: Copy) -> None:
+    promote_reference(copy)
+    path = copy.v / "vectra-risk-gitops/values/kind/model-serving.yaml"
+    before = path.read_text(encoding="utf-8")
+    made = entry_patch(copy, M1, RT3_A)
+    assert made.returncode == 0 and copy.apply(made.stdout).returncode == 0
+    gone = removal_patch(copy, M1)
+    assert copy.apply(gone.stdout).returncode == 0 and path.read_text(encoding="utf-8") == before
+
+
+def test_entry_retirar_refuses_an_absent_entry_or_a_prod_one_and_writes_nothing(copy: Copy) -> None:
+    promote_reference(copy)
+    before = copy.digest()
+    for version in (
+        M1,
+        "mv-2026-01-01-aaaaaaaa",
+    ):  # la primera no esta; la segunda esta, pero con perfil `prod`
+        done = removal_patch(copy, version)
+        assert done.returncode == 2 and done.stdout == "" and "entrada_ausente" in done.stderr
+    assert removal_patch(copy, "mv-malo").returncode == 2 and copy.digest() == before
+    both = run([sys.executable, str(ENTRY), "--version", M1], copy.v)  # sin --storage-uri y sin --retirar
+    assert both.returncode == 2 and "--storage-uri" in both.stderr

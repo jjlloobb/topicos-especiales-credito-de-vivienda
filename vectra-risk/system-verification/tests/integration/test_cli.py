@@ -609,7 +609,14 @@ def test_decisions_waits_for_listo_before_the_driver_and_decides_every_case_with
     driver = h.backend.driver_double  # type: ignore[union-attr]
     assert driver.ready_at_start == 20, "el conductor empezo con casos aun en evaluacion"
     decisions = h.manifest()["decisions"]
-    assert decisions == {"sent": 20, "accepted": 20, "decided": 20, "undecided_after_wait": 0, "not_ready": 0}
+    assert decisions == {
+        "sent": 20,
+        "accepted": 20,
+        "decided": 20,
+        "undecided_after_wait": 0,
+        "syncing_after_wait": 0,
+        "not_ready": 0,
+    }
     assert h.manifest()["seeds"]["decisions"] == 11 and world.simulator.runs[0][:2] == ("normal", 20)
     evidence = h.evidence("SIM-NORMAL.json")
     assert (
@@ -1477,3 +1484,93 @@ def test_f01_the_closing_of_rt3_with_an_infrastructure_failure_is_not_executed_a
     assert pipe.run("rt3", "--closing") == 2
     assert "Traceback" not in pipe.h.out.getvalue() + pipe.h.err.getvalue()
     assert rt3_record(pipe) == before and "closing_rt3" not in pipe.h.manifest()
+
+
+# --- U12-T09: `decisions` aguanta los fallos transitorios del BFF y cuenta los casos en `en_sincronizacion` ---------------------------------------------
+
+
+def _flaky_case_reads(world: Rt2World, faults: int | None) -> dict[str, int]:
+    """Las lecturas del detalle de un caso responden 503 las primeras `faults` veces (siempre si es `None`) y despues bien."""
+    from contract_world import problem
+
+    original = world.bff.doubles.case.responders[("GET", "/v1/cases/{id}")]
+    seen = {"calls": 0, "failed": 0}
+
+    def flaky(call):  # type: ignore[no-untyped-def]
+        seen["calls"] += 1
+        if faults is None or seen["failed"] < faults:
+            seen["failed"] += 1
+            return 503, problem(503, "dependency_unavailable")
+        return original(call)
+
+    world.bff.doubles.case.responders[("GET", "/v1/cases/{id}")] = flaky
+    return seen
+
+
+def test_decisions_transient_errors_of_the_bff_in_the_wait_do_not_interrupt_the_section(
+    tmp_path: Path, world: Rt2World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    no_real_sleep(monkeypatch)
+    seen = _flaky_case_reads(world, faults=4)
+    h = harness(tmp_path, world)
+    assert h.prepare() == 0
+    assert h.run("decisions", "--volume", "20", "--seed", "11") == 0, h.err.getvalue()
+    assert seen["failed"] == 4 and h.manifest()["decisions"]["decided"] == 20
+    assert h.manifest()["sections"]["decisions"]["state"] == "terminada"
+
+
+def test_decisions_transient_errors_that_never_stop_end_not_run_with_their_own_cause_and_no_trace(
+    tmp_path: Path, world: Rt2World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    no_real_sleep(monkeypatch)
+    _flaky_case_reads(world, faults=None)
+    h = harness(tmp_path, world)
+    assert h.prepare() == 0
+    assert h.run("decisions", "--volume", "20", "--seed", "11") == 2
+    text = h.out.getvalue() + h.err.getvalue()
+    assert "decisions_lectura_agotada" in text and "Traceback" not in text
+    record = h.manifest()["sections"]["decisions"]
+    assert record["state"] == "interrumpida" and "decisions_lectura_agotada" in record["note"]
+    # F-02 (b): la espera interrumpida ya dejo en el manifiesto cuantas solicitudes se enviaron y se aceptaron
+    assert h.manifest()["decisions"] == {"sent": 20, "accepted": 20}
+
+
+def test_decisions_sincronizacion_cases_are_waited_for_and_decided(
+    tmp_path: Path, world: Rt2World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    no_real_sleep(monkeypatch)
+
+    def states(case_id: str, record):  # type: ignore[no-untyped-def]
+        age = (world.clock.now() - record.created).total_seconds()
+        if case_id == next(iter(world.cases)):
+            return ("en_sincronizacion", "timeout", 2) if age < 120 else ("listo", None, 3)
+        return ("listo", None, 1)
+
+    world.state_cases = states
+    h = harness(tmp_path, world)
+    assert h.prepare() == 0
+    assert h.run("decisions", "--volume", "20", "--seed", "11") == 0, h.err.getvalue()
+    assert h.manifest()["decisions"]["decided"] == 20 and h.backend.driver_double.ready_at_start == 20  # type: ignore[union-attr]
+
+
+def test_decisions_sincronizacion_cases_that_do_not_come_back_are_counted_and_named(
+    tmp_path: Path, world: Rt2World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    no_real_sleep(monkeypatch)
+    first = {"id": None}
+
+    def states(case_id: str, record):  # type: ignore[no-untyped-def]
+        first["id"] = first["id"] or case_id
+        return ("en_sincronizacion", "timeout", 2) if case_id == first["id"] else ("listo", None, 1)
+
+    world.state_cases = states
+    h = harness(tmp_path, world)
+    assert h.prepare() == 0
+    h.run("decisions", "--volume", "20", "--seed", "11", "--settle-timeout", "60")
+    decisions = h.manifest()["decisions"]
+    assert (
+        decisions["syncing_after_wait"] == 1
+        and decisions["decided"] == 19
+        and decisions["undecided_after_wait"] == 0
+    )
+    assert "1 casos seguian en en_sincronizacion" in h.out.getvalue()

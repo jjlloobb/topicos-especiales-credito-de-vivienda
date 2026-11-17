@@ -68,7 +68,7 @@ Todo esto lo ata `tests/integration/test_scenarios_contract.py` a su fuente y va
   `rt2_sin_frozen_resolution_reactivar`, `rt2_recongelada`, `rt2_corrida_de_bias_pendiente`, `rt2_barrido_no_libero_casos`, `rt2_lote_puntuado_por_otra_version`, `rt2_sin_recommendation_del_lote`, `rt2_latencia_mayor_que_1800s`, `rt2_cierre_rollback_pendiente`,
   `rt2_prometheus_requerido`, `rt2_prometheus_no_responde`, `rt2_dependencia_no_responde`.
 - **`SIM-NORMAL`:** `sim_normal_aceptadas_menor_que_enviadas`, `sim_normal_case_id_repetido`, `sim_normal_casos_distintos_de_aceptadas`, `sim_normal_caso_desconocido`, `sim_normal_estado_vencido`, `sim_normal_causa_fuera_del_catalogo`,
-  `sim_normal_fail_closed_sin_causa`, `sim_normal_casos_en_evaluacion_tras_el_plazo`, `sim_normal_bff_no_responde`.
+  `sim_normal_fail_closed_sin_causa`, `sim_normal_casos_en_evaluacion_tras_el_plazo`, `sim_normal_bff_no_responde`, `sim_normal_lectura_agotada` (U12-T09: el BFF respondio 0, 429, 502, 503 o 504 durante todo el tope de la lectura, 300 s; `no ejecutado`).
 
 ## Decisiones de las preguntas abiertas
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from typing import Final
 
 from vectra_verification import guard
@@ -18,6 +19,7 @@ from vectra_verification.clients.bff import BffClient
 from vectra_verification.clock import Clock
 from vectra_verification.guard import Environment
 from vectra_verification.report import FALLA, NO_EJECUTADO, PASA
+from vectra_verification.retry import retry_read
 from vectra_verification.scenarios.common import INFRA_ERRORS, infra_failure
 from vectra_verification.scenarios.outcome import Outcome
 from vectra_verification.scenarios.rt3 import CATALOG_CAUSES
@@ -27,6 +29,10 @@ from vectra_verification.simulator import RunReport
 READ_RATE: Final = 15.0  # lecturas por segundo y usuario: por debajo del limite de 20/s
 EVALUATION_TIMEOUT: Final = 600.0
 EVALUATION_POLL: Final = 15.0
+WAITING_STATES: Final = (
+    "en_evaluacion",
+    "en_sincronizacion",
+)  # U12-T09: el worker deja en `en_sincronizacion` los casos que reintenta; se esperan igual que los `en_evaluacion`
 OK_STATES: Final = ("listo", "decidido", "modelo_congelado")
 FAIL_CLOSED_STATES: Final = ("en_sincronizacion", "no_disponible")
 EXPECTED: Final = (
@@ -38,6 +44,12 @@ EXPECTED: Final = (
 class CaseRead:
     state: str | None  # `None`: el BFF no conoce el caso (404)
     cause: str | None = None
+
+
+def waiting_counts(reads: Mapping[str, CaseRead]) -> dict[str, int]:
+    """Cuantos casos siguen en cada estado de espera al vencer el plazo (solo los que tienen alguno)."""
+    counts = Counter(read.state for read in reads.values() if read.state in WAITING_STATES)
+    return {state: counts[state] for state in WAITING_STATES if counts[state]}
 
 
 def judge(
@@ -99,7 +111,7 @@ def judge(
 def read_cases(
     bff: BffClient, clock: Clock, case_ids: Sequence[str], timeout: float = EVALUATION_TIMEOUT
 ) -> dict[str, CaseRead]:
-    """Lee cada caso (a menos de 20/s) y vuelve a leer los `en_evaluacion` cada 15 s hasta el plazo."""
+    """Lee cada caso (a menos de 20/s) y vuelve a leer los `en_evaluacion` y los `en_sincronizacion` cada 15 s hasta el plazo. Cada lectura aguanta un error transitorio del BFF (`retry.retry_read`)."""
     reads: dict[str, CaseRead] = {}
     pending: list[str] = list(case_ids)
 
@@ -109,14 +121,14 @@ def read_cases(
             if number:
                 clock.sleep(1.0 / READ_RATE)
             try:
-                detail = bff.get_case(case_id)
+                detail = retry_read(clock, partial(bff.get_case, case_id), what="decisions_espera")
             except ApiError as error:
                 if error.status != 404:
                     raise
                 reads[case_id] = CaseRead(None)
                 continue
             reads[case_id] = CaseRead(str(detail.state), detail.last_cause)
-            if str(detail.state) == "en_evaluacion":
+            if str(detail.state) in WAITING_STATES:
                 still.append(case_id)
         pending[:] = still
         return not still, None

@@ -21,6 +21,7 @@ from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from typing import Concatenate, Final
 
 import httpx
@@ -32,6 +33,7 @@ from vectra_verification.clients._api import ApiError, RunTag
 from vectra_verification.clients.bff import BffClient, Session
 from vectra_verification.clock import Clock
 from vectra_verification.guard import Environment
+from vectra_verification.retry import retry_read
 from vectra_verification.simulator import DEFAULT_RATE, RunReport, SimulationResult, Simulator, pace
 
 ANALYSTS: Final = ("analista-1", "analista-2")
@@ -189,7 +191,11 @@ class Driver:
     def _ready(self, wanted: set[str] | None) -> list[str]:
         ids: list[str] = []
         for page in range(1, MAX_PAGES + 1):
-            listing = self._call(ANALYSTS[0], BffClient.list_cases, CaseState.LISTO, page, PAGE_SIZE)
+            listing = retry_read(
+                self._clock,
+                partial(self._call, ANALYSTS[0], BffClient.list_cases, CaseState.LISTO, page, PAGE_SIZE),
+                what="decisions_bandeja",
+            )  # U12-T09: un 429, 503, 504 o tiempo agotado no deja la seccion interrumpida
             ids.extend(str(item.case_id) for item in listing.items)
             if len(listing.items) < PAGE_SIZE:
                 break
@@ -208,7 +214,11 @@ class Driver:
         for index, case_id in enumerate(ready):
             user = ANALYSTS[index % len(ANALYSTS)]
             try:
-                detail = self._call(user, BffClient.get_case, case_id)
+                detail = retry_read(
+                    self._clock,
+                    partial(self._call, user, BffClient.get_case, case_id),
+                    what="decisions_caso",
+                )
                 facts = facts_of(detail)
                 if facts is None:
                     errors["no_recommendation"] += 1

@@ -12,7 +12,7 @@ Entradas de esta fase: K-01, K-02, K-03, K-04, K-05.
 
 ### K-01 — Memoria del host
 
-- Demo: Base. Fuentes: `platform/runbooks/install.md:20`, `platform/tests/test_kind_profile.py:34`, `DECISIONES-LOOP.md:78-86`, `tareas/U12-T05-imagen-y-documentacion.md:35`, `aidlc-docs/construction/model-serving/evidence/cierre-demo.md:34`.
+- Demo: Base. Fuentes: `platform/runbooks/install.md:20`, `platform/tests/test_kind_profile.py:61`, `DECISIONES-LOOP.md:78-86`, `tareas/U12-T05-imagen-y-documentacion.md:35`, `aidlc-docs/construction/model-serving/evidence/cierre-demo.md:34`.
 
 **Resultado esperado.** Memoria del host: al menos 8 GiB disponibles antes de instalar (14 GiB de RAM es el minimo; los requests del perfil de kind suman 13,8 GiB)
 
@@ -80,7 +80,7 @@ _pendiente: la salida real, sin tokens_
 
 - Demo: D3, D4. Fuentes: `aidlc-docs/construction/plans/demo-recorte-funcional.md:385`, `tareas/U12-T04-demos-cli-y-manifiesto.md:170`, `tareas/U12-T05-imagen-y-documentacion.md:374`, `platform/observability/values/kube-prometheus-stack-kind.yaml:5`.
 
-**Resultado esperado.** Calendario: decisions se lanza antes de 22:18 UTC; el dia D + 1 no es dia 1 del mes; F5 a F10 caben en 3 dias (retencion de Prometheus)
+**Resultado esperado.** Calendario: decisions se lanza antes de 22:18 UTC; el dia D + 1 no es dia 1 del mes; D4 solo pasa durante el dia D + 1 UTC (hasta las 00:00 UTC de D + 2); F5 a F10 caben en 3 dias (retencion de Prometheus)
 
 **Comando.** Previsto: `date -u`; `observabilidad.sh consulta prometheus_tsdb_lowest_timestamp_seconds`.
 
@@ -96,11 +96,11 @@ _pendiente: la salida real, sin tokens_
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| Calendario: decisions se lanza antes de 22:18 UTC; el dia D + 1 no es dia 1 del mes; F5 a F10 caben en 3 dias (retencion de Prometheus) | _pendiente_ | _pendiente_ |
+| Calendario: decisions se lanza antes de 22:18 UTC; el dia D + 1 no es dia 1 del mes; D4 solo pasa durante el dia D + 1 UTC (hasta las 00:00 UTC de D + 2); F5 a F10 caben en 3 dias (retencion de Prometheus) | _pendiente_ | _pendiente_ |
 
 ### K-05 — La boveda de kind esta sembrada y no se ha reiniciado desde la siembra…
 
-- Demo: Base. Fuentes: `platform/runbooks/install.md:146-152`, `identity-edge/docs/paso-16-kind.md:62-68`.
+- Demo: Base. Fuentes: `platform/runbooks/install.md:169-178`, `identity-edge/docs/paso-16-kind.md:62-68`.
 
 **Resultado esperado.** La boveda de kind esta sembrada y no se ha reiniciado desde la siembra (guarda todo en memoria)
 

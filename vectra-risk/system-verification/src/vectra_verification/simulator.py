@@ -6,7 +6,7 @@ y se registran el tamaño de `test` y el SHA-256 del Parquet. Escenarios `normal
 devueltas y el resultado trae las celdas cortas). Los escenarios `rt1` y `rt4` estan diferidos por la demo (enmienda §3 U12, fila «6»): pedirlos es `scenario_deferred`, sin solicitudes.
 
 Envio: `POST /api/intake/v1/intake/applications` con una `Idempotency-Key` nueva por solicitud (UUID4) y `X-Test-Scenario`. Ritmo: `rate` (10/s por omision, 30/s como maximo: el limite sin
-rafaga de U2), cumplido con el reloj inyectado de modo que en toda ventana de 1 s haya como mucho `rate` envios. 429 y 503 (P-8 (a)): se reenvia **la misma** solicitud (misma clave, mismo
+rafaga de U2), cumplido con el reloj inyectado de modo que en toda ventana de 1 s haya como mucho `rate` envios. 429 y 503 (P-8 (a)) y, desde U12-T09, 502, 504 y el fallo de transporte o tiempo agotado (estado 0; la ruta `intake` corta a 5 s y la llave de idempotencia hace seguro reenviar): se reenvia **la misma** solicitud (misma clave, mismo
 cuerpo) hasta `MAX_RESENDS` veces y se cuenta; el contenido de una solicitud nunca cambia. `RunReport` sin datos del solicitante ni posiciones de fila; las posiciones enviadas se devuelven aparte.
 """
 
@@ -37,7 +37,14 @@ DEFERRED: Final = ("rt1", "rt4")
 DEFAULT_RATE: Final = 10.0
 MAX_RATE: Final = 30.0  # `intake-channel-simulator` de U2: 30/s sin rafaga
 MAX_RESENDS: Final = 3
-RESEND_STATUSES: Final = (429, 503)
+RESEND_STATUSES: Final = (
+    0,
+    429,
+    502,
+    503,
+    504,
+)  # 0: transporte o tiempo agotado. Seguro por la llave de idempotencia: `case-management` (`intake.submit`, la consulta de `intake_keys`) devuelve el mismo caso al reenviar la misma llave con el mismo cuerpo
+RESEND_PAUSE: Final = 1.0  # sin `Retry-After` (502, 504, transporte): 1 s, 2 s, 4 s
 RELEASE_HINT: Final = "make -C reference-model release"
 DELIVERY_FILES: Final = ("datasets/test.parquet", "adversarial/manifest.json")
 APPLICATION_COLUMNS: Final = frozenset(ApplicationIn.model_fields)
@@ -200,10 +207,14 @@ class Simulator:
                 try:
                     reference = self._gateway.submit_application(application, key)
                 except ApiError as error:
-                    if error.status in RESEND_STATUSES and attempt < MAX_RESENDS:
+                    if (
+                        error.status in RESEND_STATUSES
+                        and error.code
+                        != "idempotency_key_invalid"  # estado 0, pero es un error local: reenviar no lo arregla
+                        and attempt < MAX_RESENDS
+                    ):
                         resends += 1
-                        if error.retry_after:
-                            self._clock.sleep(error.retry_after)
+                        self._clock.sleep(error.retry_after or RESEND_PAUSE * 2**attempt)
                         continue
                     rejected[error.code or f"http_{error.status}"] += 1
                 else:

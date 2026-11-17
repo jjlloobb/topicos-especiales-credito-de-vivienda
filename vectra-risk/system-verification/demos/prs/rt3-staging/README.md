@@ -5,9 +5,12 @@ es el segundo. Cada parche se **genera sobre el archivo tal como esté** con `de
 `make -C reference-model release`):
 
 ```
-python3 system-verification/demos/prs/entrada.py --version <M1> --storage-uri "s3://model-store/adversarial/rt3/RT3-a/" > rt3-a.patch   # o .../RT3-d/ para RT3-d
-git apply rt3-a.patch
+git -C "$PROMO" switch main && git -C "$PROMO" pull --ff-only
+(cd "$PROMO/vectra-risk" && python3 system-verification/demos/prs/entrada.py --version <M1> --storage-uri "s3://model-store/adversarial/rt3/RT3-a/" > "$VERIF_HOME/rt3-a.patch")   # o .../RT3-d/ para RT3-d
+git -C "$PROMO" switch -c <rama> origin/main && git -C "$PROMO" apply "$VERIF_HOME/rt3-a.patch"
 ```
+
+`$PROMO` es el clon limpio de la guía (F0, paso 11); el parche va fuera del árbol. Para retirar la entrada: `entrada.py --version <M1> --retirar` (no sirve `git apply -R`: ver `demos/prs/proxy-staging/README.md`).
 
 Cada entrada va con `profile: staging` (los paquetes `adversarial/` solo existen en staging) y su nombre es `isvc-<8 hex de M1>` en `vectra-staging`.
 

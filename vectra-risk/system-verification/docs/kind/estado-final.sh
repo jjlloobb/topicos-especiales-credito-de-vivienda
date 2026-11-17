@@ -1,7 +1,7 @@
 #!/bin/sh
-# El cluster queda como estaba (K-49, K-52, K-61, K-65; BR-U12-10): `estado-final.sh --modelos <archivo|->`. Solo lectura. El estado de los modelos sale de `humo.py modelos` (la API de la consola
+# El cluster queda como estaba (K-49, K-52, K-61, K-65; BR-U12-10): `estado-final.sh --modelos <archivo|-> --referencia <model_version_id>`. Solo lectura. El estado de los modelos sale de `humo.py modelos` (la API de la consola
 # necesita un token); el resto, de `kubectl get` y de Prometheus:
-#  - el modelo de referencia `activo` (uno solo) y ninguna version `congelado` (del JSON que da `humo.py modelos`);
+#  - el modelo de referencia (`--referencia`: su `model_version_id`) `activo`, y es el unico activo (con el proxy `activo` el guion falla), y ninguna version `congelado` (del JSON que da `humo.py modelos`);
 #  - ningun `InferenceService` de staging (`vectra-staging`) y el activo presente en `vectra-serving`;
 #  - los cinco recursos de F22 otra vez presentes (el PR de reversion fusionado y `network` sincronizada con prune);
 #  - informa (no falla) lo que queda: el gauge de fallos persistentes y las alertas en `firing`.
@@ -9,11 +9,12 @@
 # shellcheck source=/dev/null
 . "$(dirname "$0")/lib.sh"
 
-[ "${1:-}" = "--modelos" ] && [ -n "${2:-}" ] || { say "uso: estado-final.sh --modelos <archivo|-> (la salida de humo.py modelos)" >&2; exit 2; }
+[ "${1:-}" = "--modelos" ] && [ -n "${2:-}" ] && [ "${3:-}" = "--referencia" ] && [ -n "${4:-}" ] || { say "uso: estado-final.sh --modelos <archivo|-> --referencia <model_version_id> (la salida de humo.py modelos y el modelo de referencia)" >&2; exit 2; }
+REFERENCE="$4"
 if [ "$2" = "-" ]; then cat > "$TMP_DIR/modelos.json"; else cp "$2" "$TMP_DIR/modelos.json" || cannot_read "no se pudo leer $2"; fi
 
 FAIL=0
-python3 - "$TMP_DIR/modelos.json" <<'PY'
+python3 - "$TMP_DIR/modelos.json" "$REFERENCE" <<'PY'
 import json, sys
 
 try:
@@ -27,9 +28,13 @@ frozen = [v for v, s in states if s == "congelado"]
 print(f"modelos: {len(states)}; activos {len(active)}; congelados {len(frozen)}")
 for v in frozen:
     print(f"FALLA la version {v} sigue congelado (el rollback al modelo de referencia no se hizo)")
+reference = sys.argv[2]
+wrong = len(active) == 1 and active[0] != reference
 if len(active) != 1:
     print(f"FALLA debe haber un solo modelo activo (el de referencia) y hay {len(active)}")
-sys.exit(1 if frozen or len(active) != 1 else 0)
+if wrong:
+    print(f"FALLA el modelo activo es {active[0]} y el de referencia es {reference} (el rollback no lo reactivo)")
+sys.exit(1 if frozen or len(active) != 1 or wrong else 0)
 PY
 RC=$?
 [ "$RC" -ne 2 ] || exit 2

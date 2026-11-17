@@ -38,6 +38,14 @@ Historias: US-303 y US-304 (con RT-2 y RT2-LATENCY).
 
 El modelo del proxy queda registrado y aprobado (U4 no borra versiones) y su entrada `staging` queda en los values de kind (`proxy-staging`): el cierre es el `rollback-pr` y el `mark-active` del paso 7, y el paso 9 baja `<M2>` a 1 réplica. Si `rt2` se corta antes del cierre, el proxy sesgado sigue siendo el modelo activo hasta que se haga el paso 7 a mano. Los casos `no_disponible` de D1 y la alerta siguen activos.
 
+**Repetir D2 tras un fallo a medias (la segunda pasada).** Mira primero dónde quedó: `humo modelos` y `journey-7-4.sh 1 isvc-<8 hex>`.
+
+- **`create-promotion-pr <M2>` da `already_declared`** en la segunda pasada si `<M2>` ya está en los values como `prod` o `inactive` (`governance/promotion_tool/vectra_promotion/values.py`, `promote`): no la repitas; sigue desde la orden que falta. Las ramas `promotion/<tipo>-isvc-<8 hex>-kind` tienen nombre fijo (`gitops.py`, `open_pr`): si un intento dejó la rama (PR cerrado o sin fusionar), la orden siguiente falla al crearla; borra la rama local vieja en el clon (`git -C "$PROMO" branch -D <rama>`) antes de repetir. Si esa rama ya se empujó, borrar la remota es una escritura en GitHub: orden del operador con su nombre (`git push origin --delete <rama>`, o el botón de borrar rama del PR cerrado).
+- **Con el proxy `congelado` no hay rollback sin reactivar antes:** `mark-active <M1>` da 409 `active_version_frozen` (`governance/src/vectra_governance/model_fsm.py`). El orden: reactivar `<M2>` (modo `tool`, presentador, o `rt2` retomada en su fase de reactivación), `rollback-pr <M1>`, fusión, sync con prune, pods de `<M1>` `Ready` y, después, `mark-active <M1>`.
+- `rt2` se retoma volviendo a correrla mientras no haya terminado; `rt2 --redo` empieza D2 desde cero (otro lote de 1 500 solicitudes).
+- **El mismo proxy no se recongela el mismo día UTC de su reactivación** (`bias-monitoring/src/vectra_bias/window.py`, `window_start`: la ventana empieza el día siguiente): el ensayo en el otro modo va otro día UTC o con otro paquete (`run-N` de `reference-model/.out/proxy`).
+- Antes de `rt2-setup`, el PR `proxy-staging` y, al terminar, su retiro con `entrada.py --retirar` (ver `demos/prs/proxy-staging/README.md`).
+
 ## Qué saldrá `no ejecutado`
 
 Las celdas inalcanzables (menos de 30 filas en `test`) se informan en la evidencia de RT-2. `RT2-LATENCY` dice «1 medición» y cita DD-1. En modo `presenter`, sin la acción del presentador a tiempo: `rt2` queda `no ejecutado` con `rt2_reactivacion_pendiente_del_presentador`.

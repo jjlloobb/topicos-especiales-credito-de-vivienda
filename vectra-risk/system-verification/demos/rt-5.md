@@ -24,7 +24,7 @@ El Job tarda segundos. La alerta `CoreWriteAttempt` no tiene `for:` y su expresi
 
 ## Qué deja sucio y cómo se limpia
 
-El Job `rt5-demo-<runId>` queda en `vectra-app` y el `runId` en los values de kind: el siguiente `prepare` en otro directorio usa otro `runId`; el PR anterior se revierte aparte. El `runId` nunca va a staging ni a producción (`conftest` y `policy-chart` lo rechazan).
+El Job `rt5-demo-<runId>` queda en `vectra-app` y el `runId` en los values de kind: el siguiente `prepare` en otro directorio usa otro `runId`; el PR anterior se revierte aparte. El `runId` nunca va a staging ni a producción (`conftest` y `policy-chart` lo rechazan). Para repetir D3 tras un fallo a medias (quitar el `runId` por PR, sync con prune y volver a ponerlo) ver `demos/prs/rt5-run-id/README.md`, «Repetir D3 tras un fallo a medias»: un segundo `prepare` se niega mientras los values conserven el `runId`.
 
 ## Qué saldrá `no ejecutado`
 

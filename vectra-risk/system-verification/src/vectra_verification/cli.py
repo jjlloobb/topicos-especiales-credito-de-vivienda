@@ -690,8 +690,11 @@ class Cli:
         left: dict[str, int] = {}
 
         def settle(sent: Any) -> None:
+            self.manifest.set_decisions(sent=sent.sent, accepted=sent.accepted)  # type: ignore[union-attr]  # si la espera se interrumpe, el manifiesto ya dice cuantas se enviaron
             reads = sim_normal.read_cases(bff, clock, sent.case_ids, args.settle_timeout)
-            left["undecided"] = sum(1 for read in reads.values() if read.state == "en_evaluacion")
+            waiting = sim_normal.waiting_counts(reads)
+            left["undecided"] = waiting.get("en_evaluacion", 0)
+            left["syncing"] = waiting.get("en_sincronizacion", 0)
 
         done = driver.run_decisions(
             cast(Any, sim),
@@ -703,12 +706,13 @@ class Cli:
             settle=settle,
         )
         record = done.record
-        undecided = left.get("undecided", 0)
+        undecided, syncing = left.get("undecided", 0), left.get("syncing", 0)
         self.manifest.set_decisions(
             sent=record.sent,
             accepted=record.accepted,
             decided=record.decided,
             undecided_after_wait=undecided,
+            syncing_after_wait=syncing,
             not_ready=done.driver.not_ready,
         )
         note = f"enviadas {record.sent}, aceptadas {record.accepted}, decididas {record.decided}"
@@ -716,6 +720,11 @@ class Cli:
             note += f"; {undecided} casos seguian en evaluacion al vencer el plazo y no se decidieron"
             self.say(
                 f"decisions: {undecided} casos seguian en evaluacion al vencer el plazo y no se decidieron"
+            )
+        if syncing:  # U12-T09: el worker los dejo para reintentar; el conductor solo decide `listo`
+            note += f"; {syncing} casos seguian en en_sincronizacion al vencer el plazo y no se decidieron"
+            self.say(
+                f"decisions: {syncing} casos seguian en en_sincronizacion al vencer el plazo y no se decidieron"
             )
         outcome = sim_normal.sim_normal(environment, bff, clock, done.simulation.report, timeout=60.0)
         return [outcome], note
