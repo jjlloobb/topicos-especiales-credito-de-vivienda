@@ -145,34 +145,48 @@ governance/docs/kind/token.sh ingeniero-1 | governance/docs/kind/llamar.sh model
 
 Esperado: `lista_para_aprobacion`, un AUC (`0.xxxx`), `True`, y un número de atributos **mayor que 0** (`initial_disparity` no vacía). Si el Job falla al hablar con MinIO, la firma SigV4 de `vectra_validation/s3.py` solo se había probado contra un doble (candidata de U04-T05 en `CANDIDATAS.md`): anótalo como hallazgo. Si el estado es `validacion_fallida`, mira el informe (`sync_check.failure_reason`) y los logs del Job: `kubectl -n vectra-staging logs job/$JOB -c model-validation-job`.
 
-#### Si el Job no arranca
+#### Si el Job no arranca o muere
 
-Síntoma: el `POST` respondió 200 (`lanzado`), el modelo está `en_validacion` y `kubectl -n vectra-staging get pods -l "job-name=$JOB"` no muestra ningún pod. La causa casi siempre está en los eventos del Job (la admisión rechazó el pod, no hay recursos, falta el Secret de `model-validation-job-client` o el ConfigMap de la CA):
+Dos síntomas distintos, con el mismo efecto sobre el modelo (queda `en_validacion` y `POST /v1/models/$MV/validations` responde **409**: `en_validacion` no admite `start_validation`; solo `registrado` y, como reintento, `validacion_fallida`):
 
-```bash
-kubectl --context kind-vectra -n vectra-staging describe job "$JOB" | sed -n '/^Events:/,$p'
-```
+1. **El Job muere a los pocos segundos** (medido el 2026-11-17: el Job `Failed` en 59 s). `kubectl -n vectra-staging logs "job/$JOB" -c model-validation-job` muestra, por ejemplo:
 
-Un `FailedCreate ... violates PodSecurity "restricted:latest"` o un rechazo de Kyverno es un defecto del manifiesto (`k8s_jobs.py`; U04-T11 corrigió el de `seccompProfile`), no del operador: corrige el código, reconstruye la imagen de `governance-service` y despliégala; **la imagen del Job no cambia** (el manifiesto lo arma el servicio).
+   ```
+   PermissionError: [Errno 13] Permission denied: '/var/run/vectra/client/private-key'
+   ```
 
-Qué hace el servicio con ese Job (`background.py`, `model_fsm.py`, `api.py`): **no detecta nunca un Job sin pods**. Solo mira a `deadline_at` (2 h desde la petición): el barrido de cada 60 s toma la corrida `lanzado` vencida, lee el Job (`deadline` si ya venció por su plazo; `sin informe` si no existe o no consta fallo) y pasa el modelo a `validacion_fallida`. Antes de eso:
+   Causa: el archivo del Secret `model-validation-job-client` lo crea Kubernetes de `root` con el modo del volumen; con `defaultMode: 0400` y sin `fsGroup` el usuario 65532 de la imagen no podía leerlo. U04-T12 lo corrige en el manifiesto (`k8s_jobs.py`: `runAsUser`/`runAsGroup`/`fsGroup` 65532 y modo `0440`); si ves ese error, el servicio desplegado es anterior: despliega el arreglo (`argocd app sync governance`, imagen nueva de `governance-service`; **la imagen del Job no cambia**, el manifiesto lo arma el servicio). Cualquier otro motivo del fallo del contenedor (MinIO, token, informe) se lee en los mismos logs.
 
-- `POST /v1/models/$MV/validations` responde **409** (`en_validacion` no admite `start_validation`; solo `registrado` y, como reintento, `validacion_fallida`).
-- Borrar el Job **no** libera el modelo ni lo acelera: sin Job el barrido registra `sin informe` igualmente, al llegar `deadline_at`.
+2. **El Job no tiene pod** (sin salida en `kubectl -n vectra-staging get pods -l "job-name=$JOB"`). La causa casi siempre está en los eventos del Job (la admisión rechazó el pod, no hay recursos, falta el Secret de `model-validation-job-client` o el ConfigMap de la CA):
+
+   ```bash
+   kubectl --context kind-vectra -n vectra-staging describe job "$JOB" | sed -n '/^Events:/,$p'
+   ```
+
+   Un `FailedCreate ... violates PodSecurity "restricted:latest"` o un rechazo de Kyverno es un defecto del manifiesto (`k8s_jobs.py`; U04-T11 corrigió el de `seccompProfile`), no del operador: corrige el código, reconstruye la imagen de `governance-service` y despliégala.
+
+Qué hace el servicio (`background.py`, `model_fsm.py`, `api.py`). El barrido corre cada 60 s en cada réplica (el primero, a los 60 s del arranque) y lee el Job de las corridas `lanzado` (a lo más 20 lecturas por barrido y réplica):
+
+- Job `Failed` (el pod murió: caso 1): el barrido siguiente, **en menos de 2 minutos** desde el fallo (un ciclo de 60 s más el que corra en ese momento), no a las 2 h: pasa el modelo a `validacion_fallida` con motivo `failed` (`deadline` si el Job lo canceló su `activeDeadlineSeconds`).
+- Job que sigue corriendo, o `Complete` cuyo informe aún no llegó: no se toca. El informe lo envía el propio Job por `PUT`; si no llega, el modelo pasa a `validacion_fallida` con motivo `sin informe` al llegar `deadline_at` (2 h desde la petición).
+- Job que el API no devuelve (borrado a mano, o recién creado): se le da un margen de **5 minutos** desde la petición (el servicio confirma la corrida y después crea el Job); pasado el margen y antes de `deadline_at`, `validacion_fallida` con motivo `sin informe`. Borrar el Job libera el modelo en unos 6 minutos.
+- Job **sin pod** (caso 2): el Job no llega a `Failed`, así que sigue valiendo `deadline_at` (candidata de `CANDIDATAS.md`: detectarlo exige leer eventos o `status.active`).
+
+El motivo (`failed`, `deadline`, `sin informe`) queda en la evidencia: evento `validacion_fallida` de la entrada del registro, `details.reason`; la API del modelo solo devuelve el estado. Se puede volver a pedir la validación en cuanto `GET /v1/models/$MV` da `validacion_fallida`.
 
 Procedimiento:
 
 ```bash
-# 1. Espera a deadline_at (el `deadline_at` de la respuesta del POST) y a un ciclo del barrido (60 s); lee el estado:
+# 1. Espera a que el modelo pase a validacion_fallida (caso 1: un par de minutos; caso 2: hasta `deadline_at`, el de la respuesta del POST) y lee el estado:
 governance/docs/kind/token.sh ingeniero-1 | governance/docs/kind/llamar.sh modelo-lee GET "/v1/models/$MV" | sed -E 's/^[0-9]{3} //' | python3 -c 'import json, sys; print(json.load(sys.stdin)["state"])'
-# Esperado: validacion_fallida (con evidencia de `sin informe` o `deadline`).
-# 2. Borra el Job viejo (opcional: su TTL de 24 h solo corre cuando el Job termina; el plazo de 2 h lo marca `Failed` y después se limpia solo):
+# Esperado: validacion_fallida (con evidencia de `failed`, `sin informe` o `deadline`).
+# 2. Borra el Job viejo (opcional: su TTL de 24 h solo corre cuando el Job termina):
 kubectl --context kind-vectra -n vectra-staging delete job "$JOB"
 # 3. Despliega el arreglo (servicio nuevo, `argocd app sync governance`) y pide otra vez la validación del mismo modelo (reintento: otra corrida y otro Job, `validation-<run_id>`; el nombre viejo no se reutiliza):
 JOB="$(governance/docs/kind/token.sh ingeniero-1 | governance/docs/kind/llamar.sh modelo-valida POST "/v1/models/$MV/validations" | sed -E 's/^[0-9]{3} //' | python3 -c 'import json, sys; print(json.load(sys.stdin)["job_name"])')"
 ```
 
-Vuelve a 5.2 desde la espera del Job. El orden importa solo en el paso 3 (el arreglo debe estar desplegado antes de reintentar, o el reintento crea otro Job que tampoco arranca). Lo que **no** hay: un endpoint para cerrar la corrida antes de `deadline_at`; no actualices `validation_runs` a mano en la base (la transición debe pasar por la evidencia). Detectar el Job sin pods es una candidata de `CANDIDATAS.md`.
+Vuelve a 5.2 desde la espera del Job. El orden importa solo en el paso 3 (el arreglo debe estar desplegado antes de reintentar, o el reintento crea otro Job que tampoco arranca o muere). Lo que **no** hay: un endpoint para cerrar la corrida a mano; no actualices `validation_runs` en la base (la transición debe pasar por la evidencia). El servicio no reintenta solo: un fallo pide una validación nueva del operador.
 
 ### 5.3 Aprobación
 
