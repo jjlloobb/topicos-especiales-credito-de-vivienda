@@ -168,8 +168,19 @@ def test_contracts_scans_the_lockfiles_and_keeps_the_audits():
     document = workflow("contracts.yml")
     assert document["jobs"]["supply-chain"]["with"]["path"] == "vectra-risk"
     assert (ROOT / "uv.lock").is_file() and (ROOT / "package-lock.json").is_file()
-    script = run_blocks(document)
-    assert "pip-audit -r" in script and "npm audit --audit-level=high" in script
+    # U00-T06: la auditoria de npm la hace contracts/tools/npm_audit.py (excepcion acotada y con caducidad),
+    # en el mismo bloque `run` que pip-audit. Ni el paso ni el guion pueden debilitarla.
+    step = next(s for s in steps(document) if "pip-audit -r" in str(s.get("run", "")))
+    block = step["run"]
+    assert "continue-on-error" not in step and "continue-on-error" not in block
+    lines = [line.strip() for line in block.splitlines()]
+    assert "uv run python contracts/tools/npm_audit.py" in lines
+    for line in lines:
+        if "pip-audit -r" in line or "npm_audit.py" in line:
+            assert "||" not in line and "--omit" not in line and "--audit-level" not in line
+    tool = (ROOT / "contracts/tools/npm_audit.py").read_text(encoding="utf-8")
+    call = next(line for line in tool.splitlines() if '"npm", "audit"' in line)
+    assert '"--json"' in call and "--omit" not in call and "--audit-level" not in call
 
 
 def test_contracts_pins_oasdiff():
