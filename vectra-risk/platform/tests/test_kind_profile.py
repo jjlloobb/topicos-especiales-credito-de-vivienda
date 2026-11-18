@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from functools import cache
 from pathlib import Path
 
@@ -208,7 +209,7 @@ GITOPS = PLATFORM.parent / "vectra-risk-gitops"
 SERVING_CHART = PLATFORM.parent / "model-serving/chart"
 KIND_SERVING_VALUES = GITOPS / "values/kind/model-serving.yaml"
 #: El peor momento que el perfil de kind declara para U6 (DECISIONES-LOOP §7): la promocion, con M1 y M2 en `prod` (2 + 2 pods cada una) y el
-#: predictor de staging. Los PR de `promotion-tool` aun no lo agregan a los values de kind, asi que el presupuesto lo proyecta aqui.
+#: predictor de staging. Los PR de `promotion-tool` aun no lo agregaban a los values de kind, asi que el presupuesto lo proyecta aqui; lo que kind declare de verdad ocupa estos huecos (`peak_with_declared`).
 PEAK_INFERENCE_SERVICES = [
     {"modelVersionId": "mv-2026-01-01-26300247", "storageUri": "s3://model-store/mv-2026-01-01-26300247/", "profile": "prod"},
     {"modelVersionId": "mv-2026-02-01-a1b2c3d4", "storageUri": "s3://model-store/mv-2026-02-01-a1b2c3d4/", "profile": "prod"},
@@ -218,6 +219,23 @@ PEAK_INFERENCE_SERVICES = [
 
 def declared_inference_services() -> list[dict]:
     return yaml.safe_load(KIND_SERVING_VALUES.read_text(encoding="utf-8")).get("inferenceServices") or []
+
+
+def peak_with_declared(declared: list[dict] | None = None) -> list[dict]:
+    """El pico de D2 que el presupuesto protege, con lo declarado en kind DENTRO del pico y no sumado a el (U01-T20).
+
+    `PEAK_INFERENCE_SERVICES` proyecta el peor momento (2 `prod` + 1 `staging`). Lo declarado ocupa los huecos de esa proyeccion perfil por perfil; solo cuenta de mas
+    lo que la excede (un tercer `prod`, un segundo `staging`, cualquier `inactive`, que el pico no preve). Declarar mas de lo previsto sigue poniendo el presupuesto en rojo.
+    """
+    declared = declared_inference_services() if declared is None else declared
+    slots = Counter(service["profile"] for service in PEAK_INFERENCE_SERVICES)
+    excess = []
+    for service in declared:
+        if slots[service["profile"]] > 0:
+            slots[service["profile"]] -= 1
+        else:
+            excess.append(service)
+    return [*PEAK_INFERENCE_SERVICES, *excess]
 
 
 def inference_services(services: list[dict] | None = None) -> list[dict]:
@@ -510,15 +528,60 @@ def test_the_envoy_patch_ports_entry_is_merged_not_counted_and_a_container_witho
 
 
 def test_the_profile_requests_fit_the_budget():
-    peak = requested_gib([*declared_inference_services(), *PEAK_INFERENCE_SERVICES])
+    peak = requested_gib(peak_with_declared())
     assert peak <= BUDGET_GIB, peak
 
 
 def test_the_peak_fits_the_machine():
     """U01-T12 F-03: el pico de D2 contado cabe en la memoria real de la maquina (14,82 GiB), y el tope tambien. Con Keycloak en 2: 14,7539 (margen 0,06); con 1 (U02-T23 y U12-T08, que ademas lo fija en 1-1): 13,7344 (margen 1,08; el tope 13,8 deja 1,02)."""
-    peak = requested_gib([*declared_inference_services(), *PEAK_INFERENCE_SERVICES])
+    peak = requested_gib(peak_with_declared())
     assert peak <= MACHINE_GIB, (peak, MACHINE_GIB)
     assert BUDGET_GIB <= MACHINE_GIB
+
+
+PROD = PEAK_INFERENCE_SERVICES[0]
+STAGING = PEAK_INFERENCE_SERVICES[2]
+INACTIVE = {"modelVersionId": "mv-2025-12-01-0badc0de", "storageUri": "s3://model-store/mv-2025-12-01-0badc0de/", "profile": "inactive"}
+# Un tercer `prod` y un segundo `staging` con otro id: el chart nombra cada `InferenceService` por su `modelVersionId`, y dos iguales chocarian.
+PROD_C = {"modelVersionId": "mv-2026-03-01-c0ffee01", "storageUri": "s3://model-store/mv-2026-03-01-c0ffee01/", "profile": "prod"}
+STAGING_B = {"modelVersionId": "mv-2026-03-01-c0ffee02", "storageUri": "s3://model-store/mv-2026-03-01-c0ffee02/", "profile": "staging"}
+POD_GIB = 256 / 1024 + PROXY_GIB
+
+
+def _profiles(services: list[dict]) -> list[str]:
+    return sorted(s["profile"] for s in services)
+
+
+def test_declared_models_fill_the_slots_of_the_projected_peak_and_only_the_excess_counts():
+    """U01-T20: lo declarado en kind es parte del pico de DECISIONES-LOOP §7 (2 `prod` + 1 `staging`), no se suma a el."""
+    peak = requested_gib(PEAK_INFERENCE_SERVICES)
+    peak_cpu = requested_cpu(PEAK_INFERENCE_SERVICES)
+    for declared in ([], [PROD], [PROD, PROD, STAGING], [STAGING]):
+        assert _profiles(peak_with_declared(declared)) == _profiles(PEAK_INFERENCE_SERVICES), declared
+        assert requested_gib(peak_with_declared(declared)) == pytest.approx(peak), declared
+        assert requested_cpu(peak_with_declared(declared)) == pytest.approx(peak_cpu), declared
+    # el caso real del PR #209: la entrada que `promotion-tool` agrega
+    assert requested_gib(peak_with_declared([{"modelVersionId": "mv-2026-01-01-8a98ab02", "storageUri": "s3://model-store/mv-2026-01-01-8a98ab02/", "profile": "prod"}])) <= BUDGET_GIB
+
+
+def test_declaring_more_than_the_peak_foresees_counts_the_excess_and_turns_the_budget_red():
+    peak = requested_gib(PEAK_INFERENCE_SERVICES)
+    three_prod = peak_with_declared([PROD, PROD, PROD_C])
+    assert _profiles(three_prod) == ["prod"] * 3 + ["staging"]
+    assert requested_gib(three_prod) - peak == pytest.approx(4 * POD_GIB)  # un `prod` de mas: 2 + 2 pods
+    assert requested_gib(three_prod) > BUDGET_GIB
+    assert requested_cpu(three_prod) - requested_cpu(PEAK_INFERENCE_SERVICES) == pytest.approx(4 * (0.1 + proxy_cpu()))
+    two_staging = peak_with_declared([STAGING, STAGING_B])
+    assert _profiles(two_staging) == ["prod", "prod", "staging", "staging"]
+    assert requested_gib(two_staging) - peak == pytest.approx(1 * POD_GIB)
+
+
+def test_a_declared_inactive_model_counts_on_top_of_the_peak():
+    """El pico de DECISIONES-LOOP §7 no preve un `inactive`: lo declarado cuenta completo (1 + 1 pods)."""
+    peak = requested_gib(PEAK_INFERENCE_SERVICES)
+    with_inactive = requested_gib(peak_with_declared([INACTIVE]))
+    assert with_inactive - peak == pytest.approx(2 * POD_GIB)
+    print(f"inactive: +{with_inactive - peak:.4f} GiB, pico {with_inactive:.4f} de {BUDGET_GIB}, cabe: {with_inactive <= BUDGET_GIB}")
 
 
 def test_job_cpu_is_read_from_the_render_and_covers_the_cronjobs_and_the_jobs_the_old_estimate_missed():
@@ -649,7 +712,7 @@ def test_kind_serving_cpu_requests_are_100m_and_staging_and_prod_keep_inf_u6_01(
 
 def test_the_profile_cpu_requests_fit_the_budget_at_the_d2_peak():
     """U01-T11: dos InferenceService en `vectra-serving`, uno en `vectra-staging` y el Job de validacion, con las replicas minimas de los HPA."""
-    peak = requested_cpu([*declared_inference_services(), *PEAK_INFERENCE_SERVICES])
+    peak = requested_cpu(peak_with_declared())
     assert peak <= CPU_BUDGET, peak
 
 
