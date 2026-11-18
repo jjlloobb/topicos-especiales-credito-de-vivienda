@@ -4,7 +4,9 @@ Keycloak y keycloak-config-cli reales (`realm_stack.py`); el realm entra **sin e
 los de lectura y login primero; la idempotencia y la migracion al final (borran y reimportan el realm).
 """
 
+import asyncio
 import re
+import sys
 import time
 from typing import Any
 
@@ -13,6 +15,11 @@ import pytest
 import realm_stack as rs
 import yaml
 from vectra_contracts.routes import MFA_MAX_AGE
+
+for _dir in ("jobs", "tools"):
+    sys.path.insert(0, str(rs.EDGE / _dir))
+import keycloak_admin  # noqa: E402  (el lector de `realm-drift`, para medir la deriva contra este Keycloak)
+import realm_diff  # noqa: E402
 
 SYNTHETIC_PER_ROLE = {"analista": "analista-1", "ingeniero_riesgo": "ingeniero-1", "cro": "cro-1", "cumplimiento": "cumplimiento-1", "operacion": "operacion-1"}
 OLD_ALIASES = {"loa-mfa", "amr-otp", "amr-hwk"}
@@ -186,3 +193,57 @@ def test_migration_from_the_previous_realm_ends_with_every_execution_linked_and_
     access = rs.claims(tokens_of(stack, "ingeniero-2")["access_token"])
     rs.measure(f"migracion: login de ingeniero-2: acr={access.get('acr')}")
     assert access["acr"] == "mfa"
+
+
+def _drift_against_git(stack: rs.Stack, realm_file: Any = None) -> list[Any]:
+    """Lo que hace el CronJob `realm-drift` (`jobs/realm_drift.py`) contra este Keycloak, con el token del administrador de arranque."""
+
+    async def fetch(path: str, query: Any = None) -> Any:
+        response = await asyncio.to_thread(stack.admin, "GET", path, params=dict(query or {}))
+        assert response.status_code == 200, f"{path}: {response.status_code}"
+        return response.json()
+
+    git = yaml.safe_load((realm_file or rs.REALM_FILE).read_text(encoding="utf-8"))
+    return list(realm_diff.diff(git, asyncio.run(keycloak_admin.KeycloakReader(fetch).export(git))))
+
+
+def test_discovery_migration_from_the_realm_with_one_level_condition_per_role(stack: rs.Stack) -> None:
+    """U02-T27: sobre un Keycloak que ya tiene el realm con una condicion de nivel 2 por rol, aplicar el corregido arregla el descubrimiento y el segundo login.
+
+    No hay segundo factor perdido: los TOTP son credenciales de los usuarios y la importacion no las toca; las sesiones SSO guardan el nivel en la sesion, no en el flujo.
+    """
+    stack.delete_realm()
+    stack.import_realm(rs.DUPLICATE_LEVELS_REALM_FILE)
+    http = stack.client()
+    try:
+        before = http.get(f"/auth/realms/{rs.REALM}/.well-known/openid-configuration").status_code
+        rs.measure(f"migracion U02-T27, realm viejo importado: descubrimiento HTTP {before}")
+        assert before == 500, "el realm anterior ya no reproduce el defecto: la prueba de migracion no mide nada"
+        drift_before = _drift_against_git(stack, rs.DUPLICATE_LEVELS_REALM_FILE)
+        stack.import_realm(rs.REALM_FILE)
+        after = http.get(f"/auth/realms/{rs.REALM}/.well-known/openid-configuration").status_code
+    finally:
+        http.close()
+    new = rs.read_links(stack, rs.REALM_FILE)
+    exported = {c["alias"] for c in stack.partial_export().get("authenticatorConfig", [])}
+    stale = sorted(a for a in exported if a.startswith(("loa-mfa-", "amr-otp-", "amr-hwk-", "cond-role-")) and a not in expected_config_aliases())
+    flows = {f["alias"] for f in stack.partial_export().get("authenticationFlows", [])}
+    drift = _drift_against_git(stack)
+    rs.measure(f"migracion U02-T27, realm corregido encima: descubrimiento HTTP {after}; {new.summary()}; configuraciones del realm viejo que quedan: {stale}; flujos vectra-* del realm: {sorted(f for f in flows if f.startswith('vectra-'))}; deriva contra Git: {len(drift_before)} antes (realm viejo contra su propio YAML), {len(drift)} despues")
+    for d in drift:
+        rs.measure(f"   deriva despues: {d.kind} {d.path}")
+    assert after == 200
+    assert new.ok, new.summary()
+    assert not stale, f"quedaron configuraciones del realm anterior: {stale}"
+    assert {f for f in flows if f.startswith("vectra-")} == {"vectra-browser", "vectra-browser forms", "vectra-level-pwd", "vectra-mfa", "vectra-mfa factor", "vectra-mfa-exempt"}, sorted(flows)
+    # El lector de `realm-drift` contra un Keycloak real ya marca diferencias que no son de este cambio (no ve los subflujos, y los `protocolMappers` de los clientes):
+    # se mide, no se exige cero. Lo que si se exige es que el cambio no las aumente.
+    assert len(drift) < len(drift_before), (len(drift), len(drift_before))
+    flow, step = login(stack, "ingeniero-2")
+    try:
+        assert step.code, rs.explain_failed_login(stack, "ingeniero-2", step)
+        assert rs.claims(flow.exchange(step.code)["access_token"])["acr"] == "mfa"
+        again = flow.start()
+        assert again.code, f"segundo login con sesion abierta: HTTP {again.status}: {rs.page_text(again.html)}"
+    finally:
+        flow.close()

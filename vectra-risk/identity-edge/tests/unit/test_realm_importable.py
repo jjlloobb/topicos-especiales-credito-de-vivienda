@@ -77,6 +77,17 @@ def value_problems(realm: dict[str, Any]) -> list[str]:
     return problems
 
 
+def level_problems(realm: dict[str, Any]) -> list[str]:
+    """Keycloak 26.8.1 arma una tabla nivel -> vigencia con `Collectors.toMap` sobre TODAS las condiciones de nivel del flujo de login: dos con el mismo nivel dan
+    `IllegalStateException: Duplicate key` en el descubrimiento y en el login con sesion abierta (U02-T27). Una condicion por nivel."""
+    configs = {c["alias"]: c["config"] for c in realm["authenticatorConfig"]}
+    by_level: dict[str, list[str]] = collections.defaultdict(list)
+    for flow, execution in executions(realm):
+        if execution.get("authenticator") == LOA:
+            by_level[configs[execution["authenticatorConfig"]]["loa-condition-level"]].append(f"{flow}#{execution['priority']}")
+    return [f"nivel {level} declarado por {len(refs)} condiciones: {', '.join(refs)}" for level, refs in sorted(by_level.items()) if len(refs) > 1]
+
+
 def local_users(realm: dict[str, Any]) -> list[dict[str, Any]]:
     return [u for u in realm["users"] if "serviceAccountClientId" not in u]
 
@@ -106,6 +117,10 @@ def env(request: pytest.FixtureRequest) -> str:
 
 def test_each_execution_has_its_own_config(env: str) -> None:
     assert alias_problems(load(env)) == []
+
+
+def test_each_authentication_level_has_a_single_condition(env: str) -> None:
+    assert level_problems(load(env)) == []
 
 
 def test_configs_keep_the_design_values(env: str) -> None:
@@ -139,16 +154,26 @@ def _config(realm: dict[str, Any], alias: str) -> dict[str, Any]:
 
 def test_mutation_two_executions_share_an_alias() -> None:
     realm = copy.deepcopy(load("kind"))
-    victim = _find(realm, "vectra-mfa-cro", LOA)
-    other = _find(realm, "vectra-mfa-cumplimiento", LOA)
+    victim = _find(realm, "vectra-mfa", LOA)
+    other = _find(realm, "vectra-level-pwd", LOA)
     victim["authenticatorConfig"] = other["authenticatorConfig"]
     problems = alias_problems(realm)
     assert any("citado por 2 ejecuciones" in p for p in problems), problems
 
 
+def test_mutation_two_conditions_with_the_same_level() -> None:
+    """El defecto de U02-T27: una condicion de nivel 2 por rol. Se reproduce con una segunda condicion de nivel 2 (su propio alias) en otro subflujo."""
+    realm = copy.deepcopy(load("kind"))
+    realm["authenticatorConfig"].append({"alias": "loa-otra", "config": {"loa-condition-level": "2", "loa-max-age": "36000"}})
+    flow = next(f for f in realm["authenticationFlows"] if f["alias"] == "vectra-mfa-exempt")
+    flow["authenticationExecutions"].append({"authenticator": LOA, "authenticatorFlow": False, "requirement": "REQUIRED", "priority": 99, "authenticatorConfig": "loa-otra"})
+    problems = level_problems(realm)
+    assert len(problems) == 1 and "nivel 2 declarado por 2 condiciones" in problems[0], problems
+
+
 def test_mutation_citation_to_a_missing_alias() -> None:
     realm = copy.deepcopy(load("kind"))
-    _find(realm, "vectra-mfa-cro", LOA)["authenticatorConfig"] = "no-existe"
+    _find(realm, "vectra-mfa", LOA)["authenticatorConfig"] = "no-existe"
     assert any("no esta declarado" in p for p in alias_problems(realm))
 
 
@@ -159,9 +184,9 @@ def test_mutation_declared_alias_nobody_cites() -> None:
 
 
 @pytest.mark.parametrize("key, value", [("loa-condition-level", "1"), ("loa-max-age", "60")])
-def test_mutation_loa_value_differs_in_one_role(key: str, value: str) -> None:
+def test_mutation_loa_value_differs_in_the_mfa_level(key: str, value: str) -> None:
     realm = copy.deepcopy(load("kind"))
-    alias = _find(realm, "vectra-mfa-cro", LOA)["authenticatorConfig"]
+    alias = _find(realm, "vectra-mfa", LOA)["authenticatorConfig"]
     _config(realm, alias)[key] = value
     problems = value_problems(realm)
     assert len(problems) == 1 and key in problems[0], problems
@@ -169,7 +194,7 @@ def test_mutation_loa_value_differs_in_one_role(key: str, value: str) -> None:
 
 def test_mutation_crossed_amr() -> None:
     realm = copy.deepcopy(load("kind"))
-    alias = _find(realm, "vectra-mfa-cro factor", "webauthn-authenticator")["authenticatorConfig"]
+    alias = _find(realm, "vectra-mfa factor", "webauthn-authenticator")["authenticatorConfig"]
     _config(realm, alias)["default.reference.value"] = "otp"
     problems = value_problems(realm)
     assert len(problems) == 1 and "webauthn-authenticator" in problems[0], problems
