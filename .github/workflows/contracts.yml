@@ -78,7 +78,7 @@ jobs:
         run: |
           uv export --frozen --no-emit-workspace --no-hashes -o /tmp/requirements.txt
           uvx --from pip-audit==2.9.0 pip-audit -r /tmp/requirements.txt
-          npm audit --audit-level=high
+          uv run python contracts/tools/npm_audit.py
   supply-chain:
     uses: ./.github/workflows/supply-chain.yml
     with:
