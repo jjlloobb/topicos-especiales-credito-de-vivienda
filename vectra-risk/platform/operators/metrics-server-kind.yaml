@@ -16,3 +16,6 @@ securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true
 resources:
   requests: { cpu: 25m, memory: 64Mi }
   limits: { cpu: 100m, memory: 128Mi }
+# U01-T19: margen para una racha de CPU lenta de la maquina (el chart no fija plazo: 1 s). Vida: 10 s x 12 = 120 s.
+livenessProbe: { periodSeconds: 10, failureThreshold: 12, timeoutSeconds: 5 }
+readinessProbe: { timeoutSeconds: 5 }

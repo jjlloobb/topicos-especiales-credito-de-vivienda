@@ -1,4 +1,9 @@
 # Solo kind: sin HA.
 replicaCount: 1
-webhook: { replicaCount: 1 }
 cainjector: { replicaCount: 1 }
+# U01-T19: margen para una racha de CPU lenta de la maquina. Vida: 10 s x 12 = 120 s. El cainjector no trae sonda en este chart; el controller no trae sonda de disponibilidad.
+livenessProbe: { timeoutSeconds: 15, periodSeconds: 10, failureThreshold: 12 }
+webhook:
+  replicaCount: 1
+  livenessProbe: { timeoutSeconds: 5, periodSeconds: 10, failureThreshold: 12 }
+  readinessProbe: { timeoutSeconds: 5 }
