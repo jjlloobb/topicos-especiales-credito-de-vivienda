@@ -87,6 +87,8 @@ write_kubeconfig() {
 }
 
 # esperado|verbo|recurso. La tabla minima esta fijada por una prueba: quitar una fila de «no» la hace fallar.
+# Un subrecurso se escribe `recurso/subrecurso` (asi se lee y se imprime), pero a kubectl se le pregunta con `--subresource`: `can-i get pods/proxy` es
+# TIPO/NOMBRE (el pod que se llama `proxy`), no el subrecurso.
 ROWS=(
   "yes|get|pods"
   "yes|list|deployments"
@@ -116,6 +118,9 @@ ROWS=(
 )
 SCOPES=("vectra-app" "vectra-edge" "vectra-data" "cluster")
 CLUSTER_ROWS=("yes|get|nodes")
+# Recursos de ambito de cluster (sin namespace): sus filas solo se preguntan en el ambito `cluster`; en un namespace kubectl avisa (`resource 'nodes' is not namespace scoped`) y la peticion real va sin namespace.
+# Excepcion: `bind clusterroles` se pregunta tambien en cada namespace, porque una RoleBinding a un ClusterRole concede `bind` solo en el namespace del binding y con `-A` no se ve.
+CLUSTER_SCOPED=("nodes" "clusterroles")
 
 check_kubeconfig() {
   if [ ! -f "$absolute" ]; then
@@ -134,9 +139,11 @@ check_kubeconfig() {
   printf '%-8s %-9s %-14s %-12s %-44s %s\n' "esperado" "obtenido" "ambito" "verbo" "recurso" "fila"
   ask() { # esperado verbo recurso ambito
     expected="$1" verb="$2" resource="$3" scope="$4"
+    local base="${resource%%/*}" sub="" subflag=()
+    if [ "$base" != "$resource" ]; then sub="${resource#*/}"; subflag=("--subresource=$sub"); fi
     if [ "$scope" = cluster ]; then flag="-A"; else flag="-n $scope"; fi
     # shellcheck disable=SC2086
-    answer="$(kubectl --kubeconfig "$absolute" --context "$context" auth can-i "$verb" "$resource" $flag 2>/dev/null || true)"
+    answer="$(kubectl --kubeconfig "$absolute" --context "$context" auth can-i "$verb" "$base" "${subflag[@]}" $flag 2>/dev/null || true)"
     answer="${answer%%[[:space:]]*}" # `no - <motivo>` (el SAR trae `reason`) sigue siendo un no: solo cuenta la primera palabra
     answer="${answer:0:8}"
     total=$((total + 1))
@@ -153,6 +160,7 @@ check_kubeconfig() {
   for scope in "${SCOPES[@]}"; do
     for row in "${ROWS[@]}"; do
       IFS='|' read -r expected verb resource <<< "$row"
+      if [ "$scope" != cluster ] && [ "$verb $resource" != "bind clusterroles" ] && [[ " ${CLUSTER_SCOPED[*]} " == *" ${resource%%/*} "* ]]; then continue; fi
       ask "$expected" "$verb" "$resource" "$scope"
     done
   done

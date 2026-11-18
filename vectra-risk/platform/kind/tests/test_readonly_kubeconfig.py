@@ -39,12 +39,26 @@ case "${args[0]:-} ${args[1]:-}" in
     esac ;;
   "auth can-i")
     [ "$FAKE_KUBECTL_FAILS" = si ] && { echo "Unable to connect to the server" >&2; exit 1; }
-    verb="${args[2]}"; resource="${args[3]}"
+    # Como el kubectl real: un posicional `a/b` es TIPO/NOMBRE (se contesta por `a`, sin mirar `b`); el subrecurso solo llega con --subresource.
+    positional=(); subresource=""; scope=cluster; rest=("${args[@]:2}")
+    while [ "${#rest[@]}" -gt 0 ]; do
+      case "${rest[0]}" in
+        --subresource=*) subresource="${rest[0]#--subresource=}" ;;
+        --subresource) subresource="${rest[1]:-}"; rest=("${rest[@]:1}") ;;
+        -n) scope="${rest[1]:-}"; rest=("${rest[@]:1}") ;;
+        -*) ;;
+        *) positional+=("${rest[0]}") ;;
+      esac
+      rest=("${rest[@]:1}")
+    done
+    verb="${positional[0]}"; resource="${positional[1]%%/*}"
+    [ -z "$subresource" ] || resource="$resource/$subresource"
     answer=no
     case "$verb" in get|list|watch) answer=yes ;; esac
     case "$resource" in secrets|pods/exec|pods/portforward|pods/attach|nodes/proxy|pods/proxy|services/proxy|nodes/log|'*') answer=no ;; esac
     for override in $FAKE_OVERRIDES; do
-      [ "${override%%=*}" = "$verb:$resource" ] && answer="${override##*=}"
+      # `verbo:recurso=respuesta` vale en todos los ambitos; `verbo:recurso@ambito=respuesta` solo en ese (`cluster` es -A)
+      { [ "${override%%=*}" = "$verb:$resource" ] || [ "${override%%=*}" = "$verb:$resource@$scope" ]; } && answer="${override##*=}"
     done
     if [ "$answer" = no ] && [ "$FAKE_REASON" = si ]; then echo "no - RBAC: denied"; else echo "$answer"; fi
     [ "$answer" = yes ] ;;
@@ -170,16 +184,85 @@ def test_readonly_kubeconfig_check_never_asks_anything_but_can_i_and_contexts(tm
         assert "--context kind-vectra" in line or "get-contexts" in line
 
 
-def test_readonly_kubeconfig_check_table_has_the_minimum_rows(tmp_path: Path, good_file: Path):
-    """Quitar una fila de la tabla del guion hace fallar esta prueba."""
+def asked_rows(tmp_path: Path) -> set[tuple[str, str, str]]:
+    """(verbo, recurso con la forma `recurso/subrecurso`, ambito) de cada `auth can-i` que hizo el guion, leidas de los argumentos reales."""
+    rows = set()
+    for line in calls(tmp_path):
+        if " auth can-i " not in line:
+            continue
+        words = line.split(" auth can-i ")[1].split()
+        verb, resource, *rest = words
+        sub = next((w.split("=", 1)[1] for w in rest if w.startswith("--subresource=")), "")
+        scope = "cluster" if "-A" in rest else rest[rest.index("-n") + 1]
+        rows.add((verb, f"{resource}/{sub}" if sub else resource, scope))
+    return rows
+
+
+# La tabla EXACTA que `check` debe preguntar y la respuesta que espera: (esperado, verbo, recurso con la forma `recurso/subrecurso`). Cambiar o quitar una fila del guion la hace fallar.
+EXPECTED_ROWS = [
+    ("yes", "get", "pods"), ("yes", "list", "deployments"), ("yes", "get", "pods/log"), ("yes", "list", "applications.argoproj.io"), ("yes", "list", "externalsecrets.external-secrets.io"),
+    ("no", "get", "secrets"), ("no", "list", "secrets"), ("no", "delete", "deployments"), ("no", "delete", "pods"), ("no", "delete", "*"), ("no", "create", "pods"),
+    ("no", "create", "deployments"), ("no", "patch", "deployments"), ("no", "update", "deployments"), ("no", "create", "pods/exec"), ("no", "create", "pods/portforward"),
+    ("no", "create", "pods/attach"), ("no", "impersonate", "users"), ("no", "get", "nodes/proxy"), ("no", "get", "pods/proxy"), ("no", "get", "services/proxy"),
+    ("no", "get", "nodes/log"), ("no", "create", "serviceaccounts/token"), ("no", "escalate", "clusterroles"), ("no", "bind", "clusterroles"),
+]  # fmt: skip
+NAMESPACES = ("vectra-app", "vectra-edge", "vectra-data")
+# Filas que solo se preguntan en `cluster` (sus peticiones reales van sin namespace). `bind clusterroles` NO: una RoleBinding la concede en su namespace.
+CLUSTER_ONLY = {("get", "nodes/proxy"), ("get", "nodes/log"), ("escalate", "clusterroles")}
+
+
+def exact_table() -> set[tuple[str, str, str, str]]:
+    table = {(expected, scope, verb, resource) for scope in (*NAMESPACES, "cluster") for expected, verb, resource in EXPECTED_ROWS if scope == "cluster" or (verb, resource) not in CLUSTER_ONLY}
+    return {*table, ("yes", "cluster", "get", "nodes")}
+
+
+def test_readonly_kubeconfig_check_table_is_exactly_the_expected_rows(tmp_path: Path, good_file: Path):
+    """Quitar, cambiar o sustituir una fila del guion (incluida su respuesta esperada) hace fallar esta prueba: se compara con el conjunto exacto."""
+    result = run(tmp_path, "check", str(good_file))
+    printed = set()
+    for line in result.stdout.splitlines():
+        words = line.split()
+        if len(words) == 6 and words[5] == "ok":
+            printed.add((words[0], words[2], words[3], words[4]))
+    expected = exact_table()
+    assert len(expected) == 92
+    assert printed == expected, (sorted(expected - printed), sorted(printed - expected))
+    assert asked_rows(tmp_path) == {(verb, resource, scope) for _, scope, verb, resource in expected}
+
+
+def test_readonly_kubeconfig_check_sees_bind_clusterroles_granted_by_a_rolebinding_in_a_namespace(tmp_path: Path, good_file: Path):
+    """F-01: una RoleBinding a un ClusterRole concede `bind` solo en su namespace; con `-A` no se ve. Un `yes` solo con `-n vectra-app` debe dar rojo."""
+    result = run(tmp_path, "check", str(good_file), FAKE_OVERRIDES="bind:clusterroles@vectra-app=yes")
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "can-i bind clusterroles (vectra-app)" in result.stderr
+    assert "Filas: 92; distintas de lo esperado: 1" in result.stdout
+
+
+def test_readonly_kubeconfig_check_asks_for_subresources_with_the_flag_never_as_one_argument(tmp_path: Path, good_file: Path):
+    """`kubectl auth can-i get pods/proxy` es TIPO/NOMBRE (el pod llamado `proxy`), no el subrecurso: ninguna llamada lleva una barra en el recurso."""
     run(tmp_path, "check", str(good_file))
-    asked = {line.split(" auth can-i ")[1] for line in calls(tmp_path) if " auth can-i " in line}
-    must_say_no = ["get secrets", "delete deployments", "create pods", "patch deployments", "create pods/exec", "create pods/portforward", "delete *", "impersonate users", "get nodes/proxy", "get pods/proxy", "get services/proxy", "get nodes/log", "create serviceaccounts/token", "escalate clusterroles", "bind clusterroles"]
-    must_say_yes = ["get pods", "list deployments", "get pods/log", "list applications.argoproj.io", "list externalsecrets.external-secrets.io"]
-    for scope in ("-n vectra-app", "-n vectra-edge", "-n vectra-data", "-A"):
-        for row in [*must_say_no, *must_say_yes]:
-            assert f"{row} {scope}" in asked, (row, scope)
-    assert "get nodes -A" in asked
+    lines = [line.split(" auth can-i ")[1] for line in calls(tmp_path) if " auth can-i " in line]
+    assert lines
+    for line in lines:
+        verb, resource, *_ = line.split()
+        assert "/" not in resource, line
+    assert "get pods --subresource=proxy -n vectra-app" in lines
+    assert "get nodes --subresource=proxy -A" in lines
+    assert "create pods --subresource=exec -n vectra-data" in lines
+    assert "get pods --subresource=log -n vectra-edge" in lines
+
+
+def test_readonly_kubeconfig_the_fake_answers_a_slash_as_type_name_like_the_real_kubectl(tmp_path: Path):
+    """El falso es fiel en lo que importa: `pods/proxy` posicional contesta por `pods`; `--subresource` si mira el subrecurso."""
+    env = environment(tmp_path)
+
+    def ask(*words: str) -> str:
+        return subprocess.run([str(tmp_path / "bin/kubectl"), "auth", "can-i", *words], env=env, capture_output=True, text=True, check=False).stdout.strip()
+
+    assert ask("get", "pods/proxy", "-n", "x") == "yes"
+    assert ask("get", "pods", "--subresource=proxy", "-n", "x") == "no"
+    assert ask("get", "pods", "--subresource", "proxy") == "no"
+    assert ask("get", "pods", "--subresource=log") == "yes"
 
 
 @pytest.mark.parametrize(("override", "row"), [("delete:deployments=yes", "delete deployments"), ("get:pods=no", "get pods"), ("get:secrets=yes", "get secrets"), ("create:pods/exec=yes", "create pods/exec")])
