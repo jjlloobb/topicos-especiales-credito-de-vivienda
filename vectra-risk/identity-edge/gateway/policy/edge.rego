@@ -522,7 +522,8 @@ deny contains msg if {
 
 # regla: fail-closed-patch
 # P-U2-01, NFR-U2-21, alternativa 2: la EnvoyPatchPolicy fija `failure_mode_deny: true` y `status_on_error: 503` solo en el filtro de rate
-# limit del dominio de `/auth/**` del listener https.
+# limit del dominio de `/auth/**` del listener https. U02-T26: y le da un `timeout` (el de fabrica de Envoy es 20 ms, y una consulta
+# lenta a Valkey es un 503 de login); el valor concreto lo fija `routes.yaml` y lo prueban `test_route_gen.py` y `test_gateway_xds.py`.
 auth_filter := "envoy.filters.http.ratelimit/vectra-edge/auth-rate-limits"
 
 auth_selector := "..http_filters[?(@.name=='envoy.filters.http.ratelimit/vectra-edge/auth-rate-limits')].typed_config"
@@ -541,8 +542,8 @@ deny contains msg if {
 
 deny contains msg if {
 	input.kind == "EnvoyPatchPolicy"
-	count(input.spec.jsonPatches) != 2
-	msg := sprintf("fail-closed-patch: %s debia tener dos parches", [label(input)])
+	count(input.spec.jsonPatches) != 3
+	msg := sprintf("fail-closed-patch: %s debia tener tres parches", [label(input)])
 }
 
 deny contains msg if {
@@ -569,6 +570,14 @@ deny contains msg if {
 deny contains msg if {
 	input.kind == "EnvoyPatchPolicy"
 	patches := {[p.operation.op, p.operation.path, json.marshal(p.operation.value)] | some p in input.spec.jsonPatches}
-	patches != {["add", "failure_mode_deny", "true"], ["add", "status_on_error", "{\"code\":503}"]}
+	patches_without_timeout := {p | some p in patches; p[1] != "timeout"}
+	patches_without_timeout != {["add", "failure_mode_deny", "true"], ["add", "status_on_error", "{\"code\":503}"]}
 	msg := sprintf("fail-closed-patch: %s no fija failure_mode_deny: true y status_on_error: 503", [label(input)])
+}
+
+deny contains msg if {
+	input.kind == "EnvoyPatchPolicy"
+	timeouts := [p.operation.value | some p in input.spec.jsonPatches; p.operation.op == "add"; p.operation.path == "timeout"]
+	count(timeouts) != 1
+	msg := sprintf("fail-closed-patch: %s debe fijar un timeout en el filtro de /auth/**", [label(input)])
 }

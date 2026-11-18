@@ -9,6 +9,20 @@ El servicio de rate limit (`envoy-ratelimit`, `envoy-gateway-system`) o Valkey (
 ## Impacto
 `/auth/**` está en fail-closed: el gateway responde 503 mientras el backend de rate limit no conteste. Las demás rutas siguen.
 
+## Servicio caído o consulta lenta
+Los dos casos dan el mismo 503 de login (`urn:vectra:problem:dependency_unavailable`) y se distinguen por cuánto dura y por lo que dice el registro de acceso del gateway.
+
+| | Servicio de límites caído | Consulta lenta (503 suelto) |
+|---|---|---|
+| Qué se ve | 503 en **todos** los logins y tokens, de forma sostenida | 503 en uno de varios intentos; el siguiente pasa sin tocar nada |
+| Registro de acceso (`api-gateway`, contenedor `envoy`) | `status` 503, `response_flags: RLSE` en cada intento de `/auth/**` | `status` 503, `response_flags: RLSE`, `duration_ms` cerca del plazo del filtro (`timeout` de `fail_closed` en `gateway/routes.yaml`, hoy 500 ms; antes de U02-T26 eran 20 ms de fábrica) |
+| `envoy-ratelimit` (`envoy-gateway-system`) | sin réplicas, o errores de Redis en cada llamada | `rate limit call failed with a Redis error: waiting for response from Conn: context canceled` o `… context deadline exceeded`, aislados |
+| Alerta | `RateLimitBackendDown` | ninguna |
+
+Cómo verlo: `kubectl -n vectra-edge logs deploy/api-gateway -c envoy | grep RLSE` (o la consulta equivalente en Loki) y mira `duration_ms`; `kubectl -n envoy-gateway-system logs deploy/envoy-ratelimit | grep -E 'context (canceled|deadline exceeded)'`.
+
+Si el 503 es suelto, no es una caída: la consulta a Valkey tardó más que el plazo del filtro (portátil saturado, Valkey tras la malla). El 503 de `/auth/**` es a propósito (fail-closed, P-U2-01): no lo pases a fail-open. Si con la máquina en calma siguen saliendo, mira la carga de los nodos y de Valkey antes de subir el plazo; si lo subes, cámbialo en `routes.yaml` (`fail_closed.timeout`, tope de 2 s en `route_gen`), regenera con `make -C identity-edge route-gen` y no lo dejes sin acotar: mientras espera, el gateway retiene la petición de login. Solo `/auth/**` lleva este plazo; el resto de las rutas, en fail-open, conserva el de fábrica.
+
 ## Diagnóstico
 1. Servicio de rate limit: `kubectl -n envoy-gateway-system get deployment envoy-ratelimit`.
 2. Valkey y Sentinel: `kubectl -n vectra-edge get statefulset,pods -l app.kubernetes.io/part-of=identity-edge`.

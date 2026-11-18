@@ -559,6 +559,7 @@ CLASS_NAME = "envoy-gateway"
 CERTIFICATE_NAME = "api-gateway"
 TLS_SECRET = "api-gateway-tls"  # noqa: S105 - nombre de un Secret, no una credencial
 PATCH_NAME = "auth-fail-closed"
+AUTH_RATELIMIT_TIMEOUT = "0.5s"  # U02-T26: lo que espera el filtro de /auth/** al servicio de limites (Envoy usa 20 ms sin esto); decision de diseño, igual en los tres entornos
 CONTROLLER_VALUES = Path(__file__).resolve().parents[3] / "platform" / ".charts" / "envoy-gateway" / "gateway-helm" / "values.yaml"
 OWNING_GATEWAY_LABEL = "gateway.envoyproxy.io/owning-gateway-name"  # etiqueta de v1.9.3 (gatewayapi.OwningGatewayNameLabel)
 LISTENER_TYPE = "type.googleapis.com/envoy.config.listener.v3.Listener"
@@ -746,7 +747,7 @@ def envoypatchpolicies() -> list[dict[str, Any]]:
             "spec": {
                 "type": "JSONPatch",
                 "targetRef": gateway_ref(),
-                "jsonPatches": [patch("failure_mode_deny", deny), patch("status_on_error", {"code": status})],
+                "jsonPatches": [patch("failure_mode_deny", deny), patch("status_on_error", {"code": status}), patch("timeout", AUTH_RATELIMIT_TIMEOUT)],
             },
         }
     ]
