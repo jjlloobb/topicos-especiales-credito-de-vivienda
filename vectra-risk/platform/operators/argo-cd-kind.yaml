@@ -1,6 +1,16 @@
 # Solo kind: sin HA.
 redis-ha: { enabled: false }
-controller: { replicas: 1 }
-server: { replicas: 1 }
-repoServer: { replicas: 1 }
 applicationSet: { replicas: 1 }
+# U01-T19: margen para una racha de CPU lenta de la maquina (sondas por plazo agotado, no por error). timeoutSeconds 5 y vida con 10 s x 12 = 120 s.
+# El application-controller no trae sonda de vida (`controller.livenessProbe.enabled: false`, decision upstream): solo se alarga el plazo de su sonda de disponibilidad.
+controller:
+  replicas: 1
+  readinessProbe: { timeoutSeconds: 5 }
+server:
+  replicas: 1
+  readinessProbe: { timeoutSeconds: 5 }
+  livenessProbe: { timeoutSeconds: 5, periodSeconds: 10, failureThreshold: 12 }
+repoServer:
+  replicas: 1
+  readinessProbe: { timeoutSeconds: 5 }
+  livenessProbe: { timeoutSeconds: 5, periodSeconds: 10, failureThreshold: 12 }

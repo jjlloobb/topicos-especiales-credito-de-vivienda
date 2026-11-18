@@ -1,5 +1,13 @@
 # Solo kind: sin HA. failurePolicy sigue en Fail: si este pod cae, se rechazan las admisiones hasta que vuelva.
-admissionController: { replicas: 1 }
+admissionController:
+  replicas: 1
+  livenessProbe: { timeoutSeconds: 5, periodSeconds: 30, failureThreshold: 4 }
+  readinessProbe: { timeoutSeconds: 5 }
 backgroundController: { replicas: 1 }
-cleanupController: { replicas: 1 }
+cleanupController:
+  replicas: 1
+  livenessProbe: { timeoutSeconds: 5, periodSeconds: 30, failureThreshold: 4 }
+  readinessProbe: { timeoutSeconds: 5 }
 reportsController: { replicas: 1 }
+# U01-T19: margen para una racha de CPU lenta de la maquina. Vida: 30 s x 4 = 120 s (el chart trae 30 s x 2); el plazo (5 s) ya es el del chart.
+# Los controladores de fondo y de informes no traen sonda en este chart.
