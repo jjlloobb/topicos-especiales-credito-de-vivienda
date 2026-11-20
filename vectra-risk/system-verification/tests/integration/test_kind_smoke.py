@@ -342,10 +342,14 @@ def test_nothing_is_written_to_disk(
 LOGIN_PAGE = "<form method=post action=/auth/login><input name=username><input name=password type=password><button type=submit>x</button></form>"
 OTP_PAGE = "<form method=post action=/auth/otp><input name=otp><button type=submit>x</button></form>"
 APP_PAGE = "<html><body>consola{extra}</body></html>"
+ANONYMOUS_PAGE = (
+    "<html><body><button onclick=\"location.href='/auth/login'\">Iniciar sesion</button></body></html>"
+)
 
 
 class Spa(http.server.BaseHTTPRequestHandler):
-    """Una SPA de mentira detras de un login de dos pasos. `mode`: `limpia`, `csp` (una pagina que viola su propia politica), `sin-cookie` o `recarga-al-login`."""
+    """Una SPA de mentira detras de un login de dos pasos. `mode`: `limpia`, `con-boton` (sin sesion muestra un boton de login, como la SPA real),
+    `csp` (una pagina que viola su propia politica), `sin-cookie` o `recarga-al-login`."""
 
     mode = "limpia"
     loads = 0
@@ -363,6 +367,10 @@ class Spa(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         path = self.path.split("?")[0]
+        if (
+            path == "/" and self.mode == "con-boton"
+        ):  # como la SPA real: anonima con un boton; el formulario llega al pulsarlo
+            return self.reply(200, ANONYMOUS_PAGE)
         if path == "/":
             return self.reply(302, headers={"Location": "/auth/login"})
         if path == "/auth/login":
@@ -460,6 +468,13 @@ def test_consola_logs_in_by_full_redirect_reloads_and_finds_no_violation(
         and "cookie vectra-spa-route: presente" in out
         and "clave-de-prueba" not in out
     )
+
+
+def test_consola_presses_the_login_button_when_the_spa_stays_anonymous(spa: Any, host_sandbox: None) -> None:
+    """La SPA real no lleva sola al formulario: tras `prompt=none` queda anonima con un boton (medido en kind el 2026-11-19, `TimeoutError` sin esto)."""
+    code, out = run_consola(spa, "con-boton")
+    assert code == 0, out
+    assert "securitypolicyviolation: 0" in out and "cookie vectra-spa-route: presente" in out
 
 
 def test_consola_counts_a_provoked_securitypolicyviolation(spa: Any, host_sandbox: None) -> None:

@@ -351,8 +351,14 @@ def consola(world: World, args: argparse.Namespace, out: TextIO) -> int:
                 context.add_init_script(CSP_LISTENER)
                 page = context.new_page()
                 page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-                page.locator("input[name=username]").wait_for(timeout=30_000)
-                page.locator("input[name=username]").fill(user)
+                # Sin sesion, la SPA real prueba una vez con `prompt=none`, el emisor responde `login_required` y queda anonima con UN boton
+                # (`login_button`, `AuthProvider`): el formulario del emisor solo aparece al pulsarlo (medido en kind el 2026-11-19).
+                form = page.locator("input[name=username]")
+                form.or_(page.get_by_role("button")).first.wait_for(timeout=30_000)
+                if not form.is_visible():
+                    page.get_by_role("button").first.click(no_wait_after=True)
+                    form.wait_for(timeout=30_000)
+                form.fill(user)
                 page.locator("input[name=password]").fill(password)
                 page.locator("[type=submit]").first.click(no_wait_after=True)
                 page.locator("input[name=otp]").wait_for(timeout=30_000)
