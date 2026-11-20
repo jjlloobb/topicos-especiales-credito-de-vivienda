@@ -70,7 +70,11 @@ def project(env: str, config: Doc, components: list[Doc]) -> Doc:
 
 
 def metadata(name: str, wave: int) -> Doc:
-    return {"name": name, "namespace": "argocd", "annotations": {"argocd.argoproj.io/sync-wave": str(wave)}}
+    """`ServerSideDiff=true`: Argo CD compara con un apply de prueba en el servidor. Sin ella, con `ServerSideApply=true`, los campos que
+    el servidor rellena por omision (`action: replace` de un PodMonitor, `weight: 1` de un HTTPRoute, los de un `Cluster` de CNPG) cuentan como
+    diferencia y la Application queda `OutOfSync` para siempre aunque `argocd app diff` no muestre nada (medido en `kind-vectra`, 2026-11-19)."""
+    annotations = {"argocd.argoproj.io/compare-options": "ServerSideDiff=true", "argocd.argoproj.io/sync-wave": str(wave)}
+    return {"name": name, "namespace": "argocd", "annotations": annotations}
 
 
 def root(env: str, config: Doc) -> Doc:

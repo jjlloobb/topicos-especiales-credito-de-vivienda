@@ -4,6 +4,7 @@ metadata:
   name: verification-operator
   namespace: argocd
   annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
     argocd.argoproj.io/sync-wave: '1'
 spec:
   project: vectra-staging
