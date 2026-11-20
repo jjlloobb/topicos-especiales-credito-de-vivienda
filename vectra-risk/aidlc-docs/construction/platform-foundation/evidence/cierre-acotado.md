@@ -19,7 +19,7 @@
 
 | Punto | Situación | Destino propuesto |
 |---|---|---|
-| 5 aplicaciones `OutOfSync` (Paso 19) | Linkerd: certificados distintos en cada render. `kyverno`: `labels: {}`. `kyverno-policies`, `postgres` y `observability-monitors`: sin causa identificada; `argocd app diff` no muestra diferencias | Aceptar con esta nota |
+| 5 aplicaciones `OutOfSync` (Paso 19) | Linkerd: certificados distintos en cada render. `kyverno`: `labels: {}`. `kyverno-policies`, `postgres` y `observability-monitors`: sin causa identificada; `argocd app diff` no muestra diferencias | Aceptar con esta nota (2026-11-19: con `ServerSideDiff=true` en cada Application, PR #214, quedan dos `OutOfSync`: `linkerd-control-plane` y `kserve-crd`; ver `platform/runbooks/install.md`) |
 | Suite X01–X10 (Paso 20.1) | Solo verificada de forma estática en `flows.yaml`; no hay suite que corra contra el clúster | U12 |
 | Pod sin firma (20.2) | `verify-images` no se instala en kind | Staging, con la llave real |
 | Autorización de Linkerd entre ServiceAccounts (20.3) | Sin cargas de negocio con las que probar | U3 y U12 |
