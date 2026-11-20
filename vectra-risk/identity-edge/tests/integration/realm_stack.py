@@ -118,14 +118,17 @@ def _b64url(number: int) -> str:
     return base64.urlsafe_b64encode(number.to_bytes(32, "big")).rstrip(b"=").decode()
 
 
-def _jwks() -> str:
+def _jwks(private_keys: dict[str, tuple[str, str]] | None = None, name: str = "") -> str:
+    """El JWKS publico de un cliente; si se pasa `private_keys`, guarda ahi `name -> (kid, llave privada PEM)` (U02-T28: la prueba del lector firma con ella)."""
     key = ec.generate_private_key(ec.SECP256R1())
     n = key.public_key().public_numbers()
     jwk = {"kty": "EC", "crv": "P-256", "x": _b64url(n.x), "y": _b64url(n.y), "use": "sig", "alg": "ES256", "kid": hashlib.sha256(f"{n.x}:{n.y}".encode()).hexdigest()[:16]}
+    if private_keys is not None:
+        private_keys[name] = (jwk["kid"], key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode())
     return json.dumps({"keys": [jwk]}, separators=(",", ":"), sort_keys=True)
 
 
-def generate(references: set[str], hostname: str) -> dict[str, str]:
+def generate(references: set[str], hostname: str, client_keys: dict[str, tuple[str, str]] | None = None) -> dict[str, str]:
     out: dict[str, str] = {}
     for name in sorted(references):
         if name == "PUBLIC_HOSTNAME":
@@ -137,7 +140,7 @@ def generate(references: set[str], hostname: str) -> dict[str, str]:
         elif name.endswith("_TOTP_SEED"):
             out[name] = base64.b32encode(secrets.token_bytes(20)).decode()
         elif name.startswith("CLIENT_") and name.endswith("_JWKS"):
-            out[name] = json.dumps(_jwks())  # cadena JSON entre comillas, como la entrega el ExternalSecret de kind
+            out[name] = json.dumps(_jwks(client_keys, name))  # cadena JSON entre comillas, como la entrega el ExternalSecret de kind
         else:
             raise AssertionError(f"variable del realm sin generador: {name}")
     return out
@@ -225,8 +228,9 @@ class Account:
 class Stack:
     """Un Keycloak real y config-cli. `import_realm` aplica un YAML de realm como el Job de kind."""
 
-    def __init__(self, workdir: Path, port: int, pki: Pki, variables: dict[str, str], admin_password: str, container: DockerContainer) -> None:
+    def __init__(self, workdir: Path, port: int, pki: Pki, variables: dict[str, str], admin_password: str, container: DockerContainer, client_keys: dict[str, tuple[str, str]] | None = None) -> None:
         self.workdir, self.port, self.pki, self.variables = workdir, port, pki, variables
+        self.client_keys = client_keys or {}  # `CLIENT_<X>_JWKS -> (kid, llave privada PEM)`
         self.admin_password, self.container = admin_password, container
         self.host = f"127.0.0.1:{port}"
         self.base_url = f"https://{self.host}"
@@ -516,7 +520,8 @@ def keycloak_stack() -> Iterator[Stack]:
     port = free_port()
     pki = make_pki(workdir / "tls")
     host = f"127.0.0.1:{port}"
-    variables = generate(realm_references(REALM_FILE, OLD_REALM_FILE), host)
+    client_keys: dict[str, tuple[str, str]] = {}
+    variables = generate(realm_references(REALM_FILE, OLD_REALM_FILE), host, client_keys)
     admin_password = secrets.token_urlsafe(18)
     base_url = f"https://{host}"
     container = (
@@ -540,7 +545,7 @@ def keycloak_stack() -> Iterator[Stack]:
     try:
         container.start()
         _wait_ready(base_url, pki.ca_file, container)
-        stack = Stack(workdir, port, pki, variables, admin_password, container)
+        stack = Stack(workdir, port, pki, variables, admin_password, container, client_keys)
         yield stack
     finally:
         try:

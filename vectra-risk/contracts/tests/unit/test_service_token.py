@@ -75,6 +75,29 @@ async def test_the_request_is_exactly_client_credentials_with_assertion():
     assert data["audience"] == "scoring-service"
 
 
+async def test_without_scopes_the_form_carries_no_scope_parameter():
+    """U02-T28: Keycloak 26.8.1 rechaza `scope=` vacio (400 `Invalid scopes`); sin scopes el parametro no se envia."""
+    poster = Poster(ok())
+    source = ServiceTokenProvider(
+        "keycloak-reader", URL, pem(EC_KEY), "keycloak", (), assertion_audience=AUD, poster=poster, clock=lambda: NOW
+    )
+    await source.token()
+    data = poster.calls[0][1]
+    assert "scope" not in data
+    assert set(data) == {"grant_type", "client_assertion_type", "client_assertion", "audience"}
+    assert data["audience"] == "keycloak"
+
+
+@pytest.mark.parametrize("scopes", [("uno",), ("uno", "dos", "tres")])
+async def test_with_scopes_the_form_carries_them_space_separated_as_before(scopes: tuple[str, ...]):
+    poster = Poster(ok())
+    source = ServiceTokenProvider(
+        "c", URL, pem(EC_KEY), "a", scopes, assertion_audience=AUD, poster=poster, clock=lambda: NOW
+    )
+    await source.token()
+    assert poster.calls[0][1]["scope"] == " ".join(scopes)
+
+
 async def test_assertion_claims_and_signature():
     poster = Poster(ok())
     await provider(poster).token()
