@@ -222,17 +222,21 @@ def declared_inference_services() -> list[dict]:
 
 
 def peak_with_declared(declared: list[dict] | None = None) -> list[dict]:
-    """El pico de D2 que el presupuesto protege, con lo declarado en kind DENTRO del pico y no sumado a el (U01-T20).
+    """El pico de D2 que el presupuesto protege, con lo declarado en kind DENTRO del pico y no sumado a el (U01-T20, U01-T21).
 
-    `PEAK_INFERENCE_SERVICES` proyecta el peor momento (2 `prod` + 1 `staging`). Lo declarado ocupa los huecos de esa proyeccion perfil por perfil; solo cuenta de mas
-    lo que la excede (un tercer `prod`, un segundo `staging`, cualquier `inactive`, que el pico no preve). Declarar mas de lo previsto sigue poniendo el presupuesto en rojo.
+    `PEAK_INFERENCE_SERVICES` proyecta el peor momento (2 `prod` + 1 `staging`). Lo declarado ocupa los huecos de esa proyeccion perfil por perfil; solo cuenta de mas lo que la excede
+    (un tercer `prod`, un segundo `staging`). Un `inactive` es una version que dejo de estar en `prod` (DECISIONES-LOOP §7, enmienda del 2026-11-19): ocupa un hueco `prod` que
+    quede libre, porque la promocion (2 `prod`) y el inactivo no coexisten, y solo cuenta de mas si no queda hueco (2 `prod` + 1 `inactive`, o 2 `inactive`). Los `inactive` se
+    asignan despues de los demas, para que el orden de la lista no cambie la cuenta. Un `inactive` pide menos que un `prod` (test_inactive_costs_less_than_prod...), asi que el
+    pico no baja nunca. Declarar mas de lo previsto sigue poniendo el presupuesto en rojo.
     """
     declared = declared_inference_services() if declared is None else declared
     slots = Counter(service["profile"] for service in PEAK_INFERENCE_SERVICES)
     excess = []
-    for service in declared:
-        if slots[service["profile"]] > 0:
-            slots[service["profile"]] -= 1
+    for service in sorted(declared, key=lambda item: item["profile"] == "inactive"):
+        slot = "prod" if service["profile"] == "inactive" else service["profile"]
+        if slots[slot] > 0:
+            slots[slot] -= 1
         else:
             excess.append(service)
     return [*PEAK_INFERENCE_SERVICES, *excess]
@@ -576,12 +580,61 @@ def test_declaring_more_than_the_peak_foresees_counts_the_excess_and_turns_the_b
     assert requested_gib(two_staging) - peak == pytest.approx(1 * POD_GIB)
 
 
-def test_a_declared_inactive_model_counts_on_top_of_the_peak():
-    """El pico de DECISIONES-LOOP §7 no preve un `inactive`: lo declarado cuenta completo (1 + 1 pods)."""
-    peak = requested_gib(PEAK_INFERENCE_SERVICES)
-    with_inactive = requested_gib(peak_with_declared([INACTIVE]))
-    assert with_inactive - peak == pytest.approx(2 * POD_GIB)
-    print(f"inactive: +{with_inactive - peak:.4f} GiB, pico {with_inactive:.4f} de {BUDGET_GIB}, cabe: {with_inactive <= BUDGET_GIB}")
+INACTIVE_B = {"modelVersionId": "mv-2025-11-01-0badc0df", "storageUri": "s3://model-store/mv-2025-11-01-0badc0df/", "profile": "inactive"}
+
+
+def test_inactive_costs_less_than_prod_in_memory_and_cpu():
+    """U01-T21 paso 1: medido con el chart de U6 rendido para kind. La regla de `peak_with_declared` (un `inactive` ocupa un hueco `prod`) solo vale si no pide mas que un `prod`."""
+    prod, inactive, staging = (inference_services([s])[0] for s in (PROD, INACTIVE, STAGING))
+    print(f"GiB prod {inference_service_gib(prod):.4f} inactive {inference_service_gib(inactive):.4f} staging {inference_service_gib(staging):.4f}")
+    print(f"CPU prod {inference_service_cpu(prod):.4f} inactive {inference_service_cpu(inactive):.4f} staging {inference_service_cpu(staging):.4f}")
+    assert inference_service_gib(inactive) == pytest.approx(2 * POD_GIB)  # 1 + 1 pods
+    assert inference_service_gib(prod) == pytest.approx(4 * POD_GIB)  # 2 + 2 pods
+    assert inference_service_gib(staging) == pytest.approx(1 * POD_GIB)
+    assert inference_service_gib(inactive) < inference_service_gib(prod)
+    assert inference_service_cpu(inactive) < inference_service_cpu(prod)
+
+
+def test_d2_states_one_prod_and_two_prod_fit_the_budget():
+    """U01-T21 (a) `1 prod` (hoy) y (b) `2 prod` (promocion): ambos dentro del pico proyectado, que cabe en el tope y en la maquina."""
+    peak, peak_cpu = requested_gib(PEAK_INFERENCE_SERVICES), requested_cpu(PEAK_INFERENCE_SERVICES)
+    for declared in ([PROD], [PROD, PROD]):
+        assert requested_gib(peak_with_declared(declared)) == pytest.approx(peak), declared
+        assert requested_cpu(peak_with_declared(declared)) == pytest.approx(peak_cpu), declared
+    print(f"(a)/(b): {peak:.4f} GiB de {BUDGET_GIB} (maquina {MACHINE_GIB:.4f}); CPU {peak_cpu:.4f} de {CPU_BUDGET}")
+    assert peak <= BUDGET_GIB
+    assert peak_cpu <= CPU_BUDGET
+
+
+def test_d2_state_one_prod_and_one_inactive_after_the_activation_fits_the_budget():
+    """U01-T21 (c): tras `post-activation-pr` (la version anterior pasa de `prod` a `inactive`) el `inactive` ocupa el hueco `prod` libre: no se suma al pico, que nunca baja."""
+    peak, peak_cpu = requested_gib(PEAK_INFERENCE_SERVICES), requested_cpu(PEAK_INFERENCE_SERVICES)
+    for declared in ([PROD, INACTIVE], [INACTIVE, PROD]):
+        counted = peak_with_declared(declared)
+        assert _profiles(counted) == _profiles(PEAK_INFERENCE_SERVICES), declared
+        assert requested_gib(counted) == pytest.approx(peak), declared
+        assert requested_cpu(counted) == pytest.approx(peak_cpu), declared
+        assert requested_gib(counted) <= BUDGET_GIB
+        assert requested_cpu(counted) <= CPU_BUDGET
+    print(f"(c): {peak:.4f} GiB de {BUDGET_GIB}; CPU {peak_cpu:.4f} de {CPU_BUDGET}")
+
+
+def test_d2_states_with_an_inactive_and_no_free_prod_slot_count_the_excess_and_turn_the_budget_red():
+    """U01-T21 (d): `2 prod + 1 inactive` y `1 prod + 2 inactive` no ocurren (la promocion y el inactivo no coexisten): el inactivo sin hueco cuenta de mas (+2 pods).
+    Sobrepasan el tope (13,8) aunque caben en la maquina; esta prueba fija ambas cosas."""
+    peak, peak_cpu = requested_gib(PEAK_INFERENCE_SERVICES), requested_cpu(PEAK_INFERENCE_SERVICES)
+    for declared in ([PROD, PROD, INACTIVE], [INACTIVE, PROD, PROD], [PROD, INACTIVE, INACTIVE_B], [INACTIVE, INACTIVE_B, PROD]):
+        counted = peak_with_declared(declared)
+        assert _profiles(counted) == sorted([*_profiles(PEAK_INFERENCE_SERVICES), "inactive"]), declared
+        assert requested_gib(counted) - peak == pytest.approx(2 * POD_GIB), declared
+        assert requested_cpu(counted) - peak_cpu == pytest.approx(2 * (0.1 + proxy_cpu())), declared
+        print(f"(d) {_profiles(declared)}: {requested_gib(counted):.4f} GiB de {BUDGET_GIB} (maquina {MACHINE_GIB:.4f}); CPU {requested_cpu(counted):.4f} de {CPU_BUDGET}")
+        assert requested_gib(counted) > BUDGET_GIB
+        assert requested_gib(counted) <= MACHINE_GIB
+        assert requested_cpu(counted) > CPU_BUDGET
+    # un tercer `prod` y un segundo `staging` siguen contando de mas con un `inactive` declarado
+    assert _profiles(peak_with_declared([PROD, PROD, PROD_C, INACTIVE])) == ["inactive", "prod", "prod", "prod", "staging"]
+    assert _profiles(peak_with_declared([PROD, INACTIVE, STAGING_B, STAGING])) == ["prod", "prod", "staging", "staging"]
 
 
 def test_job_cpu_is_read_from_the_render_and_covers_the_cronjobs_and_the_jobs_the_old_estimate_missed():
