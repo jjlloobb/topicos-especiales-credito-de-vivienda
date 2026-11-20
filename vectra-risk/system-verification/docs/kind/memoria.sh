@@ -2,14 +2,16 @@
 # Memoria (K-01, K-09, K-23, K-47, K-54, K-59): `memoria.sh antes|durante|despues`. Solo lectura. Imprime `free -m`, `docker stats --no-stream` de los nodos de kind y del contenedor de U12
 # (`VERIF_CONTAINER`, por omision el de la orden `docker run` de la guia) y, por pod de `vectra-*`, la memoria de trabajo que mide Prometheus (`container_memory_working_set_bytes`) frente al request
 # que declara el pod (`kubectl get pods -o json`, con `Ki`, `Mi`, `Gi` y bytes normalizados a MiB). No usa la orden `top`: no es un verbo permitido.
-# Puertas (valores de partida, a corregir con lo que se mida en la jornada 1): `antes` pide al menos 8192 MiB disponibles, `durante` al menos 1536 MiB, `despues` ninguna. Falla (1) si no se
+# Puertas: `antes` pide al menos 3072 MiB disponibles, `durante` al menos 1536 MiB, `despues` ninguna. El guion lee los pods y Prometheus, asi que solo corre con el cluster ya instalado:
+# `antes` es antes de una fase pesada, no antes de instalar (los 8 GiB de K-01 se miran con `free -m`). Sus 3072 MiB son la puerta de `durante` (1536), el limite del contenedor de U12
+# (`--memory 1g`) y 512 MiB para los pods de modelo que agrega D2. Las dos se cambian con `MIN_DISPONIBLE_ANTES_MIB` y `MIN_DISPONIBLE_DURANTE_MIB`. Falla (1) si no se
 # cumple la puerta o si algun pod se reinicio por `OOMKilled`; 2 si no se pudo leer. Sin esperas.
 # shellcheck source=/dev/null
 . "$(dirname "$0")/lib.sh"
 
 PHASE="${1:-}"
 case "$PHASE" in
-  antes) MIN_MIB="${MIN_DISPONIBLE_ANTES_MIB:-8192}" ;;
+  antes) MIN_MIB="${MIN_DISPONIBLE_ANTES_MIB:-3072}" ;;
   durante) MIN_MIB="${MIN_DISPONIBLE_DURANTE_MIB:-1536}" ;;
   despues) MIN_MIB=0 ;;
   *) say "uso: memoria.sh antes|durante|despues" >&2; exit 2 ;;
