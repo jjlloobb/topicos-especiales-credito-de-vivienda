@@ -4,6 +4,7 @@ metadata:
   name: minio
   namespace: argocd
   annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
     argocd.argoproj.io/sync-wave: '2'
 spec:
   project: vectra-prod

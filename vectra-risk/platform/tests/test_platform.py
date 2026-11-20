@@ -349,6 +349,9 @@ def test_gitops_applications(env):
         assert "automated" not in document["spec"].get("syncPolicy", {}), path
         assert document["spec"]["project"] == f"vectra-{env}"
         assert "argocd.argoproj.io/sync-wave" in document["metadata"]["annotations"]
+        # Con `ServerSideApply=true` y sin esto, los campos que el servidor rellena por omision dejan la Application `OutOfSync` para siempre.
+        assert "ServerSideApply=true" in document["spec"]["syncPolicy"]["syncOptions"], path
+        assert document["metadata"]["annotations"]["argocd.argoproj.io/compare-options"] == "ServerSideDiff=true", path
         if path.stem in WAVES:
             assert int(document["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"]) == WAVES[path.stem]
 

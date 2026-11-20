@@ -4,6 +4,7 @@ metadata:
   name: cert-manager
   namespace: argocd
   annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
     argocd.argoproj.io/sync-wave: '0'
 spec:
   project: vectra-prod
