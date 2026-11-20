@@ -11,7 +11,6 @@ from typing import Any
 
 import design_values as design
 import pytest
-import realm_builders as builders
 import yaml
 from realm_lint import (
     ADMIN_CLIENT_ROLES,
@@ -172,56 +171,64 @@ def executions(realm: dict[str, Any], flow_alias: str) -> list[dict[str, Any]]:
     return flow_by_alias(realm, flow_alias)["authenticationExecutions"]
 
 
-def level_subflows(realm: dict[str, Any]) -> list[dict[str, Any]]:
-    """Los subflujos condicionales del formulario del login, con sus condiciones y su segundo factor."""
-    configs = {c["alias"]: c["config"] for c in realm["authenticatorConfig"]}
-    out = []
-    for sub in executions(realm, "vectra-browser forms"):
-        assert sub["requirement"] == "CONDITIONAL"
-        items = executions(realm, sub["flowAlias"])
-        levels = [
-            int(configs[e["authenticatorConfig"]]["loa-condition-level"])
-            for e in items
-            if e.get("authenticator") == "conditional-level-of-authentication"
-        ]
-        roles = [
-            configs[e["authenticatorConfig"]]
-            for e in items
-            if e.get("authenticator") == "conditional-user-role"
-        ]
-        factors = [
-            {(x["authenticator"], x["requirement"]) for x in executions(realm, e["flowAlias"])}
-            for e in items
-            if e.get("flowAlias")
-        ]
-        out.append({"alias": sub["flowAlias"], "levels": levels, "roles": roles, "factors": factors, "items": items})
-    return out
+def flow_configs(realm: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {c["alias"]: c["config"] for c in realm["authenticatorConfig"]}
+
+
+def level_conditions(realm: dict[str, Any]) -> list[tuple[str, int]]:
+    """Todas las condiciones de nivel del flujo de login (en cualquier subflujo): (alias del subflujo, nivel). Keycloak arma con ellas una tabla nivel -> vigencia y falla con `Duplicate key` si dos tienen el mismo nivel (U02-T27)."""
+    configs = flow_configs(realm)
+    return [
+        (flow["alias"], int(configs[e["authenticatorConfig"]]["loa-condition-level"]))
+        for flow in realm["authenticationFlows"]
+        for e in flow["authenticationExecutions"]
+        if e.get("authenticator") == "conditional-level-of-authentication"
+    ]
+
+
+def mfa_flow(realm: dict[str, Any]) -> dict[str, Any]:
+    """El subflujo de nivel 2: su condicion de nivel, la de «no es un usuario sin rol con MFA» y su segundo factor."""
+    configs = flow_configs(realm)
+    items = executions(realm, "vectra-mfa")
+    return {
+        "levels": [int(configs[e["authenticatorConfig"]]["loa-condition-level"]) for e in items if e.get("authenticator") == "conditional-level-of-authentication"],
+        "executed": [configs[e["authenticatorConfig"]] for e in items if e.get("authenticator") == "conditional-sub-flow-executed"],
+        "factors": [{(x["authenticator"], x["requirement"]) for x in executions(realm, e["flowAlias"])} for e in items if e.get("flowAlias")],
+        "items": items,
+    }
+
+
+def exempt_roles(realm: dict[str, Any]) -> list[dict[str, Any]]:
+    """Las condiciones de rol del subflujo `vectra-mfa-exempt` (quien las cumple todas no tiene ningun rol con MFA)."""
+    configs = flow_configs(realm)
+    return [configs[e["authenticatorConfig"]] for e in executions(realm, "vectra-mfa-exempt") if e.get("authenticator") == "conditional-user-role"]
 
 
 def test_realm_files_login_flow_reaches_acr_mfa_for_every_mfa_role(env: str) -> None:
     realm = load(env)
     loa = design.loa_map()
     assert realm["browserFlow"] == "vectra-browser"
-    subflows = level_subflows(realm)
+    forms = executions(realm, "vectra-browser forms")
+    assert [(e["flowAlias"], e["requirement"]) for e in forms] == [("vectra-level-pwd", "CONDITIONAL"), ("vectra-mfa-exempt", "CONDITIONAL"), ("vectra-mfa", "CONDITIONAL")]
     # Nivel 1 (pwd): contrasena.
-    (first,) = [s for s in subflows if s["levels"] == [loa["pwd"]]]
-    assert any(e.get("authenticator") == "auth-username-password-form" for e in first["items"])
-    # Nivel 2 (mfa): condicion de nivel Y de rol Y segundo factor TOTP o WebAuthn (BR-U2-03).
+    assert any(e.get("authenticator") == "auth-username-password-form" for e in executions(realm, "vectra-level-pwd"))
+    # Una sola condicion por nivel en todo el flujo: dos del mismo nivel rompen el descubrimiento y el segundo login con sesion abierta (U02-T27).
+    levels = [level for _, level in level_conditions(realm)]
+    assert sorted(levels) == sorted(loa.values()), level_conditions(realm)
+    assert [alias for alias, level in level_conditions(realm) if level == loa["mfa"]] == ["vectra-mfa"]
+    # Nivel 2 (mfa): condicion de nivel, no ser un usuario sin rol con MFA, y segundo factor TOTP o WebAuthn (BR-U2-03).
     second_factor = {("auth-otp-form", "ALTERNATIVE"), ("webauthn-authenticator", "ALTERNATIVE")}
-    for role in sorted(MFA_ROLES | {BREAK_GLASS_ROLE}):
-        (sub,) = [s for s in subflows if s["levels"] == [loa["mfa"]] and any(r["condUserRole"] == role for r in s["roles"])]
-        assert all(r["negate"] == "false" for r in sub["roles"])
-        assert sub["factors"] == [second_factor]
-        assert all(e["requirement"] == "REQUIRED" for e in sub["items"])
-        assert not any(e.get("authenticator") == "conditional-user-configured" for e in sub["items"])  # siempre
-    # Los roles con MFA opcional (analista): solo si ya configuraron el factor.
-    for role in design.optional_mfa_roles():
-        (sub,) = [s for s in subflows if any(r["condUserRole"] == role for r in s["roles"])]
-        assert sub["levels"] == [loa["mfa"]]
-        assert any(e.get("authenticator") == "conditional-user-configured" for e in sub["items"])
-    # Simetria: ningun otro rol tiene un subflujo de nivel 2.
-    covered = {r["condUserRole"] for s in subflows for r in s["roles"]}
-    assert covered == MFA_ROLES | {BREAK_GLASS_ROLE} | design.optional_mfa_roles()
+    mfa = mfa_flow(realm)
+    assert mfa["levels"] == [loa["mfa"]]
+    assert [(c["flow_to_check"], c["check_result"]) for c in mfa["executed"]] == [("vectra-mfa-exempt", "not-executed")]
+    assert mfa["factors"] == [second_factor]
+    assert all(e["requirement"] == "REQUIRED" for e in mfa["items"])
+    assert not any(e.get("authenticator") == "conditional-user-configured" for e in mfa["items"])
+    # Los roles con MFA (obligatorio y opcional) son exactamente los que el subflujo `vectra-mfa-exempt` excluye, uno por uno y negados.
+    roles = exempt_roles(realm)
+    assert all(r["negate"] == "true" for r in roles)
+    assert sorted(r["condUserRole"] for r in roles) == sorted(MFA_ROLES | {BREAK_GLASS_ROLE} | design.optional_mfa_roles())
+    assert [e["authenticator"] for e in executions(realm, "vectra-mfa-exempt") if e["authenticator"] != "conditional-user-role"] == ["allow-access-authenticator"]
     # El nivel vale `loa-max-age` dentro de la sesion SSO (§6).
     configs = {c["alias"]: c["config"] for c in realm["authenticatorConfig"] if "loa-condition-level" in c["config"]}
     assert {int(c["loa-condition-level"]) for c in configs.values()} == set(loa.values())
@@ -255,8 +262,8 @@ def test_realm_files_break_glass_requires_mfa_through_its_realm_admin_role() -> 
     (glass,) = [u for u in prod["users"] if u["username"] == BREAK_GLASS]
     assert glass["realmRoles"] == []  # no lo cubre ninguna condicion de rol de realm
     assert glass["clientRoles"] == {REALM_MANAGEMENT: [REALM_ADMIN]}
-    covering = [s for s in level_subflows(prod) if any(r["condUserRole"] == BREAK_GLASS_ROLE for r in s["roles"])]
-    assert len(covering) == 1 and covering[0]["levels"] == [design.loa_map()["mfa"]]
+    assert [r["condUserRole"] for r in exempt_roles(prod)].count(BREAK_GLASS_ROLE) == 1  # lo excluye de «sin rol con MFA»: le toca el nivel 2
+    assert mfa_flow(prod)["levels"] == [design.loa_map()["mfa"]]
 
 
 def test_realm_files_totp_and_webauthn_required_actions_are_enabled(env: str) -> None:
@@ -656,28 +663,13 @@ def test_the_authentication_flows_have_unique_increasing_priorities(env: str) ->
 
 
 def test_the_browser_forms_flow_orders_the_level_subflows_as_designed(env: str) -> None:
-    """Nivel pwd primero, luego los roles MFA de `realm_builders` en su orden, despues los demas obligatorios y los opcionales (analista) al final."""
-    realm = load(env)
-    forms = executions(realm, "vectra-browser forms")
-    assert [e["flowAlias"] for e in forms][0] == "vectra-level-pwd"
-    mandatory = [f"vectra-mfa-{role}" for role in builders.MFA_ROLES]
-    optional = [f"vectra-mfa-{role}" for role in sorted(design.optional_mfa_roles())]
-    aliases = [e["flowAlias"] for e in forms]
-    assert aliases[1 : 1 + len(mandatory)] == mandatory
-    assert aliases[len(aliases) - len(optional) :] == optional
-    rest = aliases[1 + len(mandatory) : len(aliases) - len(optional)]
-    expected_rest = {f"vectra-mfa-{role}" for role in MFA_ROLES - set(builders.MFA_ROLES)} | {"vectra-mfa-break-glass"}
-    assert len(rest) == len(expected_rest) and set(rest) == expected_rest
+    """Nivel pwd primero, luego el subflujo que marca a quien no tiene rol con MFA, y al final el de nivel 2, que lo consulta (la marca ya existe cuando se evalua)."""
+    forms = executions(load(env), "vectra-browser forms")
+    assert [e["flowAlias"] for e in forms] == ["vectra-level-pwd", "vectra-mfa-exempt", "vectra-mfa"]
 
 
-def test_every_mfa_subflow_follows_the_level_then_role_then_factor_template(env: str) -> None:
+def test_the_mfa_subflow_follows_the_level_then_exempt_mark_then_factor_template(env: str) -> None:
     realm = load(env)
-    for sub in executions(realm, "vectra-browser forms"):
-        if sub["flowAlias"] == "vectra-level-pwd":
-            continue
-        items = executions(realm, sub["flowAlias"])
-        kinds = [e.get("authenticator") or "factor" for e in sorted(items, key=lambda e: e["priority"])]
-        optional = "conditional-user-configured" in kinds
-        template = ["conditional-level-of-authentication", "conditional-user-role"] + (["conditional-user-configured"] if optional else []) + ["factor"]
-        assert kinds == template, (sub["flowAlias"], kinds)
-        assert items[-1]["flowAlias"] == f"{sub['flowAlias']} factor"
+    items = sorted(executions(realm, "vectra-mfa"), key=lambda e: e["priority"])
+    assert [e.get("authenticator") or "factor" for e in items] == ["conditional-level-of-authentication", "conditional-sub-flow-executed", "factor"]
+    assert items[-1]["flowAlias"] == "vectra-mfa factor"

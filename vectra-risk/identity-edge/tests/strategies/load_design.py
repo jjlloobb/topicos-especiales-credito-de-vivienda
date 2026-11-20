@@ -137,20 +137,15 @@ def console_retry_after() -> str:
 
 
 def load_role() -> str:
-    """El rol de los usuarios de carga: opcional segun domain-entities §1.1, sin MFA obligatorio (BR-U2-03) y con login sin TOTP en el realm.
+    """El rol de los usuarios de carga: opcional segun domain-entities §1.1 y sin MFA obligatorio (BR-U2-03).
 
-    El realm lo confirma: el subflujo `vectra-mfa-<rol>` del rol lleva `conditional-user-configured`, asi que un usuario sin
-    credencial OTP entra solo con contrasena (nivel `pwd`), y `vectra-console` no restringe por rol.
+    Es lo que dice el diseno. El realm hoy no lo cumple: desde U02-T27 todo usuario con alguno de los roles con MFA (analista incluido) pasa por el
+    subflujo `vectra-mfa`, que pide el segundo factor, y antes de U02-T27 pasaba lo mismo (`conditional-user-configured` sobre un subflujo no filtra:
+    CANDIDATAS.md, U02-T22). Los usuarios de carga sin OTP no entran en kind hasta que eso se resuelva.
     """
     candidates = sorted(optional_mfa_roles() - mfa_required_roles())
-    flows = {f["alias"]: f for f in realm()["authenticationFlows"]}
-    viable = []
-    for role in candidates:
-        flow = flows.get(f"vectra-mfa-{role}")
-        if flow and any(e.get("authenticator") == "conditional-user-configured" for e in flow["authenticationExecutions"]):
-            viable.append(role)
-    assert len(viable) == 1, f"ningun rol (o varios) entra sin TOTP: {candidates} -> {viable}"
-    return viable[0]
+    assert len(candidates) == 1, f"ningun rol (o varios) con MFA opcional: {candidates}"
+    return candidates[0]
 
 
 
