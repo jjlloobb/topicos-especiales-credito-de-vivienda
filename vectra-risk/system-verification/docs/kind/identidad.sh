@@ -13,8 +13,13 @@ AS_USER="operador"
 AS_GROUP="vectra-verification-operators"
 
 # `check <esperado> <verbo> <recurso> <namespace>`: compara con `kubectl auth can-i`. Exit 1 de can-i significa `no`; cualquier otro fallo es no poder leer.
+# Un subrecurso (`pods/log`, `pods/portforward`) se pregunta con `--subresource`: para `can-i`, `pods/portforward` es TIPO/NOMBRE, el pod llamado
+# `portforward`, y la respuesta es la del permiso sobre `pods` (medido en kind: `create pods/portforward` daba `no` con el permiso concedido).
 check() {
-  ANSWER="$(kubectl --context "${KUBE_CONTEXT:-kind-vectra}" auth can-i "$2" "$3" -n "$4" "--as=$AS_USER" "--as-group=$AS_GROUP" 2> "$TMP_DIR/err")"
+  RESOURCE="${3%%/*}"
+  SUBRESOURCE=""
+  case "$3" in */*) SUBRESOURCE="${3#*/}" ;; esac
+  ANSWER="$(kubectl --context "${KUBE_CONTEXT:-kind-vectra}" auth can-i "$2" "$RESOURCE" ${SUBRESOURCE:+"--subresource=$SUBRESOURCE"} -n "$4" "--as=$AS_USER" "--as-group=$AS_GROUP" 2> "$TMP_DIR/err")"
   RC=$?
   if [ "$RC" -ne 0 ] && [ "$RC" -ne 1 ]; then cannot_read "auth can-i $2 $3 -n $4: $(head -c 200 "$TMP_DIR/err")"; fi
   if [ "$ANSWER" = "$1" ]; then say "OK   K16 $2 $3 en $4: $ANSWER"; else say "FALLA K16 $2 $3 en $4: dio '$ANSWER' y se esperaba '$1' (K-34)"; FAIL=1; fi
