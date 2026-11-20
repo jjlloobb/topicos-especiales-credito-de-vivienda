@@ -58,7 +58,11 @@ def problems(result: dict[str, Any]) -> list[str]:
         found.append("el filtro de /auth/** no tiene failure_mode_deny")
     if auth.get("statusOnError") != {"code": STATUS[status]}:
         found.append(f"status_on_error de /auth/**: {auth.get('statusOnError')}")
+    if auth.get("timeout") != "0.500s":  # `0.5s` del parche, como lo traduce egctl
+        found.append(f"timeout de /auth/**: {auth.get('timeout')}")
     for name, config in filters.items():
+        if name != AUTH_FILTER and "timeout" in config:
+            found.append(f"{name} tiene timeout")
         if name != AUTH_FILTER and config.get("failureModeDeny"):
             found.append(f"{name} tiene failure_mode_deny")
         if name != AUTH_FILTER and "statusOnError" in config:
@@ -259,7 +263,9 @@ ALTERATIONS: list[tuple[str, Callable[[gc.Docs], None]]] = [
     ("no-envoy-patch-policy", lambda d: d.remove(_by_name(d, "EnvoyPatchPolicy", "auth-fail-closed"))),
     ("patch-on-every-rate-limit-filter", _patch_every_filter),
     ("patch-on-the-edge-filter", _patch_edge_filter),
-    ("patch-without-status-on-error", lambda d: _by_name(d, "EnvoyPatchPolicy", "auth-fail-closed")["spec"]["jsonPatches"].pop()),
+    ("patch-without-status-on-error", lambda d: _by_name(d, "EnvoyPatchPolicy", "auth-fail-closed")["spec"]["jsonPatches"].pop(1)),
+    ("patch-without-ratelimit-timeout", lambda d: _by_name(d, "EnvoyPatchPolicy", "auth-fail-closed")["spec"]["jsonPatches"].pop(2)),
+    ("patch-with-the-default-ratelimit-timeout", lambda d: _by_name(d, "EnvoyPatchPolicy", "auth-fail-closed")["spec"]["jsonPatches"][2]["operation"].update(value="0.02s")),
     ("second-policy-on-the-gateway", _second_gateway_policy),
     ("trusts-one-hop", _trust_one_hop),
     ("trusts-zero-hops", _trust_zero_hops),

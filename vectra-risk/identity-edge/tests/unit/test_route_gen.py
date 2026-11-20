@@ -1112,7 +1112,9 @@ MUTATIONS: list[tuple[str, str, Callable[[gc.Docs], None]]] = [
     ("fail-closed-patch", "not-a-listener", lambda d: _patches(d)[0].update(type="type.googleapis.com/envoy.config.cluster.v3.Cluster")),
     ("fail-closed-patch", "other-listener", lambda d: _patches(d)[0].update(name="vectra-edge/api-gateway/web")),
     ("fail-closed-patch", "all-rate-limit-filters", lambda d: _patches(d)[0]["operation"].update(jsonPath="..http_filters[?(@.name=~'envoy.filters.http.ratelimit.*')].typed_config")),
-    ("fail-closed-patch", "three-patches", lambda d: _patches(d).append(copy.deepcopy(_patches(d)[0]))),
+    ("fail-closed-patch", "four-patches", lambda d: _patches(d).append(copy.deepcopy(_patches(d)[0]))),
+    ("fail-closed-patch", "no-timeout", lambda d: _patches(d).pop(2)),
+    ("fail-closed-patch", "two-timeouts", lambda d: _patches(d).__setitem__(1, copy.deepcopy(_patches(d)[2]))),
     ("fail-closed-patch", "fail-open", lambda d: _patches(d)[0]["operation"].update(value=False)),
     ("fail-closed-patch", "status-500", lambda d: _patches(d)[1]["operation"].update(value={"code": 500})),
     ("environment-issuer", "kind-issuer-in-prod", lambda d: _cert_for(d)["issuerRef"].update(name="vectra-internal-ca")),
@@ -1483,3 +1485,47 @@ def test_the_envoy_container_declares_the_port_external_traffic_enters_by(env, d
     """Linkerd precarga la politica de los puertos que el pod declara (`LINKERD2_PROXY_INBOUND_PORTS`); uno no declarado cae en `deny`
     cuando la politica se descarta tras un rato sin trafico y la primera conexion falla."""
     assert external_target_ports() <= declared_envoy_ports(docs_by_env[env])
+
+
+# --- U02-T26: el filtro de limites de /auth/** lleva un plazo propio y sigue cerrando el paso ---------------------------------
+# El filtro de Envoy `envoy.filters.http.ratelimit` espera 20 ms por la respuesta del servicio de limites si no se le dice otra cosa
+# (`timeout` en la documentacion del filtro); con Valkey tras la malla una consulta a veces tarda mas y, con `failure_mode_deny`, eso
+# es un 503 de login (`RLSE`). Estos valores son los de la decision de diseño, escritos a mano y no leidos de `routes.yaml`.
+AUTH_FAIL_CLOSED = {"failure_mode_deny": True, "status_on_error": {"code": 503}, "timeout": "0.5s"}
+
+
+def _patch_values(docs: gc.Docs) -> dict[str, Any]:
+    return {p["operation"]["path"]: p["operation"]["value"] for p in _patches(docs)}
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_the_auth_filter_carries_the_ratelimit_timeout_and_keeps_failing_closed_in_the_committed_manifests(env, docs_by_env):
+    assert _patch_values(docs_by_env[env]) == AUTH_FAIL_CLOSED
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_the_auth_filter_carries_the_ratelimit_timeout_and_keeps_failing_closed_when_generated_now(env):
+    assert _patch_values(generated_docs(env)) == AUTH_FAIL_CLOSED
+
+
+@pytest.mark.parametrize("remove", ["timeout", "failure_mode_deny", "status_on_error"])
+def test_the_generator_refuses_a_fail_closed_block_without_the_ratelimit_timeout_or_the_mode(remove):
+    routes = copy.deepcopy(route_gen.load_routes())
+    routes["fail_closed"].pop(remove)
+    with pytest.raises((route_gen.RoutesError, KeyError)):
+        route_gen.generate(routes, route_gen.load_values("kind"))
+
+
+@pytest.mark.parametrize("timeout", ["20ms", "0s", "-1s", "abc", "5s", 0.5])
+def test_the_generator_refuses_a_ratelimit_timeout_that_is_the_default_or_unbounded(timeout):
+    routes = copy.deepcopy(route_gen.load_routes())
+    routes["fail_closed"]["timeout"] = timeout
+    with pytest.raises(route_gen.RoutesError):
+        route_gen.generate(routes, route_gen.load_values("kind"))
+
+
+def test_the_ratelimit_timeout_is_written_in_the_seconds_format_of_protobuf_durations():
+    routes = copy.deepcopy(route_gen.load_routes())
+    routes["fail_closed"]["timeout"] = "250ms"
+    files = route_gen.generate(routes, route_gen.load_values("kind"))
+    assert _patch_values(gc.flat({"p": [d for d in yaml.safe_load_all(files["envoypatchpolicies.yaml"]) if d]}))["timeout"] == "0.25s"

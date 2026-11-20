@@ -13,6 +13,7 @@ Diseno: domain-entities §4 y §4.1; BR-U2-08, 10, 11, 13, 14; P-U2-01, 02, 03, 
 """
 
 import argparse
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -672,8 +673,25 @@ def fail_closed_domain(ctx: Ctx) -> str:
     return f"{ctx.namespace}/{rule['name']}"
 
 
+# Envoy espera 20 ms la respuesta del servicio de limites si el filtro no trae `timeout`; el plazo propio debe ser mayor y esta acotado
+# porque mientras espera el gateway retiene la peticion de login.
+RATELIMIT_TIMEOUT_DEFAULT_S = 0.020
+RATELIMIT_TIMEOUT_MAX_S = 2.0
+
+
+def ratelimit_timeout(raw: Any) -> str:
+    """`500ms` o `1.5s` de `fail_closed.timeout` como Duration de protobuf (`0.5s`), que es lo que acepta el JSON patch."""
+    found = re.fullmatch(r"(\d+(?:\.\d+)?)(ms|s)", raw) if isinstance(raw, str) else None
+    if not found:
+        raise RoutesError(f"fail_closed.timeout debe ser un texto como 500ms o 1s y es {raw!r}")
+    seconds = float(found.group(1)) / (1000 if found.group(2) == "ms" else 1)
+    if not RATELIMIT_TIMEOUT_DEFAULT_S < seconds <= RATELIMIT_TIMEOUT_MAX_S:
+        raise RoutesError(f"fail_closed.timeout {raw} debe ser mayor que el de fabrica de Envoy (20ms) y no pasar de 2s")
+    return f"{seconds:g}s"
+
+
 def envoy_patch_policies(ctx: Ctx) -> list[dict[str, Any]]:
-    """P-U2-01, NFR-U2-21, alternativa 2: `failure_mode_deny: true` y `status_on_error` solo en el filtro del dominio de `/auth/**`."""
+    """P-U2-01, NFR-U2-21, alternativa 2: `failure_mode_deny: true`, `status_on_error` y el `timeout` (U02-T26) solo en el filtro del dominio de `/auth/**`."""
     selector = f"..http_filters[?(@.name=='{RATELIMIT_FILTER}/{fail_closed_domain(ctx)}')].typed_config"
     listener = f"{ctx.namespace}/{ctx.gateway}/{ctx.section}"
 
@@ -689,7 +707,11 @@ def envoy_patch_policies(ctx: Ctx) -> list[dict[str, Any]]:
             "spec": {
                 "type": "JSONPatch",
                 "targetRef": gateway_ref(ctx),
-                "jsonPatches": [patch("failure_mode_deny", fail["failure_mode_deny"]), patch("status_on_error", {"code": fail["status_on_error"]})],
+                "jsonPatches": [
+                    patch("failure_mode_deny", fail["failure_mode_deny"]),
+                    patch("status_on_error", {"code": fail["status_on_error"]}),
+                    patch("timeout", ratelimit_timeout(fail["timeout"])),
+                ],
             },
         }
     ]
