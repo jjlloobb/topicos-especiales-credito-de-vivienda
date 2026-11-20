@@ -646,7 +646,7 @@ def test_structure_the_first_page_has_who_does_what_the_risks_the_symptoms_and_t
     for title in FIRST_PAGE:
         assert title in head, title
     risks = section(GUIDE_TEXT.replace("## Riesgos que pueden impedir una demo", "## F99 riesgos"), "F99")
-    assert all(f"**R-{n}**" in risks for n in range(1, 9))
+    assert all(f"**R-{n}**" in risks for n in range(1, 12))
     symptoms = GUIDE_TEXT[GUIDE_TEXT.index("## Si algo falla") : GUIDE_TEXT.index("## Cómo dejar el clúster")]
     assert (
         symptoms.count("\n| ") >= 15
