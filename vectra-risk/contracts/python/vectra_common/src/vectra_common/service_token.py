@@ -77,17 +77,15 @@ class ServiceTokenProvider:
         async with self._lock:
             if self._token is not None and self._clock() < self._expires_at - RENEW_BEFORE:
                 return self._token
-            answer = await self._poster(
-                self._token_url,
-                {
-                    "grant_type": "client_credentials",
-                    "client_assertion_type": ASSERTION_TYPE,
-                    "client_assertion": self._assertion(),
-                    "scope": " ".join(self._scopes),
-                    "audience": self._audience,
-                },
-                TOKEN_TIMEOUT,
-            )
+            form = {
+                "grant_type": "client_credentials",
+                "client_assertion_type": ASSERTION_TYPE,
+                "client_assertion": self._assertion(),
+                "audience": self._audience,
+            }
+            if self._scopes:  # Keycloak 26.8.1 rechaza un `scope` vacio (400 `Invalid scopes`): sin scopes no se envia (U02-T28)
+                form["scope"] = " ".join(self._scopes)
+            answer = await self._poster(self._token_url, form, TOKEN_TIMEOUT)
             try:
                 self._token = str(answer["access_token"])
                 self._expires_at = self._clock() + float(answer["expires_in"])
