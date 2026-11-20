@@ -5,8 +5,9 @@ Solo para kind: no van al realm versionado. Lo ejecuta el operador en el Paso 16
     VECTRA_E2E_ADMIN_URL=https://127.0.0.1:8443/auth VECTRA_E2E_ADMIN_USER=... VECTRA_E2E_ADMIN_PASSWORD=... \\
     K6_LOAD_PASSWORD=... uv run python identity-edge/tests/load/seed_users.py create      # o `delete`
 
-Los usuarios no tienen credencial OTP ni acciones requeridas, y llevan `LOAD_ROLE`: un rol al que BR-U2-03 no exige MFA y cuyo
-subflujo del realm (`vectra-mfa-<rol>`) lleva `conditional-user-configured`, asi que entra con la contrasena sola. Es idempotente:
+Los usuarios no tienen credencial OTP ni acciones requeridas, y llevan `LOAD_ROLE`: un rol al que BR-U2-03 no exige MFA. OJO: el realm
+pide hoy el segundo factor a todo `analista` (`conditional-user-configured` sobre un subflujo no filtra; CANDIDATAS.md, U02-T22), asi que estos
+usuarios no entran con la contrasena sola hasta que eso se resuelva. Es idempotente:
 una segunda corrida no crea usuarios, corrige el rol y repone la contrasena. `delete` solo toca los nombres `load-NNN`.
 """
 

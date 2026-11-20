@@ -57,6 +57,7 @@ from e2e_support import Step, decode, form_action, hidden_fields  # noqa: E402  
 KEYCLOAK_DIR = EDGE / "keycloak"
 REALM_FILE = KEYCLOAK_DIR / "realm" / "realm.kind.yaml"
 OLD_REALM_FILE = EDGE / "tests" / "fixtures" / "realm-pre-u02t22" / "realm.kind.yaml"
+DUPLICATE_LEVELS_REALM_FILE = EDGE / "tests" / "fixtures" / "realm-pre-u02t27" / "realm.kind.yaml"
 SCRATCH = ROOT / "platform" / ".tools" / "tmp" / "u02t22"
 MEASUREMENTS = SCRATCH / "measurements.log"
 REALM = "vectra"
