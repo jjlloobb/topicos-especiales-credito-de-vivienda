@@ -57,7 +57,14 @@ grafana_token() {
   forward=$!
   trap 'kill "$forward" 2>/dev/null || true' EXIT
   url="http://127.0.0.1:$port"
-  until curl -fsS -o /dev/null "$url/api/health"; do sleep 1; done
+  # Con tope: si el port-forward muere o Grafana no arranca (OOMKilled), la siembra se quedaba esperando para siempre.
+  local tries=0
+  until curl -fsS -o /dev/null "$url/api/health" 2>/dev/null; do
+    tries=$((tries + 1))
+    if ! kill -0 "$forward" 2>/dev/null; then echo "El port-forward a Grafana termino: mira que el pod este listo y repite seed-vault.sh grafana-token" >&2; exit 1; fi
+    if [ "$tries" -ge 120 ]; then echo "Grafana no respondio en $url/api/health tras 120 intentos: mira el pod y repite seed-vault.sh grafana-token" >&2; exit 1; fi
+    sleep 1
+  done
   api() { curl -fsS -K <(printf 'user = "admin:%s"\n' "$password") -H 'Content-Type: application/json' "$@"; }
   id="$(api "$url/api/serviceaccounts/search?query=folder-permissions" | python3 -c '
 import json, sys
