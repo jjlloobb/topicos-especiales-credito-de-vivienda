@@ -7,10 +7,12 @@ Necesita `platform/install-tools.sh` (helm).
 
 import base64
 import hashlib
+import importlib.util
 import json
 import re
 import shutil
 import subprocess
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -214,8 +216,75 @@ def test_the_pr_carries_the_helm_and_the_kubectl_diff_evidence_and_never_applies
     body = doubles.gh[-1][doubles.gh[-1].index("--body") + 1]
     assert "helm template" in body and "kubectl diff" in body and ISVC2 in body and M2 in body and "+kind: InferenceService" in body
     assert "InferenceService" in doubles.diff_stdin[0] and M2 in doubles.diff_stdin[0]  # el diff recibe el render por stdin
-    flat = [" ".join(c) for c in doubles.commands]
+    # el cuerpo del PR (`--body`) es texto para la persona que revisa: nombra el sync que ella hara, no es una orden de la herramienta
+    flat = [" ".join(c[: c.index("--body")] if "--body" in c else c) for c in doubles.commands]
     assert not [c for c in flat if re.search(r"\b(apply|sync)\b|helm (install|upgrade)", c)]
+
+
+# --- la nota de rollback que exige la CI (NFR-U1-44, `platform/tests/rollback_note.py`) ----------------------------------------------
+
+ROLLBACK_NOTE = ROOT / "platform" / "tests" / "rollback_note.py"
+_spec = importlib.util.spec_from_file_location("rollback_note", ROLLBACK_NOTE)
+assert _spec and _spec.loader
+rollback_note = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(rollback_note)
+
+
+def pr_body(doubles: Doubles) -> str:
+    return doubles.gh[-1][doubles.gh[-1].index("--body") + 1]
+
+
+@pytest.fixture
+def bodies(repo: Path, doubles: Doubles) -> dict[str, str]:
+    """El cuerpo que `open_pr` pasa a `gh pr create` en cada una de las tres clases de PR (M2 se promueve, M1 baja y vuelve)."""
+    t = tool(repo, doubles)
+    out: dict[str, str] = {}
+    commands.create_promotion_pr(api(Governance()), t, M2)
+    out["promocion"] = pr_body(doubles)
+    merge(repo, branch_of(doubles))
+    commands.post_activation_pr(t, M1)
+    out["post-activacion"] = pr_body(doubles)
+    merge(repo, branch_of(doubles))
+    commands.rollback_pr(t, M1)
+    out["rollback"] = pr_body(doubles)
+    return out
+
+
+def ci_rc(body: str, tmp_path: Path) -> int:
+    """Como la CI: el cuerpo en un archivo y `python3 platform/tests/rollback_note.py <archivo>`."""
+    path = tmp_path / "body.md"
+    path.write_text(body, encoding="utf-8")
+    return subprocess.run([sys.executable, str(ROLLBACK_NOTE), str(path)], capture_output=True, text=True, check=False).returncode  # noqa: S603
+
+
+def without_rollback(body: str) -> str:
+    """El cuerpo que armaba `open_pr` antes: la misma evidencia, sin la seccion `## Rollback`."""
+    return re.sub(r"^## Rollback\n.*?(?=^#{1,3} |\Z)", "", body, flags=re.S | re.M)
+
+
+@pytest.mark.parametrize("kind", ["promocion", "post-activacion", "rollback"])
+def test_rollback_note_every_pr_body_passes_the_ci_checker(kind: str, bodies: dict[str, str], tmp_path: Path) -> None:
+    body = bodies[kind]
+    assert "## Rollback" in body and rollback_note.has_rollback_note(body)
+    assert "### Evidencia" in body and "kubectl diff" in body  # la evidencia sigue
+    assert ci_rc(body, tmp_path) == 0
+
+
+@pytest.mark.parametrize("kind", ["promocion", "post-activacion", "rollback"])
+def test_rollback_note_removing_the_section_fails_the_checker(kind: str, bodies: dict[str, str], tmp_path: Path) -> None:
+    mutated = without_rollback(bodies[kind])
+    assert "## Rollback" not in mutated and "### Evidencia" in mutated
+    assert not rollback_note.has_rollback_note(mutated)
+    assert ci_rc(mutated, tmp_path) == 1  # lo que paso con el PR #211
+
+
+def test_rollback_note_says_what_each_pr_does_and_that_the_version_state_is_not_reverted(bodies: dict[str, str]) -> None:
+    for kind, body in bodies.items():
+        note = body.split("## Rollback", 1)[1]
+        assert "model-serving" in note and "promotion-tool" in note and "estado" in note, kind
+    assert "`prod`" in bodies["promocion"] and "isvc-a1b2c3d4" in bodies["promocion"]
+    assert "`inactive`" in bodies["post-activacion"] and "isvc-26300247" in bodies["post-activacion"]
+    assert "mark-active" in bodies["rollback"] and "rollback-pr" in bodies["post-activacion"]
 
 
 def test_a_version_that_is_not_approved_has_no_pr_and_leaves_no_branch(repo: Path, doubles: Doubles) -> None:

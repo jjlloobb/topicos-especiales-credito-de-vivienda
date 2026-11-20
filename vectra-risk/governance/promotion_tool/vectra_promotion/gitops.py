@@ -97,6 +97,27 @@ class PromotionRepo:
             "Este PR no sincroniza ni aplica nada: lo fusiona una persona y Argo CD lo recoge.\n"
         )
 
+    def rollback_note(self, kind: str, version: str) -> str:
+        """La seccion `## Rollback` que exige la CI (NFR-U1-44): que se revierte, que recoge Argo CD y que queda en governance."""
+        what = {
+            "promocion": f"Este PR agrega la entrada `prod` de `{version}` (`{values.isvc_name(version)}`); revertirlo deja el archivo como estaba antes.",
+            "post-activacion": f"Este PR baja `{version}` (`{values.isvc_name(version)}`) de `prod` a `inactive`; revertirlo la deja en `prod`.",
+            "rollback": f"Este PR devuelve `{version}` (`{values.isvc_name(version)}`) de `inactive` a `prod`; revertirlo la deja en `inactive`.",
+        }[kind]
+        state = {
+            "promocion": "La activacion (`mark-active`) se hace con `promotion-tool` despues del sync.",
+            "post-activacion": "Para devolverla a produccion usa `promotion-tool rollback-pr` y despues `mark-active`, no este revert.",
+            "rollback": "Este PR no la activa: despues del merge y del sync, `promotion-tool mark-active` la pasa a `activo`.",
+        }[kind]
+        path = self.values_path.relative_to(self.repo)
+        return (
+            "## Rollback\n\n"
+            f"- {what} Es un solo commit sobre `{path}`.\n"
+            "- Argo CD recoge el cambio cuando se sincroniza `model-serving` (`argocd app sync model-serving`).\n"
+            "- Revertir el PR no cambia el estado de la version en governance: ese estado se cambia con `promotion-tool`, no con los values. "
+            f"{state}\n"
+        )
+
     def open_pr(self, kind: str, version: str, entries: Sequence[values.Entry], summary: str) -> str:
         """Un solo commit firmado con el archivo de values editado; empuja la rama y abre el PR con `gh`."""
         if not self.diff_command:
@@ -105,7 +126,7 @@ class PromotionRepo:
             raise PromotionError("working_tree_dirty")
         text = values.edit(self.values_path.read_text(encoding="utf-8"), entries)
         rendered = self.render(text)  # falla aqui, sin tocar la rama, si el esquema no admite el cambio
-        body = self.evidence(rendered, self.diff(rendered))
+        body = f"{self.evidence(rendered, self.diff(rendered))}\n{self.rollback_note(kind, version)}"
         isvc = values.isvc_name(version)
         branch = f"promotion/{kind}-{isvc}-{self.env}"
         original = self._run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
