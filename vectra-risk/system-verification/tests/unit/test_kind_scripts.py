@@ -660,6 +660,20 @@ def test_identidad_uses_the_k16_group_and_the_table_matches_k16(tmp_path: Path) 
         assert ((namespace, resource_name, verb_name) in k16) == (expected == "yes"), line
 
 
+def test_identidad_asks_for_subresources_with_the_subresource_flag(tmp_path: Path) -> None:
+    """`kubectl auth can-i create pods/portforward` pregunta por el pod llamado `portforward` (TIPO/NOMBRE), no por el subrecurso: daba `no` en kind con
+    el permiso concedido (2026-11-19). Cada subrecurso de la tabla se pregunta con `--subresource`."""
+    run("identidad.sh", [], tmp_path, identity_state(), env={"VAULT_TOKEN": "root"})
+    cans = [
+        " ".join(c) if isinstance(c, list) else str(c)
+        for c in kind_kubectl_bin.calls(tmp_path / "bin")
+        if "can-i" in c
+    ]
+    assert cans and not [c for c in cans if re.search(r"can-i \w+ \S+/\S+", c)], cans
+    assert len([c for c in cans if "can-i create pods --subresource=portforward" in c]) == 2, cans
+    assert len([c for c in cans if "can-i get pods --subresource=log" in c]) == 2, cans
+
+
 def test_identidad_a_k16_mismatch_a_missing_key_and_a_job_that_did_not_finish_fail(tmp_path: Path) -> None:
     wrong = identity_state()
     wrong["rules"].insert(0, {"match": ["auth", "can-i", "get", "jobs"], "stdout": "no\n", "rc": 1})
