@@ -565,13 +565,29 @@ def test_memoria_normalizes_ki_mi_gi_and_bytes_and_marks_a_pod_over_its_request(
     assert "vectra-control-plane" in done.stdout and "otro-contenedor" not in done.stdout
 
 
-def test_memoria_gate_antes_needs_8_gib_and_durante_1_5_gib(tmp_path: Path) -> None:
+def test_memoria_gate_antes_needs_3_gib_with_the_cluster_installed_and_durante_1_5_gib(
+    tmp_path: Path,
+) -> None:
+    """`antes` solo corre con el cluster instalado (lee los pods y Prometheus): una maquina de 15 GiB con el kind sano deja unos 3,5 GiB y debe pasar."""
     state = mem_state([pod("a-0", request="128Mi")], {"a-0": 2**20})
-    low = FREE.format(available=4000)
+    low = FREE.format(available=2500)
     assert run("memoria.sh", ["antes"], tmp_path, state, free=low).returncode == 1
     assert run("memoria.sh", ["durante"], tmp_path, state, free=low).returncode == 0
     assert run("memoria.sh", ["durante"], tmp_path, state, free=FREE.format(available=1000)).returncode == 1
-    assert run("memoria.sh", ["antes"], tmp_path, state, free=FREE.format(available=9000)).returncode == 0
+    measured = run("memoria.sh", ["antes"], tmp_path, state, free=FREE.format(available=3499))
+    assert measured.returncode == 0 and "puerta 3072 MiB" in measured.stdout, measured.stdout
+    assert run("memoria.sh", ["antes"], tmp_path, state, free=FREE.format(available=3071)).returncode == 1
+
+
+def test_memoria_gates_can_be_changed_from_the_environment(tmp_path: Path) -> None:
+    state = mem_state([pod("a-0", request="128Mi")], {"a-0": 2**20})
+    free = FREE.format(available=4000)
+    assert (
+        run(
+            "memoria.sh", ["antes"], tmp_path, state, free=free, env={"MIN_DISPONIBLE_ANTES_MIB": "8192"}
+        ).returncode
+        == 1
+    )
 
 
 def test_memoria_reports_an_oomkilled_pod_and_never_uses_kubectl_top(tmp_path: Path) -> None:

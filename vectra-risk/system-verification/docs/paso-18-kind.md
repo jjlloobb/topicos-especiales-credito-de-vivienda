@@ -281,7 +281,7 @@ Entradas: K-01 a K-05. Plantilla: `00-prerrequisitos.md`. Duración: 30 min, má
 | K-05 | La boveda de kind esta sembrada y no se ha reiniciado desde la siembra (guarda todo en memoria) | `kubectl --context kind-vectra get pods -n vault`; `kubectl --context kind-vectra get externalsecret -A`; `arranque.sh vault` | Base |
 <!-- /inventario:F0 -->
 
-**Puerta de F0.** Sigues solo si: hay al menos 8 GiB disponibles (`memoria.sh antes` sale 0), el clúster existe con el contexto `kind-vectra`, la bóveda está sembrada y no se ha reiniciado (si la máquina se reinició: «Después de reiniciar la máquina» hecha), `reference-model/.out` existe, y sabes qué de F1 a F3 salta el diagnóstico. Si `memoria.sh antes` sale 1: para (R-4). Si la bóveda no tiene las claves de los «-2»: U2 (`seed-vault.sh identity`).
+**Puerta de F0.** Sigues solo si: hay memoria (antes de instalar, al menos 8 GiB disponibles en `free -m`; con el clúster ya instalado, `memoria.sh antes` sale 0: pide 3 GiB, que son la puerta de `durante`, 1,5 GiB, más el contenedor de U12, 1 GiB, más 0,5 GiB para los pods de modelo de D2; medido el 2026-11-20 en una máquina de 15 GiB: 3,5 GiB disponibles con el kind sano, que ocupa unos 10,4 GiB, sin `OOMKilled`), el clúster existe con el contexto `kind-vectra`, la bóveda está sembrada y no se ha reiniciado (si la máquina se reinició: «Después de reiniciar la máquina» hecha), `reference-model/.out` existe, y sabes qué de F1 a F3 salta el diagnóstico. Si `memoria.sh antes` sale 1: para (R-4). Si la bóveda no tiene las claves de los «-2»: U2 (`seed-vault.sh identity`).
 
 ## F1 Imágenes y digests
 
