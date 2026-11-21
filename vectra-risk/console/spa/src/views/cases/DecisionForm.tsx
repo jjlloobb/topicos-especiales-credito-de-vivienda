@@ -11,6 +11,7 @@ import { ApiError } from "../../api/client";
 import { recordDecision } from "../../api/endpoints";
 import { label, problemText, ui, type UiKey } from "../../i18n";
 import { Choice } from "../shared/Choice";
+import { IconError } from "../shared/icons";
 import { ProblemMessage } from "../shared/ProblemMessage";
 import {
   type Decision,
@@ -144,28 +145,33 @@ export function DecisionForm({ caseId, outcome, shapFeatureIds, onRecorded }: Pr
   const length = justificationLength(justification);
   const fieldError = (key: keyof Errors): ReactElement | null => {
     const message = errors[key];
-    return message === undefined ? null : <p role="alert" id={`error-${key}`}>{ui(message)}</p>;
+    return message === undefined ? null : (
+      <p className="field-error" role="alert" id={`error-${key}`}>
+        <IconError />
+        {ui(message)}
+      </p>
+    );
   };
 
   return (
     <section aria-labelledby="decision-title">
       <h3 id="decision-title">{ui("decision_form_title")}</h3>
       <form onSubmit={review} noValidate>
-        <fieldset>
+        <fieldset aria-describedby={errors.decision === undefined ? undefined : "error-decision"}>
           <legend>{ui("decision_field_decision")}</legend>
           {decisionsFor(outcome).map((value) => (
             <Choice key={value} type="radio" name="decision" value={value} checked={decision === value} onChange={() => { chooseDecision(value); }} text={label("DECISIONS", value)} />
           ))}
           {fieldError("decision")}
         </fieldset>
-        <fieldset>
+        <fieldset aria-describedby={errors.final === undefined ? undefined : "error-final"}>
           <legend>{ui("decision_field_final")}</legend>
           {FINALS.map((value) => (
             <Choice key={value} type="radio" name="final" value={value} checked={final === value} onChange={() => { setFinal(value); }} text={label("FINAL_OUTCOMES", value)} />
           ))}
           {fieldError("final")}
         </fieldset>
-        <fieldset>
+        <fieldset aria-describedby={errors.used_factors === undefined ? undefined : "error-used_factors"}>
           <legend>{ui("decision_field_factors")}</legend>
           {shapFeatureIds.map((id) => (
             <Choice key={id} type="checkbox" checked={factors.includes(id)} onChange={() => { toggleFactor(id); }} text={id} />
@@ -178,7 +184,8 @@ export function DecisionForm({ caseId, outcome, shapFeatureIds, onRecorded }: Pr
           id="justification"
           value={justification}
           onChange={(event) => { setJustification(event.target.value); }}
-          aria-describedby="justification-counter"
+          aria-invalid={errors.justification !== undefined}
+          aria-describedby={errors.justification === undefined ? "justification-counter" : "justification-counter error-justification"}
           rows={5}
         />
         <p className="hint" id="justification-counter" aria-live="polite">
@@ -192,7 +199,12 @@ export function DecisionForm({ caseId, outcome, shapFeatureIds, onRecorded }: Pr
           </Button>
         </div>
       </form>
-      {notice === null ? null : <p role="alert">{notice}</p>}
+      {notice === null ? null : (
+        <p className="field-error" role="alert">
+          <IconError />
+          {notice}
+        </p>
+      )}
       {serverError === null ? null : <ProblemMessage error={serverError} />}
       <ModalOverlay isOpen={confirming} onOpenChange={setConfirming} isDismissable={!submitting}>
         <Modal>

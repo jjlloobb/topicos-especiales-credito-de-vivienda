@@ -221,12 +221,18 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   font-weight: 500;
 }
 .app-nav a:hover { text-decoration: underline; }
-.app-nav a[aria-current="page"] { background: var(--nav-active-bg); color: var(--nav-active-text); font-weight: 700; }
+.app-nav a[aria-current] { background: var(--nav-active-bg); color: var(--nav-active-text); font-weight: 700; }
 
 .page { max-width: var(--page-max); margin: 0 auto; padding: var(--space-6) var(--space-5) calc(var(--space-6) * 2); }
 .page > section > * + * { margin-top: var(--space-4); }
 .page > section > h2 { padding-bottom: var(--space-3); border-bottom: var(--border-width) solid var(--border); }
-.page > section > a { display: inline-flex; align-items: center; min-height: var(--target); font-weight: 500; }
+.page > section > a { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--target); font-weight: 500; }
+
+/* Iconos: una sola familia (`views/shared/icons.tsx`), caja de 24 px, trazo de 2 px, color del texto. Siempre junto a un texto. */
+.icon { flex: none; width: 1.25rem; height: 1.25rem; }
+.icon.brand-mark { width: 2.25rem; height: 2.25rem; }
+.auth-card .icon.brand-mark { width: 3rem; height: 3rem; }
+td a .icon { width: 1rem; height: 1rem; }
 
 /* Tarjetas: cada seccion de un detalle (recomendacion, solicitud, ventanas del congelamiento...) y lo que lleve `.card`. */
 .card, .page > section > section {
@@ -344,7 +350,7 @@ tbody th { font-weight: 600; background: inherit; }
 tbody tr:nth-child(even) { background: var(--surface-alt); }
 tbody tr:hover { background: var(--surface-hover); }
 tbody tr:last-child > * { border-bottom: 0; }
-td a { display: inline-flex; align-items: center; min-height: 1.75rem; font-weight: 600; }
+td a { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 1.75rem; font-weight: 600; }
 th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cell-insufficient, .cell-missing { font-style: italic; color: var(--text-muted); background: var(--surface-muted); }
 /* El atributo disparador: fondo ambar, borde izquierdo grueso y la insignia con texto (el color no es el unico portador). */
@@ -381,7 +387,8 @@ tbody tr.row-trigger th, tbody tr.row-trigger td { font-weight: 700; }
 .badge-decidido, .badge-credit-no_integrado, .badge-info, .dot-decidido { background: var(--info-bg); color: var(--info-text); }
 .badge-vencido, .badge-credit-rechazado, .badge-credit-cancelado, .badge-neutral, .dot-vencido { background: var(--neutral-bg); color: var(--neutral-text); }
 
-.mark { margin: 0; border: var(--border-width) solid var(--warn-border); border-left-width: 0.375rem; border-radius: var(--radius-sm); background: var(--warn-bg); color: var(--warn-text); padding: var(--space-2) var(--space-3); font-weight: 600; }
+.mark { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; border: var(--border-width) solid var(--warn-border); border-left-width: 0.375rem; border-radius: var(--radius-sm); background: var(--warn-bg); color: var(--warn-text); padding: var(--space-2) var(--space-3); font-weight: 600; }
+p.mark { margin-bottom: var(--space-3); }
 .mark-frozen { border-color: var(--danger-text); background: var(--danger-bg); color: var(--danger-text); }
 .free-text { white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 400; }
 .disclaimer { display: block; width: fit-content; max-width: 100%; font-weight: 700; border: var(--border-width) solid var(--warn-border); border-left-width: 0.375rem; border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); background: var(--warn-bg); color: var(--warn-text); }
@@ -390,8 +397,19 @@ tbody tr.row-trigger th, tbody tr.row-trigger td { font-weight: 700; }
 [role="status"] { color: var(--text-muted); font-weight: 600; }
 [role="status"]:empty { margin: 0; }
 /* Confirmacion de una accion (decision registrada, resolucion registrada): franja verde con una marca, ademas del texto. */
-.notice-ok { background: var(--ok-bg); color: var(--ok-text); border: var(--border-width) solid var(--ok-text); border-left-width: 0.375rem; border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); }
-.notice-ok::before { content: "\2713"; margin-right: var(--space-2); font-weight: 700; }
+.notice-ok { display: flex; align-items: flex-start; gap: var(--space-2); animation: appear 180ms ease-out; background: var(--ok-bg); color: var(--ok-text); border: var(--border-width) solid var(--ok-text); border-left-width: 0.375rem; border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); }
+/* Un error junto a su campo: rojo, con icono y texto, y enlazado al control con `aria-describedby`. */
+.field-error { display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-1) 0 var(--space-3); color: var(--danger-text); font-weight: 600; font-size: var(--text-sm); animation: appear 180ms ease-out; }
+textarea[aria-invalid="true"] { border-color: var(--danger-strong); box-shadow: inset 0 0 0 1px var(--danger-strong); }
+fieldset[aria-describedby] { border-color: var(--danger-strong); }
+/* La aparicion de un aviso o de un plegable es solo un deslizamiento corto: sin `opacity`, para que el texto tenga su contraste completo
+   desde el primer fotograma (axe mide el contraste en cualquier momento). */
+@keyframes appear { from { transform: translateY(-0.375rem); } to { transform: none; } }
+/* Esqueleto de una tabla en su carga inicial: filas grises que laten (solo opacidad). */
+.skeleton { display: grid; gap: var(--space-2); padding: var(--space-4); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); }
+.skeleton-row { height: 2.25rem; border-radius: var(--radius-sm); background: var(--surface-muted); animation: pulse 1.2s ease-in-out infinite alternate; }
+.skeleton-row:first-child { background: var(--thead-bg); }
+@keyframes pulse { from { opacity: 1; } to { opacity: 0.45; } }
 /* Carga: un indicador giratorio junto al texto «Cargando…» (el texto lo anuncia `role="status"`). */
 .loading { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) 0; }
 .loading::before { content: ""; flex: none; width: 1.25rem; height: 1.25rem; border-radius: 50%; border: 0.1875rem solid var(--border); border-top-color: var(--primary-bg); animation: spin 0.9s linear infinite; }
@@ -409,8 +427,12 @@ details[open] > summary::before { transform: rotate(45deg); }
 summary:hover { background: var(--surface-hover); }
 summary:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 2px; }
 details > :not(summary) { margin: var(--space-3) var(--space-4) var(--space-4); }
+details[open] > :not(summary) { animation: appear 180ms ease-out; }
+.more-filters { background: var(--surface); }
 [role="alert"] { color: var(--danger-text); font-weight: 600; }
 div[role="alert"] { background: var(--danger-bg); border: var(--border-width) solid var(--danger-text); border-left-width: 0.375rem; border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); }
+div[role="alert"] { animation: appear 180ms ease-out; }
+div[role="alert"] > p { display: flex; align-items: flex-start; gap: var(--space-2); }
 div[role="alert"] > :last-child { margin-bottom: 0; }
 div[role="alert"] h1 { color: var(--danger-text); font-size: var(--text-xl); }
 
@@ -447,16 +469,17 @@ div[role="alert"] h1 { color: var(--danger-text); font-size: var(--text-xl); }
 @media (max-width: 22.49rem) {
   .app-header-inner, .app-nav ul, .page { padding-left: var(--space-3); padding-right: var(--space-3); }
   .card, .page > section > section, [role="dialog"], [role="alertdialog"] { padding: var(--space-3); }
-  th, td { padding: var(--space-2) var(--space-3); }
 }
 @media (max-width: 47.99rem) {
   .actions > button, .inline-form > button, .filters > button { width: 100%; }
   .brand-tag { display: none; }
 }
 /* Por debajo de 1024 px los titulos de columna pueden partirse en dos lineas: asi la comparativa cabe en una tableta sin desplazarse. */
-@media (max-width: 63.99rem) {
+@media (min-width: 48rem) and (max-width: 63.99rem) {
   thead th, thead th.num { white-space: normal; }
-  th, td { padding: var(--space-2) var(--space-3); }
+  thead th, tbody td, tbody th { padding-left: var(--space-2); padding-right: var(--space-2); }
+  td.num, th.num { white-space: normal; }
+  td.cell-missing { white-space: nowrap; }
 }
 @media (min-width: 48rem) {
   .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -478,6 +501,30 @@ div[role="alert"] h1 { color: var(--danger-text); font-size: var(--text-xl); }
 }
 @media (min-width: 90rem) {
   dl { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* Por debajo de 768 px ninguna tabla se desplaza en horizontal: cada fila pasa a ser una tarjeta y cada celda muestra el titulo de su
+   columna (`data-label`). Es solo CSS sobre el mismo marcado: la tabla, sus filas y sus celdas siguen siendo `table`, `tr`, `th` y `td`, y la
+   cabecera se oculta a la vista sin quitarla del arbol de accesibilidad. */
+@media (max-width: 47.99rem) {
+  .table-scroll, .table-scroll-tall { overflow: visible; max-height: none; border: 0; border-radius: 0; background: none; box-shadow: none; }
+  table, tbody, tr, td, tbody th, caption { display: block; }
+  caption { padding: 0 0 var(--space-2); }
+  thead { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  tbody tr, tbody tr:nth-child(even) { margin-bottom: var(--space-3); padding: var(--space-2) var(--space-3); background: var(--surface); border: var(--border-width) solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
+  tbody tr:last-child { margin-bottom: 0; }
+  tbody tr.row-trigger { background: var(--warn-bg); border-color: var(--warn-border); border-left-width: 0.375rem; }
+  tbody tr.row-trigger > :first-child { box-shadow: none; }
+  td, tbody th, th.num, td.num { display: grid; grid-template-columns: minmax(0, 9fr) minmax(0, 11fr); gap: var(--space-3); align-items: center; padding: var(--space-2) 0; text-align: left; white-space: normal; border-bottom: var(--border-width) solid var(--border); background: none; }
+  tbody tr > :last-child { border-bottom: 0; }
+  td::before, tbody th::before { content: attr(data-label); color: var(--text-muted); font-size: var(--text-sm); font-weight: 600; font-style: normal; }
+  td > .badge, td > a, tbody th > .row-head { justify-self: start; }
+  td .badge, tbody th .badge { white-space: normal; }
+  tbody th > .row-head { min-width: 0; }
+  td.cell-action { display: block; }
+  td.cell-action::before { content: none; }
+  td.cell-action a { min-height: var(--target); }
+  .cell-insufficient, .cell-missing { background: none; }
 }
 
 /* ---------- 11. Preferencias de la persona ---------- */

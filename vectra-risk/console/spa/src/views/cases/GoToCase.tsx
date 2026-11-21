@@ -37,7 +37,7 @@ export function GoToCase() {
       </div>
       <Button type="submit">{ui("go_to_case_button")}</Button>
       {invalid ? (
-        <p role="alert" id="go-to-case-error">
+        <p className="field-error" role="alert" id="go-to-case-error">
           {ui("go_to_case_invalid")}
         </p>
       ) : null}

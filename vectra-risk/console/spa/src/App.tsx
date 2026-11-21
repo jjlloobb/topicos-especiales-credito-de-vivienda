@@ -11,7 +11,7 @@ import { InactivityProvider } from "./inactivity/InactivityProvider";
 import { ErrorBoundary } from "./reporter/ErrorBoundary";
 import { StepUpProvider } from "./stepup/StepUpProvider";
 import { AppRoutes } from "./views/shared/AppRoutes";
-import { BrandMark } from "./views/shared/BrandMark";
+import { IconBrand } from "./views/shared/icons";
 import type { Wiring } from "./wiring";
 
 function Content({ wiring }: { readonly wiring: Wiring }) {
@@ -25,7 +25,7 @@ function Content({ wiring }: { readonly wiring: Wiring }) {
       <main className="auth-screen">
         <div className="auth-card">
           <p className="auth-brand">
-            <BrandMark />
+            <IconBrand className="brand-mark" />
             {ui("app_title")}
           </p>
           <h1>{ui("login_title")}</h1>

@@ -33,10 +33,10 @@ export function AttributeTable({ attribute }: { readonly attribute: AttributeRes
         <tbody>
           {attribute.cells.map((cell) => (
             <tr key={`${cell.group}|${cell.band}`}>
-              <td>{cell.group}</td>
-              <td>{label("BANDS", cell.band)}</td>
-              <td className="num">{cell.n}</td>
-              <td className={cell.status === "muestra_insuficiente" ? "num cell-insufficient" : "num"}>{cellText(cell)}</td>
+              <td data-label={ui("disparity_col_group")}>{cell.group}</td>
+              <td data-label={ui("disparity_col_band")}>{label("BANDS", cell.band)}</td>
+              <td className="num" data-label={ui("disparity_col_n")}>{cell.n}</td>
+              <td className={cell.status === "muestra_insuficiente" ? "num cell-insufficient" : "num"} data-label={ui("disparity_col_rate")}>{cellText(cell)}</td>
             </tr>
           ))}
         </tbody>

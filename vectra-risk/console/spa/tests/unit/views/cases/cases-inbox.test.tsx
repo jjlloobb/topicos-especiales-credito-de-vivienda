@@ -12,6 +12,19 @@ import { flush, renderApp } from "../../../support/views-world";
 
 const LIST = "GET /api/console/cases";
 
+/** Abre el bloque plegable «Mas filtros» (cerrado por omision), como lo haria la persona: un clic en su resumen. */
+function openMoreFilters(): HTMLDetailsElement {
+  const summary = screen.getByText(ui("filters_more"));
+  const details = summary.closest("details") as HTMLDetailsElement;
+  if (!details.open) fireEvent.click(summary);
+  if (!details.open) {
+    // jsdom no siempre despliega un <details> con el clic: se abre y se avisa como lo hace el navegador
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+  }
+  return details;
+}
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -38,6 +51,7 @@ describe("CasesInbox", () => {
   it("con el filtro explicito aparece `vencido`: el estado va en la URL y en la solicitud", async () => {
     const { world } = renderApp({ role: "cro", path: "/casos", routes: { [LIST]: page(items) } });
     await screen.findByRole("table");
+    openMoreFilters();
     fireEvent.click(screen.getByRole("checkbox", { name: label("CASE_STATES", "vencido") }));
     await waitFor(() => expect(world.calls.filter((c) => c.path === "/api/console/cases")).toHaveLength(2));
     expect(world.calls.at(-1)?.search.getAll("state")).toContain("vencido");
@@ -50,6 +64,7 @@ describe("CasesInbox", () => {
   it("canal, fechas y «modelo congelado» van a la URL y a la solicitud (fechas del dia de Bogota); «Quitar filtros» los limpia", async () => {
     const { world } = renderApp({ role: "analista", path: "/casos", routes: { [LIST]: page(items) } });
     await screen.findByRole("table");
+    openMoreFilters();
     fireEvent.change(screen.getByLabelText(ui("filter_channel")), { target: { value: "web" } });
     fireEvent.change(screen.getByLabelText(ui("filter_created_from")), { target: { value: "2026-11-01" } });
     fireEvent.change(screen.getByLabelText(ui("filter_created_to")), { target: { value: "2026-11-12" } });
@@ -134,11 +149,38 @@ describe("CasesInbox", () => {
     expect(window.location.search).toBe("?state=no_disponible");
     expect(within(chips).getByRole("button", { name: label("CASE_STATES", "no_disponible") }).getAttribute("aria-pressed")).toBe("true");
     expect(within(chips).getByRole("button", { name: ui("quick_states_default") }).getAttribute("aria-pressed")).toBe("false");
-    // las casillas de «Estados» reflejan el mismo filtro
+    // las casillas de «Estados» (en «Mas filtros») reflejan el mismo filtro
+    openMoreFilters();
     expect((screen.getByRole("checkbox", { name: label("CASE_STATES", "no_disponible") }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole("checkbox", { name: label("CASE_STATES", "listo") }) as HTMLInputElement).checked).toBe(false);
     fireEvent.click(within(chips).getByRole("button", { name: ui("quick_states_default") }));
     await waitFor(() => expect(window.location.search).toBe(""));
+  });
+
+  it("«Mas filtros» esta cerrado por omision y con un chip; se abre solo si la URL trae un filtro avanzado", async () => {
+    renderApp({ role: "analista", path: "/casos", routes: { [LIST]: page(items) } });
+    await screen.findByRole("table");
+    const details = screen.getByText(ui("filters_more")).closest("details") as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details.contains(screen.getByRole("form", { name: ui("filters_legend") }))).toBe(true); // los filtros avanzados viven dentro
+    expect(details.contains(screen.getByRole("group", { name: ui("quick_states_label") }))).toBe(false); // los chips quedan a la vista
+    cleanup();
+    renderApp({ role: "analista", path: "/casos?state=no_disponible", routes: { [LIST]: page(items) } });
+    await screen.findByRole("table");
+    expect((screen.getByText(ui("filters_more")).closest("details") as HTMLDetailsElement).open).toBe(false); // un solo estado es un chip
+    for (const search of ["?channel=web", "?from=2026-11-01", "?frozen=1", "?state=listo&state=vencido"]) {
+      cleanup();
+      renderApp({ role: "analista", path: `/casos${search}`, routes: { [LIST]: page(items) } });
+      await screen.findByRole("table");
+      expect((screen.getByText(ui("filters_more")).closest("details") as HTMLDetailsElement).open, search).toBe(true);
+    }
+  });
+
+  it("cada celda lleva el titulo de su columna (`data-label`) para las tarjetas de pantalla estrecha", async () => {
+    renderApp({ role: "analista", path: "/casos", routes: { [LIST]: page(items) } });
+    const table = await screen.findByRole("table");
+    const cells = within(within(table).getAllByRole("row")[1] as HTMLElement).getAllByRole("cell");
+    expect(cells.map((cell) => cell.getAttribute("data-label"))).toEqual([ui("col_applicant"), ui("col_state"), ui("col_channel"), ui("col_created"), ui("col_outcome"), ui("col_score"), null]);
   });
 
   it("la tabla vive en una region desplazable con nombre y foco de teclado, y conserva su semantica", async () => {

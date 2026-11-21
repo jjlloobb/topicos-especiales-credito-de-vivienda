@@ -4,7 +4,7 @@ import { Button } from "react-aria-components";
 import { Outlet } from "react-router";
 import { useAuth } from "../../auth/AuthProvider";
 import { label, ui } from "../../i18n";
-import { BrandMark } from "./BrandMark";
+import { IconBrand } from "./icons";
 import { RoleMenu } from "./RoleMenu";
 
 export function Layout() {
@@ -16,7 +16,7 @@ export function Layout() {
       <header className="app-header">
         <div className="app-header-inner">
           <div className="brand">
-            <BrandMark />
+            <IconBrand className="brand-mark" />
             <div>
               <h1 className="brand-name">{ui("app_title")}</h1>
               <p className="brand-tag">{ui("app_tagline")}</p>

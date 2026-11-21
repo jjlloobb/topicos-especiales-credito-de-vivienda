@@ -10,6 +10,7 @@ import { Link, useParams } from "react-router";
 import { useFreeze } from "../../api/hooks";
 import { formatDate, formatDay, label, labelOrRaw, safeDecimal, ui } from "../../i18n";
 import { AttributeTable, DisparityWindow } from "../bias/DisparityTables";
+import { IconBack, IconSuccess } from "../shared/icons";
 import { ProblemMessage } from "../shared/ProblemMessage";
 import { TableScroll } from "../shared/TableScroll";
 import { AttributeComparison } from "./AttributeComparison";
@@ -51,7 +52,10 @@ export function FreezeContextView() {
     <section>
       <h2>{ui("freeze_context_title")}</h2>
       <p className="disclaimer">{ui("bias_disclaimer")}</p>
-      <Link to="/congelamientos">{ui("view_freezes")}</Link>
+      <Link to="/congelamientos">
+        <IconBack />
+        {ui("view_freezes")}
+      </Link>
       {query.isPending ? <p className="loading" role="status">{ui("loading")}</p> : null}
       {query.isError ? <ProblemMessage error={query.error} /> : null}
       {record === undefined || context === undefined ? null : (
@@ -79,7 +83,12 @@ export function FreezeContextView() {
               </li>
               {context.truncated ? <li className="fact-warn">{ui("freeze_truncated")}</li> : null}
             </ul>
-            {resolved ? <p className="notice-ok" role="status">{ui("freeze_resolution_done")}</p> : null}
+            {resolved ? (
+              <p className="notice-ok" role="status">
+                <IconSuccess />
+                {ui("freeze_resolution_done")}
+              </p>
+            ) : null}
             <div className="actions actions-end">
               <Button
                 className="button-primary"
@@ -127,8 +136,8 @@ export function FreezeContextView() {
                       <tbody>
                         {item.bands.map((band) => (
                           <tr key={band.band}>
-                            <th scope="row">{labelOrRaw("BANDS", band.band)}</th>
-                            <td className="num">{safeDecimal(band.difference)}</td>
+                            <th scope="row" data-label={ui("disparity_col_band")}>{labelOrRaw("BANDS", band.band)}</th>
+                            <td className="num" data-label={ui("freeze_implicated_col_difference")}>{safeDecimal(band.difference)}</td>
                           </tr>
                         ))}
                       </tbody>

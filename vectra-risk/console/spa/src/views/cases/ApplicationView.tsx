@@ -1,5 +1,6 @@
 // `ApplicationView` (BR-U10-11; US-109): la solicitud **sin** etiquetas de monitoreo (`sex`, `socioeconomic_stratum`: el contrato de la
-// vista no las trae). `free_text` es texto plano: React lo escapa, y ESLint prohibe el HTML sin sanear en toda la SPA (`react/no-danger`).
+// vista no las trae). Los datos van plegados (`<details>`): en el detalle del caso se lee primero el estado y la recomendacion.
+// `free_text` es texto plano: React lo escapa, y ESLint prohibe el HTML sin sanear en toda la SPA (`react/no-danger`).
 import type { CaseDetail } from "../../api/endpoints";
 import { channelText, safeDecimal, formatMoney, label, ui } from "../../i18n";
 
@@ -24,6 +25,8 @@ export function ApplicationView({ application }: { readonly application: Applica
   return (
     <section aria-labelledby="application-title">
       <h3 id="application-title">{ui("application_title")}</h3>
+      <details>
+        <summary>{ui("application_toggle")}</summary>
       <dl>
         {rows.map(([term, value]) => (
           <div key={term}>
@@ -38,6 +41,7 @@ export function ApplicationView({ application }: { readonly application: Applica
           </div>
         )}
       </dl>
+      </details>
     </section>
   );
 }

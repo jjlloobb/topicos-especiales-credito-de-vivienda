@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router";
 import { ui } from "../../../../src/i18n";
 import { lazyView } from "../../../../src/views/shared/lazyView";
+import { activeMenuPath } from "../../../../src/views/shared/RoleMenu";
 import { ROUTES, type Role, routesFor } from "../../../../src/views/shared/routes";
 import { renderApp } from "../../../support/views-world";
 import { Suspense } from "react";
@@ -29,6 +30,41 @@ describe("el menu y el inicio por rol", () => {
     renderApp({ role: "cro", path: "/callback", routes: { "GET /api/console/cases": { items: [], page: 1, total: 0 } } });
     await screen.findByRole("heading", { name: ui("view_cases") });
     expect(window.location.pathname).toBe("/casos");
+  });
+});
+
+describe("la seccion activa del menu", () => {
+  const current = (): (string | null)[][] =>
+    within(screen.getByRole("navigation", { name: ui("nav_label") }))
+      .getAllByRole("link")
+      .filter((link) => link.hasAttribute("aria-current"))
+      .map((link) => [link.textContent, link.getAttribute("aria-current")]);
+
+  it("en la lista marca su entrada como la pagina; dentro de un detalle marca la seccion; nunca mas de una", async () => {
+    renderApp({ role: "analista", path: "/casos", routes: { "GET /api/console/cases": { items: [], page: 1, total: 0 } } });
+    await screen.findByRole("heading", { name: ui("view_cases") });
+    expect(current()).toEqual([[ui("view_cases"), "page"]]);
+    cleanup();
+    renderApp({ role: "analista", path: "/casos/3fa85f64-5717-4562-b3fc-2c963f66afa6", routes: {} });
+    await screen.findByRole("heading", { name: ui("view_case_detail") });
+    expect(current()).toEqual([[ui("view_cases"), "true"]]);
+    cleanup();
+    renderApp({ role: "analista", path: "/casos/nuevo", routes: {} }); // la ruta mas larga gana: «Alta manual», no la bandeja
+    await screen.findByRole("heading", { name: ui("view_manual_application"), level: 2 });
+    expect(current()).toEqual([[ui("view_manual_application"), "page"]]);
+    cleanup();
+    renderApp({ role: "cumplimiento", path: "/congelamientos/freeze-mv-1", routes: {} });
+    await screen.findByRole("heading", { name: ui("freeze_context_title") });
+    expect(current()).toEqual([[ui("view_freezes"), "true"]]);
+  });
+
+  it("una direccion que no es de ninguna seccion no marca nada", async () => {
+    renderApp({ role: "analista", path: "/no/existe", routes: {} });
+    await screen.findByRole("heading", { name: ui("not_found_title") });
+    expect(current()).toEqual([]);
+    expect(activeMenuPath(["/casos", "/casos/nuevo", "/modelos"], "/")).toBeNull();
+    expect(activeMenuPath(["/casos", "/casos/nuevo", "/modelos"], "/casosx")).toBeNull(); // prefijo de segmento completo, no de texto
+    expect(activeMenuPath(["/casos", "/casos/nuevo", "/modelos"], "/casos/nuevo")).toBe("/casos/nuevo");
   });
 });
 

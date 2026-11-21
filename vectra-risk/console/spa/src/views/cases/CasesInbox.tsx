@@ -3,21 +3,31 @@
 // `applicant_display`. «Ir al caso» abre el detalle por `case_id`. Encima de la tabla van el total de casos de la consulta (`total`, que ya
 // trae la API) y los chips de un estado; debajo, la paginacion («Pagina X de Y», primera y ultima). Los chips no llevan numero: la API no da
 // el total por estado.
+import { useState } from "react";
 import { Button } from "react-aria-components";
 import { Link, useSearchParams } from "react-router";
 import { useCases } from "../../api/hooks";
 import { channelText, formatCount, formatDate, label, safeDecimal, ui } from "../../i18n";
+import { IconFilter, IconFirst, IconLast, IconNext, IconOpen, IconPrevious } from "../shared/icons";
 import { ProblemMessage } from "../shared/ProblemMessage";
 import { TableScroll } from "../shared/TableScroll";
+import { TableSkeleton } from "../shared/TableSkeleton";
 import { CaseFilters } from "./CaseFilters";
 import { CaseStateBadge } from "./CaseStateBadge";
 import { type InboxFilter, MAX_PAGE, PAGE_SIZE, parseFilter, toQuery, toSearchParams } from "./filters";
 import { GoToCase } from "./GoToCase";
 import { QuickStates } from "./QuickStates";
 
+/** Un filtro «avanzado» (los de «Mas filtros») esta activo: canal, fechas, «solo congelados» o una combinacion de estados que no es un chip. */
+export function hasAdvancedFilter(filter: InboxFilter): boolean {
+  return filter.channel !== null || filter.createdFrom !== null || filter.createdTo !== null || filter.frozenAfter || (filter.states !== null && filter.states.length !== 1);
+}
+
 export function CasesInbox() {
   const [params, setParams] = useSearchParams();
   const filter = parseFilter(params);
+  // «Mas filtros» empieza abierto solo si la URL ya trae un filtro avanzado; despues manda la persona (no se cierra solo al quitar el filtro).
+  const [moreOpen, setMoreOpen] = useState(() => hasAdvancedFilter(filter));
   const query = useCases(toQuery(filter));
   const change = (next: InboxFilter): void => {
     setParams(toSearchParams(next));
@@ -28,16 +38,34 @@ export function CasesInbox() {
   const pages = total === null ? null : Math.min(MAX_PAGE, Math.max(1, Math.ceil(total / PAGE_SIZE)));
   const shown = query.data?.items.length ?? 0;
   const first = (filter.page - 1) * PAGE_SIZE + 1;
-  // `aria-busy` solo en la carga inicial y al cambiar de filtro o de pagina (`isPending`: la consulta nueva aun no tiene datos); el refresco
-  // de 15 s en segundo plano (`isFetching` con datos) no lo pone, para que no parpadee.
+  // `aria-busy` solo en la carga inicial (`isPending`) y al cambiar de filtro o de pagina (`isPlaceholderData`: aun se ve la pagina
+  // anterior); el refresco de 15 s en segundo plano (`isFetching` con datos propios) no lo pone, para que no parpadee.
+  const changing = query.isPlaceholderData;
   return (
-    <section aria-busy={query.isPending ? true : undefined}>
+    <section aria-busy={query.isPending || changing ? true : undefined}>
       <h2>{ui("view_cases")}</h2>
       <p className="hint">{ui("inbox_hint")}</p>
       <GoToCase />
       <QuickStates filter={filter} onChange={change} />
-      <CaseFilters filter={filter} onChange={change} />
-      {query.isPending ? <p className="loading" role="status">{ui("loading")}</p> : null}
+      <details
+        className="more-filters"
+        open={moreOpen}
+        onToggle={(event) => {
+          setMoreOpen(event.currentTarget.open);
+        }}
+      >
+        <summary>
+          <IconFilter />
+          {ui("filters_more")}
+        </summary>
+        <CaseFilters filter={filter} onChange={change} />
+      </details>
+      {query.isPending ? (
+        <>
+          <p className="loading" role="status">{ui("loading")}</p>
+          <TableSkeleton />
+        </>
+      ) : null}
       {query.isError ? <ProblemMessage error={query.error} /> : null}
       {query.data === undefined || total === null ? null : (
         <div className="result-bar">
@@ -48,7 +76,7 @@ export function CasesInbox() {
       {query.data === undefined ? null : query.data.items.length === 0 ? (
         <p className="empty">{ui("inbox_empty")}</p>
       ) : (
-        <TableScroll name={ui("view_cases")} tall>
+        <TableScroll name={ui("view_cases")} tall busy={changing}>
         <table>
           <caption className="visually-hidden">{ui("view_cases")}</caption>
           <thead>
@@ -65,17 +93,18 @@ export function CasesInbox() {
           <tbody>
             {query.data.items.map((item) => (
               <tr key={item.case_id}>
-                <td>{item.applicant_display}</td>
-                <td>
+                <td data-label={ui("col_applicant")}>{item.applicant_display}</td>
+                <td data-label={ui("col_state")}>
                   <CaseStateBadge state={item.state} />
                 </td>
-                <td>{channelText(item.channel)}</td>
-                <td>{formatDate(item.created_at)}</td>
-                <td>{item.outcome == null ? ui("no_outcome") : label("OUTCOMES", item.outcome)}</td>
-                <td className="num">{item.score == null ? ui("no_score") : safeDecimal(item.score)}</td>
-                <td>
+                <td data-label={ui("col_channel")}>{channelText(item.channel)}</td>
+                <td data-label={ui("col_created")}>{formatDate(item.created_at)}</td>
+                <td data-label={ui("col_outcome")}>{item.outcome == null ? ui("no_outcome") : label("OUTCOMES", item.outcome)}</td>
+                <td className="num" data-label={ui("col_score")}>{item.score == null ? ui("no_score") : safeDecimal(item.score)}</td>
+                <td className="cell-action">
                   <Link to={`/casos/${item.case_id}`} aria-label={ui("open_case", { applicant: item.applicant_display })}>
                     {ui("col_open")}
+                    <IconOpen />
                   </Link>
                 </td>
               </tr>
@@ -91,6 +120,7 @@ export function CasesInbox() {
             change({ ...filter, page: 1 });
           }}
         >
+          <IconFirst />
           {ui("page_first")}
         </Button>
         <Button
@@ -99,6 +129,7 @@ export function CasesInbox() {
             change({ ...filter, page: filter.page - 1 });
           }}
         >
+          <IconPrevious />
           {ui("page_previous")}
         </Button>
         <span className="pagination-current">
@@ -111,6 +142,7 @@ export function CasesInbox() {
           }}
         >
           {ui("page_next")}
+          <IconNext />
         </Button>
         <Button
           isDisabled={pages === null || filter.page >= pages}
@@ -119,6 +151,7 @@ export function CasesInbox() {
           }}
         >
           {ui("page_last")}
+          <IconLast />
         </Button>
       </nav>
     </section>

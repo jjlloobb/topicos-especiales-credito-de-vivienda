@@ -28,14 +28,16 @@ export function comparedAttributes(moments: readonly Moment[], trigger: string):
   return seen.includes(trigger) ? [trigger, ...seen.filter((attribute) => attribute !== trigger)] : seen;
 }
 
-function MomentCell({ moment, attribute }: { readonly moment: Moment; readonly attribute: string }) {
-  if (moment === "sin_datos") return <td className="num cell-missing">{ui("freeze_compare_window_missing")}</td>;
+/** `title` es el titulo de la columna: en pantallas estrechas cada celda lo muestra como etiqueta (`data-label`). */
+function MomentCell({ moment, attribute, title }: { readonly moment: Moment; readonly attribute: string; readonly title: string }) {
+  if (moment === "sin_datos") return <td className="num cell-missing" data-label={title}>{ui("freeze_compare_window_missing")}</td>;
   const aggregate = moment.find((candidate) => candidate.attribute === attribute)?.aggregate ?? null;
-  return aggregate === null ? <td className="num cell-missing">{ui("no_value")}</td> : <td className="num">{safeDecimal(aggregate)}</td>;
+  return aggregate === null ? <td className="num cell-missing" data-label={title}>{ui("no_value")}</td> : <td className="num" data-label={title}>{safeDecimal(aggregate)}</td>;
 }
 
 export function AttributeComparison({ context, limits }: Props) {
   const moments: readonly Moment[] = [context.initial_disparity.attributes, attributesOf(context.before), attributesOf(context.after), attributesOf(context.last_7_days)];
+  const titles = [ui("freeze_compare_col_validation"), ui("freeze_section_before"), ui("freeze_section_after"), ui("freeze_section_last7")];
   const trigger: string = context.trigger_attribute;
   const attributes = comparedAttributes(moments, trigger);
   if (attributes.length === 0) return <p>{ui("freeze_no_data")}</p>;
@@ -47,10 +49,9 @@ export function AttributeComparison({ context, limits }: Props) {
           <thead>
             <tr>
               <th scope="col">{ui("freeze_compare_col_attribute")}</th>
-              <th scope="col" className="num">{ui("freeze_compare_col_validation")}</th>
-              <th scope="col" className="num">{ui("freeze_section_before")}</th>
-              <th scope="col" className="num">{ui("freeze_section_after")}</th>
-              <th scope="col" className="num">{ui("freeze_section_last7")}</th>
+              {titles.map((title) => (
+                <th key={title} scope="col" className="num">{title}</th>
+              ))}
               <th scope="col" className="num">{ui("freeze_compare_col_limit")}</th>
             </tr>
           </thead>
@@ -59,16 +60,20 @@ export function AttributeComparison({ context, limits }: Props) {
               const limit = limits.get(attribute);
               return (
                 <tr key={attribute} className={attribute === trigger ? "row-trigger" : undefined}>
-                  <th scope="row">
+                  <th scope="row" data-label={ui("freeze_compare_col_attribute")}>
                     <span className="row-head">
                       {labelOrRaw("ATTRIBUTES", attribute)}
                       {attribute === trigger ? <span className="badge badge-warn">{ui("col_trigger")}</span> : null}
                     </span>
                   </th>
                   {moments.map((moment, index) => (
-                    <MomentCell key={index} moment={moment} attribute={attribute} />
+                    <MomentCell key={index} moment={moment} attribute={attribute} title={titles[index] ?? ""} />
                   ))}
-                  {limit === undefined ? <td className="num cell-missing">{ui("no_value")}</td> : <td className="num">{safeDecimal(limit)}</td>}
+                  {limit === undefined ? (
+                    <td className="num cell-missing" data-label={ui("freeze_compare_col_limit")}>{ui("no_value")}</td>
+                  ) : (
+                    <td className="num" data-label={ui("freeze_compare_col_limit")}>{safeDecimal(limit)}</td>
+                  )}
                 </tr>
               );
             })}

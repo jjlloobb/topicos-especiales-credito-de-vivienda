@@ -5,6 +5,7 @@ import type { ModelVersionDetail } from "../../api/endpoints";
 import { useModel } from "../../api/hooks";
 import { formatDate, label, safeDecimal, ui } from "../../i18n";
 import { AttributeTable } from "../bias/DisparityTables";
+import { IconBack } from "../shared/icons";
 import { ProblemMessage } from "../shared/ProblemMessage";
 
 function Report({ report }: { readonly report: ModelVersionDetail["validation_report"] }) {
@@ -30,7 +31,10 @@ export function ModelDetail() {
   return (
     <section>
       <h2>{ui("view_model_detail")}</h2>
-      <Link to="/modelos">{ui("view_models")}</Link>
+      <Link to="/modelos">
+        <IconBack />
+        {ui("view_models")}
+      </Link>
       {query.isPending ? <p className="loading" role="status">{ui("loading")}</p> : null}
       {query.isError ? <ProblemMessage error={query.error} /> : null}
       {query.data === undefined ? null : (

@@ -20,6 +20,7 @@ test("bandeja: por omision sin vencido; con el filtro aparecen; la URL no lleva 
   await expect(page.getByRole("table")).toBeVisible();
   const vencido = page.getByRole("row").filter({ hasText: label("CASE_STATES", "vencido") });
   await expect(vencido).toHaveCount(0);
+  await page.getByText(ui("filters_more")).click(); // los filtros avanzados estan plegados: se abren primero
   await page.getByRole("checkbox", { name: label("CASE_STATES", "vencido") }).click();
   await expect(page.getByRole("checkbox", { name: label("CASE_STATES", "vencido") })).toBeChecked(); // el enrutador actualiza en una transicion
   await expect(vencido).toHaveCount(1);
@@ -48,6 +49,8 @@ test("detalle: free_text con <script> se muestra como texto y no ejecuta nada; n
   });
   await loginAs(page, "analista");
   await openCase(page, CASES.listo);
+  await page.getByText(ui("application_toggle")).click(); // los datos de la solicitud estan plegados: se abren primero
+  await expect(page.locator(".free-text")).toBeVisible();
   await expect(page.locator(".free-text")).toHaveText("<script>alert(1)</script>");
   expect(await page.locator("#root script").count()).toBe(0);
   expect(dialogs).toEqual([]);

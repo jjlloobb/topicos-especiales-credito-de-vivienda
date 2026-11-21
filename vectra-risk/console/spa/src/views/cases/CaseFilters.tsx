@@ -24,7 +24,7 @@ export function CaseFilters({ filter, onChange }: Props) {
   };
   return (
     <form
-      className="filters card"
+      className="filters"
       aria-label={ui("filters_legend")}
       onSubmit={(event) => {
         event.preventDefault();
