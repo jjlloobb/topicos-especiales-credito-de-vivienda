@@ -3,6 +3,7 @@
 # Digest: el operador lo fija en U12 Paso 18, tras publicar la imagen (console/README.md, seccion «Imagenes»). Hasta entonces rige el digest de ejemplo del chart y los pods
 # quedarian en `ImagePullBackOff`.
 hostname: vectra.localtest.me
-# Digests reales de las imagenes publicadas en kind-registry (F1 de la verificacion en kind, 2026-11-16; construidas del commit 565ff2c).
+# Digest real de la imagen publicada en kind-registry. Reconstruida el 2026-11-21 sobre df162d2 con el tema verde (PR #235);
+# la anterior, de F1 (2026-11-16, commit 565ff2c), era sha256:7ecd2ef5…
 image:
-  digest: sha256:7ecd2ef52f183f3af7bad56bc5c4cf151189b80fd5e5d1e7e3a6c61d19faa7fd
+  digest: sha256:8c4b89b01124734d2a6657fad57c2f158e69b6bf465a2c936dffb4f7ea379b58
