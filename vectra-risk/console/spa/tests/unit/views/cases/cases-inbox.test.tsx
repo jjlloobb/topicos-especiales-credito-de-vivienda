@@ -8,6 +8,8 @@ import { label, ui } from "../../../../src/i18n";
 import { browserInactivityEnv } from "../../../../src/inactivity/InactivityProvider";
 import { Bus } from "../../../support/bus";
 import { CASE_ID, OTHER_CASE_ID, detail, page, summary } from "../../../support/fixtures";
+import { advancedFilterCount, hasAnyFilter } from "../../../../src/views/cases/CasesInbox";
+import { parseFilter } from "../../../../src/views/cases/filters";
 import { flush, renderApp } from "../../../support/views-world";
 
 const LIST = "GET /api/console/cases";
@@ -201,6 +203,71 @@ describe("CasesInbox", () => {
     cleanup();
     renderApp({ role: "analista", path: "/casos", routes: { [LIST]: page([]) } });
     expect(await screen.findByText(ui("inbox_empty"))).toBeTruthy();
+  });
+
+  it("vacia CON un filtro: propone quitarlo, y el boton deja la bandeja sin filtros; vacia sin filtros no ofrece nada que quitar", async () => {
+    const { world } = renderApp({ role: "analista", path: "/casos?state=en_evaluacion&channel=web", routes: { [LIST]: page([]) } });
+    expect(await screen.findByText(ui("inbox_empty"))).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: ui("inbox_empty_clear") }));
+    await waitFor(() => expect(window.location.search).toBe(""));
+    await waitFor(() => expect(world.calls.at(-1)?.search.getAll("state")).toEqual(CASE_STATES.filter((state) => state !== "vencido")));
+    expect(world.calls.at(-1)?.search.get("channel")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("button", { name: ui("inbox_empty_clear") })).toBeNull()); // ya no hay filtro que quitar
+    expect(screen.getByText(ui("inbox_empty"))).toBeTruthy();
+  });
+
+  it("una pagina mas alla de la ultima no dice «sin casos»: dice hasta donde llega la lista y lleva a la ultima", async () => {
+    const { world } = renderApp({ role: "analista", path: "/casos?page=9", routes: { [LIST]: { items: [], page: 9, total: 45, next_seq_after: null } } });
+    expect(await screen.findByText(ui("inbox_page_beyond", { pages: "3" }))).toBeTruthy();
+    expect(screen.queryByText(ui("inbox_empty"))).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: ui("inbox_page_beyond_go") }));
+    await waitFor(() => expect(window.location.search).toBe("?page=3"));
+    await waitFor(() => expect(world.calls.at(-1)?.search.get("page")).toBe("3"));
+  });
+
+  it("«Mas filtros» dice cuantos filtros avanzados hay activos (cerrado tambien); un chip de estado no cuenta", async () => {
+    expect(advancedFilterCount(parseFilter(new URLSearchParams("")))).toBe(0);
+    expect(advancedFilterCount(parseFilter(new URLSearchParams("state=listo")))).toBe(0);
+    expect(advancedFilterCount(parseFilter(new URLSearchParams("state=listo&state=vencido&channel=web&from=2026-11-01&to=2026-11-30&frozen=1")))).toBe(5);
+    expect(hasAnyFilter(parseFilter(new URLSearchParams("page=4")))).toBe(false);
+    expect(hasAnyFilter(parseFilter(new URLSearchParams("state=listo")))).toBe(true);
+    renderApp({ role: "analista", path: "/casos?channel=web&frozen=1", routes: { [LIST]: page(items) } });
+    await screen.findByRole("table");
+    const summaryOf = (): HTMLElement => screen.getByText(ui("filters_more")).closest("summary") as HTMLElement;
+    expect(within(summaryOf()).getByText(ui("filters_active", { count: "2" }))).toBeTruthy();
+    cleanup();
+    renderApp({ role: "analista", path: "/casos?channel=manual", routes: { [LIST]: page(items) } });
+    await screen.findByRole("table");
+    expect(within(summaryOf()).getByText(ui("filters_active_one"))).toBeTruthy();
+    cleanup();
+    renderApp({ role: "analista", path: "/casos?state=listo", routes: { [LIST]: page(items) } });
+    await screen.findByRole("table");
+    expect(summaryOf().querySelector(".badge")).toBeNull();
+  });
+
+  it("con muchas paginas hay «Ir a la pagina» (valida el numero y solo cambia la pagina); con pocas no aparece", async () => {
+    const full = Array.from({ length: 20 }, (_, i) => summary({ case_id: `00000000-0000-0000-0000-0000000005${String(i).padStart(2, "0")}` }));
+    const { world } = renderApp({ role: "analista", path: "/casos?channel=web", routes: { [LIST]: { items: full, page: 1, total: 3550, next_seq_after: null } } });
+    await screen.findByRole("table");
+    expect(screen.getByText(ui("page_of", { page: "1", pages: "178" }))).toBeTruthy();
+    const input = screen.getByLabelText(ui("page_jump_label"));
+    const go = screen.getByRole("button", { name: ui("page_jump_button") });
+    for (const bad of ["", "0", "179", "abc", "1.5", "-3"]) {
+      fireEvent.change(input, { target: { value: bad } });
+      fireEvent.click(go);
+      expect(screen.getByRole("alert").textContent, bad).toBe(ui("page_jump_invalid", { pages: "178" }));
+      expect(window.location.search).toBe("?channel=web");
+    }
+    fireEvent.change(input, { target: { value: " 90 " } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(go);
+    await waitFor(() => expect(window.location.search).toBe("?channel=web&page=90"));
+    await waitFor(() => expect(world.calls.at(-1)?.search.get("page")).toBe("90"));
+    expect(world.calls.at(-1)?.search.get("channel")).toBe("web"); // el filtro sigue
+    cleanup();
+    renderApp({ role: "analista", path: "/casos", routes: { [LIST]: { items: full, page: 1, total: 45, next_seq_after: null } } });
+    await screen.findByRole("table");
+    expect(screen.queryByLabelText(ui("page_jump_label"))).toBeNull();
   });
 
   it("un error de la API se muestra con el texto del catalogo, no con el detalle del servidor", async () => {

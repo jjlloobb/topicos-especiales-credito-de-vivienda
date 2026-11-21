@@ -121,6 +121,34 @@ describe("CaseDetail: lo que muestra", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("No se encontró lo que buscas.");
     expect(alert.textContent).toContain("0".repeat(32)); // el correlation_id para soporte
+    expect(within(alert).queryByRole("button", { name: ui("login_again_button") })).toBeNull();
+    // ...y un boton para copiarlo, completo
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    try {
+      fireEvent.click(within(alert).getByRole("button", { name: ui("support_code_copy") }));
+      expect(writeText).toHaveBeenCalledWith("0".repeat(32));
+      expect(await within(alert).findByText(ui("copy_done"))).toBeTruthy();
+    } finally {
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
+  });
+
+  it("un codigo desconocido lleva el codigo de soporte dentro del mensaje (una sola vez) y tambien se puede copiar", async () => {
+    renderApp({ role: "analista", path: PATH, routes: { [GET_CASE]: () => problem(418, "algo_nuevo") } });
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent?.split("0".repeat(32))).toHaveLength(2);
+    expect(within(alert).getByRole("button", { name: ui("support_code_copy") })).toBeTruthy();
+  });
+
+  it("la sesion vencio sin aviso (401): el mensaje ofrece «Iniciar sesion de nuevo», que es el login por redireccion de siempre", async () => {
+    const view = renderApp({ role: "analista", path: PATH, routes: { [GET_CASE]: () => problem(401, "unauthenticated") } });
+    const redirect = vi.spyOn(view.wiring.manager, "signinRedirect");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Tu sesión no es válida o venció");
+    fireEvent.click(within(alert).getByRole("button", { name: ui("login_again_button") }));
+    expect(redirect).toHaveBeenCalledTimes(1);
+    expect((redirect.mock.calls[0]?.[0] as { prompt?: string }).prompt).toBeUndefined(); // interactivo, no `prompt=none`
   });
 });
 

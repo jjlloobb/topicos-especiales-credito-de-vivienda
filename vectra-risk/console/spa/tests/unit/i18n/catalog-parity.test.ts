@@ -19,6 +19,7 @@ const placeholders = (text: string): string[] => [...text.matchAll(/\{(\w+)\}/g)
 // Se escriben igual en espanol y en ingles: la marca, los nombres de los idiomas (cada uno en su idioma) y palabras comunes a los dos.
 const SAME_IN_BOTH = new Set([
   "ui.app_title",
+  "ui.document_title_view", // «{pantalla} · Vectra Risk»: la pantalla va traducida; lo fijo es la marca
   "ui.language_name_es",
   "ui.language_name_en",
   "ui.freeze_source_item",

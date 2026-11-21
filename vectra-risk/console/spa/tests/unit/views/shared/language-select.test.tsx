@@ -91,7 +91,7 @@ describe("LanguageSelect", () => {
     expect(english.querySelector("td")?.getAttribute("data-label")).toBe("Applicant"); // la etiqueta de la tarjeta en movil
     expect(screen.getByRole("region", { name: "Scrollable table: Case inbox" })).toBeTruthy();
     expect(document.documentElement.lang).toBe("en");
-    expect(document.title).toBe(messagesEn.ui.document_title);
+    expect(document.title).toBe(`${messagesEn.ui.view_cases} · Vectra Risk`); // el titulo dice la pantalla, en el idioma nuevo
     expect(Object.entries(localStorage)).toEqual([[LANGUAGE_KEY, "en"]]);
     expect(sessionStorage.length).toBe(0);
     expect(document.cookie).toBe("");

@@ -51,7 +51,7 @@ test.describe("el idioma inicial y el cambio", () => {
 
     await expect(page.getByRole("heading", { name: EN.ui("view_case_detail") })).toBeVisible();
     await expect(page.getByRole("button", { name: EN.ui("logout_button") })).toBeVisible();
-    await expect(page).toHaveTitle(EN.ui("document_title"));
+    await expect(page).toHaveTitle(EN.ui("document_title_view", { view: EN.ui("view_case_detail") })); // el titulo dice la pantalla, en el idioma nuevo
     expect(await page.evaluate(() => (window as never as { __sameDocument?: boolean }).__sameDocument)).toBe(true); // no recargo
     // el estado de la pantalla sigue: lo elegido, lo escrito y el error, ya en ingles
     await expect(page.getByRole("radio", { name: EN.label("DECISIONS", "se_aparta") })).toBeChecked();

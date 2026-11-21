@@ -577,3 +577,16 @@ div[role="alert"] h1 { color: var(--danger-text); font-size: var(--text-xl); }
   /* No es movimiento: el aviso se retira de golpe a los 12 s (la regla general de arriba quita toda animacion). */
   .stepup-status > span { animation: toast-out 1ms linear 12s forwards !important; }
 }
+/* «Saltar al contenido»: fuera de la vista hasta que recibe el foco del teclado (el primer Tab de la pagina). */
+.skip-link { position: absolute; left: var(--space-3); top: var(--space-3); z-index: 40; transform: translateY(-300%); display: inline-flex; align-items: center; min-height: var(--target); padding: var(--space-2) var(--space-4); background: var(--surface-raised); color: var(--link); border: 2px solid var(--primary-bg); border-radius: var(--radius-sm); font-weight: 700; }
+.skip-link:focus { transform: none; }
+/* El contenido recibe el foco por programa (cambio de pantalla, «Saltar al contenido»): no es un control y no lleva anillo. */
+.page:focus { outline: none; }
+.empty > p { margin: 0; }
+.empty > button { margin-top: var(--space-3); }
+.more-filters summary .badge { margin-left: var(--space-2); }
+.page-jump { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--space-2); }
+.page-jump label { font-weight: 600; }
+.page-jump input { width: 5.5rem; min-height: var(--target); }
+.page-jump .field-error { flex-basis: 100%; justify-content: center; margin: 0; }
+.notice-ok:focus { outline: none; }
