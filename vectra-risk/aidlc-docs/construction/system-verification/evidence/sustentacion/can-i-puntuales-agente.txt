@@ -1,0 +1,8 @@
+create pods: no
+delete pods: no
+apply deployments: no
+patch deployments: no
+create secrets: no
+get secrets: no
+get pods: yes
+list applications.argoproj.io: yes
