@@ -1,5 +1,5 @@
 # Vectra Risk
-Grupo: `<integrantes>` | Fecha de presentación: sábado 28 de noviembre de 2026
+Grupo: Jose Luis Ortiz Barrios | Fecha de presentación: sábado 28 de noviembre de 2026
 
 Motor de scoring de crédito de vivienda explicable y auditable, que corre dentro del clúster del propio banco. Proyecto final de Tópicos Especiales en Informática (Maestría en Ingeniería de Sistemas, Pontificia Universidad Javeriana).
 
