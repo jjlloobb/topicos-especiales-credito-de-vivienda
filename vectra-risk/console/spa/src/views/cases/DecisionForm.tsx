@@ -9,7 +9,7 @@ import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-compone
 import { useApi } from "../../api/ApiProvider";
 import { ApiError } from "../../api/client";
 import { recordDecision } from "../../api/endpoints";
-import { label, problemText, ui, type UiKey } from "../../i18n";
+import { label, type Problem, problemText, ui, type UiKey } from "../../i18n";
 import { Choice } from "../shared/Choice";
 import { IconError } from "../shared/icons";
 import { ProblemMessage } from "../shared/ProblemMessage";
@@ -64,7 +64,8 @@ export function DecisionForm({ caseId, outcome, shapFeatureIds, onRecorded }: Pr
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<unknown>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  // El aviso se guarda como dato (el `Problem` o la clave), no como texto: asi sigue al idioma si la persona lo cambia con el aviso a la vista.
+  const [notice, setNotice] = useState<Problem | UiKey | null>(null);
   const inFlight = useRef(false);
 
   const chooseDecision = (value: Decision): void => {
@@ -130,13 +131,13 @@ export function DecisionForm({ caseId, outcome, shapFeatureIds, onRecorded }: Pr
       setErrors(next);
       setServerError(error);
     } else if (error.problem.reason === "decision_already_recorded") {
-      setNotice(problemText(error.problem));
+      setNotice(error.problem);
       reload();
     } else if (error.problem.code === "conflict_state") {
-      setNotice(problemText(error.problem));
+      setNotice(error.problem);
       reload();
     } else if (error.status === 503) {
-      setNotice(ui("decision_pending_registry"));
+      setNotice("decision_pending_registry");
     } else {
       setServerError(error);
     }
@@ -202,7 +203,7 @@ export function DecisionForm({ caseId, outcome, shapFeatureIds, onRecorded }: Pr
       {notice === null ? null : (
         <p className="field-error" role="alert">
           <IconError />
-          {notice}
+          {typeof notice === "string" ? ui(notice) : problemText(notice)}
         </p>
       )}
       {serverError === null ? null : <ProblemMessage error={serverError} />}

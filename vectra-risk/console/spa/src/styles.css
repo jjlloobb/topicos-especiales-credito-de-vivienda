@@ -5,51 +5,57 @@
    64 (1024 px) y 90 (1440 px). */
 
 /* ---------- 1. Tokens ---------- */
+/* Los colores: UNA paleta, y cada token lleva su valor claro y su valor oscuro con `light-dark(claro, oscuro)` (los navegadores objetivo lo
+   admiten: `browserslist` y `build.target` de Vite, Chrome y Edge >= 130 y Firefox >= 128). Cual de los dos se usa lo decide `color-scheme`:
+   por omision `light dark` (el del sistema, `prefers-color-scheme`), y `data-theme="light"` o `"dark"` en <html> (el selector de tema,
+   `src/theme/theme.ts`) lo fija y gana al sistema en los dos sentidos. Asi los valores oscuros estan escritos una sola vez, y los controles
+   nativos (fechas, listas, barras de desplazamiento) siguen el mismo tema. */
 :root {
   color-scheme: light dark;
-  --bg: #FAF8F4;
-  --surface: #FFFFFF;
-  --surface-alt: #F4F8F4;
-  --surface-hover: #E6F2EA;
-  --surface-muted: #EFECE5;
-  --surface-raised: #FFFFFF;
-  --text: #1F2A24;
-  --text-muted: #55605A;
-  --border: #D9D3C7;
-  --border-strong: #7A7468;
-  --header-bg: #0B3B2C;
-  --header-text: #FFFFFF;
-  --header-text-muted: #CFE6D8;
-  --nav-bg: #0F4D31;
-  --nav-text: #FFFFFF;
-  --nav-active-bg: #DDEFE3;
-  --nav-active-text: #0B3B2C;
-  --primary-bg: #14633F;
-  --primary-bg-hover: #0F4D31;
-  --primary-text: #FFFFFF;
-  --link: #14633F;
-  --focus: #14633F;
-  --focus-on-brand: #F2B544;
-  --thead-bg: #DDEFE3;
-  --thead-text: #0B3B2C;
-  --ok-bg: #D5EEDD;
-  --ok-text: #0F4D31;
-  --warn-bg: #FCEFCB;
-  --warn-text: #6B4500;
-  --warn-border: #B7791F;
-  --danger-bg: #FBE1DD;
-  --danger-text: #8B1A1A;
-  --danger-strong: #9B1C1C;
-  --danger-strong-text: #FFFFFF;
-  --info-bg: #E0E8F0;
-  --info-text: #243B53;
-  --neutral-bg: #E9E5DC;
-  --neutral-text: #3F3A32;
-  --disabled-bg: #E7E4DD;
-  --disabled-text: #5F665F;
-  --overlay: rgba(11, 35, 24, 0.55);
-  --shadow-sm: 0 1px 2px rgba(31, 42, 36, 0.08);
-  --shadow-md: 0 0.5rem 1.5rem rgba(31, 42, 36, 0.16);
+  --bg: light-dark(#FAF8F4, #101A15);
+  --surface: light-dark(#FFFFFF, #17241D);
+  --surface-alt: light-dark(#F4F8F4, #1B2A22);
+  --surface-hover: light-dark(#E6F2EA, #223529);
+  --surface-muted: light-dark(#EFECE5, #26332B);
+  --surface-raised: light-dark(#FFFFFF, #1E2E25);
+  --text: light-dark(#1F2A24, #E8EFEA);
+  --text-muted: light-dark(#55605A, #A9B8AF);
+  --border: light-dark(#D9D3C7, #33463B);
+  --border-strong: light-dark(#7A7468, #7C9085);
+  --header-bg: light-dark(#0B3B2C, #0B2318);
+  --header-text: light-dark(#FFFFFF, #E8EFEA);
+  --header-text-muted: light-dark(#CFE6D8, #B5CDBF);
+  --nav-bg: light-dark(#0F4D31, #0B2318);
+  --nav-text: light-dark(#FFFFFF, #E8EFEA);
+  --nav-active-bg: light-dark(#DDEFE3, #6FCF97);
+  --nav-active-text: light-dark(#0B3B2C, #0B2318);
+  --primary-bg: light-dark(#14633F, #6FCF97);
+  --primary-bg-hover: light-dark(#0F4D31, #8ADBAB);
+  --primary-text: light-dark(#FFFFFF, #0B2318);
+  --link: light-dark(#14633F, #7DD6A3);
+  --focus: light-dark(#14633F, #F2B544);
+  --focus-on-brand: light-dark(#F2B544, #F2B544);
+  --thead-bg: light-dark(#DDEFE3, #1F3329);
+  --thead-text: light-dark(#0B3B2C, #D7F0E0);
+  --ok-bg: light-dark(#D5EEDD, #163A27);
+  --ok-text: light-dark(#0F4D31, #A6E3BE);
+  --warn-bg: light-dark(#FCEFCB, #3D2E0A);
+  --warn-text: light-dark(#6B4500, #F5D48A);
+  --warn-border: light-dark(#B7791F, #F5D48A);
+  --danger-bg: light-dark(#FBE1DD, #451A17);
+  --danger-text: light-dark(#8B1A1A, #F7B4AE);
+  --danger-strong: light-dark(#9B1C1C, #F28B82);
+  --danger-strong-text: light-dark(#FFFFFF, #2A0A0A);
+  --info-bg: light-dark(#E0E8F0, #1E3246);
+  --info-text: light-dark(#243B53, #BCD2EA);
+  --neutral-bg: light-dark(#E9E5DC, #33302A);
+  --neutral-text: light-dark(#3F3A32, #D9D3C7);
+  --disabled-bg: light-dark(#E7E4DD, #26332B);
+  --disabled-text: light-dark(#5F665F, #9AA79F);
+  --watermark: light-dark(#14633F, #6FCF97);
+  --overlay: light-dark(rgba(11, 35, 24, 0.55), rgba(0, 0, 0, 0.7));
+  --shadow-sm: 0 1px 2px light-dark(rgba(31, 42, 36, 0.08), rgba(0, 0, 0, 0.4));
+  --shadow-md: 0 0.5rem 1.5rem light-dark(rgba(31, 42, 36, 0.16), rgba(0, 0, 0, 0.6));
 
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
@@ -67,59 +73,14 @@
   --radius-sm: 0.375rem;
   --radius-md: 0.625rem;
   --radius-pill: 62rem;
+  --watermark-opacity: 0.1; /* las marcas de agua: muy tenues (ver la seccion de marcas de agua) */
   --target: 2.75rem; /* objetivo tactil minimo: 44 px */
   --page-max: 80rem;
   --border-width: 1px;
   --focus-width: 3px;
 }
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #101A15;
-    --surface: #17241D;
-    --surface-alt: #1B2A22;
-    --surface-hover: #223529;
-    --surface-muted: #26332B;
-    --surface-raised: #1E2E25;
-    --text: #E8EFEA;
-    --text-muted: #A9B8AF;
-    --border: #33463B;
-    --border-strong: #7C9085;
-    --header-bg: #0B2318;
-    --header-text: #E8EFEA;
-    --header-text-muted: #B5CDBF;
-    --nav-bg: #0B2318;
-    --nav-text: #E8EFEA;
-    --nav-active-bg: #6FCF97;
-    --nav-active-text: #0B2318;
-    --primary-bg: #6FCF97;
-    --primary-bg-hover: #8ADBAB;
-    --primary-text: #0B2318;
-    --link: #7DD6A3;
-    --focus: #F2B544;
-    --focus-on-brand: #F2B544;
-    --thead-bg: #1F3329;
-    --thead-text: #D7F0E0;
-    --ok-bg: #163A27;
-    --ok-text: #A6E3BE;
-    --warn-bg: #3D2E0A;
-    --warn-text: #F5D48A;
-    --warn-border: #F5D48A;
-    --danger-bg: #451A17;
-    --danger-text: #F7B4AE;
-    --danger-strong: #F28B82;
-    --danger-strong-text: #2A0A0A;
-    --info-bg: #1E3246;
-    --info-text: #BCD2EA;
-    --neutral-bg: #33302A;
-    --neutral-text: #D9D3C7;
-    --disabled-bg: #26332B;
-    --disabled-text: #9AA79F;
-    --overlay: rgba(0, 0, 0, 0.7);
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.6);
-  }
-}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 /* Mas contraste si la persona lo pide: bordes fuertes y mas gruesos, texto secundario como el principal, sin sombras. */
 @media (prefers-contrast: more) {
@@ -455,6 +416,33 @@ div[role="alert"] h1 { color: var(--danger-text); font-size: var(--text-xl); }
 [role="dialog"] [slot="title"], [role="alertdialog"] [slot="title"], .react-aria-Heading { font-size: var(--text-xl); margin: 0 0 var(--space-3); }
 [role="dialog"] textarea { max-width: none; }
 
+/* Los selectores de preferencias (idioma y tema; `views/shared/PreferenceSelect.tsx`): un boton con el valor en curso y una lista desplegable.
+   Van juntos (`.prefs`) y no se parten entre si. El boton hereda el objetivo tactil de 44 px de `button`; cada opcion tambien lo cumple. La
+   opcion elegida lleva negrita y una marca (no solo color). */
+.prefs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.pref-select { display: inline-flex; }
+.pref-button { font-weight: 500; padding-left: var(--space-3); padding-right: var(--space-3); white-space: nowrap; }
+.pref-button .icon:last-child { width: 1rem; height: 1rem; }
+.pref-popover {
+  z-index: 20;
+  width: max-content;
+  max-width: calc(100vw - 1.5rem);
+  min-width: max(var(--trigger-width, 0px), 9rem);
+  background: var(--surface-raised);
+  color: var(--text);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-1);
+}
+.pref-popover [role="listbox"] { display: grid; gap: var(--space-1); outline: none; }
+.pref-popover [role="option"] { display: flex; align-items: center; gap: var(--space-2); min-height: var(--target); padding: 0 var(--space-3); border-radius: var(--radius-sm); cursor: pointer; outline: none; }
+.pref-popover [role="option"]::before { content: ""; flex: none; width: 0.5rem; height: 0.5rem; border-radius: 50%; }
+.pref-popover [role="option"][data-selected] { font-weight: 700; }
+.pref-popover [role="option"][data-selected]::before { background: var(--primary-bg); }
+.pref-popover [role="option"][data-hovered], .pref-popover [role="option"][data-focused] { background: var(--surface-hover); }
+.pref-popover [role="option"][data-focus-visible] { outline: var(--focus-width) solid var(--focus); outline-offset: -3px; }
+
 /* ---------- 9. Pantallas sin sesion (inicio de sesion, carga, error) ---------- */
 .auth-screen { min-height: 100vh; display: grid; place-items: center; padding: var(--space-5); background: var(--header-bg); }
 .auth-card { width: 100%; max-width: 26rem; display: grid; gap: var(--space-4); justify-items: start; background: var(--surface); border-radius: var(--radius-md); border-top: 0.375rem solid var(--primary-bg); box-shadow: var(--shadow-md); padding: var(--space-6); }
@@ -465,6 +453,20 @@ div[role="alert"] h1 { color: var(--danger-text); font-size: var(--text-xl); }
 .app-loading { padding: var(--space-6); text-align: center; color: var(--text-muted); font-weight: 600; }
 #root > div[role="alert"] { max-width: 40rem; margin: var(--space-6) auto; }
 
+/* ---------- 9b. Marcas de agua ---------- */
+/* Ilustraciones propias (`views/shared/illustrations.tsx`), decorativas y muy tenues: el color es `--watermark` (el verde de la marca en cada
+   tema) con la opacidad `--watermark-opacity`. No capturan clics ni seleccion, y van SIEMPRE en una zona sin texto: en el pie de la pagina de
+   las demos (el horizonte de un barrio; dentro del margen inferior, alineadas a la derecha: no anaden scroll horizontal ni mueven el contenido) y al fondo
+   de la pantalla de inicio de sesion, detras de la tarjeta (que es opaca). Aun asi, el contraste del peor caso (texto secundario
+   sobre un trazo) cumple AA: `tests/unit/theme-tokens.test.ts` lo calcula en los dos temas. Sin animacion. */
+.watermark { display: block; color: var(--watermark); opacity: var(--watermark-opacity); pointer-events: none; user-select: none; }
+.watermark-page { height: 5.5rem; width: auto; max-width: 100%; margin: var(--space-6) 0 calc(var(--space-6) * -1) auto; }
+.auth-screen { position: relative; overflow: hidden; }
+.auth-card { position: relative; z-index: 1; }
+.watermark-auth { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: min(100%, 60rem); height: auto; color: var(--header-text-muted); }
+/* El dibujo del inicio de sesion va ampliado: su trazo se queda en 2 px, como el de los iconos, en vez de crecer con el. */
+.watermark-auth path { vector-effect: non-scaling-stroke; }
+
 /* ---------- 10. Adaptacion por ancho ---------- */
 @media (max-width: 22.49rem) {
   .app-header-inner, .app-nav ul, .page { padding-left: var(--space-3); padding-right: var(--space-3); }
@@ -473,6 +475,9 @@ div[role="alert"] h1 { color: var(--danger-text); font-size: var(--text-xl); }
 @media (max-width: 47.99rem) {
   .actions > button, .inline-form > button, .filters > button { width: 100%; }
   .brand-tag { display: none; }
+  /* En movil el contenido ocupa todo el ancho: las marcas de agua de las vistas se quitan; la del inicio de sesion queda al pie, mas pequena. */
+  .watermark-page { display: none; }
+  .watermark-auth { width: 100%; }
 }
 /* Por debajo de 1024 px los titulos de columna pueden partirse en dos lineas: asi la comparativa cabe en una tableta sin desplazarse. */
 @media (min-width: 48rem) and (max-width: 63.99rem) {
@@ -537,7 +542,12 @@ div[role="alert"] h1 { color: var(--danger-text); font-size: var(--text-xl); }
   a { text-decoration-thickness: 2px; }
   tbody tr:nth-child(even) { background: var(--surface); }
 }
+/* Las marcas de agua son un adorno: fuera con mas contraste, con colores forzados y al imprimir. */
+@media (prefers-contrast: more), (forced-colors: active), print {
+  .watermark { display: none; }
+}
 @media (forced-colors: active) {
+  .pref-popover [role="option"][data-selected]::before { background: CanvasText; }
   .app-nav a[aria-current="page"], .chip[aria-pressed="true"], tbody tr.row-trigger > :first-child { outline: 2px solid CanvasText; outline-offset: -2px; }
 }
 

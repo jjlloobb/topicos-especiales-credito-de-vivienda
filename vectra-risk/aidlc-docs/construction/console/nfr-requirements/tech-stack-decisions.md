@@ -32,7 +32,7 @@ U2. Versiones fijadas en `uv.lock` (BFF) y `package-lock.json` (SPA).
 | Gráficos | SVG renderizado por React; el dashboard detallado es el embebido de Grafana | Q7, BR-U10-16 |
 | PDF del expediente | Librería de generación en el navegador sin `eval` ni estilos en línea (se fija en el plan de tareas, con la prueba de CSP de NFR-U10-42) | Q7 |
 | Decimales | `decimal.js` de U0; ESLint prohíbe `Number(`/`parseFloat` sobre `Decimal*` | U0 |
-| i18n | Catálogos JSON (`messages.es.json`, `labels.es.json`) e `Intl` en `es-CO` | Q11, FR-UI-06 |
+| i18n | Catálogos JSON (`messages.es.json`, `labels.es.json`) e `Intl` en `es-CO`. **Enmienda del 2026-11-21:** además `messages.en.json` y `labels.en.json` e `Intl` en `en-GB`, con el módulo propio (`src/i18n`), sin librería de i18n; el tema claro u oscuro, con `light-dark()` y `color-scheme` (los navegadores de `browserslist` lo admiten). Ver nfr-requirements §11 | Q11, FR-UI-06; pedido del dueño del proyecto para la sustentación |
 | Pruebas | Vitest, Testing Library, fast-check, Playwright con `@axe-core/playwright`, Lighthouse CI, Stryker, `@vitest/coverage-v8` | Q2, Q9, Q14 |
 | Lint | ESLint con `eslint-plugin-jsx-a11y`, prohibición de `dangerouslySetInnerHTML` y de literales de texto en JSX | Q9, BR-U10-11, 17 |
 | Presupuesto del bundle | `size-limit` en CI (≤ 250 KiB comprimido inicial) | Q2 |

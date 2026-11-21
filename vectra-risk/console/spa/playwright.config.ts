@@ -42,7 +42,9 @@ export default defineConfig({
   forbidOnly: true,
   retries: 0,
   reporter: "list",
-  use: { baseURL: ORIGIN, trace: "off" },
+  // `locale`: el navegador de las pruebas es el de una persona en Colombia (enmienda del 2026-11-21: sin preferencia guardada, la pantalla de
+  // inicio de sesion sale en el idioma del navegador, y Playwright trae `en-US` de fabrica). Las pruebas del ingles lo cambian con `test.use`.
+  use: { baseURL: ORIGIN, trace: "off", locale: "es-CO" },
   webServer: [
     {
       command: "uv run python console/bff/tests/doubles/bff_e2e_server.py",
