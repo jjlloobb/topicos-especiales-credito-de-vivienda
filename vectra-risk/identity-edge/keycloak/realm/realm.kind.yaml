@@ -5,10 +5,10 @@
 realm: vectra
 displayName: Vectra
 enabled: true
-# Tema de login `vectra` en espanol (P-U2-08). Solo kind: staging y prod no lo activan todavia.
+# Tema de login `vectra` (P-U2-08) en espanol e ingles, con el espanol por omision. Solo kind: staging y prod no lo activan todavia.
 loginTheme: vectra
 internationalizationEnabled: true
-supportedLocales: [es]
+supportedLocales: [es, en]
 defaultLocale: es
 sslRequired: all
 registrationAllowed: false
