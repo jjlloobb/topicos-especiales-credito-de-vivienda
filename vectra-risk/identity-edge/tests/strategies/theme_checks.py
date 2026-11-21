@@ -338,7 +338,12 @@ def svg_problems(text: str, allowed: set[str]) -> list[str]:
 CSS_PROPERTIES = {
     "background-color", "color", "content", "display", "width", "height", "margin",
     "background", "outline", "outline-offset",
-    "font-family", "max-width", "border-top", "border-top-color",
+    "font-family", "max-width", "border-top-color", "top", "left", "right",
+    # variables de PatternFly y de keycloak.v2 que el tema redefine (distinguen mayusculas: se comparan tal cual)
+    "--keycloak-card-top-color", "--pf-v5-global--primary-color--100", "--pf-v5-global--primary-color--200",
+    "--pf-v5-global--active-color--100", "--pf-v5-global--link--Color", "--pf-v5-global--link--Color--hover",
+    "--pf-v5-global--primary-color--dark-100", "--pf-v5-global--link--Color--dark", "--pf-v5-global--link--Color--dark--hover",
+    "--pf-v5-global--Color--light-100",
 }  # las que usa vectra.css
 CSS_UNITS = {"", "px", "rem", "em", "%"}
 
@@ -442,7 +447,9 @@ def css_problems(css: str, allowed: set[str]) -> list[str]:
             if not decl.strip():
                 continue
             prop, sep, value = decl.partition(":")
-            prop = prop.strip().lower()
+            prop = prop.strip()
+            if not prop.startswith("--"):  # una propiedad personalizada distingue mayusculas
+                prop = prop.lower()
             if not sep or prop not in CSS_PROPERTIES:
                 bad.append(f"structure: propiedad no permitida: {prop or decl.strip()}")
             for m in re.finditer(r"url\(\s*\x00S(\d+)\x00\s*\)|\x00U(\d+)\x00", value, re.IGNORECASE):

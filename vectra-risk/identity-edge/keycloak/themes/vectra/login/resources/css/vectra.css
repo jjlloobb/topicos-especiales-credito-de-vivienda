@@ -2,6 +2,20 @@
    Primario #14633F, marca #0B3B2C, acento #8A5A00 (solo avisos), fondo #FFFFFF y fondo de pagina #FAF8F4.
    Aspecto claro siempre: theme.properties lleva darkMode=false. Sin JavaScript, sin recursos externos y sin
    consultas de medios: el ancho se adapta con max-width, de 360 px a escritorio. */
+
+/* Los colores de PatternFly que keycloak.v2 usa en azul (borde de la tarjeta, subrayado del campo con foco, enlaces).
+   Dentro de los campos y de los avisos PatternFly toma el primario y el enlace de sus variantes dark: van tambien. */
+:root {
+  --keycloak-card-top-color: #14633F;
+  --pf-v5-global--primary-color--100: #14633F;
+  --pf-v5-global--primary-color--200: #0B3B2C;
+  --pf-v5-global--primary-color--dark-100: #14633F;
+  --pf-v5-global--active-color--100: #14633F;
+  --pf-v5-global--link--Color: #14633F;
+  --pf-v5-global--link--Color--hover: #0B3B2C;
+  --pf-v5-global--link--Color--dark: #14633F;
+  --pf-v5-global--link--Color--dark--hover: #0B3B2C;
+}
 html,
 body,
 .login-pf body,
@@ -18,6 +32,11 @@ h1,
 .pf-v5-c-button,
 .pf-v5-c-form-control {
   font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* El nombre del realm: keycloak.v2 lo pinta con esta variable y una marca de prioridad, asi que se cambia la variable solo aqui. */
+#kc-header-wrapper {
+  --pf-v5-global--Color--light-100: #0B3B2C;
 }
 
 #kc-header-wrapper,
@@ -42,7 +61,21 @@ h1,
 
 .pf-v5-c-login__main {
   background-color: #FFFFFF;
-  border-top: 4px solid #14633F;
+}
+
+.pf-v5-c-login__main-header {
+  border-top-color: #14633F;
+}
+
+/* La ayuda del boton de reinicio (pantalla del codigo): keycloak.v2 la coloca fuera de la pantalla en 360 px y crea scroll horizontal. */
+.kc-login-tooltip .kc-tooltip-text {
+  top: 100%;
+  left: auto;
+  right: 0;
+}
+
+.kc-login-tooltip .kc-tooltip-text::after {
+  display: none;
 }
 
 #kc-page-title {
@@ -78,6 +111,13 @@ input:focus,
 select:focus {
   outline: 3px solid #14633F;
   outline-offset: 2px;
+}
+
+/* El contorno del campo va entero por dentro (PatternFly lo deja a medias: -2px con 3 px de grosor), para que el boton
+   de mostrar la contrasena no le tape el lado derecho. */
+.pf-v5-c-form-control > input:focus,
+.pf-v5-c-form-control > select:focus {
+  outline-offset: -3px;
 }
 
 .pf-v5-c-alert.pf-m-warning {

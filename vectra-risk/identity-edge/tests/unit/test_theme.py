@@ -481,6 +481,8 @@ CSS_CLASS_MUTATIONS = {
     "cadena no vacia en un selector": 'a[x="y"] { color: #14633F; }',
     "unidad rara": ".x { width: 10vw; }",
     "signo de exclamacion": ".x { color: #14633F !important; }",
+    "variable no listada": ":root { --pf-v5-global--danger-color--100: #14633F; }",
+    "variable listada con otras mayusculas": ":root { --pf-v5-global--link--color: #14633F; }",
     "comentario que oculta ; en la declaracion": ".x { color: /* a */ red; }",
 }
 
