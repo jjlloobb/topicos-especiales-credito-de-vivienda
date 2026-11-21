@@ -9,8 +9,10 @@ import theme_checks as tc
 
 TEMPLATES = tc.design_templates()
 BRAND = tc.design_brand()
-ALLOWED = set(BRAND.values())
+DARK = tc.design_brand_dark()
+ALLOWED = set(BRAND.values()) | set(DARK.values())
 LOGO = "resources/img/vectra-logo.svg"
+LOGO_DARK = "resources/img/vectra-logo-dark.svg"
 CSS = "resources/css/vectra.css"
 ES = "messages/messages_es.properties"
 
@@ -47,13 +49,14 @@ def test_theme_exists_and_structure_is_standard():
 
 
 def test_theme_missing_directory_fails_the_structure_rule(tmp_path):
-    assert len(tc.structure_problems(tmp_path / "no-existe")) == 4
+    assert len(tc.structure_problems(tmp_path / "no-existe")) == 5
 
 
 def test_theme_without_its_files_fails_the_structure_rule(theme):
     (theme / LOGO).unlink()
+    (theme / LOGO_DARK).unlink()
     (theme / CSS).unlink()
-    assert tc.structure_problems(theme) == [f"falta {CSS}", f"falta {LOGO}"]
+    assert tc.structure_problems(theme) == [f"falta {CSS}", f"falta {LOGO}", f"falta {LOGO_DARK}"]
 
 
 def test_styles_without_the_parent_stylesheet_fail_the_structure_rule(theme):
@@ -67,10 +70,10 @@ def test_own_styles_css_shadowing_the_parent_fails_the_structure_rule(theme):
     assert tc.structure_problems(theme)
 
 
-@pytest.mark.parametrize(("old", "new"), [("darkMode=false\n", ""), ("darkMode=false", "darkMode=true"), ("darkMode=false", "darkMode=")])
-def test_dark_mode_not_disabled_fails_the_structure_rule(theme, old, new):
-    """El tema solo define el aspecto claro: sin `darkMode=false`, `keycloak.v2` pondría texto claro sobre el fondo blanco."""
-    assert tc.design_dark_mode() == "false"
+@pytest.mark.parametrize(("old", "new"), [("darkMode=true\n", ""), ("darkMode=true", "darkMode=false"), ("darkMode=true", "darkMode=")])
+def test_dark_mode_other_than_the_design_fails_the_structure_rule(theme, old, new):
+    """El tema define los dos aspectos y el diseño fija `darkMode=true` de forma explícita: `keycloak.v2` pone la clase oscura según el sistema."""
+    assert tc.design_dark_mode() == "true"
     _replace(theme / "theme.properties", old, new)
     assert any("darkMode" in p for p in tc.structure_problems(theme))
 
@@ -368,7 +371,9 @@ def test_brand_theme_declares_parent_and_own_css():
 
 def test_brand_colors_come_from_the_design():
     assert set(BRAND) == {"primary", "brand", "accent", "background", "page"}
-    assert ALLOWED == set(BRAND.values()) and len(ALLOWED) == 5
+    assert set(DARK) == {"primary", "brand", "link", "accent", "background", "page", "button_text"}
+    assert len(set(BRAND.values())) == 5 and len(set(DARK.values())) == 7
+    assert ALLOWED == set(BRAND.values()) | set(DARK.values()) and len(ALLOWED) == 12  # ningun color sirve a los dos aspectos
 
 
 def test_brand_css_uses_exactly_the_design_colors():
@@ -391,20 +396,110 @@ def test_brand_design_declares_a_contrast_for_every_text_color_and_surface():
     assert all(ratios.keys() == set(tc.TEXT_ROLES) for ratios in tc.design_contrast_ratios().values())
 
 
+def _color_rules() -> tuple[list[tuple[str, dict[str, str]]], list[tuple[str, dict[str, str]]]]:
+    """(reglas del aspecto claro, reglas del oscuro): cada una es (selectores, {propiedad: valor en mayúsculas})."""
+    rules, _, errors = tc._tokenize_css((tc.THEME_DIR / CSS).read_text(encoding="utf-8"))
+    assert errors == []
+    light, dark = [], []
+    for prelude, decls in rules:
+        selectors = [sel.strip() for sel in prelude.split(",")]
+        is_dark = [sel.startswith("." + tc.DARK_CLASS) for sel in selectors]
+        assert all(is_dark) or not any(is_dark), f"regla que mezcla los dos aspectos: {prelude!r}"
+        props = {d.partition(":")[0].strip(): d.partition(":")[2].strip().upper() for d in decls if d.strip()}
+        (dark if all(is_dark) else light).append((prelude, props))
+    return light, dark
+
+
+def _hex_in(props: dict[str, str]) -> set[str]:
+    return {h for value in props.values() for h in re.findall(r"#[0-9A-F]{6}\b", value)}
+
+
+def test_brand_each_look_uses_only_its_own_colors():
+    """Las reglas sin la clase oscura solo llevan colores del aspecto claro; las que empiezan por ella, solo del oscuro. Y cada aspecto usa todos los suyos."""
+    light, dark = _color_rules()
+    assert set().union(*(_hex_in(p) for _, p in light)) == set(BRAND.values())
+    assert set().union(*(_hex_in(p) for _, p in dark)) == set(DARK.values())
+
+
+def test_brand_every_light_color_rule_has_its_dark_pair():
+    """Sin consultas de medios, el oscuro se sostiene regla por regla: toda regla clara que fija un color tiene la misma regla bajo la clase oscura, con las mismas propiedades de color."""
+    light, dark = _color_rules()
+    dark_by_selector: dict[str, set[str]] = {}
+    for prelude, props in dark:
+        for sel in prelude.split(","):
+            dark_by_selector.setdefault(re.sub(r"\s+", " ", sel.strip()), set()).update(k for k, v in props.items() if "#" in v)
+    for prelude, props in light:
+        colored = {k for k, v in props.items() if "#" in v}
+        if not colored:
+            continue
+        for sel in (re.sub(r"\s+", " ", x.strip()) for x in prelude.split(",")):
+            if sel in {"html", ":root"}:
+                pair = "." + tc.DARK_CLASS
+            elif sel == ".login-pf body":
+                pair = f".{tc.DARK_CLASS}.login-pf body"
+            else:
+                pair = f".{tc.DARK_CLASS} {sel}"
+            assert colored <= dark_by_selector.get(pair, set()), f"{sel}: falta {pair} con {sorted(colored)}"
+
+
 def test_brand_button_text_is_the_background_color_over_primary_and_brand():
-    """El botón principal: texto `#FFFFFF` sobre el primario y, al pasar el cursor o con foco, sobre la marca."""
-    rules, _, _ = tc._tokenize_css((tc.THEME_DIR / CSS).read_text(encoding="utf-8"))
-    button = [dict(d.split(":", 1) for d in decls if d.strip()) for prelude, decls in rules if "pf-m-primary" in prelude]
-    pairs = {(r["background-color"].strip().upper(), r["color"].strip().upper()) for r in ({k.strip(): v for k, v in b.items()} for b in button)}
-    assert pairs == {(BRAND["primary"], BRAND["background"]), (BRAND["brand"], BRAND["background"])}
-    assert all(tc.contrast(bg, fg) >= 4.5 for bg, fg in pairs)
+    """El botón principal: texto `#FFFFFF` sobre el primario y, al pasar el cursor o con foco, sobre la marca. En oscuro, texto `#0B2318` sobre el primario y sobre el enlace."""
+    light, dark = _color_rules()
+
+    def pairs(rules):
+        return {(p["background-color"], p["color"]) for prelude, p in rules if "pf-m-primary" in prelude}
+
+    assert pairs(light) == {(BRAND["primary"], BRAND["background"]), (BRAND["brand"], BRAND["background"])}
+    assert pairs(dark) == {(DARK[bg], DARK["button_text"]) for bg in tc.DARK_BUTTON_BACKGROUNDS}
+    assert all(tc.contrast(bg, fg) >= 4.5 for bg, fg in pairs(light) | pairs(dark))
 
 
 def test_brand_accent_is_only_for_warnings():
-    """El ámbar no es color de enlaces, botones ni foco: solo de los avisos (`pf-m-warning`)."""
-    rules, _, _ = tc._tokenize_css((tc.THEME_DIR / CSS).read_text(encoding="utf-8"))
-    with_accent = [prelude for prelude, decls in rules if any(BRAND["accent"] in d.upper() for d in decls)]
-    assert with_accent and all("pf-m-warning" in sel for prelude in with_accent for sel in prelude.split(","))
+    """El ámbar no es color de enlaces, botones ni foco: solo de los avisos (`pf-m-warning`), en los dos aspectos."""
+    light, dark = _color_rules()
+    for rules, accent in ((light, BRAND["accent"]), (dark, DARK["accent"])):
+        with_accent = [prelude for prelude, props in rules if accent in _hex_in(props)]
+        assert with_accent and all("pf-m-warning" in sel for prelude in with_accent for sel in prelude.split(","))
+
+
+@pytest.mark.parametrize("surface", tc.SURFACES)
+@pytest.mark.parametrize("role", tc.DARK_TEXT_ROLES)
+def test_brand_dark_contrast_over_background_is_at_least_4_5(role, surface):
+    ratio = tc.contrast(DARK[role], DARK[surface])
+    assert ratio >= 4.5
+    assert round(ratio, 2) == tc.design_contrast_ratios_dark()[surface][role]  # el diseno declara el mismo numero
+
+
+@pytest.mark.parametrize("background", tc.DARK_BUTTON_BACKGROUNDS)
+def test_brand_dark_button_text_contrast_is_at_least_4_5(background):
+    ratio = tc.contrast(DARK["button_text"], DARK[background])
+    assert ratio >= 4.5
+    assert round(ratio, 2) == tc.design_contrast_ratios_dark()["button"][background]
+
+
+def test_brand_dark_design_declares_a_contrast_for_every_text_color_and_surface():
+    declared = tc.design_contrast_ratios_dark()
+    assert declared.keys() == {*tc.SURFACES, "button"}
+    assert all(declared[s].keys() == set(tc.DARK_TEXT_ROLES) for s in tc.SURFACES)
+    assert declared["button"].keys() == set(tc.DARK_BUTTON_BACKGROUNDS)
+
+
+def test_brand_dark_logo_is_the_light_logo_with_the_dark_colors():
+    """El logo del aspecto oscuro: las mismas trazas y texto, con la marca y el primario oscuros (un SVG de fondo no hereda `currentColor`)."""
+    light = (tc.THEME_DIR / LOGO).read_text(encoding="utf-8")
+    dark = (tc.THEME_DIR / LOGO_DARK).read_text(encoding="utf-8")
+    assert dark == light.replace(BRAND["brand"], DARK["brand"]).replace(BRAND["primary"], DARK["primary"])
+    assert set(re.findall(r"#[0-9A-Fa-f]{6}", dark)) == {DARK["brand"], DARK["primary"]}
+    css = (tc.THEME_DIR / CSS).read_text(encoding="utf-8")
+    assert f'.{tc.DARK_CLASS} #kc-header-wrapper::before' in css and "vectra-logo-dark.svg" in css
+
+
+def test_brand_dark_missing_pair_is_detected(theme, monkeypatch):
+    """Si se quita una pareja oscura (el título), la regla de las parejas lo detecta."""
+    _replace(theme / CSS, f".{tc.DARK_CLASS} #kc-page-title", f".{tc.DARK_CLASS} #kc-otro")
+    monkeypatch.setattr(tc, "THEME_DIR", theme)
+    with pytest.raises(AssertionError, match="kc-page-title"):
+        test_brand_every_light_color_rule_has_its_dark_pair()
 
 
 def test_brand_low_contrast_color_is_detected():
