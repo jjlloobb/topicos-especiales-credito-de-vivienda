@@ -1,7 +1,9 @@
 # kind: CA interna de U1 (INF-U2-01). El digest es de ejemplo mientras ningun workflow construya la imagen (INF-U2-08).
+# 2026-11-21: imagen construida en local desde `main` con el tema `vectra` verde (PR #241) y publicada en el registro de kind
+# (docs/paso-16-kind.md §3). Digest anterior, para volver atras: sha256:1604d2943e1e26f8085c112912e783e074feafac9eec233e9b4fe298a76dbe8a
 image:
   repository: kind-registry:5000/vectra/keycloak
-  digest: sha256:1604d2943e1e26f8085c112912e783e074feafac9eec233e9b4fe298a76dbe8a
+  digest: sha256:f4b6a51c583b98373301b29ac94ee14b96ce7439190c295a3810f9cdffa674d4
 # U02-T23 (excepcion solo en kind a NFR-U2-01, decision del 2026-11-14): minimo 1 replica, para ahorrar 1,0195 GiB (1 GiB + 20 Mi del proxy) y 0,6 CPU (500m + 100m del proxy) pedidos en
 # la maquina de la demo.
 # U12-T08: y maximo 1 (el HPA queda 1-1). Era el unico HPA de kind que podia crecer sin estar contado: con 4 replicas el pico de la demo D2 pasaba de la
