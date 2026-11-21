@@ -143,6 +143,8 @@ export interface Options {
   readonly stepUp?: StepUpEnv;
   readonly inactivity?: InactivityEnv;
   readonly queryClient?: QueryClient;
+  /** La pagina acaba de volver del login por redireccion y los datos del flujo traen este destino (`returnTo`; H-12). */
+  readonly returnTo?: unknown;
 }
 
 export function renderApp(options: Options = {}) {
@@ -162,15 +164,23 @@ export function renderApp(options: Options = {}) {
   const bus = new Bus();
   const api: ApiClient = createApi({ baseUrl: OWN, getToken: () => tokens.get(), fetchImpl: fakeFetch(world) });
   const authTime = new Date(Date.now() - (options.mfa === true ? 60_000 : 3_600_000)).toISOString();
+  const fromLogin = "returnTo" in options;
+  const loaded = new Set<(user: User) => void>();
+  const callbackUser = { access_token: "t", state: { mode: "silent", returnTo: options.returnTo } } as unknown as User;
   const wiring: Wiring = {
     manager: {
       getUser: async () => ({ access_token: "t" }) as User,
       signinRedirect: async () => undefined,
-      signinCallback: async () => undefined,
+      // Como `oidc-client-ts`: el canje avisa `userLoaded` y entrega el usuario con los datos del flujo.
+      signinCallback: async () => {
+        if (!fromLogin) return undefined;
+        for (const listener of loaded) listener(callbackUser);
+        return callbackUser;
+      },
       signoutRedirect: async () => undefined,
-      events: { addUserLoaded: () => undefined, removeUserLoaded: () => undefined },
+      events: { addUserLoaded: (callback) => loaded.add(callback), removeUserLoaded: (callback) => loaded.delete(callback) },
     },
-    authPage: { callbackUrl: () => null, clean: () => undefined },
+    authPage: { callbackUrl: () => (fromLogin ? `${OWN}/callback?code=c&state=s` : null), clean: () => undefined, target: () => null },
     tokens,
     queryClient: options.queryClient ?? createQueryClient(),
     api,
@@ -187,7 +197,7 @@ export function renderApp(options: Options = {}) {
       target: document,
     },
   };
-  window.history.pushState({}, "", options.path ?? "/casos");
+  window.history.pushState({}, "", fromLogin ? "/" : (options.path ?? "/casos")); // tras el callback la URL ya esta limpia (`/`)
   const view = render(<App wiring={wiring} />);
   return { world, wiring, reports, bus, ...view };
 }
