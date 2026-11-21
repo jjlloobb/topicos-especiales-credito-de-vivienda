@@ -67,6 +67,14 @@ def test_own_styles_css_shadowing_the_parent_fails_the_structure_rule(theme):
     assert tc.structure_problems(theme)
 
 
+@pytest.mark.parametrize(("old", "new"), [("darkMode=false\n", ""), ("darkMode=false", "darkMode=true"), ("darkMode=false", "darkMode=")])
+def test_dark_mode_not_disabled_fails_the_structure_rule(theme, old, new):
+    """El tema solo define el aspecto claro: sin `darkMode=false`, `keycloak.v2` pondría texto claro sobre el fondo blanco."""
+    assert tc.design_dark_mode() == "false"
+    _replace(theme / "theme.properties", old, new)
+    assert any("darkMode" in p for p in tc.structure_problems(theme))
+
+
 def test_other_parent_fails_the_structure_rule(theme):
     _replace(theme / "theme.properties", "parent=keycloak.v2", "parent=base")
     assert tc.structure_problems(theme)
@@ -96,6 +104,15 @@ def test_logo_has_no_image_element_and_says_vectra():
     text = (tc.THEME_DIR / LOGO).read_text(encoding="utf-8")
     assert not re.search(r"<\s*image\b", text, re.IGNORECASE)
     assert "Vectra" in text
+
+
+def test_logo_is_the_console_brand_icon():
+    """La casa con marca de verificación de `IconBrand` (consola), a escala 2 y desplazada (4, 4): tejado, muros y marca."""
+    icons = (tc.EDGE.parent / "console" / "spa" / "src" / "views" / "shared" / "icons.tsx").read_text(encoding="utf-8")
+    brand = icons.split("export function IconBrand", 1)[1].split("export function", 1)[0]
+    assert re.findall(r'<path d="([^"]+)"', brand) == ["M3 11.5 12 4l9 7.5", "M5.5 10v9.5h13V10", "m9 14.5 2.2 2.2 3.8-4.2"]
+    logo = (tc.THEME_DIR / LOGO).read_text(encoding="utf-8")
+    assert re.findall(r'<path d="([^"]+)"', logo) == ["M10 27 L28 12 L46 27", "M15 24 V43 H41 V24", "M22 33 L26.4 37.4 L34 29"]
 
 
 def _svg(theme: Path, snippet: str) -> None:
@@ -148,12 +165,12 @@ def test_svg_mutations_are_detected(theme, name):
 
 
 SVG_ATTRIBUTE_MUTATIONS = [
-    ('d="M6 10 L24 46 L42 10"', 'd="M6 10" onclick="alert(1)"'),
+    ('d="M10 27 L28 12 L46 27"', 'd="M10 27" onclick="alert(1)"'),
     ('aria-label="Vectra"', 'aria-label="javascript&#58;alert(1)"'),
     ('aria-label="Vectra"', 'aria-label="&lt;script&gt;alert(1)&lt;/script&gt;"'),
     ('aria-label="Vectra"', 'aria-label="Vectra" href="x"'),
     ('role="img"', 'role="img" style="fill:red"'),
-    ('stroke-width="7"', 'stroke-width="7" filter="url(#f)"'),
+    ('stroke-width="3.5"', 'stroke-width="3.5" filter="url(#f)"'),
     ('width="220"', 'width="https://evil.example/"'),
 ]
 
@@ -350,7 +367,8 @@ def test_brand_theme_declares_parent_and_own_css():
 
 
 def test_brand_colors_come_from_the_design():
-    assert ALLOWED == set(BRAND.values()) and len(ALLOWED) == 3
+    assert set(BRAND) == {"primary", "brand", "accent", "background", "page"}
+    assert ALLOWED == set(BRAND.values()) and len(ALLOWED) == 5
 
 
 def test_brand_css_uses_exactly_the_design_colors():
@@ -359,11 +377,34 @@ def test_brand_css_uses_exactly_the_design_colors():
     assert [p for p in tc.theme_problems(tc.THEME_DIR, ALLOWED) if ": color:" in p] == []
 
 
-@pytest.mark.parametrize("role", ["primary", "accent"])
-def test_brand_contrast_over_background_is_at_least_4_5(role):
-    ratio = tc.contrast(BRAND[role], BRAND["background"])
+@pytest.mark.parametrize("surface", tc.SURFACES)
+@pytest.mark.parametrize("role", tc.TEXT_ROLES)
+def test_brand_contrast_over_background_is_at_least_4_5(role, surface):
+    """Cada color con texto, icono o foco, sobre la tarjeta y sobre la página. El texto del botón es el fondo sobre primario y marca: la misma razón."""
+    ratio = tc.contrast(BRAND[role], BRAND[surface])
     assert ratio >= 4.5
-    assert round(ratio, 2) == tc.design_contrast_ratios()[role]  # el diseno declara el mismo numero
+    assert round(ratio, 2) == tc.design_contrast_ratios()[surface][role]  # el diseno declara el mismo numero
+
+
+def test_brand_design_declares_a_contrast_for_every_text_color_and_surface():
+    assert tc.design_contrast_ratios().keys() == set(tc.SURFACES)
+    assert all(ratios.keys() == set(tc.TEXT_ROLES) for ratios in tc.design_contrast_ratios().values())
+
+
+def test_brand_button_text_is_the_background_color_over_primary_and_brand():
+    """El botón principal: texto `#FFFFFF` sobre el primario y, al pasar el cursor o con foco, sobre la marca."""
+    rules, _, _ = tc._tokenize_css((tc.THEME_DIR / CSS).read_text(encoding="utf-8"))
+    button = [dict(d.split(":", 1) for d in decls if d.strip()) for prelude, decls in rules if "pf-m-primary" in prelude]
+    pairs = {(r["background-color"].strip().upper(), r["color"].strip().upper()) for r in ({k.strip(): v for k, v in b.items()} for b in button)}
+    assert pairs == {(BRAND["primary"], BRAND["background"]), (BRAND["brand"], BRAND["background"])}
+    assert all(tc.contrast(bg, fg) >= 4.5 for bg, fg in pairs)
+
+
+def test_brand_accent_is_only_for_warnings():
+    """El ámbar no es color de enlaces, botones ni foco: solo de los avisos (`pf-m-warning`)."""
+    rules, _, _ = tc._tokenize_css((tc.THEME_DIR / CSS).read_text(encoding="utf-8"))
+    with_accent = [prelude for prelude, decls in rules if any(BRAND["accent"] in d.upper() for d in decls)]
+    assert with_accent and all("pf-m-warning" in sel for prelude in with_accent for sel in prelude.split(","))
 
 
 def test_brand_low_contrast_color_is_detected():
@@ -371,13 +412,13 @@ def test_brand_low_contrast_color_is_detected():
 
 
 CSS_COLOR_MUTATIONS = [
-    "color: #123456;", "color: #fff;", "color: #0B3D5C80;", "color: rgb(1, 2, 3);", "color: red;",
+    "color: #123456;", "color: #fff;", "color: #14633F80;", "color: rgb(1, 2, 3);", "color: red;",
     "color: RED;", "color: darkred;", "color: rebeccapurple;", "color: var(--pf-v5-global--danger-color--100);",
     "background: hsl(10 20% 30%);", "border: 1px solid transparent;", "color: currentColor;",
-    "--x: color-mix(in srgb, #0B3D5C, #C2410C);", "color: light-dark(#0B3D5C, #FFFFFF);",
+    "--x: color-mix(in srgb, #14633F, #8A5A00);", "color: light-dark(#14633F, #FFFFFF);",
     "color: CanvasText;", "background: Highlight;", "color: r\\65 d;", "color: \\72 ed;", "color: inherit;",
     "color: initial;", "color: unset;", "color: revert;", "color: revert-layer;", "color: ButtonFace;",
-    "color: #0B3D5C !important;", "color: LinkText;",
+    "color: #14633F !important;", "color: LinkText;",
 ]
 
 
@@ -392,21 +433,22 @@ def test_brand_css_other_colors_are_detected(theme, decl):
 
 
 def test_brand_css_lowercase_hex_of_the_brand_is_the_same_color(theme):
-    _append(theme / CSS, "\n.x { color: #0b3d5c; }\n")
+    _append(theme / CSS, "\n.x { color: #14633f; }\n")
     assert tc.theme_problems(theme, ALLOWED) == []
 
 
 SVG_COLOR_MUTATIONS = [
-    ('fill="#0B3D5C"', 'fill="red"'),            # T20
-    ('fill="#0B3D5C"', 'fill="darkred"'),
-    ('fill="#0B3D5C"', 'fill="CanvasText"'),     # N30
-    ('fill="#0B3D5C"', 'fill="inherit"'),
-    ('fill="#0B3D5C"', 'fill="currentColor"'),
-    ('fill="#0B3D5C"', 'fill="#abc"'),
-    ('fill="#0B3D5C"', 'fill="&#35;FF0000"'),
-    ('fill="#0B3D5C"', 'fill="rgb(1,2,3)"'),
-    ('fill="#0B3D5C"', 'fill="var(--x)"'),
-    ('stroke="#C2410C"', 'stroke="#C2410D"'),
+    ('fill="#0B3B2C"', 'fill="red"'),            # T20
+    ('fill="#0B3B2C"', 'fill="darkred"'),
+    ('fill="#0B3B2C"', 'fill="CanvasText"'),     # N30
+    ('fill="#0B3B2C"', 'fill="inherit"'),
+    ('fill="#0B3B2C"', 'fill="currentColor"'),
+    ('fill="#0B3B2C"', 'fill="#abc"'),
+    ('fill="#0B3B2C"', 'fill="&#35;FF0000"'),
+    ('fill="#0B3B2C"', 'fill="rgb(1,2,3)"'),
+    ('fill="#0B3B2C"', 'fill="var(--x)"'),
+    ('stroke="#0B3B2C"', 'stroke="#0B3B2D"'),
+    ('stroke="#14633F"', 'stroke="#14633E"'),
     ('fill="none"', 'fill="transparent"'),
 ]
 
@@ -426,19 +468,19 @@ CSS_CLASS_MUTATIONS = {
     "cadena con comillas simples": ".x { content: '/*'; color: red; content: '*/'; }",
     "cadena no vacia": '.x { content: "hola"; }',
     "cadena sin cerrar": '.x { content: "abc; }',
-    "comentario sin cerrar": ".x { color: #0B3D5C; } /* x",
-    "llave sin cerrar": ".x { color: #0B3D5C;",
-    "llave de mas": ".x { color: #0B3D5C; } }",
-    "llave anidada": ".x { .y { color: #0B3D5C; } }",
-    "media": "@media print { .x { color: #0B3D5C; } }",
+    "comentario sin cerrar": ".x { color: #14633F; } /* x",
+    "llave sin cerrar": ".x { color: #14633F;",
+    "llave de mas": ".x { color: #14633F; } }",
+    "llave anidada": ".x { .y { color: #14633F; } }",
+    "media": "@media print { .x { color: #14633F; } }",
     "filter": ".x { filter: invert(1); }",
     "visibility": ".x { visibility: hidden; }",
     "mix-blend-mode": ".x { mix-blend-mode: difference; }",
     "propiedad en mayusculas": ".x { OPACITY: 0.2; }",
-    "cadena vacia en un selector": 'a[x=""] { color: #0B3D5C; }',
-    "cadena no vacia en un selector": 'a[x="y"] { color: #0B3D5C; }',
+    "cadena vacia en un selector": 'a[x=""] { color: #14633F; }',
+    "cadena no vacia en un selector": 'a[x="y"] { color: #14633F; }',
     "unidad rara": ".x { width: 10vw; }",
-    "signo de exclamacion": ".x { color: #0B3D5C !important; }",
+    "signo de exclamacion": ".x { color: #14633F !important; }",
     "comentario que oculta ; en la declaracion": ".x { color: /* a */ red; }",
 }
 

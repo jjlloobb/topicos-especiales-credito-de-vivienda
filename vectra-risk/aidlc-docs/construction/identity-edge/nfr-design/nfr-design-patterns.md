@@ -94,10 +94,13 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 ### P-U2-08 — Tema de login en español (Q6)
 - Tema `vectra`, hijo de `keycloak.v2`: logo y colores del banco, textos en `messages_es.properties` (locale por defecto `es`), sin JavaScript propio ni recursos externos.
 - CSP estricta en `/auth/**` (BR-U2-13).
-- Marca Vectra mientras el banco no entregue la suya (enmienda del 2026-11-02, decisión P3 del usuario al preparar U02-T06):
-  - logo `vectra-logo.svg`: SVG propio con la palabra «Vectra», sin `<script>`, sin `<image>` y sin referencias de otro origen;
-  - color primario `#0B3D5C` (botones, encabezado) y de acento `#C2410C` (enlaces y foco), sobre fondo `#FFFFFF`;
-  - contraste sobre `#FFFFFF`: primario 11,44:1 y acento 5,18:1, ambos ≥ 4,5:1 (WCAG 2.1 AA, texto normal).
+- Marca Vectra mientras el banco no entregue la suya (enmienda del 2026-11-02, decisión P3 del usuario al preparar U02-T06; paleta y logo enmendados el 2026-11-21):
+  - logo `vectra-logo.svg`: SVG propio con la casa con marca de verificación de la consola y la palabra «Vectra», sin `<script>`, sin `<image>` y sin referencias de otro origen;
+  - color primario `#14633F` (botón principal, enlaces y foco), de marca `#0B3B2C` (logo, títulos y botón principal al pasar el cursor) y de acento `#8A5A00` (solo avisos), sobre fondo `#FFFFFF` (tarjeta del formulario) y fondo de página `#FAF8F4`; el texto del botón principal es `#FFFFFF`;
+  - contraste sobre `#FFFFFF`: primario 7,28:1, marca 12,53:1 y acento 5,93:1; sobre `#FAF8F4`: primario 6,86:1, marca 11,81:1 y acento 5,59:1; todos ≥ 4,5:1 (WCAG 2.1 AA, texto normal). El texto `#FFFFFF` del botón tiene los mismos 7,28:1 y 12,53:1 sobre el primario y la marca;
+  - tipografía del sistema (`system-ui`), sin fuentes propias; el ancho se adapta de 360 px a escritorio sin consultas de medios;
+  - modo oscuro desactivado: `theme.properties` lleva `darkMode=false`, de modo que `keycloak.v2` no aplica su clase de modo oscuro ni anuncia `color-scheme: dark`, y el tema se ve siempre con el aspecto claro cuyos contrastes están calculados aquí;
+  - enmienda del 2026-11-21: la paleta anterior (azul `#0B3D5C` y naranja `#C2410C`, con contrastes 11,44:1 y 5,18:1) y el logo de la «V» se sustituyen por los valores de arriba. Motivo: misma identidad que la consola, PR #235.
 - Referencia de claves de `messages_es.properties` (enmienda del 2026-11-02, decisión P4 del usuario): los `messages_en.properties` de los temas `base` y `keycloak.v2` (login) de la versión de Keycloak de INF-U2-08, guardados con su checksum en `identity-edge/tests/fixtures/keycloak-<versión>/`.
   - Toda clave de `messages_es.properties` existe en esa referencia.
   - Están traducidas las claves literales `msg("…")` de las plantillas de login (`login.ftl`), TOTP (`login-otp.ftl`, `login-config-totp.ftl`) y cambio de contraseña (`login-update-password.ftl`), con las comunes que incluyen (`template.ftl`, `buttons.ftl`, `field.ftl`, `password-commons.ftl`), siempre que existan en la referencia. Las plantillas están en el mismo directorio de fixtures.

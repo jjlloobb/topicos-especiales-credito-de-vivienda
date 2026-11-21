@@ -1,40 +1,91 @@
-/* Marca Vectra (P-U2-08): primario #0B3D5C, acento #C2410C, fondo #FFFFFF. Sin JavaScript ni recursos externos. */
+/* Marca Vectra (P-U2-08, enmienda del 2026-11-21): la misma identidad de credito de vivienda que la consola.
+   Primario #14633F, marca #0B3B2C, acento #8A5A00 (solo avisos), fondo #FFFFFF y fondo de pagina #FAF8F4.
+   Aspecto claro siempre: theme.properties lleva darkMode=false. Sin JavaScript, sin recursos externos y sin
+   consultas de medios: el ancho se adapta con max-width, de 360 px a escritorio. */
+html,
 body,
-.pf-v5-c-login,
-.pf-v5-c-login__main {
-  background-color: #FFFFFF;
+.login-pf body,
+.pf-v5-c-login {
+  background: #FAF8F4 none;
+}
+
+body,
+button,
+input,
+select,
+h1,
+.pf-v5-c-title,
+.pf-v5-c-button,
+.pf-v5-c-form-control {
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
 #kc-header-wrapper,
 .pf-v5-c-login__header {
-  background-color: #FFFFFF;
-  color: #0B3D5C;
+  background-color: #FAF8F4;
+  color: #0B3B2C;
 }
 
 #kc-header-wrapper::before {
   content: "";
   display: block;
   width: 220px;
+  max-width: 100%;
   height: 56px;
   margin: 0 auto 1rem;
   background: url("../img/vectra-logo.svg") no-repeat center / contain;
 }
 
+.pf-v5-c-login__container {
+  max-width: 100%;
+}
+
+.pf-v5-c-login__main {
+  background-color: #FFFFFF;
+  border-top: 4px solid #14633F;
+}
+
+#kc-page-title {
+  color: #0B3B2C;
+}
+
 .pf-v5-c-button.pf-m-primary,
 button.pf-m-primary {
-  background-color: #0B3D5C;
+  background-color: #14633F;
+  color: #FFFFFF;
+}
+
+.pf-v5-c-button.pf-m-primary:hover,
+.pf-v5-c-button.pf-m-primary:focus,
+button.pf-m-primary:hover,
+button.pf-m-primary:focus {
+  background-color: #0B3B2C;
   color: #FFFFFF;
 }
 
 a,
 .pf-v5-c-login__main-footer-band-item a {
-  color: #C2410C;
+  color: #14633F;
+}
+
+a:hover {
+  color: #0B3B2C;
 }
 
 a:focus,
 button:focus,
 input:focus,
 select:focus {
-  outline: 2px solid #C2410C;
+  outline: 3px solid #14633F;
   outline-offset: 2px;
+}
+
+.pf-v5-c-alert.pf-m-warning {
+  background-color: #FFFFFF;
+  border-top-color: #8A5A00;
+}
+
+.pf-v5-c-alert.pf-m-warning .pf-v5-c-alert__icon,
+.pf-v5-c-alert.pf-m-warning .pf-v5-c-alert__title {
+  color: #8A5A00;
 }
