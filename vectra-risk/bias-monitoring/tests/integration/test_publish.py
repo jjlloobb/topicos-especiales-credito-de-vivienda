@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime, timedelta
 
+import httpx
 from builders import batch_client, population_report, uniform, with_gap
 from vectra_bias import config
 from vectra_bias.freeze_client import CONFLICT, FAILED, FROZEN, FreezeOutcome
@@ -134,6 +135,38 @@ def test_all_the_series_are_gauges_with_a_type_line_each():
     assert names == typed
     assert {"vectra_bias_disparity", "vectra_bias_aggregate_lower", "vectra_bias_rule_met", "vectra_bias_cell_size",
             "vectra_bias_invalid_entries", "vectra_bias_total_entries", "vectra_bias_last_run_timestamp", "vectra_bias_last_run_ok"} <= names  # fmt: skip
+
+
+def test_no_series_uses_a_label_of_the_grouping_key():
+    """El Pushgateway pisa `job` y `group` en cada serie: una serie con esas etiquetas pierde su valor y puede duplicar a otra.
+
+    En kind (2026-11-20) `vectra_bias_cell_size{group=...}` hizo que el Pushgateway rechazara con 400 el grupo `run` de toda
+    corrida con celdas; el doble ahora rechaza igual que el real, asi que `result.ok` tambien lo prueba."""
+    world = World()
+    result = run(publish(client(world), report(version("v1", HIGH), version("v2", LOW))))
+    assert result.ok
+    cells = [
+        lab
+        for n, lab, _ in world.pushgateway.group("bias-monitoring", "run") or []
+        if n == "vectra_bias_cell_size"
+    ]
+    assert len({lab["cell_group"] for lab in cells}) > 1  # hay varias celdas por banda: el caso que chocaba
+    for group in world.pushgateway.names():
+        for _, lab, _ in world.pushgateway.group("bias-monitoring", group) or []:
+            assert not {"job", "group", "instance"} & set(lab)
+
+
+def test_the_double_rejects_a_put_whose_series_collide_under_the_grouping_key():
+    world = World()
+    body = b'# TYPE m gauge\nm{group="a"} 1\nm{group="b"} 2\n'
+    response = run(_raw_put(world.pushgateway.transport(), "/metrics/job/bias-monitoring/group/run", body))
+    assert response.status_code == 400
+    assert world.pushgateway.group("bias-monitoring", "run") is None
+
+
+async def _raw_put(transport, path: str, body: bytes):
+    async with httpx.AsyncClient(transport=transport, base_url=PUSHGATEWAY_URL) as http:
+        return await http.put(path, content=body)
 
 
 # --- grupos freeze-<v> ---------------------------------------------------------------------------------------------------

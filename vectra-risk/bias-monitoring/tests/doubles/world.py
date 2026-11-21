@@ -407,6 +407,15 @@ class Pushgateway(_Slow):
                     return httpx.Response(400, text="bad exposition")
                 labels = dict(_LABEL.findall(m.group(3) or ""))
                 series.append((m.group(1), labels, m.group(4)))
+            # Como el Pushgateway real: las etiquetas de la llave del grupo pisan las de cada serie, y dos series que quedan con el
+            # mismo nombre y las mismas etiquetas tumban el `PUT` entero con 400 («was collected before with the same name and label values»).
+            identities = [
+                (name, tuple(sorted({**labels, **dict(key)}.items()))) for name, labels, _ in series
+            ]
+            if len(set(identities)) != len(identities):
+                return httpx.Response(
+                    400, text="pushed metrics are invalid or inconsistent with existing metrics"
+                )
             self.groups[key] = series
             return httpx.Response(200)
         if request.method == "DELETE":

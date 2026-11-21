@@ -2,6 +2,7 @@
 # Emisor de los tokens de kind (U02-T21): el hostname publico de Keycloak, que es el `iss` que firma (identity-edge/docs/emisor-de-tokens.md).
 keycloak:
   issuer: https://vectra.localtest.me/auth/realms/vectra
-# Digests reales de las imagenes publicadas en kind-registry (F1 de la verificacion en kind, 2026-11-16; construidas del commit 565ff2c).
+# Digest real de la imagen publicada en kind-registry. Reconstruida el 2026-11-20 sobre 5b57203 con el arreglo de `cell_group`
+# (el Pushgateway rechazaba el grupo `run`); la anterior, de F1 (2026-11-16, commit 565ff2c), era sha256:31c8b4fc…
 image:
-  digest: sha256:31c8b4fcf05a2f02a3352da473b3fb3c375c617bb147ed3cdf44f3835d81b77f
+  digest: sha256:c004723e606a60deada9b7e10d3e31f5aa0c735522b523c009604e7224571015
