@@ -12,6 +12,7 @@ export function GoToCase() {
   const [invalid, setInvalid] = useState(false);
   return (
     <form
+      className="inline-form"
       onSubmit={(event) => {
         event.preventDefault();
         const id = value.trim();
@@ -19,22 +20,24 @@ export function GoToCase() {
         else setInvalid(true);
       }}
     >
-      <label htmlFor="go-to-case">{ui("go_to_case_label")}</label>
-      <input
-        id="go-to-case"
-        type="text"
-        value={value}
-        aria-invalid={invalid}
-        aria-describedby={invalid ? "go-to-case-error" : undefined}
-        autoComplete="off"
-        onChange={(event) => {
-          setValue(event.target.value);
-          setInvalid(false);
-        }}
-      />
+      <div className="field">
+        <label htmlFor="go-to-case">{ui("go_to_case_label")}</label>
+        <input
+          id="go-to-case"
+          type="text"
+          value={value}
+          aria-invalid={invalid}
+          aria-describedby={invalid ? "go-to-case-error" : undefined}
+          autoComplete="off"
+          onChange={(event) => {
+            setValue(event.target.value);
+            setInvalid(false);
+          }}
+        />
+      </div>
       <Button type="submit">{ui("go_to_case_button")}</Button>
       {invalid ? (
-        <p role="alert" id="go-to-case-error">
+        <p className="field-error" role="alert" id="go-to-case-error">
           {ui("go_to_case_invalid")}
         </p>
       ) : null}

@@ -6,7 +6,7 @@ export function NoAccess() {
   return (
     <section>
       <h2>{ui("no_access_title")}</h2>
-      <p>{ui("no_access_body")}</p>
+      <p className="empty">{ui("no_access_body")}</p>
       <Link to="/">{ui("back_home")}</Link>
     </section>
   );
@@ -17,7 +17,7 @@ export function UnknownRoute() {
   return (
     <section>
       <h2>{ui("not_found_title")}</h2>
-      <p>{ui("route_unknown")}</p>
+      <p className="empty">{ui("route_unknown")}</p>
       <Link to="/">{ui("back_home")}</Link>
     </section>
   );

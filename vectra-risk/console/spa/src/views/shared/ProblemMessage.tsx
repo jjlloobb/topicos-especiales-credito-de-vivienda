@@ -2,6 +2,7 @@
 // (`correlation_id`). Nunca el `detail` ni una traza. Un fallo de transporte (timeout, sin red) tiene su propio texto.
 import { ApiError, TransportError } from "../../api/client";
 import { type Problem, problemText, ui } from "../../i18n";
+import { IconError } from "./icons";
 
 const GENERIC: Problem = { code: "internal_error" };
 
@@ -21,7 +22,10 @@ export function ProblemMessage({ error }: { readonly error: unknown }) {
   const showCode = correlation != null && correlation !== "" && !text.includes(correlation);
   return (
     <div role="alert">
-      <p>{text}</p>
+      <p>
+        <IconError />
+        {text}
+      </p>
       {showCode ? <p>{ui("support_code", { correlation_id: correlation })}</p> : null}
     </div>
   );

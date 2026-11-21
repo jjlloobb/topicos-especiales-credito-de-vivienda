@@ -11,6 +11,7 @@ import { InactivityProvider } from "./inactivity/InactivityProvider";
 import { ErrorBoundary } from "./reporter/ErrorBoundary";
 import { StepUpProvider } from "./stepup/StepUpProvider";
 import { AppRoutes } from "./views/shared/AppRoutes";
+import { IconBrand } from "./views/shared/icons";
 import type { Wiring } from "./wiring";
 
 function Content({ wiring }: { readonly wiring: Wiring }) {
@@ -18,13 +19,21 @@ function Content({ wiring }: { readonly wiring: Wiring }) {
   const onChunkFailure = useCallback(() => {
     wiring.reporter.reportChunkLoadFailure();
   }, [wiring.reporter]);
-  if (auth.status === "loading") return <p>{ui("loading_session")}</p>;
+  if (auth.status === "loading") return <p className="app-loading">{ui("loading_session")}</p>;
   if (auth.session === null) {
     return (
-      <main>
-        <h1>{ui("login_title")}</h1>
-        {auth.loginFailed ? <p role="alert">{ui("login_failed")}</p> : null}
-        <Button onPress={auth.login}>{ui("login_button")}</Button>
+      <main className="auth-screen">
+        <div className="auth-card">
+          <p className="auth-brand">
+            <IconBrand className="brand-mark" />
+            {ui("app_title")}
+          </p>
+          <h1>{ui("login_title")}</h1>
+          {auth.loginFailed ? <p role="alert">{ui("login_failed")}</p> : null}
+          <Button className="button-primary" onPress={auth.login}>
+            {ui("login_button")}
+          </Button>
+        </div>
       </main>
     );
   }

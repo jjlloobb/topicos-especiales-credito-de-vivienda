@@ -5,7 +5,7 @@ export function NotAvailable({ title }: { readonly title: UiKey }) {
   return (
     <section>
       <h2>{ui(title)}</h2>
-      <p>{ui("not_available_body")}</p>
+      <p className="empty">{ui("not_available_body")}</p>
     </section>
   );
 }

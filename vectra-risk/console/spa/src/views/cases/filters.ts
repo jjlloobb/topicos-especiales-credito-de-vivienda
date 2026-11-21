@@ -9,7 +9,8 @@ export const DEFAULT_STATES: readonly CaseState[] = CASE_STATES.filter((state) =
 /** Los canales que se pueden filtrar: el de las solicitudes web y el del alta manual (C04, `create_manual_application`). */
 export const KNOWN_CHANNELS = ["web", "manual"] as const;
 export const PAGE_SIZE = 20;
-const MAX_PAGE = 10_000;
+/** La pagina mas alta que la URL acepta (`parseFilter`). */
+export const MAX_PAGE = 10_000;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface InboxFilter {

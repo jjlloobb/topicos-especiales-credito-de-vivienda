@@ -2,13 +2,18 @@
 // atributo disparador, grupos y bandas implicados, fuentes de datos, disparidad de validacion e historial de resoluciones) y, para resolverlo,
 // `ResolveFrozenDialog`. Siempre lleva el `disclaimer` «mide y alerta, no certifica» (P-4 (a): un texto propio del catalogo, igual a
 // `DISCLAIMER` de U9), tambien con `before = "sin_datos"`, cargando o con error. Solo `cumplimiento` (C03).
+// Orden de lectura: primero el estado («Resolucion pendiente»), el resumen y la accion de resolver; despues la tabla comparativa por atributo
+// (con el disparador resaltado y su limite) y los grupos y bandas implicados; y el detalle por grupo y banda de cada ventana, plegado.
 import { useState } from "react";
 import { Button } from "react-aria-components";
 import { Link, useParams } from "react-router";
 import { useFreeze } from "../../api/hooks";
 import { formatDate, formatDay, label, labelOrRaw, safeDecimal, ui } from "../../i18n";
 import { AttributeTable, DisparityWindow } from "../bias/DisparityTables";
+import { IconBack, IconSuccess } from "../shared/icons";
 import { ProblemMessage } from "../shared/ProblemMessage";
+import { TableScroll } from "../shared/TableScroll";
+import { AttributeComparison } from "./AttributeComparison";
 import { ResolveFrozenDialog } from "./ResolveFrozenDialog";
 
 interface Implicated {
@@ -37,67 +42,137 @@ export function FreezeContextView() {
   const [resolved, setResolved] = useState(false);
   const record = query.data;
   const context = record?.context_package;
+  // El limite de congelamiento de cada atributo implicado, para la tabla comparativa (los elementos sin la forma esperada no aportan limite).
+  const limits = new Map<string, string>();
+  for (const raw of context?.implicated ?? []) {
+    const item = readImplicated(raw);
+    if (item !== null) limits.set(item.attribute, item.limit);
+  }
   return (
     <section>
       <h2>{ui("freeze_context_title")}</h2>
       <p className="disclaimer">{ui("bias_disclaimer")}</p>
-      <Link to="/congelamientos">{ui("view_freezes")}</Link>
-      {query.isPending ? <p role="status">{ui("loading")}</p> : null}
+      <Link to="/congelamientos">
+        <IconBack />
+        {ui("view_freezes")}
+      </Link>
+      {query.isPending ? <p className="loading" role="status">{ui("loading")}</p> : null}
       {query.isError ? <ProblemMessage error={query.error} /> : null}
       {record === undefined || context === undefined ? null : (
         <>
-          <ul>
-            <li>{ui("freeze_summary_model", { id: record.model_version_id })}</li>
-            <li>{ui("freeze_summary_frozen", { at: formatDate(record.frozen_at) })}</li>
-            <li>{ui("freeze_summary_trigger", { attribute: label("ATTRIBUTES", context.trigger_attribute) })}</li>
-            <li>
-              {ui("freeze_summary_window", {
-                days: String(context.window_days),
-                start: formatDay(context.window_start),
-                threshold: safeDecimal(context.threshold_pp),
-                n: String(context.n_min),
-              })}
-            </li>
-            <li>
-              {ui("freeze_summary_volume", { total: String(context.affected_volume.total), favorable: String(context.affected_volume.favorable) })}
-            </li>
-            {context.truncated ? <li>{ui("freeze_truncated")}</li> : null}
-          </ul>
-          <DisparityWindow title={ui("freeze_section_before")} result={context.before} />
-          <DisparityWindow title={ui("freeze_section_after")} result={context.after} />
-          <DisparityWindow title={ui("freeze_section_last7")} result={context.last_7_days} />
+          <div className="card hero" aria-busy={query.isFetching ? true : undefined}>
+            <p className="hero-status">
+              <span className={record.resolutions.length === 0 ? "badge badge-pending" : "badge badge-ok"}>
+                {record.resolutions.length === 0 ? ui("freeze_status_pending") : ui("freeze_status_resolved")}
+              </span>
+            </p>
+            <ul className="facts">
+              <li>{ui("freeze_summary_model", { id: record.model_version_id })}</li>
+              <li>{ui("freeze_summary_frozen", { at: formatDate(record.frozen_at) })}</li>
+              <li className="fact-key">{ui("freeze_summary_trigger", { attribute: label("ATTRIBUTES", context.trigger_attribute) })}</li>
+              <li>
+                {ui("freeze_summary_window", {
+                  days: String(context.window_days),
+                  start: formatDay(context.window_start),
+                  threshold: safeDecimal(context.threshold_pp),
+                  n: String(context.n_min),
+                })}
+              </li>
+              <li>
+                {ui("freeze_summary_volume", { total: String(context.affected_volume.total), favorable: String(context.affected_volume.favorable) })}
+              </li>
+              {context.truncated ? <li className="fact-warn">{ui("freeze_truncated")}</li> : null}
+            </ul>
+            {resolved ? (
+              <p className="notice-ok" role="status">
+                <IconSuccess />
+                {ui("freeze_resolution_done")}
+              </p>
+            ) : null}
+            <div className="actions actions-end">
+              <Button
+                className="button-primary"
+                onPress={() => {
+                  setResolved(false); // el aviso de la resolucion anterior no vale para la nueva
+                  setResolving(true);
+                }}
+              >
+                {ui("resolve_open")}
+              </Button>
+            </div>
+          </div>
+          <section>
+            <h4>{ui("freeze_compare_title")}</h4>
+            <AttributeComparison context={context} limits={limits} />
+          </section>
           <section>
             <h4>{ui("freeze_section_implicated")}</h4>
             {context.implicated.length === 0 ? (
-              <p>{ui("freeze_list_empty")}</p>
+              <>
+                <p>{ui("freeze_list_empty")}</p>
+                <p className="hint">{ui("freeze_implicated_empty_why")}</p>
+              </>
             ) : (
-              <ul>
-                {context.implicated.map((raw, index) => {
-                  const item = readImplicated(raw);
+              context.implicated.map((raw, index) => {
+                const item = readImplicated(raw);
+                if (item === null) {
                   return (
-                    <li key={index}>
-                      {item === null ? (
-                        <code>{JSON.stringify(raw)}</code>
-                      ) : (
-                        <>
-                          {ui("freeze_implicated_item", { attribute: labelOrRaw("ATTRIBUTES", item.attribute), limit: safeDecimal(item.limit) })}
-                          <ul>
-                            {item.bands.map((band) => (
-                              <li key={band.band}>{ui("freeze_implicated_band", { band: labelOrRaw("BANDS", band.band), difference: safeDecimal(band.difference) })}</li>
-                            ))}
-                          </ul>
-                        </>
-                      )}
-                    </li>
+                    <p key={index}>
+                      <code>{JSON.stringify(raw)}</code>
+                    </p>
                   );
-                })}
-              </ul>
+                }
+                const caption = ui("freeze_implicated_item", { attribute: labelOrRaw("ATTRIBUTES", item.attribute), limit: safeDecimal(item.limit) });
+                return (
+                  <TableScroll key={index} name={caption}>
+                    <table>
+                      <caption>{caption}</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">{ui("disparity_col_band")}</th>
+                          <th scope="col" className="num">{ui("freeze_implicated_col_difference")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {item.bands.map((band) => (
+                          <tr key={band.band}>
+                            <th scope="row" data-label={ui("disparity_col_band")}>{labelOrRaw("BANDS", band.band)}</th>
+                            <td className="num" data-label={ui("freeze_implicated_col_difference")}>{safeDecimal(band.difference)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </TableScroll>
+                );
+              })
+            )}
+          </section>
+          <DisparityWindow title={ui("freeze_section_before")} result={context.before} emptyReason={ui("freeze_before_missing_why")} />
+          <DisparityWindow title={ui("freeze_section_after")} result={context.after} emptyReason={ui("freeze_window_missing_why")} defaultOpen />
+          <DisparityWindow title={ui("freeze_section_last7")} result={context.last_7_days} emptyReason={ui("freeze_window_missing_why")} />
+          <section>
+            <h4>{ui("freeze_section_initial")}</h4>
+            {context.initial_disparity.attributes.length === 0 ? (
+              <>
+                <p>{ui("freeze_no_data")}</p>
+                <p className="hint">{ui("freeze_initial_empty_why")}</p>
+              </>
+            ) : (
+              <details>
+                <summary>{ui("disparity_detail_toggle")}</summary>
+                {context.initial_disparity.attributes.map((attribute) => (
+                  <AttributeTable key={attribute.attribute} attribute={attribute} />
+                ))}
+              </details>
             )}
           </section>
           <section>
             <h4>{ui("freeze_section_sources")}</h4>
             {context.data_sources.length === 0 ? (
-              <p>{ui("freeze_list_empty")}</p>
+              <>
+                <p>{ui("freeze_list_empty")}</p>
+                <p className="hint">{ui("freeze_sources_empty_why")}</p>
+              </>
             ) : (
               <ul>
                 {context.data_sources.map((raw, index) => {
@@ -107,14 +182,6 @@ export function FreezeContextView() {
                   );
                 })}
               </ul>
-            )}
-          </section>
-          <section>
-            <h4>{ui("freeze_section_initial")}</h4>
-            {context.initial_disparity.attributes.length === 0 ? (
-              <p>{ui("freeze_no_data")}</p>
-            ) : (
-              context.initial_disparity.attributes.map((attribute) => <AttributeTable key={attribute.attribute} attribute={attribute} />)
             )}
           </section>
           <section>
@@ -131,15 +198,6 @@ export function FreezeContextView() {
               </ul>
             )}
           </section>
-          {resolved ? <p role="status">{ui("freeze_resolution_done")}</p> : null}
-          <Button
-            onPress={() => {
-              setResolved(false); // el aviso de la resolucion anterior no vale para la nueva
-              setResolving(true);
-            }}
-          >
-            {ui("resolve_open")}
-          </Button>
           <ResolveFrozenDialog
             modelVersionId={record.model_version_id}
             freezeId={record.freeze_id}

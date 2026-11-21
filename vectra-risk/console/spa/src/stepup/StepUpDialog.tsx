@@ -17,8 +17,12 @@ export function StepUpDialog({ open, onVerify, onCancel }: Props) {
         <Dialog>
           <Heading slot="title">{ui("stepup_dialog_title")}</Heading>
           <p>{ui("stepup_dialog_body")}</p>
-          <Button onPress={onVerify}>{ui("verify_identity")}</Button>
-          <Button onPress={onCancel}>{ui("stepup_dialog_cancel")}</Button>
+          <div className="actions">
+            <Button className="button-primary" onPress={onVerify}>
+              {ui("verify_identity")}
+            </Button>
+            <Button onPress={onCancel}>{ui("stepup_dialog_cancel")}</Button>
+          </div>
         </Dialog>
       </Modal>
     </ModalOverlay>

@@ -4,7 +4,13 @@ import { Link } from "react-router";
 import { useFreezes } from "../../api/hooks";
 import { useAuth } from "../../auth/AuthProvider";
 import { formatDate, label, safeDecimal, ui } from "../../i18n";
+import { IconOpen } from "../shared/icons";
 import { ProblemMessage } from "../shared/ProblemMessage";
+import { TableScroll } from "../shared/TableScroll";
+import { TableSkeleton } from "../shared/TableSkeleton";
+
+/** La clase de la insignia de cada accion de resolucion (el texto lo dice siempre la etiqueta). */
+const RESOLUTION_BADGE = { reactivar: "badge badge-ok", descartar: "badge badge-neutral", investigar: "badge badge-info" } as const;
 
 export function Freezes() {
   const query = useFreezes();
@@ -12,46 +18,60 @@ export function Freezes() {
   return (
     <section>
       <h2>{ui("view_freezes")}</h2>
-      <p>{ui("freezes_intro")}</p>
-      {role === "cumplimiento" ? null : <p>{ui("freeze_context_hidden")}</p>}
-      {query.isPending ? <p role="status">{ui("loading")}</p> : null}
+      <p className="hint">{ui("freezes_intro")}</p>
+      {role === "cumplimiento" ? null : <p className="hint">{ui("freeze_context_hidden")}</p>}
+      {query.isPending ? (
+        <>
+          <p className="loading" role="status">{ui("loading")}</p>
+          <TableSkeleton />
+        </>
+      ) : null}
       {query.isError ? <ProblemMessage error={query.error} /> : null}
       {query.data === undefined ? null : query.data.length === 0 ? (
-        <p>{ui("freezes_empty")}</p>
+        <p className="empty">{ui("freezes_empty")}</p>
       ) : (
+        <TableScroll name={ui("view_freezes")} busy={query.isFetching}>
         <table>
-          <caption>{ui("view_freezes")}</caption>
+          <caption className="visually-hidden">{ui("view_freezes")}</caption>
           <thead>
             <tr>
               <th scope="col">{ui("col_freeze")}</th>
               <th scope="col">{ui("col_model")}</th>
               <th scope="col">{ui("col_frozen_at")}</th>
               <th scope="col">{ui("col_trigger")}</th>
-              <th scope="col">{ui("col_aggregate")}</th>
+              <th scope="col" className="num">{ui("col_aggregate")}</th>
               <th scope="col">{ui("col_resolution")}</th>
             </tr>
           </thead>
           <tbody>
             {query.data.map((freeze) => (
               <tr key={freeze.freeze_id}>
-                <td>
+                <td data-label={ui("col_freeze")}>
                   {role === "cumplimiento" ? (
                     <Link to={`/congelamientos/${encodeURIComponent(freeze.freeze_id)}`} aria-label={ui("freeze_open_context", { id: freeze.freeze_id })}>
                       {freeze.freeze_id}
+                      <IconOpen />
                     </Link>
                   ) : (
                     freeze.freeze_id
                   )}
                 </td>
-                <td>{freeze.model_version_id}</td>
-                <td>{formatDate(freeze.frozen_at)}</td>
-                <td>{label("ATTRIBUTES", freeze.trigger_attribute)}</td>
-                <td>{freeze.model_aggregate == null ? ui("no_value") : safeDecimal(freeze.model_aggregate)}</td>
-                <td>{freeze.resolution == null ? ui("no_resolution") : label("RESOLUTION_ACTIONS", freeze.resolution.action)}</td>
+                <td data-label={ui("col_model")}>{freeze.model_version_id}</td>
+                <td data-label={ui("col_frozen_at")}>{formatDate(freeze.frozen_at)}</td>
+                <td data-label={ui("col_trigger")}>{label("ATTRIBUTES", freeze.trigger_attribute)}</td>
+                <td className="num" data-label={ui("col_aggregate")}>{freeze.model_aggregate == null ? ui("no_value") : safeDecimal(freeze.model_aggregate)}</td>
+                <td data-label={ui("col_resolution")}>
+                  {freeze.resolution == null ? (
+                    <span className="badge badge-pending">{ui("no_resolution")}</span>
+                  ) : (
+                    <span className={RESOLUTION_BADGE[freeze.resolution.action]}>{label("RESOLUTION_ACTIONS", freeze.resolution.action)}</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </TableScroll>
       )}
     </section>
   );
