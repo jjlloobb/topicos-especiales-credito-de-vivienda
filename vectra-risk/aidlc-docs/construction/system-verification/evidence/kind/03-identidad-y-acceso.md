@@ -1,12 +1,12 @@
 # 03 — Identidad y acceso
 
-**Estado: pendiente del operador.** Plantilla de U12-T06: nadie ha ejecutado esto contra el clúster (AUTONOMIA-01). El operador reemplaza cada _pendiente_ con lo que obtuvo —el comando, la salida **sin tokens, cookies, contraseñas ni semillas** y el cumplimiento— y cambia este estado a `completa` (o `fallida`, con el hallazgo). Quien llena una plantilla no inventa la salida: lo que no se corrió queda `no ejecutado`.
+**Estado: completa.** Llenada el 2026-11-20 con lo que se obtuvo contra `kind-vectra`.
 
 - Guía y fase: `system-verification/docs/paso-18-kind.md`, F3 (Identidad y acceso).
-- Fecha: _pendiente_.
-- Operador: _pendiente_.
-- Commit de `main` desplegado: _pendiente_.
-- Duración real de la fase: _pendiente_ (estimada: 40 min; la guía pide anotarla).
+- Fecha: 2026-11-20 (jornada 1), entre las 12:27 y las 13:00 UTC.
+- Operador: jjlloobb, con Claude Code ejecutando las ordenes.
+- Commit de `main` desplegado: 9dc027f.
+- Duración real de la fase: unos 10 min (sin la parte a mano) (estimada: 40 min; la guía pide anotarla).
 
 Entradas de esta fase: K-27, K-28, K-29, K-30, K-31, K-32, K-33, K-34, K-35, K-36, K-37.
 
@@ -19,18 +19,38 @@ Entradas de esta fase: K-27, K-28, K-29, K-30, K-31, K-32, K-33, K-34, K-35, K-3
 **Comando.** Previsto: `identidad.sh`; `humo login`.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+system-verification/docs/kind/identidad.sh
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+OK   K16 get pods en vectra-app: yes
+OK   K16 get pods en vectra-edge: yes
+OK   K16 get pods en vectra-serving: yes
+OK   K16 get pods en vectra-identity: yes
+OK   K16 get pods en vectra-data: yes
+OK   K16 get pods en vectra-observability: yes
+OK   K16 get jobs en vectra-app: yes
+OK   K16 get pods/log en vectra-app: yes
+OK   K16 create pods/portforward en vectra-app: yes
+OK   K16 create pods/portforward en vectra-observability: yes
+OK   K16 get inferenceservices.serving.kserve.io en vectra-serving: yes
+OK   K16 get pods en vectra-mock: no
+OK   K16 get pods en vectra-staging: no
+OK   K16 get pods/log en vectra-staging: no
+OK   K16 get secrets en vectra-app: no
+OK   K16 get networkpolicies en vectra-serving: no
+OK   Job keycloak-config-cli terminado
+AVISO el log trae 'Password policy violation ... NOT updated': esperado, config-cli no reaplica contrasenas (K-27)
+OK   el log de config-cli sin lineas ERROR
+identity/synthetic-users: 20 claves (solo nombres)
+identidad: sin hallazgos
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| Si el kind tiene el realm viejo: tras resincronizar U2 quedan 26 de 26 ejecuciones enlazadas; config-cli avisa que no reaplica contrasenas y anade una segunda credencial OTP con la misma semilla | _pendiente_ | _pendiente_ |
+| Si el kind tiene el realm viejo: tras resincronizar U2 quedan 26 de 26 ejecuciones enlazadas; config-cli avisa que no reaplica contrasenas y anade una segunda credencial OTP con la misma semilla | el kind no tiene el realm viejo (los cinco logins pasan): no hizo falta resincronizar; el log de config-cli trae el aviso esperado de contrasenas | si (las 26 ejecuciones enlazadas no se contaron) |
 
 ### K-28 — Bloqueos por fuerza bruta
 
@@ -41,18 +61,18 @@ _pendiente: la salida real, sin tokens_
 **Comando.** Previsto: `humo login`.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+no ejecutado
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+no ejecutado
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| Bloqueos por fuerza bruta: el login fallido por el error interno del realm viejo no cuenta (numFailures 0); si cuentan las contrasenas mal tecleadas (60 s al quinto fallo, permanente al 20) | _pendiente_ | _pendiente_ |
+| Bloqueos por fuerza bruta: el login fallido por el error interno del realm viejo no cuenta (numFailures 0); si cuentan las contrasenas mal tecleadas (60 s al quinto fallo, permanente al 20) | no ejecutado: no hubo realm viejo ni logins fallidos que medir | no ejecutado |
 
 ### K-29 — Login por rol por el gateway real, con el emisor publico
 
@@ -63,18 +83,23 @@ _pendiente: la salida real, sin tokens_
 **Comando.** Previsto: `humo login`.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+humo login
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+OK    analista-1: iss=https://vectra.localtest.me/auth/realms/vectra aud=['bias-monitoring-service', 'governance-service', 'console-bff', 'case-service', 'explainability-service', 'decision-registry-service'] acr=mfa amr=['pwd', 'otp'] roles=['analista'] auth_time=2026-11-20T12:30:23+00:00
+OK    analista-2: iss=https://vectra.localtest.me/auth/realms/vectra aud=['bias-monitoring-service', 'governance-service', 'console-bff', 'case-service', 'explainability-service', 'decision-registry-service'] acr=mfa amr=['pwd', 'otp'] roles=['analista'] auth_time=2026-11-20T12:30:23+00:00
+OK    ingeniero-1: iss=https://vectra.localtest.me/auth/realms/vectra aud=['bias-monitoring-service', 'governance-service', 'console-bff', 'case-service', 'explainability-service', 'decision-registry-service'] acr=mfa amr=['pwd', 'otp'] roles=['ingeniero_riesgo'] auth_time=2026-11-20T12:30:24+00:00
+OK    cro-1: iss=https://vectra.localtest.me/auth/realms/vectra aud=['bias-monitoring-service', 'governance-service', 'console-bff', 'case-service', 'explainability-service', 'decision-registry-service'] acr=mfa amr=['pwd', 'otp'] roles=['cro'] auth_time=2026-11-20T12:30:25+00:00
+OK    cumplimiento-1: iss=https://vectra.localtest.me/auth/realms/vectra aud=['bias-monitoring-service', 'governance-service', 'console-bff', 'case-service', 'explainability-service', 'decision-registry-service'] acr=mfa amr=['pwd', 'otp'] roles=['cumplimiento'] auth_time=2026-11-20T12:30:25+00:00
+login: 5 de 5 usuarios bien; espera 30 s antes de repetir un comando con los mismos usuarios (reuso del TOTP)
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| Login por rol por el gateway real, con el emisor publico: analista-1, analista-2, ingeniero-1, cro-1 y cumplimiento-1; cada token con acr = mfa, amr, aud con console-bff y su rol | _pendiente_ | _pendiente_ |
+| Login por rol por el gateway real, con el emisor publico: analista-1, analista-2, ingeniero-1, cro-1 y cumplimiento-1; cada token con acr = mfa, amr, aud con console-bff y su rol | 5 de 5 usuarios con el emisor publico, acr=mfa, amr pwd y otp, aud con console-bff y su rol | si |
 
 ### K-30 — El iss de los tokens del navegador es el que valida el BFF y cada dest…
 
@@ -85,18 +110,29 @@ _pendiente: la salida real, sin tokens_
 **Comando.** Previsto: `humo flujo --delivery /verification/reference-model/.out`.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+humo flujo --delivery /verification/reference-model/.out
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+solicitud aceptada: caso 6a33a846-04bf-4f4e-b919-69bfa73d2390 (la cabecera de escenario se acepto: K-36)
+OK   caso listo con registry_entry_id 30
+OK   decision registrada con ack: registry_entry_id 32
+OK   /api/console/models con ingeniero-1: 1 versiones
+OK   /api/console/freezes con cumplimiento-1
+estado HTTP de cada llamada:
+  200 GET /api/console/cases/{id} x2
+  200 GET /api/console/freezes
+  200 GET /api/console/models
+  200 POST /api/console/cases/{id}/decision
+  204 POST /api/console/cases/{id}/explanation-views
+  200 POST /api/intake/v1/intake/applications
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| El iss de los tokens del navegador es el que valida el BFF y cada destino (F10 a F14): 200 en bandeja, detalle, modelos y congelamientos, ningun 401 | _pendiente_ | _pendiente_ |
+| El iss de los tokens del navegador es el que valida el BFF y cada destino (F10 a F14): 200 en bandeja, detalle, modelos y congelamientos, ningun 401 | 200 en casos, detalle, modelos y congelamientos; ningun 401 | si |
 
 ### K-31 — La aud de la asercion de servicio la acepta el Keycloak del cluster (n…
 
@@ -107,18 +143,18 @@ _pendiente: la salida real, sin tokens_
 **Comando.** Previsto: `kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=case-worker`; `humo flujo --delivery /verification/reference-model/.out`.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=case-worker --all-containers --since=20m --tail=2000 | grep -c invalid_client
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+0
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| La aud de la asercion de servicio la acepta el Keycloak del cluster (nunca medido en kind con el realm real) | _pendiente_ | _pendiente_ |
+| La aud de la asercion de servicio la acepta el Keycloak del cluster (nunca medido en kind con el realm real) | 0 lineas invalid_client en case-worker en los ultimos 20 min, y el caso llego a listo | si |
 
 ### K-32 — Camino a la boveda desde la estacion (no lo da K16)
 
@@ -129,18 +165,23 @@ _pendiente: la salida real, sin tokens_
 **Comando.** Previsto: `humo login`; `vectra-verification prepare`.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+humo login
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+OK    analista-1: iss=https://vectra.localtest.me/auth/realms/vectra aud=['bias-monitoring-service', 'governance-service', 'console-bff', 'case-service', 'explainability-service', 'decision-registry-service'] acr=mfa amr=['pwd', 'otp'] roles=['analista'] auth_time=2026-11-20T12:30:23+00:00
+OK    analista-2: iss=https://vectra.localtest.me/auth/realms/vectra aud=['bias-monitoring-service', 'governance-service', 'console-bff', 'case-service', 'explainability-service', 'decision-registry-service'] acr=mfa amr=['pwd', 'otp'] roles=['analista'] auth_time=2026-11-20T12:30:23+00:00
+OK    ingeniero-1: iss=https://vectra.localtest.me/auth/realms/vectra aud=['bias-monitoring-service', 'governance-service', 'console-bff', 'case-service', 'explainability-service', 'decision-registry-service'] acr=mfa amr=['pwd', 'otp'] roles=['ingeniero_riesgo'] auth_time=2026-11-20T12:30:24+00:00
+OK    cro-1: iss=https://vectra.localtest.me/auth/realms/vectra aud=['bias-monitoring-service', 'governance-service', 'console-bff', 'case-service', 'explainability-service', 'decision-registry-service'] acr=mfa amr=['pwd', 'otp'] roles=['cro'] auth_time=2026-11-20T12:30:25+00:00
+OK    cumplimiento-1: iss=https://vectra.localtest.me/auth/realms/vectra aud=['bias-monitoring-service', 'governance-service', 'console-bff', 'case-service', 'explainability-service', 'decision-registry-service'] acr=mfa amr=['pwd', 'otp'] roles=['cumplimiento'] auth_time=2026-11-20T12:30:25+00:00
+login: 5 de 5 usuarios bien; espera 30 s antes de repetir un comando con los mismos usuarios (reuso del TOTP)
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| Camino a la boveda desde la estacion (no lo da K16): lectura de las 5 credenciales y las 2 llaves; el token root de kind no rompe el filtro de evidencias | _pendiente_ | _pendiente_ |
+| Camino a la boveda desde la estacion (no lo da K16): lectura de las 5 credenciales y las 2 llaves; el token root de kind no rompe el filtro de evidencias | `humo login` leyo de la boveda, por el port-forward, las credenciales de los cinco usuarios; la salida no trae tokens | parcial: las 2 llaves y el filtro de evidencias se comprueban con `prepare` en F5 |
 
 ### K-33 — Credenciales de los usuarios -2 (analista-2 o cro-2 en D1; cumplimient…
 
@@ -151,18 +192,38 @@ _pendiente: la salida real, sin tokens_
 **Comando.** Previsto: `identidad.sh`; a mano: login manual de cumplimiento-2 en la consola.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+system-verification/docs/kind/identidad.sh
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+OK   K16 get pods en vectra-app: yes
+OK   K16 get pods en vectra-edge: yes
+OK   K16 get pods en vectra-serving: yes
+OK   K16 get pods en vectra-identity: yes
+OK   K16 get pods en vectra-data: yes
+OK   K16 get pods en vectra-observability: yes
+OK   K16 get jobs en vectra-app: yes
+OK   K16 get pods/log en vectra-app: yes
+OK   K16 create pods/portforward en vectra-app: yes
+OK   K16 create pods/portforward en vectra-observability: yes
+OK   K16 get inferenceservices.serving.kserve.io en vectra-serving: yes
+OK   K16 get pods en vectra-mock: no
+OK   K16 get pods en vectra-staging: no
+OK   K16 get pods/log en vectra-staging: no
+OK   K16 get secrets en vectra-app: no
+OK   K16 get networkpolicies en vectra-serving: no
+OK   Job keycloak-config-cli terminado
+AVISO el log trae 'Password policy violation ... NOT updated': esperado, config-cli no reaplica contrasenas (K-27)
+OK   el log de config-cli sin lineas ERROR
+identity/synthetic-users: 20 claves (solo nombres)
+identidad: sin hallazgos
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| Credenciales de los usuarios -2 (analista-2 o cro-2 en D1; cumplimiento-2 en D2) en la boveda, y sus semillas TOTP en el telefono del presentador | _pendiente_ | _pendiente_ |
+| Credenciales de los usuarios -2 (analista-2 o cro-2 en D1; cumplimiento-2 en D2) en la boveda, y sus semillas TOTP en el telefono del presentador | identity/synthetic-users tiene 20 claves, con las de los usuarios -2; el login manual de cumplimiento-2 y de ingeniero-2 y las semillas en el telefono quedan para el presentador | parcial: la parte a mano esta pendiente |
 
 ### K-34 — K16 de verdad
 
@@ -173,18 +234,38 @@ _pendiente: la salida real, sin tokens_
 **Comando.** Previsto: `identidad.sh`.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+system-verification/docs/kind/identidad.sh
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+OK   K16 get pods en vectra-app: yes
+OK   K16 get pods en vectra-edge: yes
+OK   K16 get pods en vectra-serving: yes
+OK   K16 get pods en vectra-identity: yes
+OK   K16 get pods en vectra-data: yes
+OK   K16 get pods en vectra-observability: yes
+OK   K16 get jobs en vectra-app: yes
+OK   K16 get pods/log en vectra-app: yes
+OK   K16 create pods/portforward en vectra-app: yes
+OK   K16 create pods/portforward en vectra-observability: yes
+OK   K16 get inferenceservices.serving.kserve.io en vectra-serving: yes
+OK   K16 get pods en vectra-mock: no
+OK   K16 get pods en vectra-staging: no
+OK   K16 get pods/log en vectra-staging: no
+OK   K16 get secrets en vectra-app: no
+OK   K16 get networkpolicies en vectra-serving: no
+OK   Job keycloak-config-cli terminado
+AVISO el log trae 'Password policy violation ... NOT updated': esperado, config-cli no reaplica contrasenas (K-27)
+OK   el log de config-cli sin lineas ERROR
+identity/synthetic-users: 20 claves (solo nombres)
+identidad: sin hallazgos
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| K16 de verdad: lo que cada verify lee lo permite el grupo vectra-verification-operators; que pasa en vectra-staging y vectra-mock (K16 no da nada) | _pendiente_ | _pendiente_ |
+| K16 de verdad: lo que cada verify lee lo permite el grupo vectra-verification-operators; que pasa en vectra-staging y vectra-mock (K16 no da nada) | `identidad.sh` sale 0: lo que lee cada verify da yes; vectra-mock y vectra-staging dan no | si |
 
 ### K-35 — Consola en el navegador por el gateway real
 
@@ -195,18 +276,20 @@ _pendiente: la salida real, sin tokens_
 **Comando.** Previsto: `humo consola`; a mano: la consola del navegador del presentador.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+humo consola
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+OK   login por redireccion completa; la SPA quedo en /casos; tras recargar, en /casos (sin volver al formulario)
+securitypolicyviolation: 0
+cookie vectra-spa-route: presente (solo se dice si esta; nunca su valor)
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| Consola en el navegador por el gateway real: redireccion, /callback, recarga con prompt=none; cero securitypolicyviolation con la CSP real; la cookie vectra-spa-route llega a los pods | _pendiente_ | _pendiente_ |
+| Consola en el navegador por el gateway real: redireccion, /callback, recarga con prompt=none; cero securitypolicyviolation con la CSP real; la cookie vectra-spa-route llega a los pods | redireccion completa, /casos tras recargar, 0 securitypolicyviolation y la cookie vectra-spa-route presente; el navegador del presentador queda a mano | si para el Chromium sin interfaz; la parte a mano esta pendiente |
 
 ### K-36 — CASE_ALLOW_TEST_SCENARIOS activo en kind (la cabecera de escenario de …
 
@@ -217,18 +300,18 @@ _pendiente: la salida real, sin tokens_
 **Comando.** Previsto: `humo flujo --delivery /verification/reference-model/.out`.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+grep -n allowTestScenarios vectra-risk-gitops/values/kind/case-management.yaml
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+3:allowTestScenarios: true
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| CASE_ALLOW_TEST_SCENARIOS activo en kind (la cabecera de escenario de U12 se acepta) | _pendiente_ | _pendiente_ |
+| CASE_ALLOW_TEST_SCENARIOS activo en kind (la cabecera de escenario de U12 se acepta) | allowTestScenarios: true en los values de kind y la cabecera de escenario se acepto en el flujo base | si |
 
 ### K-37 — Limites del gateway con el volumen real
 
@@ -239,19 +322,19 @@ _pendiente: la salida real, sin tokens_
 **Comando.** Previsto: `vectra-verification decisions`.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+no ejecutado
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+no ejecutado
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| Limites del gateway con el volumen real: 30/s para el simulador, 20/s por usuario en /api/console, 600/min en auth-login y auth-token (cero 429) | _pendiente_ | _pendiente_ |
+| Limites del gateway con el volumen real: 30/s para el simulador, 20/s por usuario en /api/console, 600/min en auth-login y auth-token (cero 429) | no ejecutado: los limites se prueban con el volumen real en F6 | no ejecutado |
 
 ## Hallazgos
 
-_Ninguno todavía._ Cada hallazgo dice **a qué unidad apunta** (la tabla de síntomas de la guía da la primera pista) y abre una tarea en esa unidad; un defecto del chart o de las imágenes de una unidad no se arregla aquí.
+- **Pendiente a mano (presentador).** El login manual de `ingeniero-2` y de `cumplimiento-2`, las semillas TOTP en el telefono y la consola en el navegador del presentador (K-33, K-35).
