@@ -7,6 +7,9 @@ const restrictedStorage = ["localStorage", "sessionStorage"];
 // Excepcion acotada (decision del usuario, 2026-11-12): UN solo archivo puede usar `sessionStorage`, el que crea el `stateStore` del login
 // por redireccion (solo `state`, `code_verifier` y `nonce`; nunca tokens). `localStorage` sigue prohibido tambien ahi.
 const LOGIN_STATE_FILE = "src/auth/loginStateStorage.ts";
+// Segunda excepcion acotada (pedido del dueno del proyecto para la sustentacion, 2026-11-21): UN solo archivo puede usar `localStorage`, el
+// que guarda las preferencias de idioma y de tema (valores de un conjunto cerrado; nunca tokens ni datos de la sesion). `sessionStorage` sigue prohibido tambien ahi.
+const PREFERENCES_FILE = "src/preferences/storage.ts";
 const storageGlobals = (names) => names.map((name) => ({ name, message: "BR-U10-05: nada de almacenamiento del navegador." }));
 const storageProperties = (names) =>
   ["window", "globalThis", "self"].flatMap((object) =>
@@ -61,6 +64,14 @@ export default [
     rules: {
       "no-restricted-globals": ["error", ...storageGlobals(["localStorage"]), { name: "parseFloat", message: "Usa decimal.js con Decimal4." }],
       "no-restricted-properties": ["error", ...storageProperties(["localStorage"])],
+    },
+  },
+  {
+    // La otra excepcion: este archivo (y solo este) puede nombrar `localStorage`. Las demas reglas y `sessionStorage` siguen.
+    files: [PREFERENCES_FILE],
+    rules: {
+      "no-restricted-globals": ["error", ...storageGlobals(["sessionStorage"]), { name: "parseFloat", message: "Usa decimal.js con Decimal4." }],
+      "no-restricted-properties": ["error", ...storageProperties(["sessionStorage"])],
     },
   },
 ];

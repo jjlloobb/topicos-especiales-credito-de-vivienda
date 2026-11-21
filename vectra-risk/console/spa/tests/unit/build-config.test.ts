@@ -29,14 +29,19 @@ describe("P-U10-08, NFR-U10-42: el build no escribe codigo en linea", () => {
     expect(config.build?.modulePreload).toEqual({ polyfill: false });
   });
 
-  it("`index.html` no tiene <style> ni <script> con cuerpo, y el unico script es el modulo de entrada", () => {
+  it("`index.html` no tiene <style> ni <script> con cuerpo; sus scripts son el del tema (del mismo origen, en el <head>) y el modulo de entrada", () => {
     const html = read("index.html");
     expect(html).not.toMatch(/<style/i);
     const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
-    expect(scripts).toHaveLength(1);
-    expect(scripts[0]?.[1]).toContain('type="module"');
-    expect(scripts[0]?.[1]).toContain("src=");
+    expect(scripts).toHaveLength(2);
+    // (enmienda del 2026-11-21) el tema elegido se aplica antes de la primera pintura: un archivo del mismo origen, sin cuerpo en linea
+    expect(scripts[0]?.[1]?.trim()).toBe('src="/theme-boot.js"');
     expect(scripts[0]?.[2]).toBe("");
+    expect(html.indexOf("/theme-boot.js")).toBeLessThan(html.indexOf("</head>"));
+    expect(scripts[1]?.[1]).toContain('type="module"');
+    expect(scripts[1]?.[1]).toContain("src=");
+    expect(scripts[1]?.[2]).toBe("");
+    for (const script of scripts) expect(script[1]).not.toMatch(/https?:|\/\//); // ninguno de otro origen
     expect(html).not.toMatch(/\son\w+\s*=/i); // ni manejadores en linea
     expect(html).not.toMatch(/style\s*=/i);
   });

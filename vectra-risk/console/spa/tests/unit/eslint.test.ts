@@ -81,6 +81,39 @@ describe("ESLint de la SPA", { timeout: 30_000 }, () => {
     });
   });
 
+  // Segunda excepcion acotada (pedido del dueno del proyecto, 2026-11-21): las preferencias de idioma y de tema, en un solo archivo nombrado en la configuracion.
+  describe("localStorage: prohibido salvo en el modulo de las preferencias (idioma y tema)", () => {
+    const lint = async (code: string, file: string): Promise<string[]> => {
+      const [result] = await ESLINT.lintText(code, { filePath: resolve(SPA_ROOT, file) });
+      return (result?.messages ?? []).map((message) => message.ruleId ?? "parse-error");
+    };
+
+    it("en preferences/storage.ts localStorage pasa; window.localStorage tambien", async () => {
+      expect(await lint("export const a = () => localStorage;", "src/preferences/storage.ts")).toEqual([]);
+      expect(await lint("export const a = () => window.localStorage;", "src/preferences/storage.ts")).toEqual([]);
+    });
+
+    it("en ese mismo archivo sessionStorage sigue prohibido", async () => {
+      expect(await lint("export const a = () => sessionStorage;", "src/preferences/storage.ts")).toContain("no-restricted-globals");
+      expect(await lint("export const a = () => window.sessionStorage;", "src/preferences/storage.ts")).toContain("no-restricted-properties");
+    });
+
+    it.each(["src/i18n/index.ts", "src/i18n/language.ts", "src/auth/AuthProvider.tsx", "src/theme/theme.ts", "src/views/shared/PreferenceSelect.tsx", "src/storage.ts"])(
+      "en %s sigue prohibido, global o con window/globalThis/self",
+      async (file) => {
+        expect(await lint("export const a = () => localStorage;", file)).toContain("no-restricted-globals");
+        for (const object of ["window", "globalThis", "self"]) {
+          expect(await lint(`export const a = () => ${object}.localStorage;`, file)).toContain("no-restricted-properties");
+        }
+      },
+    );
+
+    it("localStorage aparece en un solo archivo de src", () => {
+      const found = execFileSync("grep", ["-rlE", "localStorage", "src"], { cwd: SPA_ROOT, encoding: "utf-8" }).trim().split("\n");
+      expect(found).toEqual(["src/preferences/storage.ts"]);
+    });
+  });
+
   it("jsx-a11y esta activo: una imagen sin alt falla", async () => {
     const [result] = await ESLINT.lintText("export const Img = ({ src }: { src: string }) => <img src={src} />;", {
       filePath: resolve(SPA_ROOT, "src", "probe.tsx"),

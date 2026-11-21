@@ -30,6 +30,7 @@ describe("createOidcBackend", () => {
     const args = createSigninRequest.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(args).toMatchObject({ redirect_uri: CALLBACK, prompt: "login", max_age: 0, acr_values: "mfa" });
     expect(args["nonce"]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(args["ui_locales"]).toBe("es"); // el idioma de la consola (enmienda del 2026-11-21); `tests/unit/auth/ui-locales.test.tsx` lo cubre en los dos
   });
 
   it("un canje con acr = mfa entrega los tokens", async () => {

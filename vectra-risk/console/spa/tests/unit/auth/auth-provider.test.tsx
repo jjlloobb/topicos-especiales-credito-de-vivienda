@@ -74,7 +74,7 @@ describe("AuthProvider", () => {
     const { manager } = fakeManager();
     mount(manager);
     await waitFor(() => expect(manager.signinRedirect).toHaveBeenCalledOnce());
-    expect(manager.signinRedirect).toHaveBeenCalledWith({ prompt: "none", state: { mode: "silent" }, nonce: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(manager.signinRedirect).toHaveBeenCalledWith({ prompt: "none", state: { mode: "silent" }, nonce: expect.stringMatching(/^[0-9a-f-]{36}$/), ui_locales: "es" });
     expect(manager.signinCallback).not.toHaveBeenCalled();
     expect(text("status")).toBe("loading");
   });
@@ -178,7 +178,7 @@ describe("AuthProvider", () => {
     signinRedirect.mockRejectedValueOnce(new Error("emisor caido"));
     fireEvent.click(screen.getByText("entrar"));
     expect(signinRedirect).toHaveBeenCalledOnce(); // sincrono, dentro del clic
-    expect(signinRedirect).toHaveBeenCalledWith({ state: { mode: "interactive" }, nonce: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(signinRedirect).toHaveBeenCalledWith({ state: { mode: "interactive" }, nonce: expect.stringMatching(/^[0-9a-f-]{36}$/), ui_locales: "es" });
     await waitFor(() => expect(text("failed")).toBe("true"));
     fireEvent.click(screen.getByText("entrar"));
     await waitFor(() => expect(text("failed")).toBe("false"));
@@ -270,7 +270,7 @@ describe("AuthProvider: el destino pedido vuelve tras el login (H-12)", () => {
     const { manager } = fakeManager();
     mountWithTaker(manager, fakePage(null, TARGET));
     await waitFor(() => expect(manager.signinRedirect).toHaveBeenCalledOnce());
-    expect(manager.signinRedirect).toHaveBeenCalledWith({ prompt: "none", state: { mode: "silent", returnTo: TARGET }, nonce: expect.any(String) });
+    expect(manager.signinRedirect).toHaveBeenCalledWith({ prompt: "none", state: { mode: "silent", returnTo: TARGET }, nonce: expect.any(String), ui_locales: "es" });
     cleanup();
     const plain = fakeManager().manager;
     mountWithTaker(plain, fakePage(null, null));
@@ -316,7 +316,7 @@ describe("AuthProvider: el destino pedido vuelve tras el login (H-12)", () => {
     await waitFor(() => expect(text("status")).toBe("anonymous"));
     expect(text("failed")).toBe("false");
     fireEvent.click(screen.getByText("entrar"));
-    expect(signinRedirect).toHaveBeenCalledWith({ state: { mode: "interactive", returnTo: TARGET }, nonce: expect.any(String) });
+    expect(signinRedirect).toHaveBeenCalledWith({ state: { mode: "interactive", returnTo: TARGET }, nonce: expect.any(String), ui_locales: "es" });
     expect(signinRedirect.mock.calls[0]?.[0]).not.toHaveProperty("prompt");
   });
 
