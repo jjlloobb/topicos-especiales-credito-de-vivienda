@@ -590,3 +590,11 @@ div[role="alert"] h1 { color: var(--danger-text); font-size: var(--text-xl); }
 .page-jump input { width: 5.5rem; min-height: var(--target); }
 .page-jump .field-error { flex-basis: 100%; justify-content: center; margin: 0; }
 .notice-ok:focus { outline: none; }
+/* La columna del identificador en la bandeja: en tarjetas (movil) y desde 1280 px. Entre 768 y 1279 px la tabla no tiene sitio para ella sin
+   desplazarse en horizontal, y el identificador sigue completo en el detalle del caso. */
+@media (min-width: 48rem) and (max-width: 79.99rem) {
+  .col-case-id { display: none; }
+}
+/* En la tabla de la bandeja el boton «Copiar» se repite en cada fila: sin borde ni fondo hasta que se usa (mismo objetivo de 44 px). */
+.case-id-short .button-compact { border-color: transparent; background: transparent; }
+.case-id-short .button-compact:hover { background: var(--surface-hover); }

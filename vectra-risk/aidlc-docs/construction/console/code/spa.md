@@ -231,3 +231,16 @@ Pedido del dueño del proyecto para la sustentación. Sin dependencias nuevas y 
 
 No se traduce en el cliente lo que entrega el servidor: la narrativa y el aviso de la explicación, el `disclaimer` del informe de validación, los `feature_id`, los nombres y los identificadores.
 
+
+## 13. Pasada de usabilidad (enmienda del 2026-11-21; nfr-requirements §11, E-6)
+
+Pedido del dueño del proyecto para la sustentación. Sin dependencias, rutas ni llamadas nuevas; lo que se envía al servidor no cambia.
+
+| Módulo | Qué hace |
+|---|---|
+| `views/shared/CopyButton.tsx` | «Copiar» dentro del clic, con confirmación visible y anunciada; si el navegador no deja, muestra el valor seleccionado |
+| `views/shared/Coded.tsx`, `i18n/index.ts` (`groupText`, `readableCode`), `labels.*.json` (`GROUPS`) | Un código del servidor con texto legible y el código en `title`: etiqueta si el catálogo es cerrado, sin guiones bajos si es abierto |
+| `views/cases/filters.ts` (`extractCaseId`, `shortCaseId`), `GoToCase.tsx`, `CasesInbox.tsx`, `CaseDetail.tsx` | El identificador del caso a la vista y copiable; «Ir al caso» acepta la dirección pegada; bandeja vacía, «Más filtros» con contador, «Ir a la página» |
+| `views/shared/Layout.tsx`, `routes.ts` (`screenTitle`) | Título del documento por pantalla, foco y anuncio al cambiar de ruta, «Saltar al contenido», y el texto de la verificación en dos pasos |
+| `views/shared/ProblemMessage.tsx` | Copiar el código de soporte; «Iniciar sesión de nuevo» ante un `unauthenticated`; un texto propio de la vista para un error |
+| `views/governance/FreezeContextView.tsx`, `ResolveFrozenDialog.tsx` | La última resolución en la tarjeta; el 409 explicado; la ayuda de «Verificar y confirmar»; los grupos de cada banda implicada |
