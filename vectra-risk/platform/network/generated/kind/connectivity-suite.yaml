@@ -104,6 +104,11 @@ allowed:
   ports:
   - 8080
   to: decision-registry-service
+- flow: F22
+  from: explainability-service
+  ports:
+  - 8080
+  to: explainer
 - flow: F23
   from: explainability-service
   ports:
