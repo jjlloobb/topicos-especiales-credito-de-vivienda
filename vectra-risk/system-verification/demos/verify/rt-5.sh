@@ -29,7 +29,9 @@ case "${1:-}" in
     [ -n "$POD" ] || cannot_read "no hay pod del job $JOB"
     LOG="$(kubectl --context "${KUBE_CONTEXT:-kind-vectra}" logs "$POD" -n vectra-app 2>/dev/null)" || cannot_read "lectura del log de $POD"
     printf '%s\n' "$LOG" | grep -q -- '-> 403 l5d-proxy-error: ' || not_expected "el log no trae el 403 con l5d-proxy-error"
-    if printf '%s\n' "$LOG" | grep -q 'l5d-proxy-error: None'; then not_expected "el 403 lo dio la aplicacion (l5d-proxy-error: None)"; fi
+    # Sin la cabecera no se sabe por el log quien respondio: en kind el proxy denego y el cliente no la recibio (medido el 2026-11-21).
+    # Lo decide el paso 5 (la serie de denegaciones del proxy y el contador del mock en 0).
+    if printf '%s\n' "$LOG" | grep -q 'l5d-proxy-error: None'; then expected "el log trae el 403 sin l5d-proxy-error: quien lo dio lo decide el paso 5"; fi
     expected "el 403 lo dio el proxy"
     ;;
   4)

@@ -50,7 +50,15 @@ EXPECTED_REASON: Final = {
     "RT3-d": "model_version_id_mismatch:explainer.json",
 }
 MANDATORY: Final = frozenset({"RT3-a", "RT3-c", "RT3-d", "sin_cambio_en_modelos", "F22"})  # P-2 (a)
-F22_CAUSES: Final = frozenset({FailClosedCause.TIMEOUT.value, FailClosedCause.EXPLAINER_UNAVAILABLE.value})
+# `explainer_error` tambien: medido en kind (2026-11-21), con F22 apagado Linkerd responde 403 al instante, `explainability-service`
+# lo toma por un defecto del explicador (un 4xx; `explain.py`) y responde 500, y `scoring-service` lo traduce a `explainer_error`.
+F22_CAUSES: Final = frozenset(
+    {
+        FailClosedCause.TIMEOUT.value,
+        FailClosedCause.EXPLAINER_UNAVAILABLE.value,
+        FailClosedCause.EXPLAINER_ERROR.value,
+    }
+)
 RT3B_CAUSES: Final = frozenset(
     {FailClosedCause.EXPLAINER_ERROR.value, FailClosedCause.FEATURE_DICTIONARY_INCOMPLETE.value}
 )
@@ -206,7 +214,7 @@ class RecommendationReading:
 
 
 def judge_f22(cases: Sequence[CaseReading], recommendations: Sequence[RecommendationReading]) -> SubOutcome:
-    """F22 apagado: todos los casos de sonda `en_sincronizacion` o `no_disponible`, al menos uno con `timeout` o `explainer_unavailable`, y **ninguna** `recommendation` de ninguna version en la ventana."""
+    """F22 apagado: todos los casos de sonda `en_sincronizacion` o `no_disponible`, al menos uno con `timeout`, `explainer_unavailable` o `explainer_error`, y **ninguna** `recommendation` de ninguna version en la ventana."""
     name = "F22"
     mandatory = name in MANDATORY
     missing: list[str] = []
@@ -239,8 +247,10 @@ def judge_f22(cases: Sequence[CaseReading], recommendations: Sequence[Recommenda
         missing.append("rt3_f22_caso_sin_estado_final")
         notes.append("hay casos todavia en_evaluacion al vencer el plazo")
     elif not missing and not any(c.state in FAIL_CLOSED_STATES and c.last_cause in F22_CAUSES for c in cases):
-        missing.append("rt3_f22_sin_causa_timeout_o_explainer_unavailable")
-        notes.append(f"ningun caso con last_cause timeout o explainer_unavailable; causas vistas: {causes}")
+        missing.append("rt3_f22_sin_causa_del_explicador")
+        notes.append(
+            f"ningun caso con last_cause timeout, explainer_unavailable o explainer_error; causas vistas: {causes}"
+        )
     if recommendations:
         first = recommendations[0]
         missing.append("rt3_recommendation_con_f22_apagado")

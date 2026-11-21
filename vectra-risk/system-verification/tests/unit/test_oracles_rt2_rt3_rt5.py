@@ -87,10 +87,14 @@ def test_rt5_correct_job_log_alert_series_and_counter_pass() -> None:
     )
 
 
-def test_rt5_a_403_from_the_application_without_l5d_proxy_error_fails() -> None:
-    """La linea real del Job: `... -> 403 l5d-proxy-error: None`. Buscar el texto `l5d-proxy-error` la daria por buena: la linea lo trae siempre."""
+def test_rt5_a_403_without_l5d_proxy_error_passes_only_with_the_deny_series_and_the_mock_counter_at_0() -> (
+    None
+):
+    """La linea real del Job en kind (2026-11-21): `... -> 403 l5d-proxy-error: None` con el proxy denegando (la cabecera no llega al
+    cliente). La linea sola no decide: pasan la serie de denegaciones en 1 o mas y el contador del mock en 0, y se anota que falto."""
     outcome, _, _, _ = evaluate(kubectl=JobKubectl(completed_job(T0, T1), log=APP_LOG))
-    assert outcome.result == "falla" and outcome.missing == ("rt5_403_de_la_aplicacion",)
+    assert outcome.result == "pasa" and outcome.missing == ()
+    assert outcome.readings["log_proxy_error_present"] is False and outcome.readings["deny_max"] == 1.0
 
 
 @pytest.mark.parametrize(
@@ -1211,14 +1215,22 @@ def test_rt3_a_single_recommendation_in_the_window_fails_with_its_case_and_versi
     )
 
 
-def test_rt3_without_failclosed_of_timeout_or_explainer_unavailable_fails_when_all_are_explainer_error(
+def test_rt3_failclosed_with_explainer_error_passes_as_measured_in_kind(
     tworld: Rt2World, tmp_path: Path
 ) -> None:
-    tworld.state_cases = f22_cases("explainer_error")
+    """Medido en kind (2026-11-21): con F22 apagado Linkerd responde 403 y la causa es `explainer_error`."""
+    tworld.state_cases = f22_cases("explainer_error", "no_disponible", 6)
+    assert rt3_run(tworld, rt3_params(tmp_path)).result == "pasa"
+
+
+def test_rt3_failclosed_with_a_cause_that_is_not_of_the_explainer_fails(
+    tworld: Rt2World, tmp_path: Path
+) -> None:
+    tworld.state_cases = f22_cases("feature_dictionary_incomplete")
     outcome = rt3_run(tworld, rt3_params(tmp_path))
     assert (
-        outcome.missing == ("rt3_f22_sin_causa_timeout_o_explainer_unavailable",)
-        and "explainer_error" in sub(outcome, "F22").detail
+        outcome.missing == ("rt3_f22_sin_causa_del_explicador",)
+        and "feature_dictionary_incomplete" in sub(outcome, "F22").detail
     )
 
 

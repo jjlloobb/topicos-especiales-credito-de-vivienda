@@ -199,8 +199,13 @@ def judge(run_id: str, started_at: datetime, readings: Readings) -> Outcome:
     line = readings.log
     assert line is not None
     if line.kind == "application":
-        missing.append("rt5_403_de_la_aplicacion")
-        notes.append("403 con l5d-proxy-error: None: Linkerd dejo pasar la llamada y respondio la aplicacion")
+        # Medido en kind (2026-11-21): el proxy de entrada del mock denego la llamada (`unauthorized request on route` en su log,
+        # la serie de denegaciones en 1 y el contador del mock en 0) y aun asi el cliente vio el 403 sin `l5d-proxy-error`: la
+        # cabecera no llega a la aplicacion que llama. Sola no distingue quien respondio; lo prueban las dos series de abajo, que
+        # siguen siendo obligatorias (un 403 de la aplicacion deja la serie de denegaciones sin subir o el contador del mock en mas de 0).
+        notes.append(
+            "403 sin l5d-proxy-error: la cabecera no llega al cliente; deciden la serie de denegaciones y el contador del mock"
+        )
     elif line.kind == "other_code":
         missing.append("rt5_log_codigo_distinto_de_403")
         notes.append(f"el log trae el codigo {line.code}")
