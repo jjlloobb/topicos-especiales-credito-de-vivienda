@@ -3,7 +3,7 @@
 meshed_namespaces: [vectra-edge, vectra-app, vectra-serving, vectra-staging, vectra-data, vectra-identity, vectra-mock, vectra-observability, vectra-restore-drill]
 system_namespaces: [cnpg-system, cert-manager, linkerd, kyverno, external-secrets, envoy-gateway-system, argocd, kserve, vault]
 #: En kind F22 se puede deshabilitar para el PR de RT-3 (BR-U12-04); nunca en staging ni en produccion.
-env_disabled: { kind: [], staging: [], prod: [] }
+env_disabled: { kind: [F22], staging: [], prod: [] }
 #: Rango de pods para la NetworkAuthentication de los flujos con origen sin malla: F80 (operador de CNPG), F91 y F61 (`envoy-ratelimit`, T1).
 #: 0.0.0.0/32 no autoriza a nadie hasta que el banco entregue el rango.
 pod_cidr: { kind: 192.168.0.0/16, staging: 0.0.0.0/32, prod: 0.0.0.0/32 }
