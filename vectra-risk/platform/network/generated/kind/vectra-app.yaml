@@ -1356,6 +1356,31 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   labels:
+    vectra.io/flow: F22
+  name: allow-f22-explainability-service-to-explainer-egress
+  namespace: vectra-app
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: vectra-serving
+      podSelector:
+        matchLabels:
+          vectra.io/component: explainer
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: explainability-service
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
     vectra.io/flow: F23
   name: allow-f23-explainability-service-to-decision-registry-service-e
   namespace: vectra-app
