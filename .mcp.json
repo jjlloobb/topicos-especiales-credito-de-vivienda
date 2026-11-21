@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "vectra-lectura": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--frozen", "--project", "vectra-risk", "vectra-mcp-lectura"]
+    }
+  }
+}
