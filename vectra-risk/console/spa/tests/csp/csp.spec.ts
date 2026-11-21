@@ -10,7 +10,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import { walk } from "../e2e/tour";
-import { ORIGIN, type Role, ui, watchCsp } from "../e2e/support";
+import { chooseLanguage, chooseTheme, EN, ES, loginAs, ORIGIN, type Role, seedPreferences, ui, watchCsp } from "../e2e/support";
 
 const ROUTES_YAML = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "identity-edge", "gateway", "routes.yaml");
 const profiles = (parse(readFileSync(ROUTES_YAML, "utf-8")) as { profiles: Record<string, { set: Record<string, string> }> }).profiles;
@@ -38,6 +38,41 @@ test("el oyente ve una violacion de verdad: un estilo en linea escrito con setAt
     document.body.setAttribute("style", "color: red"); // `style-src-attr`: el atributo en linea no esta permitido
   });
   await expect.poll(() => violations.map((violation) => violation.directive)).toContainEqual(expect.stringMatching(/^style-src/));
+});
+
+// Enmienda del 2026-11-21: los selectores de idioma y de tema (una lista desplegable de React Aria, `theme-boot.js` en el <head>, el
+// almacenamiento local) no provocan ninguna violacion, ni al abrirlos, ni al cambiar, ni al cargar con las preferencias ya guardadas.
+test("los selectores de idioma y de tema: cero eventos securitypolicyviolation al elegir y al cargar con las preferencias guardadas", async ({ page, context }) => {
+  const violations = await watchCsp(context);
+  const response = await page.goto("/theme-boot.js"); // el guion del tema es del mismo origen y llega con las cabeceras del perfil `spa`
+  expect(response?.status()).toBe(200);
+  expect(response?.headers()["content-type"]).toMatch(/javascript/);
+  await loginAs(page, "analista");
+  await expect(page.getByRole("table")).toBeVisible();
+  await chooseLanguage(page, ES, EN);
+  await chooseTheme(page, "system", "dark", EN);
+  await chooseTheme(page, "dark", "light", EN);
+  await page.reload(); // con las dos preferencias guardadas: `theme-boot.js` las lee antes de pintar
+  await expect(page.getByRole("button", { name: EN.ui("logout_button") })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(violations).toEqual([]);
+});
+
+test("recorrido de cumplimiento en ingles y oscuro: cero eventos securitypolicyviolation", async ({ page, context }) => {
+  const violations = await watchCsp(context);
+  await seedPreferences(context, { language: "en", theme: "dark" });
+  let stops = 0;
+  await walk(
+    page,
+    context,
+    "cumplimiento",
+    async () => {
+      stops += 1;
+    },
+    EN,
+  );
+  expect(stops).toBeGreaterThan(2);
+  expect(violations).toEqual([]);
 });
 
 for (const role of ROLES) {

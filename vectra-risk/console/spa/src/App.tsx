@@ -2,16 +2,21 @@
 // `ErrorBoundary` y TanStack Query. U10-T04 agrega el enrutador, `Layout`, `RoleMenu` y las rutas por rol (`views/shared`).
 import { QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useEffect } from "react";
-import { Button } from "react-aria-components";
+import { Button, I18nProvider } from "react-aria-components";
 import { BrowserRouter } from "react-router";
 import { ApiProvider } from "./api/ApiProvider";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { ui } from "./i18n";
+import { adoptSessionLocale, LOCALES } from "./i18n/language";
+import { useLanguage } from "./i18n/useLanguage";
 import { InactivityProvider } from "./inactivity/InactivityProvider";
 import { ErrorBoundary } from "./reporter/ErrorBoundary";
 import { StepUpProvider } from "./stepup/StepUpProvider";
 import { AppRoutes } from "./views/shared/AppRoutes";
 import { IconBrand } from "./views/shared/icons";
+import { Watermark } from "./views/shared/illustrations";
+import { LanguageSelect } from "./views/shared/LanguageSelect";
+import { ThemeSelect } from "./views/shared/ThemeSelect";
 import type { Wiring } from "./wiring";
 
 function Content({ wiring }: { readonly wiring: Wiring }) {
@@ -33,7 +38,12 @@ function Content({ wiring }: { readonly wiring: Wiring }) {
           <Button className="button-primary" onPress={auth.login}>
             {ui("login_button")}
           </Button>
+          <div className="prefs" role="group" aria-label={ui("preferences_label")}>
+            <LanguageSelect />
+            <ThemeSelect />
+          </div>
         </div>
+        <Watermark motif="skyline" place="auth" />
       </main>
     );
   }
@@ -48,6 +58,11 @@ function Content({ wiring }: { readonly wiring: Wiring }) {
 function Authed({ wiring, children }: { readonly wiring: Wiring; readonly children: ReactNode }) {
   const auth = useAuth();
   useEffect(() => wiring.reporter.install(window), [wiring.reporter]);
+  // El `locale` de `get_me` cuenta para el idioma solo si la persona no ha elegido uno (`i18n/language.ts`); sin sesion, deja de contar.
+  const sessionLocale = auth.session?.locale ?? null;
+  useEffect(() => {
+    adoptSessionLocale(sessionLocale);
+  }, [sessionLocale]);
   return (
     <StepUpProvider session={auth.session} env={wiring.stepUpEnv}>
       <InactivityProvider env={wiring.inactivityEnv} onLogout={auth.logout}>
@@ -58,7 +73,13 @@ function Authed({ wiring, children }: { readonly wiring: Wiring; readonly childr
 }
 
 export function App({ wiring }: { readonly wiring: Wiring }) {
+  // El idioma se lee en la raiz: al cambiar, todo el arbol se repinta con los textos nuevos sin desmontarse (ni la sesion ni el estado de
+  // las pantallas se pierden).
+  // React Aria trae textos propios (el boton oculto «Descartar» de un dialogo, los avisos de una lista): los da en el idioma de la consola,
+  // no en el del navegador.
+  const language = useLanguage();
   return (
+    <I18nProvider locale={LOCALES[language]}>
     <ErrorBoundary
       onError={() => {
         wiring.reporter.report("render_error");
@@ -74,5 +95,6 @@ export function App({ wiring }: { readonly wiring: Wiring }) {
         </ApiProvider>
       </QueryClientProvider>
     </ErrorBoundary>
+    </I18nProvider>
   );
 }

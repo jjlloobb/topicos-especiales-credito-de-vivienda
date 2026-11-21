@@ -43,6 +43,7 @@ se traduce a su `code`; un error inesperado → 500 `internal_error`.
 - Recargar la página o abrir otra pestaña hace **una** redirección con `prompt=none` contra la sesión de Keycloak (sin iframe). Si no hay sesión (`login_required` o cualquier error), se muestra el login y no se vuelve a redirigir.
 - El login interactivo es por redirección. Solo el estado transitorio del flujo (`state`, `code_verifier`, `nonce`) puede ir en `sessionStorage`, con una clave por flujo que se borra al terminar el callback; los tokens y el usuario, nunca (decisión del usuario, 2026-11-12).
 - Logout: borra la memoria y llama al `end_session_endpoint` de Keycloak.
+- **Enmienda del 2026-11-21** (pedido del dueño del proyecto para la sustentación): las preferencias de idioma y de tema, que no son tokens ni datos de la sesión, sí se guardan en `localStorage` (dos claves con valores de un conjunto cerrado, solo cuando la persona elige). Ver nfr-requirements §11, E-3.
 
 **BR-U10-06 — Step-up a mitad de una acción** (Q2; BR-U2-04). Se hace en una **ventana
 emergente**, para que la ventana principal no se recargue y el cuerpo del formulario siga en
@@ -140,6 +141,7 @@ iframe, la leyenda «mide y alerta, no certifica» es un texto propio de la cons
 - Hay un mensaje en español por cada `code` y cada `reason` del catálogo de U0 §6. Por ejemplo, `decision_already_recorded` → «Otra persona ya registró la decisión de este caso. Se muestra la decisión registrada.».
 - Un `code` desconocido muestra un mensaje genérico con el `correlation_id` para soporte.
 - Nunca se muestra el `detail` del servidor ni una traza.
+- **Enmienda del 2026-11-21** (pedido del dueño del proyecto para la sustentación): hay un mensaje en español **y otro en inglés** por cada `code`, `reason`, aviso y valor de enumerado; el español sigue siendo el idioma por omisión. La lista de frases prohibidas (BR-U10-18) se aplica a los dos catálogos. Ver nfr-requirements §11, E-1.
 - Los avisos de negocio también vienen del mismo catálogo: `model_frozen_after_recommendation`, baja confianza, `revision_requerida`, caso anonimizado y crédito no integrado.
 
 **BR-U10-18 — Frases prohibidas** (Q8; FR-BIA-08). La lista, la comparación y la aprobación de

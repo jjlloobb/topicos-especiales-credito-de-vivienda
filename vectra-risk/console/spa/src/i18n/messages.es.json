@@ -273,6 +273,15 @@
     "freeze_status_resolved": "Con resolución registrada",
     "disparity_detail_toggle": "Ver el detalle por grupo y banda",
     "filters_more": "Más filtros",
-    "application_toggle": "Ver los datos de la solicitud"
+    "application_toggle": "Ver los datos de la solicitud",
+    "document_title": "Vectra Risk · Crédito de vivienda",
+    "language_label": "Idioma / Language",
+    "language_name_es": "Español",
+    "language_name_en": "English",
+    "theme_label": "Tema",
+    "theme_system": "Sistema",
+    "theme_light": "Claro",
+    "theme_dark": "Oscuro",
+    "preferences_label": "Preferencias de pantalla"
   }
 }

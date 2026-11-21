@@ -10,6 +10,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "oidc-client-ts";
 import type { SessionInfo } from "../api/endpoints";
+import { getLanguage, type Language } from "../i18n/language";
 import { restorablePath } from "./returnTo";
 
 /** Que intento el flujo en curso: viaja en el `state` de la libreria y vuelve con la respuesta, tambien con un error. */
@@ -23,6 +24,11 @@ export interface SigninArgs {
   readonly prompt?: "none";
   readonly state: FlowData;
   readonly nonce: string;
+  /**
+   * El idioma de la consola (`es` o `en`; nunca texto libre), como el parametro estandar `ui_locales` de OIDC: el login del emisor sale en
+   * el mismo idioma y la persona no lo elige dos veces (enmienda del 2026-11-21). No cambia nada mas del flujo.
+   */
+  readonly ui_locales: Language;
 }
 
 export interface AuthManager {
@@ -154,7 +160,7 @@ async function start(
       return;
     }
     // Recarga o pestana nueva: `prompt=none` contra la sesion del emisor (una redireccion completa; sin iframe).
-    await manager.signinRedirect({ prompt: "none", state: flowData("silent", page.target()), nonce: newNonce() });
+    await manager.signinRedirect({ prompt: "none", state: flowData("silent", page.target()), nonce: newNonce(), ui_locales: getLanguage() });
   } catch {
     setStatus("anonymous");
   }
@@ -226,7 +232,7 @@ export function AuthProvider({ manager, loadSession, tokens, page, children }: P
       login: () => {
         setLoginFailed(false);
         // El destino: el que quedo de un `prompt=none` fallido (la URL ya esta limpia) o, si no, la pagina actual.
-        manager.signinRedirect({ state: flowData("interactive", returnTo.current ?? currentPage.target()), nonce: newNonce() }).catch(() => {
+        manager.signinRedirect({ state: flowData("interactive", returnTo.current ?? currentPage.target()), nonce: newNonce(), ui_locales: getLanguage() }).catch(() => {
           setLoginFailed(true);
         });
       },
