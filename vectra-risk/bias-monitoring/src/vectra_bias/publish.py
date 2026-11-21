@@ -115,7 +115,9 @@ def population_series(version: str, population: str, report: PopulationReport) -
         if limit is not None:
             out.append(_s("vectra_bias_aggregate_lower", limit, **base))
         for cell in attribute.cells:
-            out.append(_s("vectra_bias_cell_size", cell.n, **base, group=cell.group, band=cell.band))
+            # `cell_group`, no `group`: el Pushgateway pisa en cada serie las etiquetas de la llave del grupo (`job` y `group`), asi que
+            # con `group` todas las celdas de una banda quedaban iguales y rechazaba el `PUT` entero con 400 (medido en kind).
+            out.append(_s("vectra_bias_cell_size", cell.n, **base, cell_group=cell.group, band=cell.band))
     out.append(
         _s(
             "vectra_bias_rule_met",

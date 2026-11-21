@@ -66,10 +66,10 @@ def test_no_series_publishes_the_rate_of_an_insufficient_cell(counts):
     ]
 
     # Solo `cell_size` lleva el grupo de la celda: ninguna otra serie puede ser la tasa de una celda.
-    assert all("group" not in lab for n, lab, _ in series if n != "vectra_bias_cell_size")
+    assert all("cell_group" not in lab for n, lab, _ in series if n != "vectra_bias_cell_size")
     assert {lab["band"] for n, lab, _ in series if n == "vectra_bias_disparity"} <= BANDS_AND_AGGREGATES
     sizes = {
-        (lab["attribute"], lab["group"], lab["band"]): int(v)
+        (lab["attribute"], lab["cell_group"], lab["band"]): int(v)
         for n, lab, v in series
         if n == "vectra_bias_cell_size"
     }
