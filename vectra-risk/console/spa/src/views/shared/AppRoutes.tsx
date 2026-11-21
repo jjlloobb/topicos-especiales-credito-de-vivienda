@@ -1,8 +1,9 @@
 // Las rutas de la SPA (BR-U10-12): todas las vistas de frontend-components §1 estan declaradas; las diferidas muestran el marcador. Una
 // ruta a la que el rol no llega muestra «sin acceso» SIN montar la vista (que es lo que llamaria al BFF) y sin cargar su fragmento.
-import { type ComponentType, type LazyExoticComponent, useMemo } from "react";
+import { type ComponentType, type LazyExoticComponent, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { useAuth } from "../../auth/AuthProvider";
+import { restorablePathFor } from "../../auth/returnTo";
 import { Layout } from "./Layout";
 import { lazyView } from "./lazyView";
 import { LOADERS } from "./loaders";
@@ -23,9 +24,16 @@ function Guarded({ spec, lazyViews }: { readonly spec: RouteSpec; readonly lazyV
   return <View spec={spec} lazyViews={lazyViews} />;
 }
 
+/**
+ * `/` (y `/callback`, el retorno del login): lleva a la ruta que se pidio antes del login si es un destino interno al que el rol llega
+ * (H-12: un enlace directo o una recarga conservan la ruta y sus filtros); si no, al inicio del rol. El destino se toma una sola vez.
+ */
 function Home() {
-  const role = useAuth().session?.role;
-  return role === undefined ? null : <Navigate to={homeFor(role)} replace />;
+  const auth = useAuth();
+  const role = auth.session?.role;
+  const [requested] = useState(() => auth.takeReturnTo());
+  if (role === undefined) return null;
+  return <Navigate to={restorablePathFor(requested, role) ?? homeFor(role)} replace />;
 }
 
 export function AppRoutes({ onChunkFailure }: { readonly onChunkFailure: () => void }) {
