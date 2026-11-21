@@ -1,0 +1,22 @@
+[project]
+name = "vectra-nota-de-voz"
+version = "0.1.0"
+description = "Nota de voz del revisor humano de un pull request: graba, transcribe en local con Whisper y publica solo el texto que la persona confirma"
+requires-python = ">=3.12,<3.13"
+# Sin dependencias: grabar, validar el WAV y hablar con `gh` solo usa la biblioteca estandar.
+dependencies = []
+
+[project.optional-dependencies]
+# El transcriptor real. Opcional: `uv sync --frozen` (la CI) no lo instala; se pide con `uv run --group voz` (grupo de la raiz del workspace).
+# `faster-whisper` no depende de torch: usa CTranslate2 en CPU. `numpy` convierte el WAV en muestras.
+transcriptor = ["faster-whisper==1.2.1", "numpy==2.5.4"]
+
+[project.scripts]
+vectra-nota-de-voz = "vectra_nota_de_voz.cli:main"
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vectra_nota_de_voz"]

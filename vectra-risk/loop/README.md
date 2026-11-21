@@ -16,6 +16,10 @@ El kubeconfig de administrador (`~/.kube/config`) no es de los agentes. El opera
 
 El servidor [`mcp-solo-lectura/`](mcp-solo-lectura/README.md) (`vectra-lectura` en `.mcp.json`) da al loop seis lecturas acotadas con esa misma identidad: Applications de Argo CD, pods, eventos, InferenceServices, cargas de trabajo y los permisos de la propia cuenta. No tiene escritura, `exec`, lectura de `Secret` ni una herramienta que reciba una orden, y no arranca con otro kubeconfig. La allowlist está en `permissions.allow` de `.claude/settings.json`, herramienta por herramienta; el revisor las tiene en su `tools:` y el codificador no.
 
+## La nota de voz es de la persona que revisa
+
+[`nota-de-voz/`](nota-de-voz/README.md) (`vectra-nota-de-voz <PR>`) deja el razonamiento del revisor humano en el PR: graba su voz, la transcribe en su máquina con Whisper y publica como comentario de revisión solo el texto que la persona corrigió y confirmó. **Los agentes no la usan**: no está en el `tools:` del codificador ni del revisor, ni en `permissions.allow`, ni en `.mcp.json`. Un agente no aprueba ni comenta un PR en nombre de una persona.
+
 ## Orden de despacho
 
 | Paso | Tareas | Por qué |

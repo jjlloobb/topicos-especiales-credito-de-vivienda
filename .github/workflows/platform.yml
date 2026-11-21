@@ -32,6 +32,13 @@ jobs:
     with:
       path: loop/mcp-solo-lectura
       artifact: test-results-mcp
+  # La nota de voz del revisor humano: sin microfono, sin red y sin GitHub (grabador, transcriptor y `gh` son dobles). El transcriptor real no se instala.
+  tests-nota-de-voz:
+    if: github.event_name != 'schedule'
+    uses: ./.github/workflows/tests.yml
+    with:
+      path: loop/nota-de-voz
+      artifact: test-results-nota-de-voz
   supply-chain:
     uses: ./.github/workflows/supply-chain.yml
   rollback-note:
