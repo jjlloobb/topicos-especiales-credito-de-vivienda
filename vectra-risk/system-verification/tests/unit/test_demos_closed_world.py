@@ -971,7 +971,7 @@ def test_verify_the_isvc_steps_and_the_job_log_and_the_dashboard_series(tmp_path
         run_verify(
             tmp_path / "f", "rt-5.sh", "3", state={**job, "log": app}, files={"manifest.json": MANIFEST}
         )[0]
-        == 1
+        == 0  # sin la cabecera el log no decide (medido en kind): lo decide el paso 5
     )
     assert (
         run_verify(

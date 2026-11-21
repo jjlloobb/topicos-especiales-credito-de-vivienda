@@ -546,7 +546,7 @@ Entradas: K-39 a K-43. Plantilla: `05-prepare-y-d3.md`. Duración: 20 min. **Emp
 | K-43 | vectra_core_write_attempts_total en 0 desde el arranque | `vectra-verification rt5`; `rt-5.sh`; `observabilidad.sh consulta sum(vectra_core_write_attempts_total)` | D3 |
 <!-- /inventario:F5 -->
 
-**Puerta de F5.** Sigues solo si: el Job `rt5-demo-<runId>` terminó **después** de `started_at`, su log trae el 403 con el valor real de `l5d-proxy-error`, la serie existe y la alerta se vio en `firing`. La sección `rt5` y `rt-5.sh 6` van al final de F6. Síntomas: el Job no nace, el PR de `runId` o el sync (U8); sin serie, R-6 (U1); el 403 con `l5d-proxy-error: None`, lo dio la aplicación y no el proxy (U8 y U1).
+**Puerta de F5.** Sigues solo si: el Job `rt5-demo-<runId>` terminó **después** de `started_at`, su log trae el 403 (con `l5d-proxy-error` o con `None`: medido el 2026-11-21, el proxy del mock denegó y la cabecera no llegó al cliente), la serie de denegaciones existe, el contador del mock sigue en 0 y la alerta se vio en `firing`. La sección `rt5` y `rt-5.sh 6` van al final de F6. Síntomas: el Job no nace, el PR de `runId` o el sync (U8); sin serie, R-6 (U1); el 403 con el contador del mock en más de 0 o sin serie de denegaciones, lo dio la aplicación y no el proxy (U8 y U1); `l5d-proxy-error: None` solo no lo prueba.
 
 ## F6 `decisions` (D4, día D)
 
@@ -610,7 +610,7 @@ Entradas: K-48 a K-52. Plantilla: `07-d1-rt3.md`. Duración: ≈ 50 min (12,4 a 
    system-verification/docs/kind/observabilidad.sh consulta 'vectra_cases_failclosed_persistent'
    system-verification/docs/kind/observabilidad.sh consulta 'ALERTS{alertname="FailClosedPersistente"}'
    ```
-   Anota qué `last_cause` dio F22 apagado (`timeout` o `explainer_unavailable`) y el tiempo medido (K-50). `journey-7-3.sh 2` mira que el gauge de casos en fail-closed persistente suba a 1 o más y `journey-7-3.sh 3` que la alerta esté en `firing` (puede fallar hasta que pasen los minutos de espera). **Cuando `rt3` termine**, `system-verification/demos/verify/journey-7-3.sh 5` lee la evidencia que dejó (no antes: la escribe la herramienta al final).
+   Anota qué `last_cause` dio F22 apagado (`timeout` o `explainer_unavailable`) y el tiempo medido (K-50). Medido el 2026-11-21: `explainer_error` (Linkerd responde 403 al instante y U7 lo toma por un defecto del explicador), y `rt3` lo acepta. `journey-7-3.sh 2` mira que el gauge de casos en fail-closed persistente suba a 1 o más y `journey-7-3.sh 3` que la alerta esté en `firing` (puede fallar hasta que pasen los minutos de espera). **Cuando `rt3` termine**, `system-verification/demos/verify/journey-7-3.sh 5` lee la evidencia que dejó (no antes: la escribe la herramienta al final).
 4. **PR de reversión.** Abre el PR `system-verification/demos/prs/f22-apagado/revertir.patch`, fusiónalo y sincroniza `network` con prune:
    ```bash operador
    argocd app sync network --prune && argocd app wait network --health --timeout 900
