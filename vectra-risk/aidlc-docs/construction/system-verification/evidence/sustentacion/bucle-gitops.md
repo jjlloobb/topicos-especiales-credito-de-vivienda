@@ -35,7 +35,7 @@ Ese archivo lo lee la Application `model-serving` de Argo CD (`vectra-risk/vectr
 |---|---|---|---|---|
 | 1 | **Propuesta.** `promotion-tool create-promotion-pr mv-2026-01-01-f12bfeaf` edita el archivo y abre el PR #233. La herramienta exige la sesión de un ingeniero con MFA (`acr=mfa`, `vectra-risk/governance/promotion_tool/vectra_promotion/api.py`) | Operador, con `promotion-tool` | 09:52:59 la orden; 09:53:07 el PR | Commit `1f85ac2`. El cuerpo del PR trae la evidencia: el SHA-256 del `helm template`, la tabla de objetos que resultan y un `kubectl diff` de solo lectura contra kind |
 | 2 | **CI.** Corren los workflows del repositorio | GitHub Actions | tras abrir el PR | `gh pr checks 233`: `checks`, `evidence`, `forbidden`, `policies`, `rollback-note`, `supply-chain / scan` y `tests` en `pass`. `forbidden` es la prueba de que ningún workflow aplica cambios a un clúster (`.github/workflows/forbidden-steps.yml`) |
-| 3 | **Aprobación humana.** Una persona distinta del autor aprueba | `joseluisjedi` | 09:53:57 | Revisión `APPROVED`. El PR toca `vectra-risk/vectra-risk-gitops/`, que `.github/CODEOWNERS` reserva a dos personas |
+| 3 | **Aprobación humana.** Aprueba una cuenta distinta de la autora; la protección de `main` exige esa revisión, también a administradores | `joseluisjedi` | 09:53:57 | Revisión `APPROVED`. El PR toca `vectra-risk/vectra-risk-gitops/`, que `.github/CODEOWNERS` reserva a dos cuentas |
 | 4 | **Fusión.** | `joseluisjedi` | 10:00:31 | Commit de fusión `81b5fd38e315d0aafb3280be5b0eab897068c513` en `main` |
 | 5 | **Reconciliación.** Argo CD no sincroniza solo: hace falta la orden `argocd app sync model-serving --prune` | Operador (ver «Quién dio la orden de sync») | entre 10:00:31 y 10:01:25 | Plantilla 08, K-54 |
 
@@ -64,7 +64,7 @@ Un tropiezo real de ese camino, también en la plantilla: `mark-active` dio 403 
 
 ## Todos los cambios al clúster de esa jornada
 
-Cada fila es un PR creado, aprobado por una persona, fusionado y sincronizado a mano. Los datos son de `gh pr view`.
+Cada fila es un PR creado, aprobado, fusionado y sincronizado a mano. Los datos son de `gh pr view`.
 
 | PR | Qué cambia | Fusionado (UTC, 21 nov) | Commit |
 |---|---|---|---|
