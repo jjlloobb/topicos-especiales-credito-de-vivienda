@@ -12,6 +12,10 @@ En este proyecto, `tareas/` reemplaza a `unidades-y-tareas.md`. Las tareas `U01-
 
 El kubeconfig de administrador (`~/.kube/config`) no es de los agentes. El operador corre `platform/kind/readonly-kubeconfig.sh write` una vez (y otra tras recrear el clúster) y `check` para leerlo de vuelta; los agentes corren con `KUBECONFIG=~/.kube/kind-vectra-readonly`, un archivo con un solo contexto, `kind-vectra`, que no escribe ni lee un `Secret`. La sesión del orquestador usa el de administrador solo en las órdenes que el usuario aprueba, nombrándolo de forma explícita. No cubre `argocd` ni `docker`, ni a quien fije `KUBECONFIG` por su cuenta: ver [`platform/kind/readonly-kubeconfig.md`](../platform/kind/readonly-kubeconfig.md).
 
+## Las lecturas del clúster por MCP
+
+El servidor [`mcp-solo-lectura/`](mcp-solo-lectura/README.md) (`vectra-lectura` en `.mcp.json`) da al loop seis lecturas acotadas con esa misma identidad: Applications de Argo CD, pods, eventos, InferenceServices, cargas de trabajo y los permisos de la propia cuenta. No tiene escritura, `exec`, lectura de `Secret` ni una herramienta que reciba una orden, y no arranca con otro kubeconfig. La allowlist está en `permissions.allow` de `.claude/settings.json`, herramienta por herramienta; el revisor las tiene en su `tools:` y el codificador no.
+
 ## Orden de despacho
 
 | Paso | Tareas | Por qué |

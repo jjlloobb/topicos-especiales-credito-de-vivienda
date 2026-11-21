@@ -1,0 +1,37 @@
+$ uv run python loop/mcp-solo-lectura/demo_cliente.py frenos
+$ tools/list
+  argo_applications()
+  pods(namespace)
+  events(namespace, only_warnings)
+  inference_services(namespace)
+  workloads(namespace, kind)
+  permissions(namespace)
+
+$ tools/call exec {"namespace": "vectra-app", "pod": "x", "command": "sh"}
+ERROR de la herramienta:
+Unknown tool: exec
+
+$ tools/call delete_pod {"namespace": "vectra-app", "name": "x"}
+ERROR de la herramienta:
+Unknown tool: delete_pod
+
+$ tools/call get_secret {"namespace": "vectra-app", "name": "x"}
+ERROR de la herramienta:
+Unknown tool: get_secret
+
+$ tools/call workloads {"namespace": "vectra-app", "kind": "secrets"}
+ERROR de la herramienta:
+Error executing tool workloads: argumento rechazado: kind 'secrets' no esta en la lista cerrada ['daemonsets', 'deployments', 'jobs', 'statefulsets']
+
+$ tools/call pods {"namespace": "vectra-app; kubectl delete pods --all"}
+ERROR de la herramienta:
+Error executing tool pods: argumento rechazado: namespace 'vectra-app; kubectl delete pods --all' no es una etiqueta DNS (a-z, 0-9 y guion; 63 como maximo)
+
+$ tools/call pods {"namespace": "--as=system:admin"}
+ERROR de la herramienta:
+Error executing tool pods: argumento rechazado: namespace '--as=system:admin' no es una etiqueta DNS (a-z, 0-9 y guion; 63 como maximo)
+
+$ tools/call events {"namespace": "../../kube-system"}
+ERROR de la herramienta:
+Error executing tool events: argumento rechazado: namespace '../../kube-system' no es una etiqueta DNS (a-z, 0-9 y guion; 63 como maximo)
+[codigo de salida: 0]
