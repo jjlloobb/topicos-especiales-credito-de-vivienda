@@ -66,6 +66,11 @@ export function formatMoney(value: number): string {
   return new Intl.NumberFormat(LOCALE, { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
 }
 
+/** Un conteo entero (casos, paginas) con los separadores de `es-CO`. */
+export function formatCount(value: number): string {
+  return new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 }).format(value);
+}
+
 /** El texto de un canal: el catalogo lo conoce para los filtrables; cualquier otro se muestra tal cual (es un codigo, no un dato personal). */
 export function channelText(channel: string): string {
   return (labels.CHANNELS as Record<string, string>)[channel] ?? channel;

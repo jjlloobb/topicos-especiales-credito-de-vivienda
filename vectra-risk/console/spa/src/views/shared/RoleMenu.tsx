@@ -6,7 +6,7 @@ import { type Role, routesFor } from "./routes";
 
 export function RoleMenu({ role }: { readonly role: Role }) {
   return (
-    <nav aria-label={ui("nav_label")}>
+    <nav className="app-nav" aria-label={ui("nav_label")}>
       <ul>
         {routesFor(role)
           .filter((route) => route.inMenu)

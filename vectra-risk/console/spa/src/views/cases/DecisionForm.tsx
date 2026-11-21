@@ -181,14 +181,16 @@ export function DecisionForm({ caseId, outcome, shapFeatureIds, onRecorded }: Pr
           aria-describedby="justification-counter"
           rows={5}
         />
-        <p id="justification-counter" aria-live="polite">
+        <p className="hint" id="justification-counter" aria-live="polite">
           {ui("decision_counter", { count: String(length) })}
         </p>
         {fieldError("justification")}
         {fieldError("general")}
-        <Button type="submit" isDisabled={submitting}>
-          {ui("decision_submit")}
-        </Button>
+        <div className="actions">
+          <Button className="button-primary" type="submit" isDisabled={submitting}>
+            {ui("decision_submit")}
+          </Button>
+        </div>
       </form>
       {notice === null ? null : <p role="alert">{notice}</p>}
       {serverError === null ? null : <ProblemMessage error={serverError} />}
@@ -202,12 +204,14 @@ export function DecisionForm({ caseId, outcome, shapFeatureIds, onRecorded }: Pr
                 final: final === null ? "" : label("FINAL_OUTCOMES", final),
               })}
             </p>
-            <Button isDisabled={submitting} onPress={() => void submit()}>
-              {submitting ? ui("decision_sending") : ui("decision_confirm_button")}
-            </Button>
-            <Button isDisabled={submitting} onPress={() => { setConfirming(false); }}>
-              {ui("decision_confirm_cancel")}
-            </Button>
+            <div className="actions" aria-busy={submitting ? true : undefined}>
+              <Button className="button-primary" isDisabled={submitting} onPress={() => void submit()}>
+                {submitting ? ui("decision_sending") : ui("decision_confirm_button")}
+              </Button>
+              <Button isDisabled={submitting} onPress={() => { setConfirming(false); }}>
+                {ui("decision_confirm_cancel")}
+              </Button>
+            </div>
           </Dialog>
         </Modal>
       </ModalOverlay>

@@ -87,9 +87,68 @@ describe("CasesInbox", () => {
     fireEvent.click(screen.getByRole("button", { name: ui("page_next") }));
     await waitFor(() => expect(world.calls.at(-1)?.search.get("page")).toBe("2"));
     expect(window.location.search).toBe("?page=2");
-    expect(screen.getByText(ui("page_current", { page: "2" }))).toBeTruthy();
+    expect(screen.getByText(ui("page_of", { page: "2", pages: "3" }))).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: ui("page_previous") }));
     await waitFor(() => expect(window.location.search).toBe(""));
+  });
+
+  it("muestra el total de casos de la consulta y «Pagina X de Y»; «Primera» y «Ultima» llevan a los extremos", async () => {
+    const full = Array.from({ length: 20 }, (_, i) => summary({ case_id: `00000000-0000-0000-0000-0000000003${String(i).padStart(2, "0")}` }));
+    const { world } = renderApp({ role: "analista", path: "/casos", routes: { [LIST]: { items: full, page: 1, total: 45, next_seq_after: null } } });
+    await screen.findByRole("table");
+    expect(screen.getByText(ui("inbox_total", { total: "45" }))).toBeTruthy();
+    expect(screen.getByText(ui("inbox_range", { from: "1", to: "20" }))).toBeTruthy();
+    expect(screen.getByText(ui("page_of", { page: "1", pages: "3" }))).toBeTruthy(); // 45 casos de 20 en 20: 3 paginas
+    expect(screen.getByRole("button", { name: ui("page_first") }).hasAttribute("disabled")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: ui("page_last") }));
+    await waitFor(() => expect(world.calls.at(-1)?.search.get("page")).toBe("3"));
+    expect(window.location.search).toBe("?page=3");
+    expect(screen.getByText(ui("page_of", { page: "3", pages: "3" }))).toBeTruthy();
+    expect(screen.getByRole("button", { name: ui("page_last") }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: ui("page_next") }).hasAttribute("disabled")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: ui("page_first") }));
+    await waitFor(() => expect(window.location.search).toBe(""));
+    expect(world.calls.every((call) => call.path === "/api/console/cases")).toBe(true); // ninguna llamada nueva: el total sale de la misma consulta
+  });
+
+  it("sin `total` no inventa el numero de paginas: solo la pagina actual, sin total y sin «Ultima»", async () => {
+    const full = Array.from({ length: 20 }, (_, i) => summary({ case_id: `00000000-0000-0000-0000-0000000004${String(i).padStart(2, "0")}` }));
+    renderApp({ role: "analista", path: "/casos", routes: { [LIST]: { items: full, page: 1, total: null, next_seq_after: null } } });
+    await screen.findByRole("table");
+    expect(screen.getByText(ui("page_current", { page: "1" }))).toBeTruthy();
+    expect(screen.queryByText(/^Casos con estos filtros/)).toBeNull();
+    expect(screen.getByRole("button", { name: ui("page_last") }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("los chips de estado filtran con un clic (solo ese estado, en la URL y en la solicitud) y no llevan numero", async () => {
+    const { world } = renderApp({ role: "analista", path: "/casos?page=2", routes: { [LIST]: page(items) } });
+    await screen.findByRole("table");
+    const chips = screen.getByRole("group", { name: ui("quick_states_label") });
+    expect(within(chips).getAllByRole("button").map((chip) => chip.textContent)).toEqual([ui("quick_states_default"), ...CASE_STATES.map((state) => label("CASE_STATES", state))]);
+    expect(within(chips).getByRole("button", { name: ui("quick_states_default") }).getAttribute("aria-pressed")).toBe("true");
+    const chip = within(chips).getByRole("button", { name: label("CASE_STATES", "no_disponible") });
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(chip);
+    await waitFor(() => expect(world.calls.at(-1)?.search.getAll("state")).toEqual(["no_disponible"]));
+    expect(world.calls.at(-1)?.search.get("page")).toBe("1"); // cambiar el filtro vuelve a la primera pagina
+    expect(window.location.search).toBe("?state=no_disponible");
+    expect(within(chips).getByRole("button", { name: label("CASE_STATES", "no_disponible") }).getAttribute("aria-pressed")).toBe("true");
+    expect(within(chips).getByRole("button", { name: ui("quick_states_default") }).getAttribute("aria-pressed")).toBe("false");
+    // las casillas de «Estados» reflejan el mismo filtro
+    expect((screen.getByRole("checkbox", { name: label("CASE_STATES", "no_disponible") }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("checkbox", { name: label("CASE_STATES", "listo") }) as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(within(chips).getByRole("button", { name: ui("quick_states_default") }));
+    await waitFor(() => expect(window.location.search).toBe(""));
+  });
+
+  it("la tabla vive en una region desplazable con nombre y foco de teclado, y conserva su semantica", async () => {
+    renderApp({ role: "analista", path: "/casos", routes: { [LIST]: page(items) } });
+    const table = await screen.findByRole("table");
+    const region = screen.getByRole("region", { name: ui("table_scroll_label", { name: ui("view_cases") }) });
+    expect(region.contains(table)).toBe(true);
+    expect(region.getAttribute("tabindex")).toBe("0");
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(7);
+    expect(table.querySelector("caption")?.textContent).toBe(ui("view_cases"));
   });
 
   it("sin total, la pagina completa sigue ofreciendo la siguiente; una vacia dice que no hay casos", async () => {

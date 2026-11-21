@@ -75,12 +75,14 @@ export function ResolveFrozenDialog({ modelVersionId, freezeId, isOpen, onClose,
             aria-describedby="resolve-hint"
             onChange={(event) => { setJustification(event.target.value); }}
           />
-          <p id="resolve-hint" aria-live="polite">
+          <p className="hint" id="resolve-hint" aria-live="polite">
             {justification.trim() === "" ? ui("resolve_error_required") : valid ? ui("resolve_counter", { count: String([...justification].length) }) : ui("resolve_error_too_long")}
           </p>
           {error === null ? null : <ProblemMessage error={error} />}
-          <StepUpButton body={{ action, justification }} send={send} label={ui("resolve_submit")} isDisabled={!valid} />
-          <Button onPress={onClose}>{ui("resolve_close")}</Button>
+          <div className="actions">
+            <StepUpButton body={{ action, justification }} send={send} label={ui("resolve_submit")} isDisabled={!valid} />
+            <Button onPress={onClose}>{ui("resolve_close")}</Button>
+          </div>
         </Dialog>
       </Modal>
     </ModalOverlay>

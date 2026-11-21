@@ -19,23 +19,23 @@ function Detail({ caseId }: { readonly caseId: string }) {
   const role = useAuth().session?.role;
   const query = useCase(caseId);
   const [saved, setSaved] = useState(false);
-  if (query.isPending) return <p role="status">{ui("loading")}</p>;
+  if (query.isPending) return <p className="loading" role="status">{ui("loading")}</p>;
   if (query.isError) return <ProblemMessage error={query.error} />;
   const detail = query.data;
   const recommendation = detail.recommendation ?? null; // el BFF puede omitir un campo nulo
   const processing = detail.state === "en_evaluacion" || detail.state === "en_sincronizacion";
   return (
     <>
-      <p>
+      <p className="case-heading">
         <CaseStateBadge state={detail.state} /> {detail.applicant_display}
       </p>
-      <p>{formatDate(detail.created_at)}</p>
-      <ul>
+      <p className="hint">{formatDate(detail.created_at)}</p>
+      <ul className="marks">
         {detail.model_frozen_after_recommendation ? <li className="mark mark-frozen">{notice("model_frozen_after_recommendation")}</li> : null}
         {detail.anonymized ? <li className="mark">{notice("case_anonymized")}</li> : null}
       </ul>
       {processing ? <p role="status">{query.refreshStopped ? ui("case_refresh_stopped") : ui("case_refreshing")}</p> : null}
-      {saved ? <p role="status">{ui("decision_saved")}</p> : null}
+      {saved ? <p className="notice-ok" role="status">{ui("decision_saved")}</p> : null}
       <RecommendationSummary detail={detail} />
       {detail.credit_status == null ? null : <CreditStatusBadge status={detail.credit_status} />}
       {recommendation !== null && role !== undefined && (detail.state === "listo" || detail.state === "decidido") ? (

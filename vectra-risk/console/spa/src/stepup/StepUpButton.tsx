@@ -13,6 +13,7 @@ export function StepUpButton<B>({ body, send, label, isDisabled }: Props<B>) {
   const stepUp = useStepUp();
   return (
     <Button
+      className="button-primary"
       isDisabled={isDisabled || stepUp.busy}
       onPress={(event) => {
         stepUp.confirm({ body, send }, event.target as HTMLElement);

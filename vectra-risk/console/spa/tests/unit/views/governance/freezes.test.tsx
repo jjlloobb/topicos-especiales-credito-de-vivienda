@@ -25,6 +25,9 @@ describe("Freezes", () => {
     expect(within(table).getByText(label("RESOLUTION_ACTIONS", "descartar"))).toBeTruthy();
     expect(within(table).getByText(ui("no_resolution"))).toBeTruthy();
     expect(within(table).getByText(ui("no_value"))).toBeTruthy(); // sin disparidad agregada
+    // el estado de la resolucion es una insignia CON texto (el color no es el unico portador)
+    expect(within(table).getByText(ui("no_resolution")).className).toContain("badge-pending");
+    expect(within(table).getByText(label("RESOLUTION_ACTIONS", "descartar")).className).toContain("badge");
     expect(screen.queryByText(ui("freeze_context_hidden"))).toBeNull();
     cleanup();
     renderApp({ role: "cro", path: "/congelamientos", routes: { [LIST]: [freezeSummary()] } });
@@ -56,11 +59,76 @@ describe("FreezeContextView: el paquete completo y el disclaimer", () => {
     expect(screen.getAllByText(ui("cell_insufficient")).length).toBeGreaterThanOrEqual(3); // after, ultimos 7 dias y disparidad de validacion
     expect(screen.queryAllByRole("cell", { name: "0" })).toEqual([]); // nunca 0 donde falta la muestra
     expect(screen.getByText(ui("freeze_implicated_item", { attribute: label("ATTRIBUTES", "region"), limit: "0,0500" }))).toBeTruthy();
-    expect(screen.getByText(ui("freeze_implicated_band", { band: label("BANDS", "20_30"), difference: "0,0800" }))).toBeTruthy();
+    // los grupos y bandas implicados son una tabla: el titulo dice el atributo y su limite; cada banda, su diferencia
+    const implicated = screen.getByRole("table", { name: ui("freeze_implicated_item", { attribute: label("ATTRIBUTES", "region"), limit: "0,0500" }) });
+    const band = within(implicated).getAllByRole("row")[1] as HTMLElement;
+    expect(within(band).getByRole("rowheader").textContent).toBe(label("BANDS", "20_30"));
+    expect(within(band).getByRole("cell").textContent).toBe("0,0800");
     expect(screen.getByText(ui("freeze_source_item", { id: "ds-1", name: "Buró alterno" }))).toBeTruthy();
     expect(screen.getByText('{"raro":true}')).toBeTruthy(); // un elemento sin la forma esperada no se pierde: sale como JSON
     expect(screen.getByText('"otra cosa"')).toBeTruthy();
     expect(screen.getByText(ui("freeze_history_item", { action: label("RESOLUTION_ACTIONS", "investigar"), at: "12/11/2026, 10:00 a. m." }))).toBeTruthy();
+  });
+
+  it("tabla comparativa por atributo: validacion, antes, despues y ultimos 7 dias lado a lado; el disparador resaltado, con texto y con su limite", async () => {
+    const base = freezeRecord({ before: "sin_datos" });
+    const other = { ...disparity().attributes[0], attribute: "sexo" as const, aggregate: null };
+    const after = { ...disparity(), attributes: [other, { ...disparity().attributes[0], aggregate: "0.0316" }] };
+    renderApp({ role: "cumplimiento", path: PATH, routes: { [GET]: { ...base, context_package: { ...base.context_package, after } } } });
+    expect(await screen.findByRole("heading", { name: ui("freeze_compare_title") })).toBeTruthy();
+    const table = screen.getByRole("table", { name: ui("freeze_compare_caption") });
+    expect(within(table).getAllByRole("columnheader").map((th) => th.textContent)).toEqual([
+      ui("freeze_compare_col_attribute"),
+      ui("freeze_compare_col_validation"),
+      ui("freeze_section_before"),
+      ui("freeze_section_after"),
+      ui("freeze_section_last7"),
+      ui("freeze_compare_col_limit"),
+    ]);
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(2);
+    // el disparador va primero aunque llegue despues, resaltado y dicho con texto
+    const trigger = rows[0] as HTMLElement;
+    expect(trigger.className).toBe("row-trigger");
+    expect(within(trigger).getByRole("rowheader").textContent).toContain(label("ATTRIBUTES", "region"));
+    expect(within(trigger).getByText(ui("col_trigger"))).toBeTruthy();
+    expect(within(trigger).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["0,6000", ui("freeze_compare_window_missing"), "0,0316", "0,6000", "0,0500"]);
+    // otro atributo: sin resaltar; sin agregado y sin limite dice «Sin dato», nunca 0 ni vacio
+    const plain = rows[1] as HTMLElement;
+    expect(plain.className).toBe("");
+    expect(within(plain).queryByText(ui("col_trigger"))).toBeNull();
+    expect(within(plain).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([ui("no_value"), ui("freeze_compare_window_missing"), ui("no_value"), ui("no_value"), ui("no_value")]);
+    expect(screen.queryAllByRole("cell", { name: "0" })).toEqual([]);
+  });
+
+  it("el estado va primero («Resolucion pendiente» o con resolucion) y «sin datos» o una lista vacia explican por que", async () => {
+    renderApp({ role: "cumplimiento", path: PATH, routes: { [GET]: freezeRecord({ before: "sin_datos", last7: "sin_datos" }) } });
+    expect((await screen.findByText(ui("freeze_status_pending"))).className).toContain("badge-pending");
+    expect(screen.getByText(ui("freeze_before_missing_why"))).toBeTruthy();
+    expect(screen.getByText(ui("freeze_window_missing_why"))).toBeTruthy(); // solo ultimos 7 dias: `after` tiene datos
+    cleanup();
+    const record = freezeRecord({ resolutions: [{ action: "investigar", recorded_at: "2026-11-12T15:00:00Z" }] });
+    const empty = { ...record, context_package: { ...record.context_package, implicated: [], data_sources: [], initial_disparity: { attributes: [] } } };
+    renderApp({ role: "cumplimiento", path: PATH, routes: { [GET]: empty } });
+    expect(await screen.findByText(ui("freeze_status_resolved"))).toBeTruthy();
+    expect(screen.queryByText(ui("freeze_status_pending"))).toBeNull();
+    expect(screen.getByText(ui("freeze_implicated_empty_why"))).toBeTruthy();
+    expect(screen.getByText(ui("freeze_sources_empty_why"))).toBeTruthy();
+    expect(screen.getByText(ui("freeze_initial_empty_why"))).toBeTruthy();
+    // sin limite conocido (no hay implicados), el disparador sigue resaltado y su limite dice «Sin dato»
+    const trigger = within(screen.getByRole("table", { name: ui("freeze_compare_caption") })).getAllByRole("row")[1] as HTMLElement;
+    expect(trigger.className).toBe("row-trigger");
+    expect(within(trigger).getAllByRole("cell").at(-1)?.textContent).toBe(ui("no_value"));
+  });
+
+  it("el detalle por grupo y banda queda plegado salvo «Despues»; el resumen por atributo esta siempre a la vista", async () => {
+    const { container } = renderApp({ role: "cumplimiento", path: PATH, routes: { [GET]: freezeRecord() } });
+    await screen.findByText(ui("freeze_summary_model", { id: "mv-congelado" }));
+    const details = [...container.querySelectorAll("details")];
+    expect(details).toHaveLength(4); // antes, despues, ultimos 7 dias y disparidad de validacion
+    expect(details.map((element) => element.open)).toEqual([false, true, false, false]);
+    for (const element of details) expect(element.querySelector("summary")?.textContent).toBe(ui("disparity_detail_toggle"));
+    expect(screen.getByRole("table", { name: ui("freeze_compare_caption") }).closest("details")).toBeNull();
   });
 
   it("el disclaimer «mide y alerta, no certifica» esta en TODOS los estados: cargando, con error, con `sin_datos` y con datos", async () => {

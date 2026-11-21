@@ -7,13 +7,13 @@ export function RecommendationSummary({ detail }: { readonly detail: CaseDetail 
   const recommendation = detail.recommendation ?? null; // el BFF puede omitir un campo nulo
   const outcome = detail.outcome ?? recommendation?.outcome ?? null;
   const score = detail.score ?? recommendation?.score ?? null;
-  if (outcome === null && score === null) return <p>{ui("case_unavailable")}</p>;
+  if (outcome === null && score === null) return <p className="empty">{ui("case_unavailable")}</p>;
   const lowConfidence = recommendation?.reasons.includes("baja_confianza") === true;
   return (
     <section aria-labelledby="recommendation-title">
       <h3 id="recommendation-title">{ui("recommendation_title")}</h3>
-      <ul>
-        {outcome === null ? null : <li>{ui("recommendation_outcome", { outcome: label("OUTCOMES", outcome) })}</li>}
+      <ul className="facts">
+        {outcome === null ? null : <li className="fact-key">{ui("recommendation_outcome", { outcome: label("OUTCOMES", outcome) })}</li>}
         <li>{score === null ? ui("no_score") : ui("recommendation_score", { score: safeDecimal(score) })}</li>
         {recommendation === null ? null : <li>{ui("recommendation_confidence", { confidence: safeDecimal(recommendation.confidence) })}</li>}
       </ul>

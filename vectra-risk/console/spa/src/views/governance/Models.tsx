@@ -3,20 +3,22 @@ import { Link } from "react-router";
 import { useModels } from "../../api/hooks";
 import { formatDate, label, ui } from "../../i18n";
 import { ProblemMessage } from "../shared/ProblemMessage";
+import { TableScroll } from "../shared/TableScroll";
 
 export function Models() {
   const query = useModels();
   return (
     <section>
       <h2>{ui("view_models")}</h2>
-      <p>{ui("models_intro")}</p>
-      {query.isPending ? <p role="status">{ui("loading")}</p> : null}
+      <p className="hint">{ui("models_intro")}</p>
+      {query.isPending ? <p className="loading" role="status">{ui("loading")}</p> : null}
       {query.isError ? <ProblemMessage error={query.error} /> : null}
       {query.data === undefined ? null : query.data.items.length === 0 ? (
-        <p>{ui("models_empty")}</p>
+        <p className="empty">{ui("models_empty")}</p>
       ) : (
+        <TableScroll name={ui("view_models")} busy={query.isFetching}>
         <table>
-          <caption>{ui("view_models")}</caption>
+          <caption className="visually-hidden">{ui("view_models")}</caption>
           <thead>
             <tr>
               <th scope="col">{ui("col_model")}</th>
@@ -40,6 +42,7 @@ export function Models() {
             ))}
           </tbody>
         </table>
+        </TableScroll>
       )}
     </section>
   );
