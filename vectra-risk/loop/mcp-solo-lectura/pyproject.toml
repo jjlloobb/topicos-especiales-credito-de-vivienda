@@ -1,0 +1,17 @@
+[project]
+name = "vectra-mcp-readonly"
+version = "0.1.0"
+description = "Servidor MCP de solo lectura sobre Kubernetes para los agentes del loop (identidad vectra-readonly-agent, lista cerrada de herramientas)"
+requires-python = ">=3.12,<3.13"
+# `mcp` es el SDK oficial (FastMCP, transporte stdio). `pyyaml` solo lee el kubeconfig en el arranque.
+dependencies = ["mcp==2.3.0", "pyyaml==6.0.3"]
+
+[project.scripts]
+vectra-mcp-lectura = "vectra_mcp_readonly.server:main"
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vectra_mcp_readonly"]

@@ -1,0 +1,31 @@
+$ KUBECONFIG=~/.kube/kind-vectra-readonly kubectl --context kind-vectra auth can-i create pods -n vectra-app
+no
+[codigo de salida: 1]
+$ KUBECONFIG=~/.kube/kind-vectra-readonly kubectl --context kind-vectra auth can-i delete pods -n vectra-app
+no
+[codigo de salida: 1]
+$ KUBECONFIG=~/.kube/kind-vectra-readonly kubectl --context kind-vectra auth can-i get secrets -n vectra-app
+no
+[codigo de salida: 1]
+$ KUBECONFIG=~/.kube/kind-vectra-readonly kubectl --context kind-vectra auth can-i list secrets -A
+no
+[codigo de salida: 1]
+$ KUBECONFIG=~/.kube/kind-vectra-readonly kubectl --context kind-vectra auth can-i create pods --subresource=exec -n vectra-app
+no
+[codigo de salida: 1]
+$ KUBECONFIG=~/.kube/kind-vectra-readonly kubectl --context kind-vectra auth can-i patch deployments -n vectra-app
+no
+[codigo de salida: 1]
+$ KUBECONFIG=~/.kube/kind-vectra-readonly kubectl --context kind-vectra auth can-i get pods -n vectra-app
+yes
+[codigo de salida: 0]
+$ KUBECONFIG=~/.kube/kind-vectra-readonly kubectl --context kind-vectra auth can-i list applications.argoproj.io -n argocd
+yes
+[codigo de salida: 0]
+$ KUBECONFIG=~/.kube/kind-vectra-readonly kubectl --context kind-vectra get secrets -n vectra-app
+Error from server (Forbidden): secrets is forbidden: User "system:serviceaccount:argocd:vectra-readonly-agent" cannot list resource "secrets" in API group "" in the namespace "vectra-app"
+[codigo de salida: 1]
+$ platform/kind/readonly-kubeconfig.sh check | tail -n 2
+Filas: 92; distintas de lo esperado: 0; sin respuesta: 0.
+OK: la identidad lee y no escribe ni lee un Secret, en vectra-app, vectra-edge, vectra-data y a nivel de cluster.
+[codigo de salida de check: 0]

@@ -25,6 +25,13 @@ jobs:
     uses: ./.github/workflows/tests.yml
     with:
       path: platform
+  # El servidor MCP de solo lectura del loop: sus pruebas (sin cluster) comparan las herramientas registradas con `.mcp.json`, `.claude/settings.json` y los agentes.
+  tests-mcp:
+    if: github.event_name != 'schedule'
+    uses: ./.github/workflows/tests.yml
+    with:
+      path: loop/mcp-solo-lectura
+      artifact: test-results-mcp
   supply-chain:
     uses: ./.github/workflows/supply-chain.yml
   rollback-note:
