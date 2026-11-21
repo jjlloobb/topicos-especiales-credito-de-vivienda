@@ -82,7 +82,7 @@ Cada fila es un PR creado, aprobado, fusionado y sincronizado a mano. Los datos 
 | #240 | `isvc-f12bfeaf` a inactivo (`promotion-tool`) | 13:17:11 | `e222643` |
 | #243 | Imagen de la consola con el arreglo de enlaces directos | 14:04:00 | `d8d00f0` |
 
-Los trece los aprobó y fusionó `joseluisjedi`; el autor de todos es `jjlloobb`.
+Los trece los aprobó y fusionó `joseluisjedi`; el autor de todos es `jjlloobb`. Las dos cuentas son de la misma persona, el único integrante del grupo: la aprobación es un paso humano explícito, no la revisión de un tercero.
 
 ## Lo que este documento no demuestra
 

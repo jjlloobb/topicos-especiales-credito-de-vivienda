@@ -171,7 +171,7 @@ Las seis están nombradas una por una en `permissions.allow` de [`.claude/settin
 
 114 tareas (`vectra-risk/tareas/`), 210 informes de ronda con 119 NO-VERDE (`vectra-risk/revisiones/`), 23 tareas con 3 rondas o más, 231 PR fusionados y 934 líneas de trabajo fuera de alcance en [`CANDIDATAS.md`](vectra-risk/CANDIDATAS.md).
 
-**Quién aprueba.** `main` está protegida: exige una revisión aprobatoria de un dueño del código y siete comprobaciones de CI, también a administradores (`gh api repos/jjlloobb/topicos-especiales-credito-de-vivienda/branches/main/protection`). La cuenta `jjlloobb` abre los PR y una segunda cuenta, `joseluisjedi`, los aprueba; GitHub no deja aprobar el PR propio. De los 231, 18 los fusionó la cuenta autora (los PR 1 a 20 y el 216), todos ya aprobados.
+**Quién aprueba.** `main` está protegida: exige una revisión aprobatoria de un dueño del código y siete comprobaciones de CI, también a administradores (`gh api repos/jjlloobb/topicos-especiales-credito-de-vivienda/branches/main/protection`). La cuenta `jjlloobb` abre los PR y una segunda cuenta, `joseluisjedi`, los aprueba; GitHub no deja aprobar el PR propio. **Las dos cuentas son de la misma persona**, el único integrante del grupo: la separación obliga a que cada cambio pase por un paso de revisión explícito y deja registro de quién propuso y quién aprobó, pero no es la revisión de una segunda persona. De los 231, 18 los fusionó la cuenta autora (los PR 1 a 20 y el 216), todos ya aprobados.
 
 ### Un agente frenado por sus límites
 
