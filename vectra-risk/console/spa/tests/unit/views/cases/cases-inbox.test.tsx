@@ -87,7 +87,7 @@ describe("CasesInbox", () => {
     fireEvent.click(screen.getByRole("button", { name: ui("page_next") }));
     await waitFor(() => expect(world.calls.at(-1)?.search.get("page")).toBe("2"));
     expect(window.location.search).toBe("?page=2");
-    expect(screen.getByText(ui("page_of", { page: "2", pages: "3" }))).toBeTruthy();
+    expect(await screen.findByText(ui("page_of", { page: "2", pages: "3" }))).toBeTruthy(); // al llegar la pagina nueva (mientras carga no se sabe el total)
     fireEvent.click(screen.getByRole("button", { name: ui("page_previous") }));
     await waitFor(() => expect(window.location.search).toBe(""));
   });
@@ -103,7 +103,7 @@ describe("CasesInbox", () => {
     fireEvent.click(screen.getByRole("button", { name: ui("page_last") }));
     await waitFor(() => expect(world.calls.at(-1)?.search.get("page")).toBe("3"));
     expect(window.location.search).toBe("?page=3");
-    expect(screen.getByText(ui("page_of", { page: "3", pages: "3" }))).toBeTruthy();
+    expect(await screen.findByText(ui("page_of", { page: "3", pages: "3" }))).toBeTruthy();
     expect(screen.getByRole("button", { name: ui("page_last") }).hasAttribute("disabled")).toBe(true);
     expect(screen.getByRole("button", { name: ui("page_next") }).hasAttribute("disabled")).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: ui("page_first") }));

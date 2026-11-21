@@ -28,8 +28,10 @@ export function CasesInbox() {
   const pages = total === null ? null : Math.min(MAX_PAGE, Math.max(1, Math.ceil(total / PAGE_SIZE)));
   const shown = query.data?.items.length ?? 0;
   const first = (filter.page - 1) * PAGE_SIZE + 1;
+  // `aria-busy` solo en la carga inicial y al cambiar de filtro o de pagina (`isPending`: la consulta nueva aun no tiene datos); el refresco
+  // de 15 s en segundo plano (`isFetching` con datos) no lo pone, para que no parpadee.
   return (
-    <section>
+    <section aria-busy={query.isPending ? true : undefined}>
       <h2>{ui("view_cases")}</h2>
       <p className="hint">{ui("inbox_hint")}</p>
       <GoToCase />
@@ -46,7 +48,7 @@ export function CasesInbox() {
       {query.data === undefined ? null : query.data.items.length === 0 ? (
         <p className="empty">{ui("inbox_empty")}</p>
       ) : (
-        <TableScroll name={ui("view_cases")} tall busy={query.isFetching}>
+        <TableScroll name={ui("view_cases")} tall>
         <table>
           <caption className="visually-hidden">{ui("view_cases")}</caption>
           <thead>

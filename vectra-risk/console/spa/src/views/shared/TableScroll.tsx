@@ -9,14 +9,17 @@ interface Props {
   readonly name: string;
   /** `true`: con altura suficiente, la tabla se desplaza dentro de la region y su cabecera queda fija. */
   readonly tall?: boolean;
-  /** `true` mientras la tabla se vuelve a pedir (`isFetching`): la region lleva `aria-busy` y una barra de progreso. */
+  /** `true` mientras la tabla se vuelve a pedir tras una accion (no en un refresco periodico): la region lleva `aria-busy` y una barra de progreso. */
   readonly busy?: boolean;
   readonly children: ReactNode;
 }
 
 export function TableScroll({ name, tall = false, busy = false, children }: Props) {
   return (
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- una region con scroll necesita foco de teclado para desplazarse
+    // La unica excepcion de lint de `src/`: `no-noninteractive-tabindex` solo admite `tabIndex` en elementos interactivos (y en `tabpanel`), pero
+    // una region con scroll propio DEBE recibir el foco para desplazarse con el teclado (WCAG 2.1.1; `scrollable-region-focusable` de axe). La
+    // alternativa seria relajar la regla para todo `role="region"` en `eslint.config.mjs`, que es mas amplia que esta linea.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- region desplazable: necesita foco de teclado
     <div className={tall ? "table-scroll table-scroll-tall" : "table-scroll"} role="region" aria-label={ui("table_scroll_label", { name })} aria-busy={busy ? true : undefined} tabIndex={0}>
       {children}
     </div>
