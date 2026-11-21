@@ -4,7 +4,7 @@
 inferenceServices:
   - modelVersionId: mv-2026-01-01-8a98ab02
     storageUri: s3://model-store/mv-2026-01-01-8a98ab02/
-    profile: prod
+    profile: inactive
   - modelVersionId: mv-2026-01-01-f12bfeaf
     storageUri: s3://model-store/mv-2026-01-01-f12bfeaf/
     profile: staging
