@@ -83,7 +83,7 @@ describe("LanguageSelect", () => {
     expect(screen.getByText(messagesEn.ui.app_tagline)).toBeTruthy();
     const english = screen.getByRole("table");
     expect(english).toBe(table); // la misma tabla: la pantalla no se desmonto
-    expect(within(english).getAllByRole("columnheader").map((th) => th.textContent)).toEqual(["Applicant", "State", "Channel", "Created", "Recommendation", "Score", "Open"]);
+    expect(within(english).getAllByRole("columnheader").map((th) => th.textContent)).toEqual(["Applicant", "State", "Channel", "Created", "Recommendation", "Score", "Case ID", "Open"]);
     expect(within(english).getByText("12 Nov 2026, 10:00")).toBeTruthy(); // 15:00 UTC en Bogota
     expect(within(english).getByText("0.7312")).toBeTruthy();
     expect(within(english).getByText(labelsEn.CASE_STATES.listo)).toBeTruthy();

@@ -5,13 +5,15 @@ import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useCase } from "../../api/hooks";
 import { useAuth } from "../../auth/AuthProvider";
-import { formatDate, label, notice, ui } from "../../i18n";
+import { formatDate, label, notice, readableCode, ui } from "../../i18n";
 import { IconBack, IconSuccess, IconWarning } from "../shared/icons";
+import { CopyButton } from "../shared/CopyButton";
 import { ProblemMessage } from "../shared/ProblemMessage";
 import { ApplicationView } from "./ApplicationView";
 import { CaseStateBadge } from "./CaseStateBadge";
 import { CreditStatusBadge } from "./CreditStatusBadge";
 import { DecisionForm } from "./DecisionForm";
+import { NO_FACTORS } from "./decision-validation";
 import { ExplanationPanel } from "./ExplanationPanel";
 import { isCaseId } from "./filters";
 import { RecommendationSummary } from "./RecommendationSummary";
@@ -30,7 +32,12 @@ function Detail({ caseId }: { readonly caseId: string }) {
       <p className="case-heading">
         <CaseStateBadge state={detail.state} /> {detail.applicant_display}
       </p>
-      <p className="hint">{formatDate(detail.created_at)}</p>
+      <p className="hint">{ui("case_created", { at: formatDate(detail.created_at) })}</p>
+      <p className="case-id">
+        <span>{ui("case_id_label")}</span>
+        <code>{caseId}</code>
+        <CopyButton value={caseId} label={ui("case_id_copy")} />
+      </p>
       <ul className="marks">
         {detail.model_frozen_after_recommendation ? (
           <li className="mark mark-frozen">
@@ -66,7 +73,12 @@ function Detail({ caseId }: { readonly caseId: string }) {
           </p>
           <p>{ui("decision_recorded_by", { by: detail.decision.decided_by, at: formatDate(detail.decision.decided_at) })}</p>
           <p>
-            {ui("decision_used_factors")} {detail.decision.used_factors.join(", ")}
+            {ui("decision_used_factors")}{" "}
+            {detail.decision.used_factors.every((factor) => factor === NO_FACTORS) ? (
+              ui("decision_no_factors")
+            ) : (
+              <span title={detail.decision.used_factors.join(", ")}>{detail.decision.used_factors.map(readableCode).join(", ")}</span>
+            )}
           </p>
           {detail.decision.justification === "" ? null : <p>{ui("decision_justification")} {detail.decision.justification}</p>}
         </section>
@@ -95,7 +107,7 @@ export function CaseDetail() {
         <IconBack />
         {ui("back_to_inbox")}
       </Link>
-      {caseId !== undefined && isCaseId(caseId) ? <Detail caseId={caseId} /> : <p role="alert">{ui("go_to_case_invalid")}</p>}
+      {caseId !== undefined && isCaseId(caseId) ? <Detail caseId={caseId} /> : <p role="alert">{ui("case_url_invalid")}</p>}
     </section>
   );
 }

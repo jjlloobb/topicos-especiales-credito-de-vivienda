@@ -9,12 +9,13 @@ import { Link, useSearchParams } from "react-router";
 import { useCases } from "../../api/hooks";
 import { channelText, formatCount, formatDate, label, safeDecimal, ui } from "../../i18n";
 import { IconFilter, IconFirst, IconLast, IconNext, IconOpen, IconPrevious } from "../shared/icons";
+import { CopyButton } from "../shared/CopyButton";
 import { ProblemMessage } from "../shared/ProblemMessage";
 import { TableScroll } from "../shared/TableScroll";
 import { TableSkeleton } from "../shared/TableSkeleton";
 import { CaseFilters } from "./CaseFilters";
 import { CaseStateBadge } from "./CaseStateBadge";
-import { type InboxFilter, MAX_PAGE, PAGE_SIZE, parseFilter, toQuery, toSearchParams } from "./filters";
+import { type InboxFilter, MAX_PAGE, PAGE_SIZE, parseFilter, shortCaseId, toQuery, toSearchParams } from "./filters";
 import { GoToCase } from "./GoToCase";
 import { QuickStates } from "./QuickStates";
 
@@ -87,6 +88,7 @@ export function CasesInbox() {
               <th scope="col">{ui("col_created")}</th>
               <th scope="col">{ui("col_outcome")}</th>
               <th scope="col" className="num">{ui("col_score")}</th>
+              <th scope="col">{ui("col_case_id")}</th>
               <th scope="col">{ui("col_open")}</th>
             </tr>
           </thead>
@@ -101,6 +103,12 @@ export function CasesInbox() {
                 <td data-label={ui("col_created")}>{formatDate(item.created_at)}</td>
                 <td data-label={ui("col_outcome")}>{item.outcome == null ? ui("no_outcome") : label("OUTCOMES", item.outcome)}</td>
                 <td className="num" data-label={ui("col_score")}>{item.score == null ? ui("no_score") : safeDecimal(item.score)}</td>
+                <td data-label={ui("col_case_id")}>
+                  <span className="case-id-short">
+                    <code title={item.case_id}>{shortCaseId(item.case_id)}</code>
+                    <CopyButton value={item.case_id} label={ui("case_id_copy_of", { applicant: item.applicant_display })} />
+                  </span>
+                </td>
                 <td className="cell-action">
                   <Link to={`/casos/${item.case_id}`} aria-label={ui("open_case", { applicant: item.applicant_display })}>
                     {ui("col_open")}

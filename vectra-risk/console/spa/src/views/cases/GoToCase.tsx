@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "react-aria-components";
 import { useNavigate } from "react-router";
 import { ui } from "../../i18n";
-import { isCaseId } from "./filters";
+import { extractCaseId } from "./filters";
 
 export function GoToCase() {
   const navigate = useNavigate();
@@ -15,8 +15,8 @@ export function GoToCase() {
       className="inline-form"
       onSubmit={(event) => {
         event.preventDefault();
-        const id = value.trim();
-        if (isCaseId(id)) void navigate(`/casos/${id.toLowerCase()}`);
+        const id = extractCaseId(value); // el identificador, o la direccion del caso pegada entera
+        if (id !== null) void navigate(`/casos/${id}`);
         else setInvalid(true);
       }}
     >
@@ -27,7 +27,8 @@ export function GoToCase() {
           type="text"
           value={value}
           aria-invalid={invalid}
-          aria-describedby={invalid ? "go-to-case-error" : undefined}
+          aria-describedby={invalid ? "go-to-case-hint go-to-case-error" : "go-to-case-hint"}
+          spellCheck={false}
           autoComplete="off"
           onChange={(event) => {
             setValue(event.target.value);
@@ -36,6 +37,9 @@ export function GoToCase() {
         />
       </div>
       <Button type="submit">{ui("go_to_case_button")}</Button>
+      <p className="hint" id="go-to-case-hint">
+        {ui("go_to_case_hint")}
+      </p>
       {invalid ? (
         <p className="field-error" role="alert" id="go-to-case-error">
           {ui("go_to_case_invalid")}

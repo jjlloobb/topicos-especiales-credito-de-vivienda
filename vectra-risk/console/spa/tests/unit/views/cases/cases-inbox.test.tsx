@@ -180,7 +180,7 @@ describe("CasesInbox", () => {
     renderApp({ role: "analista", path: "/casos", routes: { [LIST]: page(items) } });
     const table = await screen.findByRole("table");
     const cells = within(within(table).getAllByRole("row")[1] as HTMLElement).getAllByRole("cell");
-    expect(cells.map((cell) => cell.getAttribute("data-label"))).toEqual([ui("col_applicant"), ui("col_state"), ui("col_channel"), ui("col_created"), ui("col_outcome"), ui("col_score"), null]);
+    expect(cells.map((cell) => cell.getAttribute("data-label"))).toEqual([ui("col_applicant"), ui("col_state"), ui("col_channel"), ui("col_created"), ui("col_outcome"), ui("col_score"), ui("col_case_id"), null]);
   });
 
   it("la tabla vive en una region desplazable con nombre y foco de teclado, y conserva su semantica", async () => {
@@ -189,7 +189,7 @@ describe("CasesInbox", () => {
     const region = screen.getByRole("region", { name: ui("table_scroll_label", { name: ui("view_cases") }) });
     expect(region.contains(table)).toBe(true);
     expect(region.getAttribute("tabindex")).toBe("0");
-    expect(within(table).getAllByRole("columnheader")).toHaveLength(7);
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(8);
     expect(table.querySelector("caption")?.textContent).toBe(ui("view_cases"));
   });
 
@@ -225,6 +225,41 @@ describe("«Ir al caso»", () => {
     fireEvent.click(screen.getByRole("button", { name: ui("go_to_case_button") }));
     expect(await screen.findByRole("heading", { name: ui("recommendation_title") })).toBeTruthy();
     expect(window.location.pathname).toBe(`/casos/${CASE_ID}`);
+  });
+
+  it("tambien acepta la direccion completa del caso pegada (solo se usa el UUID) y el aviso dice que forma tiene un identificador", async () => {
+    renderApp({ role: "analista", path: "/casos", routes: { [LIST]: page(items), "GET /api/console/cases/{id}": detail() } });
+    await screen.findByRole("table");
+    const input = screen.getByLabelText(ui("go_to_case_label"));
+    expect(input.getAttribute("aria-describedby")).toBe("go-to-case-hint");
+    expect(document.getElementById("go-to-case-hint")?.textContent).toBe(ui("go_to_case_hint"));
+    fireEvent.change(input, { target: { value: "https://otro.example/casos/nuevo?x=1" } });
+    fireEvent.click(screen.getByRole("button", { name: ui("go_to_case_button") }));
+    expect(screen.getByRole("alert").textContent).toContain("00000000-0000-0000-0000-000000000000");
+    expect(input.getAttribute("aria-describedby")).toBe("go-to-case-hint go-to-case-error");
+    fireEvent.change(input, { target: { value: `  https://vectra.example/casos/${CASE_ID.toUpperCase()}?state=listo#x  ` } });
+    fireEvent.click(screen.getByRole("button", { name: ui("go_to_case_button") }));
+    expect(await screen.findByRole("heading", { name: ui("recommendation_title") })).toBeTruthy();
+    expect(window.location.pathname).toBe(`/casos/${CASE_ID}`);
+    expect(window.location.search).toBe(""); // de lo pegado solo queda el identificador
+  });
+
+  it("cada fila muestra el identificador del caso abreviado, con el completo en el `title`, y un boton para copiarlo", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    try {
+      renderApp({ role: "analista", path: "/casos", routes: { [LIST]: page(items) } });
+      const table = await screen.findByRole("table");
+      const row = within(table).getAllByRole("row")[1] as HTMLElement;
+      const code = row.querySelector("code") as HTMLElement;
+      expect(code.textContent).toBe(`${CASE_ID.slice(0, 8)}…`);
+      expect(code.getAttribute("title")).toBe(CASE_ID);
+      fireEvent.click(within(row).getByRole("button", { name: ui("case_id_copy_of", { applicant: "Ana M. G." }) }));
+      expect(writeText).toHaveBeenCalledWith(CASE_ID);
+      expect((await within(row).findByText(ui("copy_done"))).getAttribute("role")).toBe("status");
+    } finally {
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
   });
 
   it("cada fila lleva al detalle de su caso", async () => {

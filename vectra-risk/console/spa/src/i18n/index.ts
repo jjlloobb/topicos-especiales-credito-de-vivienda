@@ -104,3 +104,19 @@ export function formatDay(day: string): string {
 export function labelOrRaw(group: LabelGroup, value: string): string {
   return (labelsNow()[group] as Record<string, string>)[value] ?? value;
 }
+
+/**
+ * El texto de un grupo de monitoreo (`group` de una celda de disparidad). El catalogo de grupos es cerrado (U0 §2.2: sexo, region y
+ * «no informado») y tiene etiqueta; los rangos de edad y los estratos ya son legibles y se muestran tal cual, igual que un valor desconocido.
+ */
+export function groupText(group: string): string {
+  return labelOrRaw("GROUPS", group);
+}
+
+/**
+ * Un identificador de un conjunto ABIERTO (un `feature_id`: depende del diccionario de variables de cada version del modelo, que la consola
+ * no recibe): no se traduce ni se inventa una etiqueta; solo se presenta sin guiones bajos. Lo que se envia al servidor es siempre el original.
+ */
+export function readableCode(code: string): string {
+  return code.replaceAll("_", " ");
+}

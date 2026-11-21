@@ -209,7 +209,7 @@ test.describe("las demos en ingles", () => {
   test("bandeja: chips, filtros, paginacion, fechas y numeros en ingles", async ({ page }) => {
     await loginAs(page, "analista", "/", EN);
     const region = page.getByRole("region", { name: "Scrollable table: Case inbox" });
-    await expect(region.getByRole("columnheader")).toHaveText(["Applicant", "State", "Channel", "Created", "Recommendation", "Score", "Open"]);
+    await expect(region.getByRole("columnheader")).toHaveText(["Applicant", "State", "Channel", "Created", "Recommendation", "Score", "Case ID", "Open"]);
     await expect(page.getByText(/^Cases matching these filters: \d+$/)).toBeVisible();
     await expect(page.getByText(/^Showing 1 to \d+$/)).toBeVisible();
     await expect(page.getByText("Refreshes every 15 seconds while this tab is visible.")).toBeVisible();
