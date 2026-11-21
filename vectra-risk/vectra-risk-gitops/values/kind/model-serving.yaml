@@ -7,9 +7,6 @@ inferenceServices:
     profile: prod
   - modelVersionId: mv-2026-01-01-f12bfeaf
     storageUri: s3://model-store/mv-2026-01-01-f12bfeaf/
-    profile: staging
-  - modelVersionId: mv-2026-01-01-f12bfeaf
-    storageUri: s3://model-store/mv-2026-01-01-f12bfeaf/
     profile: prod
 # Presupuesto de memoria de kind (DECISIONES-LOOP.md §7, opcion c, decision del usuario 2026-11-09, U06-T03): 256 Mi por pod en lugar de los
 # 512 Mi de INF-U6-01, solo aqui. Replicas, HPA y PDB no cambian (require-hpa-bounds; el activo nunca baja de 2). Staging y prod siguen en
