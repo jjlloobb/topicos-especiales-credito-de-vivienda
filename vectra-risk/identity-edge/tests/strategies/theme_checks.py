@@ -33,21 +33,41 @@ INF_U2_08 = _subsection(INFRASTRUCTURE, "### INF-U2-08")
 
 # --- diseno ---------------------------------------------------------------------------------
 
+BRAND_ROLES = (("primary", "primario"), ("brand", "marca"), ("accent", "acento"), ("background", "sobre fondo"), ("page", "fondo de página"))
+TEXT_ROLES = ("primary", "brand", "accent")  # los que llevan texto, iconos o foco sobre las dos superficies
+SURFACES = ("background", "page")
+
+
 def design_brand() -> dict[str, str]:
-    """primario, acento y fondo de P-U2-08."""
+    """primario, marca, acento, fondo y fondo de página de P-U2-08."""
     found = {}
-    for role, word in (("primary", "primario"), ("accent", "acento"), ("background", "fondo")):
+    for role, word in BRAND_ROLES:
         m = re.search(rf"{word}[^`\n]*`(#[0-9A-Fa-f]{{6}})`", P_U2_08)
         assert m, f"P-U2-08 no fija el color {word}"
         found[role] = m.group(1).upper()
     return found
 
 
-def design_contrast_ratios() -> dict[str, float]:
-    """Los contrastes que P-U2-08 declara (11,44:1 y 5,18:1)."""
-    m = re.search(r"primario ([\d,]+):1 y acento ([\d,]+):1", P_U2_08)
-    assert m, "P-U2-08 no declara los contrastes"
-    return {"primary": float(m.group(1).replace(",", ".")), "accent": float(m.group(2).replace(",", "."))}
+def design_contrast_ratios() -> dict[str, dict[str, float]]:
+    """Los contrastes que P-U2-08 declara, por superficie (fondo y fondo de página) y por color (primario, marca y acento)."""
+    brand = design_brand()
+    line = re.search(r"^.*contraste sobre.*$", P_U2_08, re.MULTILINE)
+    assert line, "P-U2-08 no declara los contrastes"
+    found: dict[str, dict[str, float]] = {}
+    for surface in SURFACES:
+        m = re.search(
+            rf"sobre `{brand[surface]}`: primario ([\d,]+):1, marca ([\d,]+):1 y acento ([\d,]+):1", line.group(0), re.IGNORECASE
+        )
+        assert m, f"P-U2-08 no declara los contrastes sobre {brand[surface]}"
+        found[surface] = {role: float(m.group(i).replace(",", ".")) for i, role in enumerate(TEXT_ROLES, start=1)}
+    return found
+
+
+def design_dark_mode() -> str:
+    """El valor de `darkMode` que P-U2-08 fija en `theme.properties` (`false`: aspecto claro siempre)."""
+    m = re.search(r"`darkMode=(\w+)`", P_U2_08)
+    assert m, "P-U2-08 no fija darkMode"
+    return m.group(1)
 
 
 def design_logo_name() -> str:
@@ -237,7 +257,10 @@ SVG_ELEMENTS = {
     "text": {"x", "y", "font-family", "font-size", "font-weight", "fill"},
 }
 SVG_COLOR_ATTRS = {"fill", "stroke"}
-CSS_KEYWORDS = {"none", "block", "auto", "center", "contain", "no-repeat", "solid"}  # palabras sin color que usa vectra.css
+CSS_KEYWORDS = {
+    "none", "block", "auto", "center", "contain", "no-repeat", "solid",
+    "system-ui", "-apple-system", "sans-serif",  # tipografia del sistema (P-U2-08)
+}  # palabras sin color que usa vectra.css
 CSS_FUNCTIONS = {"url"}
 _CONTROL = re.compile(r"[\x00-\x20\x7f-\x9f  ​-‏﻿]")
 
@@ -315,6 +338,12 @@ def svg_problems(text: str, allowed: set[str]) -> list[str]:
 CSS_PROPERTIES = {
     "background-color", "color", "content", "display", "width", "height", "margin",
     "background", "outline", "outline-offset",
+    "font-family", "max-width", "border-top-color", "top", "left", "right",
+    # variables de PatternFly y de keycloak.v2 que el tema redefine (distinguen mayusculas: se comparan tal cual)
+    "--keycloak-card-top-color", "--pf-v5-global--primary-color--100", "--pf-v5-global--primary-color--200",
+    "--pf-v5-global--active-color--100", "--pf-v5-global--link--Color", "--pf-v5-global--link--Color--hover",
+    "--pf-v5-global--primary-color--dark-100", "--pf-v5-global--link--Color--dark", "--pf-v5-global--link--Color--dark--hover",
+    "--pf-v5-global--Color--light-100",
 }  # las que usa vectra.css
 CSS_UNITS = {"", "px", "rem", "em", "%"}
 
@@ -418,7 +447,9 @@ def css_problems(css: str, allowed: set[str]) -> list[str]:
             if not decl.strip():
                 continue
             prop, sep, value = decl.partition(":")
-            prop = prop.strip().lower()
+            prop = prop.strip()
+            if not prop.startswith("--"):  # una propiedad personalizada distingue mayusculas
+                prop = prop.lower()
             if not sep or prop not in CSS_PROPERTIES:
                 bad.append(f"structure: propiedad no permitida: {prop or decl.strip()}")
             for m in re.finditer(r"url\(\s*\x00S(\d+)\x00\s*\)|\x00U(\d+)\x00", value, re.IGNORECASE):
@@ -484,7 +515,7 @@ def theme_problems(theme: Path, allowed: set[str]) -> list[str]:
 
 
 def structure_problems(theme: Path) -> list[str]:
-    """El tema estándar: `theme.properties` con el padre, `messages_es`, el CSS y el logo; `styles` conserva el del padre."""
+    """El tema estándar: `theme.properties` con el padre y `darkMode` del diseño, `messages_es`, el CSS y el logo; `styles` conserva el del padre."""
     bad = [f"falta {rel}" for rel in ("theme.properties", "messages/messages_es.properties",
                                       "resources/css/vectra.css", f"resources/img/{design_logo_name()}")
            if not (theme / rel).is_file()]
@@ -495,6 +526,8 @@ def structure_problems(theme: Path) -> list[str]:
         bad.append("parent no es keycloak.v2")
     if props.get("styles", "").split() != ["css/styles.css", "css/vectra.css"]:
         bad.append("styles no conserva css/styles.css del padre y agrega css/vectra.css")
+    if props.get("darkMode") != design_dark_mode():
+        bad.append(f"darkMode no es {design_dark_mode()}: el tema padre aplicaría su modo oscuro")
     if (theme / "resources" / "css" / "styles.css").exists():
         bad.append("resources/css/styles.css tapa la hoja del padre")
     return bad

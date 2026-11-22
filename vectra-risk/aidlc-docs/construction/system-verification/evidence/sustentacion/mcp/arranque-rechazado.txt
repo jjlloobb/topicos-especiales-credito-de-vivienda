@@ -1,0 +1,14 @@
+# Kubeconfigs FALSOS escritos para esta evidencia en $XDG_RUNTIME_DIR (certificado y token inventados, API 127.0.0.1:1): ninguno llega al cluster.
+# El rechazo ocurre al leer el archivo, antes de lanzar ninguna orden.
+
+$ VECTRA_READONLY_KUBECONFIG=$XDG_RUNTIME_DIR/vectra-mcp-evidencia/forma-de-administrador uv run vectra-mcp-lectura
+vectra-mcp-lectura se niega a arrancar: $XDG_RUNTIME_DIR/vectra-mcp-evidencia/forma-de-administrador: el usuario debe autenticarse solo con `token` (sin certificado de cliente, exec, as ni contrasena)
+[codigo de salida: 2]
+
+$ VECTRA_READONLY_KUBECONFIG=$XDG_RUNTIME_DIR/vectra-mcp-evidencia/otra-cuenta uv run vectra-mcp-lectura
+vectra-mcp-lectura se niega a arrancar: $XDG_RUNTIME_DIR/vectra-mcp-evidencia/otra-cuenta: la identidad del token es 'system:serviceaccount:argocd:argocd-application-controller' y debe ser 'system:serviceaccount:argocd:vectra-readonly-agent'
+[codigo de salida: 2]
+
+$ VECTRA_READONLY_KUBECONFIG=$XDG_RUNTIME_DIR/vectra-mcp-evidencia/no-existe uv run vectra-mcp-lectura
+vectra-mcp-lectura se niega a arrancar: no se pudo leer el kubeconfig $XDG_RUNTIME_DIR/vectra-mcp-evidencia/no-existe (FileNotFoundError): corre platform/kind/readonly-kubeconfig.sh write
+[codigo de salida: 2]

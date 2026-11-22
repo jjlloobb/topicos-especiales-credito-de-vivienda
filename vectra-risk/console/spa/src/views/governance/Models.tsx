@@ -2,21 +2,30 @@
 import { Link } from "react-router";
 import { useModels } from "../../api/hooks";
 import { formatDate, label, ui } from "../../i18n";
+import { IconOpen } from "../shared/icons";
 import { ProblemMessage } from "../shared/ProblemMessage";
+import { TableScroll } from "../shared/TableScroll";
+import { TableSkeleton } from "../shared/TableSkeleton";
 
 export function Models() {
   const query = useModels();
   return (
     <section>
       <h2>{ui("view_models")}</h2>
-      <p>{ui("models_intro")}</p>
-      {query.isPending ? <p role="status">{ui("loading")}</p> : null}
+      <p className="hint">{ui("models_intro")}</p>
+      {query.isPending ? (
+        <>
+          <p className="loading" role="status">{ui("loading")}</p>
+          <TableSkeleton />
+        </>
+      ) : null}
       {query.isError ? <ProblemMessage error={query.error} /> : null}
       {query.data === undefined ? null : query.data.items.length === 0 ? (
-        <p>{ui("models_empty")}</p>
+        <p className="empty">{ui("models_empty")}</p>
       ) : (
+        <TableScroll name={ui("view_models")} busy={query.isFetching}>
         <table>
-          <caption>{ui("view_models")}</caption>
+          <caption className="visually-hidden">{ui("view_models")}</caption>
           <thead>
             <tr>
               <th scope="col">{ui("col_model")}</th>
@@ -28,18 +37,22 @@ export function Models() {
           <tbody>
             {query.data.items.map((model) => (
               <tr key={model.model_version_id}>
-                <td>
-                  <Link to={`/modelos/${encodeURIComponent(model.model_version_id)}`}>{model.model_version_id}</Link>
+                <td data-label={ui("col_model")}>
+                  <Link to={`/modelos/${encodeURIComponent(model.model_version_id)}`}>
+                    {model.model_version_id}
+                    <IconOpen />
+                  </Link>
                 </td>
-                <td>
+                <td data-label={ui("col_model_state")}>
                   <span className={`badge badge-model-${model.state}`}>{label("MODEL_STATES", model.state)}</span>
                 </td>
-                <td>{model.registered_by}</td>
-                <td>{formatDate(model.updated_at)}</td>
+                <td data-label={ui("col_registered_by")}>{model.registered_by}</td>
+                <td data-label={ui("col_updated")}>{formatDate(model.updated_at)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        </TableScroll>
       )}
     </section>
   );

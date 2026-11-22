@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 // BR-U10-12; US-602: `Layout`, `RoleMenu` y las rutas por rol dentro de `App`: el inicio de cada rol, «sin acceso» y el marcador **sin llamar al BFF**
 // (la prueba cuenta cero solicitudes), y un fragmento de vista que no carga se reporta como `chunk_load_failed` (BR-U10-22).
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router";
 import { ui } from "../../../../src/i18n";
 import { lazyView } from "../../../../src/views/shared/lazyView";
+import { activeMenuPath } from "../../../../src/views/shared/RoleMenu";
 import { ROUTES, type Role, routesFor } from "../../../../src/views/shared/routes";
 import { renderApp } from "../../../support/views-world";
 import { Suspense } from "react";
@@ -29,6 +30,95 @@ describe("el menu y el inicio por rol", () => {
     renderApp({ role: "cro", path: "/callback", routes: { "GET /api/console/cases": { items: [], page: 1, total: 0 } } });
     await screen.findByRole("heading", { name: ui("view_cases") });
     expect(window.location.pathname).toBe("/casos");
+  });
+});
+
+describe("H-12: tras el login la SPA vuelve a la ruta pedida", () => {
+  const CASES = { "GET /api/console/cases": { items: [], page: 1, total: 0 } };
+  const ORIGIN = window.location.origin;
+
+  it("la bandeja con filtro y pagina: la URL y la solicitud conservan el filtro", async () => {
+    const { world } = renderApp({ role: "analista", returnTo: "/casos?state=no_disponible&page=2", routes: CASES });
+    await screen.findByRole("heading", { name: ui("view_cases") });
+    expect(`${window.location.pathname}${window.location.search}`).toBe("/casos?state=no_disponible&page=2");
+    const call = world.calls.find((c) => c.path === "/api/console/cases");
+    expect(call?.search.getAll("state")).toEqual(["no_disponible"]);
+    expect(call?.search.get("page")).toBe("2");
+  });
+
+  it.each([
+    ["analista", "/casos/3fa85f64-5717-4562-b3fc-2c963f66afa6", "view_case_detail"],
+    ["cumplimiento", "/congelamientos/freeze-mv-1", "freeze_context_title"],
+    ["ingeniero_riesgo", "/modelos/mv-activo", "view_model_detail"],
+  ] as const)("%s vuelve al detalle %s", async (role, path, title) => {
+    renderApp({ role, returnTo: path, routes: {} });
+    await screen.findByRole("heading", { name: ui(title) });
+    expect(window.location.pathname).toBe(path);
+  });
+
+  it.each([
+    ["analista", "/modelos/mv-activo", "/casos"], // una ruta de otro rol: al inicio del rol
+    ["cro", "/congelamientos/freeze-mv-1", "/casos"],
+    ["cumplimiento", "/casos?state=listo", "/congelamientos"],
+    ["analista", "//evil.example/casos", "/casos"],
+    ["analista", "https://evil.example/casos", "/casos"],
+    ["analista", "/\\evil.example", "/casos"],
+    ["analista", "/callback?code=c&state=s", "/casos"],
+    ["analista", "/stepup-callback", "/casos"],
+    ["analista", "/no/existe", "/casos"],
+    ["ingeniero_riesgo", undefined, "/modelos"],
+  ] as const)("%s con el destino %s termina en %s (el inicio de su rol)", async (role, returnTo, home) => {
+    renderApp({ role, returnTo, routes: { ...CASES, "GET /api/console/models": { items: [], page: 1, total: 0 }, "GET /api/console/freezes": [] } });
+    await screen.findByRole("heading", { level: 2 });
+    await waitFor(() => expect(window.location.pathname).toBe(home));
+    expect(window.location.search).toBe("");
+    expect(window.location.origin).toBe(ORIGIN); // nunca sale del origen
+  });
+
+  it("el destino es de un solo uso: volver despues a `/` lleva al inicio del rol, no otra vez al destino", async () => {
+    renderApp({ role: "analista", returnTo: "/casos?state=no_disponible", routes: CASES });
+    await screen.findByRole("heading", { name: ui("view_cases") });
+    expect(window.location.search).toBe("?state=no_disponible");
+    act(() => {
+      window.history.pushState({}, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    await waitFor(() => expect(`${window.location.pathname}${window.location.search}`).toBe("/casos"));
+  });
+});
+
+describe("la seccion activa del menu", () => {
+  const current = (): (string | null)[][] =>
+    within(screen.getByRole("navigation", { name: ui("nav_label") }))
+      .getAllByRole("link")
+      .filter((link) => link.hasAttribute("aria-current"))
+      .map((link) => [link.textContent, link.getAttribute("aria-current")]);
+
+  it("en la lista marca su entrada como la pagina; dentro de un detalle marca la seccion; nunca mas de una", async () => {
+    renderApp({ role: "analista", path: "/casos", routes: { "GET /api/console/cases": { items: [], page: 1, total: 0 } } });
+    await screen.findByRole("heading", { name: ui("view_cases") });
+    expect(current()).toEqual([[ui("view_cases"), "page"]]);
+    cleanup();
+    renderApp({ role: "analista", path: "/casos/3fa85f64-5717-4562-b3fc-2c963f66afa6", routes: {} });
+    await screen.findByRole("heading", { name: ui("view_case_detail") });
+    expect(current()).toEqual([[ui("view_cases"), "true"]]);
+    cleanup();
+    renderApp({ role: "analista", path: "/casos/nuevo", routes: {} }); // la ruta mas larga gana: «Alta manual», no la bandeja
+    await screen.findByRole("heading", { name: ui("view_manual_application"), level: 2 });
+    expect(current()).toEqual([[ui("view_manual_application"), "page"]]);
+    cleanup();
+    renderApp({ role: "cumplimiento", path: "/congelamientos/freeze-mv-1", routes: {} });
+    await screen.findByRole("heading", { name: ui("freeze_context_title") });
+    expect(current()).toEqual([[ui("view_freezes"), "true"]]);
+  });
+
+  it("una direccion que no es de ninguna seccion no marca nada", async () => {
+    renderApp({ role: "analista", path: "/no/existe", routes: {} });
+    await screen.findByRole("heading", { name: ui("not_found_title") });
+    expect(current()).toEqual([]);
+    expect(activeMenuPath(["/casos", "/casos/nuevo", "/modelos"], "/")).toBeNull();
+    expect(activeMenuPath(["/casos", "/casos/nuevo", "/modelos"], "/casosx")).toBeNull(); // prefijo de segmento completo, no de texto
+    expect(activeMenuPath(["/casos", "/casos/nuevo", "/modelos"], "/casos/nuevo")).toBe("/casos/nuevo");
   });
 });
 

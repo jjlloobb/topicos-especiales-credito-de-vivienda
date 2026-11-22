@@ -134,7 +134,7 @@ function fakeWiring(
   const wiring = {
     manager,
     // La recarga ya volvio de `prompt=none` sin sesion: el callback trae `login_required` y se muestra el login interactivo.
-    authPage: { callbackUrl: () => (over.user ? null : `${OWN}/callback?error=login_required&state=s`), clean: () => undefined },
+    authPage: { callbackUrl: () => (over.user ? null : `${OWN}/callback?error=login_required&state=s`), clean: () => undefined, target: () => null },
     tokens,
     queryClient: new QueryClient(),
     // Las vistas piden a la API: aqui, una bandeja vacia.

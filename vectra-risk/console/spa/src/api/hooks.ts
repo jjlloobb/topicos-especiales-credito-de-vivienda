@@ -1,7 +1,7 @@
 // Un hook por lectura de las vistas (TanStack Query). Sin reintentos ni refresco al volver el foco (`queryClient.ts`): los refrescos
 // de la bandeja (15 s) y del caso (3 s hasta 2 min) van con `refetchInterval` (BR-U10-10). Los datos del solicitante no se guardan en la
 // cache despues de salir de la pantalla (`gcTime: 0`).
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 import { CASE_REFRESH_MAX_SECONDS, CASE_REFRESH_SECONDS, INBOX_REFRESH_SECONDS } from "../config/constants";
 import { useApi } from "./ApiProvider";
@@ -13,6 +13,9 @@ export function useCases(query: CaseQuery) {
     queryKey: ["cases", query],
     queryFn: () => listCases(api, query),
     refetchInterval: INBOX_REFRESH_SECONDS * 1000, // TanStack Query lo detiene solo con la pestana oculta
+    // Al cambiar de filtro o de pagina se sigue viendo la pagina anterior (marcada `isPlaceholderData`) hasta que llega la nueva: no cambia
+    // que se pide ni cuando, solo evita que la tabla y el total desaparezcan un instante.
+    placeholderData: keepPreviousData,
     gcTime: 0,
   });
 }

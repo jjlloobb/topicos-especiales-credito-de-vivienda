@@ -1,5 +1,13 @@
 {
   "permissions": {
+    "allow": [
+      "mcp__vectra-lectura__argo_applications",
+      "mcp__vectra-lectura__pods",
+      "mcp__vectra-lectura__events",
+      "mcp__vectra-lectura__inference_services",
+      "mcp__vectra-lectura__workloads",
+      "mcp__vectra-lectura__permissions"
+    ],
     "deny": [
       "Bash(kubectl apply *)",
       "Bash(kubectl create *)",

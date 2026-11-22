@@ -24,12 +24,13 @@ export function CaseFilters({ filter, onChange }: Props) {
   };
   return (
     <form
+      className="filters"
       aria-label={ui("filters_legend")}
       onSubmit={(event) => {
         event.preventDefault();
       }}
     >
-      <fieldset>
+      <fieldset className="chip-set">
         <legend>{ui("filter_states")}</legend>
         {CASE_STATES.map((state) => (
           <Choice
@@ -43,6 +44,7 @@ export function CaseFilters({ filter, onChange }: Props) {
           />
         ))}
       </fieldset>
+      <div className="field">
       <label htmlFor="filter-channel">{ui("filter_channel")}</label>
       <select
         id="filter-channel"
@@ -58,6 +60,8 @@ export function CaseFilters({ filter, onChange }: Props) {
           </option>
         ))}
       </select>
+      </div>
+      <div className="field">
       <label htmlFor="filter-from">{ui("filter_created_from")}</label>
       <input
         id="filter-from"
@@ -67,6 +71,8 @@ export function CaseFilters({ filter, onChange }: Props) {
           change({ createdFrom: event.target.value === "" ? null : event.target.value });
         }}
       />
+      </div>
+      <div className="field">
       <label htmlFor="filter-to">{ui("filter_created_to")}</label>
       <input
         id="filter-to"
@@ -76,6 +82,8 @@ export function CaseFilters({ filter, onChange }: Props) {
           change({ createdTo: event.target.value === "" ? null : event.target.value });
         }}
       />
+      </div>
+      <div className="filters-wide">
       <Choice
         type="checkbox"
         checked={filter.frozenAfter}
@@ -84,6 +92,7 @@ export function CaseFilters({ filter, onChange }: Props) {
         }}
         text={ui("filter_frozen")}
       />
+      </div>
       <Button
         onPress={() => {
           onChange(EMPTY_FILTER);

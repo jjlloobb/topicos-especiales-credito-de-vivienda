@@ -35,8 +35,8 @@ function fakeManager(over: Partial<AuthManager> = {}) {
 
 const CALLBACK_URL = "http://localhost/callback?code=c&state=s";
 /** La pagina del navegador: en `/` o, si se da una URL, en `/callback`. */
-function fakePage(callback: string | null = null) {
-  return { callbackUrl: vi.fn(() => callback), clean: vi.fn() };
+function fakePage(callback: string | null = null, target: string | null = null) {
+  return { callbackUrl: vi.fn(() => callback), clean: vi.fn(), target: vi.fn(() => target) };
 }
 
 function Probe() {
@@ -74,7 +74,7 @@ describe("AuthProvider", () => {
     const { manager } = fakeManager();
     mount(manager);
     await waitFor(() => expect(manager.signinRedirect).toHaveBeenCalledOnce());
-    expect(manager.signinRedirect).toHaveBeenCalledWith({ prompt: "none", state: { mode: "silent" }, nonce: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(manager.signinRedirect).toHaveBeenCalledWith({ prompt: "none", state: { mode: "silent" }, nonce: expect.stringMatching(/^[0-9a-f-]{36}$/), ui_locales: "es" });
     expect(manager.signinCallback).not.toHaveBeenCalled();
     expect(text("status")).toBe("loading");
   });
@@ -178,7 +178,7 @@ describe("AuthProvider", () => {
     signinRedirect.mockRejectedValueOnce(new Error("emisor caido"));
     fireEvent.click(screen.getByText("entrar"));
     expect(signinRedirect).toHaveBeenCalledOnce(); // sincrono, dentro del clic
-    expect(signinRedirect).toHaveBeenCalledWith({ state: { mode: "interactive" }, nonce: expect.stringMatching(/^[0-9a-f-]{36}$/) });
+    expect(signinRedirect).toHaveBeenCalledWith({ state: { mode: "interactive" }, nonce: expect.stringMatching(/^[0-9a-f-]{36}$/), ui_locales: "es" });
     await waitFor(() => expect(text("failed")).toBe("true"));
     fireEvent.click(screen.getByText("entrar"));
     await waitFor(() => expect(text("failed")).toBe("false"));
@@ -231,6 +231,120 @@ describe("AuthProvider", () => {
   });
 });
 
+describe("AuthProvider: el destino pedido vuelve tras el login (H-12)", () => {
+  const TARGET = "/casos?state=no_disponible";
+  const taken: (string | null)[] = [];
+  function Taker() {
+    const auth = useAuth();
+    return (
+      <button type="button" onClick={() => taken.push(auth.takeReturnTo())}>
+        tomar
+      </button>
+    );
+  }
+  const mountWithTaker = (manager: AuthManager, page = fakePage()) => {
+    taken.length = 0;
+    render(
+      <AuthProvider manager={manager} loadSession={async () => SESSION} tokens={createTokenStore()} page={page}>
+        <Probe />
+        <Taker />
+      </AuthProvider>,
+    );
+  };
+  const take = (): string | null => {
+    fireEvent.click(screen.getByText("tomar"));
+    return taken.at(-1) ?? null;
+  };
+  /** Un `User` como el que entrega el callback: `state` son los datos del flujo que guardo `signinRedirect`. */
+  const callbackUser = (state: unknown): User => ({ access_token: "canjeado", state }) as User;
+  const managerReturning = (state: unknown) => {
+    const fake = fakeManager();
+    (fake.manager.signinCallback as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      for (const listener of fake.listeners) listener(callbackUser(state));
+      return callbackUser(state);
+    });
+    return fake;
+  };
+
+  it("la recarga con prompt=none lleva la ruta pedida en los datos del flujo; desde `/` no lleva nada", async () => {
+    const { manager } = fakeManager();
+    mountWithTaker(manager, fakePage(null, TARGET));
+    await waitFor(() => expect(manager.signinRedirect).toHaveBeenCalledOnce());
+    expect(manager.signinRedirect).toHaveBeenCalledWith({ prompt: "none", state: { mode: "silent", returnTo: TARGET }, nonce: expect.any(String), ui_locales: "es" });
+    cleanup();
+    const plain = fakeManager().manager;
+    mountWithTaker(plain, fakePage(null, null));
+    await waitFor(() => expect(plain.signinRedirect).toHaveBeenCalledOnce());
+    expect((plain.signinRedirect as ReturnType<typeof vi.fn>).mock.calls[0]?.[0].state).toEqual({ mode: "silent" });
+  });
+
+  it("al volver con exito el destino se entrega UNA vez", async () => {
+    mountWithTaker(managerReturning({ mode: "silent", returnTo: TARGET }).manager, fakePage(CALLBACK_URL));
+    await waitFor(() => expect(text("status")).toBe("authenticated"));
+    expect(take()).toBe(TARGET);
+    expect(take()).toBeNull(); // de un solo uso
+  });
+
+  it("un destino hostil en los datos del flujo se descarta al leerlo", async () => {
+    for (const hostile of ["//evil.example/casos", "https://evil.example", "/\\evil.example", "/callback?code=c&state=s", "/stepup-callback", "/no/existe", 7, null]) {
+      mountWithTaker(managerReturning({ mode: "silent", returnTo: hostile }).manager, fakePage(CALLBACK_URL));
+      await waitFor(() => expect(text("status")).toBe("authenticated"));
+      expect(take(), String(hostile)).toBeNull();
+      cleanup();
+    }
+    mountWithTaker(managerReturning(undefined).manager, fakePage(CALLBACK_URL)); // sin datos de flujo
+    await waitFor(() => expect(text("status")).toBe("authenticated"));
+    expect(take()).toBeNull();
+  });
+
+  it("un token nuevo (refresco, step-up) no cambia ni repone el destino, aunque su usuario traiga datos de flujo", async () => {
+    const { manager, listeners } = managerReturning({ mode: "silent", returnTo: TARGET });
+    mountWithTaker(manager, fakePage(CALLBACK_URL));
+    await waitFor(() => expect(text("status")).toBe("authenticated"));
+    expect(take()).toBe(TARGET);
+    await act(async () => {
+      for (const listener of listeners) listener(callbackUser({ mode: "silent", returnTo: "/modelos" }));
+    });
+    expect(take()).toBeNull();
+  });
+
+  it("si el prompt=none no entra, el login interactivo que sigue lleva el mismo destino; y al volver se entrega", async () => {
+    const signinRedirect = vi.fn(async (_args: SigninArgs): Promise<void> => undefined);
+    const error = Object.assign(new Error("login_required"), { error: "login_required", state: { mode: "silent", returnTo: TARGET } });
+    const { manager } = fakeManager({ signinCallback: vi.fn(async () => Promise.reject(error)), signinRedirect });
+    mountWithTaker(manager, fakePage(CALLBACK_URL, null)); // la URL ya esta limpia (`/`): el destino sale del flujo fallido
+    await waitFor(() => expect(text("status")).toBe("anonymous"));
+    expect(text("failed")).toBe("false");
+    fireEvent.click(screen.getByText("entrar"));
+    expect(signinRedirect).toHaveBeenCalledWith({ state: { mode: "interactive", returnTo: TARGET }, nonce: expect.any(String), ui_locales: "es" });
+    expect(signinRedirect.mock.calls[0]?.[0]).not.toHaveProperty("prompt");
+  });
+
+  it("un destino hostil en un prompt=none fallido no pasa al login interactivo", async () => {
+    const signinRedirect = vi.fn(async (_args: SigninArgs): Promise<void> => undefined);
+    const error = Object.assign(new Error("login_required"), { error: "login_required", state: { mode: "silent", returnTo: "//evil.example" } });
+    const { manager } = fakeManager({ signinCallback: vi.fn(async () => Promise.reject(error)), signinRedirect });
+    mountWithTaker(manager, fakePage(CALLBACK_URL, null));
+    await waitFor(() => expect(text("status")).toBe("anonymous"));
+    fireEvent.click(screen.getByText("entrar"));
+    expect(signinRedirect.mock.calls[0]?.[0].state).toEqual({ mode: "interactive" });
+  });
+
+  it("el login interactivo desde una ruta (sin flujo previo) lleva la ruta de la pagina; el logout olvida el destino", async () => {
+    const signinRedirect = vi.fn(async (_args: SigninArgs): Promise<void> => undefined);
+    const { manager } = fakeManager({ signinCallback: vi.fn(async () => undefined), signinRedirect });
+    mountWithTaker(manager, fakePage(CALLBACK_URL, "/modelos/mv-activo"));
+    await waitFor(() => expect(text("status")).toBe("anonymous"));
+    fireEvent.click(screen.getByText("entrar"));
+    expect(signinRedirect.mock.calls[0]?.[0].state).toEqual({ mode: "interactive", returnTo: "/modelos/mv-activo" });
+    cleanup();
+    mountWithTaker(managerReturning({ mode: "interactive", returnTo: TARGET }).manager, fakePage(CALLBACK_URL));
+    await waitFor(() => expect(text("status")).toBe("authenticated"));
+    fireEvent.click(screen.getByText("salir"));
+    expect(take()).toBeNull();
+  });
+});
+
 describe("browserPage", () => {
   const win = (pathname: string, search: string) => {
     const replaceState = vi.fn();
@@ -244,6 +358,14 @@ describe("browserPage", () => {
     expect(page.callbackUrl()).toBe("http://localhost/callback?code=c&state=s");
     page.clean();
     expect(replaceState).toHaveBeenCalledWith(null, "", "/");
+  });
+
+  it("target: la ruta + query de la pagina si es un destino interno; `/`, `/callback` y una ruta desconocida no lo son", () => {
+    expect(browserPage(win("/casos", "?state=no_disponible&page=2").self).target()).toBe("/casos?state=no_disponible&page=2");
+    expect(browserPage(win("/congelamientos/freeze-1", "").self).target()).toBe("/congelamientos/freeze-1");
+    for (const [path, search] of [["/", ""], ["/callback", "?code=c&state=s"], ["/stepup-callback", ""], ["/no/existe", ""], ["//evil.example", ""]] as const) {
+      expect(browserPage(win(path, search).self).target(), path).toBeNull();
+    }
   });
 
   it("/callback sin state, o cualquier otra ruta, no es un retorno del emisor; solo /callback se limpia", () => {

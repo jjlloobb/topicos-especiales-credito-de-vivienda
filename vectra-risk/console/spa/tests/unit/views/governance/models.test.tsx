@@ -14,7 +14,9 @@ describe("Models", () => {
     const table = await screen.findByRole("table");
     expect(within(table).getByRole("link", { name: "mv-activo" }).getAttribute("href")).toBe("/modelos/mv-activo");
     expect(within(table).getByText(label("MODEL_STATES", "congelado"))).toBeTruthy();
-    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([ui("logout_button")]);
+    // Ningun boton de accion: la vista (`main`) no tiene botones; los unicos de la pagina son los de la cabecera (el idioma, el tema y «Cerrar sesion»).
+    expect(within(screen.getByRole("main")).queryAllByRole("button")).toEqual([]);
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([ui("language_name_es"), ui("theme_system"), ui("logout_button")]);
   });
 
   it("vacia, y con un error del catalogo", async () => {
@@ -47,7 +49,9 @@ describe("ModelDetail", () => {
     expect(screen.getByText(ui("validation_disclaimer", { text: "mide y alerta, no certifica" }))).toBeTruthy();
     expect(screen.getByText(ui("cell_insufficient"))).toBeTruthy();
     expect(screen.getByText(ui("model_state", { state: label("MODEL_STATES", "activo") }))).toBeTruthy();
-    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([ui("logout_button")]);
+    // Ningun boton de accion: la vista (`main`) no tiene botones; los unicos de la pagina son los de la cabecera (el idioma, el tema y «Cerrar sesion»).
+    expect(within(screen.getByRole("main")).queryAllByRole("button")).toEqual([]);
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([ui("language_name_es"), ui("theme_system"), ui("logout_button")]);
   });
 
   it("sin informe lo dice; con la meta de AUC sin cumplir tambien; en investigacion se marca", async () => {

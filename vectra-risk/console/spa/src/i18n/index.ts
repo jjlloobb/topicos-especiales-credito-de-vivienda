@@ -1,13 +1,26 @@
-// Textos y formatos (BR-U10-17, 18; NFR-U10-53). Todo texto visible sale de `messages.es.json` y `labels.es.json`.
-import labels from "./labels.es.json";
-import messages from "./messages.es.json";
+// Textos y formatos (BR-U10-17, 18; NFR-U10-53). Todo texto visible sale de los catalogos `messages.<idioma>.json` y `labels.<idioma>.json`
+// (espanol e ingles, con las mismas claves: `tests/unit/i18n/catalog-parity.test.ts`), y las fechas y los numeros se formatean con `Intl` en
+// el `locale` del idioma en curso (`language.ts`). Los catalogos en espanol dan los tipos de las claves.
+import labelsEn from "./labels.en.json";
+import labelsEs from "./labels.es.json";
+import { getLanguage, type Language, LOCALES } from "./language";
+import messagesEn from "./messages.en.json";
+import messagesEs from "./messages.es.json";
 
-export const LOCALE = "es-CO";
 const TIME_ZONE = "America/Bogota";
 
-export type UiKey = keyof typeof messages.ui;
-export type NoticeKey = keyof typeof messages.notice;
-export type LabelGroup = keyof typeof labels;
+type Messages = typeof messagesEs;
+type Labels = typeof labelsEs;
+export type UiKey = keyof Messages["ui"];
+export type NoticeKey = keyof Messages["notice"];
+export type LabelGroup = keyof Labels;
+
+const MESSAGES: Readonly<Record<Language, Messages>> = { es: messagesEs, en: messagesEn };
+const LABELS: Readonly<Record<Language, Labels>> = { es: labelsEs, en: labelsEn };
+
+const messagesNow = (): Messages => MESSAGES[getLanguage()];
+const labelsNow = (): Labels => LABELS[getLanguage()];
+const locale = (): string => LOCALES[getLanguage()];
 
 /** El `Problem` de U0 §6 sin `detail`: el `detail` del servidor nunca se muestra (BR-U10-17). */
 export interface Problem {
@@ -23,16 +36,16 @@ export function fill(text: string, params: Readonly<Record<string, string>> = {}
 }
 
 export function ui(key: UiKey, params?: Readonly<Record<string, string>>): string {
-  return fill(messages.ui[key], params);
+  return fill(messagesNow().ui[key], params);
 }
 
 export function notice(key: NoticeKey): string {
-  return messages.notice[key];
+  return messagesNow().notice[key];
 }
 
-/** El texto de un valor de enumerado (`labels.es.json`). */
-export function label<G extends LabelGroup>(group: G, value: keyof (typeof labels)[G] & string): string {
-  return (labels[group] as Record<string, string>)[value] ?? messages.ui.unknown_value;
+/** El texto de un valor de enumerado (`labels.<idioma>.json`). */
+export function label<G extends LabelGroup>(group: G, value: keyof Labels[G] & string): string {
+  return (labelsNow()[group] as Record<string, string>)[value] ?? messagesNow().ui.unknown_value;
 }
 
 /**
@@ -40,13 +53,14 @@ export function label<G extends LabelGroup>(group: G, value: keyof (typeof label
  * mensaje generico con el `correlation_id` para soporte.
  */
 export function problemText(problem: Problem): string {
+  const messages = messagesNow();
   const byReason = problem.reason == null ? undefined : (messages.reason as Record<string, string>)[problem.reason];
   const byCode = (messages.code as Record<string, string>)[problem.code];
   return byReason ?? byCode ?? fill(messages.generic, { correlation_id: problem.correlation_id ?? "" });
 }
 
 export function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat(LOCALE, { dateStyle: "medium", timeStyle: "short", timeZone: TIME_ZONE }).format(new Date(iso));
+  return new Intl.DateTimeFormat(locale(), { dateStyle: "medium", timeStyle: "short", timeZone: TIME_ZONE }).format(new Date(iso));
 }
 
 const DECIMAL = /^-?\d+(\.\d+)?$/;
@@ -57,18 +71,23 @@ const DECIMAL = /^-?\d+(\.\d+)?$/;
  */
 export function formatDecimal(value: string, digits = 4): string {
   if (!DECIMAL.test(value)) throw new RangeError(`no es un decimal: ${value}`);
-  const format = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const format = new Intl.NumberFormat(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
   return format.format(value as `${number}`);
 }
 
-/** Pesos colombianos sin decimales, con `Intl` (los montos de la solicitud son enteros). */
+/** Pesos colombianos sin decimales, con `Intl` (los montos de la solicitud son enteros): «$ 1.500.000» en espanol, «COP 1,500,000» en ingles. */
 export function formatMoney(value: number): string {
-  return new Intl.NumberFormat(LOCALE, { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat(locale(), { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
+}
+
+/** Un conteo entero (casos, paginas) con los separadores del idioma. */
+export function formatCount(value: number): string {
+  return new Intl.NumberFormat(locale(), { maximumFractionDigits: 0 }).format(value);
 }
 
 /** El texto de un canal: el catalogo lo conoce para los filtrables; cualquier otro se muestra tal cual (es un codigo, no un dato personal). */
 export function channelText(channel: string): string {
-  return (labels.CHANNELS as Record<string, string>)[channel] ?? channel;
+  return (labelsNow().CHANNELS as Record<string, string>)[channel] ?? channel;
 }
 
 /** `formatDecimal` para un valor que llega del servidor: si no es un decimal se muestra tal cual (texto), en vez de romper la pantalla. */
@@ -78,10 +97,10 @@ export function safeDecimal(value: string, digits = 4): string {
 
 /** Un dia `AAAA-MM-DD` del servidor (sin hora): se formatea en UTC para que no se corra al dia anterior por la zona horaria. */
 export function formatDay(day: string): string {
-  return new Intl.DateTimeFormat(LOCALE, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(day));
+  return new Intl.DateTimeFormat(locale(), { dateStyle: "medium", timeZone: "UTC" }).format(new Date(day));
 }
 
 /** Como `label`, pero un valor que el catalogo no conoce se muestra tal cual (llega dentro de un `JsonValue`, sin tipo). */
 export function labelOrRaw(group: LabelGroup, value: string): string {
-  return (labels[group] as Record<string, string>)[value] ?? value;
+  return (labelsNow()[group] as Record<string, string>)[value] ?? value;
 }

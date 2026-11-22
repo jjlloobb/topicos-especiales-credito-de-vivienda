@@ -14,7 +14,11 @@ export function InactivityDialog({ open, onContinue }: Props) {
         <Dialog role="alertdialog">
           <Heading slot="title">{ui("idle_title")}</Heading>
           <p>{ui("idle_body")}</p>
-          <Button onPress={onContinue}>{ui("idle_continue")}</Button>
+          <div className="actions">
+            <Button className="button-primary" onPress={onContinue}>
+              {ui("idle_continue")}
+            </Button>
+          </div>
         </Dialog>
       </Modal>
     </ModalOverlay>

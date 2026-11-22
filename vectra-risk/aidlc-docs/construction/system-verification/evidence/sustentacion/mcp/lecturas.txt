@@ -1,0 +1,806 @@
+$ uv run python loop/mcp-solo-lectura/demo_cliente.py lecturas    # VECTRA_READONLY_KUBECONFIG sin fijar: ~/.kube/kind-vectra-readonly
+$ tools/list
+  argo_applications()
+  pods(namespace)
+  events(namespace, only_warnings)
+  inference_services(namespace)
+  workloads(namespace, kind)
+  permissions(namespace)
+
+$ tools/call argo_applications {}
+ok:
+{
+  "namespace": "argocd",
+  "sync": {
+    "OutOfSync": 2,
+    "Synced": 54
+  },
+  "health": {
+    "Healthy": 56
+  },
+  "total": 56,
+  "items": [
+    {
+      "name": "kserve-crd",
+      "sync": "OutOfSync",
+      "health": "Healthy",
+      "revision": "v0.21.0",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "linkerd-control-plane",
+      "sync": "OutOfSync",
+      "health": "Healthy",
+      "revision": "2026.10.2",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "argo-cd",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "10.11.6",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "bias-monitoring",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "case-management",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "cert-manager",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "v1.21.3",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "cloudnative-pg",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "0.29.1",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "console-bff",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "console-spa",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "decision-registry",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "envoy-gateway",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "v1.9.3",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "external-secrets",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "2.14.0",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "external-secrets-rbac",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "external-secrets-rbac-kind",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "gateway",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "governance",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "grafana-config",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "grafana-dashboards",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "grafana-secrets",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "identity-jobs",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "identity-monitors",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "identity-rules",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "keycloak",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "kserve",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "v0.21.0",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "kube-prometheus-stack",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "92.17.0",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "kyverno",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "3.9.2",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "kyverno-context-rbac",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "kyverno-policies",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "linkerd-cni",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "2026.10.2",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "linkerd-crds",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "2026.10.2",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "mesh-certificates",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "metrics-server",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "3.13.0",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "minio",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "5.4.0",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "model-serving",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "namespaces",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "network",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "observability-monitors",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "observability-rules",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "otel-collector",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "0.178.1",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "postgres",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "priority-classes",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "product-metrics",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "prometheus-operator-crds",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "32.0.2",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "pushgateway",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "3.10.1",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "quotas",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "ratelimit",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "readonly-agent-rbac-kind",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "restore-drill",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "root",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    },
+    {
+      "name": "scoring-explainability",
+      "sync": "Synced",
+      "health": "Healthy",
+      "revision": "8031b4c668dc",
+      "operation": "Succeeded"
+    }
+  ],
+  "truncated": true
+}
+
+$ tools/call pods {"namespace": "vectra-app"}
+ok:
+{
+  "namespace": "vectra-app",
+  "phases": {
+    "Failed": 3,
+    "Succeeded": 8,
+    "Running": 18
+  },
+  "total": 29,
+  "items": [
+    {
+      "name": "bias-monitoring-job-29920337-4hgq6",
+      "phase": "Failed",
+      "ready": "0/1",
+      "restarts": 0,
+      "reason": "Error",
+      "started": "2026-11-21T00:17:10Z"
+    },
+    {
+      "name": "bias-monitoring-job-29920352-c5zbj",
+      "phase": "Failed",
+      "ready": "0/1",
+      "restarts": 0,
+      "reason": "Error",
+      "started": "2026-11-21T00:32:10Z"
+    },
+    {
+      "name": "bias-monitoring-job-29920367-phlhr",
+      "phase": "Failed",
+      "ready": "0/1",
+      "restarts": 0,
+      "reason": "Error",
+      "started": "2026-11-21T00:47:10Z"
+    },
+    {
+      "name": "bias-monitoring-job-29921192-2lsxk",
+      "phase": "Succeeded",
+      "ready": "0/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-21T14:32:10Z"
+    },
+    {
+      "name": "bias-monitoring-job-29921207-gkscn",
+      "phase": "Succeeded",
+      "ready": "0/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-21T14:47:10Z"
+    },
+    {
+      "name": "bias-monitoring-job-29921222-2sssm",
+      "phase": "Succeeded",
+      "ready": "0/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-21T15:02:10Z"
+    },
+    {
+      "name": "bias-monitoring-service-6848fc879-h74md",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-21T00:53:43Z"
+    },
+    {
+      "name": "bias-monitoring-service-6848fc879-nx7ph",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-21T00:54:01Z"
+    },
+    {
+      "name": "case-migration-765nr",
+      "phase": "Succeeded",
+      "ready": "0/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-21T01:11:37Z"
+    },
+    {
+      "name": "case-service-77967bf7bc-kc8x6",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T03:18:15Z"
+    },
+    {
+      "name": "case-service-77967bf7bc-srcwp",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:52Z"
+    },
+    {
+      "name": "case-worker-6db85bff7b-lvhh2",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:52Z"
+    },
+    {
+      "name": "case-worker-6db85bff7b-mrglk",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:52Z"
+    },
+    {
+      "name": "console-bff-6d7df7cb57-rccfb",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:52Z"
+    },
+    {
+      "name": "console-bff-6d7df7cb57-x7mgd",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:54Z"
+    },
+    {
+      "name": "decision-registry-service-6995444c56-lbmx9",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:54Z"
+    },
+    {
+      "name": "decision-registry-service-6995444c56-z9n2l",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:52Z"
+    },
+    {
+      "name": "explainability-service-8689c576d7-8zrbn",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:54Z"
+    },
+    {
+      "name": "explainability-service-8689c576d7-f8wsv",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:54Z"
+    },
+    {
+      "name": "governance-migration-z9m4z",
+      "phase": "Succeeded",
+      "ready": "0/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-17T19:52:37Z"
+    },
+    {
+      "name": "governance-service-758bd84d69-b47bh",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:54Z"
+    },
+    {
+      "name": "governance-service-758bd84d69-wqktp",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:52Z"
+    },
+    {
+      "name": "product-metrics-7dc56bb84c-7nj79",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:53Z"
+    },
+    {
+      "name": "product-metrics-7dc56bb84c-nh6zv",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:55Z"
+    },
+    {
+      "name": "registry-aggregator-29921230-wzzdh",
+      "phase": "Succeeded",
+      "ready": "0/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-21T15:10:10Z"
+    },
+    {
+      "name": "registry-migration-vk8vb",
+      "phase": "Succeeded",
+      "ready": "0/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-16T05:37:41Z"
+    },
+    {
+      "name": "rt5-demo-20261121-0104-6mwpf",
+      "phase": "Succeeded",
+      "ready": "0/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-21T01:12:00Z"
+    },
+    {
+      "name": "scoring-service-8464f6f45-2fvt6",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:54Z"
+    },
+    {
+      "name": "scoring-service-8464f6f45-wz2ns",
+      "phase": "Running",
+      "ready": "1/1",
+      "restarts": 0,
+      "reason": null,
+      "started": "2026-11-20T02:13:53Z"
+    }
+  ],
+  "truncated": false
+}
+
+$ tools/call inference_services {"namespace": "vectra-serving"}
+ok:
+{
+  "namespace": "vectra-serving",
+  "total": 2,
+  "items": [
+    {
+      "name": "isvc-8a98ab02",
+      "ready": "True",
+      "reason": null,
+      "message": null,
+      "url": "http://isvc-8a98ab02-vectra-serving.example.com",
+      "model_format": null,
+      "runtime": null
+    },
+    {
+      "name": "isvc-f12bfeaf",
+      "ready": "True",
+      "reason": null,
+      "message": null,
+      "url": "http://isvc-f12bfeaf-vectra-serving.example.com",
+      "model_format": null,
+      "runtime": null
+    }
+  ],
+  "truncated": false
+}
+
+$ tools/call permissions {"namespace": "vectra-app"}
+ok:
+{
+  "namespace": "vectra-app",
+  "identity": "system:serviceaccount:argocd:vectra-readonly-agent",
+  "probes": [
+    {
+      "verb": "get",
+      "resource": "pods",
+      "allowed": true
+    },
+    {
+      "verb": "list",
+      "resource": "applications.argoproj.io",
+      "allowed": true
+    },
+    {
+      "verb": "list",
+      "resource": "inferenceservices.serving.kserve.io",
+      "allowed": true
+    },
+    {
+      "verb": "get",
+      "resource": "secrets",
+      "allowed": false
+    },
+    {
+      "verb": "create",
+      "resource": "pods",
+      "allowed": false
+    },
+    {
+      "verb": "delete",
+      "resource": "pods",
+      "allowed": false
+    },
+    {
+      "verb": "patch",
+      "resource": "deployments",
+      "allowed": false
+    },
+    {
+      "verb": "create",
+      "resource": "pods/exec",
+      "allowed": false
+    }
+  ],
+  "total": 3,
+  "items": [
+    {
+      "verbs": [
+        "create"
+      ],
+      "read_only": false,
+      "resource_count": 3,
+      "resources": [
+        "selfsubjectaccessreviews.authorization.k8s.io",
+        "selfsubjectreviews.authentication.k8s.io",
+        "selfsubjectrulesreviews.authorization.k8s.io"
+      ]
+    },
+    {
+      "verbs": [
+        "get"
+      ],
+      "read_only": true,
+      "resource_count": 20,
+      "resources": [
+        "(no recurso) [/.well-known/openid-configuration/]",
+        "(no recurso) [/.well-known/openid-configuration]",
+        "(no recurso) [/api/*]",
+        "(no recurso) [/api]",
+        "(no recurso) [/apis/*]",
+        "(no recurso) [/apis]",
+        "(no recurso) [/healthz]",
+        "(no recurso) [/healthz]",
+        "(no recurso) [/livez]",
+        "(no recurso) [/livez]",
+        "(no recurso) [/openapi/*]",
+        "(no recurso) [/openapi]",
+        "(no recurso) [/openid/v1/jwks/]",
+        "(no recurso) [/openid/v1/jwks]",
+        "(no recurso) [/readyz]",
+        "(no recurso) [/readyz]",
+        "(no recurso) [/version/]",
+        "(no recurso) [/version/]",
+        "(no recurso) [/version]",
+        "(no recurso) [/version]"
+      ]
+    },
+    {
+      "verbs": [
+        "get",
+        "list",
+        "watch"
+      ],
+      "read_only": true,
+      "resource_count": 84,
+      "resources": [
+        "alertmanagers.monitoring.coreos.com",
+        "applications.argoproj.io",
+        "applicationsets.argoproj.io",
+        "appprojects.argoproj.io",
+        "authorizationpolicies.policy.linkerd.io",
+        "backendtrafficpolicies.gateway.envoyproxy.io",
+        "backups.postgresql.cnpg.io",
+        "certificaterequests.cert-manager.io",
+        "certificates.cert-manager.io",
+        "clienttrafficpolicies.gateway.envoyproxy.io",
+        "clusterissuers.cert-manager.io",
+        "clusterpolicies.kyverno.io",
+        "clusterpolicyreports.wgpolicyk8s.io",
+        "clusterrolebindings.rbac.authorization.k8s.io",
+        "clusterroles.rbac.authorization.k8s.io",
+        "clusters.postgresql.cnpg.io",
+        "clustersecretstores.external-secrets.io",
+        "clusterservingruntimes.serving.kserve.io",
+        "clustertrustbundles.certificates.k8s.io",
+        "configmaps",
+        "cronjobs.batch",
+        "customresourcedefinitions.apiextensions.k8s.io",
+        "daemonsets.apps",
+        "deployments.apps",
+        "endpoints",
+        "endpointslices.discovery.k8s.io",
+        "envoyproxies.gateway.envoyproxy.io",
+        "events",
+        "events.events.k8s.io",
+        "externalsecrets.external-secrets.io",
+        "gatewayclasses.gateway.networking.k8s.io",
+        "gateways.gateway.networking.k8s.io",
+        "grpcroutes.gateway.networking.k8s.io",
+        "horizontalpodautoscalers.autoscaling",
+        "httproutes.gateway.networking.k8s.io",
+        "httproutes.policy.linkerd.io",
+        "inferencegraphs.serving.kserve.io",
+        "inferenceservices.serving.kserve.io",
+        "ingressclasses.networking.k8s.io",
+        "ingresses.networking.k8s.io",
+        "issuers.cert-manager.io",
+        "jobs.batch",
+        "limitranges",
+        "meshtlsauthentications.policy.linkerd.io",
+        "mutatingwebhookconfigurations.admissionregistration.k8s.io",
+        "namespaces",
+        "networkauthentications.policy.linkerd.io",
+        "networkpolicies.networking.k8s.io",
+        "nodes",
+        "nodes.metrics.k8s.io"
+      ]
+    }
+  ],
+  "truncated": false
+}
+[codigo de salida: 0]
