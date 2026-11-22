@@ -78,3 +78,15 @@ export function routeTemplate(pathname: string): string {
   const found = STATIC_FIRST.find((route) => matchPath({ path: route.path, end: true }, pathname) !== null);
   return found === undefined ? "/{ruta}" : found.path;
 }
+
+/**
+ * El titulo de la pantalla de `pathname` para `role` (pasada de usabilidad del 2026-11-21: el titulo del documento y el anuncio al cambiar de
+ * ruta): el de su ruta si el rol llega a ella, «Sin acceso» si no llega, «Pantalla no encontrada» si no es ninguna ruta; `null` en `/` y
+ * `/callback`, que solo redirigen.
+ */
+export function screenTitle(pathname: string, role: Role): UiKey | null {
+  if (pathname === "/" || pathname === "/callback") return null;
+  const found = STATIC_FIRST.find((route) => matchPath({ path: route.path, end: true }, pathname) !== null);
+  if (found === undefined) return "not_found_title";
+  return found.roles.includes(role) ? found.title : "no_access_title";
+}

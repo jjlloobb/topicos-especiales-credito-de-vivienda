@@ -132,8 +132,9 @@ export function StepUpProvider({ session, env, children }: Props) {
   return (
     <Context.Provider value={api}>
       {children}
-      <p role="status" aria-live="polite">
-        {announcement === null ? null : ui(announcement)}
+      <p className="stepup-status" role="status" aria-live="polite">
+        {/* El `span` se vuelve a crear con cada aviso (su animacion lo retira a los segundos); la region viva es siempre la misma. */}
+        {announcement === null ? null : <span key={announcement}>{ui(announcement)}</span>}
       </p>
       <StepUpDialog
         open={dialog}

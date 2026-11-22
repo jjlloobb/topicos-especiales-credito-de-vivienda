@@ -3,9 +3,11 @@
 // el `locale` del idioma en curso (`language.ts`). Los catalogos en espanol dan los tipos de las claves.
 import labelsEn from "./labels.en.json";
 import labelsEs from "./labels.es.json";
-import { getLanguage, type Language, LOCALES } from "./language";
+import labelsPt from "./labels.pt.json";
+import { DATE_STYLES, getLanguage, type Language, LOCALES } from "./language";
 import messagesEn from "./messages.en.json";
 import messagesEs from "./messages.es.json";
+import messagesPt from "./messages.pt.json";
 
 const TIME_ZONE = "America/Bogota";
 
@@ -15,8 +17,8 @@ export type UiKey = keyof Messages["ui"];
 export type NoticeKey = keyof Messages["notice"];
 export type LabelGroup = keyof Labels;
 
-const MESSAGES: Readonly<Record<Language, Messages>> = { es: messagesEs, en: messagesEn };
-const LABELS: Readonly<Record<Language, Labels>> = { es: labelsEs, en: labelsEn };
+const MESSAGES: Readonly<Record<Language, Messages>> = { es: messagesEs, en: messagesEn, pt: messagesPt };
+const LABELS: Readonly<Record<Language, Labels>> = { es: labelsEs, en: labelsEn, pt: labelsPt };
 
 const messagesNow = (): Messages => MESSAGES[getLanguage()];
 const labelsNow = (): Labels => LABELS[getLanguage()];
@@ -60,7 +62,7 @@ export function problemText(problem: Problem): string {
 }
 
 export function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat(locale(), { dateStyle: "medium", timeStyle: "short", timeZone: TIME_ZONE }).format(new Date(iso));
+  return new Intl.DateTimeFormat(locale(), { dateStyle: DATE_STYLES[getLanguage()], timeStyle: "short", timeZone: TIME_ZONE }).format(new Date(iso));
 }
 
 const DECIMAL = /^-?\d+(\.\d+)?$/;
@@ -75,7 +77,7 @@ export function formatDecimal(value: string, digits = 4): string {
   return format.format(value as `${number}`);
 }
 
-/** Pesos colombianos sin decimales, con `Intl` (los montos de la solicitud son enteros): «$ 1.500.000» en espanol, «COP 1,500,000» en ingles. */
+/** Pesos colombianos sin decimales, con `Intl` (los montos de la solicitud son enteros): «$ 1.500.000» en espanol, «COP 1,500,000» en ingles, «COP 1.500.000» en portugues (nunca se convierte la moneda). */
 export function formatMoney(value: number): string {
   return new Intl.NumberFormat(locale(), { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
 }
@@ -97,10 +99,26 @@ export function safeDecimal(value: string, digits = 4): string {
 
 /** Un dia `AAAA-MM-DD` del servidor (sin hora): se formatea en UTC para que no se corra al dia anterior por la zona horaria. */
 export function formatDay(day: string): string {
-  return new Intl.DateTimeFormat(locale(), { dateStyle: "medium", timeZone: "UTC" }).format(new Date(day));
+  return new Intl.DateTimeFormat(locale(), { dateStyle: DATE_STYLES[getLanguage()], timeZone: "UTC" }).format(new Date(day));
 }
 
 /** Como `label`, pero un valor que el catalogo no conoce se muestra tal cual (llega dentro de un `JsonValue`, sin tipo). */
 export function labelOrRaw(group: LabelGroup, value: string): string {
   return (labelsNow()[group] as Record<string, string>)[value] ?? value;
+}
+
+/**
+ * El texto de un grupo de monitoreo (`group` de una celda de disparidad). El catalogo de grupos es cerrado (U0 §2.2: sexo, region y
+ * «no informado») y tiene etiqueta; los rangos de edad y los estratos ya son legibles y se muestran tal cual, igual que un valor desconocido.
+ */
+export function groupText(group: string): string {
+  return labelOrRaw("GROUPS", group);
+}
+
+/**
+ * Un identificador de un conjunto ABIERTO (un `feature_id`: depende del diccionario de variables de cada version del modelo, que la consola
+ * no recibe): no se traduce ni se inventa una etiqueta; solo se presenta sin guiones bajos. Lo que se envia al servidor es siempre el original.
+ */
+export function readableCode(code: string): string {
+  return code.replaceAll("_", " ");
 }

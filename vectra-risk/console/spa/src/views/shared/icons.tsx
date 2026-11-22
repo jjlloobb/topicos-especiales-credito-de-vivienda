@@ -100,6 +100,16 @@ export function IconLast({ className }: Props) {
   );
 }
 
+/** Copiar: dos hojas superpuestas. */
+export function IconCopy({ className }: Props) {
+  return (
+    <Icon className={className}>
+      <path d="M9 9h10v11H9z" />
+      <path d="M5 15V4h10" />
+    </Icon>
+  );
+}
+
 /** Exito: una accion quedo registrada. */
 export function IconSuccess({ className }: Props) {
   return (

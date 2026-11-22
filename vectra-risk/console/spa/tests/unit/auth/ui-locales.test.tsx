@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Enmienda del 2026-11-21: cada peticion de autorizacion de la SPA (login silencioso `prompt=none`, login interactivo y step-up) lleva el
-// parametro estandar de OIDC `ui_locales` con el idioma activo de la consola (`es` o `en`, un conjunto cerrado), para que el login del emisor
+// parametro estandar de OIDC `ui_locales` con el idioma activo de la consola (`es`, `en` o `pt-BR` para el portugues de Brasil, un conjunto cerrado), para que el login del emisor
 // salga en el mismo idioma. Nada mas del flujo cambia: PKCE, `state`, `redirect_uri`, `prompt`, `max_age` y `acr_values` siguen igual.
 // Se prueba en dos capas: lo que `AuthProvider` y el backend del step-up piden a la libreria, y la URL de autorizacion que `oidc-client-ts`
 // de verdad construye (`UserManager` y `OidcClient` reales, sin red: los metadatos del emisor son estaticos).
@@ -13,7 +13,7 @@ import { issuerMetadata } from "../../../src/auth/issuer-metadata";
 import { createLoginStateStorage } from "../../../src/auth/loginStateStorage";
 import { createUserManager, SCOPE } from "../../../src/auth/manager";
 import type { AppConfig } from "../../../src/config/load";
-import { chooseLanguage, initLanguage, LANGUAGES } from "../../../src/i18n/language";
+import { chooseLanguage, initLanguage, LANGUAGE_TAGS, LANGUAGES } from "../../../src/i18n/language";
 import { createOidcBackend, FILTER_PROTOCOL_CLAIMS } from "../../../src/stepup/oidc";
 
 const ORIGIN = "https://console.test";
@@ -65,7 +65,8 @@ describe("AuthProvider pide ui_locales con el idioma activo", () => {
     chooseLanguage(language);
     const calls = mountAnonymous();
     await waitFor(() => expect(calls).toHaveLength(1));
-    expect(calls[0]).toEqual({ prompt: "none", state: { mode: "silent" }, nonce: expect.stringMatching(/^[0-9a-f-]{36}$/), ui_locales: language });
+    expect(calls[0]).toEqual({ prompt: "none", state: { mode: "silent" }, nonce: expect.stringMatching(/^[0-9a-f-]{36}$/), ui_locales: LANGUAGE_TAGS[language] });
+    expect(["es", "en", "pt-BR"]).toContain(calls[0]?.ui_locales); // el portugues viaja como `pt-BR`, el codigo de Keycloak
   });
 
   it("login interactivo: el idioma del momento del clic, y cambia al cambiar el idioma", async () => {
@@ -74,9 +75,11 @@ describe("AuthProvider pide ui_locales con el idioma activo", () => {
     fireEvent.click(button);
     chooseLanguage("en");
     fireEvent.click(button);
+    chooseLanguage("pt");
+    fireEvent.click(button);
     chooseLanguage("es");
     fireEvent.click(button);
-    expect(calls.map((call) => call.ui_locales)).toEqual(["es", "en", "es"]);
+    expect(calls.map((call) => call.ui_locales)).toEqual(["es", "en", "pt-BR", "es"]);
     for (const call of calls) {
       expect(call).toEqual({ state: { mode: "interactive" }, nonce: expect.stringMatching(/^[0-9a-f-]{36}$/), ui_locales: call.ui_locales });
       expect(call).not.toHaveProperty("prompt");
@@ -127,7 +130,7 @@ describe("la URL de autorizacion que construye oidc-client-ts lleva ui_locales y
     const [silent, interactive] = urls.map((url) => new URL(url)) as [URL, URL];
     for (const url of [silent, interactive]) {
       expect(url.pathname).toBe("/auth/realms/vectra/protocol/openid-connect/auth");
-      expect(url.searchParams.getAll("ui_locales")).toEqual([language]);
+      expect(url.searchParams.getAll("ui_locales")).toEqual([LANGUAGE_TAGS[language]]);
       expect(url.searchParams.get("client_id")).toBe("vectra-console");
       expect(url.searchParams.get("redirect_uri")).toBe(CONFIG.redirect_uri);
       expect(url.searchParams.get("response_type")).toBe("code");
@@ -162,7 +165,7 @@ describe("la URL de autorizacion que construye oidc-client-ts lleva ui_locales y
     });
     const backend = createOidcBackend(client, store, CONFIG.stepup_redirect_uri, () => undefined);
     const url = new URL((await backend.createRequest()).url);
-    expect(url.searchParams.getAll("ui_locales")).toEqual([language]);
+    expect(url.searchParams.getAll("ui_locales")).toEqual([LANGUAGE_TAGS[language]]);
     expect(url.searchParams.get("prompt")).toBe("login");
     expect(url.searchParams.get("max_age")).toBe("0");
     expect(url.searchParams.get("acr_values")).toBe("mfa");
@@ -172,9 +175,9 @@ describe("la URL de autorizacion que construye oidc-client-ts lleva ui_locales y
       ["acr_values", "client_id", "code_challenge", "code_challenge_method", "max_age", "nonce", "prompt", "redirect_uri", "response_type", "scope", "state", "ui_locales"].sort(),
     );
     // y sigue al idioma: la siguiente peticion, ya en el otro
-    const other = language === "es" ? "en" : "es";
+    const other = language === "es" ? "pt" : "es";
     chooseLanguage(other);
-    expect(new URL((await backend.createRequest()).url).searchParams.get("ui_locales")).toBe(other);
+    expect(new URL((await backend.createRequest()).url).searchParams.get("ui_locales")).toBe(LANGUAGE_TAGS[other]);
     expect(sessionStorage.length).toBe(0); // el step-up sigue sin tocar el almacenamiento
   });
 });

@@ -9,7 +9,7 @@ import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-compone
 import { useApi } from "../../api/ApiProvider";
 import { ApiError } from "../../api/client";
 import { recordDecision } from "../../api/endpoints";
-import { label, type Problem, problemText, ui, type UiKey } from "../../i18n";
+import { label, type Problem, problemText, readableCode, ui, type UiKey } from "../../i18n";
 import { Choice } from "../shared/Choice";
 import { IconError } from "../shared/icons";
 import { ProblemMessage } from "../shared/ProblemMessage";
@@ -175,7 +175,7 @@ export function DecisionForm({ caseId, outcome, shapFeatureIds, onRecorded }: Pr
         <fieldset aria-describedby={errors.used_factors === undefined ? undefined : "error-used_factors"}>
           <legend>{ui("decision_field_factors")}</legend>
           {shapFeatureIds.map((id) => (
-            <Choice key={id} type="checkbox" checked={factors.includes(id)} onChange={() => { toggleFactor(id); }} text={id} />
+            <Choice key={id} type="checkbox" checked={factors.includes(id)} onChange={() => { toggleFactor(id); }} text={readableCode(id)} title={id} />
           ))}
           <Choice type="checkbox" checked={factors.includes(NO_FACTORS)} onChange={() => { toggleFactor(NO_FACTORS); }} text={ui("decision_field_none")} />
           {fieldError("used_factors")}
