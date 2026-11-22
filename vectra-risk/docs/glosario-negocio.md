@@ -15,16 +15,16 @@ Convenciones: **BR-Ux-nn** es una regla de negocio de la unidad x; **FR-…** un
 - [4. Scoring, política y recomendación](#4-scoring-política-y-recomendación) (13 entradas)
 - [5. Explicación](#5-explicación) (10 entradas)
 - [6. Fail-closed](#6-fail-closed) (5 entradas)
-- [7. El caso y la decisión humana](#7-el-caso-y-la-decisión-humana) (17 entradas)
+- [7. El caso y la decisión humana](#7-el-caso-y-la-decisión-humana) (18 entradas)
 - [8. Registro de decisiones](#8-registro-de-decisiones) (8 entradas)
 - [9. Gobierno de modelos](#9-gobierno-de-modelos) (12 entradas)
-- [10. Sesgo y equidad](#10-sesgo-y-equidad) (16 entradas)
+- [10. Sesgo y equidad](#10-sesgo-y-equidad) (17 entradas)
 - [11. Core bancario e identidad](#11-core-bancario-e-identidad) (8 entradas)
 - [12. Métricas de producto](#12-métricas-de-producto) (6 entradas)
-- [13. Demos y verificación](#13-demos-y-verificación) (5 entradas)
+- [13. Demos y verificación](#13-demos-y-verificación) (7 entradas)
 - [Índice alfabético](#índice-alfabético)
 
-Total: 134 entradas.
+Total: 138 entradas.
 <!-- /INDICE-TEMAS -->
 
 ---
@@ -61,7 +61,7 @@ El trabajo que el cliente quiere resolver, escrito en primera persona.
 
 ### Moat (ventaja competitiva defendible)
 *Moat* (foso): lo que un competidor con el mismo modelo no copia rápido.
-- **En el proyecto:** el PRD lo define como soberanía del dato más conocimiento normativo colombiano, y prohíbe venderlo como «explicamos las decisiones» (`vectra-risk/entradas/prd.md`, §0 y §4). El README añade la integración ya resuelta en el clúster y las pruebas y políticas propias que se acumulan (`README.md`, §6).
+- **En el proyecto:** el PRD lo define como soberanía del dato más conocimiento normativo colombiano, y prohíbe venderlo como «explicamos las decisiones» (`vectra-risk/entradas/prd.md`, §0 y §4). En la sustentación se suman la integración ya resuelta en el clúster y las pruebas y políticas propias que se acumulan.
 - **Relacionados:** [Soberanía del dato](#soberanía-del-dato), [Registro de decisiones](#registro-de-decisiones).
 - **Ojo:** la crítica lo debilita con tres preguntas: el historial de un banco no se transfiere a otro, al comprador le importa poco a diario y no sobrevive a un core con Zest AI integrado (`vectra-risk/entradas/critica.md`, §4).
 
@@ -365,23 +365,23 @@ Fallar cerrado: ante la duda, el sistema no entrega nada en vez de entregar algo
 
 ### Causas de fail-closed
 Catálogo cerrado de diez causas, en orden de precedencia: si aplican varias, gana la de menor número (BR-U0-02, BR-U0-03).
-- **En el proyecto:** `FailClosedCause` en `vectra-risk/contracts/python/vectra_contracts/src/vectra_contracts/catalog.py`; textos en `vectra-risk/console/spa/src/i18n/labels.es.json`.
+- **En el proyecto:** `FailClosedCause` en `vectra-risk/contracts/python/vectra_contracts/src/vectra_contracts/catalog.py`; textos en `vectra-risk/console/spa/src/i18n/labels.es.json`. La categoría agrupa las causas: dependencia (algo no respondió), calidad (respondió mal), desincronía (respondió otra versión) y congelamiento.
 
-| # | Causa | En la consola | Categoría | Cuándo aplica |
+| # | Causa | En la consola | Categoría | Qué significa y qué la provoca |
 |---|---|---|---|---|
-| 1 | `model_frozen` | Modelo congelado | congelamiento | la versión activa está congelada |
-| 2 | `serving_config_unavailable` | Configuración de servicio no disponible | dependencia | no se pudo leer qué versión y política sirven |
-| 3 | `model_output_invalid` | Resultado del modelo no válido | calidad | puntaje no finito o fuera de 0 a 1 |
-| 4 | `timeout` | Tiempo de espera agotado | dependencia | la explicación tardó demasiado |
-| 5 | `explainer_unavailable` | Explicación no disponible | dependencia | el servicio de explicación no responde |
-| 6 | `explainer_error` | Error en la explicación | calidad | cualquier otro error de la explicación |
-| 7 | `version_mismatch` | Versión que no coincide | desincronía | explicación o diccionario de otra versión |
-| 8 | `feature_dictionary_incomplete` | Diccionario de variables incompleto | desincronía | falta el diccionario o no cubre un factor |
-| 9 | `factuality_failed` | Explicación no verificada | calidad | la narrativa no coincide con las contribuciones |
-| 10 | `registry_unavailable` | Registro no disponible | dependencia | el registro no confirmó el guardado |
+| 1 | `model_frozen` | Modelo congelado | congelamiento | La versión activa está congelada por el monitoreo de sesgo. No se reintenta. |
+| 2 | `serving_config_unavailable` | Configuración de servicio no disponible | dependencia | El scoring no pudo leer de gobierno qué versión y qué política sirven. |
+| 3 | `model_output_invalid` | Resultado del modelo no válido | calidad | El modelo devolvió un puntaje no finito o fuera de 0 a 1. |
+| 4 | `timeout` | Tiempo de espera agotado | dependencia | La explicación no llegó dentro del plazo. |
+| 5 | `explainer_unavailable` | Explicación no disponible | dependencia | El servicio de explicación está caído, saturado o con el cortacircuitos abierto. |
+| 6 | `explainer_error` | Error en la explicación | calidad | La explicación respondió con un error que no es caída ni demora: un defecto. |
+| 7 | `version_mismatch` | Versión que no coincide | desincronía | La explicación o el diccionario son de otra versión de modelo que el puntaje. |
+| 8 | `feature_dictionary_incomplete` | Diccionario de variables incompleto | desincronía | Falta el diccionario de esa versión o no cubre un factor. |
+| 9 | `factuality_failed` | Explicación no verificada | calidad | La narrativa no coincide con las contribuciones (factores, orden o signo). |
+| 10 | `registry_unavailable` | Registro no disponible | dependencia | El registro no confirmó el guardado; sin registro no se entrega. |
 
-- **Relacionados:** [Reintento](#reintento), [Modelo congelado (estado del caso)](#modelo-congelado-estado-del-caso).
-- **Ojo:** todas se pueden reintentar salvo `model_frozen` (BR-U0-04). Los tiempos de espera están solo en el código (`vectra-risk/scoring-explainability/scoring/src/scoring/config.py`), no en el diseño funcional.
+- **Relacionados:** [Reintento](#reintento), [Modelo congelado (estado del caso)](#modelo-congelado-estado-del-caso), [Factualidad](#factualidad).
+- **Ojo:** en la demo D1, con el flujo F22 apagado, la causa es `explainer_error` y no `timeout`: la malla responde 403 al instante y el servicio de explicación trata un 4xx del explicador como defecto, no como caída (`vectra-risk/scoring-explainability/explainability/src/explainability/explain.py`). Los tiempos de espera están solo en el código (`vectra-risk/scoring-explainability/scoring/src/scoring/config.py`).
 
 ### Causa local
 Causa que anota `case-service` cuando ni siquiera obtuvo respuesta del scoring. Catálogo `LocalCause`.
@@ -412,6 +412,12 @@ Unidad de trabajo que nace con cada solicitud válida. Su `case_id` es también 
 Lista común de casos para analistas y CRO, sin analista asignado.
 - **En el proyecto:** ruta `/casos` de la consola. Muestra el nombre y los últimos 4 dígitos del documento, se refresca cada 15 s y no incluye los vencidos salvo que se filtren (BR-U8-13, BR-U10-10).
 - **Relacionados:** [Caso](#caso).
+
+### Identificador del caso
+Campo `case_id`: un UUID que nombra el caso. No es un dato personal.
+- **En el proyecto:** la consola tiene «Ir al caso», que abre el detalle a partir del identificador. No hay búsqueda por nombre: pondría el nombre en la URL, el historial y los logs de acceso (BR-U10-10; `vectra-risk/console/spa/src/views/cases/GoToCase.tsx`).
+- **Relacionados:** [Caso](#caso), [Datos de identificación](#datos-de-identificación).
+- **Ojo:** en el registro, el identificador de caso es un dato seudonimizado: no dice quién es la persona, pero la enlaza con sus datos en `case-service`.
 
 ### En evaluación
 Estado `en_evaluacion` (*In evaluation*): el caso espera su primera evaluación o una nueva.
@@ -666,6 +672,12 @@ Cota inferior de la disparidad agregada de un atributo, calculada con un margen 
 - **Relacionados:** [Congelamiento](#congelamiento).
 - **Ojo:** una disparidad observada mayor que 5 puntos no congela por sí sola: debe superarlo también su cota inferior. Requisitos e historias dicen «disparidad agregada mayor que 5 puntos»; la regla precisa es esta.
 
+### Cota inferior
+Extremo bajo del intervalo de una disparidad: el valor mínimo que la disparidad real tendría con mucha seguridad, dado el tamaño de la muestra.
+- **En el proyecto:** es LA regla que decide el congelamiento. Se congela si la cota inferior de algún atributo supera el umbral, no si lo supera la disparidad observada (BR-U9-11; z = 3,14 en `vectra-risk/bias-monitoring/disparity/src/vectra_disparity/stats.py`). Con pocos casos el intervalo es ancho y la cota cae por debajo del umbral aunque lo observado esté por encima; así no se congela un modelo por ruido de muestreo.
+- **Relacionados:** [Límite de congelamiento](#límite-de-congelamiento), [Umbral de disparidad](#umbral-de-disparidad), [Muestra mínima y muestra insuficiente](#muestra-mínima-y-muestra-insuficiente).
+- **Ojo:** ejemplo medido en la demo D2 el 2026-11-21 (PR #236): región tuvo 0,2438 observado y 0,1418 de límite de congelamiento, mayor que 0,05, y congeló; estrato tuvo 0,1558 observado y no congeló, porque su cota inferior no superó el umbral.
+
 ### Congelamiento
 Bloqueo automático de la versión activa para nuevas solicitudes. Entrada `freeze`; en la consola, «Congelamiento» (*Freeze*).
 - **En el proyecto:** ocurre si algún atributo tiene su límite de congelamiento por encima del umbral (BR-U9-11). Solo lo ejecuta la identidad `bias-monitoring-job` (BR-U4-04). Efecto: el scoring responde fail-closed `model_frozen`, los casos nuevos quedan en «Modelo congelado» y no se puede activar otra versión.
@@ -679,9 +691,16 @@ Resumen de agregados que acompaña a un congelamiento para que cumplimiento deci
 
 ### Resolución de congelamiento
 Decisión de cumplimiento sobre un modelo congelado. Entrada `frozen_resolution`.
-- **En el proyecto:** tres acciones, todas con segundo factor y justificación (BR-U4-01, BR-U4-03): **reactivar** (vuelve a activo y la ventana reinicia al día siguiente), **descartar** (pasa a retirado) e **investigar** (sigue congelado, marcado en investigación).
-- **Relacionados:** [Oficial de cumplimiento](#oficial-de-cumplimiento), [Step-up](#step-up).
-- **Ojo:** excepción declarada: en kind, y solo en kind, la verificación reactiva con el usuario sintético `cumplimiento-1` por la misma API autenticada (FR-BIA-05).
+- **En el proyecto:** tres acciones, todas solo del rol `cumplimiento`, con segundo factor y justificación (BR-U4-01, BR-U4-03; BR-U10-13 en la consola):
+
+| Acción | Efecto en la versión | Qué pasa después |
+|---|---|---|
+| `reactivar` (*Reactivate*) | de congelado a activo | vuelve a servir; la ventana de monitoreo reinicia al día UTC siguiente; un barrido devuelve a evaluación los casos en «Modelo congelado» |
+| `descartar` (*Discard*) | de congelado a retirado | deja de existir como versión servible; hay que promover otra |
+| `investigar` (*Investigate*) | sigue congelado, marcado en investigación | no sirve; queda constancia de que cumplimiento lo está revisando |
+
+- **Relacionados:** [Oficial de cumplimiento](#oficial-de-cumplimiento), [Step-up](#step-up), [Modo de reactivación de la demo D2](#modo-de-reactivación-de-la-demo-d2).
+- **Ojo:** un congelamiento admite varias resoluciones en orden, por ejemplo `investigar` y luego `reactivar`; el registro las guarda todas con su fecha (BR-U9-19, `vectra-risk/aidlc-docs/construction/bias-monitoring/functional-design/business-rules.md`). Excepción declarada: en kind, y solo en kind, la verificación puede reactivar con el usuario sintético `cumplimiento-1` por la misma API autenticada (FR-BIA-05).
 
 ### Variables proxy
 Variables que no son un atributo protegido pero lo delatan, como una zona o un canal.
@@ -785,28 +804,48 @@ Tiempo desde que se recibe la solicitud hasta que hay recomendación explicada.
 ### Demos D1 a D4
 Las cuatro demostraciones de la sustentación, con guion en `vectra-risk/system-verification/demos/`.
 - **En el proyecto:**
-  - **D1** (`journey-7-3.md`): un modelo alterado no llega a servir y, con la ruta al explicador apagada, los casos pasan de «En sincronización» a «No disponible» y salta la alerta `FailClosedPersistente`.
-  - **D2** (`journey-7-4.md`): un modelo con variables proxy se congela solo; cumplimiento revisa el paquete de contexto y lo reactiva con segundo factor.
-  - **D3** (`rt-5.md`): un intento de escritura al core lo deniega la malla con 403 y salta la alerta `CoreWriteAttempt`.
-  - **D4** (`dashboard.md`): el tablero de producto con la North Star, las sostenidas y la tasa de consulta con su piso.
-- **Relacionados:** [Escenarios RT-1 a RT-5](#escenarios-rt-1-a-rt-5), [Recorridos 7.3 y 7.4](#recorridos-73-y-74).
-- **Ojo:** tiempos reales: D1 tarda de 12,4 a 19,3 minutos en escalar; D2, más de 75 minutos; D4 solo se lee el día siguiente al de las decisiones. En vivo se enseña el resultado, no la espera.
+
+| Demo | Guion | Orden de la herramienta | Qué prueba | Qué se ve |
+|---|---|---|---|---|
+| D1 | `journey-7-3.md` | `rt3` | RT-3 y el recorrido 7.3: un modelo alterado no llega a servir y, con la ruta al explicador (F22) apagada, el caso escala | casos de «En sincronización» a «No disponible»; alerta `FailClosedPersistente` |
+| D2 | `journey-7-4.md` | `rt2-setup` y `rt2` | RT-2 y el recorrido 7.4: un modelo con variables proxy se congela solo | paquete de contexto en la consola; cumplimiento reactiva con segundo factor |
+| D3 | `rt-5.md` | `rt5` | RT-5: nadie escribe en el core | 403 del proxy de la malla; alerta `CoreWriteAttempt`; contador de escrituras en 0 |
+| D4 | `dashboard.md` | `decisions` (día D) y `u11` (día D + 1) | las métricas de producto | tablero con la North Star, las sostenidas y la tasa de consulta con su piso |
+
+- **Relacionados:** [Escenarios RT-1 a RT-5](#escenarios-rt-1-a-rt-5), [Recorridos 7.3 y 7.4](#recorridos-73-y-74), [Presentador y operador](#presentador-y-operador).
+- **Ojo:** antes de todo corre `prepare` y al final `report`. Orden recomendado por la guía (`vectra-risk/system-verification/docs/paso-18-kind.md`): D3, D4 (día D), D1, D2 y D4 (día D + 1). Tiempos de los guiones: D1 tarda de 12,4 a 19,3 minutos en escalar; D2, más de 75 minutos; D4 solo se lee el día siguiente al de las decisiones. En vivo se enseña el resultado, no la espera.
 
 ### Recorridos 7.3 y 7.4
 Los dos casos límite del PRD que la sustentación debe mostrar.
 - **En el proyecto:** 7.3 es la desincronía entre puntaje y explicación; 7.4, el escalamiento a una persona por disparidad (`vectra-risk/entradas/prd.md`, §7).
 - **Relacionados:** [Demos D1 a D4](#demos-d1-a-d4).
 
+### Presentador y operador
+Los dos papeles humanos de una demo.
+- **En el proyecto:** el **operador** corre la herramienta, abre y fusiona los PR y sincroniza en Argo CD; el **presentador** enseña la consola y las alertas. El presentador entra con los usuarios sintéticos terminados en `-2` (`analista-2`, `cumplimiento-2`), que la herramienta no usa en ese momento; la herramienta usa los terminados en `-1` (`vectra-risk/system-verification/demos/journey-7-3.md`).
+- **Relacionados:** [Demos D1 a D4](#demos-d1-a-d4).
+- **Ojo:** en una sustentación de una sola persona, la misma persona hace los dos papeles.
+
+### Modo de reactivación de la demo D2
+Opción `--reactivation` de la orden `rt2`, que dice quién reactiva el modelo congelado.
+- **En el proyecto:** `tool` (por omisión): la herramienta hace el step-up de `cumplimiento-1` y envía la reactivación; sirve para ensayar. `presenter`: la herramienta espera a que el presentador reactive en la consola con `cumplimiento-2`, con el segundo factor que impone el servidor, y después verifica lo mismo (`vectra-risk/system-verification/demos/journey-7-4.md`).
+- **Relacionados:** [Resolución de congelamiento](#resolución-de-congelamiento), [Presentador y operador](#presentador-y-operador).
+- **Ojo:** el modo `presenter` es el que muestra a una persona decidiendo. El mismo modelo no se vuelve a congelar el mismo día UTC de su reactivación, así que un segundo ensayo va otro día o con otro paquete.
+
 ### Escenarios RT-1 a RT-5
 Cinco escenarios de *red-teaming* (ataque simulado) que valen como criterios de aceptación del sistema.
-- **En el proyecto:** (`vectra-risk/aidlc-docs/inception/requirements/requirements.md`, §6)
-  - **RT-1**: instrucciones escondidas en el texto libre; se guardan como dato y nada cambia.
-  - **RT-2**: variables proxy; el monitoreo detecta la disparidad, congela y el modelo sigue congelado.
-  - **RT-3**: desincronía forzada de versión; cero puntajes entregados como decisión.
-  - **RT-4**: entradas fuera de dominio; la confianza no se infla y salen como baja confianza.
-  - **RT-5**: intento de escribir el estado de crédito; denegado en dos capas.
-- **Relacionados:** [Demos D1 a D4](#demos-d1-a-d4).
-- **Ojo:** las demos ejercitan RT-2, RT-3 y RT-5. RT-1 y RT-4 no los ejercita ninguna demo.
+- **En el proyecto:** definidos en `vectra-risk/entradas/prd.md` (§11) y en `vectra-risk/aidlc-docs/inception/requirements/requirements.md` (§6); oráculos en BR-U12-04.
+
+| Escenario | Ataque | Resultado esperado | Orden y demo |
+|---|---|---|---|
+| RT-1 | instrucciones escondidas en el texto libre | se guardan como dato; la recomendación y la narrativa son idénticas a las del caso sin ese texto | `rt1`; sin demo |
+| RT-2 | variables proxy que delatan un atributo protegido | el monitoreo detecta la disparidad, congela, y el modelo sigue congelado tras más corridas | `rt2`; D2 |
+| RT-3 | desincronía forzada o paquete de modelo alterado | cero puntajes entregados como decisión; el caso queda sin recomendación | `rt3`; D1 |
+| RT-4 | entradas fuera del dominio de entrenamiento | la confianza no se infla; salen como baja confianza y revisión requerida | `rt4`; sin demo |
+| RT-5 | intento de escribir el estado de crédito | denegado en dos capas: sin ruta de red y sin permiso; el proxy responde 403 | `rt5`; D3 |
+
+- **Relacionados:** [Demos D1 a D4](#demos-d1-a-d4), [Variables proxy](#variables-proxy), [Sin escritura al core](#sin-escritura-al-core).
+- **Ojo:** las demos ejercitan RT-2, RT-3 y RT-5. Las secciones `rt1` y `rt4` de la herramienta están diferidas y responden «no ejecutado»; RT-1 sí tiene una prueba de propiedades en el código de scoring.
 
 ### Informe de verificación
 Tabla generada por la herramienta de verificación con un renglón por escenario e historia.
@@ -848,6 +887,7 @@ Lista de lo que está diseñado pero no se construyó o no se despliega para la 
 - [Consulta de la explicación](#consulta-de-la-explicación)
 - [Core bancario](#core-bancario)
 - [Corte (cutoff)](#corte-cutoff)
+- [Cota inferior](#cota-inferior)
 - [Crédito de vivienda](#crédito-de-vivienda)
 - [CRO (director de riesgo)](#cro-director-de-riesgo)
 - [Datos de identificación](#datos-de-identificación)
@@ -880,6 +920,7 @@ Lista de lo que está diseñado pero no se construyó o no se despliega para la 
 - [Grupo](#grupo)
 - [ICP (Ideal Customer Profile)](#icp-ideal-customer-profile)
 - [Idempotencia](#idempotencia)
+- [Identificador del caso](#identificador-del-caso)
 - [Informe de verificación](#informe-de-verificación)
 - [Ingeniero de riesgo](#ingeniero-de-riesgo)
 - [Inmutabilidad (append-only)](#inmutabilidad-append-only)
@@ -894,6 +935,7 @@ Lista de lo que está diseñado pero no se construyó o no se despliega para la 
 - [Moat (ventaja competitiva defendible)](#moat-ventaja-competitiva-defendible)
 - [Modelo congelado (estado del caso)](#modelo-congelado-estado-del-caso)
 - [Modelo de referencia](#modelo-de-referencia)
+- [Modo de reactivación de la demo D2](#modo-de-reactivación-de-la-demo-d2)
 - [Monitoreo de sesgo](#monitoreo-de-sesgo)
 - [Motivos de la recomendación](#motivos-de-la-recomendación)
 - [Muestra mínima y muestra insuficiente](#muestra-mínima-y-muestra-insuficiente)
@@ -908,6 +950,7 @@ Lista de lo que está diseñado pero no se construyó o no se despliega para la 
 - [Piso](#piso)
 - [Política vigente](#política-vigente)
 - [PRD (Product Requirements Document)](#prd-product-requirements-document)
+- [Presentador y operador](#presentador-y-operador)
 - [Principios de diseño P1 a P5](#principios-de-diseño-p1-a-p5)
 - [Promoción](#promoción)
 - [Puntaje (score)](#puntaje-score)

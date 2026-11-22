@@ -10,22 +10,22 @@ Convenciones: «Qué es» es una definición general y breve; lo demás sale del
 ## Índice por temas
 
 - [1. Método y organización](#1-método-y-organización) (6 entradas)
-- [2. Kubernetes y sus objetos](#2-kubernetes-y-sus-objetos) (20 entradas)
+- [2. Kubernetes y sus objetos](#2-kubernetes-y-sus-objetos) (22 entradas)
 - [3. GitOps, Argo CD y Helm](#3-gitops-argo-cd-y-helm) (13 entradas)
 - [4. Políticas de admisión](#4-políticas-de-admisión) (3 entradas)
-- [5. Malla de servicios y borde](#5-malla-de-servicios-y-borde) (13 entradas)
+- [5. Malla de servicios y borde](#5-malla-de-servicios-y-borde) (15 entradas)
 - [6. Identidad](#6-identidad) (11 entradas)
 - [7. Certificados y secretos](#7-certificados-y-secretos) (5 entradas)
 - [8. Datos y almacenamiento](#8-datos-y-almacenamiento) (7 entradas)
-- [9. Servir modelos](#9-servir-modelos) (5 entradas)
+- [9. Servir modelos](#9-servir-modelos) (6 entradas)
 - [10. Observabilidad](#10-observabilidad) (12 entradas)
 - [11. Aplicación: servicios en Python](#11-aplicación-servicios-en-python) (16 entradas)
-- [12. Aplicación: la consola](#12-aplicación-la-consola) (8 entradas)
+- [12. Aplicación: la consola](#12-aplicación-la-consola) (11 entradas)
 - [13. Cadena de suministro e integración continua](#13-cadena-de-suministro-e-integración-continua) (11 entradas)
-- [14. Loop de agentes](#14-loop-de-agentes) (28 entradas)
+- [14. Loop de agentes](#14-loop-de-agentes) (29 entradas)
 - [Índice alfabético](#índice-alfabético)
 
-Total: 158 entradas.
+Total: 167 entradas.
 <!-- /INDICE-TEMAS -->
 
 ---
@@ -56,7 +56,7 @@ Total: 158 entradas.
 - **En Vectra:** U0 `contracts`, U1 `platform-foundation`, U2 `identity-edge`, U3 `decision-registry`, U4 `governance`, U5 `reference-model`, U6 `model-serving`, U7 `scoring-explainability`, U8 `case-management`, U9 `bias-monitoring`, U10 `console`, U11 `product-metrics`, U12 `system-verification`.
 - **Dónde:** `vectra-risk/aidlc-docs/inception/application-design/unit-of-work.md`; el código de cada una está en la carpeta de su nombre bajo `vectra-risk/` (U1 en `vectra-risk/platform/` y `vectra-risk/vectra-risk-gitops/`).
 - **P:** ¿Qué unidad es la más crítica? **R:** U3, el registro de decisiones: es el único componente clasificado *Critical*.
-- **Ojo:** el `README.md` de la raíz todavía dice que solo hay código de U0 y U1; `vectra-risk/aidlc-docs/aidlc-state.md` y el árbol muestran código de todas.
+- **Ojo:** las trece tienen código en `main`, pero no todo lo diseñado se construyó: lo diferido está en `vectra-risk/aidlc-docs/construction/plans/demo-recorte-funcional.md`.
 
 ### Monorepo
 - **Qué es:** un solo repositorio para todo el código y la configuración.
@@ -160,6 +160,20 @@ Total: 158 entradas.
 - **P:** ¿Cómo demuestras el mínimo privilegio? **R:** Con la herramienta `permissions` del servidor MCP, que devuelve `kubectl auth can-i --list` de la cuenta del agente.
 - **Ojo:** en kind, External Secrets Operator puede leer todos los `Secret` (excepción K11); la instancia por namespace está decidida y sin implementar.
 
+### vectra-readonly-agent
+- **Qué es:** la ServiceAccount de solo lectura con la que corren los agentes del loop.
+- **En Vectra:** vive en el namespace `argocd` con un `ClusterRole` del mismo nombre, sin comodines: cada regla lista solo `get`, `list` y `watch`. Faltan a propósito `secrets`, `pods/exec`, `pods/portforward`, `pods/attach`, todo verbo de escritura, `impersonate`, `escalate` y `bind`.
+- **Dónde:** `vectra-risk/platform/rbac/readonly-agent/readonly-agent-kind.yaml`; prueba en `vectra-risk/platform/tests/test_readonly_agent.py`.
+- **P:** ¿Por qué no usar el rol integrado `view`? **R:** Porque es un rol agregado: lo que trae lo decide cualquier chart que lo etiquete, y no cubre los recursos propios (Argo CD, KServe, Linkerd).
+- **Ojo:** solo existe en kind. Staging y producción no la tienen.
+
+### kubectl auth can-i
+- **Qué es:** orden que pregunta a la API de Kubernetes si una identidad puede hacer algo; con `--list` enumera todo lo que puede.
+- **En Vectra:** es la evidencia de mínimo privilegio que pide la guía de sustentación: `kubectl auth can-i --list --as=system:serviceaccount:argocd:vectra-readonly-agent`. El servidor MCP la usa al arrancar y la ofrece en su herramienta `permissions`.
+- **Dónde:** `vectra-risk/loop/mcp-solo-lectura/src/vectra_mcp_readonly/kubectl.py`; salidas guardadas en `vectra-risk/aidlc-docs/construction/system-verification/evidence/sustentacion/mcp/`.
+- **P:** ¿Qué responde para la cuenta del agente? **R:** «Sí» a `get`, `list` y `watch` de pods, eventos, cargas de trabajo, Applications e InferenceServices; «no» a crear o borrar pods, parchear Deployments, leer o listar `secrets`, `pods/exec` e `impersonate`.
+- **Ojo:** `--as` necesita una identidad con permiso de suplantar: la ejecuta el operador con el kubeconfig de administrador. El agente pregunta por sí mismo, sin `--as`.
+
 ### Pod Security
 - **Qué es:** control de admisión integrado de Kubernetes con tres niveles: `privileged`, `baseline` y `restricted`.
 - **En Vectra:** todos los namespaces propios llevan `pod-security.kubernetes.io/enforce: restricted`; Kyverno añade sus reglas encima.
@@ -227,7 +241,7 @@ Total: 158 entradas.
 - **En Vectra:** una por componente; en kind son 55 más la raíz.
 - **Dónde:** `vectra-risk/vectra-risk-gitops/apps/kind/`.
 - **P:** ¿Cómo sabes que todo está sano? **R:** La herramienta `argo_applications` del servidor MCP lista sincronización y salud de cada una.
-- **Ojo:** el `README.md` de la raíz dice 41 aplicaciones sanas: es la cifra del cierre de U1. `linkerd-control-plane` y `kserve-crd` quedan `OutOfSync` aceptados.
+- **Ojo:** el cierre de U1 midió 41 aplicaciones sanas, cuando aún no había servicios; hoy el catálogo genera 55. `linkerd-control-plane` y `kserve-crd` quedan `OutOfSync` aceptados.
 
 ### AppProject
 - **Qué es:** recurso de Argo CD que limita qué repositorios, destinos y tipos de recurso puede usar un grupo de Applications.
@@ -258,7 +272,7 @@ Total: 158 entradas.
 - **En Vectra:** siete, de la 0 a la 6: operadores y definiciones; malla, políticas, namespaces y red; datos; identidad y borde; observabilidad; servicios; y modelos servidos.
 - **Dónde:** campo `wave` de `vectra-risk/vectra-risk-gitops/components.yaml`; prueba en `vectra-risk/platform/tests/test_waves.py`.
 - **P:** ¿Argo CD respeta las waves solo? **R:** No aquí: sin auto-sync, el operador sigue el orden del runbook.
-- **Ojo:** el `README.md` de la raíz dice «6 waves (0–5)»; el catálogo tiene 7 (la 6 es `model-serving`).
+- **Ojo:** son siete, no seis: la 6 se añadió para `model-serving`, que necesita a los servicios de la 5.
 
 ### Prune
 - **Qué es:** opción de sincronización que borra del clúster lo que ya no está en Git.
@@ -402,6 +416,19 @@ Total: 158 entradas.
 - **Dónde:** perfil `spa` de `vectra-risk/identity-edge/gateway/routes.yaml`; prueba en `vectra-risk/console/spa/tests/csp/csp.spec.ts`.
 - **P:** ¿Cómo sabes que la consola la cumple? **R:** Una prueba de Playwright exige cero violaciones y que la cabecera sea igual, carácter a carácter, a la del perfil.
 
+### Trusted Types
+- **Qué es:** mecanismo del navegador que impide pasar texto sin revisar a las funciones que inyectan HTML o código en la página.
+- **En Vectra:** la CSP del perfil `spa` lleva `require-trusted-types-for 'script'` y `trusted-types 'none'`: la consola no puede crear ninguna política, así que no puede inyectar HTML desde texto.
+- **Dónde:** `vectra-risk/identity-edge/gateway/routes.yaml`.
+- **P:** ¿Qué pasa si el texto libre de una solicitud trae código? **R:** Se muestra como texto; hay una prueba de extremo a extremo que lo comprueba.
+- **Ojo:** lo aplican los navegadores que lo implementan; en los demás protege el resto de la CSP.
+
+### COOP (Cross-Origin-Opener-Policy)
+- **Qué es:** cabecera que aísla una página de las ventanas de otros orígenes que la abren o que ella abre.
+- **En Vectra:** `Cross-Origin-Opener-Policy: same-origin`, en el perfil común de cabeceras junto a HSTS, `nosniff` y `Referrer-Policy`.
+- **Dónde:** `vectra-risk/identity-edge/gateway/routes.yaml`.
+- **P:** ¿Forma parte de la CSP? **R:** No: es una cabecera aparte, del perfil común; junto con la CSP compone el endurecimiento del navegador que pone el gateway.
+
 ---
 
 ## 6. Identidad
@@ -544,7 +571,7 @@ Total: 158 entradas.
 - **Qué es:** prueba periódica de que un respaldo se puede restaurar.
 - **En Vectra:** CronJob semanal que restaura `registry-db` y `case-db` en clústeres efímeros, los verifica y publica el resultado.
 - **Dónde:** `vectra-risk/platform/restore-drill/`.
-- **P:** ¿Cuánto tarda restaurar? **R:** 144 s `registry-db` y 110 s `case-db`, medidos en kind (`README.md`, §2).
+- **P:** ¿Cuánto tarda restaurar? **R:** 144 s `registry-db` y 110 s `case-db`, medidos en kind (`vectra-risk/aidlc-docs/construction/platform-foundation/evidence/cierre-acotado.md`).
 
 ### MinIO
 - **Qué es:** almacenamiento de objetos compatible con S3.
@@ -582,6 +609,13 @@ Total: 158 entradas.
 - **En Vectra:** uno por versión de modelo, llamado `isvc-<8 hexadecimales>`, con tres perfiles: `prod`, `inactive` y `staging`.
 - **Dónde:** `vectra-risk/model-serving/chart/templates/inferenceservice.yaml`, `vectra-risk/vectra-risk-gitops/values/kind/model-serving.yaml`.
 - **P:** ¿Quién edita ese archivo de valores? **R:** Solo `promotion-tool`, por PR.
+
+### promotion-tool
+- **Qué es:** herramienta de línea de órdenes propia que lleva una versión de modelo aprobada a servir, siempre por *pull request*.
+- **En Vectra:** inicia sesión contra Keycloak como un ingeniero de riesgo, con segundo factor (OIDC con PKCE; el token vive solo en memoria). Órdenes: `list-promotable`, `create-promotion-pr` (PR que añade el InferenceService de la versión), `mark-active` (pide a gobierno el cambio de estado, después de fusionar y sincronizar), `post-activation-pr` (baja la versión anterior) y `rollback-pr`.
+- **Dónde:** `vectra-risk/governance/promotion_tool/vectra_promotion/cli.py`, `vectra-risk/governance/promotion_tool/vectra_promotion/login.py`.
+- **P:** ¿Por qué importa en la sustentación? **R:** Es la pieza de negocio que muestra «propone por PR, una persona aprueba»: la herramienta abre el PR y nunca aplica ni sincroniza (BR-U4-08).
+- **Ojo:** es un programa determinista, no un agente. El orden es fijo: `post-activation-pr` solo vale después del `mark-active` de la versión nueva.
 
 ### Predictor
 - **Qué es:** componente de un InferenceService que calcula la predicción.
@@ -664,7 +698,7 @@ Total: 158 entradas.
 - **Dónde:** `vectra-risk/platform/observability/values/loki.yaml`, `vectra-risk/platform/observability/values/tempo.yaml`, `vectra-risk/platform/observability/values/alloy.yaml`.
 - **Versión:** charts 7.5.0, 1.61.3 y 1.15.0 (`vectra-risk/vectra-risk-gitops/components.yaml`).
 - **P:** ¿Dónde ves los logs en la demo? **R:** Con `kubectl logs`.
-- **Ojo:** no están instalados en kind: se retiraron para que el perfil quepa en memoria (`vectra-risk/DECISIONES-LOOP.md`, §11). El diagrama del `README.md` de la raíz aún los muestra.
+- **Ojo:** no están instalados en kind: se retiraron para que el perfil quepa en memoria (`vectra-risk/DECISIONES-LOOP.md`, §11).
 
 ### Logs estructurados
 - **Qué es:** logs en JSON con campos fijos.
@@ -842,6 +876,24 @@ Total: 158 entradas.
 - **En Vectra:** catálogos en español e inglés, sin librería externa; el idioma elegido viaja a Keycloak.
 - **Dónde:** `vectra-risk/console/spa/src/i18n/labels.es.json`, `vectra-risk/console/spa/src/i18n/messages.es.json` y sus pares `labels.en.json` y `messages.en.json`.
 - **P:** ¿Cómo se llama en inglés «Se aparta de la recomendación»? **R:** *Overrides the recommendation*, en `labels.en.json`.
+
+### Selector de idioma
+- **Qué es:** control de la consola para elegir español o inglés.
+- **En Vectra:** orden inicial: preferencia guardada, idioma del perfil, idioma del navegador y, por último, español. La elección se guarda en el almacenamiento local del navegador, en una clave con un valor de una lista cerrada.
+- **Dónde:** `vectra-risk/console/spa/src/i18n/language.ts`, `vectra-risk/console/spa/src/preferences/storage.ts`.
+- **P:** ¿No estaba prohibido el almacenamiento local? **R:** Para tokens y datos de sesión, sí: siguen en memoria. Idioma y tema son la única excepción, acotada a un módulo y a dos claves que no son datos personales.
+
+### ui_locales
+- **Qué es:** parámetro estándar de OIDC con el que el cliente dice en qué idioma quiere las pantallas del proveedor de identidad.
+- **En Vectra:** la consola envía el idioma elegido (`es` o `en`, nunca texto libre) en cada redirección a Keycloak, y el inicio de sesión sale en ese idioma.
+- **Dónde:** `vectra-risk/console/spa/src/auth/AuthProvider.tsx`.
+- **P:** ¿Cómo sabe Keycloak el idioma de la consola? **R:** Por `ui_locales` en la petición de autorización.
+
+### Selector de tema
+- **Qué es:** control de la consola para elegir tema del sistema, claro u oscuro.
+- **En Vectra:** una sola paleta: cada color lleva su valor claro y su valor oscuro con la función `light-dark()` de CSS, y el atributo `data-theme` de la página decide. Un guion del mismo origen aplica el tema antes de la primera pintura.
+- **Dónde:** `vectra-risk/console/spa/src/styles.css`, `vectra-risk/console/spa/public/theme-boot.js`, `vectra-risk/console/spa/src/theme/`.
+- **P:** ¿Por qué un archivo aparte y no un guion en línea? **R:** Porque la CSP solo admite guiones del mismo origen (`script-src 'self'`); uno en línea quedaría bloqueado.
 
 ### Playwright
 - **Qué es:** herramienta que maneja navegadores reales para pruebas de extremo a extremo.
@@ -1035,11 +1087,17 @@ Total: 158 entradas.
 - **P:** ¿Cómo trabajan tres agentes a la vez sin pisarse? **R:** Cada uno en su worktree y en tareas que no comparten archivos.
 
 ### settings.json
-- **Qué es:** configuración de Claude Code del proyecto; `permissions` tiene las listas `allow` (permitir sin preguntar), `deny` (prohibir) y `ask` (preguntar siempre).
-- **En Vectra:** `allow` nombra las seis herramientas MCP una por una; `deny` prohíbe las órdenes de escritura de `kubectl`, `helm install`, `upgrade` y `uninstall`, `argocd app sync` y `delete`, varias de `docker` y `kind create` y `delete`.
+- **Qué es:** archivo de configuración de Claude Code del proyecto; su bloque `permissions` gobierna qué herramientas y órdenes puede usar una sesión.
+- **En Vectra:** versionado en Git, así que cambiarlo exige un PR; vale para el orquestador y para cada worktree de codificador o revisor.
 - **Dónde:** `.claude/settings.json`.
-- **P:** ¿Por qué `deny` y no una instrucción? **R:** Porque en la prueba de cambio de modelo los dos modelos ignoraron la instrucción; la configuración no depende del modelo.
-- **Ojo:** el archivo no usa `ask`. Y `allow` no impide usar otra herramienta: solo evita la pregunta para esas seis; lo que restringe es el `tools:` de cada agente y lo que el servidor registra.
+- **P:** ¿Dónde están los límites del agente? **R:** En cuatro sitios: este archivo, el `tools:` de cada agente, lo que el servidor MCP registra y el RBAC del clúster.
+
+### Reglas allow, deny y ask
+- **Qué es:** las tres listas de `permissions`: `allow` (usar sin preguntar), `deny` (prohibir siempre) y `ask` (preguntar a la persona cada vez).
+- **En Vectra:** `allow` nombra las seis herramientas MCP, una por una y sin comodines. `deny` tiene 32 patrones: las escrituras de `kubectl` (`apply`, `create`, `delete`, `patch`, `edit`, `replace`, `scale`, `rollout`, `annotate`, `label`, en dos formas cada una), `helm install`, `upgrade` y `uninstall`, `argocd app sync` y `delete`, `docker start`, `stop`, `restart`, `rm` y `kill`, y `kind create` y `delete`.
+- **Dónde:** `.claude/settings.json`; decisión en `vectra-risk/DECISIONES-LOOP.md` (§11).
+- **P:** ¿Por qué `deny` y no una instrucción? **R:** Porque en la prueba de cambio de modelo los dos modelos ignoraron la instrucción; una regla de configuración no depende del modelo.
+- **Ojo:** tres límites honestos. Uno: `allow` no restringe, solo evita la pregunta para esas seis; lo que restringe es el `tools:` de cada agente y lo que el servidor registra. Dos: no hay ninguna regla sobre `gh`; que el agente no fusione descansa en su contrato y en la protección de rama. Tres: el archivo confirmado no usa `ask`; el dueño del proyecto, para operar el clúster de kind, pasó en su copia local los 32 patrones de `deny` a `ask` y aprobó orden por orden. Los worktrees de codificadores y revisores conservan `deny`.
 
 ### MCP (Model Context Protocol)
 - **Qué es:** protocolo abierto para que un agente use herramientas externas a través de un servidor.
@@ -1047,7 +1105,7 @@ Total: 158 entradas.
 - **Dónde:** `.mcp.json`, `vectra-risk/loop/mcp-solo-lectura/`.
 - **Versión:** SDK `mcp` 2.3.0 (`vectra-risk/loop/mcp-solo-lectura/README.md`).
 - **P:** ¿Qué puede hacer tu agente por MCP? **R:** Seis lecturas y ninguna escritura.
-- **Ojo:** el `README.md` de la raíz todavía dice «No usamos servidores MCP»; quedó atrás.
+- **Ojo:** el servidor se añadió después de las primeras olas del loop: las tareas `U01-T01` a `U01-T06` se hicieron solo con las herramientas nativas de Claude Code.
 
 ### Servidor MCP
 - **Qué es:** proceso que ofrece herramientas a un agente por MCP.
@@ -1152,6 +1210,7 @@ Total: 158 entradas.
 - [components.yaml y generate.py](#componentsyaml-y-generatepy)
 - [Conftest y Rego](#conftest-y-rego)
 - [Construction](#construction)
+- [COOP (Cross-Origin-Opener-Policy)](#coop-cross-origin-opener-policy)
 - [Criterio de aceptación](#criterio-de-aceptación)
 - [CronJob](#cronjob)
 - [CSP (Content Security Policy)](#csp-content-security-policy)
@@ -1186,6 +1245,7 @@ Total: 158 entradas.
 - [kind](#kind)
 - [KServe](#kserve)
 - [Kubeconfig de solo lectura](#kubeconfig-de-solo-lectura)
+- [kubectl auth can-i](#kubectl-auth-can-i)
 - [Kubernetes](#kubernetes)
 - [Kustomize](#kustomize)
 - [Kyverno](#kyverno)
@@ -1220,6 +1280,7 @@ Total: 158 entradas.
 - [PriorityClass](#priorityclass)
 - [Problem Details](#problem-details)
 - [Prometheus](#prometheus)
+- [promotion-tool](#promotion-tool)
 - [Protección de rama](#protección-de-rama)
 - [Proxy](#proxy)
 - [Prueba de cambio de modelo](#prueba-de-cambio-de-modelo)
@@ -1236,6 +1297,7 @@ Total: 158 entradas.
 - [Realm](#realm)
 - [Registro local](#registro-local)
 - [Regla de alerta](#regla-de-alerta)
+- [Reglas allow, deny y ask](#reglas-allow-deny-y-ask)
 - [ResourceQuota y LimitRange](#resourcequota-y-limitrange)
 - [Respaldo y archivado WAL](#respaldo-y-archivado-wal)
 - [Revisor](#revisor)
@@ -1245,6 +1307,8 @@ Total: 158 entradas.
 - [Runbook](#runbook)
 - [SBOM](#sbom)
 - [SecurityPolicy](#securitypolicy)
+- [Selector de idioma](#selector-de-idioma)
+- [Selector de tema](#selector-de-tema)
 - [Server](#server)
 - [ServiceAccount](#serviceaccount)
 - [ServiceMonitor y PodMonitor](#servicemonitor-y-podmonitor)
@@ -1265,12 +1329,15 @@ Total: 158 entradas.
 - [Testcontainers](#testcontainers)
 - [TOTP](#totp)
 - [Trivy](#trivy)
+- [Trusted Types](#trusted-types)
 - [TypeScript](#typescript)
+- [ui_locales](#ui_locales)
 - [Unidades U0 a U12](#unidades-u0-a-u12)
 - [uv](#uv)
 - [Uvicorn](#uvicorn)
 - [Valkey](#valkey)
 - [Vault](#vault)
+- [vectra-readonly-agent](#vectra-readonly-agent)
 - [Veredicto](#veredicto)
 - [Vite](#vite)
 - [Wave](#wave)
