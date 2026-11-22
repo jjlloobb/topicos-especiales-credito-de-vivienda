@@ -274,6 +274,26 @@ def test_messages_es_keys_exist_and_required_ones_are_translated():
     assert tc.message_problems(tc.THEME_DIR, tc.REFERENCE_DIR, TEMPLATES) == []
 
 
+@pytest.mark.parametrize("locale", tc.OTHER_LOCALES)
+def test_messages_es_keys_exist_in_the_other_locales_of_the_login(locale):
+    """P-U2-08: el login ofrece es, en y pt-BR; toda clave de `messages_es` y toda clave exigida por las plantillas existe en los mensajes de Keycloak de ese idioma."""
+    assert tc.locale_problems(tc.THEME_DIR, tc.REFERENCE_DIR, locale) == []
+    assert tc.required_keys(tc.REFERENCE_DIR, TEMPLATES) <= tc.locale_keys(tc.REFERENCE_DIR, locale)
+
+
+def test_messages_es_key_missing_in_another_locale_is_detected(reference):
+    path = reference / "base" / "messages_pt_BR.properties"
+    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if not ln.startswith("doLogIn=")]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    assert tc.locale_problems(tc.THEME_DIR, reference, "pt_BR") == ["clave sin mensaje en pt_BR: doLogIn"]
+
+
+def test_design_names_the_three_languages_of_the_login():
+    assert "`supportedLocales: [es, en, pt-BR]`" in tc.P_U2_08 and "`defaultLocale: es`" in tc.P_U2_08
+    realm = (tc.EDGE / "keycloak" / "realm" / "realm.kind.yaml").read_text(encoding="utf-8")
+    assert "\nsupportedLocales: [es, en, pt-BR]\n" in realm and "\ndefaultLocale: es\n" in realm
+
+
 def test_messages_es_translates_totp_keys():
     es = tc.parse_properties((tc.THEME_DIR / ES).read_text(encoding="utf-8"))
     totp = {k for k in tc.required_keys(tc.REFERENCE_DIR, TEMPLATES) if k.startswith("loginTotp")}

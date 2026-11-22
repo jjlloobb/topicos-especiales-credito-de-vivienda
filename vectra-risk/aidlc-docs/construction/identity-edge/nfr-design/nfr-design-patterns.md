@@ -93,7 +93,7 @@ pinneada en el plan de tareas y se registra en `audit.md` cuál se usó:
 
 ### P-U2-08 — Tema de login en español (Q6)
 - Tema `vectra`, hijo de `keycloak.v2`: logo y colores del banco, textos en `messages_es.properties` (locale por defecto `es`), sin JavaScript propio ni recursos externos.
-- Idiomas (enmienda del 2026-11-21, pedido del dueño del proyecto para la sustentación): el login ofrece español e inglés con el selector de idioma de `keycloak.v2` (`supportedLocales: [es, en]` en el realm); el español sigue siendo el idioma por omisión (`defaultLocale: es`). Los textos en inglés son los `messages_en.properties` de Keycloak: el tema no añade claves propias, así que no lleva un `messages_en.properties`.
+- Idiomas (enmienda del 2026-11-21, pedido del dueño del proyecto para la sustentación): el login ofrece español, inglés y portugués de Brasil con el selector de idioma de `keycloak.v2` (`supportedLocales: [es, en, pt-BR]` en el realm; el portugués se añadió ese mismo día); el español sigue siendo el idioma por omisión (`defaultLocale: es`). Los textos en inglés y en portugués son los `messages_en.properties` y `messages_pt_BR.properties` de Keycloak: el tema no añade claves propias, así que no lleva los suyos, y toda clave de `messages_es.properties` existe en los dos.
 - CSP estricta en `/auth/**` (BR-U2-13).
 - Marca Vectra mientras el banco no entregue la suya (enmienda del 2026-11-02, decisión P3 del usuario al preparar U02-T06; paleta y logo enmendados el 2026-11-21):
   - logo `vectra-logo.svg`: SVG propio con la casa con marca de verificación de la consola y la palabra «Vectra», sin `<script>`, sin `<image>` y sin referencias de otro origen;

@@ -8,3 +8,5 @@ c9ec5c28a14aa30f0d6887044f431c2c04cbe1ad7732c1bf4a1c3c89250efe31  ./keycloak.v2/
 0cea2ddf59acc4ac36c7d849dc7c1a554466cf0cc6679f18ae08daee28f6258e  ./keycloak.v2/templates/login-update-password.ftl
 7aa5d6b69b69162426efce57c2a641a562020e45f1bba00df8575def92bca242  ./keycloak.v2/templates/password-commons.ftl
 6221a3176c73a3fd67abc97076deb9cef112378ce157735a78bd865800315b37  ./keycloak.v2/templates/template.ftl
+608d7b0f17d7f5fd623dd4ae83427865173706b9dd9fd0ddac7d727a834e9e0e  ./base/messages_pt_BR.properties
+a12eef79f7f3dfa9c6593c6a3f641514861c02319cb993c82c806d704779d379  ./keycloak.v2/messages_pt_BR.properties

@@ -261,6 +261,23 @@ def reference_keys(ref: Path) -> set[str]:
     return keys
 
 
+OTHER_LOCALES = ("pt_BR",)  # los idiomas del login ademas de es y en (P-U2-08); sus mensajes son los de Keycloak
+
+
+def locale_keys(ref: Path, locale: str) -> set[str]:
+    """Las claves de mensajes de Keycloak en otro idioma (`base` y `keycloak.v2`)."""
+    keys: set[str] = set()
+    for rel in (f"base/messages_{locale}.properties", f"keycloak.v2/messages_{locale}.properties"):
+        keys |= parse_properties((ref / rel).read_text(encoding="utf-8")).keys()
+    return keys
+
+
+def locale_problems(theme: Path, ref: Path, locale: str) -> list[str]:
+    """Claves de `messages_es` del tema que Keycloak no trae en `locale`: en ese idioma saldrian en ingles."""
+    es = parse_properties(_text(theme / "messages" / "messages_es.properties"))
+    return [f"clave sin mensaje en {locale}: {k}" for k in sorted(set(es) - locale_keys(ref, locale))]
+
+
 _MSG_LITERAL = re.compile(r'msg\("([^"$]+)"')
 
 
