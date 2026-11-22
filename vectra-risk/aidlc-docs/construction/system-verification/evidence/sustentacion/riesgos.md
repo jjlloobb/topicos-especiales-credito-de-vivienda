@@ -1,6 +1,6 @@
 # Riesgos y cómo se mitigaron
 
-Tabla completa de la sección 8 del `README.md` raíz. Estado al 21 de noviembre de 2026. Las rutas son relativas a la raíz del repositorio.
+Tabla completa de la sección 8 del `README.md` raíz. Estado al 21 de noviembre de 2026; la fila de Grafana es del 22. Las rutas son relativas a la raíz del repositorio.
 
 | Riesgo | Mitigación | Estado al 21 nov 2026 |
 |---|---|---|
@@ -20,5 +20,6 @@ Tabla completa de la sección 8 del `README.md` raíz. Estado al 21 de noviembre
 | Pruebas diferidas: carga, resiliencia, PII, red negada, failover de zona | Listadas como «no ejecutado», no como aprobadas | Sin ejecutar |
 | Comoditización: explicabilidad y sesgo ya son estándar | Moat en soberanía del dato y conocimiento local | Decidido en el PVB. Sin validar con un cliente |
 | El argumento regulatorio es débil: no hay norma de IA vinculante de la SFC | Vender contra el marco de riesgo vigente | Decidido en el PVB |
+| Grafana con al menos 5 000 carpetas «Vectra» y 5 000 «Operación» duplicadas (H-13, `vectra-risk/aidlc-docs/construction/system-verification/evidence/kind/09-d4-u11-y-grafana.md`) | Abrir el tablero por enlace directo; encontrar la causa y limpiar | Abierto al 22 nov 2026 |
 
 Los riesgos de operación de la demo en kind (R-1 a R-11: memoria, bóveda en memoria, certificado de Linkerd, calendario de D4) están en `vectra-risk/system-verification/docs/paso-18-kind.md`, «Riesgos que pueden impedir una demo».

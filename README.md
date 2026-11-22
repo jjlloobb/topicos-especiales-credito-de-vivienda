@@ -5,7 +5,7 @@ Motor de scoring de crédito de vivienda explicable y auditable, que corre dentr
 
 > **Qué está construido y qué no.**
 > - **Hecho:** las 13 unidades del diseño (U0 a U12) tienen código en [`vectra-risk/`](vectra-risk/). El sistema completo corre en un clúster kind de tres nodos, en un portátil de 14,8 GiB.
-> - **Medido:** tres de las cuatro demos pasaron contra ese clúster el 20 y 21 de noviembre de 2026. La cuarta (el tablero de producto) tenía su lectura pendiente al escribir este README.
+> - **Medido:** las cuatro demos pasaron contra ese clúster entre el 20 y el 22 de noviembre de 2026. El informe final dice 16 `pasa`, 0 `falla` y 25 `no ejecutado` ([`verification-report.md`](vectra-risk/system-verification/evidence/20261120-9dc027f/verification-report.md)).
 > - **No hecho:** staging y producción no se desplegaron nunca. Los datos y el modelo son sintéticos. No hay un banco usándolo.
 >
 > Producto hipotético de curso. Cada cifra apunta a un archivo, un comando, un PR o una fuente abierta el 21 de noviembre de 2026.
@@ -31,7 +31,7 @@ Las dos primeras tienen panel en `vectra-risk/product-metrics/`; la tercera la m
 
 **Qué cambió desde el PVB.** La crítica ([`critica.md`](vectra-risk/entradas/critica.md), sección 8) mostró que explicabilidad y sesgo ya son estándar del mercado. El moat se movió a la soberanía del dato, y se añadió una métrica: si la explicación **cambia** decisiones o solo las justifica.
 
-**Qué cambió desde el PRD.** Solo kind. Lo que no sostiene una de las cuatro demos quedó diferido (`vectra-risk/aidlc-docs/construction/plans/demo-recorte-funcional.md`): red negada, carga, PII y resiliencia responden «no ejecutado».
+**Qué cambió desde el PRD.** Solo kind. Lo que no sostiene una de las cuatro demos quedó diferido (`vectra-risk/aidlc-docs/construction/plans/demo-recorte-funcional.md`).
 
 ---
 
@@ -108,11 +108,11 @@ create secrets: no   get secrets: no      get pods: yes
 ```
 
 - El `ClusterRole` no tiene comodines, `secrets`, `pods/exec` ni verbos de escritura. Los agentes y el servidor MCP usan un kubeconfig que solo conoce esa identidad ([`readonly-kubeconfig.md`](vectra-risk/platform/kind/readonly-kubeconfig.md)).
-- **Por qué existe.** El 16 de noviembre «los agentes no tocan el clúster» era solo una instrucción y falló: dos pruebas leyeron `Secret` reales y otra borró cuatro `Deployment`. Desde entonces el límite es RBAC.
+- **Por qué existe.** El 16 de noviembre la regla era solo una instrucción y falló: dos pruebas leyeron `Secret` reales y otra borró cuatro `Deployment`.
 
 **Pod Security y admisión.** Los namespaces `vectra-*` llevan `enforce: restricted`. Kyverno rechaza `latest` (`vectra-risk/aidlc-docs/construction/platform-foundation/evidence/simulacro-latest.txt`).
 
-**Lo que falta.** External Secrets lee todos los `Secret` en kind. Vault corre en modo dev. Imágenes sin firma ni SBOM. El kubeconfig de solo lectura no cubre `argocd` ni `docker`: eso lo frenan reglas de la herramienta, no del clúster.
+**Lo que falta.** External Secrets lee todos los `Secret` en kind. Vault corre en modo dev. Imágenes sin firma ni SBOM.
 
 ### El bucle GitOps funcionando
 
@@ -120,16 +120,18 @@ El PR #233 del 21 de noviembre: `promotion-tool` propone promover un modelo; CI 
 
 ### La aplicación corriendo: cuatro demos medidas
 
-Contra `kind-vectra`, con 56 Applications `Healthy`. Evidencia en [`evidence/kind/`](vectra-risk/aidlc-docs/construction/system-verification/evidence/kind/); la versión llena está en el PR #236, abierto al escribir esto.
+Contra `kind-vectra`, con 56 Applications `Healthy`. Evidencia en `main` desde el PR #236: plantillas llenas en [`evidence/kind/`](vectra-risk/aidlc-docs/construction/system-verification/evidence/kind/) y cierre K-01 a K-66 en [`cierre-demo.md`](vectra-risk/aidlc-docs/construction/system-verification/evidence/cierre-demo.md).
 
 | Demo | Qué demuestra | Resultado medido |
 |---|---|---|
 | D3 | El sistema no puede escribir en el core del banco | La malla deniega con 403; alerta `CoreWriteAttempt`; contador del mock en 0. **Pasa** |
 | D1 | Sin explicación no hay recomendación | Con el flujo F22 apagado por un PR: 0 recomendaciones y 5 casos a «No disponible» en unos 16 min. **Pasa**, tras corregir un oráculo |
 | D2 | Un modelo con sesgo se congela solo | Disparidad por región de 0,2438 contra un límite de 0,1418; congelado en 520,7 s (límite 1 800 s); rollback por PR. **Pasa**. El modo «presenter» no se ejecutó |
-| D4 | Tablero de producto | 2 000 solicitudes decididas en 15 min 28 s. La lectura del tablero **estaba pendiente** al escribir esto |
+| D4 | Tablero de producto | 2 000 solicitudes decididas en 15 min 28 s. Al día UTC siguiente (22 nov, 02:33) las series y el tablero dan `pasa`. **Pasa**. El tablero solo se abre por enlace directo (H-13) |
 
-La verificación encontró doce defectos reales (H-1 a H-12), corregidos por PR: #223, #225, #229, #242 y #243.
+La verificación encontró trece hallazgos (H-1 a H-13). Los corregidos tienen su PR: #223, #225, #229, #235, #242 y #243. **Sigue abierto el H-13:** Grafana tiene al menos 5 000 carpetas «Vectra» y 5 000 «Operación» duplicadas, y el tablero no se encuentra navegando (`09-d4-u11-y-grafana.md`).
+
+**Interfaz.** La consola tiene tema responsive, tres idiomas (español, inglés y portugués de Brasil) y tema claro u oscuro; el login de Keycloak sigue el mismo tema e idioma (PR #235, #247, #251, #241 y #244, desplegados en kind). Las traducciones al portugués no las ha revisado nadie que hable el idioma.
 
 ---
 
@@ -169,9 +171,9 @@ Las seis están nombradas una por una en `permissions.allow` de [`.claude/settin
 
 ### Resultado
 
-114 tareas (`vectra-risk/tareas/`), 210 informes de ronda con 119 NO-VERDE (`vectra-risk/revisiones/`), 23 tareas con 3 rondas o más, 231 PR fusionados y 934 líneas de trabajo fuera de alcance en [`CANDIDATAS.md`](vectra-risk/CANDIDATAS.md).
+Recuento del 22 de noviembre de 2026: 114 tareas (`vectra-risk/tareas/`), 113 bitácoras, 210 informes de ronda con 119 NO-VERDE (`vectra-risk/revisiones/`), 23 tareas con 3 rondas o más y 934 líneas de trabajo fuera de alcance en [`CANDIDATAS.md`](vectra-risk/CANDIDATAS.md). El repositorio tiene 239 PR fusionados, pero no todos son del loop: los 27 del 21 y 22 de noviembre incluyen despliegues y cambios que abrió una sesión de Claude Code operada por el dueño, sin codificador ni revisor.
 
-**Quién aprueba.** `main` está protegida: exige una revisión aprobatoria de un dueño del código y siete comprobaciones de CI, también a administradores (`gh api repos/jjlloobb/topicos-especiales-credito-de-vivienda/branches/main/protection`). La cuenta `jjlloobb` abre los PR y una segunda cuenta, `joseluisjedi`, los aprueba; GitHub no deja aprobar el PR propio. **Las dos cuentas son de la misma persona**, el único integrante del grupo: la separación obliga a que cada cambio pase por un paso de revisión explícito y deja registro de quién propuso y quién aprobó, pero no es la revisión de una segunda persona. De los 231, 18 los fusionó la cuenta autora (los PR 1 a 20 y el 216), todos ya aprobados.
+**Quién aprueba.** `main` está protegida: exige una revisión aprobatoria de un dueño del código y siete comprobaciones de CI, también a administradores (`gh api repos/jjlloobb/topicos-especiales-credito-de-vivienda/branches/main/protection`). La cuenta `jjlloobb` abre los PR y una segunda cuenta, `joseluisjedi`, los aprueba; GitHub no deja aprobar el PR propio. **Las dos cuentas son de la misma persona**, el único integrante del grupo: la separación obliga a que cada cambio pase por un paso de revisión explícito y deja registro de quién propuso y quién aprobó, pero no es la revisión de una segunda persona. De los 239, 18 los fusionó la cuenta autora (los PR 1 a 20 y el 216), todos ya aprobados.
 
 ### Un agente frenado por sus límites
 
@@ -194,7 +196,7 @@ Sin MCP: en `U01-T04` el codificador halló el defecto en un archivo prohibido, 
 - **Una sola sesión** de Claude Code, con subagentes de contexto propio. No son tres procesos independientes.
 - **El orquestador operó el clúster kind** desde el 14 de noviembre, con aprobación orden por orden ([`DECISIONES-LOOP.md`](vectra-risk/DECISIONES-LOOP.md), §11). «El agente no aplica por su cuenta» se sostiene; «el agente nunca aplica» no.
 - **Siete PR se fusionaron antes de que su revisor entregara**, con CI en verde.
-- **No hay grabación de respaldo** en el repositorio.
+- **Sin hacer:** grabación de respaldo; RT3-b; el modo «presenter» de D2 de punta a punta. De ese modo se probó aparte, el 21 de noviembre, la mitad de navegador del segundo factor contra el Keycloak real (ventana emergente, vuelta y `acr`, con un 409 esperado); esa evidencia aún no está en el repositorio.
 
 ---
 
@@ -202,7 +204,7 @@ Sin MCP: en `U01-T04` el codificador halló el defecto en un archivo prohibido, 
 
 ### El producto frente a sus alternativas
 
-Fuentes abiertas el 21 de noviembre de 2026. Las cifras de vendors son las que ellos publican, sin auditoría independiente. Las propias son de un portátil, no de producción.
+Fuentes abiertas el 21 de noviembre de 2026. Las cifras de vendors son suyas, sin auditoría; las propias son de un portátil.
 
 | Alternativa | Tiempo | Seguridad y soberanía del dato | Costo | Esfuerzo de adopción |
 |---|---|---|---|---|
@@ -211,11 +213,11 @@ Fuentes abiertas el 21 de noviembre de 2026. Las cifras de vendors son las que e
 | **Zest AI dentro de Temenos** | «Weeks, not months», sin cifra ([zest.ai](https://www.zest.ai/)). Integración nativa desde el 29 abr 2025 ([anuncio](https://www.zest.ai/company/announcements/zest-ais-credit-decisioning-and-fraud-detection-now-seamlessly-integrated-with-temenos-loan-origination-solution/)) | Sus páginas no dicen dónde corre. Self-hosted: **sin fuente verificada** | Sin precio público | Bajo si el banco ya usa Temenos |
 | **FICO Platform** | Nationwide migró 1,5 millones de decisiones al mes en 7 meses; 50 % menos tiempo para actualizar componentes de decisión y 30 % para estrategias nuevas ([nota de prensa de FICO, 11 mar 2025, copia](https://www.stocktitan.net/news/FICO/nationwide-speeds-up-credit-decisioning-by-50-with-fico-viih4qk7jjdj.html)) | En la nube: se vende como SaaS ([AWS Marketplace](https://aws.amazon.com/marketplace/pp/prodview-fhown4277nmpa)). On-premise: **sin fuente verificada** | Precio a medida, no publicado (misma ficha) | Proyecto enterprise |
 | **Delegar en LQN Hipotecas** | Promete desembolso en 10 días; el trámite superaba los 100 ([Forbes Colombia, 6 nov 2025](https://forbes.co/2025/11/06/emprendedores/lqn-recibe-us12-millones-para-lanzar-creditos-con-garantia-hipotecaria)) | El modelo y la decisión viven fuera del banco | Sin dato público | Bajo para el banco, pero cede la decisión |
-| **Vectra Risk** | **Medición propia, en kind:** 2 000 solicitudes decididas en 15 min 28 s; un modelo sesgado congelado en 520,7 s | Self-hosted. RBAC, mTLS, políticas y GitOps comprobados **solo en kind** | Sin precio. Construirlo: 231 PR en 3 semanas | Alto: operar una plataforma Kubernetes completa |
+| **Vectra Risk** | **Medición propia, en kind:** 2 000 solicitudes decididas en 15 min 28 s; un modelo sesgado congelado en 520,7 s | Self-hosted. RBAC, mTLS, políticas y GitOps comprobados **solo en kind** | Sin precio. Construirlo: 239 PR en 3 semanas | Alto: operar una plataforma Kubernetes completa |
 
 ### El loop frente a otras formas de trabajar
 
-Solo hechos de este repositorio. No corrí el mismo trabajo a mano ni sin límites: no hay una comparación controlada.
+Solo hechos de este repositorio; no hay una comparación controlada.
 
 | Forma de trabajar | Lo que este repositorio demuestra |
 |---|---|
@@ -227,9 +229,10 @@ Solo hechos de este repositorio. No corrí el mismo trabajo a mano ni sin límit
 
 - **Madurez.** Corre en un portátil, nunca en producción. FICO publica una migración real en 7 meses.
 - **Datos.** Todo es sintético. LQN procesa unas 20.000 operaciones al año (Forbes, misma nota).
-- **Cobertura.** Carga, resiliencia, PII y red negada no se ejecutaron.
+- **Cobertura.** Carga, resiliencia, PII y red negada no se ejecutaron: 25 elementos del informe dicen «no ejecutado».
+- **Operación.** Grafana quedó con miles de carpetas duplicadas (H-13); el arreglo está en curso y no lo doy por hecho.
 - **Costo del loop.** Más lento y más caro en tokens que un agente sin revisor. No medí cuánto.
-- **Comparación incompleta.** No hay precios públicos de ningún competidor, y sus cifras no son comparables con las mías.
+- **Comparación incompleta.** No hay precios públicos de ningún competidor.
 
 ---
 
@@ -251,7 +254,7 @@ El sistema funciona con otro modelo, pero el límite dado por instrucción fall�
 
 **Lo que esta prueba no es.** Es del 2 de noviembre, **anterior** a las reglas `deny`, y no se repitió con ellas. Solo los casos 1 a 6 están automatizados. Solo se probaron modelos Claude.
 
-No digo que ningún modelo podrá hacer esto. Digo que un modelo mejor sigue necesitando los mismos límites y la misma evidencia.
+No digo que ningún modelo podrá hacerlo: digo que un modelo mejor sigue necesitando los mismos límites.
 
 **Un ejemplo de lo que un modelo nuevo añade sin mover lo propio.** Mejora prevista y no construida: dictar la justificación de una decisión con un modelo de voz a texto alojado en el clúster. La voz ayuda a redactar; la persona corrige y firma, y el registro guarda el texto aprobado. Lo transcrito nunca entra al scoring. Detalle en [`mejoras.md`](vectra-risk/aidlc-docs/construction/system-verification/evidence/sustentacion/mejoras.md).
 
@@ -260,11 +263,11 @@ No digo que ningún modelo podrá hacer esto. Digo que un modelo mejor sigue nec
 ## 6. Moat
 
 1. **Integración, permisos y políticas ya resueltos dentro del clúster del cliente.** Self-hosted, con mTLS, flujos de red generados, admisión con Kyverno, agentes de solo lectura y GitOps con aprobación humana. FICO Platform se vende como SaaS; de Zest AI no hallé dónde corre (sección 4).
-2. **Pruebas y políticas propias que se acumulan.** Criterios por comando, 210 rondas de revisión, los oráculos de las cuatro demos y doce hallazgos que solo aparecieron al correr en un clúster real.
+2. **Pruebas y políticas propias que se acumulan.** Criterios por comando, 210 rondas de revisión, los oráculos de las cuatro demos y trece hallazgos que solo aparecieron al correr en un clúster real.
 
 *«Un competidor con el mismo modelo tardaría **al menos 8 semanas** en igualarnos porque las políticas, los flujos de red, los oráculos y los límites de los agentes no se generaron: se corrigieron al chocar contra un clúster.»*
 
-La cifra es una **proyección propia**: lo que tomó este proyecto, del 26 de septiembre al 21 de noviembre de 2026 (5 semanas de diseño y 3 de construcción; [`aidlc-state.md`](vectra-risk/aidlc-docs/aidlc-state.md)).
+La cifra es una **proyección propia**: lo que tomó este proyecto, del 26 de septiembre al 22 de noviembre de 2026 (5 semanas de diseño y 3 de construcción; [`aidlc-state.md`](vectra-risk/aidlc-docs/aidlc-state.md)).
 
 **La debilidad.** Ocho semanas no es un moat largo, y quien copie este repositorio tarda menos. Lo que no se copia es el historial de decisiones de un banco ligado al desenlace de su cartera, y ese historial **todavía no existe** ([`critica.md`](vectra-risk/entradas/critica.md), sección 4).
 
@@ -306,19 +309,22 @@ sudo cp vectra-ca.pem /usr/local/share/ca-certificates/vectra-internal-ca.crt &&
 
 Un Python de Anaconda trae su propio paquete de autoridades y no lee el del sistema. **Advertencia:** esa autoridad solo existe en ese clúster. Recrear el clúster genera otra y hay que repetir el paso.
 
-**Lo que no garantizo.** La instalación nunca se hizo de una vez en una máquina limpia: el clúster se armó por partes entre el 15 y el 19 de noviembre. Las demos toman dos días de calendario.
+**Lo que no garantizo.** La instalación nunca se hizo de una vez en una máquina limpia, y las demos toman dos días de calendario.
+
+**Glosarios.** [`glosario-negocio.md`](vectra-risk/docs/glosario-negocio.md) y [`glosario-tecnologia.md`](vectra-risk/docs/glosario-tecnologia.md).
 
 ---
 
 ## 8. Riesgos y cómo los mitigué
 
-Los seis que más pesan. La tabla completa, con 16 filas, está en [`riesgos.md`](vectra-risk/aidlc-docs/construction/system-verification/evidence/sustentacion/riesgos.md).
+Los siete que más pesan. La tabla completa está en [`riesgos.md`](vectra-risk/aidlc-docs/construction/system-verification/evidence/sustentacion/riesgos.md).
 
-| Riesgo | Mitigación | Estado al 21 nov 2026 |
+| Riesgo | Mitigación | Estado al 22 nov 2026 |
 |---|---|---|
 | El agente actúa sin control | AUTONOMIA-01, Argo CD sin auto-sync, `deny`, RBAC de solo lectura, allowlist del MCP | Implementado, con evidencia. Hueco: `deny` se esquiva con una variable |
 | La explicación se desincroniza del score | Fail-closed: sin explicación no hay recomendación | Medido en D1 |
 | Un modelo sesgado sigue decidiendo | `CronJob` que congela el modelo | Medido en D2: 520,7 s |
 | El sistema escribe en el core del banco | La malla lo deniega y una alerta avisa | Medido en D3 |
+| Grafana con miles de carpetas duplicadas (H-13) | Abrir el tablero por enlace directo; causa y limpieza en curso | **Abierto** |
 | Solo existe en kind | Manifiestos de staging y producción conservados | Sin desplegar |
 | Dependencias que pierden soporte: el repositorio de MinIO está [archivado](https://github.com/minio/minio) desde el 25 abr 2026, y CloudNativePG [retira](https://cloudnative-pg.io/docs/1.30/release_notes/v1.30) el Barman Cloud nativo | S3 del banco fuera de kind; migrar al plugin de Barman | Decidido, sin implementar |
