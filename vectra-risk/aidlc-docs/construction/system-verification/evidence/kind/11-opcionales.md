@@ -1,12 +1,12 @@
 # 11 — Opcionales
 
-**Estado: pendiente del operador.** Plantilla de U12-T06: nadie ha ejecutado esto contra el clúster (AUTONOMIA-01). El operador reemplaza cada _pendiente_ con lo que obtuvo —el comando, la salida **sin tokens, cookies, contraseñas ni semillas** y el cumplimiento— y cambia este estado a `completa` (o `fallida`, con el hallazgo). Quien llena una plantilla no inventa la salida: lo que no se corrió queda `no ejecutado`.
+**Estado: no ejecutado.** F11 es opcional y no se corrio en esta verificacion (2026-11-20 y 2026-11-21, `kind-vectra`).
 
 - Guía y fase: `system-verification/docs/paso-18-kind.md`, F11 (Opcionales).
-- Fecha: _pendiente_.
-- Operador: _pendiente_.
-- Commit de `main` desplegado: _pendiente_.
-- Duración real de la fase: _pendiente_ (estimada: 30 min; la guía pide anotarla).
+- Fecha: no aplica.
+- Operador: jjlloobb, con Claude Code ejecutando las ordenes.
+- Commit de `main` desplegado: no aplica.
+- Duración real de la fase: 0 min, no ejecutada (estimada: 30 min; la guía pide anotarla).
 
 Entradas de esta fase: K-66.
 
@@ -19,19 +19,19 @@ Entradas de esta fase: K-66.
 **Comando.** Previsto: `kubectl --context kind-vectra get pods -n vectra-app`; `kubectl --context kind-vectra logs -n vectra-app -l app.kubernetes.io/name=case-worker`.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+no ejecutado
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+no ejecutado
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| (a) El login de la herramienta con Keycloak caido a mitad: se cuelga o termina con error. (b) El apagado del worker con trabajo en vuelo (34 s frente a 40 s de gracia). (c) PBT-U8-07 abreviado contra el registro real | _pendiente_ | _pendiente_ |
+| (a) El login de la herramienta con Keycloak caido a mitad: se cuelga o termina con error. (b) El apagado del worker con trabajo en vuelo (34 s frente a 40 s de gracia). (c) PBT-U8-07 abreviado contra el registro real | no ejecutado: opcional; se priorizaron las cuatro demos | no ejecutado |
 
 ## Hallazgos
 
-_Ninguno todavía._ Cada hallazgo dice **a qué unidad apunta** (la tabla de síntomas de la guía da la primera pista) y abre una tarea en esa unidad; un defecto del chart o de las imágenes de una unidad no se arregla aquí.
+_Ninguno: la fase no se ejecuto._ Queda para una pasada posterior si se quiere medir el login con Keycloak caido y el resto de K-66.

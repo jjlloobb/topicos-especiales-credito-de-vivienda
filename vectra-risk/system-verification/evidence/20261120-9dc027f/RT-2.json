@@ -1,0 +1,1220 @@
+{
+  "evidence": {
+    "command": "vectra-verification rt2",
+    "commit": "de9f23a",
+    "executed_at": "2026-11-21T11:46:58Z",
+    "expected": "RT-2: el modelo con sesgo se congela con su paquete completo, se reactiva y no se recongela; la latencia de deteccion esta dentro del limite",
+    "id": "RT-2",
+    "images": {
+      "vectra-app/bias-monitoring-job": "kind-registry:5000/vectra/bias-monitoring@sha256:c004723e606a60deada9b7e10d3e31f5aa0c735522b523c009604e7224571015",
+      "vectra-app/bias-monitoring-service": "kind-registry:5000/vectra/bias-monitoring@sha256:c004723e606a60deada9b7e10d3e31f5aa0c735522b523c009604e7224571015",
+      "vectra-app/case-migration": "kind-registry:5000/vectra/case-management@sha256:22d119d1243c9da9f2a2566bd11fb730ff604ed9072b96cf2fa0bd341920acd1",
+      "vectra-app/case-service": "kind-registry:5000/vectra/case-management@sha256:22d119d1243c9da9f2a2566bd11fb730ff604ed9072b96cf2fa0bd341920acd1",
+      "vectra-app/case-worker": "kind-registry:5000/vectra/case-management@sha256:22d119d1243c9da9f2a2566bd11fb730ff604ed9072b96cf2fa0bd341920acd1",
+      "vectra-app/console-bff": "kind-registry:5000/vectra/console-bff@sha256:fd1ec322e70c77c7d3907a47f9d2671cf468fa2065964ac55c604cfef8163fef",
+      "vectra-app/decision-registry-service": "kind-registry:5000/vectra/decision-registry@sha256:9c074a9dde26835e4f844eaa8b2c3c05cb9346ac70dabec188f864bb0ea7bfcc",
+      "vectra-app/explainability-service": "kind-registry:5000/vectra/explainability-service@sha256:defa9735fdce19e0682b193926da81065067d54622e4b6966ee1eb295f2993ee",
+      "vectra-app/governance-migration": "kind-registry:5000/vectra/governance@sha256:c53a5317af3a2c28d3c0d717bb4d662faf0fb84820ca9e7a7923b08434a9b2ae",
+      "vectra-app/governance-service": "kind-registry:5000/vectra/governance@sha256:c53a5317af3a2c28d3c0d717bb4d662faf0fb84820ca9e7a7923b08434a9b2ae",
+      "vectra-app/product-metrics": "kind-registry:5000/vectra/product-metrics@sha256:090062f2ba1b9e56d4584cc525733b05b980b56fe74c37da8e4ff2302b3c2c1d",
+      "vectra-app/registry-aggregator": "kind-registry:5000/vectra/decision-registry@sha256:9c074a9dde26835e4f844eaa8b2c3c05cb9346ac70dabec188f864bb0ea7bfcc",
+      "vectra-app/registry-migration": "kind-registry:5000/vectra/decision-registry@sha256:9c074a9dde26835e4f844eaa8b2c3c05cb9346ac70dabec188f864bb0ea7bfcc",
+      "vectra-app/rt5-demo": "kind-registry:5000/vectra/case-management@sha256:22d119d1243c9da9f2a2566bd11fb730ff604ed9072b96cf2fa0bd341920acd1",
+      "vectra-app/scoring-service": "kind-registry:5000/vectra/scoring-service@sha256:a37dacb8f45e53c368898889ac202da6347a1d8528355831d4e0d03459432070",
+      "vectra-data/minio": "registro.vectra.internal/minio@sha256:639cf7c92dbabea8fb8bc19479051182340f16f74e605154d32ddd38a6d0fba8",
+      "vectra-data/postgres": "ghcr.io/cloudnative-pg/postgresql@sha256:8fd8db26090e602458269741849e5c9cd7aff577a22af53c8a402c580fd1e729",
+      "vectra-edge/console-spa": "kind-registry:5000/vectra/console-spa@sha256:7ecd2ef52f183f3af7bad56bc5c4cf151189b80fd5e5d1e7e3a6c61d19faa7fd",
+      "vectra-edge/envoy": "kind-registry:5000/vectra/envoy@sha256:9d84a586119a27b50437dbb01eccd4722832741539b1ed53c8e9d6da6067a6e0",
+      "vectra-edge/exporter": "kind-registry:5000/vectra/redis-exporter@sha256:19bb5c732f5812d5b60b2e0af3c6d82c5b3e418cd020068d65f588a56df4a118",
+      "vectra-edge/sentinel": "kind-registry:5000/vectra/valkey@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a",
+      "vectra-edge/shutdown-manager": "docker.io/envoyproxy/gateway@sha256:192fc9bdadb6d2462e8cf7bd702ce3dd9648f3310c6038787448a1f509b7cd9f",
+      "vectra-edge/valkey": "kind-registry:5000/vectra/valkey@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a",
+      "vectra-identity/keycloak": "kind-registry:5000/vectra/keycloak@sha256:1604d2943e1e26f8085c112912e783e074feafac9eec233e9b4fe298a76dbe8a",
+      "vectra-identity/keycloak-config-cli": "kind-registry:5000/vectra/keycloak-config-cli@sha256:0955d98c8a341898b7aa177477edf8a1e90569ae50bbe7598141c1270b773274",
+      "vectra-identity/realm-drift": "kind-registry:5000/vectra/identity-jobs@sha256:46b9fdb5345d5aac50906e817ca1f5455d896b381eb49b199dd6ab13b77edc7b",
+      "vectra-identity/signing-key-age": "kind-registry:5000/vectra/identity-jobs@sha256:46b9fdb5345d5aac50906e817ca1f5455d896b381eb49b199dd6ab13b77edc7b",
+      "vectra-observability/alertmanager": "quay.io/prometheus/alertmanager@sha256:39d8bb3966c694a124428a3a88fbcffd40bd069129ecd47c059f8a3f17c55f3b",
+      "vectra-observability/apply": "registro.vectra.internal/grafana-folder-permissions@sha256:f7610a22893c9b39e29f2851aae50c90422054262321060ce3e9fe4152eec7d9",
+      "vectra-observability/check": "registro.vectra.internal/grafana-folder-permissions@sha256:f7610a22893c9b39e29f2851aae50c90422054262321060ce3e9fe4152eec7d9",
+      "vectra-observability/config-reloader": "quay.io/prometheus-operator/prometheus-config-reloader@sha256:a1897c67478bc23434534e91ad3855280771196b1daf17144db9dbcb655bef71",
+      "vectra-observability/grafana": "docker.io/grafana/grafana@sha256:540b8afb775bf34aefce417e4329039daa5d44b6f2fbda6881397b1b247ca7df",
+      "vectra-observability/grafana-sc-dashboard": "quay.io/kiwigrid/k8s-sidecar@sha256:092dbe0c335fba9af414a27630ca68f34df6185784fa847d9954187e69dbfdd7",
+      "vectra-observability/grafana-sc-datasources": "quay.io/kiwigrid/k8s-sidecar@sha256:092dbe0c335fba9af414a27630ca68f34df6185784fa847d9954187e69dbfdd7",
+      "vectra-observability/kube-prometheus-stack": "quay.io/prometheus-operator/prometheus-operator@sha256:c7edf0379b7271ef1705dce258d2bb73820e299cc95559369e9f6fc3321639ec",
+      "vectra-observability/kube-state-metrics": "registry.k8s.io/kube-state-metrics/kube-state-metrics@sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b",
+      "vectra-observability/opentelemetry-collector": "docker.io/otel/opentelemetry-collector-contrib@sha256:7f22d2a6748110ffb6a59bc0df448bccbf501cdb667d610ede4c61d3863d5849",
+      "vectra-observability/prometheus": "quay.io/prometheus/prometheus@sha256:451a845bae1d51622b41af1780eb2ad911bbb79a9855bc8e9bb67fabbc03f934",
+      "vectra-observability/pushgateway": "quay.io/prometheus/pushgateway@sha256:91a56b89b97dd8a5e1e4fa8b5bbbd86dd57a87a2a3cee3a3ce3368b40ef158ef",
+      "vectra-serving/kserve-container": "kind-registry:5000/vectra/model-predictor@sha256:e6000b82731ca04a3e14d102a3b188c0263011f6d4297c0a3cef8ada150d1e02"
+    },
+    "obtained": "RT-2: el modelo con sesgo se congela con su paquete completo, se reactiva y no se recongela; la latencia de deteccion esta dentro del limite",
+    "operator": "jjlloobb",
+    "output": "RT-2.json",
+    "result": "pasa"
+  },
+  "outcome": {
+    "expected": "RT-2: el modelo con sesgo se congela con su paquete completo, se reactiva y no se recongela; la latencia de deteccion esta dentro del limite",
+    "id": "RT-2",
+    "missing": [],
+    "obtained": "RT-2: el modelo con sesgo se congela con su paquete completo, se reactiva y no se recongela; la latencia de deteccion esta dentro del limite",
+    "queries": [
+      {
+        "end": "2026-11-21T11:32:49.173108+00:00",
+        "query": "max(vectra_bias_last_run_timestamp)",
+        "result": [
+          {
+            "metric": {},
+            "values": [
+              [
+                1795259026.744,
+                1795258937.0
+              ],
+              [
+                1795259041.744,
+                1795258937.0
+              ],
+              [
+                1795259056.744,
+                1795258937.0
+              ],
+              [
+                1795259071.744,
+                1795258937.0
+              ],
+              [
+                1795259086.744,
+                1795258937.0
+              ],
+              [
+                1795259101.744,
+                1795258937.0
+              ],
+              [
+                1795259116.744,
+                1795258937.0
+              ],
+              [
+                1795259131.744,
+                1795258937.0
+              ],
+              [
+                1795259146.744,
+                1795258937.0
+              ],
+              [
+                1795259161.744,
+                1795258937.0
+              ],
+              [
+                1795259176.744,
+                1795258937.0
+              ],
+              [
+                1795259191.744,
+                1795258937.0
+              ],
+              [
+                1795259206.744,
+                1795258937.0
+              ],
+              [
+                1795259221.744,
+                1795258937.0
+              ],
+              [
+                1795259236.744,
+                1795258937.0
+              ],
+              [
+                1795259251.744,
+                1795258937.0
+              ],
+              [
+                1795259266.744,
+                1795258937.0
+              ],
+              [
+                1795259281.744,
+                1795258937.0
+              ],
+              [
+                1795259296.744,
+                1795258937.0
+              ],
+              [
+                1795259311.744,
+                1795258937.0
+              ],
+              [
+                1795259326.744,
+                1795258937.0
+              ],
+              [
+                1795259341.744,
+                1795258937.0
+              ],
+              [
+                1795259356.744,
+                1795258937.0
+              ],
+              [
+                1795259371.744,
+                1795258937.0
+              ],
+              [
+                1795259386.744,
+                1795258937.0
+              ],
+              [
+                1795259401.744,
+                1795258937.0
+              ],
+              [
+                1795259416.744,
+                1795258937.0
+              ],
+              [
+                1795259431.744,
+                1795258937.0
+              ],
+              [
+                1795259446.744,
+                1795258937.0
+              ],
+              [
+                1795259461.744,
+                1795258937.0
+              ],
+              [
+                1795259476.744,
+                1795258937.0
+              ],
+              [
+                1795259491.744,
+                1795258937.0
+              ],
+              [
+                1795259506.744,
+                1795258937.0
+              ],
+              [
+                1795259521.744,
+                1795258937.0
+              ],
+              [
+                1795259536.744,
+                1795258937.0
+              ],
+              [
+                1795259551.744,
+                1795258937.0
+              ],
+              [
+                1795259566.744,
+                1795258937.0
+              ],
+              [
+                1795259581.744,
+                1795258937.0
+              ],
+              [
+                1795259596.744,
+                1795258937.0
+              ],
+              [
+                1795259611.744,
+                1795258937.0
+              ],
+              [
+                1795259626.744,
+                1795258937.0
+              ],
+              [
+                1795259641.744,
+                1795258937.0
+              ],
+              [
+                1795259656.744,
+                1795258937.0
+              ],
+              [
+                1795259671.744,
+                1795258937.0
+              ],
+              [
+                1795259686.744,
+                1795258937.0
+              ],
+              [
+                1795259701.744,
+                1795258937.0
+              ],
+              [
+                1795259716.744,
+                1795258937.0
+              ],
+              [
+                1795259731.744,
+                1795258937.0
+              ],
+              [
+                1795259746.744,
+                1795258937.0
+              ],
+              [
+                1795259761.744,
+                1795258937.0
+              ],
+              [
+                1795259776.744,
+                1795258937.0
+              ],
+              [
+                1795259791.744,
+                1795258937.0
+              ],
+              [
+                1795259806.744,
+                1795258937.0
+              ],
+              [
+                1795259821.744,
+                1795258937.0
+              ],
+              [
+                1795259836.744,
+                1795258937.0
+              ],
+              [
+                1795259851.744,
+                1795258937.0
+              ],
+              [
+                1795259866.744,
+                1795259836.0
+              ],
+              [
+                1795259881.744,
+                1795259836.0
+              ],
+              [
+                1795259896.744,
+                1795259836.0
+              ],
+              [
+                1795259911.744,
+                1795259836.0
+              ],
+              [
+                1795259926.744,
+                1795259836.0
+              ],
+              [
+                1795259941.744,
+                1795259836.0
+              ],
+              [
+                1795259956.744,
+                1795259836.0
+              ],
+              [
+                1795259971.744,
+                1795259836.0
+              ],
+              [
+                1795259986.744,
+                1795259836.0
+              ],
+              [
+                1795260001.744,
+                1795259836.0
+              ],
+              [
+                1795260016.744,
+                1795259836.0
+              ],
+              [
+                1795260031.744,
+                1795259836.0
+              ],
+              [
+                1795260046.744,
+                1795259836.0
+              ],
+              [
+                1795260061.744,
+                1795259836.0
+              ],
+              [
+                1795260076.744,
+                1795259836.0
+              ],
+              [
+                1795260091.744,
+                1795259836.0
+              ],
+              [
+                1795260106.744,
+                1795259836.0
+              ],
+              [
+                1795260121.744,
+                1795259836.0
+              ],
+              [
+                1795260136.744,
+                1795259836.0
+              ],
+              [
+                1795260151.744,
+                1795259836.0
+              ],
+              [
+                1795260166.744,
+                1795259836.0
+              ],
+              [
+                1795260181.744,
+                1795259836.0
+              ],
+              [
+                1795260196.744,
+                1795259836.0
+              ],
+              [
+                1795260211.744,
+                1795259836.0
+              ],
+              [
+                1795260226.744,
+                1795259836.0
+              ],
+              [
+                1795260241.744,
+                1795259836.0
+              ],
+              [
+                1795260256.744,
+                1795259836.0
+              ],
+              [
+                1795260271.744,
+                1795259836.0
+              ],
+              [
+                1795260286.744,
+                1795259836.0
+              ],
+              [
+                1795260301.744,
+                1795259836.0
+              ],
+              [
+                1795260316.744,
+                1795259836.0
+              ],
+              [
+                1795260331.744,
+                1795259836.0
+              ],
+              [
+                1795260346.744,
+                1795259836.0
+              ],
+              [
+                1795260361.744,
+                1795259836.0
+              ],
+              [
+                1795260376.744,
+                1795259836.0
+              ],
+              [
+                1795260391.744,
+                1795259836.0
+              ],
+              [
+                1795260406.744,
+                1795259836.0
+              ],
+              [
+                1795260421.744,
+                1795259836.0
+              ],
+              [
+                1795260436.744,
+                1795259836.0
+              ],
+              [
+                1795260451.744,
+                1795259836.0
+              ],
+              [
+                1795260466.744,
+                1795259836.0
+              ],
+              [
+                1795260481.744,
+                1795259836.0
+              ],
+              [
+                1795260496.744,
+                1795259836.0
+              ],
+              [
+                1795260511.744,
+                1795259836.0
+              ],
+              [
+                1795260526.744,
+                1795259836.0
+              ],
+              [
+                1795260541.744,
+                1795259836.0
+              ],
+              [
+                1795260556.744,
+                1795259836.0
+              ],
+              [
+                1795260571.744,
+                1795259836.0
+              ],
+              [
+                1795260586.744,
+                1795259836.0
+              ],
+              [
+                1795260601.744,
+                1795259836.0
+              ],
+              [
+                1795260616.744,
+                1795259836.0
+              ],
+              [
+                1795260631.744,
+                1795259836.0
+              ],
+              [
+                1795260646.744,
+                1795259836.0
+              ],
+              [
+                1795260661.744,
+                1795259836.0
+              ],
+              [
+                1795260676.744,
+                1795259836.0
+              ],
+              [
+                1795260691.744,
+                1795259836.0
+              ],
+              [
+                1795260706.744,
+                1795259836.0
+              ],
+              [
+                1795260721.744,
+                1795259836.0
+              ],
+              [
+                1795260736.744,
+                1795259836.0
+              ],
+              [
+                1795260751.744,
+                1795259836.0
+              ],
+              [
+                1795260766.744,
+                1795260736.0
+              ]
+            ]
+          }
+        ],
+        "result_type": "matrix",
+        "start": "2026-11-21T11:03:46.743968+00:00",
+        "step": 15.0
+      },
+      {
+        "end": "2026-11-21T11:32:49.173108+00:00",
+        "query": "min(vectra_bias_last_run_ok)",
+        "result": [
+          {
+            "metric": {},
+            "values": [
+              [
+                1795259026.744,
+                1.0
+              ],
+              [
+                1795259041.744,
+                1.0
+              ],
+              [
+                1795259056.744,
+                1.0
+              ],
+              [
+                1795259071.744,
+                1.0
+              ],
+              [
+                1795259086.744,
+                1.0
+              ],
+              [
+                1795259101.744,
+                1.0
+              ],
+              [
+                1795259116.744,
+                1.0
+              ],
+              [
+                1795259131.744,
+                1.0
+              ],
+              [
+                1795259146.744,
+                1.0
+              ],
+              [
+                1795259161.744,
+                1.0
+              ],
+              [
+                1795259176.744,
+                1.0
+              ],
+              [
+                1795259191.744,
+                1.0
+              ],
+              [
+                1795259206.744,
+                1.0
+              ],
+              [
+                1795259221.744,
+                1.0
+              ],
+              [
+                1795259236.744,
+                1.0
+              ],
+              [
+                1795259251.744,
+                1.0
+              ],
+              [
+                1795259266.744,
+                1.0
+              ],
+              [
+                1795259281.744,
+                1.0
+              ],
+              [
+                1795259296.744,
+                1.0
+              ],
+              [
+                1795259311.744,
+                1.0
+              ],
+              [
+                1795259326.744,
+                1.0
+              ],
+              [
+                1795259341.744,
+                1.0
+              ],
+              [
+                1795259356.744,
+                1.0
+              ],
+              [
+                1795259371.744,
+                1.0
+              ],
+              [
+                1795259386.744,
+                1.0
+              ],
+              [
+                1795259401.744,
+                1.0
+              ],
+              [
+                1795259416.744,
+                1.0
+              ],
+              [
+                1795259431.744,
+                1.0
+              ],
+              [
+                1795259446.744,
+                1.0
+              ],
+              [
+                1795259461.744,
+                1.0
+              ],
+              [
+                1795259476.744,
+                1.0
+              ],
+              [
+                1795259491.744,
+                1.0
+              ],
+              [
+                1795259506.744,
+                1.0
+              ],
+              [
+                1795259521.744,
+                1.0
+              ],
+              [
+                1795259536.744,
+                1.0
+              ],
+              [
+                1795259551.744,
+                1.0
+              ],
+              [
+                1795259566.744,
+                1.0
+              ],
+              [
+                1795259581.744,
+                1.0
+              ],
+              [
+                1795259596.744,
+                1.0
+              ],
+              [
+                1795259611.744,
+                1.0
+              ],
+              [
+                1795259626.744,
+                1.0
+              ],
+              [
+                1795259641.744,
+                1.0
+              ],
+              [
+                1795259656.744,
+                1.0
+              ],
+              [
+                1795259671.744,
+                1.0
+              ],
+              [
+                1795259686.744,
+                1.0
+              ],
+              [
+                1795259701.744,
+                1.0
+              ],
+              [
+                1795259716.744,
+                1.0
+              ],
+              [
+                1795259731.744,
+                1.0
+              ],
+              [
+                1795259746.744,
+                1.0
+              ],
+              [
+                1795259761.744,
+                1.0
+              ],
+              [
+                1795259776.744,
+                1.0
+              ],
+              [
+                1795259791.744,
+                1.0
+              ],
+              [
+                1795259806.744,
+                1.0
+              ],
+              [
+                1795259821.744,
+                1.0
+              ],
+              [
+                1795259836.744,
+                1.0
+              ],
+              [
+                1795259851.744,
+                1.0
+              ],
+              [
+                1795259866.744,
+                1.0
+              ],
+              [
+                1795259881.744,
+                1.0
+              ],
+              [
+                1795259896.744,
+                1.0
+              ],
+              [
+                1795259911.744,
+                1.0
+              ],
+              [
+                1795259926.744,
+                1.0
+              ],
+              [
+                1795259941.744,
+                1.0
+              ],
+              [
+                1795259956.744,
+                1.0
+              ],
+              [
+                1795259971.744,
+                1.0
+              ],
+              [
+                1795259986.744,
+                1.0
+              ],
+              [
+                1795260001.744,
+                1.0
+              ],
+              [
+                1795260016.744,
+                1.0
+              ],
+              [
+                1795260031.744,
+                1.0
+              ],
+              [
+                1795260046.744,
+                1.0
+              ],
+              [
+                1795260061.744,
+                1.0
+              ],
+              [
+                1795260076.744,
+                1.0
+              ],
+              [
+                1795260091.744,
+                1.0
+              ],
+              [
+                1795260106.744,
+                1.0
+              ],
+              [
+                1795260121.744,
+                1.0
+              ],
+              [
+                1795260136.744,
+                1.0
+              ],
+              [
+                1795260151.744,
+                1.0
+              ],
+              [
+                1795260166.744,
+                1.0
+              ],
+              [
+                1795260181.744,
+                1.0
+              ],
+              [
+                1795260196.744,
+                1.0
+              ],
+              [
+                1795260211.744,
+                1.0
+              ],
+              [
+                1795260226.744,
+                1.0
+              ],
+              [
+                1795260241.744,
+                1.0
+              ],
+              [
+                1795260256.744,
+                1.0
+              ],
+              [
+                1795260271.744,
+                1.0
+              ],
+              [
+                1795260286.744,
+                1.0
+              ],
+              [
+                1795260301.744,
+                1.0
+              ],
+              [
+                1795260316.744,
+                1.0
+              ],
+              [
+                1795260331.744,
+                1.0
+              ],
+              [
+                1795260346.744,
+                1.0
+              ],
+              [
+                1795260361.744,
+                1.0
+              ],
+              [
+                1795260376.744,
+                1.0
+              ],
+              [
+                1795260391.744,
+                1.0
+              ],
+              [
+                1795260406.744,
+                1.0
+              ],
+              [
+                1795260421.744,
+                1.0
+              ],
+              [
+                1795260436.744,
+                1.0
+              ],
+              [
+                1795260451.744,
+                1.0
+              ],
+              [
+                1795260466.744,
+                1.0
+              ],
+              [
+                1795260481.744,
+                1.0
+              ],
+              [
+                1795260496.744,
+                1.0
+              ],
+              [
+                1795260511.744,
+                1.0
+              ],
+              [
+                1795260526.744,
+                1.0
+              ],
+              [
+                1795260541.744,
+                1.0
+              ],
+              [
+                1795260556.744,
+                1.0
+              ],
+              [
+                1795260571.744,
+                1.0
+              ],
+              [
+                1795260586.744,
+                1.0
+              ],
+              [
+                1795260601.744,
+                1.0
+              ],
+              [
+                1795260616.744,
+                1.0
+              ],
+              [
+                1795260631.744,
+                1.0
+              ],
+              [
+                1795260646.744,
+                1.0
+              ],
+              [
+                1795260661.744,
+                1.0
+              ],
+              [
+                1795260676.744,
+                1.0
+              ],
+              [
+                1795260691.744,
+                1.0
+              ],
+              [
+                1795260706.744,
+                1.0
+              ],
+              [
+                1795260721.744,
+                1.0
+              ],
+              [
+                1795260736.744,
+                1.0
+              ],
+              [
+                1795260751.744,
+                1.0
+              ],
+              [
+                1795260766.744,
+                1.0
+              ]
+            ]
+          }
+        ],
+        "result_type": "matrix",
+        "start": "2026-11-21T11:03:46.743968+00:00",
+        "step": 15.0
+      }
+    ],
+    "readings": {
+      "cierre": {
+        "missing": [],
+        "result": "pasa"
+      },
+      "pending_phase": null,
+      "requested": 1500,
+      "run_id": "20261121-0104",
+      "run_prefix": "fa6e0ce3",
+      "sent": [
+        1500
+      ],
+      "unreachable_cells": [
+        {
+          "attribute": "estrato",
+          "available": 12,
+          "band": "lt_20",
+          "group": "6",
+          "taken": 12
+        },
+        {
+          "attribute": "rango_edad",
+          "available": 25,
+          "band": "lt_20",
+          "group": "56-65",
+          "taken": 25
+        },
+        {
+          "attribute": "rango_edad",
+          "available": 4,
+          "band": "20_30",
+          "group": "66+",
+          "taken": 4
+        },
+        {
+          "attribute": "rango_edad",
+          "available": 10,
+          "band": "gt_30",
+          "group": "66+",
+          "taken": 10
+        }
+      ],
+      "versions": [
+        "mv-2026-01-01-f12bfeaf"
+      ]
+    },
+    "result": "pasa",
+    "subresults": [
+      {
+        "detail": "",
+        "mandatory": true,
+        "missing": [],
+        "name": "v1:celdas",
+        "readings": {
+          "requested": 1500,
+          "unreachable": [
+            {
+              "attribute": "estrato",
+              "available": 12,
+              "band": "lt_20",
+              "group": "6",
+              "taken": 12
+            },
+            {
+              "attribute": "rango_edad",
+              "available": 25,
+              "band": "lt_20",
+              "group": "56-65",
+              "taken": 25
+            },
+            {
+              "attribute": "rango_edad",
+              "available": 4,
+              "band": "20_30",
+              "group": "66+",
+              "taken": 4
+            },
+            {
+              "attribute": "rango_edad",
+              "available": 10,
+              "band": "gt_30",
+              "group": "66+",
+              "taken": 10
+            }
+          ]
+        },
+        "result": "pasa"
+      },
+      {
+        "detail": "",
+        "mandatory": true,
+        "missing": [],
+        "name": "v1:promocion",
+        "readings": {},
+        "result": "pasa"
+      },
+      {
+        "detail": "",
+        "mandatory": true,
+        "missing": [],
+        "name": "v1:lote",
+        "readings": {
+          "accepted": 1500,
+          "requested": 1500,
+          "sent": 1500
+        },
+        "result": "pasa"
+      },
+      {
+        "detail": "",
+        "mandatory": true,
+        "missing": [],
+        "name": "v1:freeze",
+        "readings": {
+          "freeze_id": "79d62b4f-c6df-4a85-a1eb-2f248ca86b17"
+        },
+        "result": "pasa"
+      },
+      {
+        "detail": "",
+        "mandatory": true,
+        "missing": [],
+        "name": "v1:paquete",
+        "readings": {},
+        "result": "pasa"
+      },
+      {
+        "detail": "",
+        "mandatory": true,
+        "missing": [],
+        "name": "v1:congelado",
+        "readings": {},
+        "result": "pasa"
+      },
+      {
+        "detail": "",
+        "mandatory": true,
+        "missing": [],
+        "name": "v1:casos_nuevos",
+        "readings": {
+          "states": {
+            "modelo_congelado": 5
+          }
+        },
+        "result": "pasa"
+      },
+      {
+        "detail": "",
+        "mandatory": true,
+        "missing": [],
+        "name": "v1:sigue_congelada",
+        "readings": {
+          "bias_runs": 3
+        },
+        "result": "pasa"
+      },
+      {
+        "detail": "",
+        "mandatory": true,
+        "missing": [],
+        "name": "v1:reactivacion",
+        "readings": {},
+        "result": "pasa"
+      },
+      {
+        "detail": "",
+        "mandatory": true,
+        "missing": [],
+        "name": "v1:no_recongela",
+        "readings": {
+          "bias_runs_after": 1
+        },
+        "result": "pasa"
+      },
+      {
+        "detail": "",
+        "mandatory": true,
+        "missing": [],
+        "name": "v1:barrido",
+        "readings": {},
+        "result": "pasa"
+      },
+      {
+        "detail": "",
+        "mandatory": true,
+        "missing": [],
+        "name": "v1:latencia",
+        "readings": {
+          "latency_seconds": 520.741881
+        },
+        "result": "pasa"
+      }
+    ]
+  }
+}

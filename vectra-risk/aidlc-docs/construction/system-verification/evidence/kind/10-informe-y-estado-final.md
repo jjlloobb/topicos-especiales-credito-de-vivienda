@@ -1,12 +1,12 @@
 # 10 — Informe y estado final
 
-**Estado: pendiente del operador.** Plantilla de U12-T06: nadie ha ejecutado esto contra el clúster (AUTONOMIA-01). El operador reemplaza cada _pendiente_ con lo que obtuvo —el comando, la salida **sin tokens, cookies, contraseñas ni semillas** y el cumplimiento— y cambia este estado a `completa` (o `fallida`, con el hallazgo). Quien llena una plantilla no inventa la salida: lo que no se corrió queda `no ejecutado`.
+**Estado: completa, con hallazgos.** Llenada el 2026-11-22 (UTC) con lo que se obtuvo contra `kind-vectra`.
 
 - Guía y fase: `system-verification/docs/paso-18-kind.md`, F10 (Informe y estado final).
-- Fecha: _pendiente_.
-- Operador: _pendiente_.
-- Commit de `main` desplegado: _pendiente_.
-- Duración real de la fase: _pendiente_ (estimada: 30 min; la guía pide anotarla).
+- Fecha: 2026-11-22 UTC (21:33 del 21 de noviembre en Colombia), día D + 1.
+- Operador: jjlloobb, con Claude Code ejecutando las ordenes.
+- Commit de `main` desplegado: fd33db6.
+- Duración real de la fase: unos 5 min (02:34 a 02:36 UTC), sin contar el llenado de plantillas (estimada: 30 min; la guía pide anotarla).
 
 Entradas de esta fase: K-64, K-65.
 
@@ -19,18 +19,21 @@ Entradas de esta fase: K-64, K-65.
 **Comando.** Previsto: `vectra-verification report`.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+vectra-verification report
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+2026-11-22T02:34:02Z
+informe: evidence/verification-report.md: 16 pasa, 0 falla, 25 no ejecutado
+seccion report: pasa (0)
+rc_report=0
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| El informe lista cada RT, demo e historia; salen no ejecutado US-106, 109, 603, 305, 604, 608, 609 y 610, RT3-b y 'a y d desplegados'; ninguno sale pasa sin evidencia | _pendiente_ | _pendiente_ |
+| El informe lista cada RT, demo e historia; salen no ejecutado US-106, 109, 603, 305, 604, 608, 609 y 610, RT3-b y 'a y d desplegados'; ninguno sale pasa sin evidencia | informe con 16 `pasa`, 0 `falla` y 25 `no ejecutado`. Pasan RT-2, RT2-LATENCY, RT-3, RT-5, SIM-NORMAL y las cuatro demos (`journey-7-3`, `journey-7-4`, `rt-5`, `dashboard`). `no ejecutado`, con su motivo: RT-1, RT-4 y las secciones diferidas por la demo, entre otros. Ninguno sale `pasa` sin evidencia | si |
 
 ### K-65 — El cluster queda como estaba
 
@@ -41,19 +44,34 @@ _pendiente: la salida real, sin tokens_
 **Comando.** Previsto: `estado-final.sh`.
 
 ```bash
-_pendiente: el comando exacto que se ejecutó_
+humo modelos | system-verification/docs/kind/estado-final.sh --modelos - --referencia mv-2026-01-01-8a98ab02
+system-verification/docs/kind/memoria.sh despues
 ```
 
 **Salida.**
 
 ```text
-_pendiente: la salida real, sin tokens_
+2026-11-22T02:34:38Z
+modelos: 2; activos 1; congelados 0
+OK   sin InferenceService de staging
+OK   InferenceService en vectra-serving: inferenceservice.serving.kserve.io/isvc-8a98ab02 inferenceservice.serving.kserve.io/isvc-f12bfeaf 
+OK   F22: networkpolicy.networking.k8s.io/allow-f22-explainability-service-to-explainer-egress
+OK   F22: networkpolicy.networking.k8s.io/allow-f22-to-explainer-ingress
+OK   F22: authorizationpolicy.policy.linkerd.io/f22-explainer-8080
+OK   F22: meshtlsauthentication.policy.linkerd.io/f22-explainer-8080-mtls
+OK   F22: server.policy.linkerd.io/explainer-8080
+queda (se anota): casos en fallo persistente (no_disponible de D1) = 10
+queda (se anota): alertas en firing = FailClosedPersistente, HPAMaxedOut, PostgresVolumeUsageHigh, RealmDrift, RestoreDrillFailed, Watchdog
+estado final: como estaba
+rc_estado=0
+48 pods medidos; fase despues; disponible 2711 MiB (puerta 0 MiB)
 ```
 
 | Esperado | Obtenido | Cumple |
 |---|---|---|
-| El cluster queda como estaba: modelo de referencia activo, ninguna version congelado, sin InferenceService de staging, F22 encendido | _pendiente_ | _pendiente_ |
+| El cluster queda como estaba: modelo de referencia activo, ninguna version congelado, sin InferenceService de staging, F22 encendido | `estado-final.sh` en 0, «como estaba»: modelo de referencia `activo`, ninguna versión `congelado`, sin `InferenceService` de staging, los cinco recursos de F22 presentes. Queda, anotado: 10 casos en `no_disponible` (D1), el proxy `isvc-f12bfeaf` declarado e inactivo con 1 réplica, el `runId` 20261121-0104 en los values, el Job `rt5-demo-20261121-0104`, y las alertas `FailClosedPersistente`, `HPAMaxedOut`, `PostgresVolumeUsageHigh`, `RealmDrift`, `RestoreDrillFailed` y `Watchdog` en `firing` | si |
 
 ## Hallazgos
 
-_Ninguno todavía._ Cada hallazgo dice **a qué unidad apunta** (la tabla de síntomas de la guía da la primera pista) y abre una tarea en esa unidad; un defecto del chart o de las imágenes de una unidad no se arregla aquí.
+- Las alertas `HPAMaxedOut` (en kind el máximo de réplicas es igual al mínimo), `RealmDrift` (35 diferencias conocidas del comparador), `RestoreDrillFailed` y `PostgresVolumeUsageHigh` siguen en `firing`; ninguna entra en las demos. Quedan para explicar en la sustentación.
+- El `runId` de RT-5 sigue en `vectra-risk-gitops/values/kind/case-management.yaml`: mientras esté, unas 60 pruebas locales de U12 fallan (la CI no las corre). Retirarlo es un PR y un sync con prune.
