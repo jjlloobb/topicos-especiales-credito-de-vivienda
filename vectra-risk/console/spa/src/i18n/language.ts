@@ -1,13 +1,15 @@
-// El idioma de la interfaz (enmienda del 2026-11-21 a NFR-U10-53): espanol (por omision) o ingles. Un solo estado para toda la SPA, fuera de
+// El idioma de la interfaz (enmienda del 2026-11-21 a NFR-U10-53): espanol (por omision), ingles o portugues de Brasil. Un solo estado para toda la SPA, fuera de
 // React, porque `ui`, `label` y los formatos de `index.ts` se llaman tambien fuera de los componentes; `useLanguage` lo conecta con React.
 //
 // El idioma inicial, en este orden: (1) la preferencia que la persona eligio y quedo guardada en el navegador (`preferences/storage.ts`);
-// (2) el `locale` de `get_me`, si es uno de los dos idiomas; (3) el primer idioma del navegador que sea espanol o ingles; (4) espanol.
+// (2) el `locale` de `get_me`, si es uno de los tres idiomas; (3) el primer idioma del navegador que sea espanol, ingles o portugues
+// (cualquier `pt-*`); (4) espanol.
 // Solo la eleccion explicita (`chooseLanguage`) se guarda: sin ella no se escribe nada en el navegador. El idioma no viaja al servidor.
 import messagesEn from "./messages.en.json";
 import messagesEs from "./messages.es.json";
+import messagesPt from "./messages.pt.json";
 
-export const LANGUAGES = ["es", "en"] as const;
+export const LANGUAGES = ["es", "en", "pt"] as const;
 export type Language = (typeof LANGUAGES)[number];
 export const DEFAULT_LANGUAGE: Language = "es";
 
@@ -16,11 +18,23 @@ export const DEFAULT_LANGUAGE: Language = "es";
  * («12 Nov 2026, 15:30»), asi que una fecha no se puede leer al reves; los decimales llevan punto y los pesos se escriben «COP 1,500,000»
  * (un «$» solo se leeria como dolares). La zona horaria es siempre la de Bogota (`index.ts`).
  */
-export const LOCALES: Readonly<Record<Language, string>> = { es: "es-CO", en: "en-GB" };
+export const LOCALES: Readonly<Record<Language, string>> = { es: "es-CO", en: "en-GB", pt: "pt-BR" };
 
-const TITLES: Readonly<Record<Language, string>> = { es: messagesEs.ui.document_title, en: messagesEn.ui.document_title };
+/**
+ * La etiqueta de idioma de cada uno hacia fuera de la consola: el `lang` de `<html>` y de cada opcion del selector, y el `ui_locales` de las
+ * peticiones de autorizacion (el login de Keycloak nombra el portugues de Brasil `pt-BR`). Un conjunto cerrado: nunca texto libre.
+ */
+export const LANGUAGE_TAGS = { es: "es", en: "en", pt: "pt-BR" } as const satisfies Readonly<Record<Language, string>>;
+export type LanguageTag = (typeof LANGUAGE_TAGS)[Language];
 
-/** El idioma de una etiqueta BCP 47 (`es-CO`, `en_US`, `EN`): solo cuenta el idioma primario; `null` si no es ninguno de los dos. */
+/** El `ui_locales` del idioma en curso (`es`, `en` o `pt-BR`). */
+export function uiLocales(): LanguageTag {
+  return LANGUAGE_TAGS[current];
+}
+
+const TITLES: Readonly<Record<Language, string>> = { es: messagesEs.ui.document_title, en: messagesEn.ui.document_title, pt: messagesPt.ui.document_title };
+
+/** El idioma de una etiqueta BCP 47 (`es-CO`, `en_US`, `EN`): solo cuenta el idioma primario (`pt-BR`, `pt-PT` y `pt` son portugues); `null` si no es ninguno de los tres. */
 export function languageOf(tag: unknown): Language | null {
   if (typeof tag !== "string") return null;
   const primary = tag.trim().toLowerCase().split(/[-_]/)[0];
@@ -67,7 +81,7 @@ function apply(next: Language): void {
   const changed = next !== current;
   current = next;
   if (env.document !== null) {
-    env.document.documentElement.lang = next;
+    env.document.documentElement.lang = LANGUAGE_TAGS[next];
     env.document.title = TITLES[next];
   }
   if (changed) for (const listener of [...listeners]) listener();

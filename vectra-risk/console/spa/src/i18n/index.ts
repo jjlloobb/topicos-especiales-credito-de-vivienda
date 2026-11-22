@@ -3,9 +3,11 @@
 // el `locale` del idioma en curso (`language.ts`). Los catalogos en espanol dan los tipos de las claves.
 import labelsEn from "./labels.en.json";
 import labelsEs from "./labels.es.json";
+import labelsPt from "./labels.pt.json";
 import { getLanguage, type Language, LOCALES } from "./language";
 import messagesEn from "./messages.en.json";
 import messagesEs from "./messages.es.json";
+import messagesPt from "./messages.pt.json";
 
 const TIME_ZONE = "America/Bogota";
 
@@ -15,8 +17,8 @@ export type UiKey = keyof Messages["ui"];
 export type NoticeKey = keyof Messages["notice"];
 export type LabelGroup = keyof Labels;
 
-const MESSAGES: Readonly<Record<Language, Messages>> = { es: messagesEs, en: messagesEn };
-const LABELS: Readonly<Record<Language, Labels>> = { es: labelsEs, en: labelsEn };
+const MESSAGES: Readonly<Record<Language, Messages>> = { es: messagesEs, en: messagesEn, pt: messagesPt };
+const LABELS: Readonly<Record<Language, Labels>> = { es: labelsEs, en: labelsEn, pt: labelsPt };
 
 const messagesNow = (): Messages => MESSAGES[getLanguage()];
 const labelsNow = (): Labels => LABELS[getLanguage()];
@@ -75,7 +77,7 @@ export function formatDecimal(value: string, digits = 4): string {
   return format.format(value as `${number}`);
 }
 
-/** Pesos colombianos sin decimales, con `Intl` (los montos de la solicitud son enteros): «$ 1.500.000» en espanol, «COP 1,500,000» en ingles. */
+/** Pesos colombianos sin decimales, con `Intl` (los montos de la solicitud son enteros): «$ 1.500.000» en espanol, «COP 1,500,000» en ingles, «COP 1.500.000» en portugues (nunca se convierte la moneda). */
 export function formatMoney(value: number): string {
   return new Intl.NumberFormat(locale(), { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
 }
