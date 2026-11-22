@@ -220,12 +220,12 @@ Pedido del dueño del proyecto para la sustentación. Sin dependencias nuevas y 
 
 | Módulo | Qué hace |
 |---|---|
-| `i18n/language.ts`, `i18n/useLanguage.ts` | El idioma en curso (`es` por omisión, `en`), fuera de React; `resolveLanguage` (preferencia guardada > `locale` de `get_me` > navegador > español); `chooseLanguage` cambia, guarda y actualiza `<html lang>` y el título. `App` lo lee en la raíz: al cambiar, todo el árbol se repinta sin desmontarse. También fija el idioma de los textos propios de React Aria (`I18nProvider`), que antes seguían al navegador |
-| `i18n/index.ts`, `messages.en.json`, `labels.en.json` | `ui`, `label`, `problemText` y los formatos leen el catálogo y el `locale` (`es-CO` o `en-GB`) del idioma en curso |
+| `i18n/language.ts`, `i18n/useLanguage.ts` | El idioma en curso (`es` por omisión, `en`, `pt`: portugués de Brasil, E-7), fuera de React; `resolveLanguage` (preferencia guardada > `locale` de `get_me` > navegador > español); `chooseLanguage` cambia, guarda y actualiza `<html lang>` y el título. `App` lo lee en la raíz: al cambiar, todo el árbol se repinta sin desmontarse. También fija el idioma de los textos propios de React Aria (`I18nProvider`), que antes seguían al navegador |
+| `i18n/index.ts`, `messages.en.json`, `labels.en.json`, `messages.pt.json`, `labels.pt.json` | `ui`, `label`, `problemText` y los formatos leen el catálogo y el `locale` (`es-CO`, `en-GB` o `pt-BR`) del idioma en curso |
 | `theme/theme.ts`, `theme/useTheme.ts`, `public/theme-boot.js` | El tema elegido (`system`, `light`, `dark`): pone o quita `data-theme` en `<html>`. `theme-boot.js` (guion clásico del mismo origen, en el `<head>`) lo aplica antes de la primera pintura |
 | `preferences/storage.ts` | **El único** módulo que nombra `localStorage`: las dos claves de preferencias, con valores validados |
 | `views/shared/PreferenceSelect.tsx`, `LanguageSelect.tsx`, `ThemeSelect.tsx` | Los dos selectores (`Select` de React Aria), en la cabecera y en la pantalla de inicio de sesión |
-| `auth/AuthProvider.tsx`, `stepup/oidc.ts` | Cada petición de autorización lleva `ui_locales` con el idioma activo (E-4) |
+| `auth/AuthProvider.tsx`, `stepup/oidc.ts` | Cada petición de autorización lleva `ui_locales` con el idioma activo (E-4): `es`, `en` o `pt-BR` |
 | `views/shared/illustrations.tsx` | La marca de agua (E-5): el horizonte de un barrio, al pie de las vistas de las demos y al fondo del inicio de sesión |
 | `styles.css` | Cada token de color es `light-dark(claro, oscuro)` con los valores de antes; `:root[data-theme]` fija `color-scheme`. Ya no hay un bloque `@media (prefers-color-scheme: dark)`: el tema del sistema lo aplica `color-scheme: light dark` |
 

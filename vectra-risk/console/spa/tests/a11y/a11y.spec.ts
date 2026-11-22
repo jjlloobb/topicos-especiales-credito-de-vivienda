@@ -3,7 +3,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { type Page, expect, test } from "@playwright/test";
 import { walk } from "../e2e/tour";
-import { chooseLanguage, chooseTheme, emulateSystemScheme, EN, ES, languageButton, loginAs, ORIGIN, type Role, seedPreferences, type Texts, themeButton } from "../e2e/support";
+import { chooseLanguage, chooseTheme, emulateSystemScheme, EN, ES, languageButton, loginAs, ORIGIN, PT, type Role, seedPreferences, type Texts, themeButton } from "../e2e/support";
 
 test.use({ baseURL: ORIGIN });
 
@@ -34,6 +34,8 @@ for (const role of ROLES) {
 const FORCED: { name: string; system: "light" | "dark"; theme: "light" | "dark"; t: Texts; background: string }[] = [
   { name: "en ingles, con el tema oscuro forzado y el sistema en claro", system: "light", theme: "dark", t: EN, background: "rgb(16, 26, 21)" },
   { name: "con el tema claro forzado y el sistema en oscuro", system: "dark", theme: "light", t: ES, background: "rgb(250, 248, 244)" },
+  // El tercer idioma: el mismo recorrido en portugues de Brasil (`<html lang="pt-BR">`), con el tema oscuro forzado.
+  { name: "en portugues, con el tema oscuro forzado y el sistema en claro", system: "light", theme: "dark", t: PT, background: "rgb(16, 26, 21)" },
 ];
 
 for (const variant of FORCED) {

@@ -6,7 +6,7 @@
 //  - el recorrido de las demos en ingles: bandeja (chips, filtros, paginacion), detalle (explicacion, formulario de decision y sus errores),
 //    congelamientos y el paquete con la tabla comparativa, modelos y los dialogos, sin que quede a la vista ningun texto del catalogo en espanol.
 import { type Page, expect, test } from "@playwright/test";
-import { CASES, chooseLanguage, control, EN, ES, FREEZE_ID, goTo, languageButton, loginAs, ORIGIN, PREFERENCE_KEYS, seedPreferences, spanishLeft } from "./support";
+import { CASES, chooseLanguage, control, EN, ES, FREEZE_ID, goTo, LANG_TAG, languageButton, loginAs, ORIGIN, PREFERENCE_KEYS, PT, seedPreferences, spanishLeft } from "./support";
 import { completeStepUp, openCase, openInactivityDialog, walk } from "./tour";
 
 test.use({ baseURL: ORIGIN });
@@ -89,10 +89,11 @@ test.describe("el idioma inicial y el cambio", () => {
     await button.focus();
     await page.keyboard.press("Enter");
     const options = page.getByRole("listbox").getByRole("option");
-    await expect(options).toHaveText(["Español", "English"]);
+    await expect(options).toHaveText(["Español", "English", "Português"]);
     await expect(options.nth(0)).toHaveAttribute("aria-selected", "true");
     await expect(options.nth(0)).toHaveAttribute("lang", "es");
     await expect(options.nth(1)).toHaveAttribute("lang", "en");
+    await expect(options.nth(2)).toHaveAttribute("lang", "pt-BR");
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Enter");
     await expect(languageButton(page, EN)).toBeFocused(); // el foco vuelve al selector
@@ -132,12 +133,41 @@ test.describe("el idioma inicial y el cambio", () => {
   test.describe("con el navegador en otro idioma", () => {
     test.use({ locale: "fr-FR" });
 
-    test("ni espanol ni ingles: espanol", async ({ page }) => {
+    test("ni espanol, ni ingles, ni portugues: espanol", async ({ page }) => {
       await page.goto("/");
       await expect(page.getByRole("button", { name: ES.ui("login_button") })).toBeVisible();
       await expect(page.locator("html")).toHaveAttribute("lang", "es");
     });
   });
+});
+
+test.describe("con el navegador en portugues", () => {
+  for (const locale of ["pt-BR", "pt-PT"]) {
+    test.describe(locale, () => {
+      test.use({ locale });
+
+      test(`sin preferencia (${locale}): el inicio de sesion sale en portugues de Brasil; elegir «Português» lo fija y sobrevive a la recarga`, async ({ page }) => {
+        await page.goto("/");
+        await expect(page.getByRole("button", { name: PT.ui("login_button") })).toBeVisible();
+        await expect(page.getByRole("heading", { name: PT.ui("login_title") })).toBeVisible();
+        await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
+        await expect(page).toHaveTitle(PT.ui("document_title"));
+        await expect(languageButton(page, PT)).toBeVisible();
+        expect((await storage(page)).local).toEqual([]);
+        // con la sesion manda el `locale` de `get_me` (es-CO) mientras no haya preferencia
+        await loginAs(page, "analista", "/", { ...PT, ui: (key, params) => (key === "logout_button" ? ES.ui(key, params) : PT.ui(key, params)) });
+        await expect(page.getByRole("heading", { name: ES.ui("view_cases") })).toBeVisible();
+        await chooseLanguage(page, ES, PT);
+        await expect(page.getByRole("heading", { name: PT.ui("view_cases") })).toBeVisible();
+        await expect(page).toHaveTitle(PT.ui("document_title_view", { view: PT.ui("view_cases") }));
+        expect((await storage(page)).local).toEqual([[PREFERENCE_KEYS.language, "pt"]]);
+        await page.reload();
+        await expect(page.getByRole("heading", { name: PT.ui("view_cases") })).toBeVisible(); // ya hay preferencia: gana a `get_me`
+        await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
+        expect((await storage(page)).session).toEqual([]);
+      });
+    });
+  }
 });
 
 test.describe("el idioma viaja al login del emisor como `ui_locales`", () => {
@@ -190,7 +220,7 @@ test.describe("el idioma viaja al login del emisor como `ui_locales`", () => {
     // En todas: un solo `ui_locales`, de los dos valores posibles, PKCE S256, `state`, `nonce` y el `redirect_uri` de la SPA; nunca `kc_locale`.
     expect(authorize.length).toBeGreaterThanOrEqual(5);
     for (const url of authorize) {
-      expect(["es", "en"]).toContain(url.searchParams.get("ui_locales"));
+      expect(["es", "en", "pt-BR"]).toContain(url.searchParams.get("ui_locales"));
       expect(url.searchParams.getAll("ui_locales")).toHaveLength(1);
       expect(url.searchParams.get("code_challenge_method")).toBe("S256");
       expect(url.searchParams.get("state")).toBeTruthy();
@@ -199,6 +229,106 @@ test.describe("el idioma viaja al login del emisor como `ui_locales`", () => {
       expect(url.searchParams.has("kc_locale")).toBe(false);
     }
   });
+});
+
+test.describe("el portugues viaja al login como `ui_locales=pt-BR`", () => {
+  test("login silencioso, login interactivo y step-up en portugues llevan `pt-BR` (el codigo de Keycloak), y nada mas cambia", async ({ page, context }) => {
+    const requests: URL[] = [];
+    context.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname.endsWith("/protocol/openid-connect/auth") && request.resourceType() === "document") requests.push(url);
+    });
+    await seedPreferences(context, { language: "pt" });
+    await loginAs(page, "cumplimiento", "/", PT);
+    expect(requests.map((url) => [url.searchParams.getAll("ui_locales"), url.searchParams.get("prompt")])).toEqual([
+      [["pt-BR"], "none"],
+      [["pt-BR"], null],
+    ]);
+    await goTo(page, `/congelamientos/${FREEZE_ID}`);
+    await page.getByRole("button", { name: PT.ui("resolve_open") }).click();
+    await page.getByLabel(PT.ui("resolve_justification")).fill("Revisado pela área de compliance");
+    await expect(page.getByText(PT.ui("resolve_mfa_hint", { minutes: "15" }))).toBeVisible();
+    await completeStepUp(context, () => page.getByRole("button", { name: PT.ui("verify_and_confirm") }).click(), "cumplimiento");
+    await expect(page.getByText(PT.ui("freeze_resolution_done"))).toBeVisible();
+    const stepUp = requests.at(-1) as URL;
+    expect(Object.fromEntries(["ui_locales", "prompt", "max_age", "acr_values", "code_challenge_method"].map((name) => [name, stepUp.searchParams.get(name)]))).toEqual({
+      ui_locales: "pt-BR",
+      prompt: "login",
+      max_age: "0",
+      acr_values: "mfa",
+      code_challenge_method: "S256",
+    });
+    for (const url of requests) {
+      expect(url.searchParams.getAll("ui_locales")).toEqual(["pt-BR"]);
+      expect(url.searchParams.has("kc_locale")).toBe(false);
+      expect(url.searchParams.get("state")).toBeTruthy();
+      expect(url.searchParams.get("nonce")).toBeTruthy();
+    }
+  });
+});
+
+test.describe("las demos en portugues de Brasil", () => {
+  test.beforeEach(async ({ context }) => {
+    await seedPreferences(context, { language: "pt" });
+  });
+
+  test("bandeja y detalle: columnas, fechas y numeros de pt-BR, pesos como COP (sin convertir), y ningun texto en espanol a la vista", async ({ page }) => {
+    await loginAs(page, "analista", "/", PT);
+    await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
+    const region = page.getByRole("region", { name: "Tabela rolável: Fila de casos" });
+    await expect(region.getByRole("columnheader")).toHaveText(["Proponente", "Estado", "Canal", "Criado", "Recomendação", "Pontuação", "Identificador", "Abrir"]);
+    await expect(page.getByText(/^Casos com estes filtros: \d+$/)).toBeVisible();
+    // fechas: dia, mes con letras y hora de 24 h (zona de Bogota); puntajes: coma decimal, los digitos del servidor
+    await expect(region.getByRole("row").nth(1).getByRole("cell").nth(3)).toHaveText(/^\d{1,2} de [a-zç]{3}\. de \d{4}, \d{2}:\d{2}$/);
+    await expect(region.getByRole("cell", { name: /^0,\d{4}$/ }).first()).toBeVisible();
+    const chips = page.getByRole("group", { name: PT.ui("quick_states_label") });
+    await chips.getByRole("button", { name: PT.label("CASE_STATES", "decidido"), exact: true }).click();
+    await expect(region.getByRole("row")).toHaveCount(2);
+    expect(new URL(page.url()).searchParams.getAll("state")).toEqual(["decidido"]); // la URL lleva el codigo, no el texto traducido
+    await chips.getByRole("button", { name: PT.ui("quick_states_default") }).click();
+    await page.getByText(PT.ui("filters_more")).click();
+    await expect(page.getByLabel(PT.ui("filter_channel"))).toBeVisible();
+    const pagination = page.getByRole("navigation", { name: PT.ui("pagination_label") });
+    await expect(pagination.getByRole("button")).toHaveText([PT.ui("page_first"), PT.ui("page_previous"), PT.ui("page_next"), PT.ui("page_last")]);
+    await page.getByLabel(PT.ui("go_to_case_label")).fill("não-é-um-uuid");
+    await page.getByRole("button", { name: PT.ui("go_to_case_button") }).click();
+    await expect(page.getByRole("alert")).toHaveText(PT.ui("go_to_case_invalid"));
+    expect(await spanishLeft(page, PT)).toEqual([]);
+
+    await openCase(page, CASES.listo, PT);
+    await expect(page).toHaveTitle(PT.ui("document_title_view", { view: PT.ui("view_case_detail") }));
+    await expect(page.getByText(/^Pontuação: 0,\d{4}$/)).toBeVisible();
+    await expect(page.getByText(PT.notice("credit_not_integrated"))).toBeVisible();
+    await page.getByText(PT.ui("application_toggle")).click();
+    await expect(page.getByText(/^COP\s[\d.]+$/).first()).toBeVisible(); // pesos colombianos: ni «R$» ni conversion
+    await expect(page.getByText(/R\$/)).toHaveCount(0);
+    await page.getByRole("button", { name: PT.ui("explanation_button") }).click();
+    await expect(page.getByText(/Contribuição: -?0,\d{4}$/).first()).toBeVisible();
+    await page.getByRole("radio", { name: PT.label("DECISIONS", "se_aparta") }).check();
+    await page.getByLabel(PT.ui("decision_field_justification")).fill("muito curta");
+    await page.getByRole("button", { name: PT.ui("decision_submit") }).click();
+    await expect(page.getByRole("alert").filter({ hasText: PT.ui("decision_error_justification_length") })).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: PT.ui("decision_error_factors_size") })).toBeVisible();
+    expect(await spanishLeft(page, PT)).toEqual([]);
+  });
+
+  for (const role of ["analista", "ingeniero_riesgo", "cro", "cumplimiento"] as const) {
+    test(`recorrido de ${role} en portugues: en ninguna parada queda un texto del catalogo en espanol`, async ({ page, context }) => {
+      const stops: string[] = [];
+      await walk(
+        page,
+        context,
+        role,
+        async (name) => {
+          expect(await spanishLeft(page, PT), `textos en espanol en «${name}»`).toEqual([]);
+          await expect(page.locator("html")).toHaveAttribute("lang", LANG_TAG[PT.lang]);
+          stops.push(name);
+        },
+        PT,
+      );
+      expect(stops.length).toBeGreaterThan(2);
+    });
+  }
 });
 
 test.describe("las demos en ingles", () => {

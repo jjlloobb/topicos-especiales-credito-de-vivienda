@@ -142,7 +142,7 @@ iframe, la leyenda «mide y alerta, no certifica» es un texto propio de la cons
 - Hay un mensaje en español por cada `code` y cada `reason` del catálogo de U0 §6. Por ejemplo, `decision_already_recorded` → «Otra persona ya registró la decisión de este caso. Se muestra la decisión registrada.».
 - Un `code` desconocido muestra un mensaje genérico con el `correlation_id` para soporte.
 - Nunca se muestra el `detail` del servidor ni una traza.
-- **Enmienda del 2026-11-21** (pedido del dueño del proyecto para la sustentación): hay un mensaje en español **y otro en inglés** por cada `code`, `reason`, aviso y valor de enumerado; el español sigue siendo el idioma por omisión. La lista de frases prohibidas (BR-U10-18) se aplica a los dos catálogos. Ver nfr-requirements §11, E-1.
+- **Enmienda del 2026-11-21** (pedido del dueño del proyecto para la sustentación): hay un mensaje en español, **otro en inglés y otro en portugués de Brasil** (el tercero, por la ampliación E-7 del mismo día) por cada `code`, `reason`, aviso y valor de enumerado; el español sigue siendo el idioma por omisión. La lista de frases prohibidas (BR-U10-18) se aplica a los catálogos traducidos. Ver nfr-requirements §11, E-1.
 - Los avisos de negocio también vienen del mismo catálogo: `model_frozen_after_recommendation`, baja confianza, `revision_requerida`, caso anonimizado y crédito no integrado.
 
 **BR-U10-18 — Frases prohibidas** (Q8; FR-BIA-08). La lista, la comparación y la aprobación de
