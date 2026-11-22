@@ -3,6 +3,7 @@
 Archivos copiados sin cambios del repositorio `keycloak/keycloak`, tag `26.8.1`, rutas `themes/src/main/resources/theme/{base,keycloak.v2}/login/`. Descargados el 2026-11-02 (U02-T06, decisión P4 del usuario). `SHA256SUMS` fija su contenido; se verifica con `sha256sum -c SHA256SUMS` desde este directorio.
 
 - `base/messages_en.properties` y `keycloak.v2/messages_en.properties`: claves de mensajes que existen en Keycloak.
+- `base/messages_pt_BR.properties` y `keycloak.v2/messages_pt_BR.properties` (añadidos el 2026-11-21, al ofrecer portugués de Brasil en el login): los mismos archivos, extraídos sin cambios de `org.keycloak.keycloak-themes-26.8.1.jar` de la imagen de INF-U2-08 (`theme/{base,keycloak.v2}/login/messages/`). Sirven para comprobar que toda clave de `messages_es.properties` existe también en portugués.
 - `keycloak.v2/templates/*.ftl`: plantillas de login, TOTP (`login-otp`, `login-config-totp`) y cambio de contraseña, con las comunes que incluyen.
 
 Al subir la versión de Keycloak (INF-U2-08) se reemplaza este directorio por el de la versión nueva.
