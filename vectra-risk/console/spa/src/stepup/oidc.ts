@@ -1,6 +1,7 @@
 // `StepUpBackend` sobre la API de bajo nivel de `oidc-client-ts` (P-U10-07): `OidcClient` con su propio `stateStore` en memoria.
 // `signinPopup` no se usa: abre la ventana por su cuenta y procesa la respuesta dentro de ella (BR-U10-06).
 import type { OidcClient, SigninResponse, StateStore } from "oidc-client-ts";
+import { uiLocales } from "../i18n/language";
 import type { StepUpBackend } from "./flow";
 
 export const STEPUP_ACR = "mfa";
@@ -28,6 +29,8 @@ export function createOidcBackend(
         acr_values: STEPUP_ACR,
         // el `nonce` en memoria: el ID token del canje tiene que traerlo de vuelta (la libreria no lo genera en el flujo de codigo)
         nonce: crypto.randomUUID(),
+        // el idioma de la consola (`es`, `en` o `pt-BR`): la ventana de verificacion del emisor sale en el mismo idioma (enmienda del 2026-11-21)
+        ui_locales: uiLocales(),
       });
       return { url: request.url, id: request.state.id };
     },

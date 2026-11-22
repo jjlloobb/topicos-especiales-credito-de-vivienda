@@ -169,5 +169,16 @@
   "PROPERTY_CONDITIONS": {
     "nueva": "Nueva",
     "usada": "Usada"
+  },
+  "GROUPS": {
+    "F": "Femenino",
+    "M": "Masculino",
+    "no_informado": "No informado",
+    "andina": "Andina",
+    "caribe": "Caribe",
+    "pacifica": "Pacífica",
+    "orinoquia": "Orinoquía",
+    "amazonia": "Amazonía",
+    "insular": "Insular"
   }
 }

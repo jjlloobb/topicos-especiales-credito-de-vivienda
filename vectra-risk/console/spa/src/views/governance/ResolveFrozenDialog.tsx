@@ -6,11 +6,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { useApi } from "../../api/ApiProvider";
-import { MfaRequiredError } from "../../api/client";
+import { ApiError, MfaRequiredError } from "../../api/client";
+import { MFA_MAX_AGE_SECONDS } from "../../config/constants";
 import { type FrozenResolutionIn, resolveFrozen } from "../../api/endpoints";
 import { label, ui } from "../../i18n";
 import { StepUpButton } from "../../stepup/StepUpButton";
-import type { ConfirmResult } from "../../stepup/StepUpProvider";
+import { type ConfirmResult, useStepUp } from "../../stepup/StepUpProvider";
 import { Choice } from "../shared/Choice";
 import { ProblemMessage } from "../shared/ProblemMessage";
 import { justificationOk } from "./resolution";
@@ -26,6 +27,16 @@ interface Props {
   readonly onResolved: () => void;
 }
 
+/**
+ * Un 409 `conflict_state` sin un `reason` con texto propio: el estado de la version ya no admite la resolucion (lo tipico: ya fue reactivada).
+ * El dialogo lo dice con sus palabras y que hacer, en vez del mensaje general «el elemento cambio de estado».
+ */
+export function isStateConflict(error: unknown): boolean {
+  return error instanceof ApiError && error.problem.code === "conflict_state" && error.problem.reason == null;
+}
+
+const MFA_MINUTES = String(MFA_MAX_AGE_SECONDS / 60);
+
 export function ResolveFrozenDialog({ modelVersionId, freezeId, isOpen, onClose, onResolved }: Props) {
   const api = useApi();
   const queryClient = useQueryClient();
@@ -33,6 +44,7 @@ export function ResolveFrozenDialog({ modelVersionId, freezeId, isOpen, onClose,
   const [justification, setJustification] = useState("");
   const [error, setError] = useState<unknown>(null);
   const inFlight = useRef(false);
+  const needsStepUp = useStepUp().needsStepUp;
   const valid = justificationOk(justification);
 
   const send = async (body: FrozenResolutionIn): Promise<ConfirmResult> => {
@@ -49,6 +61,11 @@ export function ResolveFrozenDialog({ modelVersionId, freezeId, isOpen, onClose,
     } catch (caught) {
       if (caught instanceof MfaRequiredError) return "mfa_required";
       setError(caught);
+      // El servidor dice que el estado cambio: se vuelve a pedir el congelamiento para que la tarjeta muestre la ultima resolucion.
+      if (isStateConflict(caught)) {
+        void queryClient.invalidateQueries({ queryKey: ["freeze", freezeId] });
+        void queryClient.invalidateQueries({ queryKey: ["freezes"] });
+      }
       return "failed";
     } finally {
       inFlight.current = false;
@@ -73,13 +90,19 @@ export function ResolveFrozenDialog({ modelVersionId, freezeId, isOpen, onClose,
             value={justification}
             rows={4}
             aria-invalid={justification.trim() !== "" && !valid}
+            aria-required
             aria-describedby="resolve-hint"
             onChange={(event) => { setJustification(event.target.value); }}
           />
           <p className={justification.trim() !== "" && !valid ? "field-error" : "hint"} id="resolve-hint" aria-live="polite">
             {justification.trim() === "" ? ui("resolve_error_required") : valid ? ui("resolve_counter", { count: String([...justification].length) }) : ui("resolve_error_too_long")}
           </p>
-          {error === null ? null : <ProblemMessage error={error} />}
+          {error === null ? null : isStateConflict(error) ? <ProblemMessage error={error} text={ui("resolve_conflict")} /> : <ProblemMessage error={error} />}
+          {needsStepUp ? (
+            <p className="hint" role="note">
+              {ui("resolve_mfa_hint", { minutes: MFA_MINUTES })}
+            </p>
+          ) : null}
           <div className="actions">
             <StepUpButton body={{ action, justification }} send={send} label={ui("resolve_submit")} isDisabled={!valid} />
             <Button onPress={onClose}>{ui("resolve_close")}</Button>

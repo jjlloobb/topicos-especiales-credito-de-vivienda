@@ -74,3 +74,22 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function isCaseId(value: string): boolean {
   return UUID.test(value);
 }
+
+const CASE_URL = /\/casos\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:[/?#]|$)/i;
+
+/**
+ * Lo que la persona escribe o pega en «Ir al caso»: el identificador (con o sin espacios alrededor, en mayusculas o minusculas) o la direccion
+ * completa del caso (`https://.../casos/<uuid>`, con o sin consulta), de la que solo se toma el UUID. Devuelve el UUID en minusculas, o `null`.
+ * Nada mas de lo pegado se usa ni llega a la URL.
+ */
+export function extractCaseId(text: string): string | null {
+  const value = text.trim();
+  if (isCaseId(value)) return value.toLowerCase();
+  const found = CASE_URL.exec(value);
+  return found?.[1] === undefined ? null : found[1].toLowerCase();
+}
+
+/** La forma corta de un identificador de caso para una tabla: sus primeros 8 caracteres y puntos suspensivos (el completo va en el `title` y en el detalle). */
+export function shortCaseId(caseId: string): string {
+  return `${caseId.slice(0, 8)}…`;
+}

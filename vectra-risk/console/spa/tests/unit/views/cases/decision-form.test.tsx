@@ -3,7 +3,7 @@
 // curso (dos clics -> una solicitud), y los errores del servidor (422 en su campo, 409 `decision_already_recorded` y `conflict_state`, 503).
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { label, problemText, ui } from "../../../../src/i18n";
+import { label, problemText, ui, readableCode } from "../../../../src/i18n";
 import { CASE_ID, detail, recommendation } from "../../../support/fixtures";
 import { problem, renderApp, type Reply } from "../../../support/views-world";
 
@@ -21,7 +21,8 @@ async function open(post: () => Reply | Promise<Reply> = () => ({ status: 200, b
 }
 
 const pick = (name: string) => fireEvent.click(screen.getByRole("radio", { name }));
-const check = (name: string) => fireEvent.click(screen.getByRole("checkbox", { name }));
+// Un factor se nombra por su `feature_id`; en pantalla va sin guiones bajos (`readableCode`) y el `feature_id` queda en el `title` de su etiqueta.
+const check = (name: string) => fireEvent.click(screen.getByRole("checkbox", { name: readableCode(name) }));
 const submit = () => fireEvent.click(screen.getByRole("button", { name: ui("decision_submit") }));
 const justify = (text: string) => fireEvent.change(screen.getByLabelText(ui("decision_field_justification")), { target: { value: text } });
 
@@ -54,8 +55,10 @@ describe("DecisionForm: quien la ve y que ofrece", () => {
     pick(label("DECISIONS", "se_aparta"));
     expect((screen.getByRole("radio", { name: label("FINAL_OUTCOMES", "desfavorable") }) as HTMLInputElement).checked).toBe(true);
     const none = screen.getByRole("checkbox", { name: ui("decision_field_none") }) as HTMLInputElement;
-    const first = screen.getByRole("checkbox", { name: "installment_to_income" }) as HTMLInputElement;
-    const second = screen.getByRole("checkbox", { name: "loan_to_value" }) as HTMLInputElement;
+    const first = screen.getByRole("checkbox", { name: "installment to income" }) as HTMLInputElement;
+    const second = screen.getByRole("checkbox", { name: "loan to value" }) as HTMLInputElement;
+    expect(screen.getByText("installment to income").getAttribute("title")).toBe("installment_to_income"); // el codigo original, para quien lo necesite
+    expect(screen.queryByRole("checkbox", { name: "installment_to_income" })).toBeNull();
     check("installment_to_income");
     check("loan_to_value");
     expect([first.checked, second.checked, none.checked]).toEqual([true, true, false]);

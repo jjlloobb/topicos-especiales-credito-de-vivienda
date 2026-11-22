@@ -6,7 +6,8 @@ import { useRef, useState } from "react";
 import { Button } from "react-aria-components";
 import { useApi } from "../../api/ApiProvider";
 import { type CaseDetail, recordExplanationView } from "../../api/endpoints";
-import { safeDecimal, ui } from "../../i18n";
+import { readableCode, safeDecimal, ui } from "../../i18n";
+import { Coded } from "../shared/Coded";
 import type { Role } from "../shared/routes";
 
 type Explanation = NonNullable<CaseDetail["recommendation"]>["explanation"];
@@ -48,7 +49,7 @@ export function ExplanationPanel({ caseId, explanation, role }: Props) {
           <ul>
             {explanation.shap_vector.map((factor) => (
               <li key={factor.feature_id}>
-                {factor.feature_id} {ui("explanation_contribution", { value: safeDecimal(factor.contribution) })}
+                <Coded text={readableCode(factor.feature_id)} code={factor.feature_id} /> {ui("explanation_contribution", { value: safeDecimal(factor.contribution) })}
               </li>
             ))}
           </ul>

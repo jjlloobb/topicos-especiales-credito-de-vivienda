@@ -1,0 +1,184 @@
+{
+  "CASE_STATES": {
+    "en_evaluacion": "In evaluation",
+    "listo": "Ready",
+    "en_sincronizacion": "Syncing",
+    "no_disponible": "Unavailable",
+    "modelo_congelado": "Model frozen",
+    "decidido": "Decided",
+    "vencido": "Expired"
+  },
+  "CREDIT_STATUSES": {
+    "en_estudio": "Under review",
+    "aprobado": "Approved",
+    "desembolsado": "Disbursed",
+    "rechazado": "Declined",
+    "cancelado": "Cancelled",
+    "sin_credito": "No loan",
+    "no_disponible": "Unavailable",
+    "no_integrado": "Not integrated"
+  },
+  "DECISIONS": {
+    "sigue": "Follows the recommendation",
+    "se_aparta": "Overrides the recommendation",
+    "resuelve_revision": "Resolves the review"
+  },
+  "ENTRY_TYPES": {
+    "recommendation": "Recommendation",
+    "fail_closed": "Recommendation not issued",
+    "human_decision": "Human decision",
+    "explanation_view": "Explanation viewed",
+    "model_event": "Model event",
+    "policy_event": "Policy event",
+    "data_source_event": "Data source event",
+    "freeze": "Freeze",
+    "frozen_resolution": "Freeze resolution",
+    "genesis": "Start of the registry",
+    "checkpoint": "Checkpoint"
+  },
+  "EXPLAINER_ERRORS": {
+    "timeout": "The explanation took too long",
+    "unavailable": "The explanation service is unavailable",
+    "error": "Error generating the explanation",
+    "version_mismatch": "The explanation version does not match",
+    "factuality_failed": "The explanation did not pass verification",
+    "feature_dictionary_incomplete": "Incomplete feature dictionary"
+  },
+  "FAIL_CLOSED_CAUSES": {
+    "model_frozen": "Model frozen",
+    "serving_config_unavailable": "Serving configuration unavailable",
+    "model_output_invalid": "Invalid model output",
+    "timeout": "Timed out",
+    "explainer_unavailable": "Explanation unavailable",
+    "explainer_error": "Explanation error",
+    "version_mismatch": "Version mismatch",
+    "feature_dictionary_incomplete": "Incomplete feature dictionary",
+    "factuality_failed": "Explanation not verified",
+    "registry_unavailable": "Registry unavailable"
+  },
+  "FINAL_OUTCOMES": {
+    "favorable": "Favorable",
+    "desfavorable": "Unfavorable"
+  },
+  "LOCAL_CAUSES": {
+    "serving_config_unavailable": "Serving configuration unavailable",
+    "scoring_unreachable": "Scoring service unreachable",
+    "scoring_rejected": "Scoring service rejected the request"
+  },
+  "LOG_EVENTS": {
+    "authz.denied": "Access denied",
+    "recommendation.fail_closed": "Recommendation not issued",
+    "applicant_summary.generated": "Applicant summary generated",
+    "case.viewed": "Case viewed",
+    "case.retry_requested": "Case retry requested",
+    "evaluation.result_discarded": "Evaluation result discarded",
+    "disparity.viewed": "Disparity viewed",
+    "freeze_context.viewed": "Freeze context viewed",
+    "console.client_error": "Browser error",
+    "registry.idempotency_conflict": "Idempotency conflict in the registry"
+  },
+  "OUTCOMES": {
+    "favorable": "Favorable",
+    "desfavorable": "Unfavorable",
+    "revision_requerida": "Review required"
+  },
+  "REASON_CODES": {
+    "score_bajo_corte": "Score below the cutoff",
+    "score_sobre_corte": "Score above the cutoff",
+    "baja_confianza": "Low confidence",
+    "vis": "Social interest housing (VIS)",
+    "no_vis": "Not social interest housing (non-VIS)",
+    "tasa_sobre_usura": "Rate above the usury limit",
+    "parametro_normativo_no_vigente": "Regulatory parameter not in force"
+  },
+  "REGISTRY_ERRORS": {
+    "unavailable": "Registry unavailable"
+  },
+  "ROLES": {
+    "analista": "Analyst",
+    "ingeniero_riesgo": "Risk engineer",
+    "cro": "Chief Risk Officer (CRO)",
+    "cumplimiento": "Compliance"
+  },
+  "SCOPES": {
+    "case:recommend": "Recommend cases",
+    "scoring:explain": "Explain scores",
+    "governance:read-serving": "Read the serving configuration",
+    "governance:freeze": "Freeze models",
+    "governance:validation-report": "Record validation reports",
+    "governance:promotion": "Promote models",
+    "bias:compare": "Compare data sources",
+    "governance:read-dictionary": "Read the feature dictionary",
+    "governance:read-feature-spec": "Read the feature specification",
+    "registry:append:case": "Record case events",
+    "registry:append:scoring": "Record scoring events",
+    "registry:append:governance": "Record governance events",
+    "registry:read:explanation": "Read explanations from the registry",
+    "registry:read:monitoring": "Read registry monitoring",
+    "registry:read:metrics": "Read registry metrics",
+    "intake:submit": "Submit loan applications",
+    "core:read-credit": "Read the loan status",
+    "core:write-credit": "Write the loan status"
+  },
+  "SERVING_STATES": {
+    "activo": "Active",
+    "congelado": "Frozen",
+    "no_disponible": "Unavailable"
+  },
+  "MODEL_STATES": {
+    "registrado": "Registered",
+    "en_validacion": "In validation",
+    "validacion_fallida": "Validation failed",
+    "lista_para_aprobacion": "Ready for approval",
+    "aprobado": "Approved",
+    "rechazado": "Rejected",
+    "activo": "Active",
+    "inactivo": "Inactive",
+    "congelado": "Frozen",
+    "retirado": "Retired"
+  },
+  "RESOLUTION_ACTIONS": {
+    "reactivar": "Reactivate",
+    "descartar": "Discard",
+    "investigar": "Investigate"
+  },
+  "CELL_STATUSES": {
+    "suficiente": "Sufficient sample",
+    "muestra_insuficiente": "Insufficient sample"
+  },
+  "ATTRIBUTES": {
+    "sexo": "Sex",
+    "rango_edad": "Age range",
+    "region": "Region",
+    "estrato": "Socioeconomic stratum"
+  },
+  "BANDS": {
+    "lt_20": "Under 20",
+    "20_30": "20 to 30",
+    "gt_30": "Over 30"
+  },
+  "CHANNELS": {
+    "web": "Web",
+    "manual": "Manual"
+  },
+  "EMPLOYMENT_TYPES": {
+    "asalariado": "Salaried",
+    "independiente": "Self-employed",
+    "pensionado": "Pensioner"
+  },
+  "PROPERTY_CONDITIONS": {
+    "nueva": "New",
+    "usada": "Existing"
+  },
+  "GROUPS": {
+    "F": "Female",
+    "M": "Male",
+    "no_informado": "Not reported",
+    "andina": "Andean",
+    "caribe": "Caribbean",
+    "pacifica": "Pacific",
+    "orinoquia": "Orinoco",
+    "amazonia": "Amazon",
+    "insular": "Islands"
+  }
+}

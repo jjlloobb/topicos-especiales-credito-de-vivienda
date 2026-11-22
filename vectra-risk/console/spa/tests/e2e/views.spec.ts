@@ -121,7 +121,9 @@ test("modelos y congelamientos: de lectura, con el informe y el paquete; el CRO 
   await goTo(page, "/modelos");
   await page.getByRole("link", { name: "mv-activo" }).click();
   await expect(page.getByText("AUC-ROC")).toBeVisible();
-  await expect(page.getByRole("button")).toHaveCount(1); // solo «Cerrar sesion»: sin registro, aprobacion ni retiro
+  // Sin registro, aprobacion ni retiro: la vista no tiene botones; los de la pagina son los de la cabecera (idioma, tema y «Cerrar sesion»).
+  await expect(page.getByRole("main").getByRole("button")).toHaveCount(0);
+  await expect(page.getByRole("button")).toHaveCount(3);
   await goTo(page, "/congelamientos");
   await page.getByRole("link", { name: ui("freeze_open_context", { id: FREEZE_ID }) }).click();
   await expect(page.getByText(ui("bias_disclaimer"))).toBeVisible();

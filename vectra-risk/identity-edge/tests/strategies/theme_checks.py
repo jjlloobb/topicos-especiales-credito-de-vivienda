@@ -63,8 +63,52 @@ def design_contrast_ratios() -> dict[str, dict[str, float]]:
     return found
 
 
+DARK_ROLES = (
+    ("primary", "primario oscuro"), ("brand", "marca oscura"), ("link", "enlace oscuro"), ("accent", "acento oscuro"),
+    ("background", "sobre fondo oscuro"), ("page", "fondo de página oscuro"), ("button_text", "texto del botón oscuro es"),
+)
+DARK_TEXT_ROLES = ("primary", "brand", "link", "accent")
+DARK_BUTTON_BACKGROUNDS = ("primary", "link")  # el boton principal y el mismo al pasar el cursor o con foco
+DARK_CLASS = "pf-v5-theme-dark"
+
+
+def design_brand_dark() -> dict[str, str]:
+    """Los colores del aspecto oscuro de P-U2-08 (los de la consola en oscuro)."""
+    line = re.search(r"^.*colores del aspecto oscuro.*$", P_U2_08, re.MULTILINE)
+    assert line, "P-U2-08 no fija los colores del aspecto oscuro"
+    found = {}
+    for role, words in DARK_ROLES:
+        m = re.search(rf"{words}[^`\n]*`(#[0-9A-Fa-f]{{6}})`", line.group(0))
+        assert m, f"P-U2-08 no fija el color {words}"
+        found[role] = m.group(1).upper()
+    return found
+
+
+def design_contrast_ratios_dark() -> dict[str, dict[str, float]]:
+    """Los contrastes del aspecto oscuro que P-U2-08 declara: por superficie y por color, y el del texto del boton sobre sus dos fondos (clave `button`)."""
+    brand = design_brand_dark()
+    line = re.search(r"^.*contraste del aspecto oscuro.*$", P_U2_08, re.MULTILINE)
+    assert line, "P-U2-08 no declara los contrastes del aspecto oscuro"
+    found: dict[str, dict[str, float]] = {}
+    number = r"([\d,]+):1"
+    for surface in SURFACES:
+        m = re.search(rf"sobre `{brand[surface]}`: primario {number}, marca {number}, enlace {number} y acento {number}", line.group(0), re.IGNORECASE)
+        assert m, f"P-U2-08 no declara los contrastes sobre {brand[surface]}"
+        found[surface] = {role: float(m.group(i).replace(",", ".")) for i, role in enumerate(DARK_TEXT_ROLES, start=1)}
+    m = re.search(rf"texto `{brand['button_text']}` del botón, {number} sobre el primario y {number} sobre el enlace", line.group(0), re.IGNORECASE)
+    assert m, "P-U2-08 no declara el contraste del texto del boton oscuro"
+    found["button"] = {role: float(m.group(i).replace(",", ".")) for i, role in enumerate(DARK_BUTTON_BACKGROUNDS, start=1)}
+    return found
+
+
+def design_logo_dark_name() -> str:
+    m = re.search(r"`(vectra-logo-dark\.svg)`", P_U2_08)
+    assert m, "P-U2-08 no nombra el logo del aspecto oscuro"
+    return m.group(1)
+
+
 def design_dark_mode() -> str:
-    """El valor de `darkMode` que P-U2-08 fija en `theme.properties` (`false`: aspecto claro siempre)."""
+    """El valor de `darkMode` que P-U2-08 fija en `theme.properties` (`true`: `keycloak.v2` pone su clase oscura y el tema define sus colores bajo ella)."""
     m = re.search(r"`darkMode=(\w+)`", P_U2_08)
     assert m, "P-U2-08 no fija darkMode"
     return m.group(1)
@@ -217,6 +261,23 @@ def reference_keys(ref: Path) -> set[str]:
     return keys
 
 
+OTHER_LOCALES = ("pt_BR",)  # los idiomas del login ademas de es y en (P-U2-08); sus mensajes son los de Keycloak
+
+
+def locale_keys(ref: Path, locale: str) -> set[str]:
+    """Las claves de mensajes de Keycloak en otro idioma (`base` y `keycloak.v2`)."""
+    keys: set[str] = set()
+    for rel in (f"base/messages_{locale}.properties", f"keycloak.v2/messages_{locale}.properties"):
+        keys |= parse_properties((ref / rel).read_text(encoding="utf-8")).keys()
+    return keys
+
+
+def locale_problems(theme: Path, ref: Path, locale: str) -> list[str]:
+    """Claves de `messages_es` del tema que Keycloak no trae en `locale`: en ese idioma saldrian en ingles."""
+    es = parse_properties(_text(theme / "messages" / "messages_es.properties"))
+    return [f"clave sin mensaje en {locale}: {k}" for k in sorted(set(es) - locale_keys(ref, locale))]
+
+
 _MSG_LITERAL = re.compile(r'msg\("([^"$]+)"')
 
 
@@ -338,7 +399,7 @@ def svg_problems(text: str, allowed: set[str]) -> list[str]:
 CSS_PROPERTIES = {
     "background-color", "color", "content", "display", "width", "height", "margin",
     "background", "outline", "outline-offset",
-    "font-family", "max-width", "border-top-color", "top", "left", "right",
+    "font-family", "max-width", "border-top-color", "top", "left", "right", "grid-template-columns", "grid-column", "grid-row",
     # variables de PatternFly y de keycloak.v2 que el tema redefine (distinguen mayusculas: se comparan tal cual)
     "--keycloak-card-top-color", "--pf-v5-global--primary-color--100", "--pf-v5-global--primary-color--200",
     "--pf-v5-global--active-color--100", "--pf-v5-global--link--Color", "--pf-v5-global--link--Color--hover",
@@ -517,7 +578,7 @@ def theme_problems(theme: Path, allowed: set[str]) -> list[str]:
 def structure_problems(theme: Path) -> list[str]:
     """El tema estándar: `theme.properties` con el padre y `darkMode` del diseño, `messages_es`, el CSS y el logo; `styles` conserva el del padre."""
     bad = [f"falta {rel}" for rel in ("theme.properties", "messages/messages_es.properties",
-                                      "resources/css/vectra.css", f"resources/img/{design_logo_name()}")
+                                      "resources/css/vectra.css", f"resources/img/{design_logo_name()}", f"resources/img/{design_logo_dark_name()}")
            if not (theme / rel).is_file()]
     if not (theme / "theme.properties").is_file():
         return bad
@@ -527,7 +588,7 @@ def structure_problems(theme: Path) -> list[str]:
     if props.get("styles", "").split() != ["css/styles.css", "css/vectra.css"]:
         bad.append("styles no conserva css/styles.css del padre y agrega css/vectra.css")
     if props.get("darkMode") != design_dark_mode():
-        bad.append(f"darkMode no es {design_dark_mode()}: el tema padre aplicaría su modo oscuro")
+        bad.append(f"darkMode no es {design_dark_mode()}: el aspecto oscuro del tema depende de la clase que pone keycloak.v2")
     if (theme / "resources" / "css" / "styles.css").exists():
         bad.append("resources/css/styles.css tapa la hoja del padre")
     return bad

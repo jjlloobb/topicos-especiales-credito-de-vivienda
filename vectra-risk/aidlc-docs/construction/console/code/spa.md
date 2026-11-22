@@ -213,3 +213,34 @@ se formatea en UTC (`formatDay`) para que no se corra al día anterior por la zo
 - **La imagen** (`console/spa/Dockerfile`, `nginx.conf` y `Dockerfile.dockerignore`): dos etapas, `build` (Node 22 por digest, `npm ci --ignore-scripts` y el build de Vite) y la final (`nginx-unprivileged` por digest, usuario `101:101`), con `dist/` **sin** `.vite/manifest.json` (que solo lee `.size-limit.mjs`), sin Node, sin fuentes y sin mapas. `nginx.conf` sirve `/callback` y `/stepup-callback` con el fallback a `index.html` (rutas sin extensión), `config.json` desde el directorio donde el chart monta el `ConfigMap`, `no-store` en `index.html`, `config.json` y el fallback, `immutable` en `assets/` y `gzip`. **No** hay etapas `previous` ni etiqueta de digest anterior: se difieren con `version` (recorte funcional, P-15), que este documento daba por incluidas.
 - **El chart** (`console/chart/spa`) genera el `config.json` desde sus values y lo monta como volumen completo, sin `subPath`; el `authority` y los dos `redirect_uri` salen del `hostname` de cada entorno y coinciden con el realm y el gateway de U2 (una prueba lo cierra, y `tests/unit/chart-config.test.ts` pasa cada `config.json` rendido por el `parseConfig` real). No hay `config.json` de desarrollo: lo sirve ese `ConfigMap` y el servidor de las pruebas con navegador trae el suyo.
 - Quedan para U12 Paso 18, por necesitar el clúster: la CSP **real** del gateway (con el realm de Keycloak), el login y el step-up con Keycloak real, y la lista manual de accesibilidad con NVDA. Sigue diferido: k6, Lighthouse CI y `version`/`VersionBanner` (P-15). El detalle está en `evidence/cierre-demo.md`.
+
+## 12. Idioma y tema (enmienda del 2026-11-21; nfr-requirements §11)
+
+Pedido del dueño del proyecto para la sustentación. Sin dependencias nuevas y sin cambios en el BFF, las rutas ni la autenticación.
+
+| Módulo | Qué hace |
+|---|---|
+| `i18n/language.ts`, `i18n/useLanguage.ts` | El idioma en curso (`es` por omisión, `en`, `pt`: portugués de Brasil, E-7), fuera de React; `resolveLanguage` (preferencia guardada > `locale` de `get_me` > navegador > español); `chooseLanguage` cambia, guarda y actualiza `<html lang>` y el título. `App` lo lee en la raíz: al cambiar, todo el árbol se repinta sin desmontarse. También fija el idioma de los textos propios de React Aria (`I18nProvider`), que antes seguían al navegador |
+| `i18n/index.ts`, `messages.en.json`, `labels.en.json`, `messages.pt.json`, `labels.pt.json` | `ui`, `label`, `problemText` y los formatos leen el catálogo y el `locale` (`es-CO`, `en-GB` o `pt-BR`) del idioma en curso |
+| `theme/theme.ts`, `theme/useTheme.ts`, `public/theme-boot.js` | El tema elegido (`system`, `light`, `dark`): pone o quita `data-theme` en `<html>`. `theme-boot.js` (guion clásico del mismo origen, en el `<head>`) lo aplica antes de la primera pintura |
+| `preferences/storage.ts` | **El único** módulo que nombra `localStorage`: las dos claves de preferencias, con valores validados |
+| `views/shared/PreferenceSelect.tsx`, `LanguageSelect.tsx`, `ThemeSelect.tsx` | Los dos selectores (`Select` de React Aria), en la cabecera y en la pantalla de inicio de sesión |
+| `auth/AuthProvider.tsx`, `stepup/oidc.ts` | Cada petición de autorización lleva `ui_locales` con el idioma activo (E-4): `es`, `en` o `pt-BR` |
+| `views/shared/illustrations.tsx` | La marca de agua (E-5): el horizonte de un barrio, al pie de las vistas de las demos y al fondo del inicio de sesión |
+| `styles.css` | Cada token de color es `light-dark(claro, oscuro)` con los valores de antes; `:root[data-theme]` fija `color-scheme`. Ya no hay un bloque `@media (prefers-color-scheme: dark)`: el tema del sistema lo aplica `color-scheme: light dark` |
+
+No se traduce en el cliente lo que entrega el servidor: la narrativa y el aviso de la explicación, el `disclaimer` del informe de validación, los `feature_id`, los nombres y los identificadores.
+
+
+## 13. Pasada de usabilidad (enmienda del 2026-11-21; nfr-requirements §11, E-6)
+
+Pedido del dueño del proyecto para la sustentación. Sin dependencias, rutas ni llamadas nuevas; lo que se envía al servidor no cambia.
+
+| Módulo | Qué hace |
+|---|---|
+| `views/shared/CopyButton.tsx` | «Copiar» dentro del clic, con confirmación visible y anunciada; si el navegador no deja, muestra el valor seleccionado |
+| `views/shared/Coded.tsx`, `i18n/index.ts` (`groupText`, `readableCode`), `labels.*.json` (`GROUPS`) | Un código del servidor con texto legible y el código en `title`: etiqueta si el catálogo es cerrado, sin guiones bajos si es abierto |
+| `views/cases/filters.ts` (`extractCaseId`, `shortCaseId`), `GoToCase.tsx`, `CasesInbox.tsx`, `CaseDetail.tsx` | El identificador del caso a la vista y copiable; «Ir al caso» acepta la dirección pegada; bandeja vacía, «Más filtros» con contador, «Ir a la página» |
+| `views/shared/Layout.tsx`, `routes.ts` (`screenTitle`) | Título del documento por pantalla, foco y anuncio al cambiar de ruta, «Saltar al contenido», y el texto de la verificación en dos pasos |
+| `views/shared/ProblemMessage.tsx` | Copiar el código de soporte; «Iniciar sesión de nuevo» ante un `unauthenticated`; un texto propio de la vista para un error |
+| `views/governance/FreezeContextView.tsx`, `ResolveFrozenDialog.tsx` | La última resolución en la tarjeta; el 409 explicado; la ayuda de «Verificar y confirmar»; los grupos de cada banda implicada |

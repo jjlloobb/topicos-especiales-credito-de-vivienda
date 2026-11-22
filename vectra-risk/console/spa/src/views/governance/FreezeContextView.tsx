@@ -7,9 +7,11 @@
 import { useState } from "react";
 import { Button } from "react-aria-components";
 import { Link, useParams } from "react-router";
+import type { FreezeRecord } from "../../api/endpoints";
 import { useFreeze } from "../../api/hooks";
-import { formatDate, formatDay, label, labelOrRaw, safeDecimal, ui } from "../../i18n";
+import { formatDate, formatDay, groupText, label, labelOrRaw, safeDecimal, ui } from "../../i18n";
 import { AttributeTable, DisparityWindow } from "../bias/DisparityTables";
+import { Coded } from "../shared/Coded";
 import { IconBack, IconSuccess } from "../shared/icons";
 import { ProblemMessage } from "../shared/ProblemMessage";
 import { TableScroll } from "../shared/TableScroll";
@@ -19,20 +21,31 @@ import { ResolveFrozenDialog } from "./ResolveFrozenDialog";
 interface Implicated {
   readonly attribute: string;
   readonly limit: string;
-  readonly bands: readonly { readonly band: string; readonly difference: string }[];
+  /** `pair`: los dos grupos entre los que esta la diferencia (`extreme_pair`), si el paquete los trae con esa forma. */
+  readonly bands: readonly { readonly band: string; readonly difference: string; readonly pair: readonly [string, string] | null }[];
 }
+
+const pairOf = (value: unknown): readonly [string, string] | null =>
+  Array.isArray(value) && value.length === 2 && typeof value[0] === "string" && typeof value[1] === "string" ? [value[0], value[1]] : null;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** Un elemento de `implicated` (BR-U9-15): atributo, limite y bandas. Si no tiene esa forma se muestra como JSON, nunca se descarta. */
 export function readImplicated(value: unknown): Implicated | null {
   if (!isRecord(value) || typeof value["attribute"] !== "string" || typeof value["freeze_lower_limit"] !== "string" || !Array.isArray(value["bands"])) return null;
-  const bands: { band: string; difference: string }[] = [];
+  const bands: { band: string; difference: string; pair: readonly [string, string] | null }[] = [];
   for (const raw of value["bands"] as unknown[]) {
     if (!isRecord(raw) || typeof raw["band"] !== "string" || typeof raw["difference"] !== "string") return null;
-    bands.push({ band: raw["band"], difference: raw["difference"] });
+    bands.push({ band: raw["band"], difference: raw["difference"], pair: pairOf(raw["extreme_pair"]) });
   }
   return { attribute: value["attribute"], limit: value["freeze_lower_limit"], bands };
+}
+
+type Resolution = FreezeRecord["resolutions"][number];
+
+/** La ultima resolucion registrada (la de `recorded_at` mas reciente; el orden en que llegan no se da por supuesto), o `null` si no hay. */
+export function latestResolution(resolutions: readonly Resolution[]): Resolution | null {
+  return resolutions.reduce<Resolution | null>((latest, candidate) => (latest === null || Date.parse(candidate.recorded_at) >= Date.parse(latest.recorded_at) ? candidate : latest), null);
 }
 
 export function FreezeContextView() {
@@ -48,6 +61,7 @@ export function FreezeContextView() {
     const item = readImplicated(raw);
     if (item !== null) limits.set(item.attribute, item.limit);
   }
+  const latest = latestResolution(record?.resolutions ?? []);
   return (
     <section>
       <h2>{ui("freeze_context_title")}</h2>
@@ -62,9 +76,14 @@ export function FreezeContextView() {
         <>
           <div className="card hero" aria-busy={query.isFetching ? true : undefined}>
             <p className="hero-status">
-              <span className={record.resolutions.length === 0 ? "badge badge-pending" : "badge badge-ok"}>
-                {record.resolutions.length === 0 ? ui("freeze_status_pending") : ui("freeze_status_resolved")}
+              <span className={latest === null ? "badge badge-pending" : "badge badge-ok"}>
+                {latest === null ? ui("freeze_status_pending") : ui("freeze_status_resolved")}
               </span>
+              {latest === null ? null : (
+                <strong className="hero-latest">
+                  {ui("freeze_last_resolution", { action: label("RESOLUTION_ACTIONS", latest.action), at: formatDate(latest.recorded_at) })}
+                </strong>
+              )}
             </p>
             <ul className="facts">
               <li>{ui("freeze_summary_model", { id: record.model_version_id })}</li>
@@ -89,9 +108,15 @@ export function FreezeContextView() {
                 {ui("freeze_resolution_done")}
               </p>
             ) : null}
+            {latest === null ? null : (
+              <p className="hint" id="resolve-again-hint">
+                {ui("freeze_resolve_again_hint")}
+              </p>
+            )}
             <div className="actions actions-end">
               <Button
                 className="button-primary"
+                aria-describedby={latest === null ? undefined : "resolve-again-hint"}
                 onPress={() => {
                   setResolved(false); // el aviso de la resolucion anterior no vale para la nueva
                   setResolving(true);
@@ -130,13 +155,23 @@ export function FreezeContextView() {
                       <thead>
                         <tr>
                           <th scope="col">{ui("disparity_col_band")}</th>
+                          <th scope="col">{ui("freeze_implicated_col_groups")}</th>
                           <th scope="col" className="num">{ui("freeze_implicated_col_difference")}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {item.bands.map((band) => (
                           <tr key={band.band}>
-                            <th scope="row" data-label={ui("disparity_col_band")}>{labelOrRaw("BANDS", band.band)}</th>
+                            <th scope="row" data-label={ui("disparity_col_band")}>
+                              <Coded text={labelOrRaw("BANDS", band.band)} code={band.band} />
+                            </th>
+                            {band.pair === null ? (
+                              <td className="cell-missing" data-label={ui("freeze_implicated_col_groups")}>{ui("no_value")}</td>
+                            ) : (
+                              <td data-label={ui("freeze_implicated_col_groups")} title={band.pair.join(", ")}>
+                                {ui("freeze_implicated_pair", { first: groupText(band.pair[0]), second: groupText(band.pair[1]) })}
+                              </td>
+                            )}
                             <td className="num" data-label={ui("freeze_implicated_col_difference")}>{safeDecimal(band.difference)}</td>
                           </tr>
                         ))}

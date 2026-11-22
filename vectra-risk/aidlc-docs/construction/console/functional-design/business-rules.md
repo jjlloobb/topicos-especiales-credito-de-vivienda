@@ -43,6 +43,7 @@ se traduce a su `code`; un error inesperado → 500 `internal_error`.
 - Recargar la página o abrir otra pestaña hace **una** redirección con `prompt=none` contra la sesión de Keycloak (sin iframe). Si no hay sesión (`login_required` o cualquier error), se muestra el login y no se vuelve a redirigir.
 - El login interactivo es por redirección. Solo el estado transitorio del flujo (`state`, `code_verifier`, `nonce`) puede ir en `sessionStorage`, con una clave por flujo que se borra al terminar el callback; los tokens y el usuario, nunca (decisión del usuario, 2026-11-12).
 - Logout: borra la memoria y llama al `end_session_endpoint` de Keycloak.
+- **Enmienda del 2026-11-21** (pedido del dueño del proyecto para la sustentación): las preferencias de idioma y de tema, que no son tokens ni datos de la sesión, sí se guardan en `localStorage` (dos claves con valores de un conjunto cerrado, solo cuando la persona elige). Ver nfr-requirements §11, E-3.
 
 **BR-U10-06 — Step-up a mitad de una acción** (Q2; BR-U2-04). Se hace en una **ventana
 emergente**, para que la ventana principal no se recargue y el cuerpo del formulario siga en
@@ -91,6 +92,7 @@ cumplimiento y el comité: es una decisión de negocio que deben confirmar.
 **BR-U10-10 — Bandeja y refresco** (Q6; US-107, NFR-PER-01).
 - **Filtros** (`CaseFilter` de U0): estado (por omisión, todos menos `vencido`, que se ve con el filtro explícito), canal, fecha de creación y «modelo congelado tras la recomendación» (`model_frozen_after_recommendation`). Ninguno lleva datos del solicitante, así que todos pueden ir en la URL.
 - **Sin búsqueda por nombre** (revisión del FD de U10, 2026-10-10), A3: buscar por `applicant_display` pondría el nombre en la URL, el historial y los logs de acceso. Ninguna historia lo pide. El campo «Ir al caso» acepta un `case_id` (UUID, que no es un dato personal) y abre el detalle directamente.
+- **Enmienda del 2026-11-21** (pedido del dueño del proyecto para la sustentación): el `case_id` se muestra en la bandeja (abreviado) y en el detalle (completo), con un botón para copiarlo, y «Ir al caso» acepta también la dirección completa del caso pegada, de la que solo se usa el UUID. Sigue sin haber búsqueda por nombre. Ver nfr-requirements §11, E-6.
 - **Orden y página**: por `created_at`, con paginación del servidor (páginas de ≤ 100).
 - **Refresco**: la bandeja se vuelve a pedir cada 15 s mientras la pestaña está visible. El detalle de un caso `en_evaluacion` o `en_sincronizacion` se pide cada 3 s hasta que cambia de estado, con un máximo de 2 min. Sin WebSockets.
 - Los estados se muestran con color **y** texto, nunca solo con color.
@@ -140,6 +142,7 @@ iframe, la leyenda «mide y alerta, no certifica» es un texto propio de la cons
 - Hay un mensaje en español por cada `code` y cada `reason` del catálogo de U0 §6. Por ejemplo, `decision_already_recorded` → «Otra persona ya registró la decisión de este caso. Se muestra la decisión registrada.».
 - Un `code` desconocido muestra un mensaje genérico con el `correlation_id` para soporte.
 - Nunca se muestra el `detail` del servidor ni una traza.
+- **Enmienda del 2026-11-21** (pedido del dueño del proyecto para la sustentación): hay un mensaje en español, **otro en inglés y otro en portugués de Brasil** (el tercero, por la ampliación E-7 del mismo día) por cada `code`, `reason`, aviso y valor de enumerado; el español sigue siendo el idioma por omisión. La lista de frases prohibidas (BR-U10-18) se aplica a los catálogos traducidos. Ver nfr-requirements §11, E-1.
 - Los avisos de negocio también vienen del mismo catálogo: `model_frozen_after_recommendation`, baja confianza, `revision_requerida`, caso anonimizado y crédito no integrado.
 
 **BR-U10-18 — Frases prohibidas** (Q8; FR-BIA-08). La lista, la comparación y la aprobación de

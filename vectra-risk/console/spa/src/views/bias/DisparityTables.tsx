@@ -3,7 +3,8 @@
 // cadena del servidor, formateada con `Intl`). `BiasDashboard` y `GrafanaEmbed` no se crean (diferidos, P-14).
 // En una ventana, las tablas por grupo y banda van plegadas (`<details>`): el resumen por atributo esta en la tabla comparativa del paquete.
 import type { AttributeResult, DisparityResult } from "../../api/endpoints";
-import { formatDay, label, safeDecimal, ui } from "../../i18n";
+import { formatDay, groupText, label, safeDecimal, ui } from "../../i18n";
+import { Coded } from "../shared/Coded";
 import { TableScroll } from "../shared/TableScroll";
 
 type Cell = AttributeResult["cells"][number];
@@ -33,7 +34,9 @@ export function AttributeTable({ attribute }: { readonly attribute: AttributeRes
         <tbody>
           {attribute.cells.map((cell) => (
             <tr key={`${cell.group}|${cell.band}`}>
-              <td data-label={ui("disparity_col_group")}>{cell.group}</td>
+              <td data-label={ui("disparity_col_group")}>
+                <Coded text={groupText(cell.group)} code={cell.group} />
+              </td>
               <td data-label={ui("disparity_col_band")}>{label("BANDS", cell.band)}</td>
               <td className="num" data-label={ui("disparity_col_n")}>{cell.n}</td>
               <td className={cell.status === "muestra_insuficiente" ? "num cell-insufficient" : "num"} data-label={ui("disparity_col_rate")}>{cellText(cell)}</td>

@@ -100,6 +100,16 @@ export function IconLast({ className }: Props) {
   );
 }
 
+/** Copiar: dos hojas superpuestas. */
+export function IconCopy({ className }: Props) {
+  return (
+    <Icon className={className}>
+      <path d="M9 9h10v11H9z" />
+      <path d="M5 15V4h10" />
+    </Icon>
+  );
+}
+
 /** Exito: una accion quedo registrada. */
 export function IconSuccess({ className }: Props) {
   return (
@@ -128,6 +138,63 @@ export function IconError({ className }: Props) {
       <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z" />
       <path d="M12 7.5v5.5" />
       <path d="M12 16.3v.2" />
+    </Icon>
+  );
+}
+
+/** Idioma: un globo con un meridiano y el ecuador. */
+export function IconLanguage({ className }: Props) {
+  return (
+    <Icon className={className}>
+      <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z" />
+      <path d="M3 12h18" />
+      <path d="M12 3c2.4 2.5 3.6 5.5 3.6 9s-1.2 6.5-3.6 9c-2.4-2.5-3.6-5.5-3.6-9S9.6 5.5 12 3Z" />
+    </Icon>
+  );
+}
+
+/** Un control que despliega una lista. */
+export function IconExpand({ className }: Props) {
+  return (
+    <Icon className={className}>
+      <path d="m7 10 5 5 5-5" />
+    </Icon>
+  );
+}
+
+/** Tema claro: un sol. */
+export function IconSun({ className }: Props) {
+  return (
+    <Icon className={className}>
+      <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
+      <path d="M12 3v2" />
+      <path d="M12 19v2" />
+      <path d="M3 12h2" />
+      <path d="M19 12h2" />
+      <path d="m5.6 5.6 1.4 1.4" />
+      <path d="m17 17 1.4 1.4" />
+      <path d="m5.6 18.4 1.4-1.4" />
+      <path d="m17 7 1.4-1.4" />
+    </Icon>
+  );
+}
+
+/** Tema oscuro: una luna. */
+export function IconMoon({ className }: Props) {
+  return (
+    <Icon className={className}>
+      <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />
+    </Icon>
+  );
+}
+
+/** Tema del sistema: una pantalla. */
+export function IconSystem({ className }: Props) {
+  return (
+    <Icon className={className}>
+      <path d="M4 5h16v11H4z" />
+      <path d="M9 20h6" />
+      <path d="M12 16v4" />
     </Icon>
   );
 }

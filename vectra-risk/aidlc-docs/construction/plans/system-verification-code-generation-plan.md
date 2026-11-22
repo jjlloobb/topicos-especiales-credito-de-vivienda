@@ -206,7 +206,7 @@ vectra-risk/system-verification/
 
 ### Bloque G — Verificación en kind (con aprobación humana)
 
-- [ ] **Paso 18 — Primera verificación completa en kind** (U12-T06: guía lista, pendiente del operador; `system-verification/docs/paso-18-kind.md`)
+- [x] **Paso 18 — Primera verificación completa en kind** (ejecutada por el operador el 2026-11-20 y 2026-11-21, día D + 1 el 2026-11-22 UTC: 16 `pasa`, 0 `falla`, 25 `no ejecutado`; evidencia en `system-verification/evidence/20261120-9dc027f/` y en `aidlc-docs/construction/system-verification/evidence/`; guía `system-verification/docs/paso-18-kind.md`)
   - **Requisito previo**: un PR con los Pasos 1–17 aprobado por un humano, con U1–U11 instalados en kind, el modelo de referencia activo y el binding K16 presente.
   - **Orden** (revisión del plan de tareas de U12, 2026-10-10):
     1. el operador ejecuta `prepare`, que fija el `runId` y el `started_at`;

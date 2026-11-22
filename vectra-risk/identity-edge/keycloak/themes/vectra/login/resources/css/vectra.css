@@ -67,6 +67,20 @@ h1,
   border-top-color: #14633F;
 }
 
+/* El selector de idioma (es, en, pt-BR): en escritorio keycloak.v2 reparte el encabezado en 70 % y 30 %, y en ese 30 % el
+   selector se salia de la columna del formulario y cortaba «Português (Brasil)». Va en una sola columna, bajo el titulo y
+   a todo el ancho, igual que en el movil. El selector repite el de keycloak.v2 para ganarle con la misma especificidad, y
+   el selector de idioma vuelve a la colocacion automatica (PatternFly lo fija en la segunda columna en escritorio). */
+div.pf-v5-c-login__main-header:has(.pf-v5-c-login__main-header-utilities) {
+  grid-template-columns: 100%;
+}
+
+.pf-v5-c-login__main-header-utilities {
+  grid-column: auto;
+  grid-row: auto;
+  max-width: 100%;
+}
+
 /* La ayuda del boton de reinicio (pantalla del codigo): keycloak.v2 la coloca fuera de la pantalla en 360 px y crea scroll horizontal. */
 .kc-login-tooltip .kc-tooltip-text {
   top: 100%;
@@ -128,4 +142,100 @@ select:focus {
 .pf-v5-c-alert.pf-m-warning .pf-v5-c-alert__icon,
 .pf-v5-c-alert.pf-m-warning .pf-v5-c-alert__title {
   color: #8A5A00;
+}
+
+/* ---------- Aspecto oscuro (P-U2-08, enmienda del 2026-11-21) ----------
+   theme.properties lleva darkMode=true: keycloak.v2 pone la clase pf-v5-theme-dark en la raiz cuando el sistema pide
+   oscuro. Sin consultas de medios: cada regla de arriba que fija un color tiene aqui su pareja bajo esa clase, con los
+   colores oscuros de la consola: primario #6FCF97, marca #E8EFEA, enlace #7DD6A3, acento #F5D48A (solo avisos),
+   fondo #17241D, fondo de pagina #101A15 y texto del boton #0B2318. */
+.pf-v5-theme-dark {
+  --keycloak-card-top-color: #6FCF97;
+  --pf-v5-global--primary-color--100: #6FCF97;
+  --pf-v5-global--primary-color--200: #7DD6A3;
+  --pf-v5-global--primary-color--dark-100: #6FCF97;
+  --pf-v5-global--active-color--100: #6FCF97;
+  --pf-v5-global--link--Color: #7DD6A3;
+  --pf-v5-global--link--Color--hover: #E8EFEA;
+  --pf-v5-global--link--Color--dark: #7DD6A3;
+  --pf-v5-global--link--Color--dark--hover: #E8EFEA;
+}
+
+.pf-v5-theme-dark,
+.pf-v5-theme-dark body,
+.pf-v5-theme-dark.login-pf body,
+.pf-v5-theme-dark .pf-v5-c-login {
+  background: #101A15 none;
+}
+
+.pf-v5-theme-dark #kc-header-wrapper {
+  --pf-v5-global--Color--light-100: #E8EFEA;
+}
+
+.pf-v5-theme-dark #kc-header-wrapper,
+.pf-v5-theme-dark .pf-v5-c-login__header {
+  background-color: #101A15;
+  color: #E8EFEA;
+}
+
+.pf-v5-theme-dark #kc-header-wrapper::before {
+  background: url("../img/vectra-logo-dark.svg") no-repeat center / contain;
+}
+
+.pf-v5-theme-dark .pf-v5-c-login__main {
+  background-color: #17241D;
+}
+
+.pf-v5-theme-dark .pf-v5-c-login__main-header {
+  border-top-color: #6FCF97;
+}
+
+.pf-v5-theme-dark #kc-page-title {
+  color: #E8EFEA;
+}
+
+.pf-v5-theme-dark .pf-v5-c-button.pf-m-primary,
+.pf-v5-theme-dark button.pf-m-primary {
+  background-color: #6FCF97;
+  color: #0B2318;
+}
+
+.pf-v5-theme-dark .pf-v5-c-button.pf-m-primary:hover,
+.pf-v5-theme-dark .pf-v5-c-button.pf-m-primary:focus,
+.pf-v5-theme-dark button.pf-m-primary:hover,
+.pf-v5-theme-dark button.pf-m-primary:focus {
+  background-color: #7DD6A3;
+  color: #0B2318;
+}
+
+.pf-v5-theme-dark a,
+.pf-v5-theme-dark .pf-v5-c-login__main-footer-band-item a {
+  color: #7DD6A3;
+}
+
+.pf-v5-theme-dark a:hover {
+  color: #E8EFEA;
+}
+
+.pf-v5-theme-dark a:focus,
+.pf-v5-theme-dark button:focus,
+.pf-v5-theme-dark input:focus,
+.pf-v5-theme-dark select:focus {
+  outline: 3px solid #6FCF97;
+  outline-offset: 2px;
+}
+
+.pf-v5-theme-dark .pf-v5-c-form-control > input:focus,
+.pf-v5-theme-dark .pf-v5-c-form-control > select:focus {
+  outline-offset: -3px;
+}
+
+.pf-v5-theme-dark .pf-v5-c-alert.pf-m-warning {
+  background-color: #17241D;
+  border-top-color: #F5D48A;
+}
+
+.pf-v5-theme-dark .pf-v5-c-alert.pf-m-warning .pf-v5-c-alert__icon,
+.pf-v5-theme-dark .pf-v5-c-alert.pf-m-warning .pf-v5-c-alert__title {
+  color: #F5D48A;
 }
