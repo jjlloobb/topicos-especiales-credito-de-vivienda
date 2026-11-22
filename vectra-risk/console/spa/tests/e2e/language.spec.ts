@@ -278,8 +278,8 @@ test.describe("las demos en portugues de Brasil", () => {
     const region = page.getByRole("region", { name: "Tabela rolável: Fila de casos" });
     await expect(region.getByRole("columnheader")).toHaveText(["Proponente", "Estado", "Canal", "Criado", "Recomendação", "Pontuação", "Identificador", "Abrir"]);
     await expect(page.getByText(/^Casos com estes filtros: \d+$/)).toBeVisible();
-    // fechas: dia, mes con letras y hora de 24 h (zona de Bogota); puntajes: coma decimal, los digitos del servidor
-    await expect(region.getByRole("row").nth(1).getByRole("cell").nth(3)).toHaveText(/^\d{1,2} de [a-zç]{3}\. de \d{4}, \d{2}:\d{2}$/);
+    // fechas: dia/mes/anio y hora de 24 h (zona de Bogota); puntajes: coma decimal, los digitos del servidor
+    await expect(region.getByRole("row").nth(1).getByRole("cell").nth(3)).toHaveText(/^\d{2}\/\d{2}\/\d{4}, \d{2}:\d{2}$/);
     await expect(region.getByRole("cell", { name: /^0,\d{4}$/ }).first()).toBeVisible();
     const chips = page.getByRole("group", { name: PT.ui("quick_states_label") });
     await chips.getByRole("button", { name: PT.label("CASE_STATES", "decidido"), exact: true }).click();

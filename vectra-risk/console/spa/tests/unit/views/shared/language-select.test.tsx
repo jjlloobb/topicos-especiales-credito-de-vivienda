@@ -222,7 +222,7 @@ describe("portugues de Brasil", () => {
     expect(screen.getByText(messagesPt.ui.app_tagline)).toBeTruthy();
     expect(screen.getByRole("table")).toBe(table); // la misma tabla: la pantalla no se desmonto
     expect(within(table).getAllByRole("columnheader").map((th) => th.textContent)).toEqual(["Proponente", "Estado", "Canal", "Criado", "Recomendação", "Pontuação", "Identificador", "Abrir"]);
-    expect(within(table).getByText("12 de nov. de 2026, 10:00")).toBeTruthy(); // 15:00 UTC en Bogota
+    expect(within(table).getByText("12/11/2026, 10:00")).toBeTruthy(); // 15:00 UTC en Bogota
     expect(within(table).getByText("0,7312")).toBeTruthy(); // los digitos del servidor, con coma decimal
     expect(within(table).getByText(labelsPt.CASE_STATES.listo)).toBeTruthy();
     expect(within(table).getByRole("link", { name: "Abrir caso A. G." })).toBeTruthy();

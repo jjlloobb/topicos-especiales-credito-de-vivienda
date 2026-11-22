@@ -21,6 +21,12 @@ export const DEFAULT_LANGUAGE: Language = "es";
 export const LOCALES: Readonly<Record<Language, string>> = { es: "es-CO", en: "en-GB", pt: "pt-BR" };
 
 /**
+ * El estilo de fecha de `Intl` de cada idioma. En portugues, el corto: `pt-BR` escribe el medio como «12 de nov. de 2026», que no cabe en una
+ * columna de tabla sin partirse; el corto («12/11/2026», dia/mes/anio, la forma habitual en Brasil y la misma que en espanol) si.
+ */
+export const DATE_STYLES: Readonly<Record<Language, "medium" | "short">> = { es: "medium", en: "medium", pt: "short" };
+
+/**
  * La etiqueta de idioma de cada uno hacia fuera de la consola: el `lang` de `<html>` y de cada opcion del selector, y el `ui_locales` de las
  * peticiones de autorizacion (el login de Keycloak nombra el portugues de Brasil `pt-BR`). Un conjunto cerrado: nunca texto libre.
  */

@@ -4,7 +4,7 @@
 import labelsEn from "./labels.en.json";
 import labelsEs from "./labels.es.json";
 import labelsPt from "./labels.pt.json";
-import { getLanguage, type Language, LOCALES } from "./language";
+import { DATE_STYLES, getLanguage, type Language, LOCALES } from "./language";
 import messagesEn from "./messages.en.json";
 import messagesEs from "./messages.es.json";
 import messagesPt from "./messages.pt.json";
@@ -62,7 +62,7 @@ export function problemText(problem: Problem): string {
 }
 
 export function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat(locale(), { dateStyle: "medium", timeStyle: "short", timeZone: TIME_ZONE }).format(new Date(iso));
+  return new Intl.DateTimeFormat(locale(), { dateStyle: DATE_STYLES[getLanguage()], timeStyle: "short", timeZone: TIME_ZONE }).format(new Date(iso));
 }
 
 const DECIMAL = /^-?\d+(\.\d+)?$/;
@@ -99,7 +99,7 @@ export function safeDecimal(value: string, digits = 4): string {
 
 /** Un dia `AAAA-MM-DD` del servidor (sin hora): se formatea en UTC para que no se corra al dia anterior por la zona horaria. */
 export function formatDay(day: string): string {
-  return new Intl.DateTimeFormat(locale(), { dateStyle: "medium", timeZone: "UTC" }).format(new Date(day));
+  return new Intl.DateTimeFormat(locale(), { dateStyle: DATE_STYLES[getLanguage()], timeZone: "UTC" }).format(new Date(day));
 }
 
 /** Como `label`, pero un valor que el catalogo no conoce se muestra tal cual (llega dentro de un `JsonValue`, sin tipo). */

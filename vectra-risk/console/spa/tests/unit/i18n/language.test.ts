@@ -310,7 +310,7 @@ describe("fechas y numeros por idioma (Intl; zona de Bogota)", () => {
     expect(LOCALES).toEqual({ es: "es-CO", en: "en-GB", pt: "pt-BR" });
   });
 
-  it("portugues de Brasil: coma decimal, punto de miles, fecha con el mes en letras y hora de 24 h; los pesos siguen siendo COP, sin convertir", () => {
+  it("portugues de Brasil: coma decimal, punto de miles, fecha dia/mes/anio y hora de 24 h; los pesos siguen siendo COP, sin convertir", () => {
     chooseLanguage("pt");
     expect(safeDecimal("0.2438")).toBe("0,2438");
     expect(safeDecimal("-0.0001")).toBe("-0,0001");
@@ -318,9 +318,9 @@ describe("fechas y numeros por idioma (Intl; zona de Bogota)", () => {
     expect(formatDecimal("12345678901234567.1234")).toBe("12.345.678.901.234.567,1234"); // los digitos del servidor, sin recalcular
     expect(formatCount(12345)).toBe("12.345");
     expect(formatMoney(1500000).replace(/\s/g, " ")).toBe("COP 1.500.000"); // el mismo monto en pesos colombianos; nunca «R$»
-    expect(formatDate("2026-11-12T20:30:00Z")).toBe("12 de nov. de 2026, 15:30"); // 20:30 UTC = 15:30 en Bogota
-    expect(formatDate("2026-11-13T02:00:00Z")).toBe("12 de nov. de 2026, 21:00"); // el dia es el de Bogota, no el de UTC ni el de Brasilia
-    expect(formatDay("2026-11-01")).toBe("1 de nov. de 2026");
+    expect(formatDate("2026-11-12T20:30:00Z")).toBe("12/11/2026, 15:30"); // 20:30 UTC = 15:30 en Bogota; dia/mes/anio, corto para que quepa en una columna
+    expect(formatDate("2026-11-13T02:00:00Z")).toBe("12/11/2026, 21:00"); // el dia es el de Bogota, no el de UTC ni el de Brasilia
+    expect(formatDay("2026-11-01")).toBe("01/11/2026");
     expect(safeDecimal("n/d")).toBe("n/d");
   });
 
