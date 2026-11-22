@@ -9,8 +9,10 @@ import { browserLanguageEnv, chooseLanguage, getLanguage, initLanguage } from ".
 import { createLanguageStorage, LANGUAGE_KEY } from "../../../../src/preferences/storage";
 import labelsEn from "../../../../src/i18n/labels.en.json";
 import labelsEs from "../../../../src/i18n/labels.es.json";
+import labelsPt from "../../../../src/i18n/labels.pt.json";
 import messagesEn from "../../../../src/i18n/messages.en.json";
 import messagesEs from "../../../../src/i18n/messages.es.json";
+import messagesPt from "../../../../src/i18n/messages.pt.json";
 import { CASE_ID, detail, page, summary } from "../../../support/fixtures";
 import { problem, renderApp } from "../../../support/views-world";
 
@@ -49,6 +51,7 @@ describe("LanguageSelect", () => {
     expect(options.map((option) => [option.textContent, option.getAttribute("lang"), option.getAttribute("aria-selected")])).toEqual([
       ["Español", "es", "true"],
       ["English", "en", "false"],
+      ["Português", "pt-BR", "false"], // cada opcion en su propio idioma y con su `lang`
     ]);
   });
 
@@ -83,7 +86,7 @@ describe("LanguageSelect", () => {
     expect(screen.getByText(messagesEn.ui.app_tagline)).toBeTruthy();
     const english = screen.getByRole("table");
     expect(english).toBe(table); // la misma tabla: la pantalla no se desmonto
-    expect(within(english).getAllByRole("columnheader").map((th) => th.textContent)).toEqual(["Applicant", "State", "Channel", "Created", "Recommendation", "Score", "Open"]);
+    expect(within(english).getAllByRole("columnheader").map((th) => th.textContent)).toEqual(["Applicant", "State", "Channel", "Created", "Recommendation", "Score", "Case ID", "Open"]);
     expect(within(english).getByText("12 Nov 2026, 10:00")).toBeTruthy(); // 15:00 UTC en Bogota
     expect(within(english).getByText("0.7312")).toBeTruthy();
     expect(within(english).getByText(labelsEn.CASE_STATES.listo)).toBeTruthy();
@@ -91,7 +94,7 @@ describe("LanguageSelect", () => {
     expect(english.querySelector("td")?.getAttribute("data-label")).toBe("Applicant"); // la etiqueta de la tarjeta en movil
     expect(screen.getByRole("region", { name: "Scrollable table: Case inbox" })).toBeTruthy();
     expect(document.documentElement.lang).toBe("en");
-    expect(document.title).toBe(messagesEn.ui.document_title);
+    expect(document.title).toBe(`${messagesEn.ui.view_cases} · Vectra Risk`); // el titulo dice la pantalla, en el idioma nuevo
     expect(Object.entries(localStorage)).toEqual([[LANGUAGE_KEY, "en"]]);
     expect(sessionStorage.length).toBe(0);
     expect(document.cookie).toBe("");
@@ -109,7 +112,7 @@ describe("LanguageSelect", () => {
     await screen.findByRole("table");
     choose("English");
     await screen.findByRole("button", { name: messagesEn.ui.logout_button });
-    const same = new Set(["Vectra Risk", "Español", "English", "Web", "Manual", "Favorable"]);
+    const same = new Set(["Vectra Risk", "Español", "English", "Português", "Web", "Manual", "Favorable"]);
     const spanish = [...Object.values(messagesEs.ui), ...Object.values(labelsEs).flatMap((group) => Object.values(group))].filter(
       (text) => !same.has(text) && !text.includes("{"),
     );
@@ -203,6 +206,82 @@ describe("LanguageSelect", () => {
     expect(screen.getByRole("heading", { name: messagesEn.ui.login_title })).toBeTruthy();
     expect(screen.getByRole("button", { name: SELECTOR_EN })).toBeTruthy();
     expect(localStorage.getItem(LANGUAGE_KEY)).toBe("en");
+  });
+});
+
+describe("portugues de Brasil", () => {
+  it("elegir «Português» cambia toda la pantalla, `<html lang>` a pt-BR, el titulo por pantalla, las fechas y los numeros, y guarda «pt»", async () => {
+    const { world } = renderApp({ role: "analista", routes: { "GET /api/console/cases": page([summary({ outcome: "favorable", score: "0.7312" })]) } });
+    const table = await screen.findByRole("table");
+    const before = world.calls.length;
+    choose("Português");
+    expect(await screen.findByRole("button", { name: messagesPt.ui.logout_button })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: messagesPt.ui.view_cases })).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: messagesPt.ui.nav_label })).toBeTruthy();
+    expect(screen.getByText(`Perfil: ${labelsPt.ROLES.analista}`)).toBeTruthy();
+    expect(screen.getByText(messagesPt.ui.app_tagline)).toBeTruthy();
+    expect(screen.getByRole("table")).toBe(table); // la misma tabla: la pantalla no se desmonto
+    expect(within(table).getAllByRole("columnheader").map((th) => th.textContent)).toEqual(["Proponente", "Estado", "Canal", "Criado", "Recomendação", "Pontuação", "Identificador", "Abrir"]);
+    expect(within(table).getByText("12/11/2026, 10:00")).toBeTruthy(); // 15:00 UTC en Bogota
+    expect(within(table).getByText("0,7312")).toBeTruthy(); // los digitos del servidor, con coma decimal
+    expect(within(table).getByText(labelsPt.CASE_STATES.listo)).toBeTruthy();
+    expect(within(table).getByRole("link", { name: "Abrir caso A. G." })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Tabela rolável: Fila de casos" })).toBeTruthy();
+    expect(document.documentElement.lang).toBe("pt-BR");
+    expect(document.title).toBe(`${messagesPt.ui.view_cases} · Vectra Risk`);
+    expect(Object.entries(localStorage)).toEqual([[LANGUAGE_KEY, "pt"]]);
+    expect(sessionStorage.length).toBe(0);
+    expect(world.calls.length).toBe(before); // el idioma no viaja al servidor
+    expect(screen.getByRole("button", { name: `Português ${messagesPt.ui.language_label}` })).toBeTruthy();
+  });
+
+  it("ningun texto del catalogo en espanol queda a la vista tras cambiar a portugues (salvo los que se escriben igual)", async () => {
+    renderApp({ role: "cro", routes: { "GET /api/console/cases": page([summary({ state: "listo", outcome: "desfavorable", score: "0.2100" })]) } });
+    await screen.findByRole("table");
+    choose("Português");
+    await screen.findByRole("button", { name: messagesPt.ui.logout_button });
+    const portuguese = new Set([...Object.values(messagesPt.ui), ...Object.values(labelsPt).flatMap((group) => Object.values(group))]);
+    const spanish = [...Object.values(messagesEs.ui), ...Object.values(labelsEs).flatMap((group) => Object.values(group))].filter(
+      (text) => !portuguese.has(text) && !text.includes("{"),
+    );
+    const shown = new Set<string>();
+    for (const node of document.body.querySelectorAll("*")) {
+      for (const child of node.childNodes) if (child.nodeType === Node.TEXT_NODE && child.textContent !== null) shown.add(child.textContent.trim());
+      for (const attribute of ["aria-label", "data-label", "title", "alt", "placeholder"]) {
+        const value = node.getAttribute(attribute);
+        if (value !== null) shown.add(value);
+      }
+    }
+    expect(shown.size).toBeGreaterThan(30);
+    expect(spanish.length).toBeGreaterThan(200);
+    expect(spanish.filter((text) => shown.has(text))).toEqual([]);
+  });
+
+  it("los textos propios de React Aria van en portugues (el boton oculto que cierra un dialogo)", async () => {
+    renderApp({ role: "analista", path: `/casos/${CASE_ID}`, routes: { [GET_CASE]: detail() } });
+    await screen.findByRole("heading", { name: ui("decision_form_title") });
+    chooseLanguage("pt");
+    fireEvent.click(await screen.findByRole("radio", { name: labelsPt.DECISIONS.sigue }));
+    fireEvent.click(screen.getByRole("checkbox", { name: messagesPt.ui.decision_field_none }));
+    fireEvent.click(screen.getByRole("button", { name: messagesPt.ui.decision_submit }));
+    await screen.findByRole("dialog", { name: messagesPt.ui.decision_confirm_title });
+    expect(screen.getAllByRole("button", { name: /^(Descartar|Dispensar|Fechar)$/, hidden: true }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Dismiss", hidden: true })).toBeNull();
+  });
+
+  it("con «pt» guardado la SPA abre en portugues aunque get_me diga es-CO; con el navegador en pt-PT y sin sesion, tambien", async () => {
+    localStorage.setItem(LANGUAGE_KEY, "pt");
+    initLanguage(browserLanguageEnv(window, createLanguageStorage(window)));
+    renderApp({ role: "cumplimiento", path: "/congelamientos", routes: { "GET /api/console/freezes": [] } });
+    expect(await screen.findByText(messagesPt.ui.freezes_empty)).toBeTruthy();
+    expect(screen.getByText(`Perfil: ${labelsPt.ROLES.cumplimiento}`)).toBeTruthy();
+    expect(document.documentElement.lang).toBe("pt-BR");
+    cleanup();
+    localStorage.clear();
+    const win = { navigator: { languages: ["pt-PT", "en"], language: "pt-PT" }, document } as unknown as Window;
+    initLanguage(browserLanguageEnv(win, createLanguageStorage(window)));
+    expect(getLanguage()).toBe("pt");
+    expect(localStorage.length).toBe(0); // resolver el idioma no guarda nada
   });
 });
 

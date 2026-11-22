@@ -1,0 +1,184 @@
+{
+  "CASE_STATES": {
+    "en_evaluacion": "Em avaliação",
+    "listo": "Pronto",
+    "en_sincronizacion": "Em sincronização",
+    "no_disponible": "Indisponível",
+    "modelo_congelado": "Modelo congelado",
+    "decidido": "Decidido",
+    "vencido": "Vencido"
+  },
+  "CREDIT_STATUSES": {
+    "en_estudio": "Em análise",
+    "aprobado": "Aprovado",
+    "desembolsado": "Liberado",
+    "rechazado": "Recusado",
+    "cancelado": "Cancelado",
+    "sin_credito": "Sem crédito",
+    "no_disponible": "Indisponível",
+    "no_integrado": "Não integrado"
+  },
+  "DECISIONS": {
+    "sigue": "Segue a recomendação",
+    "se_aparta": "Diverge da recomendação",
+    "resuelve_revision": "Resolve a revisão"
+  },
+  "ENTRY_TYPES": {
+    "recommendation": "Recomendação",
+    "fail_closed": "Recomendação não emitida",
+    "human_decision": "Decisão humana",
+    "explanation_view": "Consulta da explicação",
+    "model_event": "Evento de modelo",
+    "policy_event": "Evento de política",
+    "data_source_event": "Evento de fonte de dados",
+    "freeze": "Congelamento",
+    "frozen_resolution": "Resolução de congelamento",
+    "genesis": "Início do registro",
+    "checkpoint": "Ponto de controle"
+  },
+  "EXPLAINER_ERRORS": {
+    "timeout": "A explicação demorou demais",
+    "unavailable": "O serviço de explicação está indisponível",
+    "error": "Erro ao gerar a explicação",
+    "version_mismatch": "A versão da explicação não coincide",
+    "factuality_failed": "A explicação não passou na verificação",
+    "feature_dictionary_incomplete": "Dicionário de variáveis incompleto"
+  },
+  "FAIL_CLOSED_CAUSES": {
+    "model_frozen": "Modelo congelado",
+    "serving_config_unavailable": "Configuração de serviço indisponível",
+    "model_output_invalid": "Resultado do modelo inválido",
+    "timeout": "Tempo de espera esgotado",
+    "explainer_unavailable": "Explicação indisponível",
+    "explainer_error": "Erro na explicação",
+    "version_mismatch": "Versão que não coincide",
+    "feature_dictionary_incomplete": "Dicionário de variáveis incompleto",
+    "factuality_failed": "Explicação não verificada",
+    "registry_unavailable": "Registro indisponível"
+  },
+  "FINAL_OUTCOMES": {
+    "favorable": "Favorável",
+    "desfavorable": "Desfavorável"
+  },
+  "LOCAL_CAUSES": {
+    "serving_config_unavailable": "Configuração de serviço indisponível",
+    "scoring_unreachable": "Serviço de pontuação inacessível",
+    "scoring_rejected": "O serviço de pontuação recusou a solicitação"
+  },
+  "LOG_EVENTS": {
+    "authz.denied": "Acesso negado",
+    "recommendation.fail_closed": "Recomendação não emitida",
+    "applicant_summary.generated": "Resumo para o proponente gerado",
+    "case.viewed": "Caso consultado",
+    "case.retry_requested": "Nova tentativa do caso solicitada",
+    "evaluation.result_discarded": "Resultado da avaliação descartado",
+    "disparity.viewed": "Disparidade consultada",
+    "freeze_context.viewed": "Contexto de congelamento consultado",
+    "console.client_error": "Erro do navegador",
+    "registry.idempotency_conflict": "Conflito de idempotência no registro"
+  },
+  "OUTCOMES": {
+    "favorable": "Favorável",
+    "desfavorable": "Desfavorável",
+    "revision_requerida": "Revisão necessária"
+  },
+  "REASON_CODES": {
+    "score_bajo_corte": "Pontuação abaixo do corte",
+    "score_sobre_corte": "Pontuação acima do corte",
+    "baja_confianza": "Confiança baixa",
+    "vis": "Habitação de interesse social",
+    "no_vis": "Habitação que não é de interesse social",
+    "tasa_sobre_usura": "Taxa acima do limite de usura",
+    "parametro_normativo_no_vigente": "Parâmetro normativo fora de vigência"
+  },
+  "REGISTRY_ERRORS": {
+    "unavailable": "Registro indisponível"
+  },
+  "ROLES": {
+    "analista": "Analista",
+    "ingeniero_riesgo": "Engenheiro de risco",
+    "cro": "Diretor de risco (CRO)",
+    "cumplimiento": "Compliance"
+  },
+  "SCOPES": {
+    "case:recommend": "Recomendar casos",
+    "scoring:explain": "Explicar pontuações",
+    "governance:read-serving": "Ler a configuração de serviço",
+    "governance:freeze": "Congelar modelos",
+    "governance:validation-report": "Registrar relatórios de validação",
+    "governance:promotion": "Promover modelos",
+    "bias:compare": "Comparar fontes de dados",
+    "governance:read-dictionary": "Ler o dicionário de variáveis",
+    "governance:read-feature-spec": "Ler a especificação de variáveis",
+    "registry:append:case": "Registrar eventos de casos",
+    "registry:append:scoring": "Registrar eventos de pontuação",
+    "registry:append:governance": "Registrar eventos de governança",
+    "registry:read:explanation": "Ler explicações do registro",
+    "registry:read:monitoring": "Ler o monitoramento do registro",
+    "registry:read:metrics": "Ler métricas do registro",
+    "intake:submit": "Enviar propostas de crédito",
+    "core:read-credit": "Ler a situação do crédito",
+    "core:write-credit": "Gravar a situação do crédito"
+  },
+  "SERVING_STATES": {
+    "activo": "Ativo",
+    "congelado": "Congelado",
+    "no_disponible": "Indisponível"
+  },
+  "MODEL_STATES": {
+    "registrado": "Registrado",
+    "en_validacion": "Em validação",
+    "validacion_fallida": "Validação reprovada",
+    "lista_para_aprobacion": "Pronta para aprovação",
+    "aprobado": "Aprovado",
+    "rechazado": "Recusado",
+    "activo": "Ativo",
+    "inactivo": "Inativo",
+    "congelado": "Congelado",
+    "retirado": "Retirado"
+  },
+  "RESOLUTION_ACTIONS": {
+    "reactivar": "Reativar",
+    "descartar": "Descartar",
+    "investigar": "Investigar"
+  },
+  "CELL_STATUSES": {
+    "suficiente": "Amostra suficiente",
+    "muestra_insuficiente": "Amostra insuficiente"
+  },
+  "ATTRIBUTES": {
+    "sexo": "Sexo",
+    "rango_edad": "Faixa etária",
+    "region": "Região",
+    "estrato": "Estrato"
+  },
+  "BANDS": {
+    "lt_20": "Menos de 20",
+    "20_30": "De 20 a 30",
+    "gt_30": "Mais de 30"
+  },
+  "CHANNELS": {
+    "web": "Web",
+    "manual": "Manual"
+  },
+  "EMPLOYMENT_TYPES": {
+    "asalariado": "Assalariado",
+    "independiente": "Autônomo",
+    "pensionado": "Aposentado"
+  },
+  "PROPERTY_CONDITIONS": {
+    "nueva": "Novo",
+    "usada": "Usado"
+  },
+  "GROUPS": {
+    "F": "Feminino",
+    "M": "Masculino",
+    "no_informado": "Não informado",
+    "andina": "Andina",
+    "caribe": "Caribe",
+    "pacifica": "Pacífica",
+    "orinoquia": "Orinoquia",
+    "amazonia": "Amazônia",
+    "insular": "Insular"
+  }
+}

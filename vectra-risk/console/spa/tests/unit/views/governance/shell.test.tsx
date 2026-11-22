@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 // BR-U10-12; US-602: `Layout`, `RoleMenu` y las rutas por rol dentro de `App`: el inicio de cada rol, «sin acceso» y el marcador **sin llamar al BFF**
 // (la prueba cuenta cero solicitudes), y un fragmento de vista que no carga se reporta como `chunk_load_failed` (BR-U10-22).
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router";
 import { ui } from "../../../../src/i18n";
 import { lazyView } from "../../../../src/views/shared/lazyView";
 import { activeMenuPath } from "../../../../src/views/shared/RoleMenu";
-import { ROUTES, type Role, routesFor } from "../../../../src/views/shared/routes";
+import { ROUTES, type Role, routesFor, screenTitle } from "../../../../src/views/shared/routes";
 import { renderApp } from "../../../support/views-world";
 import { Suspense } from "react";
 
@@ -30,6 +30,62 @@ describe("el menu y el inicio por rol", () => {
     renderApp({ role: "cro", path: "/callback", routes: { "GET /api/console/cases": { items: [], page: 1, total: 0 } } });
     await screen.findByRole("heading", { name: ui("view_cases") });
     expect(window.location.pathname).toBe("/casos");
+  });
+});
+
+describe("pasada de usabilidad: el titulo del documento, «Saltar al contenido» y el cambio de pantalla", () => {
+  const EMPTY = { "GET /api/console/cases": { items: [], page: 1, total: 0 }, "GET /api/console/models": { items: [], page: 1, total: 0 }, "GET /api/console/freezes": [] };
+  const titled = (key: Parameters<typeof ui>[0]): string => ui("document_title_view", { view: ui(key) });
+
+  it("screenTitle: la pantalla de la ruta si el rol llega, «Sin acceso» si no, «no encontrada» si no existe y nada en las que redirigen", () => {
+    expect(screenTitle("/casos", "analista")).toBe("view_cases");
+    expect(screenTitle("/casos/nuevo", "analista")).toBe("view_manual_application"); // la estatica antes que `/casos/:caseId`
+    expect(screenTitle("/casos/3fa85f64-5717-4562-b3fc-2c963f66afa6", "cro")).toBe("view_case_detail");
+    expect(screenTitle("/casos", "ingeniero_riesgo")).toBe("no_access_title");
+    expect(screenTitle("/no-existe", "cro")).toBe("not_found_title");
+    expect(screenTitle("/", "cro")).toBeNull();
+    expect(screenTitle("/callback", "cro")).toBeNull();
+  });
+
+  it("el titulo del documento dice la pantalla y cambia con la ruta; al navegar el foco pasa al contenido y se anuncia la pantalla", async () => {
+    renderApp({ role: "cumplimiento", path: "/congelamientos", routes: EMPTY });
+    await screen.findByRole("heading", { name: ui("view_freezes") });
+    expect(document.title).toBe(titled("view_freezes"));
+    const main = screen.getByRole("main");
+    expect(document.activeElement).not.toBe(main); // en la primera pantalla no se mueve el foco
+    expect(document.querySelector("[aria-live='polite'].visually-hidden")?.textContent).toBe("");
+    fireEvent.click(within(screen.getByRole("navigation", { name: ui("nav_label") })).getByRole("link", { name: ui("view_models") }));
+    await screen.findByRole("heading", { name: ui("view_models") });
+    expect(document.title).toBe(titled("view_models"));
+    expect(document.activeElement).toBe(main);
+    expect(document.querySelector("[aria-live='polite'].visually-hidden")?.textContent).toBe(ui("route_announcement", { view: ui("view_models") }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: ui("nav_label") })).getByRole("link", { name: ui("view_policies") }));
+    await screen.findByText(ui("not_available_body"));
+    expect(document.title).toBe(titled("view_policies"));
+  });
+
+  it("una ruta de otro rol titula «Sin acceso» y una que no existe, «Pantalla no encontrada»", async () => {
+    renderApp({ role: "ingeniero_riesgo", path: "/casos", routes: EMPTY });
+    await screen.findByRole("heading", { name: ui("no_access_title") });
+    expect(document.title).toBe(titled("no_access_title"));
+    cleanup();
+    expect(document.title).toBe(ui("document_title")); // sin la consola montada vuelve el titulo general
+    renderApp({ role: "cro", path: "/no-existe", routes: EMPTY });
+    await screen.findByRole("heading", { name: ui("not_found_title") });
+    expect(document.title).toBe(titled("not_found_title"));
+  });
+
+  it("«Saltar al contenido» es el primer enlace de la pagina y lleva el foco al contenido sin tocar la URL", async () => {
+    renderApp({ role: "analista", path: "/casos?state=listo", routes: EMPTY });
+    await screen.findByRole("heading", { name: ui("view_cases") });
+    const skip = screen.getAllByRole("link")[0] as HTMLElement;
+    expect(skip.textContent).toBe(ui("skip_to_content"));
+    expect(skip.getAttribute("href")).toBe("#contenido");
+    const main = screen.getByRole("main");
+    expect(main.id).toBe("contenido");
+    fireEvent.click(skip);
+    expect(document.activeElement).toBe(main);
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe("/casos?state=listo");
   });
 });
 

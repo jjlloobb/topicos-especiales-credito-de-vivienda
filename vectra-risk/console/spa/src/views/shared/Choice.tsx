@@ -9,9 +9,11 @@ interface Props {
   readonly checked: boolean;
   readonly onChange: (checked: boolean) => void;
   readonly text: string;
+  /** El codigo original de una opcion que se muestra con un texto mas legible (queda en el `title` de la etiqueta). */
+  readonly title?: string;
 }
 
-export function Choice({ type, name, value, checked, onChange, text }: Props) {
+export function Choice({ type, name, value, checked, onChange, text, title }: Props) {
   const id = useId();
   return (
     <div className="choice">
@@ -25,7 +27,9 @@ export function Choice({ type, name, value, checked, onChange, text }: Props) {
           onChange(event.target.checked);
         }}
       />
-      <label htmlFor={id}>{text}</label>
+      <label htmlFor={id} {...(title === undefined || title === text ? {} : { title })}>
+        {text}
+      </label>
     </div>
   );
 }

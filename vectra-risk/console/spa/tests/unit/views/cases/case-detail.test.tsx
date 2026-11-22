@@ -28,6 +28,23 @@ describe("CaseDetail: lo que muestra", () => {
     expect(screen.queryByText(/sexo|estrato/i)).toBeNull(); // la solicitud sin etiquetas de monitoreo
   });
 
+  it("el identificador del caso esta a la vista, completo, con un boton para copiarlo; la fecha dice su zona horaria", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    try {
+      renderApp({ role: "cro", path: PATH, routes: { [GET_CASE]: detail() } });
+      await screen.findByRole("heading", { name: ui("recommendation_title") });
+      const line = screen.getByText(ui("case_id_label")).closest("p") as HTMLElement;
+      expect(within(line).getByText(CASE_ID).tagName).toBe("CODE");
+      fireEvent.click(within(line).getByRole("button", { name: ui("case_id_copy") }));
+      expect(writeText).toHaveBeenCalledWith(CASE_ID);
+      expect(await within(line).findByText(ui("copy_done"))).toBeTruthy();
+      expect(screen.getByText(ui("case_created", { at: "12/11/2026, 10:00 a. m." }))).toBeTruthy();
+    } finally {
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
+  });
+
   it("free_text con <script> se muestra como texto y no agrega ningun script al DOM (US-109)", async () => {
     const text = "<script>alert(1)</script>";
     const { container } = renderApp({
@@ -91,18 +108,47 @@ describe("CaseDetail: lo que muestra", () => {
     });
     expect(await screen.findByRole("heading", { name: ui("decision_recorded_title") })).toBeTruthy();
     expect(screen.getByText("Porque aplica", { exact: false })).toBeTruthy();
+    expect(screen.getByText("loan to value").getAttribute("title")).toBe("loan_to_value");
     expect(screen.queryByRole("heading", { name: ui("decision_form_title") })).toBeNull();
   });
 
   it("un identificador que no es un UUID no llama al BFF; un 404 muestra el mensaje del catalogo con el codigo de soporte", async () => {
     const bad = renderApp({ role: "analista", path: "/casos/no-es-un-uuid", routes: {} });
-    expect((await screen.findByRole("alert")).textContent).toBe(ui("go_to_case_invalid"));
+    expect((await screen.findByRole("alert")).textContent).toBe(ui("case_url_invalid"));
     expect(bad.world.calls).toEqual([]);
     cleanup();
     renderApp({ role: "analista", path: PATH, routes: { [GET_CASE]: () => problem(404, "not_found") } });
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("No se encontró lo que buscas.");
     expect(alert.textContent).toContain("0".repeat(32)); // el correlation_id para soporte
+    expect(within(alert).queryByRole("button", { name: ui("login_again_button") })).toBeNull();
+    // ...y un boton para copiarlo, completo
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    try {
+      fireEvent.click(within(alert).getByRole("button", { name: ui("support_code_copy") }));
+      expect(writeText).toHaveBeenCalledWith("0".repeat(32));
+      expect(await within(alert).findByText(ui("copy_done"))).toBeTruthy();
+    } finally {
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
+  });
+
+  it("un codigo desconocido lleva el codigo de soporte dentro del mensaje (una sola vez) y tambien se puede copiar", async () => {
+    renderApp({ role: "analista", path: PATH, routes: { [GET_CASE]: () => problem(418, "algo_nuevo") } });
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent?.split("0".repeat(32))).toHaveLength(2);
+    expect(within(alert).getByRole("button", { name: ui("support_code_copy") })).toBeTruthy();
+  });
+
+  it("la sesion vencio sin aviso (401): el mensaje ofrece «Iniciar sesion de nuevo», que es el login por redireccion de siempre", async () => {
+    const view = renderApp({ role: "analista", path: PATH, routes: { [GET_CASE]: () => problem(401, "unauthenticated") } });
+    const redirect = vi.spyOn(view.wiring.manager, "signinRedirect");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Tu sesión no es válida o venció");
+    fireEvent.click(within(alert).getByRole("button", { name: ui("login_again_button") }));
+    expect(redirect).toHaveBeenCalledTimes(1);
+    expect((redirect.mock.calls[0]?.[0] as { prompt?: string }).prompt).toBeUndefined(); // interactivo, no `prompt=none`
   });
 });
 
@@ -182,7 +228,8 @@ describe("ExplanationPanel (BR-U10-08; US-501)", () => {
     const { world } = renderApp({ role: "cro", path: PATH, routes: { [GET_CASE]: detail(), [VIEWS]: { status: 204 } } });
     fireEvent.click(await screen.findByRole("button", { name: ui("explanation_button") }));
     expect(await screen.findByText(ui("explanation_narrative"))).toBeTruthy();
-    expect(within(screen.getByRole("main")).getByText(/installment_to_income/)).toBeTruthy();
+    // un `feature_id` (conjunto abierto) se presenta sin guiones bajos y conserva el codigo original en el `title`
+    expect(within(screen.getByRole("main")).getByText("installment to income").getAttribute("title")).toBe("installment_to_income");
     await flushReal();
     expect(world.count(VIEWS)).toBe(0);
   });

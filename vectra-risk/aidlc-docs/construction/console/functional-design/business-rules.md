@@ -92,6 +92,7 @@ cumplimiento y el comité: es una decisión de negocio que deben confirmar.
 **BR-U10-10 — Bandeja y refresco** (Q6; US-107, NFR-PER-01).
 - **Filtros** (`CaseFilter` de U0): estado (por omisión, todos menos `vencido`, que se ve con el filtro explícito), canal, fecha de creación y «modelo congelado tras la recomendación» (`model_frozen_after_recommendation`). Ninguno lleva datos del solicitante, así que todos pueden ir en la URL.
 - **Sin búsqueda por nombre** (revisión del FD de U10, 2026-10-10), A3: buscar por `applicant_display` pondría el nombre en la URL, el historial y los logs de acceso. Ninguna historia lo pide. El campo «Ir al caso» acepta un `case_id` (UUID, que no es un dato personal) y abre el detalle directamente.
+- **Enmienda del 2026-11-21** (pedido del dueño del proyecto para la sustentación): el `case_id` se muestra en la bandeja (abreviado) y en el detalle (completo), con un botón para copiarlo, y «Ir al caso» acepta también la dirección completa del caso pegada, de la que solo se usa el UUID. Sigue sin haber búsqueda por nombre. Ver nfr-requirements §11, E-6.
 - **Orden y página**: por `created_at`, con paginación del servidor (páginas de ≤ 100).
 - **Refresco**: la bandeja se vuelve a pedir cada 15 s mientras la pestaña está visible. El detalle de un caso `en_evaluacion` o `en_sincronizacion` se pide cada 3 s hasta que cambia de estado, con un máximo de 2 min. Sin WebSockets.
 - Los estados se muestran con color **y** texto, nunca solo con color.
@@ -141,7 +142,7 @@ iframe, la leyenda «mide y alerta, no certifica» es un texto propio de la cons
 - Hay un mensaje en español por cada `code` y cada `reason` del catálogo de U0 §6. Por ejemplo, `decision_already_recorded` → «Otra persona ya registró la decisión de este caso. Se muestra la decisión registrada.».
 - Un `code` desconocido muestra un mensaje genérico con el `correlation_id` para soporte.
 - Nunca se muestra el `detail` del servidor ni una traza.
-- **Enmienda del 2026-11-21** (pedido del dueño del proyecto para la sustentación): hay un mensaje en español **y otro en inglés** por cada `code`, `reason`, aviso y valor de enumerado; el español sigue siendo el idioma por omisión. La lista de frases prohibidas (BR-U10-18) se aplica a los dos catálogos. Ver nfr-requirements §11, E-1.
+- **Enmienda del 2026-11-21** (pedido del dueño del proyecto para la sustentación): hay un mensaje en español, **otro en inglés y otro en portugués de Brasil** (el tercero, por la ampliación E-7 del mismo día) por cada `code`, `reason`, aviso y valor de enumerado; el español sigue siendo el idioma por omisión. La lista de frases prohibidas (BR-U10-18) se aplica a los catálogos traducidos. Ver nfr-requirements §11, E-1.
 - Los avisos de negocio también vienen del mismo catálogo: `model_frozen_after_recommendation`, baja confianza, `revision_requerida`, caso anonimizado y crédito no integrado.
 
 **BR-U10-18 — Frases prohibidas** (Q8; FR-BIA-08). La lista, la comparación y la aprobación de

@@ -12,7 +12,10 @@ const read = (...parts: string[]): unknown => JSON.parse(readFileSync(resolve(HE
 type Messages = { ui: Record<string, string>; notice: Record<string, string>; code: Record<string, string>; reason: Record<string, string> };
 type Labels = Record<string, Record<string, string>>;
 
-export type Lang = "es" | "en";
+export type Lang = "es" | "en" | "pt";
+
+/** La etiqueta de cada idioma hacia fuera (`<html lang>`, el `lang` de cada opcion, `ui_locales`): el portugues es el de Brasil. */
+export const LANG_TAG: Readonly<Record<Lang, string>> = { es: "es", en: "en", pt: "pt-BR" };
 
 /** Los textos de un idioma, como los muestra la SPA. */
 export interface Texts {
@@ -46,6 +49,7 @@ export function texts(lang: Lang): Texts {
 /** El espanol es el idioma por omision de la SPA y de las pruebas: `ui`, `label`... sin mas son los textos en espanol. */
 export const ES = texts("es");
 export const EN = texts("en");
+export const PT = texts("pt");
 export const { ui, notice, label, problemCode } = ES;
 
 /** Las claves de las preferencias en el almacenamiento local (`src/preferences/storage.ts`). */
@@ -86,7 +90,7 @@ export async function chooseLanguage(page: Page, from: Texts, to: Texts): Promis
   await languageButton(page, from).click();
   await page.getByRole("listbox").getByRole("option", { name: to.ui(`language_name_${to.lang}`) }).click();
   await expect(languageButton(page, to)).toBeVisible();
-  await expect(page.locator("html")).toHaveAttribute("lang", to.lang);
+  await expect(page.locator("html")).toHaveAttribute("lang", LANG_TAG[to.lang]);
 }
 
 /** Elige un tema en el selector. */
@@ -97,13 +101,13 @@ export async function chooseTheme(page: Page, from: "system" | "light" | "dark",
 }
 
 /**
- * Los textos del catalogo en ESPANOL que siguen a la vista con la pagina en ingles (texto, `aria-label`, `data-label`, `title`, `alt`,
+ * Los textos del catalogo en ESPANOL que siguen a la vista con la pagina en otro idioma (`target`: ingles por omision, o portugues) (texto, `aria-label`, `data-label`, `title`, `alt`,
  * `placeholder`): debe ser una lista vacia. No cuentan los textos que se escriben igual en los dos idiomas ni los que llevan marcadores
  * (`{nombre}`); los textos que entrega el servidor (narrativas, nombres, identificadores) no estan en el catalogo y no se miran.
  */
-export async function spanishLeft(page: Page): Promise<string[]> {
-  const english = new Set(EN.all);
-  const spanish = ES.all.filter((text) => !english.has(text) && !text.includes("{"));
+export async function spanishLeft(page: Page, target: Texts = EN): Promise<string[]> {
+  const translated = new Set(target.all);
+  const spanish = ES.all.filter((text) => !translated.has(text) && !text.includes("{"));
   return page.evaluate((candidates) => {
     const shown = new Set<string>();
     for (const node of document.body.querySelectorAll("*")) {

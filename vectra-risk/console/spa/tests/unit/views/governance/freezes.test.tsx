@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { label, ui } from "../../../../src/i18n";
 import { freezeRecord, freezeSummary, disparity } from "../../../support/fixtures";
 import { problem, renderApp, stepUpWorld } from "../../../support/views-world";
-import { readImplicated } from "../../../../src/views/governance/FreezeContextView";
+import { latestResolution, readImplicated } from "../../../../src/views/governance/FreezeContextView";
 import { justificationOk } from "../../../../src/views/governance/resolution";
 
 afterEach(cleanup);
@@ -63,7 +63,13 @@ describe("FreezeContextView: el paquete completo y el disclaimer", () => {
     const implicated = screen.getByRole("table", { name: ui("freeze_implicated_item", { attribute: label("ATTRIBUTES", "region"), limit: "0,0500" }) });
     const band = within(implicated).getAllByRole("row")[1] as HTMLElement;
     expect(within(band).getByRole("rowheader").textContent).toBe(label("BANDS", "20_30"));
-    expect(within(band).getByRole("cell").textContent).toBe("0,0800");
+    // ...y los dos grupos entre los que esta (con su etiqueta; el codigo del servidor queda en el `title`)
+    expect(within(band).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([ui("freeze_implicated_pair", { first: "Andina", second: "Caribe" }), "0,0800"]);
+    expect(within(band).getAllByRole("cell")[0]?.getAttribute("title")).toBe("andina, caribe");
+    // en el detalle por grupo y banda, los grupos de un catalogo cerrado llevan etiqueta y ninguno sale como codigo crudo
+    expect(screen.getAllByText("Andina").some((node) => node.getAttribute("title") === "andina")).toBe(true);
+    expect(screen.queryByText("andina")).toBeNull();
+    expect(screen.queryByText("caribe")).toBeNull();
     expect(screen.getByText(ui("freeze_source_item", { id: "ds-1", name: "Buró alterno" }))).toBeTruthy();
     expect(screen.getByText('{"raro":true}')).toBeTruthy(); // un elemento sin la forma esperada no se pierde: sale como JSON
     expect(screen.getByText('"otra cosa"')).toBeTruthy();
@@ -173,7 +179,10 @@ describe("FreezeContextView: el paquete completo y el disclaimer", () => {
 
 describe("readImplicated", () => {
   it("lee la forma de BR-U9-15 y rechaza lo demas", () => {
-    expect(readImplicated({ attribute: "region", freeze_lower_limit: "0.05", bands: [{ band: "gt_30", difference: "0.1", extreme_pair: null }] })).toEqual({ attribute: "region", limit: "0.05", bands: [{ band: "gt_30", difference: "0.1" }] });
+    expect(readImplicated({ attribute: "region", freeze_lower_limit: "0.05", bands: [{ band: "gt_30", difference: "0.1", extreme_pair: null }] })).toEqual({ attribute: "region", limit: "0.05", bands: [{ band: "gt_30", difference: "0.1", pair: null }] });
+    // `extreme_pair` con la forma esperada (dos grupos) se lee; con otra forma no rompe la lectura: la banda queda sin par
+    expect(readImplicated({ attribute: "sexo", freeze_lower_limit: "0.05", bands: [{ band: "lt_20", difference: "0.2", extreme_pair: ["F", "M"] }] })?.bands[0]?.pair).toEqual(["F", "M"]);
+    expect(readImplicated({ attribute: "sexo", freeze_lower_limit: "0.05", bands: [{ band: "lt_20", difference: "0.2", extreme_pair: ["F", 3] }] })?.bands[0]?.pair).toBeNull();
     expect(readImplicated(null)).toBeNull();
     expect(readImplicated([])).toBeNull();
     expect(readImplicated({ attribute: "region" })).toBeNull();
@@ -248,13 +257,64 @@ describe("ResolveFrozenDialog", () => {
   });
 
   it("otro error del servidor (409 conflict_state) se muestra en el dialogo y deja la justificacion", async () => {
-    renderApp({ role: "cumplimiento", mfa: true, path: PATH, routes: { [GET]: freezeRecord(), [RESOLVE]: () => problem(409, "conflict_state") } });
+    const view = renderApp({ role: "cumplimiento", mfa: true, path: PATH, routes: { [GET]: freezeRecord(), [RESOLVE]: () => problem(409, "conflict_state") } });
     await screen.findByText(ui("freeze_summary_model", { id: "mv-congelado" }));
     openDialog();
     write("Revisado");
     fireEvent.click(await screen.findByRole("button", { name: ui("resolve_submit") }));
-    expect((await screen.findByRole("alert")).textContent).toContain("El elemento cambió de estado");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain(ui("resolve_conflict")); // dice que paso y que hacer, no el general «el elemento cambio de estado»
+    expect(alert.textContent).not.toContain("El elemento cambió de estado");
+    expect(within(alert).getByRole("button", { name: ui("support_code_copy") })).toBeTruthy();
     expect((screen.getByLabelText(ui("resolve_justification")) as HTMLTextAreaElement).value).toBe("Revisado");
+    await waitFor(() => expect(view.world.count(GET)).toBe(2)); // y el congelamiento se vuelve a pedir: la tarjeta mostrara la ultima resolucion
+  });
+
+  it("un 409 con un `reason` del catalogo conserva su mensaje propio", async () => {
+    renderApp({ role: "cumplimiento", mfa: true, path: PATH, routes: { [GET]: freezeRecord(), [RESOLVE]: () => problem(409, "conflict_state", "transition_pending") } });
+    await screen.findByText(ui("freeze_summary_model", { id: "mv-congelado" }));
+    openDialog();
+    write("Revisado");
+    fireEvent.click(await screen.findByRole("button", { name: ui("resolve_submit") }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Hay un cambio pendiente");
+    expect(alert.textContent).not.toContain(ui("resolve_conflict"));
+  });
+
+  it("con resoluciones, la tarjeta dice cual fue la ultima y cuando, y «Resolver» sigue disponible con una ayuda (no se oculta)", async () => {
+    const resolutions = [
+      { action: "reactivar" as const, recorded_at: "2026-11-14T15:00:00Z" },
+      { action: "investigar" as const, recorded_at: "2026-11-12T15:00:00Z" },
+    ];
+    expect(latestResolution(resolutions)?.action).toBe("reactivar"); // la mas reciente, llegue en el orden que llegue
+    expect(latestResolution([...resolutions].reverse())?.action).toBe("reactivar");
+    expect(latestResolution([])).toBeNull();
+    renderApp({ role: "cumplimiento", mfa: true, path: PATH, routes: { [GET]: freezeRecord({ resolutions }) } });
+    expect(await screen.findByText(ui("freeze_last_resolution", { action: label("RESOLUTION_ACTIONS", "reactivar"), at: "14/11/2026, 10:00 a. m." }))).toBeTruthy();
+    const open = screen.getByRole("button", { name: ui("resolve_open") });
+    expect(document.getElementById(open.getAttribute("aria-describedby") ?? "")?.textContent).toBe(ui("freeze_resolve_again_hint"));
+    cleanup();
+    renderApp({ role: "cumplimiento", mfa: true, path: PATH, routes: { [GET]: freezeRecord() } });
+    await screen.findByText(ui("freeze_status_pending"));
+    expect(screen.queryByText(ui("freeze_resolve_again_hint"))).toBeNull();
+    expect(screen.getByRole("button", { name: ui("resolve_open") }).hasAttribute("aria-describedby")).toBe(false);
+  });
+
+  it("la verificacion en dos pasos se explica: en la cabecera y, sin una reciente, en el dialogo antes de «Verificar y confirmar»", async () => {
+    renderApp({ role: "cumplimiento", mfa: false, path: PATH, routes: { [GET]: freezeRecord() } });
+    await screen.findByText(ui("freeze_summary_model", { id: "mv-congelado" }));
+    const header = screen.getByText(ui("session_without_mfa"));
+    expect(header.getAttribute("title")).toBe(ui("session_mfa_help", { minutes: "15" }));
+    openDialog();
+    expect(await screen.findByText(ui("resolve_mfa_hint", { minutes: "15" }))).toBeTruthy();
+    expect(screen.getByRole("button", { name: ui("verify_and_confirm") })).toBeTruthy();
+    cleanup();
+    renderApp({ role: "cumplimiento", mfa: true, path: PATH, routes: { [GET]: freezeRecord() } });
+    await screen.findByText(ui("freeze_summary_model", { id: "mv-congelado" }));
+    expect(screen.getByText(ui("session_with_mfa"))).toBeTruthy();
+    openDialog();
+    expect(await screen.findByRole("button", { name: ui("resolve_submit") })).toBeTruthy();
+    expect(screen.queryByText(ui("resolve_mfa_hint", { minutes: "15" }))).toBeNull();
   });
 
   it("sin MFA reciente: el boton dice «Verificar y confirmar», abre la ventana en ese clic y, al terminar la verificacion, envia con la misma justificacion", async () => {

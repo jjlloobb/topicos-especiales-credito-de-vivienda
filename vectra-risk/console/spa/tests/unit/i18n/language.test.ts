@@ -12,6 +12,9 @@ import {
   getLanguage,
   initLanguage,
   type Language,
+  LANGUAGE_TAGS,
+  LANGUAGES,
+  uiLocales,
   type LanguageEnv,
   languageOf,
   LOCALES,
@@ -56,11 +59,15 @@ describe("languageOf", () => {
     ["en-US", "en"],
     ["en-GB", "en"],
     [" en-AU ", "en"],
+    ["pt", "pt"],
+    ["pt-BR", "pt"],
+    ["pt-PT", "pt"],
+    ["PT_br", "pt"],
   ])("%s -> %s", (tag, expected) => {
     expect(languageOf(tag)).toBe(expected);
   });
 
-  it.each(["fr", "pt-BR", "", "e", "english", "esp", "eng-US", "x-es", null, undefined, 7, {}])("%s no es ninguno de los dos", (tag) => {
+  it.each(["fr", "de-DE", "", "e", "p", "english", "esp", "eng-US", "por", "ptx-BR", "x-es", "x-pt", null, undefined, 7, {}])("%s no es ninguno de los tres", (tag) => {
     expect(languageOf(tag)).toBeNull();
   });
 });
@@ -69,18 +76,24 @@ describe("resolveLanguage: preferencia guardada > locale de get_me > navegador >
   it("la preferencia guardada manda sobre todo lo demas", () => {
     expect(resolveLanguage({ stored: "en", sessionLocale: "es-CO", browser: ["es-CO"] })).toBe("en");
     expect(resolveLanguage({ stored: "es", sessionLocale: "en-US", browser: ["en-US"] })).toBe("es");
+    expect(resolveLanguage({ stored: "pt", sessionLocale: "es-CO", browser: ["en-US"] })).toBe("pt");
+    expect(resolveLanguage({ stored: "es", sessionLocale: "pt-BR", browser: ["pt-BR"] })).toBe("es");
   });
   it("sin preferencia, el locale de get_me si es uno de los dos", () => {
     expect(resolveLanguage({ stored: null, sessionLocale: "es-CO", browser: ["en-US"] })).toBe("es");
     expect(resolveLanguage({ sessionLocale: "en-GB", browser: ["es-CO"] })).toBe("en");
+    expect(resolveLanguage({ sessionLocale: "pt-BR", browser: ["es-CO"] })).toBe("pt");
   });
   it("si el locale de get_me no es ninguno de los dos (o no hay sesion), el navegador: el primero que sea espanol o ingles", () => {
     expect(resolveLanguage({ sessionLocale: "fr-FR", browser: ["en-US", "es"] })).toBe("en");
-    expect(resolveLanguage({ sessionLocale: null, browser: ["pt-BR", "fr", "en-GB", "es-CO"] })).toBe("en");
+    expect(resolveLanguage({ sessionLocale: null, browser: ["de-DE", "fr", "en-GB", "es-CO"] })).toBe("en");
+    expect(resolveLanguage({ sessionLocale: null, browser: ["fr", "pt-BR", "en-GB", "es-CO"] })).toBe("pt"); // cualquier `pt-*` del navegador es portugues
+    expect(resolveLanguage({ browser: ["pt-PT"] })).toBe("pt");
+    expect(resolveLanguage({ browser: ["pt"] })).toBe("pt");
     expect(resolveLanguage({ browser: ["es-MX", "en"] })).toBe("es");
   });
   it("si nada sirve, espanol", () => {
-    expect(resolveLanguage({ sessionLocale: "fr", browser: ["pt-BR", "de"] })).toBe("es");
+    expect(resolveLanguage({ sessionLocale: "fr", browser: ["it-IT", "de"] })).toBe("es");
     expect(resolveLanguage({})).toBe("es");
     expect(DEFAULT_LANGUAGE).toBe("es");
   });
@@ -114,6 +127,24 @@ describe("el estado del idioma", () => {
 
     initLanguage(fakeEnv(["fr-FR"]).env);
     expect(getLanguage()).toBe("es");
+
+    const portuguese = fakeEnv(["pt-BR", "en"]);
+    initLanguage(portuguese.env);
+    expect(getLanguage()).toBe("pt");
+    expect(portuguese.doc.documentElement.lang).toBe("pt-BR"); // el idioma de la consola es `pt`; hacia fuera, portugues de Brasil
+    expect(portuguese.doc.title).toBe("Vectra Risk · Crédito imobiliário");
+    expect(uiLocales()).toBe("pt-BR");
+  });
+
+  it("las etiquetas hacia fuera (`<html lang>`, `ui_locales`) salen de un conjunto cerrado: es, en y pt-BR", () => {
+    expect(LANGUAGES).toEqual(["es", "en", "pt"]);
+    expect(LANGUAGE_TAGS).toEqual({ es: "es", en: "en", pt: "pt-BR" });
+    expect(uiLocales()).toBe("es");
+    chooseLanguage("en");
+    expect(uiLocales()).toBe("en");
+    chooseLanguage("pt");
+    expect(uiLocales()).toBe("pt-BR");
+    expect(ui("login_button")).toBe("Entrar");
   });
 
   it("arrancar no guarda nada: solo la eleccion explicita se guarda", () => {
@@ -144,9 +175,15 @@ describe("el estado del idioma", () => {
     expect(ui("login_button")).toBe("Iniciar sesión");
     expect(listener).toHaveBeenCalledTimes(2);
     expect(world.doc.documentElement.lang).toBe("es");
+    chooseLanguage("pt");
+    expect(ui("login_button")).toBe("Entrar");
+    expect(listener).toHaveBeenCalledTimes(3);
+    expect(world.doc.documentElement.lang).toBe("pt-BR");
+    expect(world.doc.title).toBe("Vectra Risk · Crédito imobiliário");
+    expect(world.state.stored).toBe("pt");
     unsubscribe();
     chooseLanguage("en");
-    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenCalledTimes(3);
   });
 
   it("el locale de get_me cuenta solo si no hay preferencia: con navegador en ingles, la sesion es-CO pasa a espanol; al cerrarla, vuelve el navegador", () => {
@@ -188,13 +225,16 @@ describe("la preferencia en el navegador (languageStorage)", () => {
     storage.write("en");
     expect(Object.entries(localStorage)).toEqual([[LANGUAGE_KEY, "en"]]);
     expect(storage.read()).toBe("en");
+    storage.write("pt");
+    expect(Object.entries(localStorage)).toEqual([[LANGUAGE_KEY, "pt"]]);
+    expect(storage.read()).toBe("pt");
     storage.write("es");
     expect(Object.entries(localStorage)).toEqual([[LANGUAGE_KEY, "es"]]);
     expect(sessionStorage.length).toBe(0);
     expect(document.cookie).toBe("");
   });
 
-  it.each(["fr", "EN", "en-US", "", "<script>", "null", '"en"'])("un valor guardado que no es «es» ni «en» (%s) es como si no hubiera", (value) => {
+  it.each(["fr", "EN", "en-US", "pt-BR", "PT", "", "<script>", "null", '"en"'])("un valor guardado que no es «es», «en» ni «pt» (%s) es como si no hubiera", (value) => {
     localStorage.setItem(LANGUAGE_KEY, value);
     expect(createLanguageStorage(window).read()).toBeNull();
   });
@@ -245,6 +285,20 @@ describe("textos por idioma", () => {
     expect(problemText({ code: "mfa_required" })).toBe("This action requires two-step verification.");
     expect(problemText({ code: "conflict_state", reason: "active_version_frozen" })).toBe("The active model version is frozen.");
     expect(problemText({ code: "algo_nuevo", correlation_id: "abc" })).toBe("Something unexpected went wrong. If it keeps happening, give this code to support: abc.");
+    chooseLanguage("pt");
+    expect(ui("session_role", { role: label("ROLES", "cumplimiento") })).toBe("Perfil: Compliance");
+    expect(ui("app_tagline")).toBe("Crédito imobiliário");
+    expect(notice("credit_not_integrated")).toBe("Situação do crédito não integrada");
+    expect(label("CELL_STATUSES", "muestra_insuficiente")).toBe("Amostra insuficiente");
+    expect(label("BANDS", "20_30")).toBe("De 20 a 30");
+    expect(ui("disparity_col_band")).toBe("Faixa");
+    expect(ui("session_with_mfa")).toBe("Verificação em duas etapas: em dia");
+    expect(label("ROLES", "inexistente" as never)).toBe("Valor sem texto");
+    expect(labelOrRaw("ATTRIBUTES", "rango_edad")).toBe("Faixa etária");
+    expect(labelOrRaw("ATTRIBUTES", "otro")).toBe("otro");
+    expect(channelText("b2b")).toBe("b2b");
+    expect(problemText({ code: "conflict_state", reason: "active_version_frozen" })).toBe("A versão ativa do modelo está congelada.");
+    expect(problemText({ code: "algo_nuevo", correlation_id: "abc" })).toBe("Ocorreu um erro inesperado. Se persistir, informe este código ao suporte: abc.");
     chooseLanguage("es");
     expect(label("CASE_STATES", "modelo_congelado")).toBe("Modelo congelado");
     expect(problemText({ code: "mfa_required" })).toBe("Esta acción requiere verificar tu identidad con un segundo factor.");
@@ -252,8 +306,22 @@ describe("textos por idioma", () => {
 });
 
 describe("fechas y numeros por idioma (Intl; zona de Bogota)", () => {
-  it("los locales: es-CO y en-GB", () => {
-    expect(LOCALES).toEqual({ es: "es-CO", en: "en-GB" });
+  it("los locales: es-CO, en-GB y pt-BR", () => {
+    expect(LOCALES).toEqual({ es: "es-CO", en: "en-GB", pt: "pt-BR" });
+  });
+
+  it("portugues de Brasil: coma decimal, punto de miles, fecha dia/mes/anio y hora de 24 h; los pesos siguen siendo COP, sin convertir", () => {
+    chooseLanguage("pt");
+    expect(safeDecimal("0.2438")).toBe("0,2438");
+    expect(safeDecimal("-0.0001")).toBe("-0,0001");
+    expect(formatDecimal("1234.5", 2)).toBe("1.234,50");
+    expect(formatDecimal("12345678901234567.1234")).toBe("12.345.678.901.234.567,1234"); // los digitos del servidor, sin recalcular
+    expect(formatCount(12345)).toBe("12.345");
+    expect(formatMoney(1500000).replace(/\s/g, " ")).toBe("COP 1.500.000"); // el mismo monto en pesos colombianos; nunca «R$»
+    expect(formatDate("2026-11-12T20:30:00Z")).toBe("12/11/2026, 15:30"); // 20:30 UTC = 15:30 en Bogota; dia/mes/anio, corto para que quepa en una columna
+    expect(formatDate("2026-11-13T02:00:00Z")).toBe("12/11/2026, 21:00"); // el dia es el de Bogota, no el de UTC ni el de Brasilia
+    expect(formatDay("2026-11-01")).toBe("01/11/2026");
+    expect(safeDecimal("n/d")).toBe("n/d");
   });
 
   it("espanol: coma decimal, punto de miles, dia/mes/anio, pesos con $", () => {

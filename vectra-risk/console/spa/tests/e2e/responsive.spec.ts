@@ -7,7 +7,7 @@
 // tienen longitudes distintas y el tema oscuro no debe cambiar ninguna medida: (1) espanol con el tema del sistema (claro), la de siempre, y
 // (2) ingles con el tema oscuro forzado. En las dos, los selectores estan en la cabecera, llegan a 44 px y su lista cabe en la ventana.
 import { type Page, expect, test } from "@playwright/test";
-import { CASES, control, EN, ES, FREEZE_ID, goTo, languageButton, loginAs, ORIGIN, seedPreferences, type Texts, themeButton } from "./support";
+import { CASES, control, EN, ES, FREEZE_ID, goTo, languageButton, loginAs, ORIGIN, PT, seedPreferences, type Texts, themeButton } from "./support";
 import { openCase } from "./tour";
 
 test.use({ baseURL: ORIGIN });
@@ -99,6 +99,8 @@ interface Variant {
 const VARIANTS: readonly Variant[] = [
   { name: "", t: ES, theme: "system" },
   { name: "en ingles y oscuro, ", t: EN, theme: "dark" },
+  // El portugues suele ser mas largo que el ingles (y a veces que el espanol): los mismos tamanos, de 360 px en adelante.
+  { name: "en portugues, ", t: PT, theme: "system" },
 ];
 
 // El fondo de la pagina de cada tema (`--bg` de `styles.css`).
