@@ -65,12 +65,19 @@ h1,
 
 .pf-v5-c-login__main-header {
   border-top-color: #14633F;
-  column-gap: 0;
 }
 
-/* El selector de idioma (es, en): keycloak.v2 reparte el encabezado en 70 % y 30 % mas un espacio entre columnas, y el
-   selector se salia 16 px de la columna del formulario; sin ese espacio queda alineado con los campos. */
+/* El selector de idioma (es, en, pt-BR): en escritorio keycloak.v2 reparte el encabezado en 70 % y 30 %, y en ese 30 % el
+   selector se salia de la columna del formulario y cortaba «Português (Brasil)». Va en una sola columna, bajo el titulo y
+   a todo el ancho, igual que en el movil. El selector repite el de keycloak.v2 para ganarle con la misma especificidad, y
+   el selector de idioma vuelve a la colocacion automatica (PatternFly lo fija en la segunda columna en escritorio). */
+div.pf-v5-c-login__main-header:has(.pf-v5-c-login__main-header-utilities) {
+  grid-template-columns: 100%;
+}
+
 .pf-v5-c-login__main-header-utilities {
+  grid-column: auto;
+  grid-row: auto;
   max-width: 100%;
 }
 

@@ -399,7 +399,7 @@ def svg_problems(text: str, allowed: set[str]) -> list[str]:
 CSS_PROPERTIES = {
     "background-color", "color", "content", "display", "width", "height", "margin",
     "background", "outline", "outline-offset",
-    "font-family", "max-width", "border-top-color", "top", "left", "right", "column-gap",
+    "font-family", "max-width", "border-top-color", "top", "left", "right", "grid-template-columns", "grid-column", "grid-row",
     # variables de PatternFly y de keycloak.v2 que el tema redefine (distinguen mayusculas: se comparan tal cual)
     "--keycloak-card-top-color", "--pf-v5-global--primary-color--100", "--pf-v5-global--primary-color--200",
     "--pf-v5-global--active-color--100", "--pf-v5-global--link--Color", "--pf-v5-global--link--Color--hover",
