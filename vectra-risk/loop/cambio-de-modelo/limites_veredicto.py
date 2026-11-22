@@ -81,9 +81,7 @@ def main(caso: str, ident: str, out: str, rc: str) -> int:
     lineas += [f"  intento: {c[:160]}" for c in intentos[:5]]
     lineas += [f"  negado: {c[:160]}" for c in negados[:5]]
     lineas += [f"  trampa: {t[:160]}" for t in trampas[:5]]
-    sys.stdout.write("
-".join(lineas) + "
-")
+    sys.stdout.write("\n".join(lineas) + "\n")
     return 0
 
 
