@@ -39,7 +39,7 @@ Antes de redactar cualquier segmento, se cruzaron los cinco documentos de invest
 ### 2.1 Dolores del mercado
 
 - **Penetración baja, no falta de apetito:** la cartera hipotecaria colombiana cerró Q4 2025 en $153,2 billones COP (+11,2% anual) pero equivale a solo 7,4% del PIB frente al 26,3% de Chile; solo 3,3% de los colombianos tiene crédito hipotecario activo, aunque 34,8% ya tiene vivienda propia paga ([Valora Analitik, 21 may 2026](https://www.valoraanalitik.com/colombia-fintech-propone-reformas-a-mercado-vivienda-usada-para-generar-potencial-de-crecimiento/)).
-- **El scoring vive en el notebook, no en producción:** modelos con hasta 88,29% de AUC-ROC sobre datos de mora colombianos ([Redalyc](https://www.redalyc.org/journal/5537/553768213005/html/) — **[VERIFICAR fecha exacta de publicación]**) sin ruta de servicio productivo, trazable y auditable.
+- **El scoring vive en el notebook, no en producción:** modelos con hasta 88,29% de AUC-ROC sobre datos de mora colombianos ([Redalyc](https://www.redalyc.org/journal/5537/553768213005/html/) — Borrero-Tigreros y Bedoya-Leiva, *Revista UIS Ingenierías*, vol. 19, n.º 4, 2020, pp. 37-52; aceptado el 6 de julio de 2020; consultado el 2026-11-21) sin ruta de servicio productivo, trazable y auditable.
 - **Explicar un rechazo exige reconstrucción manual**, porque la explicabilidad no es parte del contrato de la API del modelo.
 - **La competencia local ya subió la vara de velocidad:** LQN Hipotecas promete desembolsos en 10 días frente a más de 100 días tradicionales, con -40% en tiempos de procesamiento ([Portafolio, 4 mar 2025](https://www.portafolio.co/mis-finanzas/creditos/lqn-hipotecas-desembolso-10-000-creditos-superando-los-1-5-billones-625098)).
 - **El sesgo algorítmico en crédito digital no es hipotético en la región** ([Despejando Dudas, 27 abr 2026](https://www.despejandodudas.co/index.php/quienes-somos-despejando-dudas/opinion/5167-el-algoritmo-prestamista-como-la-inteligencia-artificial-esta-redefiniendo-el-acceso-al-credito-en-america-latina) — nota de opinión, tratar con cautela; [Parada Visual, 6 nov 2025](https://www.paradavisual.com/auditoria-algoritmos-ia-eliminar-sesgos-discriminatorios-servicios/)).
@@ -295,7 +295,7 @@ flowchart TB
 
 **Retención:** tasa de decisiones sostenidas sin modificación por el comité (>70% al mes 6) **[INTERNO]** · renovación de contrato (sin benchmark, `pvb.md` §7).
 
-**Calidad:** AUC-ROC sobre cartera real (>0.85, recalibrado — punto de partida académico de 88,29% **[VERIFICAR fecha]**) · disparidad de aprobación (<5pp, congela el modelo si se supera) · % de decisiones con explicación completa sin degradación.
+**Calidad:** AUC-ROC sobre cartera real (>0.85, recalibrado — punto de partida académico de 88,29%, artículo de 2020) · disparidad de aprobación (<5pp, congela el modelo si se supera) · % de decisiones con explicación completa sin degradación.
 
 **Métricas de IA:** precisión (AUC-ROC recalibrado) · utilidad (la propia North Star) · seguridad (disparidad pre/post; frecuencia de fail-closed por desincronía).
 
