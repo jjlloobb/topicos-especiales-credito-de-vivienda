@@ -159,7 +159,11 @@
   },
   "CHANNELS": {
     "web": "Web",
-    "manual": "Manual"
+    "manual": "Manual",
+    "sucursal": "Sucursal",
+    "digital": "Digital",
+    "corresponsal": "Corresponsal bancario",
+    "aliado_inmobiliario": "Aliado inmobiliario"
   },
   "EMPLOYMENT_TYPES": {
     "asalariado": "Asalariado",

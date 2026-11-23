@@ -87,7 +87,7 @@ export function formatCount(value: number): string {
   return new Intl.NumberFormat(locale(), { maximumFractionDigits: 0 }).format(value);
 }
 
-/** El texto de un canal: el catalogo lo conoce para los filtrables; cualquier otro se muestra tal cual (es un codigo, no un dato personal). */
+/** El texto de un canal: el catalogo conoce los filtrables y los canales de originacion (sucursal, digital, corresponsal, aliado inmobiliario); cualquier otro se muestra tal cual (es un codigo, no un dato personal). */
 export function channelText(channel: string): string {
   return (labelsNow().CHANNELS as Record<string, string>)[channel] ?? channel;
 }

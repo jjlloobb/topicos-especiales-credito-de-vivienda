@@ -159,7 +159,11 @@
   },
   "CHANNELS": {
     "web": "Web",
-    "manual": "Manual"
+    "manual": "Manual",
+    "sucursal": "Agência",
+    "digital": "Digital",
+    "corresponsal": "Correspondente bancário",
+    "aliado_inmobiliario": "Parceiro imobiliário"
   },
   "EMPLOYMENT_TYPES": {
     "asalariado": "Assalariado",
