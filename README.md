@@ -127,9 +127,9 @@ Contra `kind-vectra`, con 56 Applications `Healthy`. Evidencia en `main` desde e
 | D3 | El sistema no puede escribir en el core del banco | La malla deniega con 403; alerta `CoreWriteAttempt`; contador del mock en 0. **Pasa** |
 | D1 | Sin explicación no hay recomendación | Con el flujo F22 apagado por un PR: 0 recomendaciones y 5 casos a «No disponible» en unos 16 min. **Pasa**, tras corregir un oráculo |
 | D2 | Un modelo con sesgo se congela solo | Disparidad por región de 0,2438 contra un límite de 0,1418; congelado en 520,7 s (límite 1 800 s); rollback por PR. **Pasa**. El modo «presenter» no se ejecutó |
-| D4 | Tablero de producto | 2 000 solicitudes decididas en 15 min 28 s. Al día UTC siguiente (22 nov, 02:33) las series y el tablero dan `pasa`. **Pasa**. El tablero solo se abre por enlace directo (H-13) |
+| D4 | Tablero de producto | 2 000 solicitudes decididas en 15 min 28 s. Al día UTC siguiente (22 nov, 02:33) las series y el tablero dan `pasa`. **Pasa**. Ese día el tablero solo se abría por enlace directo (H-13, corregido después) |
 
-La verificación encontró trece hallazgos (H-1 a H-13). Los corregidos tienen su PR: #223, #225, #229, #235, #242 y #243. **Sigue abierto el H-13:** Grafana tiene al menos 5 000 carpetas «Vectra» y 5 000 «Operación» duplicadas, y el tablero no se encuentra navegando (`09-d4-u11-y-grafana.md`).
+La verificación encontró trece hallazgos (H-1 a H-13). Los corregidos tienen su PR: #223, #225, #229, #235, #242 y #243. **El H-13 se corrigió después de la verificación** (PR #254): Grafana había acumulado 49 345 carpetas duplicadas porque la anotación `Vectra / Operación`, con espacios junto a la barra, hacía que creara una carpeta nueva cada vez que el cargador reescribía un tablero (`09-d4-u11-y-grafana.md`). Ahora cada carpeta se declara con UID fijo; el 23 de noviembre el conteo dejó de crecer y los cinco tableros quedaron en sus dos carpetas. La limpieza de las carpetas vacías empezó ese día con un guion que solo borra las vacías.
 
 **Interfaz.** La consola tiene tema responsive, tres idiomas (español, inglés y portugués de Brasil) y tema claro u oscuro; el login de Keycloak sigue el mismo tema e idioma (PR #235, #247, #251, #241 y #244, desplegados en kind). Las traducciones al portugués no las ha revisado nadie que hable el idioma.
 
@@ -230,7 +230,7 @@ Solo hechos de este repositorio; no hay una comparación controlada.
 - **Madurez.** Corre en un portátil, nunca en producción. FICO publica una migración real en 7 meses.
 - **Datos.** Todo es sintético. LQN procesa unas 20.000 operaciones al año (Forbes, misma nota).
 - **Cobertura.** Carga, resiliencia, PII y red negada no se ejecutaron: 25 elementos del informe dicen «no ejecutado».
-- **Operación.** Grafana quedó con miles de carpetas duplicadas (H-13); el arreglo está en curso y no lo doy por hecho.
+- **Operación.** Grafana acumuló 49 345 carpetas duplicadas durante tres semanas sin que ninguna alerta lo notara (H-13). Lo encontró la verificación manual, no el monitoreo.
 - **Costo del loop.** Más lento y más caro en tokens que un agente sin revisor. No medí cuánto.
 - **Comparación incompleta.** No hay precios públicos de ningún competidor.
 
@@ -327,6 +327,6 @@ Los siete que más pesan. La tabla completa está en [`riesgos.md`](vectra-risk/
 | La explicación se desincroniza del score | Fail-closed: sin explicación no hay recomendación | Medido en D1 |
 | Un modelo sesgado sigue decidiendo | `CronJob` que congela el modelo | Medido en D2: 520,7 s |
 | El sistema escribe en el core del banco | La malla lo deniega y una alerta avisa | Medido en D3 |
-| Grafana con miles de carpetas duplicadas (H-13) | Abrir el tablero por enlace directo; causa y limpieza en curso | **Abierto** |
+| Grafana con miles de carpetas duplicadas (H-13) | Corregido en el PR #254 y comprobado en kind; queda terminar de borrar las carpetas vacías. Respaldo: abrir el tablero por enlace directo | **Mitigado** |
 | Solo existe en kind | Manifiestos de staging y producción conservados | Sin desplegar |
 | Dependencias que pierden soporte: el repositorio de MinIO está [archivado](https://github.com/minio/minio) desde el 25 abr 2026, y CloudNativePG [retira](https://cloudnative-pg.io/docs/1.30/release_notes/v1.30) el Barman Cloud nativo | S3 del banco fuera de kind; migrar al plugin de Barman | Decidido, sin implementar |
