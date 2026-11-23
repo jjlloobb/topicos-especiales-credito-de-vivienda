@@ -33,6 +33,7 @@ const SAME_AS_SPANISH_EN = [
   "OUTCOMES.favorable",
   "CHANNELS.web",
   "CHANNELS.manual",
+  "CHANNELS.digital",
 ];
 
 // Se escriben igual en espanol y en portugues de Brasil: son lenguas hermanas y estas palabras coinciden letra por letra («Canal», «Estado»,
@@ -51,7 +52,7 @@ const SAME_AS_SPANISH_PT = [
   "ENTRY_TYPES.policy_event", "FAIL_CLOSED_CAUSES.model_frozen", "LOG_EVENTS.case.viewed", "ROLES.analista", "SCOPES.case:recommend",
   "SCOPES.governance:freeze", "SCOPES.governance:promotion", "SCOPES.registry:append:case", "SERVING_STATES.congelado", "MODEL_STATES.registrado",
   "MODEL_STATES.congelado", "MODEL_STATES.retirado", "RESOLUTION_ACTIONS.descartar", "RESOLUTION_ACTIONS.investigar", "ATTRIBUTES.sexo",
-  "ATTRIBUTES.estrato", "BANDS.lt_20", "BANDS.20_30", "CHANNELS.web", "CHANNELS.manual", "GROUPS.M", "GROUPS.andina", "GROUPS.caribe",
+  "ATTRIBUTES.estrato", "BANDS.lt_20", "BANDS.20_30", "CHANNELS.web", "CHANNELS.manual", "CHANNELS.digital", "GROUPS.M", "GROUPS.andina", "GROUPS.caribe",
   "GROUPS.pacifica", "GROUPS.insular",
 ];
 const SAME_AS_SPANISH = { en: SAME_AS_SPANISH_EN, pt: SAME_AS_SPANISH_PT } as const;
@@ -100,7 +101,7 @@ describe("paridad de los catalogos es / en / pt", () => {
     const english = new Map([...allStrings(messagesEn), ...allStrings(labelsEn)]);
     const same = [...allStrings(messagesPt), ...allStrings(labelsPt)].filter(([path, text]) => english.get(path) === text).map(([path]) => path);
     expect(same.sort()).toEqual(
-      ["ui.app_title", "ui.document_title_view", "ROLES.cumplimiento", "ui.language_name_es", "ui.language_name_en", "ui.language_name_pt", "ui.freeze_source_item", "CHANNELS.web", "CHANNELS.manual"].sort(),
+      ["ui.app_title", "ui.document_title_view", "ROLES.cumplimiento", "ui.language_name_es", "ui.language_name_en", "ui.language_name_pt", "ui.freeze_source_item", "CHANNELS.web", "CHANNELS.manual", "CHANNELS.digital"].sort(),
     );
   });
 

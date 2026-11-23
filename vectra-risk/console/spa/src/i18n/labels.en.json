@@ -159,7 +159,11 @@
   },
   "CHANNELS": {
     "web": "Web",
-    "manual": "Manual"
+    "manual": "Manual",
+    "sucursal": "Branch",
+    "digital": "Digital",
+    "corresponsal": "Banking correspondent",
+    "aliado_inmobiliario": "Real estate partner"
   },
   "EMPLOYMENT_TYPES": {
     "asalariado": "Salaried",

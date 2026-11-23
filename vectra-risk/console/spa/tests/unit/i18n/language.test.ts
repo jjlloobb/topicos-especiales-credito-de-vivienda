@@ -281,6 +281,7 @@ describe("textos por idioma", () => {
     expect(labelOrRaw("ATTRIBUTES", "sexo")).toBe("Sex");
     expect(labelOrRaw("ATTRIBUTES", "otro")).toBe("otro");
     expect(channelText("manual")).toBe("Manual");
+    expect(["sucursal", "digital", "corresponsal", "aliado_inmobiliario"].map(channelText)).toEqual(["Branch", "Digital", "Banking correspondent", "Real estate partner"]);
     expect(channelText("b2b")).toBe("b2b");
     expect(problemText({ code: "mfa_required" })).toBe("This action requires two-step verification.");
     expect(problemText({ code: "conflict_state", reason: "active_version_frozen" })).toBe("The active model version is frozen.");
@@ -296,6 +297,7 @@ describe("textos por idioma", () => {
     expect(label("ROLES", "inexistente" as never)).toBe("Valor sem texto");
     expect(labelOrRaw("ATTRIBUTES", "rango_edad")).toBe("Faixa etária");
     expect(labelOrRaw("ATTRIBUTES", "otro")).toBe("otro");
+    expect(["sucursal", "digital", "corresponsal", "aliado_inmobiliario"].map(channelText)).toEqual(["Agência", "Digital", "Correspondente bancário", "Parceiro imobiliário"]);
     expect(channelText("b2b")).toBe("b2b");
     expect(problemText({ code: "conflict_state", reason: "active_version_frozen" })).toBe("A versão ativa do modelo está congelada.");
     expect(problemText({ code: "algo_nuevo", correlation_id: "abc" })).toBe("Ocorreu um erro inesperado. Se persistir, informe este código ao suporte: abc.");
