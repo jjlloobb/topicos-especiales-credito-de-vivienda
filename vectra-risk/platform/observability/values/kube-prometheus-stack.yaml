@@ -114,4 +114,16 @@ grafana:
       label: vectra.io/dashboard
       searchNamespace: ALL # K19, INF-U9-05: los dashboards de cada unidad viven en su namespace
       folderAnnotation: grafana_folder
-      provider: { foldersFromFilesStructure: true }
+      # Sin el proveedor unico del chart: con `foldersFromFilesStructure`, la anotacion `Vectra / Operación` se volvia los directorios `Vectra ` y ` Operación`;
+      # Grafana guarda el titulo recortado, busca la carpeta por el nombre sin recortar, no la encuentra y crea otra cada vez que el sidecar reescribe un tablero
+      # (43 819 carpetas en kind, 2026-11-22). Los proveedores van abajo, en `dashboardProviders`: uno por carpeta, con su UID fijo.
+      SCProvider: false
+  # Un proveedor por carpeta de `platform/observability/grafana/folder-permissions.yaml` que ya tiene tableros: mismo `uid` y `title`, asi el tablero queda en la
+  # carpeta a la que el Job `grafana-folder-permissions` da permisos (F110). `path` es el directorio del sidecar mas el valor de la anotacion `grafana_folder`.
+  # Una carpeta nueva (o el primer tablero de `Vectra / Sesgo`) pide su proveedor aqui: sin el, Grafana no carga el tablero. Lo vigila `platform/tests/test_grafana_folders.py`.
+  dashboardProviders:
+    vectra-dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - { name: vectra-producto, orgId: 1, type: file, folder: "Vectra / Producto", folderUid: vectra-producto, disableDeletion: false, allowUiUpdates: false, updateIntervalSeconds: 30, options: { path: "/tmp/dashboards/Vectra / Producto", foldersFromFilesStructure: false } }
+        - { name: vectra-operacion, orgId: 1, type: file, folder: "Vectra / Operación", folderUid: vectra-operacion, disableDeletion: false, allowUiUpdates: false, updateIntervalSeconds: 30, options: { path: "/tmp/dashboards/Vectra / Operación", foldersFromFilesStructure: false } }
