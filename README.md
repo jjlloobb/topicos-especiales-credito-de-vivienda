@@ -258,8 +258,6 @@ El sistema funciona con otro modelo, pero el límite dado por instrucción fall�
 
 No digo que ningún modelo podrá hacerlo: digo que un modelo mejor sigue necesitando los mismos límites.
 
-**Un ejemplo de lo que un modelo nuevo añade sin mover lo propio.** Mejora prevista y no construida: dictar la justificación de una decisión con un modelo de voz a texto alojado en el clúster. La voz ayuda a redactar; la persona corrige y firma, y el registro guarda el texto aprobado. Lo transcrito nunca entra al scoring. Detalle en [`mejoras.md`](vectra-risk/aidlc-docs/construction/system-verification/evidence/sustentacion/mejoras.md).
-
 ---
 
 ## 6. Moat
