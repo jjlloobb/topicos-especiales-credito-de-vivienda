@@ -131,6 +131,10 @@ Contra `kind-vectra`, con 56 Applications `Healthy`. Evidencia en `main` desde e
 
 La verificación encontró trece hallazgos (H-1 a H-13). Los corregidos tienen su PR: #223, #225, #229, #235, #242 y #243. **El H-13 se corrigió después de la verificación** (PR #254): Grafana había acumulado 49 345 carpetas duplicadas porque la anotación `Vectra / Operación`, con espacios junto a la barra, hacía que creara una carpeta nueva cada vez que el cargador reescribía un tablero (`09-d4-u11-y-grafana.md`). Ahora cada carpeta se declara con UID fijo; el 23 de noviembre el conteo dejó de crecer y los cinco tableros quedaron en sus dos carpetas. La limpieza terminó ese mismo día con un guion que solo borra las vacías: 49 342 borradas, quedan las tres carpetas declaradas y los cinco tableros.
 
+**Un caso de punta a punta, el 27 de noviembre de 2026.** Una solicitud enviada por el canal quedó «Listo» en 5 s, con su recomendación y su entrada en el registro; el analista registró la decisión en la consola y el caso pasó a «Decidido». La secuencia y los estados están en [`diagrama-caso-credito-vivienda.md`](vectra-risk/docs/diagrama-caso-credito-vivienda.md), y el recorrido grabado, en la presentación.
+
+**Tableros.** Desde el PR #260 Grafana tiene siete: a los cinco anteriores se suman «Clúster y rendimiento» (nodos, pods, CPU, memoria, latencias) y «Casos, usuarios y roles» (recomendaciones, tiempo hasta «Listo», inicios de sesión). Prometheus no tiene una métrica por rol ni el número de casos por estado; esos dos tableros lo dicen.
+
 **Interfaz.** La consola tiene tema responsive, tres idiomas (español, inglés y portugués de Brasil) y tema claro u oscuro; el login de Keycloak sigue el mismo tema e idioma (PR #235, #247, #251, #241 y #244, desplegados en kind). Las traducciones al portugués no las ha revisado nadie que hable el idioma.
 
 ---
@@ -315,6 +319,8 @@ Un Python de Anaconda trae su propio paquete de autoridades y no lee el del sist
 **Glosarios.** [`glosario-negocio.md`](vectra-risk/docs/glosario-negocio.md) y [`glosario-tecnologia.md`](vectra-risk/docs/glosario-tecnologia.md).
 
 **Diagramas y presentación.** En [`vectra-risk/docs/`](vectra-risk/docs/): [arquitectura](vectra-risk/docs/diagrama-arquitectura.md), [componentes tecnológicos](vectra-risk/docs/diagrama-componentes-tecnologicos.md), [clúster](vectra-risk/docs/diagrama-cluster.md), [infraestructura](vectra-risk/docs/diagrama-infraestructura.md), [caso completo de crédito de vivienda](vectra-risk/docs/diagrama-caso-credito-vivienda.md), [viaje de los usuarios](vectra-risk/docs/diagrama-viaje-usuarios.md) y [loop de agentes](vectra-risk/docs/diagrama-loop-agentes.md), cada uno con su explicación; y la presentación de la sustentación, [`sustentacion-vectra-risk.pptx`](vectra-risk/docs/sustentacion-vectra-risk.pptx).
+
+**Para operar y mostrar el sistema.** [`comandos-kubectl.md`](vectra-risk/docs/comandos-kubectl.md): órdenes de solo lectura para enseñar nodos, pods, servicios, tareas, rutas, seguridad y GitOps. [`usuarios-y-roles.md`](vectra-risk/docs/usuarios-y-roles.md): los diez usuarios sintéticos, su rol, qué ven y qué puede hacer cada uno en la consola (sin credenciales).
 
 ---
 
