@@ -320,7 +320,7 @@ Un Python de Anaconda trae su propio paquete de autoridades y no lee el del sist
 
 **Diagramas y presentación.** En [`vectra-risk/docs/`](vectra-risk/docs/): [arquitectura](vectra-risk/docs/diagrama-arquitectura.md), [componentes tecnológicos](vectra-risk/docs/diagrama-componentes-tecnologicos.md), [clúster](vectra-risk/docs/diagrama-cluster.md), [infraestructura](vectra-risk/docs/diagrama-infraestructura.md), [caso completo de crédito de vivienda](vectra-risk/docs/diagrama-caso-credito-vivienda.md), [viaje de los usuarios](vectra-risk/docs/diagrama-viaje-usuarios.md) y [loop de agentes](vectra-risk/docs/diagrama-loop-agentes.md), cada uno con su explicación; y la presentación de la sustentación, [`sustentacion-vectra-risk.pptx`](vectra-risk/docs/sustentacion-vectra-risk.pptx).
 
-**Para operar y mostrar el sistema.** [`comandos-kubectl.md`](vectra-risk/docs/comandos-kubectl.md): órdenes de solo lectura para enseñar nodos, pods, servicios, tareas, rutas, seguridad y GitOps. [`usuarios-y-roles.md`](vectra-risk/docs/usuarios-y-roles.md): los diez usuarios sintéticos, su rol, qué ven y qué puede hacer cada uno en la consola (sin credenciales).
+**Para operar y mostrar el sistema.** [`recursos-del-cluster.md`](vectra-risk/docs/recursos-del-cluster.md): qué hace cada servicio, pod y tarea del clúster y qué parte del caso de negocio sostiene. [`comandos-kubectl.md`](vectra-risk/docs/comandos-kubectl.md): órdenes de solo lectura para enseñar nodos, pods, servicios, tareas, rutas, seguridad y GitOps. [`usuarios-y-roles.md`](vectra-risk/docs/usuarios-y-roles.md): los diez usuarios sintéticos, su rol, qué ven y qué puede hacer cada uno en la consola (sin credenciales).
 
 ---
 

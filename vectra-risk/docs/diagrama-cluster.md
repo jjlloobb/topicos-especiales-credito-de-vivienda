@@ -149,8 +149,8 @@ Las siete `HTTPRoute` de `vectra-edge` son todo lo que se puede alcanzar desde f
 | Tarea | Namespace | Horario (UTC) | Qué hace |
 |---|---|---|---|
 | `bias-monitoring-job` | `vectra-app` | Minutos 2, 17, 32 y 47 de cada hora | Mide la disparidad entre grupos y congela el modelo si supera el límite |
-| `registry-aggregator` | `vectra-app` | Cada 5 minutos | Calcula los agregados del registro de decisiones |
-| `signing-key-age` | `vectra-identity` | Cada hora | Vigila la edad de las llaves de firma de Keycloak |
+| `registry-aggregator` | `vectra-app` | Cada 5 minutos | Cuenta las recomendaciones y decisiones del registro en tablas de totales, sin contar dos veces |
+| `signing-key-age` | `vectra-identity` | Cada hora | Publica la fecha de la llave de firma de Keycloak; una alerta salta si pasa de 80 días |
 | `realm-drift` | `vectra-identity` | 03:00 (22:00 de Colombia) | Compara el realm de Keycloak con el declarado en Git |
 | `grafana-folder-check` | `vectra-observability` | Cada 30 minutos | Comprueba que las carpetas de Grafana sean las declaradas |
 | `restore-drill` | `vectra-restore-drill` | Domingos a las 02:00 | Simulacro de restauración de un respaldo |
@@ -197,4 +197,4 @@ Las siete `HTTPRoute` de `vectra-edge` son todo lo que se puede alcanzar desde f
 
 - Es una foto del 27 de noviembre de 2026 en kind. Las réplicas están fijadas por el presupuesto de memoria del portátil, no por la carga.
 - No dibuja cada `Service`, `NetworkPolicy` ni `ExternalSecret`; hay 71 `ExternalSecret` y cientos de políticas de red generadas.
-- La descripción de `registry-aggregator` y de `signing-key-age` sale de sus nombres y de los comentarios de sus charts; no leí su código.
+- Qué hace cada recurso y qué parte del negocio sostiene está en [`recursos-del-cluster.md`](recursos-del-cluster.md); la descripción de las tareas programadas sale de su código.
