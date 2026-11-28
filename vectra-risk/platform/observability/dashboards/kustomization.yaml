@@ -9,3 +9,5 @@ configMapGenerator:
   - { name: dashboard-resiliencia, files: [resiliencia.json], options: { annotations: { grafana_folder: "Vectra / Operación" } } }
   - { name: dashboard-operacion, files: [operacion.json], options: { annotations: { grafana_folder: "Vectra / Operación" } } }
   - { name: dashboard-slo, files: [slo.json], options: { annotations: { grafana_folder: "Vectra / Operación" } } }
+  - { name: dashboard-cluster, files: [cluster.json], options: { annotations: { grafana_folder: "Vectra / Operación" } } }
+  - { name: dashboard-casos-usuarios, files: [casos-usuarios.json], options: { annotations: { grafana_folder: "Vectra / Operación" } } }
