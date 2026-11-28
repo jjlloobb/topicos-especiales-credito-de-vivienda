@@ -196,7 +196,8 @@ Sin MCP: en `U01-T04` el codificador halló el defecto en un archivo prohibido, 
 - **Una sola sesión** de Claude Code, con subagentes de contexto propio. No son tres procesos independientes.
 - **El orquestador operó el clúster kind** desde el 14 de noviembre, con aprobación orden por orden ([`DECISIONES-LOOP.md`](vectra-risk/DECISIONES-LOOP.md), §11). «El agente no aplica por su cuenta» se sostiene; «el agente nunca aplica» no.
 - **Siete PR se fusionaron antes de que su revisor entregara**, con CI en verde.
-- **Sin hacer:** grabación de respaldo; RT3-b; el modo «presenter» de D2 de punta a punta. De ese modo se probó aparte, el 21 de noviembre, la mitad de navegador del segundo factor contra el Keycloak real (ventana emergente, vuelta y `acr`, con un 409 esperado); esa evidencia aún no está en el repositorio.
+- **Grabación de respaldo:** hecha. Tres videos, incrustados en la presentación ([`sustentacion-vectra-risk.pptx`](vectra-risk/docs/sustentacion-vectra-risk.pptx)): la arquitectura y el loop con la demo (ensayo del 23 de noviembre) y un caso de crédito de inicio a fin (27 de noviembre, contra kind). No tienen audio; llevan subtítulos.
+- **Sin hacer:** RT3-b; el modo «presenter» de D2 de punta a punta. De ese modo se probó aparte, el 21 de noviembre, la mitad de navegador del segundo factor contra el Keycloak real (ventana emergente, vuelta y `acr`, con un 409 esperado); esa evidencia aún no está en el repositorio.
 
 ---
 
@@ -312,6 +313,8 @@ Un Python de Anaconda trae su propio paquete de autoridades y no lee el del sist
 **Lo que no garantizo.** La instalación nunca se hizo de una vez en una máquina limpia, y las demos toman dos días de calendario.
 
 **Glosarios.** [`glosario-negocio.md`](vectra-risk/docs/glosario-negocio.md) y [`glosario-tecnologia.md`](vectra-risk/docs/glosario-tecnologia.md).
+
+**Diagramas y presentación.** En [`vectra-risk/docs/`](vectra-risk/docs/): [arquitectura](vectra-risk/docs/diagrama-arquitectura.md), [componentes tecnológicos](vectra-risk/docs/diagrama-componentes-tecnologicos.md), [clúster](vectra-risk/docs/diagrama-cluster.md), [infraestructura](vectra-risk/docs/diagrama-infraestructura.md), [caso completo de crédito de vivienda](vectra-risk/docs/diagrama-caso-credito-vivienda.md), [viaje de los usuarios](vectra-risk/docs/diagrama-viaje-usuarios.md) y [loop de agentes](vectra-risk/docs/diagrama-loop-agentes.md), cada uno con su explicación; y la presentación de la sustentación, [`sustentacion-vectra-risk.pptx`](vectra-risk/docs/sustentacion-vectra-risk.pptx).
 
 ---
 
